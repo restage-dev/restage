@@ -362,7 +362,7 @@ SurfaceType? resolveSurfaceTypeArg({
   return type;
 }
 
-/// Return a customer-facing error message for a typed [SurfaceException].
+/// Return a user-facing error message for a typed [SurfaceException].
 ///
 /// Use this instead of [SurfaceException.toString] in command error paths so
 /// users see legible messages rather than internal debug representations.

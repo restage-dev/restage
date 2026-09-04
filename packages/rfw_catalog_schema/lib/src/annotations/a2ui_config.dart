@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 import 'package:meta/meta_meta.dart';
 
-/// A2UI-specific configuration for a customer widget catalog entry.
+/// A2UI-specific configuration for a custom widget catalog entry.
 ///
 /// Use the unnamed constructor to set multiple values together, or compose
 /// named constructors when each value is clearer as a separate annotation.
@@ -16,7 +16,7 @@ final class Config {
     this.writeBackValue,
   });
 
-  /// Controls whether the annotated customer widget participates in A2UI emit.
+  /// Controls whether the annotated custom widget participates in A2UI emit.
   // ignore: avoid_positional_boolean_parameters
   const Config.enabled(bool enabled) : this(enabled: enabled);
 
@@ -31,7 +31,7 @@ final class Config {
   const Config.writeBackValue(String writeBackValue)
       : this(writeBackValue: writeBackValue);
 
-  /// Whether this customer widget participates in A2UI emit.
+  /// Whether this custom widget participates in A2UI emit.
   ///
   /// `null` keeps the default enabled behavior. This key is valid only on an
   /// `@RestageWidget` class.

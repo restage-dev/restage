@@ -6,7 +6,7 @@ import 'package:rfw_catalog_schema/src/widget_library.dart';
 /// [library].
 ///
 /// Authored as a top-level annotation on any sentinel const in the
-/// customer package's barrel — e.g.
+/// custom package's barrel — e.g.
 /// `lib/restage_imports.dart`. The compiler walks the annotated
 /// package looking for `@RestageWidget`-annotated classes,
 /// `@RestageStructuredType` declarations, `@RestageUnionVariant`

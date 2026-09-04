@@ -1,15 +1,15 @@
 // Nested-composition end-to-end smokes covering every combination of
-// curated (rfw built-in) and customer widgets the runtime might see at
+// curated (rfw built-in) and custom widgets the runtime might see at
 // render time:
 //
-//   1. curated containing customer: Column(children: [AcmeMarker, Text])
-//   2. customer containing curated: AcmeBorder(child: Text)
-//   3. customer containing customer: AcmeBorder(child: AcmeMarker)
+//   1. curated containing custom: Column(children: [AcmeMarker, Text])
+//   2. custom containing curated: AcmeBorder(child: Text)
+//   3. custom containing custom: AcmeBorder(child: AcmeMarker)
 //   4. mixed deep tree: AcmeStack([Column([AcmeBorder(AcmeMarker)]), Text])
 //
 // Each case asserts no exceptions surface during pumpAndSettle and that
 // the canonical child / children slots resolve to the expected widgets.
-// The customer fixtures are private to this test file so `find.byType`
+// The custom fixtures are private to this test file so `find.byType`
 // against them stays unambiguous regardless of any incidental tree
 // composition the curated builders introduce.
 
@@ -36,7 +36,7 @@ class _StaticResolver implements VariantResolver {
 
 const _kFixturesLibrary = WidgetLibrary.custom('acme.fixtures');
 
-/// Customer fixture: wraps a single child in a colored border. Exists
+/// Custom fixture: wraps a single child in a colored border. Exists
 /// only to make `find.byType(_AcmeBorderFixture)` unambiguous in the
 /// rendered tree.
 class _AcmeBorderFixture extends StatelessWidget {
@@ -49,7 +49,7 @@ class _AcmeBorderFixture extends StatelessWidget {
       );
 }
 
-/// Customer fixture: overlays a list of children. Same uniqueness role
+/// Custom fixture: overlays a list of children. Same uniqueness role
 /// as `_AcmeBorderFixture`.
 class _AcmeStackFixture extends StatelessWidget {
   const _AcmeStackFixture({required this.children});
@@ -120,7 +120,7 @@ void main() {
     _registerFixtures();
   });
 
-  testWidgets('curated containing customer: Column of [AcmeMarker, Text]',
+  testWidgets('curated containing custom: Column of [AcmeMarker, Text]',
       (tester) async {
     const source = '''
       import restage.core;
@@ -141,7 +141,7 @@ void main() {
     expect(find.text('after'), findsOneWidget);
   });
 
-  testWidgets('customer containing curated: AcmeBorder(child: Text)',
+  testWidgets('custom containing curated: AcmeBorder(child: Text)',
       (tester) async {
     const source = '''
       import restage.core;
@@ -158,7 +158,7 @@ void main() {
     expect(find.text('wrapped'), findsOneWidget);
   });
 
-  testWidgets('customer containing customer: AcmeBorder(child: AcmeMarker)',
+  testWidgets('custom containing custom: AcmeBorder(child: AcmeMarker)',
       (tester) async {
     const source = '''
       import acme.fixtures;

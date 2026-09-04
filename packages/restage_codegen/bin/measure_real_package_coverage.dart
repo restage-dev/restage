@@ -18,7 +18,7 @@ import 'package:restage_codegen/src/coverage_measurement/real_package_scanner.da
 /// per-bucket snapshot.
 ///
 /// The reference catalog is the three committed built-in library catalogs of
-/// this workspace; measuring against a customer's own catalog version is a
+/// this workspace; measuring against an app's own catalog version is a
 /// future refinement.
 Future<void> main(List<String> args) async {
   final positional = args.where((a) => !a.startsWith('--')).toList();

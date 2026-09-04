@@ -215,7 +215,7 @@ final class ComposableWidget extends WidgetClassification {
 
 /// App-backed imperative widget: `build()` or `State` contains a construct RFW's
 /// declarative blob format cannot express. Its composition is not transpilable;
-/// a registered customer catalog can expose it through a runtime factory.
+/// a registered custom catalog can expose it through a runtime factory.
 final class ImperativeWidget extends WidgetClassification {
   /// Creates an imperative classification. [blockers] must be non-empty;
   /// `blockers.first` is the construct the diagnostic names.

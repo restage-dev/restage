@@ -16,7 +16,7 @@ import '../helpers.dart';
 /// Unit coverage for `assembleA2uiSeams` — the resolver-fed seam assembly that
 /// the production build phase drives off `buildStep.resolver`. The function is
 /// the unification of the regen proofs' inline `_eventSeam` / `_pairingSeam` /
-/// `_richShapes` legs into one catalog-driven pass: for each customer
+/// `_richShapes` legs into one catalog-driven pass: for each custom
 /// `WidgetEntry` property, an `event` property reflects its constructor
 /// parameter into the event seam (+ threads resolved
 /// `@a2ui.Config.writeBackValues` into the pairing seam), a `structured`
@@ -53,7 +53,7 @@ ClassElement _classFor(ResolvedLibraryResult library, String name) =>
 
 /// Pairs a hand-built catalog entry with its resolved fixture class — the shape
 /// `assembleA2uiSeams` consumes (the production builder matches the merged
-/// catalog's customer widgets to the resolved `@RestageWidget` elements by
+/// catalog's custom widgets to the resolved `@RestageWidget` elements by
 /// name).
 ({WidgetEntry entry, ClassElement element}) _widget(
   ResolvedLibraryResult library,
@@ -277,7 +277,7 @@ void main() {
     });
   });
 
-  group('assembleA2uiSeams — ordinary customer enum leaves', () {
+  group('assembleA2uiSeams — ordinary custom enum leaves', () {
     late ResolvedLibraryResult library;
 
     setUpAll(() async {

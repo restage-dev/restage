@@ -19,13 +19,13 @@ import '../helpers.dart';
 /// `AnalysisContextCollection` and assemble the seams inline, then emit the
 /// committed goldens. This proof resolves the SAME fixtures off a real
 /// `buildStep.resolver` (the production resolution path), drives the SAME
-/// `assembleA2uiSeams`, feeds the SAME customer-only catalog + the SAME
+/// `assembleA2uiSeams`, feeds the SAME custom-only catalog + the SAME
 /// test-boundary URI normalization into the UNCHANGED `emitA2uiCatalogDart`,
 /// and asserts byte-IDENTICAL to the committed goldens.
 ///
 /// That ties the new resolver-fed read legs to the proven goldens: the build
 /// resolver produces exactly what the hand-resolved harness produced.
-/// A divergence in the customer-widget lowering (NOT the import URI / scope) is
+/// A divergence in the custom-widget lowering (NOT the import URI / scope) is
 /// a real fidelity gap — escalate, do not edit the golden.
 
 const _interactiveFixturePath =

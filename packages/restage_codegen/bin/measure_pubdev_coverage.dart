@@ -21,7 +21,7 @@ import 'package:restage_codegen/src/coverage_measurement/real_package_scanner.da
 /// snapshot. Requires network and a Flutter SDK on `PATH`.
 ///
 /// The reference catalog is the three committed built-in library catalogs of
-/// this workspace; measuring against a customer's own catalog version is a
+/// this workspace; measuring against an app's own catalog version is a
 /// future refinement.
 Future<void> main(List<String> args) async {
   final wantJson = args.contains('--json');

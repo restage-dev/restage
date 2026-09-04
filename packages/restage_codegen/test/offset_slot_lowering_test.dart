@@ -4,15 +4,15 @@
 // `PropertyType.offset` and decoded by `RestageDecoders.offset` from a `{x, y}`
 // map — lowers a Dart-source `Offset(x, y)` / `Offset.zero` to that map at the
 // slot. Everything not provably a framework `Offset` value stays diagnosed:
-//   * a resolved customer `Offset` ctor look-alike defers via the outer
+//   * a resolved custom `Offset` ctor look-alike defers via the outer
 //     value-substitution gate (`unknownWidget`, no `{x, y}` substitution);
-//   * a resolved customer `Offset.zero` look-alike defers with a diagnostic
+//   * a resolved custom `Offset.zero` look-alike defers with a diagnostic
 //     (no `{x, y}` substitution AND no bare member string).
 //
 // Positives are VALUE-asserted against the real Flutter constants. Negatives
 // use the production constructor (strict framework predicate); the look-alike
 // negatives resolve real Flutter (`rootPackage: 'apps_examples'`) so the gate
-// fires on the LOCAL customer class.
+// fires on the LOCAL custom class.
 
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -85,7 +85,7 @@ void main() {
 
   group('offset slot diagnoses what it cannot provably lower', () {
     test(
-        'a resolved customer Offset ctor look-alike DEFERS at the slot — '
+        'a resolved custom Offset ctor look-alike DEFERS at the slot — '
         'no {x, y} substitution', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -110,7 +110,7 @@ void main() {
     });
 
     test(
-        'a resolved customer Offset.zero look-alike DEFERS at the slot — '
+        'a resolved custom Offset.zero look-alike DEFERS at the slot — '
         'no {x, y} substitution, no bare member string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

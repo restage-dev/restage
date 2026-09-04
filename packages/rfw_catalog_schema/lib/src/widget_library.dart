@@ -1,11 +1,11 @@
 import 'package:meta/meta.dart';
 
-/// Curated widget libraries shipped by Restage, plus customer-registered
+/// Curated widget libraries shipped by Restage, plus custom-registered
 /// libraries.
 ///
 /// The built-in libraries (`core`, `material`, `cupertino`) are sibling
 /// packages: `restage_core`, `restage_material`, `restage_cupertino`.
-/// Customer-defined libraries register a custom namespace via
+/// Custom-defined libraries register a custom namespace via
 /// [WidgetLibrary.custom] or by extending [WidgetLibrary] directly for
 /// type-per-library identity.
 ///
@@ -14,13 +14,13 @@ import 'package:meta/meta.dart';
 /// library identifier by splitting on `.` (e.g. `'restage.core'` becomes
 /// `LibraryName(['restage', 'core'])`).
 ///
-/// Equality is namespace-based: a customer subclass and a
+/// Equality is namespace-based: a custom subclass and a
 /// `WidgetLibrary.custom(...)` carrying the same namespace compare equal
 /// and hash equal, so `Map<WidgetLibrary, ...>` lookups round-trip across
 /// JSON decode (which always produces `WidgetLibrary.custom`) regardless
 /// of how the library was originally constructed.
 ///
-/// **Subclassing.** Customer subclasses must declare `namespace` as a
+/// **Subclassing.** Custom subclasses must declare `namespace` as a
 /// final field (initialized at declaration), not as a getter —
 /// build-time analyzer passes read namespaces via `DartObject.getField`,
 /// which only sees fields.
@@ -34,21 +34,21 @@ import 'package:meta/meta.dart';
 /// ```
 @immutable
 abstract base class WidgetLibrary {
-  /// Const constructor for built-in singletons and customer subclasses.
+  /// Const constructor for built-in singletons and custom subclasses.
   const WidgetLibrary();
 
-  /// Construct a customer library identifier from a [namespace] string.
+  /// Construct a custom library identifier from a [namespace] string.
   ///
   /// ```dart
   /// const acmeDesignSystem = WidgetLibrary.custom('acme.design_system');
   /// ```
   ///
-  /// Customers who want type-per-library identity (e.g. multiple internal
+  /// Apps that want type-per-library identity (e.g. multiple internal
   /// design systems with separate namespaces) extend [WidgetLibrary]
   /// directly with a `final class` subclass.
   const factory WidgetLibrary.custom(String namespace) = _CustomLibrary;
 
-  /// Resolve a library by namespace, falling back to a customer library
+  /// Resolve a library by namespace, falling back to a custom library
   /// when the namespace is not built-in. Used by the catalog JSON decoder
   /// which doesn't know whether a library is built-in until it has the
   /// list of built-ins.
@@ -58,7 +58,7 @@ abstract base class WidgetLibrary {
   /// The library namespace as a dotted string.
   ///
   /// Built-in namespaces are well-known: `'restage.core'`,
-  /// `'restage.material'`, `'restage.cupertino'`. Customer namespaces
+  /// `'restage.material'`, `'restage.cupertino'`. Custom namespaces
   /// typically follow a reverse-domain convention (`'acme.design_system'`).
   String get namespace;
 
@@ -80,7 +80,7 @@ abstract base class WidgetLibrary {
   ];
 
   /// Look up a built-in library by its [namespace] string. Returns `null`
-  /// for unknown namespaces — callers handle customer libraries separately
+  /// for unknown namespaces — callers handle custom libraries separately
   /// via [WidgetLibrary.custom].
   static WidgetLibrary? builtInByNamespace(String namespace) {
     for (final lib in builtInLibraries) {

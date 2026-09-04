@@ -6,8 +6,8 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart';
 import 'package:glob/glob.dart';
-import 'package:restage_codegen/src/customer_structured_admissibility.dart';
-import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/custom_structured_admissibility.dart';
+import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
@@ -59,7 +59,7 @@ final class WidgetbookWidgetSource {
   final String declarationSourcePath;
 
   /// Producer-facing `usage` text, falling back to [WidgetEntry.description]
-  /// exactly as the customer A2UI emitter does.
+  /// exactly as the custom A2UI emitter does.
   final String usage;
 
   /// Widgetbook-only finite-state authoring configuration.
@@ -88,7 +88,7 @@ final class WidgetbookWidgetSource {
   bool get isNativeScreen => nativeScreen != null;
 }
 
-/// One customer structured value retained with its analyzer declaration.
+/// One custom structured value retained with its analyzer declaration.
 final class WidgetbookStructuredSource {
   /// Creates an indexed structured value type.
   const WidgetbookStructuredSource({
@@ -100,7 +100,7 @@ final class WidgetbookStructuredSource {
   /// Shared structured catalog projection.
   final StructuredEntry entry;
 
-  /// Analyzer class that defines the customer value.
+  /// Analyzer class that defines the custom value.
   final ClassElement element;
 
   /// Defining library asset.
@@ -154,7 +154,7 @@ final class WidgetbookCatalogSourceIndex {
           for (final entry in structuredTypes) entry.sourceType: entry,
         });
 
-  /// Customer widgets in deterministic `(library namespace, name)` order.
+  /// Custom widgets in deterministic `(library namespace, name)` order.
   final List<WidgetbookWidgetSource> widgets;
 
   /// Native screens in deterministic exact-ID order.
@@ -166,7 +166,7 @@ final class WidgetbookCatalogSourceIndex {
     yield* nativeScreens;
   }
 
-  /// Customer structured types reachable from any indexed widget.
+  /// Custom structured types reachable from any indexed widget.
   final List<StructuredEntry> structuredTypes;
 
   /// Analyzer declarations keyed by structured `sourceType`.
@@ -178,7 +178,7 @@ final class WidgetbookCatalogSourceIndex {
   /// Nullable widget-level structured slots.
   final Set<String> nullableStructuredSlots;
 
-  /// Analyzer-derived customer constructor plans.
+  /// Analyzer-derived custom constructor plans.
   final Map<String, ReconstructionPlan> reconstructionPlans;
 
   /// Widget identity to a reason automatic story generation is unsound.
@@ -187,13 +187,13 @@ final class WidgetbookCatalogSourceIndex {
   /// Constructor inputs omitted because Widgetbook cannot decode their type.
   final List<PropertyExclusion> exclusions;
 
-  /// Genuine customer-widget analyzer identities, including target-disabled
+  /// Genuine custom-widget analyzer identities, including target-disabled
   /// classes. Each is `<library uri>#<class name>`, so story placement can be
   /// resolved from the declaring library rather than from the class name
   /// alone.
   final Set<String> restageWidgetDeclarations;
 
-  /// Genuine customer-widget class names, including target-disabled classes.
+  /// Genuine custom-widget class names, including target-disabled classes.
   Set<String> get restageWidgetClassNames => {
         for (final identity in restageWidgetDeclarations)
           identity.substring(identity.lastIndexOf('#') + 1),
@@ -281,7 +281,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   BuildStep buildStep, {
   RestageOutputPlacementPlan? plan,
 }) async {
-  // Only the assets that can carry a customer widget are worth resolving.
+  // Only the assets that can carry a custom widget are worth resolving.
   // Scanning still covers the whole package, so a token in a file this index
   // will not resolve still pulls in the owner it will — if it is a `part`.
   // A token in a non-part file this index skips pulls in nothing.
@@ -599,7 +599,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
     );
     if (source == null) {
       localUnrenderable[structured.sourceType] =
-          'the analyzer could not resolve its defining customer class';
+          'the analyzer could not resolve its defining custom class';
     } else {
       structuredSources[structured.sourceType] = source;
     }
@@ -885,8 +885,8 @@ String? _widgetbookCapabilityObstruction(
       if (obstruction != null) return obstruction;
       continue;
     }
-    if (isCustomerStructuredPropertySlot(property)) {
-      return '$path is missing its customer structured target identity';
+    if (isCustomStructuredPropertySlot(property)) {
+      return '$path is missing its custom structured target identity';
     }
     if (widgetbookPropertyCapability(
           property.type,
@@ -929,8 +929,8 @@ String? _structuredCapabilityObstruction(
         if (obstruction != null) return obstruction;
         continue;
       }
-      if (isCustomerStructuredFieldSlot(field)) {
-        return '$fieldPath is missing its customer structured target identity';
+      if (isCustomStructuredFieldSlot(field)) {
+        return '$fieldPath is missing its custom structured target identity';
       }
       if (widgetbookPropertyCapability(
             field.type,

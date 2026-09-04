@@ -27,7 +27,7 @@ import 'package:rfw_catalog_schema/src/validation_expr.dart';
 ///   into one.
 ///
 /// ```dart
-/// /// A customer-owned primary action.
+/// /// An app-owned primary action.
 /// @RestageWidget(name: 'PrimaryButton', /* ... */)
 /// class PrimaryButton extends StatelessWidget {
 ///   const PrimaryButton({super.key, required this.label, this.color});

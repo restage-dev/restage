@@ -3,11 +3,11 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 import 'package:restage_example/widgets/pricing_table.dart';
 
-/// A paywall that renders a **list of customer data classes** natively over the
+/// A paywall that renders a **list of custom data classes** natively over the
 /// air.
 ///
 /// The [PricingTable] is a custom `@RestageWidget` whose `plans` property is a
-/// `List<Plan>` — a list of customer data classes. Authored here in ordinary
+/// `List<Plan>` — a list of custom data classes. Authored here in ordinary
 /// Flutter, the build-time codegen compiles the whole list into the delivered
 /// blob as a list of field-name-keyed maps; the SDK reconstructs it element by
 /// element and the `PricingTable` factory renders each plan as real widgets on

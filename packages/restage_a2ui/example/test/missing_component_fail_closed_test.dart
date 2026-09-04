@@ -11,7 +11,7 @@ import 'package:restage_shared/restage_shared.dart'
 import 'a2ui_proof_support.dart';
 
 /// The load-bearing fail-closed proof. A payload whose root references a
-/// component the customer catalog does NOT contain must be rejected by the
+/// component the custom catalog does NOT contain must be rejected by the
 /// pre-render check BEFORE genui is handed it — and the negative control proves
 /// the rejection pre-empts a real failure (genui degrades a raw render of the
 /// same payload to a `FallbackWidget` + a SEVERE not-found log, never the

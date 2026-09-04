@@ -3,10 +3,10 @@ import 'dart:isolate';
 
 import 'package:build/build.dart';
 import 'package:package_config/package_config.dart';
-import 'package:restage_codegen/src/customer_structured_admissibility.dart'
+import 'package:restage_codegen/src/custom_structured_admissibility.dart'
     show
-        isCustomerStructuredFieldSlot,
-        isCustomerStructuredPropertySlot,
+        isCustomStructuredFieldSlot,
+        isCustomStructuredPropertySlot,
         structuredSlotKey;
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/user_catalog_emitter.dart';
@@ -32,7 +32,7 @@ final class UserCatalogAllocation {
   final List<WireIdEvent> newEvents;
 }
 
-/// Allocates stable package-root wire IDs for generated customer widgets.
+/// Allocates stable package-root wire IDs for generated custom widgets.
 ///
 /// The package-root `wire_ids.events.jsonl` is treated as one append-only
 /// source of truth for the generated `user_catalog.g.dart` surface. Entries
@@ -79,10 +79,10 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
     (entry) => (entry.owner!, entry.name!, entry.source!),
     (key) => 'property owner=${key.$1.value} name=${key.$2} source=${key.$3}',
   );
-  // Structured seed indices. The customer codegen path keys structured entries
+  // Structured seed indices. The custom codegen path keys structured entries
   // SOURCE-INCLUSIVELY (by `sourceType`), consistent with its own
   // source-inclusive widget/property replay model — NOT the built-in backfill's
-  // name-only key. Name-only would collide two same-name customer data classes
+  // name-only key. Name-only would collide two same-name custom data classes
   // in different files onto one wire ID (a rebuild crash / mis-render); keying
   // by the unique sourceType gives them distinct IDs and both render. A likely
   // source move is diagnosed before allocation so callers can preserve the ID.
@@ -285,7 +285,7 @@ Future<RootEventLogContents?> readRootEventLog(
   );
 }
 
-/// Appends generated customer catalog allocation [events] to the package root.
+/// Appends generated custom catalog allocation [events] to the package root.
 Future<void> appendEventsToRootEventLog({
   required String package,
   required Iterable<WireIdEvent> events,
@@ -600,7 +600,7 @@ WireId _resolveOrAllocateProperty({
   return event.id;
 }
 
-/// Keeps the first structured entry per `sourceType`. A shared customer data
+/// Keeps the first structured entry per `sourceType`. A shared custom data
 /// class is discovered once per referencing widget file, so the aggregated
 /// input can carry the same `sourceType` more than once; those entries are
 /// identical (same class, same lowering), so first-wins is safe.
@@ -625,7 +625,7 @@ WireId _resolveOrAllocateStructured({
     return structured.wireId;
   }
   // Source-inclusive identity: reuse by the unique `sourceType`, so two
-  // same-name customer data classes in different files get distinct IDs.
+  // same-name custom data classes in different files get distinct IDs.
   final seeded = seededStructured[structured.sourceType];
   if (seeded != null) return seeded.id;
   final event = allocator.allocate(
@@ -857,7 +857,7 @@ WidgetEntry _resolveWidgetRefs(
 }) {
   final properties = [
     for (final property in widget.properties)
-      if (isCustomerStructuredPropertySlot(property))
+      if (isCustomStructuredPropertySlot(property))
         _resolveStructuredSlot(
           property,
           slotKey: structuredSlotKey(widget.flutterType, property.name),
@@ -901,7 +901,7 @@ StructuredEntry _resolveStructuredRefs(
   };
   final fields = [
     for (final field in structured.fields)
-      if (isCustomerStructuredFieldSlot(field))
+      if (isCustomStructuredFieldSlot(field))
         _resolveStructuredField(
           structured,
           field,
@@ -980,14 +980,14 @@ WireIdRef _resolveSlotRef({
   final targetSourceType = slotTargets[slotKey];
   if (targetSourceType == null) {
     throw StateError(
-      'Customer structured slot "$slotKey" has no recorded target; its '
+      'Custom structured slot "$slotKey" has no recorded target; its '
       'structured reference cannot be resolved.',
     );
   }
   final ref = refBySourceType[targetSourceType];
   if (ref == null) {
     throw StateError(
-      'Customer structured slot "$slotKey" targets "$targetSourceType", which '
+      'Custom structured slot "$slotKey" targets "$targetSourceType", which '
       'is not in the allocated structured set (a dangling reference). The gate '
       'must exclude a widget whose closure reaches an unrenderable type.',
     );

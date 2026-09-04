@@ -124,7 +124,7 @@ name.
 
 **4. Enable the A2UI builder.** It is opt-in (`auto_apply: none`) because the
 generated catalog imports `genui`. If you target A2UI only, also turn the three
-RFW customer builders off. Otherwise they emit unused RFW catalog and factory
+RFW custom builders off. Otherwise they emit unused RFW catalog and factory
 artifacts, and they may reject fields that only the A2UI target supports.
 
 ```yaml

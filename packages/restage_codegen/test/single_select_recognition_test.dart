@@ -635,9 +635,9 @@ RadioGroup<String>(
       expect(recognised.options, hasLength(2));
     });
 
-    test('a customer look-alike RadioListTile leaf defers (element gate)',
+    test('a custom look-alike RadioListTile leaf defers (element gate)',
         () async {
-      // Customer classes named RadioGroup / RadioListTile / Column / Text that
+      // Custom classes named RadioGroup / RadioListTile / Column / Text that
       // resolve to a non-flutter library: the leaf gate withholds recognition
       // (a coincidental name is not the framework carrier), deferring the whole
       // group rather than carrying a look-alike leaf as a real option. The
@@ -679,10 +679,10 @@ Object x() => RadioGroup<String>(
       _expectDeferred(outcome);
     });
 
-    test('a customer Column look-alike wrapper defers (wrapper element gate)',
+    test('a custom Column look-alike wrapper defers (wrapper element gate)',
         () async {
       // The leaves are the REAL Flutter RadioListTile / Text, but the children
-      // are wrapped in a CUSTOMER class named `Column` (resolving to a
+      // are wrapped in a CUSTOM class named `Column` (resolving to a
       // non-flutter library) that could reorder / filter / inject rows. The
       // wrapper element gate withholds recognition — treating a look-alike
       // container as a static Flutter container would silently lower a
@@ -691,7 +691,7 @@ Object x() => RadioGroup<String>(
         '''
 import 'package:flutter/material.dart' as m;
 
-// A customer container literally named `Column`, resolving to THIS library
+// A custom container literally named `Column`, resolving to THIS library
 // (not package:flutter). It could reorder / drop its children.
 class Column {
   const Column({this.children});

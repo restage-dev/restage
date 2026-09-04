@@ -892,7 +892,7 @@ class _Walk {
     }
     // A directly-constructed Flutter spring (`SpringDescription` /
     // `SpringSimulation`) is imperative animation — name the catalog spring
-    // widget to adopt. Element-gated on `package:flutter/`; a customer
+    // widget to adopt. Element-gated on `package:flutter/`; a custom
     // look-alike of the same name falls through to the generic reason.
     final springTarget = springAdoptTarget(expr);
     _unclassifiable(
@@ -1018,7 +1018,7 @@ class _Walk {
     // instance method, OR a top-level function / static method in the widget's
     // own LIBRARY — named-intermediate inlining. Resolve-through to the
     // helper's body so the existing walk validates the inlined composition;
-    // a customer look-alike of the same name resolves to a different element
+    // a custom look-alike of the same name resolves to a different element
     // (or a different library) and is NOT inlined (the S13 look-alike-safe
     // rule).
     final inlinable = _resolveInlinableHelper(expr);
@@ -1039,7 +1039,7 @@ class _Walk {
     // A NumberFormat `.format()` formatting idiom keeps the `dartCall`
     // deferral (reducible) but names the catalog widget to adopt — the same
     // adopt-target the direct-paywall translator names, single-sourced so the
-    // two paths never drift. Element-gated on `package:intl/`; a customer
+    // two paths never drift. Element-gated on `package:intl/`; a custom
     // look-alike falls through to the generic truncated-source detail.
     final formatAdoptTarget = numberFormatAdoptTarget(expr);
     _blocker(
@@ -1393,7 +1393,7 @@ class _Walk {
     // Dart `enum`s, so `_tryConstOrEnum` cannot fold them), but the translator
     // lowers each to its bare member-name string, which the slot's string-name
     // decoder resolves (`enumValue<FontWeight>` / `RestageDecoders.textDecoration`).
-    // Element-gated to the real framework class: a customer class with the same
+    // Element-gated to the real framework class: a custom class with the same
     // name defers (its member would otherwise be lowered to the framework
     // string — a value-substitution silent-wrong the floor cannot catch).
     if (_isFrameworkEnumLikeConst(expr)) return;
@@ -1401,7 +1401,7 @@ class _Walk {
     // `EdgeInsets.zero` and the `.zero` siblings. The translator lowers each to
     // its map/list/scalar shape; the classifier recognises the curated
     // `(class, member)` pairs, element-gated to the real framework class, so a
-    // custom widget using one inlines. A customer look-alike defers (its member
+    // custom widget using one inlines. A custom look-alike defers (its member
     // would otherwise reach the framework lowering — a value-substitution
     // silent-wrong the structured floor cannot catch).
     if (_isStructuredConstMember(expr)) return;
@@ -1421,7 +1421,7 @@ class _Walk {
   /// Whether [expr] is a `Colors.*` / `Icons.*` / `CupertinoIcons.*` named
   /// constant reference into the real Flutter framework. The prefix must both
   /// be one of [kFrameworkConstNamespaces] AND resolve to a `package:flutter/`
-  /// class — element-resolved, so a customer class that happens to be named
+  /// class — element-resolved, so a custom class that happens to be named
   /// `Colors` is NOT promoted to composable and then lowered against the
   /// translator's hard-coded Material table (which would silently emit the
   /// wrong value, a path the catalog value-type floor cannot catch because any
@@ -1443,7 +1443,7 @@ class _Walk {
   /// The prefix must both name one of those classes AND resolve to a framework
   /// value-type library (they live in `dart:ui`, re-exported by
   /// `package:flutter/` — the same library set the translator gates `Color` /
-  /// `Offset` against). A customer class of the same name (its own package) is
+  /// `Offset` against). A custom class of the same name (its own package) is
   /// NOT promoted: its member would otherwise be lowered to the framework enum
   /// string, a value-substitution silent-wrong the string-decoded floor cannot
   /// catch. An unresolved prefix defers.

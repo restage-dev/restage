@@ -52,7 +52,7 @@ import 'package:rfw/rfw.dart';
 ///
 /// Lives in `restage_core` so the registration files for every curated
 /// library (including `restage_material` and `restage_cupertino`) and
-/// any customer library generated via `@RestageWidget` can call into a
+/// any custom library generated via `@RestageWidget` can call into a
 /// single canonical implementation.
 abstract final class RestageDecoders {
   /// Decodes an enum member by its declared name.

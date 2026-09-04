@@ -128,11 +128,11 @@ void main() {
     test('event identity is carried by the property name', () {
       const property = PropertyEntry(
         wireId: WireId.unallocatedProperty,
-        name: 'onArbitraryCustomerAction',
+        name: 'onArbitraryCustomAction',
         type: PropertyType.event,
         description: 'An open callback identity.',
       );
-      expect(property.name, 'onArbitraryCustomerAction');
+      expect(property.name, 'onArbitraryCustomAction');
     });
   });
 }

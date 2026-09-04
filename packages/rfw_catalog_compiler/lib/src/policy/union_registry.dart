@@ -1,7 +1,7 @@
 // packages/rfw_catalog_compiler/lib/src/policy/union_registry.dart
 import 'package:meta/meta.dart';
 
-/// Built-in + customer-supplied abstract-type → concrete-subtype
+/// Built-in + app-supplied abstract-type → concrete-subtype
 /// mappings (Gradient → [LinearGradient, …]).
 @immutable
 final class UnionRegistry {

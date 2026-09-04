@@ -18,7 +18,7 @@ const _annotation = '''
 ''';
 
 void main() {
-  group('constructor-first customer catalog authoring', () {
+  group('constructor-first custom catalog authoring', () {
     test('unresolved-type detection is exhaustive over analyzer DartType', () {
       final source = File(
         'lib/src/widget_constructor_facts.dart',
@@ -355,7 +355,7 @@ $_annotation
 class Probe {
   const Probe({this.color = const Color(0xFF123456)});
 
-  /// Customer color.
+  /// Custom color.
   final Color color;
 }
 ''',
@@ -1178,7 +1178,7 @@ ${fixture.declaration}
                   'message',
                   allOf(
                     contains('no unnamed generative constructor'),
-                    contains('Generated customer catalog factories'),
+                    contains('Generated custom catalog factories'),
                   ),
                 ),
           ),

@@ -411,8 +411,8 @@ what the runtime interprets. The compliance claim is bounded and exact:
   runtime interprets only inert data (the flow document's finite
   comparator/reference vocabulary plus declarative render blobs) and invokes only
   pre-declared host actions with inert, allowlisted arguments.
-- Composition also can't make the **customer's own host code** review-safe: host
-  actions, registered custom widgets, and the surrounding app are the customer's
+- Composition also can't make the **app's own host code** review-safe: host
+  actions, registered custom widgets, and the surrounding app are the app's
   own App Review responsibility. The primitives expose no new server→code path,
   so they neither widen nor discharge that pre-existing responsibility.
 

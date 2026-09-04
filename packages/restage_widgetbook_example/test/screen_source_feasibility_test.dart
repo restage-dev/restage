@@ -75,8 +75,8 @@ void main() {
                     'context': 'A2UI context',
                     'itemContext': 'A2UI item context',
                     'restageA2uiStatus': 'urgent',
-                    'description': 'A2UI customer description',
-                    'usage': 'A2UI customer usage',
+                    'description': 'A2UI custom description',
+                    'usage': 'A2UI example usage',
                   },
                 },
                 id: 'opaque-screen-instance',
@@ -107,8 +107,8 @@ void main() {
       expect(screen.context, 'A2UI context');
       expect(screen.itemContext, 'A2UI item context');
       expect(screen.restageA2uiStatus, OpaqueScreenProofTone.urgent);
-      expect(screen.description, 'A2UI customer description');
-      expect(screen.usage, 'A2UI customer usage');
+      expect(screen.description, 'A2UI custom description');
+      expect(screen.usage, 'A2UI example usage');
 
       await tester.tap(
         find.byKey(const ValueKey('opaque-screen-proof-action')),
@@ -148,8 +148,8 @@ void main() {
           args: story.OpaqueScreenProofStoryInputArgs.fixed(
             title: 'Widgetbook title',
             enabled: false,
-            description: 'Widgetbook customer description',
-            usage: 'Widgetbook customer usage',
+            description: 'Widgetbook custom description',
+            usage: 'Widgetbook example usage',
           ),
         ),
       ),
@@ -161,8 +161,8 @@ void main() {
     expect(screen.title, 'Widgetbook title');
     expect(screen.enabled, isFalse);
     expect(screen.tone, OpaqueScreenProofTone.calm);
-    expect(screen.description, 'Widgetbook customer description');
-    expect(screen.usage, 'Widgetbook customer usage');
+    expect(screen.description, 'Widgetbook custom description');
+    expect(screen.usage, 'Widgetbook example usage');
 
     await tester.tap(find.byKey(const ValueKey('opaque-screen-proof-action')));
     await tester.pump();

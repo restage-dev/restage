@@ -23,7 +23,7 @@
 - **Breaking:** re-export catalog schema v5, where callback property names are
   open event identities and the closed event-name enum is removed. Decoding a
   v4 catalog still works.
-- Re-export the pure-Dart A2UI and RFW customer target annotations from the
+- Re-export the pure-Dart A2UI and RFW custom target annotations from the
   new `a2ui.dart` and `rfw.dart` entrypoints.
 
 ## 1.2.0

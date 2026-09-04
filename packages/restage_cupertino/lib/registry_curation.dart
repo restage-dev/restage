@@ -344,7 +344,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `onSelectedItemChanged`. `scrollController` excluded by the
   // catalog-wide controller convention; `selectionOverlay` defaults to
   // a const `CupertinoPickerDefaultSelectionOverlay()` the catalog
-  // can't express as a primitive default, so customers can't override
+  // can't express as a primitive default, so apps can't override
   // the overlay through curation today (the Flutter default still
   // renders at runtime). The `.builder` named constructor is not
   // curated — delegate-based child resolution is a separate story

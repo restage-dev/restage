@@ -39,14 +39,14 @@ Catalog _mixedCatalog({int? acmeCapabilityVersion = 3}) {
 
 void main() {
   group('emitA2uiCatalog — components', () {
-    test('nests every customer field beneath one required props object', () {
-      const customerLibrary = WidgetLibrary.custom('acme.widgets');
+    test('nests every custom field beneath one required props object', () {
+      const customLibrary = WidgetLibrary.custom('acme.widgets');
       final result = emitA2uiCatalog(
         Catalog(
           schemaVersion: kSupportedSchemaVersion,
           generatedAt: '1970-01-01T00:00:00Z',
           libraries: {
-            customerLibrary: const LibraryInfo(
+            customLibrary: const LibraryInfo(
               version: '1.0.0',
               capabilityVersion: 1,
             ),
@@ -54,7 +54,7 @@ void main() {
           widgets: [
             entry(
               name: 'CollisionCard',
-              library: customerLibrary,
+              library: customLibrary,
               properties: [
                 prop('id', PropertyType.string, required: true),
                 prop('component', PropertyType.string),

@@ -187,23 +187,22 @@ void main() {
 
     test('uses an existing source show binding for the same bare identity', () {
       final planner = DartImportPlanner(
-        libraryUris: const {'package:fixture/customer_card.dart'},
+        libraryUris: const {'package:fixture/custom_card.dart'},
         fixedPrefixes: const {
-          'package:fixture/customer_card.dart': 'restage_source',
+          'package:fixture/custom_card.dart': 'restage_source',
         },
         bareSymbolImports: const [
           DartBareSymbolImport(
-            libraryUri: 'package:fixture/customer_card.dart',
-            symbol: 'CustomerCard',
-            sourcePath: 'lib/customer_card.dart#CustomerCard',
+            libraryUri: 'package:fixture/custom_card.dart',
+            symbol: 'CustomCard',
+            sourcePath: 'lib/custom_card.dart#CustomCard',
           ),
         ],
         bareSymbolReservations: const [
           DartBareSymbolReservation(
-            libraryUri: 'package:fixture/customer_card.dart',
-            symbol: 'CustomerCard',
-            source:
-                'source widget import at lib/customer_card.dart#CustomerCard',
+            libraryUri: 'package:fixture/custom_card.dart',
+            symbol: 'CustomCard',
+            source: 'source widget import at lib/custom_card.dart#CustomCard',
           ),
         ],
       );
@@ -211,7 +210,7 @@ void main() {
       expect(
         planner.importDirectives,
         [
-          "import 'package:fixture/customer_card.dart' as restage_source;",
+          "import 'package:fixture/custom_card.dart' as restage_source;",
         ],
       );
     });

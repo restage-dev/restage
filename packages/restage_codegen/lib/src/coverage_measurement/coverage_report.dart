@@ -2,7 +2,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/coverage_measurement/coverage_walker.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
 
-/// The seven buckets a customer widget falls into when measured for
+/// The seven buckets a custom widget falls into when measured for
 /// inlinability.
 ///
 /// The four `inlinable*` buckets group widgets the classifier
@@ -36,7 +36,7 @@ import 'package:restage_codegen/src/widget_classification.dart';
 /// out of the inlinable set:
 ///
 ///   - **Deferred** — additional codegen support could move the widget
-///     into an `inlinable*` bucket; the customer can rewrite to a
+///     into an `inlinable*` bucket; the developer can rewrite to a
 ///     recognised shape today. The classifier surfaces this as an
 ///     `UnclassifiableWidget` (its `build()` contains a construct the
 ///     classifier does not yet recognise).
@@ -77,7 +77,7 @@ enum CoverageBucket {
 
   /// Recognised by the classifier but not yet inlinable today — an
   /// additional codegen increment could recognise the missing construct
-  /// or the customer can rewrite to a shape that classifies as
+  /// or the developer can rewrite to a shape that classifies as
   /// inlinable now.
   deferred('deferred'),
 
@@ -129,7 +129,7 @@ enum EmitOutcome {
   notAttempted,
 }
 
-/// A bucketed view of a measured corpus of customer widgets, plus a
+/// A bucketed view of a measured corpus of custom widgets, plus a
 /// roll-up of the four `inlinable*` buckets.
 ///
 /// Build via [CoverageReport.from] from a `widgetKey → WidgetClassification`

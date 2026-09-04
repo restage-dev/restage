@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:build/build.dart';
-import 'package:restage_codegen/src/customer_map_plan.dart';
-import 'package:restage_codegen/src/customer_record_plan.dart';
-import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/custom_map_plan.dart';
+import 'package:restage_codegen/src/custom_record_plan.dart';
+import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_factory_emitter.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -97,7 +97,7 @@ Never _throwAdmittedFactoryCoherenceFailure(WidgetEntry skipped) {
   throw StateError(
     'Internal Restage catalog/factory coherence failure: admitted '
     'catalog widget "${skipped.name}" (${skipped.flutterType}) was rejected '
-    'by customer factory emission. Catalog names default to the Dart class '
+    'by custom factory emission. Catalog names default to the Dart class '
     'and use an explicit override only when supplied. The shared admission '
     'predicate and factory emitter are out of sync; report this as a '
     'restage_codegen bug. No generated output was written.',

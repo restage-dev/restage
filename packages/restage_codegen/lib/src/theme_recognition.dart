@@ -3,9 +3,9 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 
 /// [libraryIsFlutter] and [isFrameworkValueTypeLibrary] are the shared
-/// framework-vs-customer disambiguation the translator, the classifier, and the
+/// framework-vs-custom disambiguation the translator, the classifier, and the
 /// theme-read recogniser key on: a resolved class is framework code iff its
-/// library matches; any OTHER resolved class is a customer look-alike that must
+/// library matches; any OTHER resolved class is a custom look-alike that must
 /// NOT be lowered as the framework value/const (a value-substitution
 /// silent-wrong the type-aware floor cannot catch). A null element is NOT
 /// recognised — the recognisers run on resolved ASTs in production, so a null
@@ -64,7 +64,7 @@ bool _libraryStartsWithAny(Element? element, List<String> prefixes) {
 ///
 /// When the analyzer resolves the call, requires the enclosing class name
 /// AND the originating library URI (`package:flutter/...`) to match — so
-/// a customer class literally named `Theme` (or `DefaultTextStyle`) with
+/// a custom class literally named `Theme` (or `DefaultTextStyle`) with
 /// its own `of(...)` member does not silently slip through and produce a
 /// wrong `data.theme.*` reference at emit time. A prefixed import like
 /// `material.Theme.of(c)` resolves to the same Flutter element and is

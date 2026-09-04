@@ -1,4 +1,4 @@
-/// A generated representation that can consume a customer widget catalog.
+/// A generated representation that can consume a custom widget catalog.
 ///
 /// This enum is used only for exceptional, target-local authoring controls.
 /// Package-level builder configuration remains the normal way to enable or

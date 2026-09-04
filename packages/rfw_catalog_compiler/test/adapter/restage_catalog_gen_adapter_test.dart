@@ -7,11 +7,11 @@ void main() {
     test('rejects absent category at the built-in compiler boundary', () {
       const widget = WidgetEntry(
         wireId: WireId.unallocatedWidget,
-        name: 'CustomerOnlyWidget',
+        name: 'CustomOnlyWidget',
         library: WidgetLibrary.custom('acme.widgets'),
         category: null,
-        description: 'Customer widget without editor placement.',
-        flutterType: 'package:acme/widgets.dart#CustomerOnlyWidget',
+        description: 'Custom widget without editor placement.',
+        flutterType: 'package:acme/widgets.dart#CustomOnlyWidget',
         childrenSlot: ChildrenSlot.none,
         properties: const [],
       );
@@ -256,7 +256,7 @@ void main() {
       // WidgetEntry -> IR projection used to drop sinceVersion, so any entry
       // above the baseline was reset to the baseline as it passed through
       // lowerCatalog (the sole production entrypoint for both built-in and
-      // customer catalogs). This drives the real function — not a
+      // custom catalogs). This drives the real function — not a
       // hand-assembled stage sequence — and asserts the content version
       // survives end to end.
       const widget = WidgetEntry(

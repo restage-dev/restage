@@ -47,11 +47,11 @@ const Set<String?> kSubstitutableNumberFormatCtors = {
 /// `.format()` call, when the construction is a non-whitelisted constructor
 /// (percent / compact / scientific / custom-pattern — deferred this cut), or
 /// when the construction resolves to a class named NumberFormat that is NOT
-/// from `package:intl/` (a customer look-alike — the element gate).
+/// from `package:intl/` (a custom look-alike — the element gate).
 ///
 /// Element-resolved by design: a real intl `NumberFormat.<ctor>(...)` is a
 /// factory constructor, so it resolves to an [InstanceCreationExpression] whose
-/// type element library is `package:intl/...`. A customer look-alike resolves
+/// type element library is `package:intl/...`. A custom look-alike resolves
 /// elsewhere; an unresolved reference is not an [InstanceCreationExpression] at
 /// all. Both yield null — never a wrong hint, never a substitution.
 String? numberFormatAdoptTarget(MethodInvocation expr) {

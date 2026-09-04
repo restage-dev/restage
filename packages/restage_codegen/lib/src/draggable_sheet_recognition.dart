@@ -298,7 +298,7 @@ _Construction? _constructionView(Expression expr) {
   // the canonical unnamed scroll view, so it is intentionally excluded. Only an
   // UNRESOLVED call (a synthetic test input — null element, the name fallback)
   // or a genuine constructor element is a construction; a call that RESOLVED to
-  // a non-constructor (a customer/helper function named like the scroll view)
+  // a non-constructor (a custom/helper function named like the scroll view)
   // is NOT, and must fall through so the builder fatal-defers rather than be
   // mis-recognised as the canonical scroll view and silently mis-lowered.
   if (expr is MethodInvocation && expr.realTarget == null) {
@@ -329,7 +329,7 @@ String? _instanceMemberName(InstanceCreationExpression expr) {
   return expr.constructorName.name?.name;
 }
 
-/// Resolved-element preferred, name fallback (a customer look-alike resolves to
+/// Resolved-element preferred, name fallback (a custom look-alike resolves to
 /// a non-Flutter library; a synthetic unresolved input falls back to the name).
 bool _flutterOrUnresolved(Element? element) =>
     element == null || libraryIsFlutter(element);

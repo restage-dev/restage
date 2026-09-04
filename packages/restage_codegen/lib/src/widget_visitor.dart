@@ -6,12 +6,12 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/callback_shape.dart';
 import 'package:restage_codegen/src/const_folding.dart';
-import 'package:restage_codegen/src/customer_map_plan.dart';
-import 'package:restage_codegen/src/customer_record_plan.dart';
-import 'package:restage_codegen/src/customer_structured_admissibility.dart'
-    show isCustomerRecordPropertySlot, structuredSlotKey;
-import 'package:restage_codegen/src/customer_structured_discovery.dart';
-import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/custom_map_plan.dart';
+import 'package:restage_codegen/src/custom_record_plan.dart';
+import 'package:restage_codegen/src/custom_structured_admissibility.dart'
+    show isCustomRecordPropertySlot, structuredSlotKey;
+import 'package:restage_codegen/src/custom_structured_discovery.dart';
+import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/json_scalar_type.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
@@ -71,24 +71,24 @@ final class WidgetVisitorResult {
   /// Diagnostics collected during the walk.
   final List<Issue> issues;
 
-  /// Customer structured value types referenced by the widgets' properties
+  /// Custom structured value types referenced by the widgets' properties
   /// (unallocated wire IDs; a later pass mints them).
   final List<StructuredEntry> structuredTypes;
 
-  /// Customer unions referenced by the widgets' properties (unallocated wire
+  /// Custom unions referenced by the widgets' properties (unallocated wire
   /// IDs; a later pass mints them).
   final List<UnionEntry> unions;
 
   /// Structured slot -> target sourceType FQN, keyed `'<ownerFqn>.<slotName>'`
-  /// (see [CustomerStructuredDiscovery.slotTargets]).
+  /// (see [CustomStructuredDiscovery.slotTargets]).
   final Map<String, String> slotTargets;
 
   /// Nullable WIDGET structured-prop slot keys (see
-  /// [CustomerStructuredDiscovery.nullableStructuredSlots]).
+  /// [CustomStructuredDiscovery.nullableStructuredSlots]).
   final Set<String> nullableStructuredSlots;
 
   /// Structured types whose walk dropped an unsupported inner field (see
-  /// [CustomerStructuredDiscovery.localUnrenderable]).
+  /// [CustomStructuredDiscovery.localUnrenderable]).
   final Map<String, String> localUnrenderable;
 
   /// Widgets excluded before admission, keyed by `flutterType` to a
@@ -96,7 +96,7 @@ final class WidgetVisitorResult {
   final Map<String, String> widgetUnrenderable;
 
   /// The build-time reconstruction recipe per renderable structured type (see
-  /// [CustomerStructuredDiscovery.reconstructionPlans]).
+  /// [CustomStructuredDiscovery.reconstructionPlans]).
   final Map<String, ReconstructionPlan> reconstructionPlans;
 
   /// The build-time map reconstruction recipe per map slot.
@@ -144,7 +144,7 @@ final class ConstructorComponentProjection {
   /// Fail-loud and informational projection diagnostics.
   final List<Issue> issues;
 
-  /// Customer structured types reachable from the constructor surface.
+  /// Custom structured types reachable from the constructor surface.
   final List<StructuredEntry> structuredTypes;
 
   /// Constructor owner/slot keys to structured source identities.
@@ -238,7 +238,7 @@ WidgetVisitorResult visitRestageWidgetsInPackage(
 /// This is a target adapter, not a second source frontend: exact class and
 /// constructor facts remain analyzer-owned inputs supplied by the shared
 /// package index. The returned [WidgetEntry] is a transient target plan and is
-/// never serialized as the format-general customer catalog.
+/// never serialized as the format-general custom catalog.
 @internal
 ConstructorComponentProjection projectConstructorComponent({
   required ClassElement element,
@@ -259,7 +259,7 @@ ConstructorComponentProjection projectConstructorComponent({
     constructorFacts,
     target: _emitTarget(target),
   );
-  final structured = discoverCustomerStructured(
+  final structured = discoverCustomStructured(
     widgetClasses: <ClassElement>[element],
     widgetInputs: <ClassElement, List<WidgetConstructorInput>>{
       element: projectedConstructorFacts.inputs,
@@ -333,8 +333,7 @@ ConstructorComponentProjection projectConstructorComponent({
   final nullableStructuredSlots = <String>{
     ...structured.nullableStructuredSlots,
     for (final property in properties)
-      if (property.constructorNullable &&
-          isCustomerRecordPropertySlot(property))
+      if (property.constructorNullable && isCustomRecordPropertySlot(property))
         structuredSlotKey(entry.flutterType, property.name),
   };
   return ConstructorComponentProjection(
@@ -361,7 +360,7 @@ WidgetVisitorResult _visitRestageWidgets(
   final issues = <Issue>[];
 
   // Identify the `@RestageWidget` classes once so a structured pre-pass can
-  // discover the customer value types their properties reference before the
+  // discover the custom value types their properties reference before the
   // per-widget property build reads them.
   final annotatedWidgetClasses = [
     for (final cls in library.classes)
@@ -410,7 +409,7 @@ WidgetVisitorResult _visitRestageWidgets(
     if (metadata != null) metadataByClass[cls] = metadata;
   }
   final resolvedWidgetClasses = metadataByClass.keys.toList(growable: false);
-  final structured = discoverCustomerStructured(
+  final structured = discoverCustomStructured(
     widgetClasses: resolvedWidgetClasses,
     widgetInputs: {
       for (final entry in constructorFacts.entries)
@@ -482,7 +481,7 @@ WidgetVisitorResult _visitRestageWidgets(
     for (final widget in widgets)
       for (final property in widget.properties)
         if (property.constructorNullable &&
-            isCustomerRecordPropertySlot(property))
+            isCustomRecordPropertySlot(property))
           structuredSlotKey(widget.flutterType, property.name),
   };
 
@@ -513,7 +512,7 @@ WidgetEntry? _readWidgetAnnotation(
   _ResolvedWidgetMetadata metadata,
   AssetId assetId,
   List<Issue> issues,
-  CustomerStructuredDiscovery structured, {
+  CustomStructuredDiscovery structured, {
   required Map<String, String> widgetUnrenderable,
   required List<PropertyExclusion> exclusions,
   required WidgetVisitorTarget target,
@@ -546,7 +545,7 @@ WidgetEntry? _readWidgetAnnotation(
       Issue(
         code: IssueCode.invalidSynthetic,
         message: 'Reserved catalog property "$kAnalyticsIdPropertyName" '
-            'conflicts with a customer constructor property.',
+            'conflicts with a custom constructor property.',
         location: widgetLocation,
       ),
     );
@@ -621,7 +620,7 @@ void _appendAnalyticsIdProperty(
       Issue(
         code: IssueCode.invalidSynthetic,
         message: 'Reserved catalog property "$kAnalyticsIdPropertyName" '
-            'conflicts with a customer constructor property.',
+            'conflicts with a custom constructor property.',
         location: location,
       ),
     );
@@ -669,7 +668,7 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetClass,
-        message: '@RestageWidget on $className: customer widget classes must '
+        message: '@RestageWidget on $className: custom widget classes must '
             'be public and non-abstract so generated factories can construct '
             'them.',
         location: widgetLocation,
@@ -812,7 +811,7 @@ PropertyEntry? _readPropertyInput(
   WidgetConstructorInput input,
   AssetId assetId,
   List<Issue> issues,
-  CustomerStructuredDiscovery structured, {
+  CustomStructuredDiscovery structured, {
   required WidgetVisitorTarget target,
   required WidgetLibrary library,
   required String widgetFlutterType,
@@ -911,7 +910,7 @@ PropertyEntry? _readPropertyInput(
     return null;
   }
 
-  // A customer structured value (a nested data class, a list of one, or a
+  // A custom structured value (a nested data class, a list of one, or a
   // sealed union) is resolved by the structured pre-pass. Named records with
   // admitted scalar or enum labels are resolved at the RFW boundary below;
   // scalar / enum / widget / event types fall through to legacy type inference.
@@ -922,14 +921,14 @@ PropertyEntry? _readPropertyInput(
   // keep an independent data-shape boundary. Both ride the same gate, and they
   // are mutually exclusive: a type classified as a record is never offered to
   // the map classifier.
-  final customerValueSlot = target == WidgetVisitorTarget.rfw &&
+  final customValueSlot = target == WidgetVisitorTarget.rfw &&
       structuredShape == null &&
       !a2uiScalarList;
-  final recordClassification = customerValueSlot
+  final recordClassification = customValueSlot
       ? classifyRecordType(input.type, admitNullableSlot: true)
       : const NotARecord();
   final mapClassification =
-      customerValueSlot && recordClassification is NotARecord
+      customValueSlot && recordClassification is NotARecord
           ? classifyMapType(
               input.type,
               structuredValuesAdmitted: true,
@@ -959,17 +958,17 @@ PropertyEntry? _readPropertyInput(
   // when `recordClassification is NotARecord`, so a record slot is never
   // offered to it and the two arms below can never both apply. If that gate
   // ever loosens, this local has to split back into two.
-  final ScalarShape? customerShape;
+  final ScalarShape? customShape;
   if (recordClassification case final RecordAdmitted admitted) {
     recordPlans[structuredSlotKey(widgetFlutterType, fieldName)] =
         recordPlanFromClassification(admitted);
-    customerShape = ScalarShape.opaqueRecord();
+    customShape = ScalarShape.opaqueRecord();
   } else if (mapClassification case final MapAdmitted admitted) {
     mapPlans[structuredSlotKey(widgetFlutterType, fieldName)] =
         mapPlanFromClassification(admitted);
-    customerShape = ScalarShape.opaqueStringKeyedMap();
+    customShape = ScalarShape.opaqueStringKeyedMap();
   } else {
-    customerShape = null;
+    customShape = null;
   }
   // The A2UI target preserves each scalar-list element type through its
   // analyzer seam without widening the shared RFW catalog taxonomy.
@@ -980,7 +979,7 @@ PropertyEntry? _readPropertyInput(
     type = structuredShape.type;
   } else if (a2uiScalarList) {
     type = PropertyType.structured;
-  } else if (customerShape != null) {
+  } else if (customShape != null) {
     type = PropertyType.unknown;
   } else {
     type = _inferPropertyType(
@@ -1045,7 +1044,7 @@ PropertyEntry? _readPropertyInput(
   // Every projection retains a source-qualified enum identity for an
   // enum-valued property. The shared catalog needs it so `encodeCatalog`
   // accepts the enum slot (an enumValue property must carry `enumType` or an
-  // `EnumShape`) and so generated code can import + spell a customer enum
+  // `EnumShape`) and so generated code can import + spell a custom enum
   // instead of dropping an otherwise representable value; a built-in
   // (Flutter/Dart) enum comes bare through the emitter's Flutter import.
   // A2UI's projection is unchanged.
@@ -1074,7 +1073,7 @@ PropertyEntry? _readPropertyInput(
       Issue(
         code: IssueCode.invalidEventConfiguration,
         message: '$ownerName.$fieldName has unsupported callback signature '
-            '${input.type.getDisplayString()}. RFW customer events support a '
+            '${input.type.getDisplayString()}. RFW custom events support a '
             'zero-argument void callback, one required positional dart:core '
             'scalar payload (nullable allowed), or one non-null List of those '
             'scalars (nullable elements allowed).',
@@ -1096,7 +1095,7 @@ PropertyEntry? _readPropertyInput(
     constructorDefault: input.constructorDefault.reconstructedValue,
     enumType: enumShape?.enumRef.symbolName,
     structuredRef: structuredShape?.structuredRef,
-    valueShape: structuredShape?.valueShape ?? customerShape ?? enumShape,
+    valueShape: structuredShape?.valueShape ?? customShape ?? enumShape,
     validationRule: validationRule,
     constraints: constraints,
     callbackSignature: callback.signature,
@@ -1124,7 +1123,7 @@ _CallbackSignatureResult _rfwCallbackSignature(DartType type) {
 }
 
 _CallbackSignatureResult _rfwSingleValueCallbackSignature(DartType valueType) {
-  final signature = RfwCallbackSignature.fromResolvedCustomerPayload(valueType);
+  final signature = RfwCallbackSignature.fromResolvedCustomPayload(valueType);
   return signature == null
       ? const _CallbackSignatureResult.invalid()
       : _CallbackSignatureResult.valid(signature.source);
@@ -1281,8 +1280,8 @@ PropertyType? _inferPropertyType(
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
   final location = '${assetId.path}#$ownerName.$fieldName';
   // A direct scalar-list property is supported on the A2UI target (it rides a
-  // DynamicList) but the RFW customer catalog has no vocabulary for it. Fail
-  // loud with a boundary-aware, customer-actionable diagnostic rather than the
+  // DynamicList) but the RFW custom catalog has no vocabulary for it. Fail
+  // loud with a boundary-aware, custom-actionable diagnostic rather than the
   // generic "unsupported type" message: name the widget + property, state the
   // A2UI-supported / RFW-unsupported boundary, and name the remedies. The
   // message keeps the "Unsupported property type <T> on <owner>.<field>" prefix
@@ -1291,10 +1290,10 @@ PropertyType? _inferPropertyType(
     final boundary = switch (target) {
       WidgetVisitorTarget.rfw =>
         'are supported on the A2UI target but are not carried by the RFW '
-            'customer catalog',
+            'custom catalog',
       WidgetVisitorTarget.widgetbook =>
         'are supported on the A2UI target but are not admitted by automatic '
-            'Widgetbook stories; use a customer structured data class when '
+            'Widgetbook stories; use a custom structured data class when '
             'the list is part of a richer value',
       WidgetVisitorTarget.a2ui => throw StateError(
           'A2UI scalar-list boundary reached from the A2UI target.',
@@ -1304,7 +1303,7 @@ PropertyType? _inferPropertyType(
       WidgetVisitorTarget.rfw =>
         'restrict the field to a supported RFW type (for example, a single '
             'scalar or List<Widget>), or scope this package to A2UI by '
-            'disabling the RFW customer-catalog builders in build.yaml',
+            'disabling the RFW custom-catalog builders in build.yaml',
       WidgetVisitorTarget.widgetbook =>
         'use a currently admitted automatic-story type; support for this '
             'direct shape is a Restage compiler capability gap',

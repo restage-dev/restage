@@ -830,7 +830,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   // Material tap visual feedback for arbitrary tap targets. Requires
   // a `Material` ancestor in the widget tree — satisfied by the
-  // customer's `Scaffold`, so no extra wrapping needed at runtime.
+  // app's `Scaffold`, so no extra wrapping needed at runtime.
   // Surfaces `onTap` only; richer gestures (`onDoubleTap`,
   // `onLongPress`, secondary / hover / focus) deferred.
   BuiltinWidgetCuration<InkWell>(
@@ -1410,7 +1410,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // excluded: no decomposition recipe exists yet, and the bare-input
   // shape covers paywall surveys / promo codes. Richer decoration
   // (`label`, `border`, `prefixIcon`, `errorText`, ...) is a separate
-  // schema-gap escalation if customer demand surfaces.
+  // schema-gap escalation if developer demand surfaces.
   BuiltinWidgetCuration<TextField>(
     category: WidgetCategory.input,
     propertyOverrides: {

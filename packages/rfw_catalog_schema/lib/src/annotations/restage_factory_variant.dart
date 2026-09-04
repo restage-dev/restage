@@ -3,7 +3,7 @@ import 'package:meta/meta.dart';
 /// Registers a static const value or factory method as a named factory
 /// variant on a structured type.
 ///
-/// Used when a customer wants to surface a curated factory beyond the
+/// Used when a developer wants to surface a curated factory beyond the
 /// default-constructor / named-constructor / static-const-field set the
 /// compiler auto-discovers. The compiler allocates a `v*` wire ID for
 /// the annotated member.

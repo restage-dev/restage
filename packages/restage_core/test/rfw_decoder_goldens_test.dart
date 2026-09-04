@@ -6,7 +6,7 @@
 // the directional-vs-absolute mapping), not just the API shape — a behavioral
 // change inside a `1.x` minor would compile clean and change rendered output
 // across every catalog widget. These fixtures pin the current semantics so such
-// a drift fails loudly here instead of silently in a customer's render.
+// a drift fails loudly here instead of silently in an app's render.
 //
 // Inputs mirror the wire shape the codec/runtime feeds these decoders (the same
 // shape the catalog emits). Keep these aligned with `rfw`'s documented formats.

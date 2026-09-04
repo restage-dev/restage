@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 /// Declares the example widget library's capability version.
 ///
-/// A library with a widget that renders a customer data-class property (here
+/// A library with a widget that renders a custom data-class property (here
 /// [PricingCard], via its [Plan] property) is *structured-admitting*, so it
 /// must declare a monotonic `capabilityVersion`. The delivery pipeline records
 /// it as the library's floor: a hosted blob authored against a newer library
@@ -48,7 +48,7 @@ class Price {
   final String currency;
 }
 
-/// A subscription plan rendered inside a [PricingCard] — a customer data class
+/// A subscription plan rendered inside a [PricingCard] — a custom data class
 /// with a nested [Price], an optional badge, and an enum tier.
 class Plan {
   /// Creates a plan.
@@ -73,9 +73,9 @@ class Plan {
   final PlanTier tier;
 }
 
-/// A customer-defined pricing card that renders a nested [Plan] data class.
+/// A custom-defined pricing card that renders a nested [Plan] data class.
 ///
-/// This is the example app's demonstration of a customer *structured* property
+/// This is the example app's demonstration of a custom *structured* property
 /// rendering natively as real Flutter widgets from a server-delivered blob —
 /// the plan is decoded from the wire and reconstructed by the generated
 /// factory, no hand-written plumbing.
@@ -89,7 +89,7 @@ class PricingCard extends StatelessWidget {
   /// Const constructor.
   const PricingCard({super.key, required this.plan});
 
-  /// The plan to render (a customer data-class property).
+  /// The plan to render (a custom data-class property).
   @RestageProperty(description: 'The plan to render.', required: true)
   final Plan plan;
 

@@ -338,7 +338,7 @@ void main() {
   test('accepts hosted required libraries that match by value', () async {
     // The hosted document's library list arrives decoded from the wire, so it
     // is never the same list instance the generated contract holds. Comparing
-    // the two by identity rejects every hosted screen that requires a customer
+    // the two by identity rejects every hosted screen that requires a custom
     // library, so this fixture deliberately requires one.
     const namespace = 'example.custom';
     Restage.registerWidgetLibrary(

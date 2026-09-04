@@ -269,7 +269,7 @@ class Probe {
       );
       expect(
         failures.map((issue) => issue.message),
-        everyElement(contains('RFW customer events')),
+        everyElement(contains('RFW custom events')),
       );
     });
 
@@ -410,13 +410,13 @@ class Probe {
 
     test('Widgetbook import collisions name both target and source path', () {
       const sourcePath = 'lib/collision.dart#CollisionProbe.data';
-      const customerLibrary = 'package:fixture/models.dart';
+      const customLibrary = 'package:fixture/models.dart';
       expect(
         () => DartImportPlanner(
-          libraryUris: const {customerLibrary},
+          libraryUris: const {customLibrary},
           bareSymbolImports: const [
             DartBareSymbolImport(
-              libraryUri: customerLibrary,
+              libraryUri: customLibrary,
               symbol: 'Meta',
               sourcePath: sourcePath,
             ),
@@ -435,7 +435,7 @@ class Probe {
             'message',
             allOf(
               contains(sourcePath),
-              contains(customerLibrary),
+              contains(customLibrary),
               contains('package:widgetbook/widgetbook.dart'),
             ),
           ),

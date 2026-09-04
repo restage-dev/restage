@@ -11,7 +11,7 @@ const String kReservedPreviewConstructorName =
 
 /// Rejects an RFW library blob that claims Restage's preview-only symbols.
 ///
-/// Publish and build tooling call this before accepting customer content. The
+/// Publish and build tooling call this before accepting custom content. The
 /// full library is decoded and walked so a claim cannot hide in a nested
 /// constructor, switch, loop, builder, event payload, or state value. Decode
 /// failures are deliberately propagated: content that cannot be inspected is

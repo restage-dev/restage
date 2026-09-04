@@ -68,7 +68,7 @@ String emitRemoteWidgetLibrary(
     definitions.writeln();
   }
   // A referenced custom widget resolves against its imported library — the
-  // built-in preamble alone does not cover customer widgets. Emit one import
+  // built-in preamble alone does not cover custom widgets. Emit one import
   // per referenced custom library, sorted + deduped for a deterministic blob.
   final customImports = ({...customLibraryImports}.toList()..sort())
       .map((namespace) => 'import $namespace;\n')

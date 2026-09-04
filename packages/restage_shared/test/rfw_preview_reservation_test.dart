@@ -7,7 +7,7 @@ Uint8List _blob(String source) => encodeLibraryBlob(parseLibraryFile(source));
 
 void main() {
   group('preview-only RFW reservation', () {
-    test('accepts an ordinary customer marker and unrelated imports', () {
+    test('accepts an ordinary custom marker and unrelated imports', () {
       expect(
         () => validateRfwBlobForPublish(
           _blob('''

@@ -868,7 +868,7 @@ void main() {
         }
       ''';
       // A `(_count: …)` literal in the generated separate library is a
-      // different record type than the customer's — fail closed, never emit
+      // different record type than the app's — fail closed, never emit
       // unassignable source.
       expect(
         await reflect(source, 'meta'),
@@ -983,7 +983,7 @@ void main() {
     });
 
     test(
-        'a concrete customer generic (Box<int>) resolves IN with int '
+        'a concrete custom generic (Box<int>) resolves IN with int '
         'substituted', () async {
       const source = '''
         class Box<T> {

@@ -5,7 +5,7 @@ import 'package:rfw_catalog_schema/src/annotations/restage_library.dart';
 import 'package:rfw_catalog_schema/src/widget_library.dart';
 import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 
-/// Marks a widget class as a customer-registered widget for inclusion
+/// Marks a widget class as a custom-registered widget for inclusion
 /// in the catalog.
 ///
 /// Read at build time by the code-generation builder to extract widget

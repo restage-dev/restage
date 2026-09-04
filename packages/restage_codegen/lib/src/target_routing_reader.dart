@@ -14,7 +14,7 @@ const _a2uiConfigOrigin =
 const _widgetbookConfigOrigin =
     'package:rfw_catalog_schema/src/annotations/widgetbook_config.dart';
 
-/// Resolved class-level participation in one customer-widget emit target.
+/// Resolved class-level participation in one custom-widget emit target.
 @immutable
 final class WidgetTargetRoutingFacts {
   /// Creates resolved routing facts.

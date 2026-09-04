@@ -29,7 +29,7 @@ enum A2uiShapeScopeOutReason {
 
   /// STRUCTURAL: a genuinely unbound (open) type parameter — there is no
   /// concrete type to read, and there never will be at this site. A CONCRETE
-  /// instantiation (`List<String>`, or a customer `Box<int>`) resolves and is
+  /// instantiation (`List<String>`, or a custom `Box<int>`) resolves and is
   /// accepted — only an open type variable is structurally out.
   unboundGeneric,
 
@@ -121,7 +121,7 @@ final class A2uiShapeScopedOut extends A2uiShapeResult {
 /// a data scope-out; it is excluded from the data schema and routed to the
 /// interactivity layer, so it carries no diagnostic. It carries the
 /// [signature], the classified callback disposition the interactive lowering reads
-/// (a customer `@RestageWidget` callback's signature is otherwise discarded —
+/// (a custom `@RestageWidget` callback's signature is otherwise discarded —
 /// the catalog collapses every callback to a bare event property).
 @immutable
 final class A2uiShapeEventSurface extends A2uiShapeResult {
@@ -152,7 +152,7 @@ const int _maxReflectDepth = 64;
 /// The accepted set (each carried, never silently dropped): scalars, nullable,
 /// enums, lists (including lists-of-objects), `Map<String, V>` open
 /// dictionaries, named records, and nested data classes — read from the
-/// instantiated constructor (so a customer `Box<int>` resolves with its type
+/// instantiated constructor (so a custom `Box<int>` resolves with its type
 /// arguments substituted). Anything else returns an [A2uiShapeScopedOut]; a
 /// callback returns an [A2uiShapeEventSurface].
 A2uiShapeResult reflectType(DartType type) => _reflect(type, const {}, 0);
@@ -192,7 +192,7 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
   }
 
   // Scalars and enums must match before the dart:-library catch-all in the
-  // class gate (they ARE dart:core / customer enums).
+  // class gate (they ARE dart:core / custom enums).
   final scalar = _scalarNodeOf(type, nullable: nullable);
   if (scalar != null) {
     return A2uiShapeResolved(scalar);
@@ -220,7 +220,7 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
     }
     // A private record field label is library-scoped — a `(_x: …)` literal in
     // the generated (separate) library is a different record type than the
-    // customer's, so it would not be assignable. Fail closed (same class as the
+    // app's, so it would not be assignable. Fail closed (same class as the
     // private-type spellability gate).
     final privateLabel = type.namedFields
         .map((f) => f.name)
@@ -469,7 +469,7 @@ A2uiShapeResult _objectFromClass(
 /// Whether [type]'s instantiated spelling is importable into the generated
 /// (separate-library) source. A PRIVATE type, or an unbound/phantom TYPE
 /// ARGUMENT, cannot be named there — the value-builder would emit `_Private`,
-/// `Box<_Private>`, or `Box<T>` and fail to compile in the customer's build —
+/// `Box<_Private>`, or `Box<T>` and fail to compile in the app's build —
 /// so the whole type graph (the type and every type argument, recursively) must
 /// be spellable. Bare tokens (`dynamic`/`void`/`Never`) are spellable but do not
 /// reach a data-class spelling.

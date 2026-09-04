@@ -44,7 +44,7 @@ final class StructuredEntry {
   /// Human-readable description.
   final String description;
 
-  /// Advisory provenance: resolved Flutter / customer type for debug /
+  /// Advisory provenance: resolved Flutter / custom type for debug /
   /// introspection (`<library URI>#<class name>`). **Not identity.**
   /// Renames and source restructures may shift this without producing
   /// wire-compat events.

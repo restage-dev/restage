@@ -12,7 +12,7 @@ import 'package:rfw/formats.dart' hide WidgetLibrary;
 /// Exercises the REAL generated factory (`_buildPricingCard` in
 /// `user_factories.g.dart`) end to end through the RFW runtime — not a mock:
 /// a hand-authored wire blob whose `plan` property is a MAP LITERAL (the wire
-/// representation of the customer `Plan` data class — no encode step, which is
+/// representation of the custom `Plan` data class — no encode step, which is
 /// a separate concern) is rendered, and the reconstructed `PricingCard.plan`
 /// is asserted field by field. This catches a compiled-but-unfaithful
 /// reconstruction the static admission gate cannot see.
@@ -21,7 +21,7 @@ import 'package:rfw/formats.dart' hide WidgetLibrary;
 /// corpus: a nested (two-level) data class, named + mixed +
 /// positional constructor args, an optional-nullable field (null on absent), an
 /// optional non-nullable field with a default (the default on absent), a
-/// required field (fail-closed on absent), and a customer enum field.
+/// required field (fail-closed on absent), and a custom enum field.
 void main() {
   setUp(() {
     Restage.debugReset();
@@ -62,7 +62,7 @@ void main() {
       expect(plan.price.amount, 1999); // positional Price arg
       expect(plan.price.currency, 'EUR'); // named Price arg (overrides default)
       expect(plan.badge, 'Best value'); // optional-nullable, present
-      expect(plan.tier, PlanTier.pro); // customer enum decoded from "pro"
+      expect(plan.tier, PlanTier.pro); // custom enum decoded from "pro"
     },
   );
 

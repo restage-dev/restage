@@ -41,7 +41,7 @@ final class WidgetbookPropertyTargetConfigFacts {
   final String? allValuesLocation;
 }
 
-/// Resolved Widgetbook configuration for one customer widget class.
+/// Resolved Widgetbook configuration for one custom widget class.
 @immutable
 final class WidgetbookTargetConfigFacts {
   /// Creates resolved Widgetbook facts.
@@ -458,7 +458,7 @@ bool _sameDartObjectList(List<DartObject> left, List<DartObject> right) {
   return true;
 }
 
-/// Resolved A2UI configuration for one customer widget class.
+/// Resolved A2UI configuration for one custom widget class.
 @immutable
 final class A2uiTargetConfigFacts {
   /// Creates resolved A2UI facts.

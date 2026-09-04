@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// Customer-defined pill showing a streak count, whose fill deepens with the
+/// Custom-defined pill showing a streak count, whose fill deepens with the
 /// count.
 ///
 /// Its `build` derives the fill alpha with a runtime computation (`clamp` +

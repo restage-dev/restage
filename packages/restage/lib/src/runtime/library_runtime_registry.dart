@@ -6,7 +6,7 @@ import '../measurement/measurement_rfw_presentation.dart';
 import 'restage_widget_factory.dart';
 import 'restage_widget_library_registration.dart';
 
-/// Internal store of customer-registered widget libraries, keyed by
+/// Internal store of custom-registered widget libraries, keyed by
 /// namespace. Replace-on-conflict.
 abstract final class LibraryRuntimeRegistry {
   LibraryRuntimeRegistry._();
@@ -78,13 +78,13 @@ abstract final class LibraryRuntimeRegistry {
       assert(
         false,
         'Restage.registerWidgetLibrary: "${library.namespace}" is a reserved '
-        'Restage namespace and cannot be overridden. Use a customer-scoped '
+        'Restage namespace and cannot be overridden. Use a custom-scoped '
         'namespace such as "acme.design_system".',
       );
       debugPrint(
         '[restage] registerWidgetLibrary: "${library.namespace}" is a reserved '
         'Restage namespace and cannot be overridden — registration ignored. '
-        'Use a customer-scoped namespace such as "acme.design_system".',
+        'Use a custom-scoped namespace such as "acme.design_system".',
       );
       return;
     }
@@ -153,7 +153,7 @@ abstract final class LibraryRuntimeRegistry {
           ),
       ];
 
-  /// Captures immutable customer registrations for a caller-owned runtime.
+  /// Captures immutable custom registrations for a caller-owned runtime.
   static List<RestageWidgetLibraryRegistration> registrationSnapshot() =>
       List<RestageWidgetLibraryRegistration>.unmodifiable(
         _entries.values.map((entry) => entry.registration),
@@ -181,7 +181,7 @@ abstract final class LibraryRuntimeRegistry {
         : 'installed v$version';
   }
 
-  /// Register every recorded customer library on [runtime] via
+  /// Register every recorded custom library on [runtime] via
   /// `Runtime.update(LibraryName, LocalWidgetLibrary)`.
   static void applyTo(rfw.Runtime runtime) {
     for (final entry in _entries.values) {

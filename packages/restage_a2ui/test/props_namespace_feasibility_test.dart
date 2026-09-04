@@ -13,10 +13,10 @@ void main() {
     'standalone and generated CatalogItem require the same props object',
     () {
       final catalog = buildPropsNamespaceSpikeCatalog();
-      final customerCard = catalog.items.singleWhere(
-        (item) => item.name == 'CustomerCard',
+      final customCard = catalog.items.singleWhere(
+        (item) => item.name == 'CustomCard',
       );
-      final schema = customerCard.dataSchema.value;
+      final schema = customCard.dataSchema.value;
       final properties = (schema['properties']! as Map).cast<String, Object?>();
       final definitions = (schema[r'$defs']! as Map).cast<String, Object?>();
       final rootSchema = (definitions['__a2ui_root__']! as Map)
@@ -48,8 +48,8 @@ void main() {
           ((document['a2uiCatalog']! as Map)['components']! as Map)
               .cast<String, Object?>();
       expect(
-        _canonical(standalone['CustomerCard']),
-        _canonical(customerCard.dataSchema.value),
+        _canonical(standalone['CustomCard']),
+        _canonical(customCard.dataSchema.value),
       );
     },
   );
@@ -65,18 +65,18 @@ void main() {
       final events = <UiEvent>[];
       final errors = <Object>[];
       final definition = SurfaceDefinition.fromJson(
-        jsonDecode(jsonEncode(_surfaceJson('CustomerCard'))) as JsonMap,
+        jsonDecode(jsonEncode(_surfaceJson('CustomCard'))) as JsonMap,
       );
       final root = definition.components['root']!;
       final rootProps = (root.properties['props']! as Map)
           .cast<String, Object?>();
 
-      expect(root.type, 'CustomerCard');
+      expect(root.type, 'CustomCard');
       expect(root.properties.keys, <String>['props']);
-      expect(rootProps['id'], 'customer-id');
-      expect(rootProps['component'], 'customer-component');
-      expect(rootProps['catalogId'], 'customer-catalog');
-      expect(rootProps['props'], 'customer-props');
+      expect(rootProps['id'], 'custom-id');
+      expect(rootProps['component'], 'custom-component');
+      expect(rootProps['catalogId'], 'custom-catalog');
+      expect(rootProps['props'], 'custom-props');
 
       final context = _FakeSurfaceContext(
         dataModel: model,
@@ -94,8 +94,8 @@ void main() {
       expect(find.byType(PropsNamespaceProbe), findsOneWidget);
       expect(
         find.text(
-          'collisions:customer-id|customer-component|customer-catalog|'
-          'customer-props',
+          'collisions:custom-id|custom-component|custom-catalog|'
+          'custom-props',
         ),
         findsOneWidget,
       );
@@ -161,15 +161,15 @@ Map<String, Object?> _surfaceJson(String rootComponent) => <String, Object?>{
   'surfaceId': 'props-spike-surface',
   'catalogId': propsNamespaceSpikeCatalogId,
   'components': <String, Object?>{
-    'root': rootComponent == 'CustomerCard'
+    'root': rootComponent == 'CustomCard'
         ? <String, Object?>{
             'id': 'root',
-            'component': 'CustomerCard',
+            'component': 'CustomCard',
             'props': <String, Object?>{
-              'id': 'customer-id',
-              'component': 'customer-component',
-              'catalogId': 'customer-catalog',
-              'props': 'customer-props',
+              'id': 'custom-id',
+              'component': 'custom-component',
+              'catalogId': 'custom-catalog',
+              'props': 'custom-props',
               'literalValue': 'literal',
               'pathValue': <String, Object?>{'path': 'boundLabel'},
               'callValue': <String, Object?>{'call': 'spikeString'},

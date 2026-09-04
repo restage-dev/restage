@@ -305,8 +305,8 @@ ModalSheetFunction? _modalSheetFunctionOf(MethodInvocation invocation) {
   // Restrict the name-fallback to a receiver-less call: a call with a
   // receiver — including a `dynamic` one in a resolved production build, whose
   // method element is also null — is a method invocation, not the top-level
-  // Flutter function, so a customer method named `showModalBottomSheet` must
-  // not be lowered. A resolved customer top-level look-alike is already
+  // Flutter function, so a custom method named `showModalBottomSheet` must
+  // not be lowered. A resolved custom top-level look-alike is already
   // rejected by the element path above.
   if (invocation.realTarget != null) return null;
   return byName;
@@ -444,8 +444,8 @@ bool _isNavigatorPop(MethodInvocation invocation) {
   if (target is! SimpleIdentifier || target.name != 'Navigator') return false;
   final element = target.element;
   // Resolved: must be the framework `Navigator` (a static `Navigator.pop`). A
-  // customer look-alike named `Navigator` — a shadowing parameter/local or a
-  // customer class — is rejected so its `pop` is not lowered as the sheet
+  // custom look-alike named `Navigator` — a shadowing parameter/local or a
+  // custom class — is rejected so its `pop` is not lowered as the sheet
   // close. Unresolved (synthetic parser-test input): fall back to the name.
   if (element != null) return libraryIsFlutter(element);
   return true;

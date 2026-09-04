@@ -676,7 +676,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     // common case of just toggling visibility without a placeholder.
     // The `maintain*` knobs are accessibility / layout-preservation
     // overrides for advanced use. Surface in a sibling milestone if
-    // a customer surfaces the gap.
+    // a developer surfaces the gap.
     excludeParams: [
       'replacement',
       'maintainState',

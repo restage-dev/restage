@@ -1,7 +1,7 @@
 // Diff-tool proof — diffs constructed canonical Catalog pairs end to
 // end through computeCatalogDiff and asserts both the classification and
 // the emitted CompatRule for every constructible compatibility-taxonomy
-// row, across all six wire-ID kinds plus a customer namespace.
+// row, across all six wire-ID kinds plus a custom namespace.
 //
 // Not exercised, by design: "type widening" (a property/field whose Dart
 // type widens, e.g. EdgeInsets → EdgeInsetsGeometry). Widening is
@@ -603,7 +603,7 @@ void main() {
   });
 
   group('proof slice — library-agnostic', () {
-    test('a customer-namespace widget diffs identically to a built-in one', () {
+    test('a custom-namespace widget diffs identically to a built-in one', () {
       const acme = WidgetLibrary.custom('acme.design_system');
       final report = computeCatalogDiff(
         catalog(widgets: [widgetEntry(wireId: 'w0001', library: acme)]),

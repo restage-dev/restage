@@ -65,7 +65,7 @@ void main() {
       expect(plans[0].name, 'Pro');
       expect(plans[0].price.amount, 1999); // positional Price arg
       expect(plans[0].price.currency, 'EUR'); // named Price arg
-      expect(plans[0].tier, PlanTier.pro); // customer enum from "pro"
+      expect(plans[0].tier, PlanTier.pro); // custom enum from "pro"
       expect(plans[0].badge, isNull); // optional-nullable, absent
       // Element 1 — optional-omitted fields fall to the item ctor defaults.
       expect(plans[1].name, 'Starter');

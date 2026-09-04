@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 import 'manifest.dart';
 
-/// Completes manifest-declared customer libraries with inert placeholders.
+/// Completes manifest-declared custom libraries with inert placeholders.
 ///
 /// Real runtime registrations always win. A manifest declaration that is
 /// absent from the runtime is still renderable as a visibly labeled,
@@ -71,7 +71,7 @@ List<RestageWidgetLibraryRegistration> completeManifestWidgetRegistrations({
   );
 }
 
-/// Shared visible fallback for a customer widget unavailable in this runtime.
+/// Shared visible fallback for a custom widget unavailable in this runtime.
 class StructuredWidgetPlaceholder extends StatelessWidget {
   const StructuredWidgetPlaceholder({
     required this.widgetName,

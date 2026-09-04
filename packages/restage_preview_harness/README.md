@@ -1,6 +1,6 @@
 # restage_preview_harness
 
-A minimal Flutter entrypoint that connects generated customer widget
+A minimal Flutter entrypoint that connects generated custom widget
 registrations to `restage_preview_host` and renders incoming RFW bundles.
 
 The browser adapter accepts messages only from an explicitly configured parent
@@ -8,7 +8,7 @@ origin and sends replies to that same origin. Built render bundles select their
 root from the RFW declarations: one `main` declaration takes precedence, with a
 single legacy `Paywall` declaration supported when `main` is absent.
 
-Customer bundle entrypoints provide their generated registration function,
+Custom bundle entrypoints provide their generated registration function,
 canonical catalog JSON, Flutter engine facts, and non-secret parent origin at
 build time. Credentials and application state are not harness inputs.
 

@@ -10,7 +10,7 @@ import '../helpers.dart';
 import '../index_probe_helpers.dart';
 
 void main() {
-  test('no-screen builder path freezes the customer props Dart and JSON bytes',
+  test('no-screen builder path freezes the custom props Dart and JSON bytes',
       () async {
     const source = '''
 import 'package:flutter/widgets.dart';
@@ -71,12 +71,12 @@ class LegacyGauge extends StatelessWidget {
     expect(
       sha256.convert(dartBytes).toString(),
       'dd907d669936317a09240ef4e1f494f894f51d9df0beae4e7356b1bdb3147d0a',
-      reason: 'the customer props Dart artifact must match the emitter',
+      reason: 'the custom props Dart artifact must match the emitter',
     );
     expect(
       sha256.convert(jsonBytes).toString(),
       'be804d484063b9ef0fc6ce87ae442fee78941aefcf2dd4e70491a96601cda507',
-      reason: 'the customer props JSON artifact must remain byte-identical',
+      reason: 'the custom props JSON artifact must remain byte-identical',
     );
   });
 

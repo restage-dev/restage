@@ -52,7 +52,7 @@ final class AnalyticsIdLoweringResult {
 ///
 /// A call is eligible only when the frozen catalog occurrence set recognizes
 /// that exact parsed constructor object. This gives built-in and generated
-/// customer calls one provenance-driven path while excluding ordinary local
+/// custom calls one provenance-driven path while excluding ordinary local
 /// shadows and unreachable declarations.
 ///
 /// Every label must resolve through the exact parsed constructor call to one

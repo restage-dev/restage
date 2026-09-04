@@ -325,10 +325,10 @@ void main() {
   );
 
   testWidgets(
-    'an earlier customer library with ordinary marker cannot steal '
+    'an earlier custom library with ordinary marker cannot steal '
     'instrumentation',
     (tester) async {
-      var customerMarkerBuilds = 0;
+      var customMarkerBuilds = 0;
       final registry = GeometryRegistry(frameRenderBox: () => null);
       addTearDown(registry.dispose);
       final registrations = <RestageWidgetLibraryRegistration>[
@@ -338,7 +338,7 @@ void main() {
             RestageWidgetFactory(
               name: 'marker',
               builder: (_, __) {
-                customerMarkerBuilds += 1;
+                customMarkerBuilds += 1;
                 return const SizedBox();
               },
             ),
@@ -350,7 +350,7 @@ void main() {
             RestageWidgetFactory(
               name: kReservedPreviewConstructorName,
               builder: (_, __) {
-                customerMarkerBuilds += 100;
+                customMarkerBuilds += 100;
                 return const SizedBox();
               },
             ),
@@ -403,7 +403,7 @@ void main() {
       expect(find.byType(GeometryMarker), findsNothing);
       expect(registry.registeredPathCount, 1);
       expect(find.text('not stolen'), findsOneWidget);
-      expect(customerMarkerBuilds, 0);
+      expect(customMarkerBuilds, 0);
     },
   );
 }

@@ -70,7 +70,7 @@ void main() {
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       outputs: {
-        'apps_examples|lib/customer.stories.dart': decodedMatches(
+        'apps_examples|lib/custom.stories.dart': decodedMatches(
           'Bad state: Widgetbook seed at /constructorDefaults/label cannot '
           'reproduce constructor default _privateLabel. $_remediation',
         ),
@@ -84,7 +84,7 @@ final class _StoryPlanProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['customer.stories.dart'],
+        r'$lib$': ['custom.stories.dart'],
       };
 
   @override
@@ -94,7 +94,7 @@ final class _StoryPlanProbeBuilder implements Builder {
       final widget = index.widgets.single;
       final plan = planWidgetbookStory(index: index, widget: widget);
       await buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, 'lib/customer.stories.dart'),
+        AssetId(buildStep.inputId.package, 'lib/custom.stories.dart'),
         renderWidgetbookStorySource(
           plan: plan,
           packageName: buildStep.inputId.package,
@@ -103,7 +103,7 @@ final class _StoryPlanProbeBuilder implements Builder {
       );
     } on Object catch (error) {
       await buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, 'lib/customer.stories.dart'),
+        AssetId(buildStep.inputId.package, 'lib/custom.stories.dart'),
         error.toString(),
       );
     }

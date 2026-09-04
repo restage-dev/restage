@@ -16,7 +16,7 @@ import 'package:meta/meta.dart';
 ///
 /// The [union] field receives the Dart type the annotated class
 /// represents. It is captured by the compiler at annotation-evaluation
-/// time so customers can reference the type symbolically.
+/// time so apps can reference the type symbolically.
 @immutable
 final class RestageStructuredType {
   /// Const constructor.

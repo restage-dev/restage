@@ -11,35 +11,35 @@ const String propsNamespaceSpikeCatalogId =
     'restage:spike/a2ui-required-props/v0.9.1';
 
 Catalog buildPropsNamespaceSpikeCatalog() => Catalog(
-      buildPropsNamespaceSpikeCatalogItems(),
-      catalogId: propsNamespaceSpikeCatalogId,
-      functions: const <ClientFunction>[_SpikeStringFunction()],
-    );
+  buildPropsNamespaceSpikeCatalogItems(),
+  catalogId: propsNamespaceSpikeCatalogId,
+  functions: const <ClientFunction>[_SpikeStringFunction()],
+);
 
 List<CatalogItem> buildPropsNamespaceSpikeCatalogItems() => <CatalogItem>[
-      CatalogItem(
-        name: 'CustomerCard',
-        dataSchema: _customerCardSchema,
-        widgetBuilder: _buildCustomerCard,
-      ),
-      CatalogItem(
-        name: 'SpikeLeaf',
-        dataSchema: S.object(
-          properties: <String, Schema>{
-            'props': S.object(
-              properties: <String, Schema>{'label': S.string()},
-              required: <String>['label'],
-            ),
-          },
-          required: <String>['props'],
+  CatalogItem(
+    name: 'CustomCard',
+    dataSchema: _customCardSchema,
+    widgetBuilder: _buildCustomCard,
+  ),
+  CatalogItem(
+    name: 'SpikeLeaf',
+    dataSchema: S.object(
+      properties: <String, Schema>{
+        'props': S.object(
+          properties: <String, Schema>{'label': S.string()},
+          required: <String>['label'],
         ),
-        widgetBuilder: (itemContext) {
-          final props = _props(itemContext);
-          return p0.PropsNamespaceLeaf(label: props['label']! as String);
-        },
-      ),
-      _ordinaryExternalCatalogItem,
-    ];
+      },
+      required: <String>['props'],
+    ),
+    widgetBuilder: (itemContext) {
+      final props = _props(itemContext);
+      return p0.PropsNamespaceLeaf(label: props['label']! as String);
+    },
+  ),
+  _ordinaryExternalCatalogItem,
+];
 
 final Schema _dynamicString = S.combined(
   oneOf: <Schema>[
@@ -75,7 +75,7 @@ final Schema _dynamicBoolean = S.combined(
   ],
 );
 
-final Schema _customerCardSchema = S.combined(
+final Schema _customCardSchema = S.combined(
   $ref: '#/\$defs/__a2ui_root__',
   $defs: <String, Schema>{
     'SpikeNode': S.object(
@@ -136,7 +136,7 @@ final Schema _customerCardSchema = S.combined(
   },
 );
 
-Widget _buildCustomerCard(CatalogItemContext itemContext) {
+Widget _buildCustomCard(CatalogItemContext itemContext) {
   final props = _props(itemContext);
   return BoundString(
     dataContext: itemContext.dataContext,
@@ -203,12 +203,16 @@ p0.SpikeNode _buildNode(Object? value) {
 
 Map<String, int> _buildCounts(Object? value) =>
     (value! as Map).map<String, int>(
-      (key, count) => MapEntry<String, int>(key as String, (count! as num).toInt()),
+      (key, count) =>
+          MapEntry<String, int>(key as String, (count! as num).toInt()),
     );
 
 p0.SpikeMeta _buildMeta(Object? value) {
   final map = (value! as Map).cast<String, Object?>();
-  return (label: map['label']! as String, count: (map['count']! as num).toInt());
+  return (
+    label: map['label']! as String,
+    count: (map['count']! as num).toInt(),
+  );
 }
 
 final CatalogItem _ordinaryExternalCatalogItem = CatalogItem(

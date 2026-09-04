@@ -169,7 +169,7 @@ void main() {
     );
   });
 
-  test('rejects customer claims to preview-only catalog symbols', () {
+  test('rejects custom claims to preview-only catalog symbols', () {
     final libraryClaim = _catalog();
     final libraries = libraryClaim['libraries']! as Map<String, Object?>;
     libraries[kReservedPreviewLibraryName] = <String, Object?>{

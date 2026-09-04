@@ -19,8 +19,8 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 class A2uiDataBuilder {
   /// Builds a value-builder over a widget's data-shape [roots].
   ///
-  /// [prefixes] maps each customer `libraryUri` to the short import prefix the
-  /// emitter allocated for it; the builder spells every customer type
+  /// [prefixes] maps each custom `libraryUri` to the short import prefix the
+  /// emitter allocated for it; the builder spells every custom type
   /// qualified by that prefix, so two same-named classes from different
   /// libraries can never collide in the generated source. Empty (the default)
   /// emits bare spellings — used when no rich shape is present.
@@ -40,7 +40,7 @@ class A2uiDataBuilder {
     _assignClassHelpers();
   }
 
-  /// libraryUri → import prefix for the customer libraries the spellings carry.
+  /// libraryUri → import prefix for the custom libraries the spellings carry.
   final Map<String, String> _prefixes;
 
   /// The generated runtime recursion-depth ceiling (a defense against a
@@ -125,7 +125,7 @@ class A2uiDataBuilder {
     }
   }
 
-  /// The first customer-generic-over-customer-type spelling reachable from
+  /// The first custom-generic-over-custom-type spelling reachable from
   /// [node] that cannot be import-prefixed, or null when every spelling under
   /// [node] is prefixable.
   ///
@@ -148,7 +148,7 @@ class A2uiDataBuilder {
           visit(valueType);
         case ObjectNode(:final construction, :final fields):
           if (construction is A2uiClassConstruction &&
-              _spellingHasCustomerTypeArgument(construction)) {
+              _spellingHasCustomTypeArgument(construction)) {
             result = construction.dartTypeName;
             return;
           }
@@ -163,7 +163,7 @@ class A2uiDataBuilder {
   /// The dart:core type names that may appear UNPREFIXED as a generic type
   /// argument (the reconstructable type-argument set the reflector accepts:
   /// scalars + the collection constructors). Any OTHER identifier in a type-
-  /// argument position is presumed a customer type — which the leading-
+  /// argument position is presumed a custom type — which the leading-
   /// identifier prefix cannot qualify — and fails the spelling closed.
   static const Set<String> _unprefixedSafeTypeArgNames = {
     'int',
@@ -185,15 +185,15 @@ class A2uiDataBuilder {
   static final RegExp _typeArgIdentifier = RegExp(r'[A-Za-z_$][A-Za-z0-9_$]*');
 
   /// Whether [construction]'s instantiated spelling is a generic whose type
-  /// arguments include a non-dart:core (presumed customer) type but lacks a
+  /// arguments include a non-dart:core (presumed custom) type but lacks a
   /// recursive `DartTypeIdentity` that can qualify it.
   ///
-  /// Fail-closed-conservative: rather than enumerate customer types (which can
+  /// Fail-closed-conservative: rather than enumerate custom types (which can
   /// miss a phantom/inherited type-argument dependency that never appears as a
   /// reconstructed field), this allow-lists the dart:core type names that are
   /// safe to spell bare and treats every other type-argument identifier as
   /// unprefixable.
-  bool _spellingHasCustomerTypeArgument(A2uiClassConstruction construction) {
+  bool _spellingHasCustomTypeArgument(A2uiClassConstruction construction) {
     if (construction.dartTypeIdentity != null) return false;
     final spelling = construction.dartTypeName;
     final lt = spelling.indexOf('<');

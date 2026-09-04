@@ -16,7 +16,7 @@ const restageLibrary = 0;
 
 void main() {
   test(
-      'nullable named exact customer list preserves null and authored list '
+      'nullable named exact custom list preserves null and authored list '
       'values and analyze clean', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
@@ -138,7 +138,7 @@ void main() {
   });
 
   test(
-      'optional positional exact customer list emits once with its real '
+      'optional positional exact custom list emits once with its real '
       'binding and analyze clean', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
@@ -196,12 +196,12 @@ void main() {
       expect(
         RegExp('#regions:').allMatches(factory),
         isEmpty,
-        reason: 'a positional customer child must never be re-emitted named',
+        reason: 'a positional custom child must never be re-emitted named',
       );
       expect(
         RegExp(r'source\.childList\(').allMatches(factory),
         hasLength(1),
-        reason: 'the exact customer list value must be emitted exactly once',
+        reason: 'the exact custom list value must be emitted exactly once',
       );
       expect(
         flat,

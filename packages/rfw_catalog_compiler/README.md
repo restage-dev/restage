@@ -3,7 +3,7 @@
 [![pub package](https://img.shields.io/pub/v/rfw_catalog_compiler.svg)](https://pub.dev/packages/rfw_catalog_compiler) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE)
 
 Analyzer-backed compiler pipeline that turns annotated Dart widget libraries
-into a [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog. It walks a customer's
+into a [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog. It walks an app's
 `@RestageLibrary` / `@RestageWidget` source with the Dart analyzer, builds an
 internal IR, allocates stable wire IDs, and lowers the result to the public
 `rfw_catalog_schema` wire shape: the durable contract that authoring tools, SDK

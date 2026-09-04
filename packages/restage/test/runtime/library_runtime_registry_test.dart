@@ -10,7 +10,7 @@ import 'package:restage/src/measurement/measurement_rfw_presentation.dart';
 import 'package:restage_shared/restage_shared.dart' show LibraryRequirement;
 // `rfw` exposes its own `WidgetLibrary` (the runtime's decoded-library
 // type). The catalog `WidgetLibrary` from `restage_shared` is what
-// customers register with — hide rfw's so the catalog identifier is the
+// apps register with — hide rfw's so the catalog identifier is the
 // one in scope.
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
@@ -33,7 +33,7 @@ Runtime _applyToFreshRuntime() {
 void main() {
   setUp(LibraryRuntimeRegistry.clear);
 
-  test('register + applyTo registers customer library on the runtime', () {
+  test('register + applyTo registers custom library on the runtime', () {
     _registerOne('acme.design_system', 'AcmeButton');
     expect(
       _applyToFreshRuntime().libraries.keys,
@@ -65,7 +65,7 @@ void main() {
     );
   });
 
-  test('applyTo registers each customer library independently', () {
+  test('applyTo registers each custom library independently', () {
     _registerOne('acme.design_system', 'A');
     _registerOne('beta.design_system', 'B');
     expect(
@@ -100,7 +100,7 @@ void main() {
     final namespace = kMeasurementRfwPresentationLibrary.parts.join('.');
 
     expect(
-      () => _registerOne(namespace, 'CustomerMeasurementPresented'),
+      () => _registerOne(namespace, 'CustomMeasurementPresented'),
       throwsAssertionError,
     );
     expect(LibraryRuntimeRegistry.isRegistered(namespace), isFalse);

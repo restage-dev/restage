@@ -126,8 +126,8 @@ final class A2uiCallbackUnsupported extends A2uiCallbackSignature {
 
 /// A map from `(widgetName, propertyName)` to the classified callback signature
 /// for that interactive property — the reflector's output, threaded into the
-/// emitter alongside the serialized catalog (which discards customer callback
-/// signatures). A property present here is a customer `@RestageWidget` callback
+/// emitter alongside the serialized catalog (which discards custom callback
+/// signatures). A property present here is a custom `@RestageWidget` callback
 /// whose disposition the interactivity lowering reads; everything else takes
 /// the unchanged catalog-fed path, so the built-in catalogs are byte-neutral.
 typedef A2uiEventSeam = Map<(String, String), A2uiCallbackSignature>;

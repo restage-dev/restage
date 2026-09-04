@@ -38,7 +38,7 @@ final class RecordExcluded extends RecordClassification {
   /// Creates the excluded verdict carrying [reason].
   const RecordExcluded(this.reason);
 
-  /// Customer-actionable sentence naming the offending label or property.
+  /// Custom-actionable sentence naming the offending label or property.
   final String reason;
 }
 

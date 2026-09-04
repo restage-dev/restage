@@ -1,5 +1,5 @@
 // Paywall-relevant coverage fixtures — widgets shaped like the
-// surfaces a customer would actually author for a Restage paywall.
+// surfaces a custom would actually author for a Restage paywall.
 // Each widget targets a specific construct mix; the harness asserts
 // the snapshot's bucket counts match the realised classification.
 //

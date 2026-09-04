@@ -661,9 +661,9 @@ Object x() => Curves.$member;
     });
 
     test(
-        'a customer Colors lookalike (scalar int member) defers — never the '
+        'a custom Colors lookalike (scalar int member) defers — never the '
         'material int (#2 silent-wrong closed)', () async {
-      // `red` matches a curated Material name, but this is a CUSTOMER class
+      // `red` matches a curated Material name, but this is a CUSTOM class
       // named `Colors`, not package:flutter's. The classifier's scalar-fold
       // promotes `Colors.red` to composable (the int const folds), so it
       // reaches the translator — which must NOT lower it against the hard-coded
@@ -684,7 +684,7 @@ Object x() => Curves.$member;
     });
 
     test(
-        'a customer Colors lookalike (Color-object member) defers — the '
+        'a custom Colors lookalike (Color-object member) defers — the '
         'translator-direct object-path negative', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
@@ -958,7 +958,7 @@ Object x() => Curves.$member;
       );
     });
 
-    test('a customer PageView look-alike does NOT alias (unknownWidget)',
+    test('a custom PageView look-alike does NOT alias (unknownWidget)',
         () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -1027,7 +1027,7 @@ Object x() => Curves.$member;
       );
     });
 
-    test('a customer DraggableScrollableSheet look-alike does NOT alias',
+    test('a custom DraggableScrollableSheet look-alike does NOT alias',
         () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -1150,7 +1150,7 @@ Object x() => Curves.$member;
     });
 
     test(
-        'a resolved customer SingleChildScrollView function does NOT alias '
+        'a resolved custom SingleChildScrollView function does NOT alias '
         'as the canonical scroll view (fatal-defers)', () async {
       // A paywall that hides Flutter's SingleChildScrollView and defines its
       // own same-named function must not be mis-recognised as the canonical
@@ -1575,7 +1575,7 @@ RadioGroup<String>(
       );
     });
 
-    test('a customer RadioGroup look-alike does NOT alias (unknownWidget)',
+    test('a custom RadioGroup look-alike does NOT alias (unknownWidget)',
         () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -1977,8 +1977,8 @@ SegmentedButton<String>(
       expect(r.dsl, matches(RegExp(r'^\d+$')));
     });
 
-    test('a customer Icons lookalike (not package:flutter) defers', () async {
-      // The icon arm reads the real codepoint, so a customer `Icons` is not a
+    test('a custom Icons lookalike (not package:flutter) defers', () async {
+      // The icon arm reads the real codepoint, so a custom `Icons` is not a
       // silent-wrong vector — but the arm is still gated to package:flutter for
       // uniformity (no name-only Colors/Icons path survives anywhere).
       final r = translator.translate(
@@ -2021,7 +2021,7 @@ SegmentedButton<String>(
 
   // The translator's name-based structured-value recognition (EdgeInsets /
   // BorderRadius / Color / Locale / Alignment / Duration / Offset / gradients
-  // …) must lower ONLY the real framework type. A resolved CUSTOMER class whose
+  // …) must lower ONLY the real framework type. A resolved CUSTOM class whose
   // name collides with a framework value type would otherwise be lowered as the
   // framework value — a value-wrong blob the type-aware floor cannot catch (any
   // structurally-valid value passes). Each negative proves the resolved
@@ -2033,8 +2033,7 @@ SegmentedButton<String>(
   group('framework value-type look-alike defers (value-substitution sweep)',
       () {
     // -- EdgeInsets (package:flutter/) — InstanceCreation factory --
-    test('a customer EdgeInsets.all look-alike defers (no [8,8,8,8])',
-        () async {
+    test('a custom EdgeInsets.all look-alike defers (no [8,8,8,8])', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
         class EdgeInsets {
@@ -2045,7 +2044,7 @@ SegmentedButton<String>(
       '''),
       );
       // A clean defer — nothing emitted, routed to widget construction which
-      // reports the resolved customer class is not a known widget. NOT the
+      // reports the resolved custom class is not a known widget. NOT the
       // framework value `[8,8,8,8]` (which `isEmpty` also rules out).
       expect(r.dsl, isEmpty);
       expect(r.issues.map((i) => i.code), contains(IssueCode.unknownWidget));
@@ -2065,7 +2064,7 @@ SegmentedButton<String>(
     });
 
     // -- BorderRadius (package:flutter/) — InstanceCreation factory --
-    test('a customer BorderRadius.circular look-alike defers', () async {
+    test('a custom BorderRadius.circular look-alike defers', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
         class BorderRadius {
@@ -2080,7 +2079,7 @@ SegmentedButton<String>(
     });
 
     // -- Color (dart:ui) — InstanceCreation + recipe-dispatched --
-    test('a customer Color look-alike defers (no packed int)', () async {
+    test('a custom Color look-alike defers (no packed int)', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
         class Color {
@@ -2109,10 +2108,10 @@ SegmentedButton<String>(
 
     // -- FontWeight (dart:ui) — PrefixedIdentifier enum-like-const --
     test(
-        'a customer FontWeight look-alike defers — never the framework weight '
+        'a custom FontWeight look-alike defers — never the framework weight '
         'name (the coincidental-canonical value-substitution)', () async {
       // `w600` matches a canonical framework weight, so the validator backstop
-      // cannot catch it — only the element gate can. A customer class named
+      // cannot catch it — only the element gate can. A custom class named
       // `FontWeight` must defer, not lower to `"w600"` (which the
       // `enumValue<FontWeight>` decoder would resolve to the REAL framework
       // weight — a value-substitution silent-wrong for the author's own type).
@@ -2131,7 +2130,7 @@ SegmentedButton<String>(
 
     // -- TextDecoration (dart:ui) — PrefixedIdentifier enum-like-const --
     test(
-        'a customer TextDecoration look-alike defers — never the bare member '
+        'a custom TextDecoration look-alike defers — never the bare member '
         'name (the runtime defaults an unknown decoration to none)', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
@@ -2163,11 +2162,11 @@ SegmentedButton<String>(
     // -- Curves (package:flutter/animation) — PrefixedIdentifier
     //    enum-like-const --
     test(
-        'a customer Curves look-alike defers — never the framework curve name '
+        'a custom Curves look-alike defers — never the framework curve name '
         '(coincidental-supported value-substitution)', () async {
       // `easeIn` IS a supported curve name, so the catalog validator's curve
       // backstop cannot catch it — it only rejects names OUTSIDE the supported
-      // set. A customer class named `Curves` must defer, not lower to
+      // set. A custom class named `Curves` must defer, not lower to
       // `"easeIn"` (which the curve decoder resolves to the REAL framework
       // `Curves.easeIn` — a value-substitution silent-wrong for the author's
       // own type). Only the element gate distinguishes them.
@@ -2255,7 +2254,7 @@ SegmentedButton<String>(
     });
 
     // -- Locale (dart:ui) — InstanceCreation --
-    test('a customer Locale look-alike defers', () async {
+    test('a custom Locale look-alike defers', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
         class Locale {
@@ -2270,7 +2269,7 @@ SegmentedButton<String>(
     });
 
     // -- Duration (dart:core) — InstanceCreation --
-    test('a customer Duration look-alike defers (no ms total)', () async {
+    test('a custom Duration look-alike defers (no ms total)', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
         class Duration {
@@ -2294,8 +2293,7 @@ SegmentedButton<String>(
     });
 
     // -- the `.zero` const-factory arm (PrefixedIdentifier) --
-    test('a customer EdgeInsets.zero look-alike defers (no zero list)',
-        () async {
+    test('a custom EdgeInsets.zero look-alike defers (no zero list)', () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest('''
         class EdgeInsets {
@@ -2350,7 +2348,7 @@ SegmentedButton<String>(
         'an UNRESOLVED EdgeInsets.all still lowers (synthetic-test affordance)',
         () async {
       // parseExpressionForTest yields an unresolved AST (null element); the
-      // name-based recognition still fires (no resolved customer lookalike to
+      // name-based recognition still fires (no resolved custom lookalike to
       // disambiguate from). Production always resolves, so this path is the
       // synthetic-test affordance, not a production silent-wrong vector.
       final r = translator.translate(
@@ -2367,7 +2365,7 @@ SegmentedButton<String>(
   // (or a deliberate extension landing).
   group('const namespace survey', () {
     // `Colors.*` / `Icons.*` recognition (curated positive, outside-curated
-    // diagnostic, and the customer-lookalike + unresolved-prefix defers) is
+    // diagnostic, and the custom-lookalike + unresolved-prefix defers) is
     // covered by the dedicated 'enum + Colors translation' / 'const icon
     // resolution' groups above, which exercise real-flutter vs lookalike
     // resolution. This group covers the other const namespaces.
@@ -2388,7 +2386,7 @@ SegmentedButton<String>(
       expect(r.dsl, '"topLeft"');
     });
 
-    test('customer Alignment.X cannot impersonate the framework static const',
+    test('custom Alignment.X cannot impersonate the framework static const',
         () async {
       const source = '''
         class Alignment {
@@ -2409,10 +2407,10 @@ SegmentedButton<String>(
       );
     });
 
-    // The `EdgeInsets.zero` / `BorderRadius.zero` positives + their customer
+    // The `EdgeInsets.zero` / `BorderRadius.zero` positives + their custom
     // look-alike defers now live in the 'value-substitution sweep' group above
-    // (real-flutter resolution vs a resolved customer stub) — the const-factory
-    // `.zero` arms are gated to the real framework type, so a customer-stub
+    // (real-flutter resolution vs a resolved custom stub) — the const-factory
+    // `.zero` arms are gated to the real framework type, so a custom-stub
     // `.zero` here would (correctly) defer rather than lower.
   });
 
@@ -2421,7 +2419,7 @@ SegmentedButton<String>(
     // milliseconds (the runtime decoder is `Duration(milliseconds: ms)`), so a
     // const `Duration(...)` lowers to its total milliseconds. These exercise
     // the named-argument arithmetic against the REAL `dart:core` Duration (the
-    // value-substitution gate accepts `dart:` — no stub needed; a customer
+    // value-substitution gate accepts `dart:` — no stub needed; a custom
     // Duration look-alike defers, covered by the sweep group above).
 
     test('Duration(seconds: 1) lowers to 1000 (milliseconds)', () async {
@@ -7296,7 +7294,7 @@ Object x() => Text.rich(
       );
     });
 
-    test('customer TextSpan look-alike defers instead of emitting', () async {
+    test('custom TextSpan look-alike defers instead of emitting', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/widgets.dart' hide TextSpan;
@@ -7306,7 +7304,7 @@ Object x() => Text.rich(
           final String? text;
         }
 
-        Object x() => Text.rich(const TextSpan(text: 'customer span'));
+        Object x() => Text.rich(const TextSpan(text: 'custom span'));
         ''',
         rootPackage: 'apps_examples',
       );

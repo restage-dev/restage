@@ -194,7 +194,7 @@ enum WireIdKind {
   property('p'),
 
   /// Structured (value-type) entry (`s0001`). Examples: `BoxDecoration`,
-  /// `TextStyle`, `LinearGradient`, customer `AcmeColor`.
+  /// `TextStyle`, `LinearGradient`, custom `AcmeColor`.
   structured('s'),
 
   /// Factory variant on a structured type (`v0001`). Covers named
@@ -223,7 +223,7 @@ enum WireIdKind {
 ///
 /// Use to point at entries that may live in a different library namespace
 /// than the referrer. Examples: a `Container` property referencing
-/// `restage.core`'s `t0005` (`surface`) design token, or a customer paywall
+/// `restage.core`'s `t0005` (`surface`) design token, or a custom paywall
 /// referencing a `restage_material` widget entry.
 @immutable
 final class WireIdRef {

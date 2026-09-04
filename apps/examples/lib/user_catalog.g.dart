@@ -408,7 +408,7 @@ final Catalog kUserCatalog = Catalog(
       name: 'Plan',
       library: WidgetLibrary.custom('restage_example.widgets'),
       description:
-          'A subscription plan rendered inside a [PricingCard] — a customer data class with a nested [Price], an optional badge, and an enum tier.',
+          'A subscription plan rendered inside a [PricingCard] — a custom data class with a nested [Price], an optional badge, and an enum tier.',
       sourceType: 'package:restage_example/widgets/pricing_card.dart#Plan',
       fields: [
         StructuredField(
@@ -559,7 +559,7 @@ final Catalog kUserCatalog = Catalog(
       name: 'Tier',
       library: WidgetLibrary.custom('restage_example.widgets'),
       description:
-          'A pricing tier: a name plus a list of the features it includes — a customer data class that itself carries a `List<Feature>`, so a `List<Tier>` is a two-level nested list of objects.',
+          'A pricing tier: a name plus a list of the features it includes — a custom data class that itself carries a `List<Feature>`, so a `List<Tier>` is a two-level nested list of objects.',
       sourceType: 'package:restage_example/widgets/tier_board.dart#Tier',
       fields: [
         StructuredField(

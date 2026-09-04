@@ -153,7 +153,7 @@ enum RuntimePlane {
   /// Isolated evaluation and development traffic.
   sandbox,
 
-  /// Customer-facing production traffic.
+  /// User-facing production traffic.
   live;
 
   /// Decode the backend wire name.

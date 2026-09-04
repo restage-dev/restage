@@ -29,7 +29,7 @@ class Feature {
 class Product {
   /// Creates a product.
   const Product({
-    @RestageDataField(description: 'The customer-facing product name.')
+    @RestageDataField(description: 'The user-facing product name.')
     required this.name,
     required this.price,
     required this.tags,

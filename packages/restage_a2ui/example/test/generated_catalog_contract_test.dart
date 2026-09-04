@@ -154,7 +154,7 @@ void main() {
     );
     _expectDescription(
       _objectAt(productProperties, 'name'),
-      'The customer-facing product name.',
+      'The user-facing product name.',
     );
     _expectDescription(
       _objectAt(productProperties, 'price'),
@@ -203,7 +203,7 @@ void main() {
 
     final encoded = jsonEncode(schema);
     for (final description in const [
-      'The customer-facing product name.',
+      'The user-facing product name.',
       'A product with pricing, feature, attribute, and display metadata.',
       'A monetary amount in a specific currency.',
       'One feature included in or excluded from a product.',

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart' show Plan, PlanTier;
 
-/// A customer-defined plan board that renders *maps* of [Plan] data-class
-/// values — the example app's demonstration of a customer **map-of-objects**
+/// A custom-defined plan board that renders *maps* of [Plan] data-class
+/// values — the example app's demonstration of a custom **map-of-objects**
 /// property rendering natively as real Flutter widgets from a server-delivered
 /// blob.
 ///
@@ -37,7 +37,7 @@ class PlanBoard extends StatelessWidget {
     required this.highlights,
   });
 
-  /// The plans to render, keyed by slug, in the author's order (a customer
+  /// The plans to render, keyed by slug, in the author's order (a custom
   /// map-of-data-class property with a string key).
   @RestageProperty(
     description: 'The plans to render, keyed by slug.',
@@ -45,7 +45,7 @@ class PlanBoard extends StatelessWidget {
   )
   final Map<String, Plan> plans;
 
-  /// The highlighted plan for each billing tier (a customer map-of-data-class
+  /// The highlighted plan for each billing tier (a custom map-of-data-class
   /// property with an *enum* key).
   @RestageProperty(
     description: 'The highlighted plan for each billing tier.',

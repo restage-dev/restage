@@ -6,7 +6,7 @@ import 'package:rfw_catalog_compiler/src/walker/walker_issue_codes.dart'
     as issue_codes;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// The declared identity of a customer widget library.
+/// The declared identity of a custom widget library.
 @immutable
 final class RestageLibraryDeclaration {
   /// Creates a declaration.
@@ -97,7 +97,7 @@ LibraryWalkResult walkRestageLibrary({
 }) {
   final annotated = _findRestageLibraryAnnotated(barrel);
   if (annotated == null) {
-    // No @RestageLibrary present — not a customer barrel; no-op.
+    // No @RestageLibrary present — not a custom barrel; no-op.
     return const LibraryWalkResult();
   }
 
@@ -136,7 +136,7 @@ LibraryWalkResult walkRestageLibrary({
     );
   }
 
-  // Guard A: a customer library must not claim a built-in namespace.
+  // Guard A: a custom library must not claim a built-in namespace.
   if (WidgetLibrary.builtInByNamespace(namespace) != null) {
     return LibraryWalkResult(
       diagnostics: [

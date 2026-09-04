@@ -87,8 +87,7 @@ ElevatedButton(
       );
     });
 
-    test('a customer Navigator.pop look-alike is not lowered as close',
-        () async {
+    test('a custom Navigator.pop look-alike is not lowered as close', () async {
       // `Navigator` here is a shadowing parameter, not the framework class, so
       // its `pop` must NOT be recognised as the in-sheet close form. The
       // unlowerable inline control then defers loud — never a silent close.

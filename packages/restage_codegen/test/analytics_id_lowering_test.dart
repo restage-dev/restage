@@ -99,7 +99,7 @@ void main() {
   }
 
   group('lowerAnalyticsIds', () {
-    test('rejects labeled generic built-in and opaque customer RFW calls', () {
+    test('rejects labeled generic built-in and opaque custom RFW calls', () {
       const absent = '''
 import restage.core;
 import acme.widgets;
@@ -146,7 +146,7 @@ widget Root = Column(children: [
       );
     });
 
-    test('binds built-in, opaque, and inlined customer RFW occurrences', () {
+    test('binds built-in, opaque, and inlined custom RFW occurrences', () {
       const absent = '''
 import restage.core;
 import acme.widgets;

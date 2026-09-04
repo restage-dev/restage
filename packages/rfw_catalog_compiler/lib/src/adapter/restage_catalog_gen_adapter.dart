@@ -180,7 +180,7 @@ final class RestageCatalogGenAdapter {
     if (category == null) {
       throw StateError(
         'Built-in compiler requires WidgetEntry.category for '
-        '${widget.library.namespace}:${widget.name}. Customer catalogs with '
+        '${widget.library.namespace}:${widget.name}. Custom catalogs with '
         'root placement must not enter RestageCatalogGenAdapter.',
       );
     }

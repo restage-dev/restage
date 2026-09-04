@@ -13,9 +13,9 @@ import '../index_probe_helpers.dart';
 /// whose constructor parameter is required emits a constructor call missing a
 /// required argument — uncompilable generated code, still under a green build.
 ///
-/// Each test drives the real `UserA2uiCatalogBuilder` over a customer package
+/// Each test drives the real `UserA2uiCatalogBuilder` over a custom package
 /// and asserts the build FAILS with a diagnostic naming the widget, the
-/// property, and the reason (customer-actionable), mirroring
+/// property, and the reason (custom-actionable), mirroring
 /// `a2ui_builder_fail_loud_guards_test.dart`. The last test proves the
 /// non-fatal leg: an omitted OPTIONAL property builds green with a WARNING.
 Future<(bool succeeded, String logs)> _runBuilder(
@@ -230,7 +230,7 @@ void main() {
 
       for (final sourceShape in sourceShapes.entries) {
         test(
-            "customer field '$fieldName' is exact beneath props for "
+            "custom field '$fieldName' is exact beneath props for "
             '${sourceShape.key} admission', () async {
           final source = '''
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -259,7 +259,7 @@ void main() {
         });
       }
 
-      test("optional customer field '$fieldName' remains legal beneath props",
+      test("optional custom field '$fieldName' remains legal beneath props",
           () async {
         final source = '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

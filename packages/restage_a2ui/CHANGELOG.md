@@ -1,9 +1,9 @@
 ## Unreleased
 
-- Accept constructor-derived customer properties and canonical
+- Accept constructor-derived custom properties and canonical
   `a2ui.Config` usage/write-back metadata from the coordinated catalog
   authoring release.
-- Derive callback identity from the exact constructor property name; customer
+- Derive callback identity from the exact constructor property name; custom
   widgets no longer declare events through an RFW event list.
 - **Migrate the A2UI integration to genui 0.10.1 and `a2ui_core`.** The A2UI
   message model relocated into `package:a2ui_core` (`CreateSurfaceMessage`,
@@ -16,7 +16,7 @@
 - genui 0.10.1 performs full JSON-schema validation of components (a tightening
   over 0.9.2's enum-only checks). Validation is report-only and does not change
   the fail-closed pre-render check, which remains the authoritative gate.
-- **Coordinated generated-payload break:** customer widgets and opaque native
+- **Coordinated generated-payload break:** custom widgets and opaque native
   screens now keep protocol `id`/`component` on the envelope and nest every
   exact constructor input under one required `props` object. Regenerate the
   catalog and migrate producer/cached fixtures together. The runtime
@@ -29,7 +29,7 @@
 
 - Update the bundled generated catalog and documentation for content-derived
   catalog identity, typed constraints, controlled values, nested data
-  descriptions, and automatic customer-widget generation.
+  descriptions, and automatic custom-widget generation.
 - Keep genui pinned to 0.9.2. The package runtime is unchanged.
 
 ## 0.1.5
@@ -56,7 +56,7 @@
 ## 0.1.2
 
 - Document the A2UI emit target's **rich structured data** support: a `@RestageWidget` property typed as a
-  customer data class (nested data classes, lists of objects, String-keyed maps, named records) generates a
+  custom data class (nested data classes, lists of objects, String-keyed maps, named records) generates a
   rich `genui` schema that reconstructs and renders the value, with a fail-safe on a missing required value.
 - Document the opt-in `build_runner` builder workflow that produces the generated catalog and the capability
   stamp from `@RestageWidget` source.

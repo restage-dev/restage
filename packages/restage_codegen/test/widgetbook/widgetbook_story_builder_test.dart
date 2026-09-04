@@ -198,7 +198,7 @@ class ManualCard {}
     try {
       final lib = Directory('${temp.path}/lib')..createSync(recursive: true);
       File('${lib.path}/manual_card.dart').writeAsStringSync('''
-@Deprecated('customer-authored Widgetbook story')
+@Deprecated('custom-authored Widgetbook story')
 class ManualCard {}
 ''');
       File('${lib.path}/restage.generated/manual_card.stories.dart')
@@ -609,7 +609,7 @@ class PlainCard {}
   );
 
   test(
-    'customer description and usage stay editable under exact Dart names',
+    'custom description and usage stay editable under exact Dart names',
     () async {
       const output =
           'apps_examples|lib/restage.generated/metadata_card.stories.dart';
@@ -1232,7 +1232,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 @RestageLibrary(library: WidgetLibrary.custom('fixture.widgets'))
 const restageLibrary = 0;
 
-/// A root-level customer card.
+/// A root-level custom card.
 @RestageWidget($arguments)
 class RootCard extends StatelessWidget {
   const RootCard({super.key});
@@ -1365,8 +1365,8 @@ class OpaqueScreen extends StatelessWidget {
     required this.title,
     this.enabled = true,
     this.tone = ScreenTone.calm,
-    this.description = 'Customer description',
-    this.usage = 'Customer usage',
+    this.description = 'Custom description',
+    this.usage = 'Example usage',
   });
 
   /// Visible screen title.
@@ -1380,10 +1380,10 @@ class OpaqueScreen extends StatelessWidget {
   @wb.Config.allValues()
   final ScreenTone tone;
 
-  /// Editable customer description.
+  /// Editable custom description.
   final String description;
 
-  /// Editable customer usage.
+  /// Editable example usage.
   final String usage;
 
   @override
@@ -1470,16 +1470,16 @@ class MetadataCard extends StatelessWidget {
     required this.restageMetadataUsage,
   });
 
-  /// Editable customer description.
+  /// Editable custom description.
   final String description;
 
-  /// Editable customer usage.
+  /// Editable example usage.
   final String usage;
 
-  /// Customer property sharing the preferred description implementation name.
+  /// Custom property sharing the preferred description implementation name.
   final String restageMetadataDescription;
 
-  /// Customer property sharing the preferred usage implementation name.
+  /// Custom property sharing the preferred usage implementation name.
   final String restageMetadataUsage;
 
   @override
@@ -1520,7 +1520,7 @@ const importedCatalogWidget = RestageWidget(
   name: 'ImportedAliasCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'An imported-alias customer card.',
+  description: 'An imported-alias custom card.',
 );
 ''';
 
@@ -1532,7 +1532,7 @@ const localCatalogWidget = RestageWidget(
   name: 'LocalAliasCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'A local-alias customer card.',
+  description: 'A local-alias custom card.',
 );
 
 @localCatalogWidget
@@ -1816,12 +1816,12 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 part 'restage.generated/shared.restage.g.dart';
 
-/// A customer widget under its ordinary Widgetbook path.
+/// A custom widget under its ordinary Widgetbook path.
 @RestageWidget(
   name: 'shared',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'A customer widget under its ordinary Widgetbook path.',
+  description: 'A custom widget under its ordinary Widgetbook path.',
 )
 class SharedCard extends StatelessWidget {
   const SharedCard({super.key});

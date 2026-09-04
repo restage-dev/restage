@@ -27,7 +27,7 @@ const String kMeasurementRouteReferenceMarkerPrefixV1 =
 /// The token is the already-derived 192-bit local portion of the strict route
 /// carrier. It is selected while artifacts are composed, before a mounted
 /// runtime can receive it; it carries no event name, Flutter key, text, or
-/// customer value.
+/// custom value.
 @internal
 abstract final class MeasurementCompactPointTokenEmitter {
   /// Extracts the bounded local token from one strict final route carrier.

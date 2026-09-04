@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 
-/// A paywall that renders a **customer data class** natively over the air.
+/// A paywall that renders a **custom data class** natively over the air.
 ///
 /// Each row is a [PricingCard] — a custom `@RestageWidget` — whose `plan`
 /// property is a nested [Plan] data class (`name`, a nested [Price], an

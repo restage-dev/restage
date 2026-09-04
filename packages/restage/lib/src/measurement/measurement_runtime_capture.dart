@@ -43,7 +43,7 @@ abstract final class MeasurementRuntimeEntrypoints {
 /// Exact mounted artifact context used to resolve a noncanonical route token.
 ///
 /// This contains only published artifact coordinates. It deliberately omits
-/// target and any subject or customer identity.
+/// target and any subject or custom identity.
 final class MeasurementMountedArtifactContext {
   /// Creates the mounted context already resolved by the delivery owner.
   const MeasurementMountedArtifactContext({
@@ -198,7 +198,7 @@ final class _DeclaredMeasurementRuntimeRoute {
 /// Immutable bounded resolver for one root surface session.
 ///
 /// Resolution occurs before the capture sub-entry. Its returned handle cannot
-/// be recreated by a caller and carries no customer argument or event name.
+/// be recreated by a caller and carries no custom argument or event name.
 final class MeasurementRuntimeRouteTable {
   /// Builds the fixed-size resolver table outside the capture sub-entry.
   MeasurementRuntimeRouteTable({
@@ -580,7 +580,7 @@ final class MeasurementFactFrameBounds {
 
 /// Opaque session nonce retained only for frame idempotency.
 final class MeasurementCaptureSessionNonce {
-  /// Creates one bounded nonce without interpreting it as customer identity.
+  /// Creates one bounded nonce without interpreting it as custom identity.
   MeasurementCaptureSessionNonce(String value) : _value = _requireValue(value);
 
   final String _value;
@@ -921,7 +921,7 @@ final class MeasurementRuntimeCaptureSession
   ///
   /// The route hook is the only production caller. It gives the capture frame a
   /// bounded, subjectless proof marker without accepting a timestamp, widget
-  /// identity, route token, customer argument, or population scope from the
+  /// identity, route token, custom argument, or population scope from the
   /// host. A fact for any other mounted context fails closed.
   @override
   void recordSuccessfulPresentation(

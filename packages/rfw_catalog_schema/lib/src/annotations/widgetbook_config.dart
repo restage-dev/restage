@@ -10,7 +10,7 @@ enum StoryExpansion {
   cartesian,
 }
 
-/// Widgetbook-specific configuration for generated customer-widget stories.
+/// Widgetbook-specific configuration for generated custom-widget stories.
 ///
 /// Import this annotation from `package:restage/widgetbook.dart` (or the
 /// corresponding `rfw_catalog_schema` / `restage_shared` entrypoint) with a
@@ -59,7 +59,7 @@ final class Config {
     this.allValues = false,
   });
 
-  /// Controls whether the annotated customer widget gets Widgetbook stories.
+  /// Controls whether the annotated custom widget gets Widgetbook stories.
   // ignore: avoid_positional_boolean_parameters
   const Config.enabled(bool enabled) : this(enabled: enabled);
 
@@ -83,7 +83,7 @@ final class Config {
   /// Selects every finite value of the annotated `bool` or enum property.
   const Config.allValues() : this(allValues: true);
 
-  /// Whether this customer widget participates in Widgetbook story emit.
+  /// Whether this custom widget participates in Widgetbook story emit.
   ///
   /// `null` keeps the default enabled behavior. This key is valid only on an
   /// `@RestageWidget` class.

@@ -464,11 +464,11 @@ final class RecipeDispatcher {
   final TranslateBoundSlotCallback _translateSlotElement;
   final TranslateTypedListTerminalCallback _translateTypedListTerminal;
 
-  /// Framework-vs-customer predicate for the member-table nested-value gate.
+  /// Framework-vs-custom predicate for the member-table nested-value gate.
   /// Defaults to [isFrameworkValueTypeLibrary]; the host translator injects its
   /// own (`forTesting`-aware) predicate so a synthetic catalog's stubs count as
   /// framework. A member access (`X.member`) whose prefix resolves to a
-  /// non-framework class is a customer look-alike and is deferred with a
+  /// non-framework class is a custom look-alike and is deferred with a
   /// diagnostic rather than name-substituted to the framework value. An
   /// unresolved prefix keeps the name-based path (the synthetic-test
   /// affordance) — production always resolves.
@@ -479,7 +479,7 @@ final class RecipeDispatcher {
 
   /// Evaluates a caller-derived [fragment] against [args] and returns the RFW
   /// DSL fragment — the derived-recipe entrypoint used when a recipe is
-  /// synthesised at translate time (e.g. a customer structured value's map,
+  /// synthesised at translate time (e.g. a custom structured value's map,
   /// derived from its catalog `StructuredEntry.fields`) rather than looked up
   /// by key. Splits [args] into positional/named exactly as [tryTranslate]
   /// does, then evaluates the emit tree (so `EmitFragmentArg` recursion,
@@ -548,7 +548,7 @@ final class RecipeDispatcher {
           Issue(
             code: IssueCode.unrecognizedMethodCall,
             message: '${recipe.typeName} field(s) not yet supported: $fields. '
-                'Remove them, or move this value into the customer app where '
+                'Remove them, or move this value into the host app where '
                 'the full type renders.',
             location: loc,
           ),
@@ -709,7 +709,7 @@ final class RecipeDispatcher {
         final expr = _resolveArg(memberArg, positional, named);
         // Nested name-only gate. The member table maps a member NAME to a
         // framework value fragment. A member access (`X.member`) whose prefix
-        // resolves to a NON-framework class is a customer look-alike — emitting
+        // resolves to a NON-framework class is a custom look-alike — emitting
         // the framework value for it is a value-substitution silent-wrong the
         // type-aware floor cannot catch. Defer with a diagnostic (NEVER the
         // bare-string fallback, which would re-emit the member name = a
@@ -729,7 +729,7 @@ final class RecipeDispatcher {
             Issue(
               code: IssueCode.unresolvedIdentifier,
               message: "'${expr!.toSource()}' is not a framework value member; "
-                  'a customer class with this member name cannot be lowered as '
+                  'a custom class with this member name cannot be lowered as '
                   'the framework value. Reference its value directly.',
               location: loc,
             ),

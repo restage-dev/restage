@@ -24,7 +24,7 @@ void main() {
       final futureCapability = commerce.CommerceCapabilityCode('future.code');
       final status = commerce.CommerceActionStatusCode('pending');
       final failure = commerce.CommerceFailureCode('not_activated');
-      final customerState = commerce.CommerceCustomerStateStatusCode('stale');
+      final purchaserState = commerce.CommercePurchaserStateStatusCode('stale');
 
       expect(capability, same(commerce.CommerceCapabilityCode.purchase));
       expect(capability.isKnown, isTrue);
@@ -33,8 +33,8 @@ void main() {
       expect(status, same(commerce.CommerceActionStatusCode.pending));
       expect(failure, same(commerce.CommerceFailureCode.notActivated));
       expect(
-        customerState,
-        same(commerce.CommerceCustomerStateStatusCode.stale),
+        purchaserState,
+        same(commerce.CommercePurchaserStateStatusCode.stale),
       );
       expect(
         () => commerce.CommerceFailureCode('NotActivated'),
@@ -84,7 +84,7 @@ void main() {
     test('is retained across reset and replays unavailable state', () async {
       final facade = Restage.commerce;
       final currentState = facade.currentState;
-      final states = <commerce.CommerceCustomerState>[];
+      final states = <commerce.CommercePurchaserState>[];
       final subscription = facade.states.listen(states.add);
       addTearDown(subscription.cancel);
 
@@ -94,13 +94,13 @@ void main() {
       expect(facade.currentState, same(currentState));
       expect(
         currentState.status,
-        same(commerce.CommerceCustomerStateStatusCode.unavailable),
+        same(commerce.CommercePurchaserStateStatusCode.unavailable),
       );
       expect(states, [same(currentState)]);
       expect(await facade.refresh(), same(currentState));
     });
 
-    test('reports unavailable operations without changing customer state',
+    test('reports unavailable operations without changing purchaser state',
         () async {
       final facade = Restage.commerce;
       final state = facade.currentState;
@@ -183,7 +183,7 @@ void main() {
 
       final facade = Restage.commerce;
       final initialState = facade.currentState;
-      final observedStates = <commerce.CommerceCustomerState>[];
+      final observedStates = <commerce.CommercePurchaserState>[];
       final subscription = facade.states.listen(observedStates.add);
       addTearDown(subscription.cancel);
       final offer = commerce.CommerceOfferId('offer.monthly');

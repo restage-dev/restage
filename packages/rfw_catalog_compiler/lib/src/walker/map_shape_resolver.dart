@@ -67,16 +67,16 @@ final class MapExcluded extends MapClassification {
   /// Creates the excluded verdict carrying [reason].
   const MapExcluded(this.reason);
 
-  /// Customer-actionable sentence naming the offending key, value or slot.
+  /// Custom-actionable sentence naming the offending key, value or slot.
   final String reason;
 }
 
-/// The verdict for a map of a customer data class in a position that does not
+/// The verdict for a map of a custom data class in a position that does not
 /// yet admit structured values. Shared by the two arms that can reach it (the
 /// admitted-structured arm and the unresolvable-shape fallback) so they cannot
-/// drift into telling the customer two different things about one boundary.
+/// drift into telling the custom two different things about one boundary.
 const _mapOfDataClassNotOnFieldExcluded = MapExcluded(
-  'a map of a customer data class is supported on a widget property but '
+  'a map of a custom data class is supported on a widget property but '
   'not yet on a field of a data class; move the map to a widget property',
 );
 
@@ -165,10 +165,10 @@ MapClassification classifyMapType(
       break;
   }
 
-  // The resolver's structured arm is a framework recipe whitelist; customer
+  // The resolver's structured arm is a framework recipe whitelist; custom
   // data classes are recognised through the walk policy instead.
   //
-  // The customer-authored check below is load-bearing, and it is deliberately
+  // The custom-authored check below is load-bearing, and it is deliberately
   // the FULL predicate rather than a library-origin test. Two things to know
   // before simplifying it:
   //
@@ -187,18 +187,18 @@ MapClassification classifyMapType(
   //
   // The full predicate is used anyway, and the reason is written here because
   // it is the only place it can be recorded: it is the single definition of
-  // "customer-authored" this codebase has, shared in intent with the discovery
+  // "custom-authored" this codebase has, shared in intent with the discovery
   // pass and kept in step by an agreement test. A subset would be a second,
   // weaker notion of the same concept with nothing pinning the difference. The
   // conditions that look redundant are anticipatory — they still hold the line
   // if the policy seeding ever loosens. Do not reduce this to a prefix check
   // on the grounds that the two measure the same; that is expected, and it is
   // not evidence that the difference is dead weight.
-  final valueIsCustomerStructured = _isCustomerAuthoredClass(valueType) &&
+  final valueIsCustomStructured = _isCustomAuthoredClass(valueType) &&
       policy != null &&
       library != null &&
       classifyStructured(valueType, policy) == StructuredKind.concrete;
-  if (valueIsCustomerStructured) {
+  if (valueIsCustomStructured) {
     if (!structuredValuesAdmitted) {
       return _mapOfDataClassNotOnFieldExcluded;
     }
@@ -224,7 +224,7 @@ MapClassification classifyMapType(
       is! NotARecord) {
     return MapExcluded(
       'a map value of type ${valueType.getDisplayString()} is a record; '
-      'a map value must be a scalar, an enum, a nested map, or a customer '
+      'a map value must be a scalar, an enum, a nested map, or a custom '
       'data class',
     );
   }
@@ -240,12 +240,12 @@ MapClassification classifyMapType(
   // type tests, so `valueShape` stays nullable past the guard without it.
   if (valueShape == null ||
       (valueShape is! ScalarShape && valueShape is! EnumShape)) {
-    if (!structuredValuesAdmitted && _isCustomerAuthoredClass(valueType)) {
+    if (!structuredValuesAdmitted && _isCustomAuthoredClass(valueType)) {
       return _mapOfDataClassNotOnFieldExcluded;
     }
     return MapExcluded(
       'map value type ${valueType.getDisplayString()} is unsupported; '
-      'use a scalar, enum, map, or customer data class',
+      'use a scalar, enum, map, or custom data class',
     );
   }
 
@@ -266,7 +266,7 @@ MapClassification classifyMapType(
 bool _isDartCoreClass(InterfaceType type, String name) =>
     type.element.name == name && type.element.library.identifier == 'dart:core';
 
-/// Whether [type] is a class the customer could author as a data class —
+/// Whether [type] is a class the custom could author as a data class —
 /// decided from the type itself, with no reference to what the walk happens to
 /// have collected.
 ///
@@ -277,13 +277,13 @@ bool _isDartCoreClass(InterfaceType type, String name) =>
 /// The conditions mirror the ones the discovery pass applies when it decides
 /// what to collect. They are restated here rather than shared because the
 /// dependency runs the other way — this package cannot see that one.
-bool _isCustomerAuthoredClass(DartType type) {
+bool _isCustomAuthoredClass(DartType type) {
   final unwrapped = unwrapTypeAliases(type);
   if (unwrapped is! InterfaceType) return false;
   final element = unwrapped.element;
   if (element is! ClassElement || element.isAbstract) return false;
   final libraryId = element.library.identifier;
-  // Mirrors the codegen-side customer-data-class test: a design package carries
+  // Mirrors the codegen-side custom-data-class test: a design package carries
   // copies of the framework's own value types, and one of those has exactly the
   // shape asked for below, so it must be excluded here too.
   if (libraryId.startsWith('dart:') ||

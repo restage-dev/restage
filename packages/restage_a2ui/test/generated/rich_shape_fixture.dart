@@ -1,4 +1,4 @@
-// A real, hand-written customer widget library — the kind a developer writes
+// A real, hand-written custom widget library — the kind a developer writes
 // and annotates with `@RestageWidget`. The data-shape fidelity proof resolves
 // THIS source with the analyzer, reflects each widget's constructor parameters
 // into rich data-shape nodes, runs them through the production A2UI emitter,

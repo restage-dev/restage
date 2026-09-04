@@ -310,16 +310,16 @@ typedef _WidgetbookMetadataNames = ({
 });
 
 /// Keeps Widgetbook's generated implementation fields separate from the
-/// customer-facing sidebar labels. The allocator moves a generated name when
-/// a customer constructor already owns its preferred spelling instead of
-/// reserving that spelling from customer authoring.
+/// app-facing sidebar labels. The allocator moves a generated name when
+/// a custom constructor already owns its preferred spelling instead of
+/// reserving that spelling from custom authoring.
 _WidgetbookMetadataNames _metadataNamesFor(
   List<WidgetbookStoryPropertyPlan> properties,
 ) {
-  final customerNames = {
+  final customNames = {
     for (final property in properties) property.property.name,
   };
-  final usedArguments = <String>{...customerNames};
+  final usedArguments = <String>{...customNames};
 
   String allocate(String preferred) {
     var candidate = preferred;
@@ -337,10 +337,10 @@ _WidgetbookMetadataNames _metadataNamesFor(
   return (
     descriptionName: description,
     usageName: usage,
-    descriptionLabel: customerNames.contains('description')
+    descriptionLabel: customNames.contains('description')
         ? 'Restage description'
         : 'description',
-    usageLabel: customerNames.contains('usage') ? 'Restage usage' : 'usage',
+    usageLabel: customNames.contains('usage') ? 'Restage usage' : 'usage',
   );
 }
 

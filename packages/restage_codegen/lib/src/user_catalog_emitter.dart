@@ -1,4 +1,4 @@
-import 'package:restage_codegen/src/customer_preview_reservation.dart';
+import 'package:restage_codegen/src/custom_preview_reservation.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -82,7 +82,7 @@ String emitUserCatalogDart(Catalog catalog) {
   return formatGeneratedDart(buf.toString());
 }
 
-/// Builds the catalog shape supported by the customer annotation pipeline.
+/// Builds the catalog shape supported by the custom annotation pipeline.
 ///
 /// The current annotation walker produces widget/property metadata only. If a
 /// future caller hands this builder path native decompose graph references,
@@ -92,7 +92,7 @@ Catalog userCatalogFromWidgets(
   List<WidgetEntry> widgets, {
   List<PropertyExclusion> exclusions = const [],
 }) {
-  validateCustomerPreviewReservations(widgets);
+  validateCustomPreviewReservations(widgets);
   _rejectUnsupportedWidgetOnlyGraph(widgets);
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
@@ -104,9 +104,9 @@ Catalog userCatalogFromWidgets(
   );
 }
 
-/// Builds the full customer catalog shape — widgets PLUS a native structured
+/// Builds the full custom catalog shape — widgets PLUS a native structured
 /// graph (`structuredTypes` / `unions`). Unlike [userCatalogFromWidgets], this
-/// accepts a structured graph (it is the path a customer widget rendering a
+/// accepts a structured graph (it is the path a custom widget rendering a
 /// data-class property takes); the allocation pass mints the graph's wire IDs.
 Catalog userCatalogFromGraph({
   required List<WidgetEntry> widgets,
@@ -115,7 +115,7 @@ Catalog userCatalogFromGraph({
   List<UnionEntry> unions = const [],
   Map<String, int> stampedCapabilityVersions = const {},
 }) {
-  validateCustomerPreviewReservations(widgets);
+  validateCustomPreviewReservations(widgets);
   _rejectUnsupportedFullGraph(
     widgets,
     hasStructuredGraph: structuredTypes.isNotEmpty,
@@ -132,7 +132,7 @@ Catalog userCatalogFromGraph({
 }
 
 /// Guards the full-graph builder: a decompose recipe or a design-token default
-/// is never producible by the customer annotation pipeline, so both fail loud.
+/// is never producible by the custom annotation pipeline, so both fail loud.
 /// A structured/union graph reference is allowed ONLY when a structured graph
 /// is provided to back it ([hasStructuredGraph]) — a bare reference with no
 /// graph is the same unpreservable shape the widget-only builder rejects.
@@ -143,8 +143,8 @@ void _rejectUnsupportedFullGraph(
   for (final widget in widgets) {
     if (widget.decomposes.isNotEmpty) {
       throw UnsupportedError(
-        'Customer catalog builder for ${widget.library.namespace}#'
-        '${widget.name} cannot preserve a native decompose graph — customer '
+        'Custom catalog builder for ${widget.library.namespace}#'
+        '${widget.name} cannot preserve a native decompose graph — custom '
         'widgets are leaf @RestageWidgets and do not carry decompose recipes.',
       );
     }
@@ -153,16 +153,16 @@ void _rejectUnsupportedFullGraph(
           (property.structuredRef != null ||
               _valueShapeNeedsGraph(property.valueShape))) {
         throw UnsupportedError(
-          'Customer catalog builder for ${widget.library.namespace}#'
+          'Custom catalog builder for ${widget.library.namespace}#'
           '${widget.name}.${property.name} carries a structured/union graph '
           'reference but no structured graph was provided to back it.',
         );
       }
       if (property.defaultSource is TokenRefDefault) {
         throw UnsupportedError(
-          'Customer catalog builder for ${widget.library.namespace}#'
+          'Custom catalog builder for ${widget.library.namespace}#'
           '${widget.name}.${property.name} cannot preserve a design-token '
-          'default because the customer annotation pipeline cannot preserve '
+          'default because the custom annotation pipeline cannot preserve '
           'designTokens.',
         );
       }
@@ -182,10 +182,10 @@ Map<WidgetLibrary, LibraryInfo> _aggregateLibraryInfo(
   // One envelope entry per distinct contributing library. Per-kind counts are
   // computed off the catalog's entry lists, not stored here.
   // `version` is a deterministic placeholder until builder configuration
-  // or consuming-package metadata supplies customer library versions.
+  // or consuming-package metadata supplies custom library versions.
   // A STRUCTURED-ADMITTING library carries its declared `capabilityVersion`
   // (the delivery floor); every other library stays byte-stable (no capver),
-  // so a scalar / built-in-structured-only customer catalog is unchanged.
+  // so a scalar / built-in-structured-only custom catalog is unchanged.
   return {
     for (final library in {for (final w in widgets) w.library})
       library: LibraryInfo(
@@ -207,9 +207,9 @@ void _rejectUnsupportedWidgetOnlyGraph(List<WidgetEntry> widgets) {
   for (final widget in widgets) {
     if (widget.decomposes.isNotEmpty) {
       throw UnsupportedError(
-        'Customer catalog builder for ${widget.library.namespace}#'
+        'Custom catalog builder for ${widget.library.namespace}#'
         '${widget.name} cannot preserve a native decompose graph because the '
-        'customer annotation pipeline cannot preserve structuredTypes/unions. '
+        'custom annotation pipeline cannot preserve structuredTypes/unions. '
         'Pass a full Catalog directly to emitUserCatalogDart instead.',
       );
     }
@@ -217,18 +217,18 @@ void _rejectUnsupportedWidgetOnlyGraph(List<WidgetEntry> widgets) {
       if (property.structuredRef != null ||
           _valueShapeNeedsGraph(property.valueShape)) {
         throw UnsupportedError(
-          'Customer catalog builder for ${widget.library.namespace}#'
+          'Custom catalog builder for ${widget.library.namespace}#'
           '${widget.name}.${property.name} cannot preserve structured/union '
-          'graph references because the customer annotation pipeline cannot '
+          'graph references because the custom annotation pipeline cannot '
           'preserve structuredTypes/unions. Pass a full Catalog directly to '
           'emitUserCatalogDart instead.',
         );
       }
       if (property.defaultSource is TokenRefDefault) {
         throw UnsupportedError(
-          'Customer catalog builder for ${widget.library.namespace}#'
+          'Custom catalog builder for ${widget.library.namespace}#'
           '${widget.name}.${property.name} cannot preserve a design-token '
-          'default because the customer annotation pipeline cannot preserve '
+          'default because the custom annotation pipeline cannot preserve '
           'designTokens. Pass a full Catalog directly to emitUserCatalogDart '
           'instead.',
         );
@@ -744,7 +744,7 @@ void _writeCompatRule(
 
 /// Renders a Dart expression that resolves to [lib] when read in code that
 /// imports `package:rfw_catalog_schema/rfw_catalog_schema.dart`. Built-in libraries
-/// produce a static-field reference (`WidgetLibrary.core`); customer
+/// produce a static-field reference (`WidgetLibrary.core`); custom
 /// libraries produce a const factory invocation
 /// (`WidgetLibrary.custom('acme.design_system')`).
 String _libraryFieldRef(WidgetLibrary lib) {

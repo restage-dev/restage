@@ -31,7 +31,7 @@ void main() {
       expect(emitUserFactoriesDart(const []), isNull);
     });
 
-    test('does not forward analyticsId to a customer constructor', () {
+    test('does not forward analyticsId to a custom constructor', () {
       final source = emitUserFactoriesDart([
         _widgetEntry(
           name: 'AcmeBadge',
@@ -53,7 +53,7 @@ void main() {
       expect(source, contains("source.v<String>(<Object>['label'])"));
     });
 
-    test('fails closed for malformed customer analyticsId metadata', () {
+    test('fails closed for malformed custom analyticsId metadata', () {
       final source = emitUserFactoriesDart([
         _widgetEntry(
           name: 'MalformedBadge',
@@ -97,7 +97,7 @@ void main() {
         '(e.g. malformed historical wire slot without its property)', () {
       // A historical `ChildrenSlot.single` wire value without the corresponding
       // `child` property is one rejection path in `_isMechanicallyEmittable`.
-      // Customer annotations can no longer create this malformed shape, but
+      // Custom annotations can no longer create this malformed shape, but
       // decoded or manually assembled wire entries still need a hard guard.
       // The catalog model accepts this shape;
       // the factory emitter skips it. With every entry skipped the
@@ -166,7 +166,7 @@ void main() {
       );
       // No direct rfw import — the SDK re-exports the rfw types used by
       // the generated factories (DataSource / ArgumentDecoders /
-      // LocalWidgetBuilder). The customer package isn't required to
+      // LocalWidgetBuilder). The custom package isn't required to
       // depend on rfw.
       expect(src, isNot(contains("import 'package:rfw/rfw.dart'")));
       expect(src, contains("import 'package:acme/widgets/acmebadge.dart'"));
@@ -219,9 +219,9 @@ void main() {
         'NO structured-type properties (regression)', () {
       // A `@RestageWidget` package where every property is a scalar (no
       // structured-type decomposition) has no structured-type context, so
-      // the customer reconstruction record is absent. The import-alias map
+      // the custom reconstruction record is absent. The import-alias map
       // is nonetheless always computed, and the import block emits each
-      // customer library aliased (`as s0`). The constructor call MUST use
+      // custom library aliased (`as s0`). The constructor call MUST use
       // the same alias — a bare `AcmeBadge(...)` reference is undefined
       // under the prefixed import and fails analysis in the generated
       // `user_factories.g.dart`.
@@ -506,7 +506,7 @@ void main() {
     );
 
     test(
-      'customer factories lower every exact widget and widget-list property',
+      'custom factories lower every exact widget and widget-list property',
       () {
         final src = emitUserFactoriesDart([
           _widgetEntry(

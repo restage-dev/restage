@@ -77,7 +77,7 @@ void main() {
       );
     });
 
-    test('replays customer widget and property IDs from root event log',
+    test('replays custom widget and property IDs from root event log',
         () async {
       const widgetSource = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

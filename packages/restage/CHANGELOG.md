@@ -79,7 +79,7 @@ configuration hook. Any implementation requires explicit host opt-in; a
 package update alone never activates purchasing.
 
 Offering, quote, localization, refund, consumable handling and fulfillment,
-value, and customer-management capabilities are not included in 2.0. Unknown
+value, and purchaser-management capabilities are not included in 2.0. Unknown
 availability capabilities report `CommerceFailureCode.unsupportedCapability`.
 An offer on a known non-purchase capability reports
 `CommerceFailureCode.invalidRequest`. Other known valid availability requests
@@ -187,8 +187,20 @@ replacement affordance.
 
 ### Also in 2.0.0
 
-**Breaking.** The closed event-name export is removed. Customer callback
+**Breaking.** The closed event-name export is removed. Custom callback
 constructor properties now use their exact Dart names as event identities.
+
+**Breaking.** The commerce types that describe entitlement state are renamed
+to say whose state it is:
+
+| Old | New |
+|---|---|
+| `CommerceCustomerState` | `CommercePurchaserState` |
+| `CommerceCustomerStateStatusCode` | `CommercePurchaserStateStatusCode` |
+| `CommerceCapabilityCode.customerStateRead` | `CommerceCapabilityCode.purchaserStateRead` |
+
+The capability's wire code changes from `customer_state.read` to
+`purchaser_state.read`. There is no alias.
 
 Other changes:
 
@@ -202,7 +214,7 @@ Other changes:
   resolver, that bundle's manifest must describe it, and a bundle with no
   manifest keeps its previous behavior exactly.
 - Add `package:restage/a2ui.dart` and `package:restage/rfw.dart` convenience
-  entrypoints for target-specific customer catalog configuration.
+  entrypoints for target-specific custom catalog configuration.
 - Add the Widgetbook configuration entrypoint and typed per-widget/per-input
   emit-target routing annotations.
 - Experiment attribution is surface-general: onboarding, message and survey

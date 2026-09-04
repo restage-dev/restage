@@ -44,7 +44,7 @@ void main() {
             as Map<String, Object?>;
     final a2uiCatalog = a2uiDocument['a2uiCatalog']! as Map<String, Object?>;
     final components = a2uiCatalog['components']! as Map<String, Object?>;
-    const expectedCustomerComponents = <String>{
+    const expectedCustomComponents = <String>{
       'BareCatalogCard',
       'CatalogShowcase',
       'ConstructorFidelityCorpus',
@@ -57,7 +57,7 @@ void main() {
       'StatTile',
       'opaque_screen_proof',
     };
-    expect(components.keys.toSet(), expectedCustomerComponents);
+    expect(components.keys.toSet(), expectedCustomComponents);
     expect(a2uiDart, contains("name: 'opaque_screen_proof'"));
     expect(a2uiDart, contains(RegExp(r'\bp\d+\.OpaqueScreenProof\(')));
 
@@ -115,7 +115,7 @@ void main() {
     );
   });
 
-  test('one customer source reaches RFW, A2UI, and Widgetbook', () async {
+  test('one custom source reaches RFW, A2UI, and Widgetbook', () async {
     final rfwCatalog = await File('lib/user_catalog.g.dart').readAsString();
     final rfwFactories = await File('lib/user_factories.g.dart').readAsString();
     final a2uiCatalog = await File(

@@ -3,10 +3,10 @@ import 'package:restage_measurement_schema/src/identifiers.dart';
 
 /// Execution plane of one exact resolved environment target.
 enum RuntimePlane {
-  /// Hosted evaluation plane isolated from customer live traffic.
+  /// Hosted evaluation plane isolated from live app traffic.
   sandbox('sandbox'),
 
-  /// Customer live traffic plane.
+  /// Live app traffic plane.
   live('live');
 
   const RuntimePlane(this.wireName);

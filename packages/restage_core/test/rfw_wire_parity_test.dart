@@ -2,7 +2,7 @@
 //
 // The build-time toolchain encodes `.rfw` blobs with a vendored, pure-Dart copy
 // of the rfw `formats` library (re-exported by `package:restage_shared/`), so a
-// Dart-only build image does not need the Flutter SDK. The customer app runtime
+// Dart-only build image does not need the Flutter SDK. The host app runtime
 // — and the editor's blob encoder — instead use the published `package:rfw`.
 // `restage_shared` carries no `rfw` dependency, so the runtime's `rfw` version
 // floats independently of the frozen vendored copy.

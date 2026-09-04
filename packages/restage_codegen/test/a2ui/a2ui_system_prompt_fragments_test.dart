@@ -3,7 +3,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
-/// A three-widget customer catalog: `Alpha` and `Beta` each carry a
+/// A three-widget custom catalog: `Alpha` and `Beta` each carry a
 /// description, `Gamma` carries neither — so the fragment-composition rule
 /// (usage overrides description; both absent skips the widget) has one
 /// widget per case.

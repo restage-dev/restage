@@ -407,12 +407,12 @@ void main() {
     });
 
     test(
-        'skips a pure-customer catalog (no built-in library) without emitting '
+        'skips a pure-custom catalog (no built-in library) without emitting '
         'or throwing', () async {
-      // A customer package emits its own catalog.json, and this builder is
-      // keyed on catalog.json, so it runs on the customer catalog too. Customer
+      // A custom package emits its own catalog.json, and this builder is
+      // keyed on catalog.json, so it runs on the custom catalog too. Custom
       // widgets register through the @RestageWidget factory aggregator, not
-      // this builder — so it must skip cleanly, not treat the customer
+      // this builder — so it must skip cleanly, not treat the custom
       // namespace as a configuration error.
       const catalogJson = '''
 {
@@ -435,7 +435,7 @@ void main() {
           'acme_design_system|lib/src/widget_catalog/catalog.json': catalogJson,
         },
         rootPackage: 'acme_design_system',
-        // No registration.g.dart is written for a customer catalog.
+        // No registration.g.dart is written for a custom catalog.
         outputs: const {},
         onLog: logs.add,
       );

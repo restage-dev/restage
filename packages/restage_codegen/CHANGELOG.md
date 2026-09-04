@@ -71,7 +71,7 @@ release version and publication timing are assigned separately.
   conditional; every screen and flow reservation is written for every lowering.
   The roster remains an output-ownership ledger, and the publication manifest
   remains the produced-output truth.
-- Derive customer catalog properties, requiredness, order, constructor defaults,
+- Derive custom catalog properties, requiredness, order, constructor defaults,
   and descriptions from resolved constructor/Dartdoc facts across RFW, A2UI,
   and Widgetbook.
 - Derive callback admission from resolved constructor shape: void return with
@@ -102,15 +102,15 @@ release version and publication timing are assigned separately.
 - Decode the surface publication compiler handoff once per package per build
   rather than once per Dart library.
 - Consume `a2ui.Config` usage/write-back metadata.
-- Generate ordinary native Widgetbook v4 story source for customer widgets in
-  the same `build_runner` invocation, including customer structured values and
+- Generate ordinary native Widgetbook v4 story source for custom widgets in
+  the same `build_runner` invocation, including custom structured values and
   read-only `description`/`usage` sidebar metadata.
 - Emit the A2UI Dart catalog and standalone document together under
   `lib/generated/`, with no root-level compatibility aliases.
-- Derive every customer `Widget` and `List<Widget>` constructor input as an
+- Derive every custom `Widget` and `List<Widget>` constructor input as an
   independently named child-bearing property across the RFW, A2UI, and
   Widgetbook targets; several exact names may coexist on one class.
-- **Breaking generated A2UI layout:** nest every customer widget and opaque
+- **Breaking generated A2UI layout:** nest every custom widget and opaque
   native-screen constructor input under one required `props` object while
   leaving protocol `id` and `component` on the envelope. Exact source names,
   including envelope-collision names, are preserved without aliases.
@@ -135,13 +135,13 @@ release version and publication timing are assigned separately.
   validation responsible for resolved values.
 - Preserve nested structured-data descriptions and emit deterministic
   definition/reference documentation.
-- Generate native Widgetbook v4 story inputs for customer `@RestageWidget`s
+- Generate native Widgetbook v4 story inputs for custom `@RestageWidget`s
   during the ordinary `build_runner` invocation, without auxiliary authoring.
 
 ## 1.2.0
 
-- Compile customer `@RestageWidget` code into a standalone A2UI catalog: the
-  customer-only builder emits an A2UI document + generated Dart for the app's
+- Compile custom `@RestageWidget` code into a standalone A2UI catalog: the
+  custom-only builder emits an A2UI document + generated Dart for the app's
   own widgets, alongside the built-in catalog.
 - Carry producer-facing metadata into generated A2UI catalogs: widget and
   property descriptions, plus the new optional `usage` steering text, emit
@@ -152,12 +152,12 @@ release version and publication timing are assigned separately.
 - Add message and survey screen/flow builders: flow and screen codegen is now
   surface-parameterized, so message and survey surfaces reuse the onboarding
   builders.
-- Encode opaque lists of structured values in the customer catalog (pairs
+- Encode opaque lists of structured values in the custom catalog (pairs
   with `rfw_catalog_schema` 1.1.0 / `rfw_catalog_compiler` 1.1.0).
 
 ## 1.1.0
 
-- Emit the customer widget catalog (`catalog.json`) so registered custom widgets resolve in authored surfaces.
+- Emit the custom widget catalog (`catalog.json`) so registered custom widgets resolve in authored surfaces.
 - Additive codegen support for upcoming surface work; no breaking changes.
 
 ## 1.0.4
@@ -170,12 +170,12 @@ release version and publication timing are assigned separately.
 
 ## 1.0.3
 
-- Emit a rich A2UI catalog for a customer `@RestageWidget` whose property is typed as a data class: nested
+- Emit a rich A2UI catalog for a custom `@RestageWidget` whose property is typed as a data class: nested
   data classes, lists of objects, String-keyed maps, and named records each generate a `genui` schema that
   reconstructs and renders the value, with a fail-safe on a missing required value.
 - Infer a structured property's required-ness from the widget's default constructor, so a value the
   constructor requires is marked required even when the annotation omits it.
-- Exclude a customer widget carrying a structured property from the RFW catalog/factory build (a non-fatal,
+- Exclude a custom widget carrying a structured property from the RFW catalog/factory build (a non-fatal,
   logged exclusion); it renders via the A2UI emit target; native (RFW) rendering of custom structured data
   is a tracked future capability.
 

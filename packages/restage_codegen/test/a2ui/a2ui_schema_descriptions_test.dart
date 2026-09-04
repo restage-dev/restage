@@ -3,7 +3,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
-/// A one-widget customer catalog with a widget description and one described
+/// A one-widget custom catalog with a widget description and one described
 /// scalar property, so the generated schema carries both a component-level
 /// and a property-level `description`.
 Catalog _catalogWithDescriptions({
@@ -57,9 +57,9 @@ void main() {
     expect(note['description'], 'A short note.');
     final properties = note['properties']! as Map<String, Object?>;
     final props = properties['props']! as Map<String, Object?>;
-    final customerProperties = props['properties']! as Map<String, Object?>;
+    final customProperties = props['properties']! as Map<String, Object?>;
     expect(
-      customerProperties['text'],
+      customProperties['text'],
       containsPair('description', 'The note text.'),
     );
   });
@@ -109,8 +109,8 @@ void main() {
     expect(note.containsKey('description'), isFalse);
     final properties = note['properties']! as Map<String, Object?>;
     final props = properties['props']! as Map<String, Object?>;
-    final customerProperties = props['properties']! as Map<String, Object?>;
-    final text = customerProperties['text']! as Map<String, Object?>;
+    final customProperties = props['properties']! as Map<String, Object?>;
+    final text = customProperties['text']! as Map<String, Object?>;
     expect(text.containsKey('description'), isFalse);
   });
 }

@@ -10,7 +10,7 @@ class Feature {
   final String label;
 }
 
-/// A pricing tier: a name plus a list of the features it includes — a customer
+/// A pricing tier: a name plus a list of the features it includes — a custom
 /// data class that itself carries a `List<Feature>`, so a `List<Tier>` is a
 /// two-level nested list of objects.
 class Tier {

@@ -19,7 +19,7 @@ import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.da
 import 'package:rfw/formats.dart';
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
-const _customerLibrary = LibraryName(<String>[
+const _customLibrary = LibraryName(<String>[
   'restage_widgetbook_example',
   'widgets',
 ]);
@@ -130,7 +130,7 @@ void main() {
       );
       final runtime = Runtime()
         ..update(
-          _customerLibrary,
+          _customLibrary,
           LocalWidgetLibrary(<String, LocalWidgetBuilder>{
             for (final factory in registration.widgets)
               factory.name: factory.builder,
@@ -319,7 +319,7 @@ widget Root = BareCatalogCard(
     expect(widget.directColor.toARGB32(), 0xFF112233);
   });
 
-  testWidgets('RFW binds and invokes the generated customer factory', (
+  testWidgets('RFW binds and invokes the generated custom factory', (
     tester,
   ) async {
     registerRestageWidgets();
@@ -330,7 +330,7 @@ widget Root = BareCatalogCard(
     final events = <(String, DynamicMap)>[];
     final runtime = Runtime()
       ..update(
-        _customerLibrary,
+        _customLibrary,
         LocalWidgetLibrary(<String, LocalWidgetBuilder>{
           for (final factory in registration.widgets)
             factory.name: factory.builder,
@@ -386,7 +386,7 @@ widget Root = ConstructorFidelityProof(
     );
     final runtime = Runtime()
       ..update(
-        _customerLibrary,
+        _customLibrary,
         LocalWidgetLibrary(<String, LocalWidgetBuilder>{
           for (final factory in registration.widgets)
             factory.name: factory.builder,
@@ -438,7 +438,7 @@ widget Root = ConstructorPositionalCorpus(
       );
       final runtime = Runtime()
         ..update(
-          _customerLibrary,
+          _customLibrary,
           LocalWidgetLibrary(<String, LocalWidgetBuilder>{
             for (final factory in registration.widgets)
               factory.name: factory.builder,

@@ -503,7 +503,7 @@ void main() {
             'message',
             allOf(
               contains('UnsupportedDecompose'),
-              contains('customer annotation pipeline cannot preserve'),
+              contains('custom annotation pipeline cannot preserve'),
               contains('decompose graph'),
             ),
           ),

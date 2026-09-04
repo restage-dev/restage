@@ -23,7 +23,7 @@ single `import 'package:restage_shared/restage_shared.dart';` still resolves
 and the annotations, including `RestageDataField`. New code should import
 `package:rfw_catalog_schema/rfw_catalog_schema.dart` directly.
 
-Target-specific customer authoring annotations are available from
+Target-specific custom authoring annotations are available from
 `package:restage_shared/a2ui.dart` and `package:restage_shared/rfw.dart` for
 callers that intentionally use this package's compatibility surface.
 

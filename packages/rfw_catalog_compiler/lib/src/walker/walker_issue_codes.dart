@@ -96,7 +96,7 @@ const IssueCode restageLibraryMalformed = _WalkerIssueCode(
 const IssueCode restageLibraryReservedNamespace = _WalkerIssueCode(
   name: 'restageLibraryReservedNamespace',
   uniqueName: 'rfwCatalogCompiler.restageLibraryReservedNamespace',
-  problemMessage: 'A customer library must declare its own namespace, not a '
+  problemMessage: 'A custom library must declare its own namespace, not a '
       'built-in Restage namespace.',
 );
 

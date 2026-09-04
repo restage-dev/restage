@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 import '../widgets/pulse_badge.dart';
 
-/// A minimal paywall referencing the customer's [PulseBadge] — a *categorical*
+/// A minimal paywall referencing the app's [PulseBadge] — a *categorical*
 /// (AnimationController-driven) app-backed widget.
 ///
 /// It proves the package-emitted widget catalog lets an irreducibly imperative

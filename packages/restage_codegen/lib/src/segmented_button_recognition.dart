@@ -381,7 +381,7 @@ List<Expression>? _plainListElementsOf(ListLiteral list) {
 
 /// Returns the [InstanceCreationExpression] for an unnamed construction of a
 /// framework class named [name], or `null` for any other shape. Uses the
-/// resolved element when available (rejecting a customer look-alike) and falls
+/// resolved element when available (rejecting a custom look-alike) and falls
 /// back to the bare type name for unresolved synthetic-test input.
 InstanceCreationExpression? _frameworkCreationNamed(
   Expression expr,

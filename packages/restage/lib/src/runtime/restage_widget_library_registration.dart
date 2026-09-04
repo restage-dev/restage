@@ -3,7 +3,7 @@ import 'package:restage_shared/restage_shared.dart' show WidgetLibrary;
 
 import 'restage_widget_factory.dart';
 
-/// Immutable snapshot of one customer widget-library registration.
+/// Immutable snapshot of one custom widget-library registration.
 @immutable
 final class RestageWidgetLibraryRegistration {
   RestageWidgetLibraryRegistration({

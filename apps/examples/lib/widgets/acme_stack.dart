@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// Customer-defined fixture that overlays a list of children. Exercises a
-/// customer `List<Widget>` property through the generated factory pipeline.
+/// Custom-defined fixture that overlays a list of children. Exercises a
+/// custom `List<Widget>` property through the generated factory pipeline.
 @RestageWidget(
   name: 'AcmeStack',
   library: WidgetLibrary.custom('restage_example.widgets'),

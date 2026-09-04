@@ -34,9 +34,9 @@ or transmits an RFW-targeted widget catalog.
 - **Lifecycle types.** `DeprecationInfo` (two-layer: source vs catalog),
   `CompatRule` for forwarding/breaking changes, `ValidationExpr`.
 
-## Customer widget authoring
+## Custom widget authoring
 
-The unnamed generative constructor is the source of truth for a customer
+The unnamed generative constructor is the source of truth for a custom
 widget's catalog inputs. Supported public field formals and resolved super
 formals are included automatically, in constructor order. Dart-required
 formals are required catalog inputs; `super.key` is excluded as Flutter
@@ -44,7 +44,7 @@ plumbing.
 
 Use Dart documentation for widget and property descriptions. Add
 `@RestageProperty` only for shared metadata Dart cannot express, such as a
-default source or typed constraints. Declare the package's customer library
+default source or typed constraints. Declare the package's custom library
 once in a typed barrel that exactly exports the widgets it owns:
 
 ```dart
@@ -75,7 +75,7 @@ omitted category places it at the library root:
 import 'package:flutter/material.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// A customer-owned submit button.
+/// An app-owned submit button.
 @RestageWidget()
 class SubmitButton extends StatelessWidget {
   const SubmitButton({super.key, required this.label, this.emphasized = true});

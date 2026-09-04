@@ -11,7 +11,7 @@
 // pre-existing, exercised by the other surfaced props).
 //
 // The positives are VALUE-asserted. The negative reuses the production
-// strict-framework predicate: a resolved customer `Offset` look-alike DEFERS at
+// strict-framework predicate: a resolved custom `Offset` look-alike DEFERS at
 // the slot (no `{x, y}` substitution) rather than silently lowering — the
 // governing invariant (lower-correctly OR diagnose, never silent-wrong).
 
@@ -97,7 +97,7 @@ void main() {
 
   group('offset-field slots diagnose what they cannot provably lower', () {
     test(
-        'a resolved customer Offset look-alike at Badge.offset DEFERS — '
+        'a resolved custom Offset look-alike at Badge.offset DEFERS — '
         'no {x, y} substitution', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

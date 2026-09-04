@@ -16,7 +16,7 @@ import 'helpers.dart';
 ///
 ///   - **Deferred** — *"…this transpiler increment does not yet …"*. A
 ///     later codegen capability could move the construct into the inlinable
-///     set; the customer can also rewrite to a recognised shape today.
+///     set; the developer can also rewrite to a recognised shape today.
 ///   - **Structural** — *"…the declarative paywall format cannot
 ///     express…"* / *"…cannot be transpiled…"*. The construct is
 ///     fundamentally outside RFW's declarative envelope; no future
@@ -29,7 +29,7 @@ import 'helpers.dart';
 /// `custom_widget_e2e_test.dart`, and `widget_classifier_test.dart`;
 /// this file only guards the category-verb invariants. Public-bound:
 /// every message asserted here
-/// is wire-frozen the moment a customer's build surfaces it.
+/// is wire-frozen the moment an app's build surfaces it.
 const String _key = 'package:restage_codegen/_expr_probe.dart#AcmeWidget';
 
 const String _acmeWidgetSource = '''
@@ -68,7 +68,7 @@ void main() {
         result.issues.single.message,
         contains('does not yet'),
         reason: 'Deferred messages must use the "does not yet" verb so the '
-            'customer reads it as a future-codegen-unlockable shape, not as '
+            'custom reads it as a future-codegen-unlockable shape, not as '
             'a structural RFW boundary.',
       );
       expect(
@@ -132,7 +132,7 @@ void main() {
         result.issues.single.message,
         contains('cannot express'),
         reason: 'Structural messages must use the "cannot express" verb so '
-            'the customer reads it as an RFW capability boundary, not as a '
+            'the custom reads it as an RFW capability boundary, not as a '
             'future-codegen-unlockable shape.',
       );
       expect(

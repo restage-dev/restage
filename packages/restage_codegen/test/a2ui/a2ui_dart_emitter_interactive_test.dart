@@ -8,7 +8,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// A customer `@RestageWidget` toggle: a `bool value` controlled component with
+/// A custom `@RestageWidget` toggle: a `bool value` controlled component with
 /// a `ValueChanged<bool> onChanged` callback.
 Catalog _toggleCatalog({
   bool valueRequired = true,
@@ -377,7 +377,7 @@ void main() {
   });
 
   group('list write-back lowering — auto single-pair', () {
-    /// A customer `@RestageWidget` chip group: a `List<String> selected`
+    /// A custom `@RestageWidget` chip group: a `List<String> selected`
     /// controlled component with a `ValueChanged<List<String>> onSelected`.
     Catalog chipsCatalog() => catalogWith([
           entry(
@@ -651,7 +651,7 @@ void main() {
   });
 
   group('event-dispatch lowering', () {
-    /// A customer `@RestageWidget` icon button: a required `VoidCallback
+    /// A custom `@RestageWidget` icon button: a required `VoidCallback
     /// onPressed` that dispatches an outward action (no value to control).
     Catalog buttonCatalog({bool callbackRequired = true}) => catalogWith([
           entry(

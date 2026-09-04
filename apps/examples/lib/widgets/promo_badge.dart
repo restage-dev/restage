@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// Customer-defined pill-shaped label highlighting a promotion inside a
+/// Custom-defined pill-shaped label highlighting a promotion inside a
 /// paywall.
 @RestageWidget(
   name: 'PromoBadge',

@@ -33,7 +33,7 @@ typedef RenderBundleTempDirectoryCreator =
     Future<Directory> Function(String prefix);
 
 typedef RenderBundleCatalogResolver =
-    Future<String> Function(Directory projectRoot, String customerCatalogJson);
+    Future<String> Function(Directory projectRoot, String customCatalogJson);
 
 /// Generic build failure that deliberately omits process output and paths.
 final class RenderBundleBuildException implements Exception {
@@ -119,7 +119,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       throw const RenderBundleBuildException('entrypoint_missing');
     }
     _validateParentOrigin(parentOrigin);
-    // Resolve the exact built-in + customer capability union, then recursively
+    // Resolve the exact built-in + custom capability union, then recursively
     // audit it before any private temp directory or dart-define file exists.
     final String capabilityCatalogJson;
     final Uint8List capabilityManifest;
@@ -348,13 +348,13 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
 
 /// Builds the canonical bundle-level capability union.
 ///
-/// The three runtime built-in catalogs are resolved from the customer's exact
+/// The three runtime built-in catalogs are resolved from the app's exact
 /// package configuration. Their complete graph is merged with the generated
-/// customer catalog so ready-manifest admission proves the same constructors
+/// custom catalog so ready-manifest admission proves the same constructors
 /// the built bundle can actually render.
 Future<String> createRenderBundleCapabilityCatalogUnion(
   Directory projectRoot,
-  String customerCatalogJson,
+  String customCatalogJson,
 ) async {
   final packageConfig = await _loadProjectPackageConfig(projectRoot);
   final catalogs = <Catalog>[];
@@ -375,7 +375,7 @@ Future<String> createRenderBundleCapabilityCatalogUnion(
     }
     catalogs.add(decodeCatalog(await file.readAsString()));
   }
-  catalogs.add(decodeCatalog(customerCatalogJson));
+  catalogs.add(decodeCatalog(customCatalogJson));
   return encodeCatalog(_mergeCapabilityCatalogs(catalogs));
 }
 

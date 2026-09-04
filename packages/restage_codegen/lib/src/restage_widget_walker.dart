@@ -4,10 +4,10 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
-import 'package:restage_codegen/src/customer_map_plan.dart';
-import 'package:restage_codegen/src/customer_record_plan.dart';
-import 'package:restage_codegen/src/customer_structured_admissibility.dart';
-import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/custom_map_plan.dart';
+import 'package:restage_codegen/src/custom_record_plan.dart';
+import 'package:restage_codegen/src/custom_structured_admissibility.dart';
+import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
@@ -19,7 +19,7 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The admitted result of a per-package `@RestageWidget` walk: the
-/// RFW-renderable widgets plus the customer structured graph threaded to both
+/// RFW-renderable widgets plus the custom structured graph threaded to both
 /// `$lib$` builders.
 ///
 /// `structuredTypes` is filtered to the transitive closure reachable from the
@@ -43,20 +43,20 @@ typedef RestageWidgetCollection = ({
   List<PropertyExclusion> exclusions,
 });
 
-/// The exact whole-widget factory predicate used by the customer RFW walker.
+/// The exact whole-widget factory predicate used by the custom RFW walker.
 ///
 /// This narrow seam keeps the permanent catalog/factory coherence test tied to
-/// the production customer-child configuration even when the remaining
+/// the production custom-child configuration even when the remaining
 /// factory-rejection shapes can only enter through historical catalog data.
 @visibleForTesting
-bool isCustomerFactoryEmittableForWalker(
+bool isCustomFactoryEmittableForWalker(
   WidgetEntry widget, {
-  required CustomerReconstruction customer,
+  required CustomReconstruction custom,
 }) =>
     isFactoryEmittable(
       widget,
-      customer: customer,
-      customerChildProperties: true,
+      custom: custom,
+      customChildProperties: true,
     );
 
 /// Scans every `lib/**.dart` and walks the files that spell a
@@ -74,7 +74,7 @@ bool isCustomerFactoryEmittableForWalker(
 /// property types, duplicate widget names across files). The thrown
 /// error surfaces as a failed build via `testBuilder`'s `result.errors`.
 ///
-/// Both the customer-catalog and customer-factory builders consume this
+/// Both the custom-catalog and custom-factory builders consume this
 /// helper so the per-package walk runs once worth of structural work per
 /// builder rather than two near-identical implementations drifting in
 /// step with each other.
@@ -83,7 +83,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
 ) async {
   final widgets = <WidgetEntry>[];
   final issues = <Issue>[];
-  // The customer structured graph, aggregated across the package's assets (each
+  // The custom structured graph, aggregated across the package's assets (each
   // asset's discovery is per-file; the closure spans files).
   final structuredTypes = <StructuredEntry>[];
   final slotTargets = <String, String>{};
@@ -96,7 +96,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   // Inputs dropped because this target has no decoder for their type,
   // aggregated across the package's assets.
   final exclusions = <PropertyExclusion>[];
-  // Declared `@RestageLibrary(capabilityVersion:)` per customer library (from
+  // Declared `@RestageLibrary(capabilityVersion:)` per custom library (from
   // the barrel walk), used to stamp a structured-admitting library's floor. A
   // conflicting redeclaration across files fails loud (not last-wins).
   final declaredCapabilityVersions = <String, int?>{};
@@ -145,14 +145,14 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     // whose parser error-recovery yields a structurally-valid declaration
     // could otherwise be walked into a clean catalog with the bad token
     // silently dropped. Surface genuine syntactic errors so a malformed
-    // customer-widget source fails the build rather than emitting a degraded
+    // custom-widget source fails the build rather than emitting a degraded
     // entry.
     final resolved = await library.session.getResolvedLibraryByElement(library);
     if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
       issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
     }
 
-    // The customer library's declared `@RestageLibrary(capabilityVersion:)`,
+    // The custom library's declared `@RestageLibrary(capabilityVersion:)`,
     // if any (mirrors the A2UI builder's barrel read + conflict-detection).
     final walk = packageFacts.walksByAsset[assetId]!;
     for (final diagnostic in walk.diagnostics) {
@@ -188,12 +188,12 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   }
 
   // Flutter-enum importability (async — needs `widgets.dart` resolved): a
-  // customer structured field whose FLUTTER enum type is NOT in
+  // custom structured field whose FLUTTER enum type is NOT in
   // `package:flutter/widgets.dart`'s export namespace can't be named BARE in
   // the generated factory (the only flutter surface it imports; a flutter enum
   // is not alias-imported), so its owning structured type is excluded-loud.
   // FAIL-CLOSED: if `widgets.dart` can't be resolved (should never happen —
-  // customer widgets import flutter), exclude EVERY flutter enum field rather
+  // custom widgets import flutter), exclude EVERY flutter enum field rather
   // than admit-then-fail-to-compile. The EXPORT NAMESPACE — not the enum's
   // src-path — is ground truth (`Axis` is `src/painting/` yet exported;
   // `TextInputAction` is `src/services/` yet not).
@@ -203,7 +203,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     localUnrenderable: localUnrenderable,
   );
 
-  // The ONE admission point (the single-admission invariant): a customer
+  // The ONE admission point (the single-admission invariant): a custom
   // structured widget renders on the RFW path only if its ENTIRE transitive
   // structured closure is renderable. `computeAdmission` excludes-loud (build
   // continues) exactly the unrenderable ones — each with a NAMED reason (an
@@ -239,9 +239,9 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     // Close the admit-then-skip gap: a structured-prop widget whose OTHER
     // props aren't all factory-emittable is excluded here, not
     // admitted-then-skipped (catalog + factory share this one admitted set).
-    isWholeWidgetEmittable: (widget) => isCustomerFactoryEmittableForWalker(
+    isWholeWidgetEmittable: (widget) => isCustomFactoryEmittableForWalker(
       widget,
-      customer: emittabilityContext,
+      custom: emittabilityContext,
     ),
   );
   // Exclusion is a build-time capability loss the author needs to see, so it
@@ -249,7 +249,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   // verbose, which made this diagnostic effectively silent.
   for (final excluded in admission.excluded) {
     log.warning(
-      'Customer widget ${excluded.widget.library.namespace}#'
+      'Custom widget ${excluded.widget.library.namespace}#'
       '${excluded.widget.name} is excluded from the RFW catalog/factory: '
       '${excluded.reason}. It still renders in the A2UI catalog.',
     );
@@ -268,11 +268,11 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final admittedRecordSlotKeys = <String>{
     for (final widget in admittedWidgets)
       for (final prop in widget.properties)
-        if (isCustomerRecordPropertySlot(prop))
+        if (isCustomRecordPropertySlot(prop))
           structuredSlotKey(widget.flutterType, prop.name),
     for (final structured in admittedStructuredTypes)
       for (final field in structured.fields)
-        if (isCustomerRecordFieldSlot(field))
+        if (isCustomRecordFieldSlot(field))
           structuredSlotKey(structured.sourceType, field.name),
   };
   final admittedRecordPlans = <String, RecordPlan>{
@@ -282,11 +282,11 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final admittedMapSlotKeys = <String>{
     for (final widget in admittedWidgets)
       for (final prop in widget.properties)
-        if (isCustomerMapPropertySlot(prop))
+        if (isCustomMapPropertySlot(prop))
           structuredSlotKey(widget.flutterType, prop.name),
     for (final structured in admittedStructuredTypes)
       for (final field in structured.fields)
-        if (isCustomerMapFieldSlot(field))
+        if (isCustomMapFieldSlot(field))
           structuredSlotKey(structured.sourceType, field.name),
   };
   final admittedMapPlans = <String, MapPlan>{
@@ -312,8 +312,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     );
   }
 
-  // Customer-library capabilityVersion stamp (the capability-floor fold-in): a
-  // library with an admitted widget that RENDERS a customer structured
+  // Custom-library capabilityVersion stamp (the capability-floor fold-in): a
+  // library with an admitted widget that RENDERS a custom structured
   // property, map, or record slot is using a new render capability, so its
   // declared capabilityVersion raises the delivery floor (an under-capable
   // client fails closed at the SDK pre-render check). Such a library must
@@ -325,12 +325,11 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final structuredAdmittingLibraries = <String>{};
   for (final widget in admittedWidgets) {
     for (final prop in widget.properties) {
-      if (isCustomerRecordPropertySlot(prop) ||
-          isCustomerMapPropertySlot(prop)) {
+      if (isCustomRecordPropertySlot(prop) || isCustomMapPropertySlot(prop)) {
         structuredAdmittingLibraries.add(widget.library.namespace);
         continue;
       }
-      if (!isCustomerStructuredPropertySlot(prop)) continue;
+      if (!isCustomStructuredPropertySlot(prop)) continue;
       final target =
           slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
       if (target != null && structuredSourceTypes.contains(target)) {
@@ -343,8 +342,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   // reached so a new reachability path cannot silently omit the capability.
   for (final structured in admittedStructuredTypes) {
     if (structured.fields.any(
-      (field) =>
-          isCustomerRecordFieldSlot(field) || isCustomerMapFieldSlot(field),
+      (field) => isCustomRecordFieldSlot(field) || isCustomMapFieldSlot(field),
     )) {
       structuredAdmittingLibraries.add(structured.library.namespace);
     }
@@ -356,7 +354,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       issues.add(
         Issue(
           code: IssueCode.customLibraryMissingCapabilityVersion,
-          message: 'Customer library "$namespace" renders a customer '
+          message: 'Custom library "$namespace" renders a custom '
               'structured, map, or record property but declares no capability '
               'version. Add `capabilityVersion:` to '
               'its @RestageLibrary so the delivery-time floor rejects an '
@@ -392,7 +390,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       log.severe(issue.toString());
     }
     throw StateError(
-      '${failures.length} customer widget issue(s) detected; see log above.',
+      '${failures.length} custom widget issue(s) detected; see log above.',
     );
   }
 
@@ -440,7 +438,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
 /// a FLUTTER enum field the generated factory cannot name — a flutter/dart enum
 /// whose symbol is NOT in `package:flutter/widgets.dart`'s export namespace
 /// (the only flutter surface the generated factory imports; a flutter enum is
-/// named bare). Customer enums (import-aliased) are not checked. FAIL-CLOSED:
+/// named bare). Custom enums (import-aliased) are not checked. FAIL-CLOSED:
 /// if `widgets.dart` can't be resolved, every flutter enum field is treated as
 /// non-importable (excluded), never admit-then-fail-to-compile.
 Future<void> _excludeUnexportedFlutterEnums({
@@ -479,7 +477,7 @@ Future<void> _excludeUnexportedFlutterEnums({
 
 /// The `enumRef` of [field] WHEN it is a FLUTTER/dart enum field
 /// (`package:flutter/…` or `dart:…`), else `null` (a scalar, a nested
-/// structured value, or a CUSTOMER enum — customer enums are import-aliased and
+/// structured value, or a CUSTOM enum — custom enums are import-aliased and
 /// always nameable, so they are not checked against widgets.dart's exports).
 DartTypeRef? _flutterEnumRef(StructuredField field) {
   if (field.valueShape case final EnumShape shape) {

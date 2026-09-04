@@ -7,7 +7,7 @@ import 'helpers.dart';
 /// M-CUT1.3 — the formatting-defer diagnostic. A `NumberFormat(...).format(x)`
 /// idiom on the real `package:intl/` NumberFormat defers cleanly and NAMES the
 /// catalog widget to adopt (RestagePrice / RestageFormattedNumber), plus the
-/// pre-localized `localizedPrice` for store prices. A resolved CUSTOMER class
+/// pre-localized `localizedPrice` for store prices. A resolved CUSTOM class
 /// named NumberFormat is NOT intl — the element gate withholds the adopt
 /// target (the look-alike defense), so it gets only the generic defer.
 void main() {
@@ -75,9 +75,9 @@ Object x() => $body;
 
   group('the look-alike defense (element-gated on package:intl/)', () {
     test(
-        'a resolved CUSTOMER NumberFormat.currency look-alike gets only the '
+        'a resolved CUSTOM NumberFormat.currency look-alike gets only the '
         'generic defer — never named the adopt-target', () async {
-      // A customer class named NumberFormat resolves to a non-intl library;
+      // A custom class named NumberFormat resolves to a non-intl library;
       // the element gate withholds the adopt-target. (Naming an intl-specific
       // widget for a coincidental look-alike would be a value-wrong hint.)
       final r = translator.translate(

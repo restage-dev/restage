@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 import '../helpers.dart';
 
 /// A nested-data-class node modelling `PlanTier({required String tier,
-/// double price})` defined in a customer library.
+/// double price})` defined in a custom library.
 ObjectNode _planTierNode({bool nullable = false}) => ObjectNode(
       fields: const {
         'tier': ScalarNode(A2uiScalarType.string),
@@ -66,9 +66,9 @@ void main() {
   });
 
   group('richShapes — ObjectNode (class) construction', () {
-    test('a customer ref-rooted schema nests beneath props without moving defs',
+    test('a custom ref-rooted schema nests beneath props without moving defs',
         () {
-      const customerLibrary = WidgetLibrary.custom('acme.widgets');
+      const customLibrary = WidgetLibrary.custom('acme.widgets');
       const treeId = 'package:fixture/fixture.dart#TreeNode';
       final tree = ObjectNode(
         fields: const {
@@ -90,7 +90,7 @@ void main() {
         schemaVersion: kSupportedSchemaVersion,
         generatedAt: '1970-01-01T00:00:00Z',
         libraries: {
-          customerLibrary: const LibraryInfo(
+          customLibrary: const LibraryInfo(
             version: '1.0.0',
             capabilityVersion: 1,
           ),
@@ -98,7 +98,7 @@ void main() {
         widgets: [
           entry(
             name: 'Tree',
-            library: customerLibrary,
+            library: customLibrary,
             flutterType: 'package:fixture/fixture.dart#Tree',
             properties: [
               prop('root', PropertyType.structured, required: true),
@@ -121,9 +121,9 @@ void main() {
       final rootProperties = root['properties']! as Map<String, Object?>;
       final props = rootProperties['props']! as Map<String, Object?>;
       expect(props['required'], <String>['root']);
-      final customerProperties = props['properties']! as Map<String, Object?>;
+      final customProperties = props['properties']! as Map<String, Object?>;
       expect(
-        customerProperties['root'],
+        customProperties['root'],
         <String, Object?>{r'$ref': r'#/$defs/TreeNode'},
       );
       expect(defs, contains('TreeNode'));
@@ -293,7 +293,7 @@ void main() {
       expect(source, contains("'tier': S.string()"));
       expect(source, contains('_restageA2uiAs<List<Object?>>('));
       expect(source, contains("data['plans']"));
-      // The element type is prefixed (the customer library is imported as p0).
+      // The element type is prefixed (the custom library is imported as p0).
       expect(source, contains('.whereType<p0.PlanTier>()'));
       expect(source, contains('_restageA2uiBuild_PlanTier(e, 0)'));
     });
@@ -414,7 +414,7 @@ void main() {
       final plan = classifyA2uiCatalogDart(catalog);
       final source = emitA2uiCatalogDart(catalog);
 
-      // The customer schema key and constructor label remain exact while only
+      // The custom schema key and constructor label remain exact while only
       // the local binding moves away from the generated data-map name.
       expect(source, contains("value: data['title'],"));
       expect(source, contains("value: data['data'],"));
@@ -452,7 +452,7 @@ void main() {
 
     test(
         'HIGH#2: a catalog enum lacking a libraryUri is scoped out when the '
-        'file prefixes customer libs', () {
+        'file prefixes custom libs', () {
       // A custom widget (prefixable lib) makes the file prefix; a sibling enum
       // property with only `enumType` (no EnumShape → no libraryUri) cannot be
       // spelled bare safely → scoped out loud.
@@ -507,7 +507,7 @@ void main() {
       final plan = classifyA2uiCatalogDart(catalog);
       final source = emitA2uiCatalogDart(catalog);
 
-      // No customer prefix → the flutter enum stays bare + emitted.
+      // No custom prefix → the flutter enum stays bare + emitted.
       expect(plan.coverage.omittedFields, isEmpty);
       expect(plan.coverage.droppedWidgets, isEmpty);
       expect(source, contains('Axis.values.asNameMap()'));
@@ -516,7 +516,7 @@ void main() {
   });
 
   group('richShapes — uniform-prefix imports', () {
-    test('every customer library import + type spelling is prefixed', () {
+    test('every custom library import + type spelling is prefixed', () {
       final catalog = catalogWith([
         entry(
           name: 'PlanCard',
@@ -530,7 +530,7 @@ void main() {
         richShapes: {('PlanCard', 'plan'): _planTierNode()},
       );
 
-      // The customer library is imported with a prefix, and EVERY customer
+      // The custom library is imported with a prefix, and EVERY custom
       // type spelling carries it — the widget constructor, the value-builder
       // helper return type, and the reconstruction. Collisions become
       // unrepresentable by construction.
@@ -541,14 +541,14 @@ void main() {
       // Flutter / genui / json_schema_builder are NOT prefixed.
       expect(source, contains("import 'package:flutter/widgets.dart';"));
       expect(source, contains("import 'package:genui/genui.dart';"));
-      // No bare customer-type spelling leaks through.
+      // No bare custom-type spelling leaks through.
       expect(source, isNot(contains('return PlanTier(')));
     });
 
     test(
         'a rich data class in a DIFFERENT library than the widget is '
         'imported + prefixed', () {
-      // The widget ctor and its data class live in different customer
+      // The widget ctor and its data class live in different custom
       // libraries; BOTH must be imported (each with its own prefix), or the
       // generated helper references a bare, unimported type.
       final planInModels = ObjectNode(
@@ -627,9 +627,9 @@ void main() {
       expect(source, isNot(contains('p0.')));
     });
 
-    test('a customer-generic-over-customer-type fails closed LOUD at emit', () {
-      // `Box<Inner>` — a customer generic class instantiated with another
-      // customer type. The flat instantiated spelling cannot be prefixed
+    test('a custom-generic-over-custom-type fails closed LOUD at emit', () {
+      // `Box<Inner>` — a custom generic class instantiated with another
+      // custom type. The flat instantiated spelling cannot be prefixed
       // component-by-component, so it must fail closed with a clear build-time
       // diagnostic (never emit an ambiguous/uncompilable spelling).
       const innerId = 'package:fixture/fixture.dart#Inner';

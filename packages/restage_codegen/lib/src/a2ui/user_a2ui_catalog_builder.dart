@@ -34,11 +34,11 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// purpose directory belong to the plan.
 const _catalogDartFileName = 'restage_a2ui_catalog.g.dart';
 
-/// Placeholder pub version for a customer library's catalog envelope. The A2UI
+/// Placeholder pub version for a custom library's catalog envelope. The A2UI
 /// stamp reads only `capabilityVersion`; the pub `version` is not part of the
 /// A2UI capability axis, so a deterministic placeholder keeps the emit
-/// byte-stable (matching the customer-catalog emitter's convention).
-const _customerLibraryVersion = '0.0.0';
+/// byte-stable (matching the custom-catalog emitter's convention).
+const _customLibraryVersion = '0.0.0';
 
 /// Resolves this builder's placement, rejecting any option it does not
 /// recognize.
@@ -70,21 +70,21 @@ RestageOutputPlacementPlan _resolvePlan(BuilderOptions options) {
 /// directory. The producer JSON is never a bundle entry, a publication
 /// artifact, a delivery capability sidecar, or over-the-air payload.
 ///
-/// Customer widgets and native screen components are read from the consuming
-/// package's own source. Widgets retain the customer-catalog walk; screens
+/// Custom widgets and native screen components are read from the consuming
+/// package's own source. Widgets retain the custom-catalog walk; screens
 /// enter through the shared exact-identity package index and reuse the same
 /// constructor-input projection and analyzer-fed A2UI seams.
 ///
-/// The emitted catalog is **customer-authored only**: one combined genui
-/// `Catalog` contains the package's customer widgets and opaque native screens.
+/// The emitted catalog is **custom-authored only**: one combined genui
+/// `Catalog` contains the package's custom widgets and opaque native screens.
 /// Built-in catalog coverage is separate and never contributes to this output.
 ///
-/// Each contributing customer library must declare
+/// Each contributing custom library must declare
 /// `@RestageLibrary(capabilityVersion:)`; the version is read off the barrel
 /// and carried into the stamp's custom-library capability axis (the A2UI
 /// emitter fails loud if a contributing custom library declares none).
 ///
-/// Skips emit when the package contributes neither customer widgets nor native
+/// Skips emit when the package contributes neither custom widgets nor native
 /// screens. This builder is **opt-in** (it is not applied to dependents): the
 /// emitted code imports the genui runtime, so a consumer enables it explicitly
 /// only when they want an A2UI catalog.
@@ -125,7 +125,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       builderKey: 'restage_codegen:user_a2ui_catalog',
     );
 
-    final walk = await _walkCustomerWidgets(buildStep);
+    final walk = await _walkCustomWidgets(buildStep);
     final nativeScreens = await _projectNativeScreens(buildStep);
     if (walk.widgets.isEmpty &&
         nativeScreens.components.isEmpty &&
@@ -133,7 +133,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       return;
     }
 
-    final catalog = _customerOnlyCatalog(walk);
+    final catalog = _customOnlyCatalog(walk);
     final allComponents = <A2uiWidgetElement>[
       ...walk.widgets,
       ...nativeScreens.widgetElements,
@@ -153,13 +153,13 @@ final class UserA2uiCatalogBuilder implements Builder {
     // A structured property the A2UI emitter cannot represent (a data class
     // with an unrepresentable field) surfaces as a seam issue — fail it loud,
     // never let the widget silently drop from the catalog. Mirrors the
-    // walk-issue surfacing in [_walkCustomerWidgets].
+    // walk-issue surfacing in [_walkCustomWidgets].
     if (seams.issues.isNotEmpty) {
       for (final issue in seams.issues) {
         log.severe(issue.toString());
       }
       throw StateError(
-        '${seams.issues.length} customer component A2UI seam issue(s) '
+        '${seams.issues.length} custom component A2UI seam issue(s) '
         'detected; '
         'see log above.',
       );
@@ -301,8 +301,8 @@ final class UserA2uiCatalogBuilder implements Builder {
   /// [ClassElement] (the seam-assembly's analyzer input) in the same pass — and
   /// reads each contributing library's `@RestageLibrary(capabilityVersion:)`.
   /// Surfaces any walk issue (an unsupported property type, a duplicate name)
-  /// loud as a failed build, mirroring the customer-catalog walk.
-  Future<_CustomerWalk> _walkCustomerWidgets(BuildStep buildStep) async {
+  /// loud as a failed build, mirroring the custom-catalog walk.
+  Future<_CustomWalk> _walkCustomWidgets(BuildStep buildStep) async {
     final widgets = <A2uiWidgetElement>[];
     final capabilityVersions = <WidgetLibrary, int?>{};
     final usageByWidget = <String, String>{};
@@ -341,7 +341,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       issues.addAll(result.issues);
       exclusions.addAll(result.exclusions);
       for (final entry in result.widgets) {
-        // A customer `@RestageWidget` must not claim a built-in namespace — it
+        // A custom `@RestageWidget` must not claim a built-in namespace — it
         // would bypass the custom-library capability axis (built-in namespaces
         // are reserved for the built-in content floor). Reject it loud.
         if (WidgetLibrary.builtInByNamespace(entry.library.namespace) != null) {
@@ -479,7 +479,7 @@ final class UserA2uiCatalogBuilder implements Builder {
         log.severe(issue.toString());
       }
       throw StateError(
-        '${failures.length} customer widget issue(s) detected; see log above.',
+        '${failures.length} custom widget issue(s) detected; see log above.',
       );
     }
 
@@ -501,11 +501,11 @@ final class UserA2uiCatalogBuilder implements Builder {
     );
   }
 
-  /// Builds the customer-only A2UI catalog: `libraries` and `widgets` come from
-  /// the source walk alone (the single authoritative customer source), with
-  /// each customer library carrying its declared `capabilityVersion`. Built-in
+  /// Builds the custom-only A2UI catalog: `libraries` and `widgets` come from
+  /// the source walk alone (the single authoritative custom source), with
+  /// each custom library carrying its declared `capabilityVersion`. Built-in
   /// catalog state never contributes — structured types, unions, tokens, and
-  /// compat rules are empty, so a customer `@RestageWidget` either lowers into
+  /// compat rules are empty, so a custom `@RestageWidget` either lowers into
   /// this catalog or the build fails loud; nothing about the built-ins can
   /// define, weaken, enlarge, or block that output.
   ///
@@ -515,7 +515,7 @@ final class UserA2uiCatalogBuilder implements Builder {
   /// built-in widgets present.
   /// Enforces the fail-loud contract over the classifier's coverage record —
   /// the classify-level analogue of the walk / seam gates above. In this
-  /// customer-only catalog every component is an authored `@RestageWidget` or
+  /// custom-only catalog every component is an authored `@RestageWidget` or
   /// a native screen source (there are no built-ins to legitimately scope out),
   /// so:
   ///
@@ -621,7 +621,7 @@ final class UserA2uiCatalogBuilder implements Builder {
     if (fatal.isEmpty) return;
     fatal.forEach(log.severe);
     throw StateError(
-      '${fatal.length} customer component A2UI coverage issue(s) detected; '
+      '${fatal.length} custom component A2UI coverage issue(s) detected; '
       'see log above.',
     );
   }
@@ -643,17 +643,17 @@ final class UserA2uiCatalogBuilder implements Builder {
           .where((p) => p.name == fieldName)
           .firstOrNull;
 
-  Catalog _customerOnlyCatalog(_CustomerWalk walk) {
-    final customerLibraries = <WidgetLibrary>{
+  Catalog _customOnlyCatalog(_CustomWalk walk) {
+    final customLibraries = <WidgetLibrary>{
       for (final w in walk.widgets) w.entry.library,
     };
     return Catalog(
       schemaVersion: kSupportedSchemaVersion,
       generatedAt: '1970-01-01T00:00:00Z',
       libraries: {
-        for (final library in customerLibraries)
+        for (final library in customLibraries)
           library: LibraryInfo(
-            version: _customerLibraryVersion,
+            version: _customLibraryVersion,
             capabilityVersion: walk.capabilityVersions[library],
           ),
       },
@@ -662,13 +662,13 @@ final class UserA2uiCatalogBuilder implements Builder {
   }
 }
 
-/// The customer-widget walk result: the `(WidgetEntry, ClassElement)` pairs the
+/// The custom-widget walk result: the `(WidgetEntry, ClassElement)` pairs the
 /// seam-assembly + emitter consume, each contributing library's declared
 /// `@RestageLibrary(capabilityVersion:)` (`null` when undeclared — the emitter
 /// fails loud if such a library contributes components), and each widget's
 /// `@a2ui.Config.usage` note (only widgets with a non-empty usage are
 /// present — the emit falls back to the widget's description for the rest).
-typedef _CustomerWalk = ({
+typedef _CustomWalk = ({
   List<A2uiWidgetElement> widgets,
   bool hasWidgetDeclarations,
   Map<WidgetLibrary, int?> capabilityVersions,
@@ -686,7 +686,7 @@ typedef _NativeScreenWalk = ({
   List<PropertyExclusion> exclusions,
 });
 
-/// A customer-actionable explanation for a classifier coverage [reason]: what
+/// A custom-actionable explanation for a classifier coverage [reason]: what
 /// the A2UI catalog cannot express about the widget/property, and what to
 /// change. [fieldName] disambiguates unsupported-type and envelope-key
 /// reasons.
