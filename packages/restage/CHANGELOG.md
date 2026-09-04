@@ -172,7 +172,8 @@ gesture at a time: the flow screen while in-flow back is available, the
 enclosing route once it is exhausted. `RestageFlowView.transition`,
 `RestageFlowGraph.transition` and `RestageOnboarding.transition` replace that
 motion for one flow, receiving the entering screen's animation and the secondary
-animation that displaces the screen beneath. The surface needs bounded
+animation that displaces the screen beneath; `defaultFlowTransitionBuilder` is
+removed, since the platform transition needs no builder. The surface needs bounded
 constraints, like any `Navigator`, and says so if it is given none.
 
 For a control you draw yourself, read `controller.canBack` and
