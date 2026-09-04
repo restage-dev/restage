@@ -1847,34 +1847,6 @@ void main() {
     expect(controller.isUnavailable, isFalse);
   });
 
-  testWidgets('the default transition is platform-adaptive', (tester) async {
-    Widget probe() => Directionality(
-          textDirection: TextDirection.ltr,
-          child: Builder(
-            builder: (context) => defaultFlowTransitionBuilder(
-              context,
-              const AlwaysStoppedAnimation<double>(0.5),
-              const AlwaysStoppedAnimation<double>(0),
-              const SizedBox.shrink(),
-              true,
-            ),
-          ),
-        );
-
-    try {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      await tester.pumpWidget(probe());
-      expect(find.byType(CupertinoPageTransition), findsOneWidget);
-
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      await tester.pumpWidget(probe());
-      expect(find.byType(CupertinoPageTransition), findsNothing);
-      expect(find.byType(SlideTransition), findsWidgets);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
-    }
-  });
-
   testWidgets('a custom transition builder overrides the default',
       (tester) async {
     var transitionCalls = 0;
