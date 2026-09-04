@@ -87,16 +87,35 @@ Widget _buildActionChip(BuildContext context, DataSource source) {
 
 Widget _buildAppBar(BuildContext context, DataSource source) {
   return AppBar(
+    leading: source.optionalChild(<Object>['leading']),
+    automaticallyImplyLeading:
+        source.v<bool>(<Object>['automaticallyImplyLeading']) ?? true,
     title: source.optionalChild(<Object>['title']),
+    actions: source.isList(<Object>['actions'])
+        ? source.childList(<Object>['actions'])
+        : null,
     elevation: source.v<double>(<Object>['elevation']),
+    scrolledUnderElevation:
+        source.v<double>(<Object>['scrolledUnderElevation']),
+    shadowColor: ArgumentDecoders.color(source, <Object>['shadowColor']),
+    surfaceTintColor:
+        ArgumentDecoders.color(source, <Object>['surfaceTintColor']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     foregroundColor:
         ArgumentDecoders.color(source, <Object>['foregroundColor']),
+    primary: source.v<bool>(<Object>['primary']) ?? true,
     centerTitle: source.v<bool>(<Object>['centerTitle']) ?? true,
+    titleSpacing: source.v<double>(<Object>['titleSpacing']),
+    toolbarHeight: source.v<double>(<Object>['toolbarHeight']),
+    leadingWidth: source.v<double>(<Object>['leadingWidth']),
+    forceMaterialTransparency:
+        source.v<bool>(<Object>['forceMaterialTransparency']) ?? false,
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
+    actionsPadding:
+        RestageDecoders.edgeInsets(source, <Object>['actionsPadding']),
   );
 }
 

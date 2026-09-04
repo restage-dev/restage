@@ -8,7 +8,6 @@ import 'main_hosted_paywall_demo.dart';
 import 'main_modal_sheet_demo.dart';
 import 'onboarding/apex_drop_demo.dart';
 import 'onboarding/bare_surface_demo.dart';
-import 'onboarding/chrome_ladder_demo.dart';
 import 'onboarding/crave_permission_demo.dart';
 import 'onboarding/lumen_onboarding_demo.dart';
 import 'onboarding/minimal_notice_demo.dart';
@@ -135,10 +134,7 @@ class ThemeToggleScope extends StatelessWidget {
     final scope = BrightnessScope.of(context);
     final scheme = Theme.of(context).colorScheme;
     final media = MediaQuery.of(context);
-    // The viewer reserved the chrome height for the child; the pill itself
-    // sits at the device's real top.
-    final realTop =
-        GalleryChrome.maybeTopPaddingOf(context) ?? media.padding.top;
+    final realTop = media.padding.top;
     return Stack(
       children: [
         Positioned.fill(child: child),
@@ -276,8 +272,8 @@ class _GalleryHome extends StatelessWidget {
                     'branches on it: welcome → question → a tailored ending.',
                 leading: const Icon(Icons.alt_route_outlined),
                 destination: const MinimalOnboardingDemo(),
-                // The host supplies its own flow chrome (a persistent close +
-                // an in-flow back), so no gallery escape button on top.
+                // Every screen carries an app bar, so the pill sits in the
+                // bar's toolbar row and no band is reserved above it.
                 showThemeToggle: true,
               ),
               _ExampleTile(
@@ -287,7 +283,6 @@ class _GalleryHome extends StatelessWidget {
                     'no required event, no forced ending.',
                 leading: const Icon(Icons.layers_outlined),
                 destination: const BareSurfaceDemo(),
-                showEscapeButton: true,
                 showThemeToggle: true,
               ),
               _ExampleTile(
@@ -305,7 +300,6 @@ class _GalleryHome extends StatelessWidget {
                     'delivered blob and rendered through RFW.',
                 leading: const Icon(Icons.extension_outlined),
                 destination: const MinimalCustomWidgetDemo(),
-                showEscapeButton: true,
                 showThemeToggle: true,
               ),
               _ExampleTile(
@@ -315,7 +309,6 @@ class _GalleryHome extends StatelessWidget {
                     'and only that row rebuilds.',
                 leading: const Icon(Icons.checklist_outlined),
                 destination: const StarterHostDataDemo(),
-                showEscapeButton: true,
                 showThemeToggle: true,
               ),
               const Divider(height: 32),
@@ -449,7 +442,6 @@ class _GalleryHome extends StatelessWidget {
                 destination: const _RemotePaywallScreen(id: 'hello'),
                 // Minimal demo blob with no own close affordance — the host
                 // back button is its only escape.
-                showEscapeButton: true,
               ),
               const Divider(height: 32),
               const _SectionHeader('Engagement surfaces (flow runtime)'),
@@ -465,7 +457,6 @@ class _GalleryHome extends StatelessWidget {
                     'meditation paywall. Continue ends the flow.',
                 leading: const Icon(Icons.spa_outlined),
                 destination: const LumenOnboardingDemo(),
-                showEscapeButton: false,
                 // The Lumen flow paints on a fixed light calm canvas.
                 surfaceBrightness: Brightness.light,
               ),
@@ -481,7 +472,6 @@ class _GalleryHome extends StatelessWidget {
                     'without it.',
                 leading: const Icon(Icons.location_on_outlined),
                 destination: const CravePermissionDemo(),
-                showEscapeButton: false,
                 // The primer paints on a fixed white canvas.
                 surfaceBrightness: Brightness.light,
               ),
@@ -495,7 +485,6 @@ class _GalleryHome extends StatelessWidget {
                     'whose CTA acts and whose × dismisses.',
                 leading: const Icon(Icons.bolt_outlined),
                 destination: const ApexDropDemo(),
-                showEscapeButton: false,
                 // The drop message paints on a fixed near-black canvas.
                 surfaceBrightness: Brightness.dark,
               ),
@@ -509,7 +498,6 @@ class _GalleryHome extends StatelessWidget {
                     'save-offer host-action gate. Keep the discount or cancel.',
                 leading: const Icon(Icons.live_tv_outlined),
                 destination: const ReelCancelDemo(),
-                showEscapeButton: false,
                 // The survey paints on a fixed near-black streaming canvas.
                 surfaceBrightness: Brightness.dark,
               ),
@@ -525,7 +513,6 @@ class _GalleryHome extends StatelessWidget {
                     'decision routes the ending. Personalization that forks.',
                 leading: const Icon(Icons.savings_outlined),
                 destination: const TallyOnboardingDemo(),
-                showEscapeButton: false,
                 // The flow paints on a fixed light cream canvas.
                 surfaceBrightness: Brightness.light,
               ),
@@ -545,7 +532,6 @@ class _GalleryHome extends StatelessWidget {
                 destination: const ModalSheetDemo(),
                 // The demo paints black behind a theme-surface card; system-back
                 // returns to the gallery.
-                showEscapeButton: true,
                 surfaceBrightness: Brightness.dark,
               ),
               _ExampleTile(
@@ -555,7 +541,6 @@ class _GalleryHome extends StatelessWidget {
                     'expand channel.',
                 leading: const Icon(Icons.map_outlined),
                 destination: const DraggableSheetDemo(),
-                showEscapeButton: true,
               ),
               _ExampleTile(
                 title: 'Hosted delivery',
@@ -565,23 +550,6 @@ class _GalleryHome extends StatelessWidget {
                     'fallback — the over-the-air path, end to end.',
                 leading: const Icon(Icons.cloud_download_outlined),
                 destination: const HostedPaywallDemo(),
-                surfaceBrightness: Brightness.dark,
-              ),
-              const Divider(height: 32),
-              const _SectionHeader('Reference'),
-              _ExampleTile(
-                title: 'Chrome customization ladder',
-                subtitle: 'Capability reference: a flow shown at the 5 '
-                    'chrome-customization levels (Default / Theme / Slots / '
-                    'Layout / DIY), with a persistent-vs-per-screen toggle. A '
-                    'dev how-to for the back chrome, not a themed surface — '
-                    'advance once, then switch rungs to see the affordance '
-                    'change.',
-                leading: const Icon(Icons.dashboard_customize_outlined),
-                destination: const ChromeLadderDemo(),
-                showEscapeButton: false,
-                // The flow screens paint dark; the control bar below tracks the
-                // app theme, but the status bar sits over the dark flow area.
                 surfaceBrightness: Brightness.dark,
               ),
             ],
@@ -619,7 +587,6 @@ class _ExampleTile extends StatelessWidget {
     required this.subtitle,
     required this.leading,
     required this.destination,
-    this.showEscapeButton = false,
     this.surfaceBrightness,
     this.showThemeToggle = false,
   });
@@ -633,17 +600,6 @@ class _ExampleTile extends StatelessWidget {
   /// Set `true` for the system-themed starters so their repaint can be seen in
   /// place; the fixed-brand surfaces below leave it `false` (they hold palette).
   final bool showThemeToggle;
-
-  /// Whether the pushed example overlays the gallery's "back to examples"
-  /// escape control.
-  ///
-  /// Defaults to `false`: most paywalls carry their own close / back / skip
-  /// affordance, which the host wires to return to the gallery (see
-  /// `_returnsToGallery`), so a host button would just clash with it. Set `true`
-  /// only for a closeless full-bleed surface that has no own escape — there the
-  /// host button is the single way back. Engagement surfaces also leave it
-  /// `false`: their own flow chrome + system-back own the escape.
-  final bool showEscapeButton;
 
   /// The destination surface's background brightness, forwarded to
   /// [ExampleViewer.surfaceBrightness] so the OS status bar stays readable.
@@ -662,8 +618,6 @@ class _ExampleTile extends StatelessWidget {
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (routeContext) => ExampleViewer(
-            showBackButton: showEscapeButton,
-            reserveTopChrome: showThemeToggle,
             surfaceBrightness: surfaceBrightness,
             // A local preview runs the authored paywall directly (outside
             // codegen), so its author-fired taps need a dispatcher in scope.

@@ -54,6 +54,7 @@ void main() {
         _node('1'),
       ],
       acceptedRelocations: const [],
+      acceptedIntroductions: const [],
       proposals: const [],
       publications: const [],
     );
@@ -83,6 +84,7 @@ void main() {
         nextIdentitySequence: 1,
         ledgerNodes: const [],
         acceptedRelocations: const [],
+        acceptedIntroductions: const [],
         proposals: const [],
         publications: const [],
       ),

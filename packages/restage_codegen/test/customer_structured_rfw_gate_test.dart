@@ -739,8 +739,7 @@ void main() {
     // THE PERMANENT ADMIT-THEN-SKIP COHERENCE ANCHOR. Customer source can no
     // longer author the malformed canonical child slot that remains a real
     // historical-catalog factory rejection. Exercise that rejection through
-    // the walker's production predicate (including
-    // `customerChildProperties: true`), then prove admission excludes it.
+    // the walker's production predicate, then prove admission excludes it.
     test(
         'walker production factory rejection excludes a structured widget '
         'before catalog emission', () async {
@@ -794,8 +793,8 @@ void main() {
 
       expect(
         isFactoryEmittable(customerListControl, customer: context),
-        isFalse,
-        reason: 'the default predicate retains curated widget-list policy',
+        isTrue,
+        reason: 'an exact list slot lowers under either predicate',
       );
       expect(
         isCustomerFactoryEmittableForWalker(

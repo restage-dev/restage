@@ -104,7 +104,7 @@ One host widget per surface kind:
   generates the descriptor. See [doc/flows.md](doc/flows.md)
   for the full example, host actions, and data minimization, and
   [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
-  for back and skip chrome.
+  for back navigation and the system-back policy.
 
 ## Host data
 

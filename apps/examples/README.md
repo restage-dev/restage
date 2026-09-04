@@ -109,9 +109,6 @@ Standalone SDK-mechanic demos, listed in the gallery's "Capabilities" and
 - **Hosted delivery** (`lib/main_hosted_paywall_demo.dart`): a paywall fetched
   through the hosted-delivery resolver (served here by an in-app fake server),
   with the fail-closed fallback. The over-the-air path, end to end.
-- **Chrome customization ladder** (`lib/onboarding/chrome_ladder_demo.dart`):
-  one flow shown at the five chrome-customization levels (Default, Theme,
-  Slots, Layout, DIY).
 
 Three more `lib/main_*.dart` entrypoints run with `flutter run -t` but are not
 listed in the gallery: `main_plan_board_demo.dart`,

@@ -285,28 +285,22 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<AppBar>(
     category: WidgetCategory.layout,
     excludeParams: [
-      'leading',
-      'automaticallyImplyLeading',
-      'actions',
       'flexibleSpace',
+      // `PreferredSizeWidget` is on the centralized type denylist — the
+      // rendering layer's proxy wrap defeats the static downcast strategy.
       'bottom',
-      'scrolledUnderElevation',
       'notificationPredicate',
-      'shadowColor',
-      'surfaceTintColor',
+      // The two `TextStyle` slots reach the walker as structured types with
+      // no flat property; `IconThemeData` has no catalog value shape at all.
+      'titleTextStyle',
+      'toolbarTextStyle',
       'iconTheme',
       'actionsIconTheme',
-      'primary',
       'excludeHeaderSemantics',
-      'titleSpacing',
       'toolbarOpacity',
       'bottomOpacity',
-      'toolbarHeight',
-      'leadingWidth',
       'systemOverlayStyle',
-      'forceMaterialTransparency',
       'useDefaultSemanticsOrder',
-      'actionsPadding',
       'automaticallyImplyActions',
       'animateColor',
     ],
@@ -316,6 +310,10 @@ const List<BuiltinWidgetCuration> kCuration = [
     },
     propertyOverrides: {
       'elevation': PropertyOverride(type: PropertyType.length),
+      'scrolledUnderElevation': PropertyOverride(type: PropertyType.length),
+      'toolbarHeight': PropertyOverride(type: PropertyType.length),
+      'titleSpacing': PropertyOverride(type: PropertyType.length),
+      'leadingWidth': PropertyOverride(type: PropertyType.length),
       // Flutter's `centerTitle` is `bool?` with no constructor default
       // (the runtime infers from theme); we surface the paywall-friendly
       // default so authors don't need to set it explicitly.

@@ -105,10 +105,21 @@ Widget _buildCupertinoListTile(BuildContext context, DataSource source) {
 Widget _buildCupertinoNavigationBar(BuildContext context, DataSource source) {
   return CupertinoNavigationBar(
     leading: source.optionalChild(<Object>['leading']),
+    automaticallyImplyLeading:
+        source.v<bool>(<Object>['automaticallyImplyLeading']) ?? true,
+    automaticallyImplyMiddle:
+        source.v<bool>(<Object>['automaticallyImplyMiddle']) ?? true,
+    previousPageTitle: source.v<String>(<Object>['previousPageTitle']),
     middle: source.optionalChild(<Object>['middle']),
     trailing: source.optionalChild(<Object>['trailing']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
+    automaticBackgroundVisibility:
+        source.v<bool>(<Object>['automaticBackgroundVisibility']) ?? true,
+    enableBackgroundFilterBlur:
+        source.v<bool>(<Object>['enableBackgroundFilterBlur']) ?? true,
+    brightness: RestageDecoders.enumByName<Brightness>(
+        Brightness.values, source, <Object>['brightness']),
   );
 }
 

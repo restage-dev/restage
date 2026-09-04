@@ -9,7 +9,7 @@ const minimalOnboardingFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalOnboardingFlowResult,
   measurementPublicationDraftDigest:
-      '5a00bc562f0536ea638f6cd54b5903aeb7192b19a4c6d63c567ce7d9394513e0',
+      '04c95f7656c359d8f65cfb4867caaaef7309050b17eb78bc8976d501f809bef3',
 );
 
 MinimalOnboardingResult _decodeMinimalOnboardingFlowResult(

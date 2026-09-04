@@ -2,6 +2,10 @@
 
 ## Unreleased — coordinated breaking release
 
+- `CupertinoNavigationBar` admits `automaticallyImplyLeading`,
+  `automaticallyImplyMiddle`, `previousPageTitle`,
+  `automaticBackgroundVisibility`, `enableBackgroundFilterBlur` and
+  `brightness`.
 - Regenerate the catalog as schema v5. Picker callbacks retain their precise
   Flutter constructor names as open event identities.
 

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 import 'flows/lumen_onboarding.dart';
-import 'gallery_dismiss.dart';
 
 /// Hosts the meditation onboarding→paywall engagement surface.
 ///
@@ -118,68 +117,7 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
       child: RestageFlowView<LumenOnboardingResult>(
         controller: controller,
         loadingBuilder: (context) => const ColoredBox(color: Color(0xFFF7F5FB)),
-        chromeBuilder: _chrome,
       ),
-    );
-  }
-
-  Widget _chrome(
-    BuildContext context,
-    FlowChromeState state,
-    Widget screen,
-  ) {
-    // The flow paints on a light calm canvas, so the chrome glyphs are dark. The
-    // top-right close returns to the gallery on every platform (the surface is
-    // hosted full-bleed with the gallery escape off, and iOS edge-swipe does not
-    // reliably drive the flow's system-back); the top-left chevron is the
-    // in-flow back, shown only with history to pop.
-    return Stack(
-      children: [
-        Positioned.fill(child: screen),
-        const Positioned(
-          top: 0,
-          right: 0,
-          child: GalleryDismissButton(
-            color: Color(0xFF2A2833),
-            scrim: Color(0x2E000000),
-          ),
-        ),
-        if (state.canBack)
-          Positioned(
-            top: 0,
-            left: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Semantics(
-                  button: true,
-                  label: 'Back',
-                  child: GestureDetector(
-                    key: const Key('lumen-onboarding-back'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: state.onBack,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: ExcludeSemantics(
-                          child: Icon(
-                            Icons.arrow_back,
-                            color: Color(0xFF2A2833),
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
@@ -189,8 +127,7 @@ class _CompletionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The terminal hand-off. In the gallery it needs a way back, so it carries
-    // the same close-to-gallery affordance as the flow.
+    // The terminal hand-off. System back returns to the gallery from here.
     return const Scaffold(
       backgroundColor: Color(0xFFF7F5FB),
       body: Stack(
@@ -206,14 +143,6 @@ class _CompletionScreen extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GalleryDismissButton(
-              color: Color(0xFF2A2833),
-              scrim: Color(0x2E000000),
             ),
           ),
         ],

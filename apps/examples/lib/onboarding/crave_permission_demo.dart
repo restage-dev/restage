@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 import 'flows/crave_permission.dart';
-import 'gallery_dismiss.dart';
 
 /// Hosts the location permission-priming engagement surface.
 ///
@@ -87,18 +86,6 @@ class _CravePermissionDemoState extends State<CravePermissionDemo> {
       actions: _actions,
       onComplete: (result) => _enterApp(),
       loadingBuilder: (context) => const ColoredBox(color: Colors.white),
-      // The primer paints on a white canvas with no own dismiss-to-gallery
-      // control, and a declined gate holds the user on it. A persistent close
-      // keeps the surface escapable to the gallery on every platform (the
-      // gallery escape is off here and iOS edge-swipe does not reliably drive
-      // the flow's system-back); the chevron handles any in-flow back.
-      persistentChromeBuilder: (context, state, body) => GalleryFlowChrome(
-        state: state,
-        body: body,
-        backColor: const Color(0xFF1F1B16),
-        closeColor: const Color(0xFF1F1B16),
-        closeScrim: const Color(0x1F000000),
-      ),
       unavailable: FlowUnavailablePolicy.fallback(
         builder: (context, error) => Scaffold(
           backgroundColor: Colors.white,
@@ -120,8 +107,8 @@ class _EnteredAppScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The terminal "entered the app" hand-off. It needs the same close-to-gallery
-    // affordance as the flow so the gallery stays reachable.
+    // The terminal "entered the app" hand-off. System back returns to the
+    // gallery from here.
     return const Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -137,14 +124,6 @@ class _EnteredAppScreen extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GalleryDismissButton(
-              color: Color(0xFF1F1B16),
-              scrim: Color(0x1F000000),
             ),
           ),
         ],

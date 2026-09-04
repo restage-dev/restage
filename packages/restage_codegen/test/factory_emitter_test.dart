@@ -484,6 +484,80 @@ void main() {
       );
     });
 
+    test('emits a non-canonical list slot alongside the canonical children',
+        () {
+      // A curated entry may carry a second widget list under its own name.
+      // The nullable no-default shape keeps an absent slot null rather than
+      // collapsing it to an empty list; the canonical slot reads directly.
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'BarLike',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.layout,
+        description: '',
+        flutterType: 'package:test_pkg/w.dart#BarLike',
+        childrenSlot: ChildrenSlot.list,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'actions',
+            type: PropertyType.widgetList,
+            description: '',
+            constructorNullable: true,
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'children',
+            type: PropertyType.widgetList,
+            description: '',
+          ),
+        ],
+      );
+      final source = emitFactoryFunction(entry);
+      expect(source, isNotNull);
+      final flat = source!.replaceAll(RegExp(r'\s+'), ' ');
+      expect(
+        flat,
+        contains(
+          "actions: source.isList(<Object>['actions']) "
+          "? source.childList(<Object>['actions']) : null",
+        ),
+      );
+      expect(
+        flat,
+        contains("children: source.childList(<Object>['children'])"),
+      );
+    });
+
+    test('a required non-canonical list slot reads the child list directly',
+        () {
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'RequiredBarLike',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.layout,
+        description: '',
+        flutterType: 'package:test_pkg/w.dart#RequiredBarLike',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'actions',
+            type: PropertyType.widgetList,
+            description: '',
+            required: true,
+          ),
+        ],
+      );
+      final source = emitFactoryFunction(entry);
+      expect(source, isNotNull);
+      expect(
+        source,
+        contains("actions: source.childList(<Object>['actions'])"),
+      );
+      expect(source, isNot(contains('isList')));
+    });
+
     test(
         'emits entries with non-canonical widget properties '
         '(Scaffold-shaped: childrenSlot.none + body/appBar widgets)', () {

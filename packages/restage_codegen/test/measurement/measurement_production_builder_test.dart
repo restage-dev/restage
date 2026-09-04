@@ -2078,6 +2078,155 @@ final class QuietFlow extends RestageFlow {
   });
 
   test(
+    'a reviewed introduction mints a new identity and retires the candidate',
+    () async {
+      // The repeated source makes the move ambiguous, so in-screen matching
+      // cannot pair it and the compiler proposes candidates.
+      final first = await _compileLedgerSource(_ledgerSource(repeated: true));
+      final moved = await _compileLedgerSource(
+        _ledgerSource(wrapped: true),
+        priorOutput: first.output,
+      );
+      expect(moved.output.proposals, isNotEmpty);
+
+      final introduced = RestageMeasurementCompilerOutputV1(
+        valid: true,
+        errors: const [],
+        policy: first.output.policy,
+        nextIdentitySequence: first.output.nextIdentitySequence,
+        ledgerNodes: first.output.ledgerNodes,
+        acceptedRelocations: const [],
+        acceptedIntroductions: [
+          for (final proposal in moved.output.proposals)
+            MeasurementCompilerLedgerIntroduction(
+              structuralOccurrenceKey: proposal.toStructuralOccurrenceKey,
+            ),
+        ],
+        proposals: const [],
+        publications: first.output.publications,
+      );
+      final accepted = await _compileLedgerSource(
+        _ledgerSource(wrapped: true),
+        priorOutput: introduced,
+      );
+
+      expect(accepted.result.succeeded, isTrue);
+      expect(accepted.output.valid, isTrue);
+      expect(accepted.output.proposals, isEmpty);
+      final priorCodes = {
+        for (final node in first.output.ledgerNodes) node.codeIdentityId.value,
+      };
+      for (final proposal in moved.output.proposals) {
+        final minted = accepted.output.ledgerNodes.singleWhere(
+          (node) =>
+              node.structuralOccurrenceKey ==
+              proposal.toStructuralOccurrenceKey,
+        );
+        expect(minted.active, isTrue);
+        expect(priorCodes, isNot(contains(minted.codeIdentityId.value)));
+        // Every offered prior stays retired: none was taken as its identity.
+        for (final candidate
+            in proposal.candidatePriorStructuralOccurrenceKeys) {
+          final prior = accepted.output.ledgerNodes.singleWhere(
+            (node) => node.structuralOccurrenceKey == candidate,
+          );
+          expect(prior.active, isFalse);
+          expect(prior.codeIdentityId, isNot(minted.codeIdentityId));
+        }
+      }
+    },
+  );
+
+  test('an introduction may not override an existing identity', () async {
+    final first = await _compileLedgerSource(_ledgerSource());
+    final existing = first.output.ledgerNodes
+        .firstWhere((node) => node.active)
+        .structuralOccurrenceKey;
+    final overriding = RestageMeasurementCompilerOutputV1(
+      valid: true,
+      errors: const [],
+      policy: first.output.policy,
+      nextIdentitySequence: first.output.nextIdentitySequence,
+      ledgerNodes: first.output.ledgerNodes,
+      acceptedRelocations: const [],
+      acceptedIntroductions: [
+        MeasurementCompilerLedgerIntroduction(
+          structuralOccurrenceKey: existing,
+        ),
+      ],
+      proposals: const [],
+      publications: first.output.publications,
+    );
+
+    // The builder surfaces the refusal as a build failure, so no compiler
+    // output is written and reading it back throws.
+    Object? refusal;
+    try {
+      await _compileLedgerSource(_ledgerSource(), priorOutput: overriding);
+    } on Object catch (error) {
+      refusal = error;
+    }
+    expect(refusal, isNotNull);
+  });
+
+  test('an introduction naming an absent node is refused', () async {
+    final first = await _compileLedgerSource(_ledgerSource());
+    final stale = RestageMeasurementCompilerOutputV1(
+      valid: true,
+      errors: const [],
+      policy: first.output.policy,
+      nextIdentitySequence: first.output.nextIdentitySequence,
+      ledgerNodes: first.output.ledgerNodes,
+      acceptedRelocations: const [],
+      acceptedIntroductions: const [
+        MeasurementCompilerLedgerIntroduction(
+          structuralOccurrenceKey: 'package:apps_examples/absent.dart#Gone',
+        ),
+      ],
+      proposals: const [],
+      publications: first.output.publications,
+    );
+
+    // The builder surfaces the refusal as a build failure, so no compiler
+    // output is written and reading it back throws.
+    Object? refusal;
+    try {
+      await _compileLedgerSource(_ledgerSource(), priorOutput: stale);
+    } on Object catch (error) {
+      refusal = error;
+    }
+    expect(refusal, isNotNull);
+  });
+
+  test('introductions survive a canonical round trip', () async {
+    final first = await _compileLedgerSource(_ledgerSource());
+    final withIntroduction = RestageMeasurementCompilerOutputV1(
+      valid: true,
+      errors: const [],
+      policy: first.output.policy,
+      nextIdentitySequence: first.output.nextIdentitySequence,
+      ledgerNodes: first.output.ledgerNodes,
+      acceptedRelocations: const [],
+      acceptedIntroductions: const [
+        MeasurementCompilerLedgerIntroduction(
+          structuralOccurrenceKey: 'package:apps_examples/a.dart#A|widget:B',
+        ),
+      ],
+      proposals: const [],
+      publications: first.output.publications,
+    );
+
+    final decoded = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+      withIntroduction.canonicalBytes,
+    );
+    expect(
+      decoded.acceptedIntroductions.single.structuralOccurrenceKey,
+      'package:apps_examples/a.dart#A|widget:B',
+    );
+    expect(decoded.canonicalBytes, withIntroduction.canonicalBytes);
+  });
+
+  test(
     'ledger rebuild is stable and an unambiguous in-screen move keeps '
     'identities',
     () async {
@@ -2180,6 +2329,7 @@ final class QuietFlow extends RestageFlow {
       nextIdentitySequence: first.output.nextIdentitySequence,
       ledgerNodes: first.output.ledgerNodes,
       acceptedRelocations: relocations,
+      acceptedIntroductions: const [],
       proposals: const [],
       publications: first.output.publications,
     );

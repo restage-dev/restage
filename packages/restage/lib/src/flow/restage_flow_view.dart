@@ -1,10 +1,7 @@
-// Chrome icons are Material `Icons` (bundled via `uses-material-design`); the
-// widgets layer is imported directly. See `_backIcon` for why the iOS back
-// affordance does not use `CupertinoIcons` (font-bundling robustness).
 import 'dart:math' show max;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
-import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, internal;
+import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
@@ -14,7 +11,6 @@ import '../authoring/onboarding_event_dispatcher.dart'
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
-import 'flow_chrome.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
 import 'flow_transitions.dart';
@@ -32,6 +28,17 @@ import 'system_back_policy.dart';
 /// that still-mounted instance. The view mirrors the controller's reachable
 /// screen history (bounded by the controller's per-frame cap), so what is
 /// mounted always matches what `canBack` can reach.
+///
+/// The view paints no navigation controls. While the flow has history behind
+/// the current screen it registers matching [LocalHistoryEntry]s on the
+/// enclosing [ModalRoute], so an `AppBar` or `CupertinoNavigationBar` in the
+/// screen implies a back control, and the app bar's back button and system back
+/// each pop one screen.
+///
+/// The in-flow leading-edge swipe on iOS is the view's own. A route holding
+/// local history turns its own back gesture off, so the two are never live at
+/// the same time: the view owns the gesture while the flow has history, and the
+/// host route owns it again once in-flow back is exhausted.
 ///
 /// The controller is the single source of truth: the view never advances the
 /// flow itself; it renders what the controller exposes and routes the current
@@ -62,15 +69,18 @@ final class RestageFlowView<R> extends StatefulWidget {
     this.onRuntimeError,
     this.onScreenEvent,
     this.systemBack = SystemBackPolicy.popHost,
-    this.enableSkip = false,
-    this.chromeTheme,
-    this.persistentChrome = true,
-    this.backBuilder,
-    this.skipBuilder,
-    this.chromeBuilder,
-    this.persistentChromeBuilder,
     this.context,
-  });
+  }) : staged = false;
+
+  const RestageFlowView._staged({
+    required this.controller,
+    this.transition,
+    this.loadingBuilder,
+    this.systemBack = SystemBackPolicy.popHost,
+  })  : staged = true,
+        onRuntimeError = null,
+        onScreenEvent = null,
+        context = null;
 
   /// The flow brain whose current screen this view renders.
   final RestageFlowController<R> controller;
@@ -111,48 +121,11 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// What happens on a platform system-back gesture once in-flow back is
   /// exhausted (the first screen / a barrier). Defaults to
   /// [SystemBackPolicy.popHost].
+  ///
+  /// While in-flow back is still available the enclosing route's local history
+  /// owns the gesture and it pops one screen; on iOS the in-flow leading-edge
+  /// swipe is the surface's own.
   final SystemBackPolicy systemBack;
-
-  /// Whether to show the default skip affordance. Off by default; even when on,
-  /// the affordance appears only when the current screen has a skip destination
-  /// ([RestageFlowController.canSkip]), so there is never a dead skip control.
-  final bool enableSkip;
-
-  /// Visual tokens for the built-in chrome (the *Theme* rung of the
-  /// customization ladder). Null keeps the platform-appropriate defaults.
-  final FlowChromeTheme? chromeTheme;
-
-  /// Whether the built-in chrome frames the flow persistently (`true`, the
-  /// default — a stable bar that does not slide with content) or rides inside
-  /// the animated slot (`false` — chrome animates with the screen). Governs only
-  /// the built-in chrome's layer.
-  final bool persistentChrome;
-
-  /// Supplies the back affordance *widget* (the *Slots* rung). The SDK still
-  /// positions it (start edge) and shows it only when [RestageFlowController.canBack];
-  /// the widget owns its own [Semantics]. Null uses the themed default chevron.
-  final FlowChromeAffordanceBuilder? backBuilder;
-
-  /// Supplies the skip affordance *widget* (the *Slots* rung). The SDK still
-  /// positions it (end edge) and shows it only when [enableSkip] *and* the
-  /// screen has a skip destination; the widget owns its own [Semantics]. Null
-  /// uses the themed default skip control.
-  final FlowChromeAffordanceBuilder? skipBuilder;
-
-  /// Owns the whole *per-screen* layout (the *Layout* rung). Receives the
-  /// current [FlowChromeState] and the rendered screen, and composes them
-  /// however it likes (affordances anywhere, overlays via a [Stack]). Lives
-  /// inside the animated slot, so it animates with the screen. When supplied it
-  /// supersedes the built-in chrome (the dev places their own affordances using
-  /// `state.onBack`/`onSkip`).
-  final FlowChromeBuilder? chromeBuilder;
-
-  /// Frames the *whole flow* (the *Layout* rung). Receives the current
-  /// [FlowChromeState] and the animated flow body, and frames it (a top progress
-  /// bar, a persistent close). Lives outside the transition, so it stays put
-  /// while screens animate beneath. When supplied it supersedes the built-in
-  /// persistent chrome.
-  final FlowPersistentChromeBuilder? persistentChromeBuilder;
 
   /// Host-supplied render data, published to the surface as `data.context.*`.
   ///
@@ -171,6 +144,29 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// this value; it applies whenever no enclosing surface supplies any.
   final Map<String, Object?>? context;
 
+  /// Whether this is the offstage candidate layer of a surface swap. A staged
+  /// view owns no route state — no local history entries, no [PopScope] — so
+  /// the visible layer keeps sole ownership of the route's pop.
+  ///
+  /// Package-internal: the surface owns staging; a host never sets this.
+  @internal
+  final bool staged;
+
+  /// Builds the candidate layer of a surface swap.
+  @internal
+  static RestageFlowView<R> staging<R>({
+    required RestageFlowController<R> controller,
+    FlowTransitionBuilder? transition,
+    WidgetBuilder? loadingBuilder,
+    SystemBackPolicy systemBack = SystemBackPolicy.popHost,
+  }) =>
+      RestageFlowView<R>._staged(
+        controller: controller,
+        transition: transition,
+        loadingBuilder: loadingBuilder,
+        systemBack: systemBack,
+      );
+
   @override
   State<RestageFlowView<R>> createState() => _RestageFlowViewState<R>();
 }
@@ -178,10 +174,6 @@ final class RestageFlowView<R> extends StatefulWidget {
 class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     with SingleTickerProviderStateMixin {
   static const Duration _transitionDuration = Duration(milliseconds: 320);
-
-  /// Tint for the default back/skip chrome (a recognizable interactive color).
-  /// Overridable via [RestageFlowView.chromeTheme] (the Theme rung).
-  static const Color _chromeColor = Color(0xFF007AFF);
 
   static const double _iosEdgeSwipeWidth = 20;
   static const double _iosEdgeSwipeMinFlingVelocity = 1;
@@ -210,6 +202,20 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   ContextSnapshot? _context;
   bool _inheritsContextSnapshot = false;
 
+  /// The enclosing route, if any, that carries this flow's back history.
+  ModalRoute<dynamic>? _hostRoute;
+
+  /// One entry per screen the controller can still pop back to.
+  final List<LocalHistoryEntry> _historyEntries = <LocalHistoryEntry>[];
+
+  /// Set while the view removes its own entries, so the route's synchronous
+  /// `onRemove` callback does not pop the controller a second time.
+  bool _removingHistory = false;
+
+  /// Set while a deferred history sync is queued, so a burst of notifications
+  /// inside one build phase schedules a single post-frame sync.
+  bool _historySyncScheduled = false;
+
   void _refreshWidgetContext() {
     final raw = widget.context;
     _widgetContext =
@@ -233,23 +239,18 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
 
   void _onTransitionStatus(AnimationStatus status) {
     if (!mounted) return;
-    if (status == AnimationStatus.completed) {
+    if (status == AnimationStatus.completed && !_isPopping) {
       // A forward transition settled: the outgoing screen drops offstage, and
       // any screen the controller no longer lists as reachable (e.g. a
-      // completed sub-flow's) is pruned.
+      // completed sub-flow's) is pruned. A pop that starts from rest passes
+      // through this status on its way to `reverse`, and must not prune yet.
       setState(_pruneToReachable);
     } else if (status == AnimationStatus.dismissed &&
         _isPopping &&
         !_iosEdgeSwipeInProgress) {
-      // A back transition settled: remove the popped screen(s), then reset the
-      // controller to rest so the revealed screen renders fully entered. NOTE:
-      // `_finishPop` clears `_isPopping` first, so the `value = 1` below re-fires
-      // `completed` *synchronously from within this status listener* — that arm
-      // only `setState`s (which just schedules), so it is safe and terminates.
-      // Do not set `_transition.value` inside `_pruneToReachable` or this would
-      // loop.
-      _finishPop();
-      _transition.value = 1;
+      // A back transition settled: drop the popped screen(s). The controller
+      // is left at rest where it stopped; a screen at rest does not read it.
+      setState(_finishPop);
     }
   }
 
@@ -266,8 +267,14 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       _isPopping = false;
       _iosEdgeSwipeInProgress = false;
       _clearStack();
+      _dropLocalHistory();
       _syncFromController();
+      _requestLocalHistorySync();
       return;
+    }
+    if (oldWidget.staged != widget.staged) {
+      if (widget.staged) _dropLocalHistory();
+      _requestLocalHistorySync();
     }
     _publishAllContext();
   }
@@ -283,11 +290,18 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     _context = scope?.snapshot ?? _widgetContext;
     _dependenciesReady = true;
     _populateAllData();
+    final route = ModalRoute.of(context);
+    if (!identical(route, _hostRoute)) {
+      _dropLocalHistory();
+      _hostRoute = route;
+    }
+    _requestLocalHistorySync();
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_controllerChanged);
+    _dropLocalHistory();
     _transition.dispose();
     // The screen RemoteWidgets are already detached by the time the view
     // disposes, so each runtime has no remaining listeners and disposes
@@ -302,6 +316,109 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   void _controllerChanged() {
     if (!mounted) return;
     setState(_syncFromController);
+    _requestLocalHistorySync();
+  }
+
+  /// Runs [_syncLocalHistory], deferring to a post-frame callback while the
+  /// build phase is running.
+  ///
+  /// Adding an entry calls `Route.changedInternalState` directly, and a route
+  /// skips its own `setState` during that phase — the inherited pop state would
+  /// stay stale for the frame. Removal already defers itself.
+  void _requestLocalHistorySync() {
+    if (SchedulerBinding.instance.schedulerPhase !=
+        SchedulerPhase.persistentCallbacks) {
+      _syncLocalHistory();
+      return;
+    }
+    if (_historySyncScheduled) return;
+    _historySyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _historySyncScheduled = false;
+      if (!mounted) return;
+      _syncLocalHistory();
+    });
+  }
+
+  /// Matches the route's local-history entries to the controller's back depth.
+  ///
+  /// Adding or removing an entry marks the host route's state dirty, so this
+  /// runs from the controller listener and the lifecycle callbacks, never from
+  /// `build`. With no enclosing route, and on a staged layer, there is nothing
+  /// to mirror.
+  void _syncLocalHistory() {
+    final route = _hostRoute;
+    if (route == null || widget.staged) return;
+    final hadEntries = _historyEntries.isNotEmpty;
+    final depth = widget.controller.backDepth;
+    if (_historyEntries.length > depth) {
+      _removingHistory = true;
+      try {
+        while (_historyEntries.length > depth) {
+          _historyEntries.removeLast().remove();
+        }
+      } finally {
+        _removingHistory = false;
+      }
+    }
+    while (_historyEntries.length < depth) {
+      final entry = LocalHistoryEntry(onRemove: _handleLocalHistoryRemoved);
+      _historyEntries.add(entry);
+      route.addLocalHistoryEntry(entry);
+    }
+    if (hadEntries != _historyEntries.isNotEmpty) {
+      _announceRouteCanHandlePop(route);
+    }
+  }
+
+  /// Tells the platform that the framework now handles back, or hands the
+  /// question back to the route.
+  ///
+  /// A route dispatches [NavigationNotification] when a [PopScope] registers or
+  /// changes, never when its local history does, so the engine would otherwise
+  /// keep the answer it was given before the flow had history — and Android
+  /// system back would leave the app instead of stepping back a screen.
+  void _announceRouteCanHandlePop(ModalRoute<dynamic> route) {
+    if (!mounted) return;
+    NavigationNotification(
+      // Mirrors the route's own recomputation. An enclosing navigator raises a
+      // false to true when it can pop for its own reasons.
+      canHandlePop: _historyEntries.isNotEmpty ||
+          route.popDisposition == RoutePopDisposition.doNotPop,
+    ).dispatch(context);
+  }
+
+  /// Drops every entry this view registered, without popping the controller.
+  void _dropLocalHistory() {
+    if (_historyEntries.isEmpty) return;
+    final entries = List<LocalHistoryEntry>.of(_historyEntries);
+    _historyEntries.clear();
+    _removingHistory = true;
+    try {
+      for (final entry in entries.reversed) {
+        entry.remove();
+      }
+    } finally {
+      _removingHistory = false;
+    }
+  }
+
+  /// The route popped one of this view's entries (an app bar back button,
+  /// system back, or the route's back gesture): navigate the flow to match.
+  void _handleLocalHistoryRemoved() {
+    if (_removingHistory) return;
+    if (_historyEntries.isNotEmpty) _historyEntries.removeLast();
+    if (!mounted) return;
+    widget.controller.back();
+    // `back()` is a no-op while the controller is busy, and the route has
+    // already dropped the entry. Re-add what the flow still needs so route and
+    // flow can never stay disagreed.
+    if (_historyEntries.length != widget.controller.backDepth) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _syncLocalHistory();
+      });
+    }
   }
 
   /// Reconciles the mounted stack with the controller's current screen.
@@ -396,20 +513,11 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   }
 
   /// Removes the screen(s) popped by a back (everything above the revealed
-  /// target), disposing their runtimes, and re-initializes the revealed
-  /// screen's transition wrapper so it settles fully visible.
+  /// target), disposing their runtimes.
   void _finishPop() {
     while (_stack.length - 1 > _popTargetIndex) {
       final removed = _stack.removeLast();
       _disposeRuntimeAfterFrame(removed.runtime);
-    }
-    // Re-init the revealed screen's transition wrapper so it settles fully
-    // visible (see [_MountedScreen.episode] for why a fresh wrapper is needed
-    // here). The guard holds on every real path — the loop above leaves
-    // `_popTargetIndex` at `_stack.length - 1` — but stays defensive in case the
-    // stack was cleared mid-pop (e.g. a controller swap or fail-closed).
-    if (_popTargetIndex < _stack.length) {
-      _stack[_popTargetIndex].episode++;
     }
     _iosEdgeSwipeInProgress = false;
     _isPopping = false;
@@ -471,168 +579,9 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       // While a transition is in flight no screen is interactive: the incoming
       // screen may still be transparent or off-screen, so a tap must not fire
       // its event (matching a Flutter route transition).
-      final screens = IgnorePointer(ignoring: transitionRunning, child: stack);
-      if (widget.persistentChromeBuilder != null) {
-        // Layout rung (frame): the host owns the persistent layer, framing the
-        // whole animated flow body.
-        body =
-            widget.persistentChromeBuilder!(context, _chromeState(), screens);
-      } else if (widget.persistentChrome && widget.chromeBuilder == null) {
-        // Built-in persistent chrome frames the flow outside the animated stack,
-        // so it stays put while screens animate beneath. Suppressed when a
-        // per-screen chromeBuilder owns the chrome, or when persistentChrome is
-        // false (the per-screen path in _buildEntry builds it instead).
-        body = Stack(
-          fit: StackFit.passthrough,
-          children: <Widget>[
-            screens,
-            ..._buildBuiltInChrome(context),
-          ],
-        );
-      } else {
-        body = screens;
-      }
+      body = IgnorePointer(ignoring: transitionRunning, child: stack);
     }
     return _wrapWithSystemBack(context, _wrapWithIosEdgeSwipe(context, body));
-  }
-
-  /// Snapshots the controller's chrome-relevant state (plus the view-local
-  /// transition direction) for the Layout-rung builders. `canSkip` reflects the
-  /// controller's capability (a skip destination exists), independent of
-  /// [enableSkip] — a Layout-rung dev decides for themselves whether to show a
-  /// skip control.
-  FlowChromeState _chromeState() {
-    final controller = widget.controller;
-    return FlowChromeState(
-      onBack: controller.back,
-      onSkip: controller.skip,
-      canBack: controller.canBack,
-      canSkip: controller.canSkip,
-      isForward: !_isPopping,
-      screenId: controller.currentScreenId,
-      isComplete: controller.isComplete,
-      isBusy: controller.isBusy,
-    );
-  }
-
-  /// The built-in back/skip chrome — a platform-styled back affordance shown
-  /// when [RestageFlowController.canBack], and an optional skip affordance shown
-  /// only when [RestageFlowView.enableSkip] *and* the screen has a skip
-  /// destination. Restyled by [RestageFlowView.chromeTheme] (the Theme rung) and
-  /// placed either persistently or per-screen by
-  /// [RestageFlowView.persistentChrome]. Both affordances are
-  /// Semantics-reachable. (The Slots/Layout rungs layer over this default.)
-  List<Widget> _buildBuiltInChrome(BuildContext context) {
-    final controller = widget.controller;
-    final theme = widget.chromeTheme;
-    final textDirection = Directionality.of(context);
-    // Inset inside the device's safe area (status bar / notch) when a
-    // MediaQuery is available; degrade gracefully to zero when embedded without
-    // one. (Avoids requiring a MediaQuery ancestor that SafeArea would.)
-    final safe = MediaQuery.maybeOf(context)?.padding ?? EdgeInsets.zero;
-    final color = theme?.color ?? _chromeColor;
-    final padding = theme?.padding ?? const EdgeInsets.all(12);
-    // While the controller is busy a back/skip tap would be a no-op (the same
-    // gate as handleEvent/back/skip), so the auto-shown chrome is held inert
-    // without changing visual opacity.
-    final busy = controller.isBusy;
-    Widget inertWhenBusy(Widget child) => IgnorePointer(
-          ignoring: busy,
-          child: child,
-        );
-    return <Widget>[
-      if (controller.canBack)
-        Positioned.directional(
-          textDirection: textDirection,
-          top: safe.top,
-          start: safe.left,
-          // The SDK's auto-shown back affordance is a pure history pop — an
-          // unambiguous "go back one screen", consistent with the platform
-          // system-back gesture (see _wrapWithSystemBack). The reserved `back`
-          // event hook is for an author-PLACED in-screen back control. A Slots
-          // backBuilder supplies the widget (owning its own Semantics) but is
-          // still wired to the same pure pop.
-          child: inertWhenBusy(
-            widget.backBuilder?.call(context, controller.back) ??
-                _chromeButton(
-                  label: 'Back',
-                  padding: padding,
-                  onPressed: controller.back,
-                  child: Icon(
-                    theme?.backIcon ?? _backIcon,
-                    color: color,
-                    size: theme?.size ?? 28,
-                  ),
-                ),
-          ),
-        ),
-      if (widget.enableSkip && controller.canSkip)
-        Positioned.directional(
-          textDirection: textDirection,
-          top: safe.top,
-          end: safe.right,
-          child: inertWhenBusy(
-            widget.skipBuilder?.call(context, controller.skip) ??
-                _chromeButton(
-                  label: 'Skip',
-                  padding: padding,
-                  onPressed: controller.skip,
-                  child: Text(
-                    theme?.skipLabel ?? 'Skip',
-                    style: theme?.skipTextStyle ??
-                        TextStyle(
-                          color: color,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
-          ),
-        ),
-    ];
-  }
-
-  Widget _chromeButton({
-    required String label,
-    required EdgeInsetsGeometry padding,
-    required VoidCallback onPressed,
-    required Widget child,
-  }) {
-    return Semantics(
-      button: true,
-      label: label,
-      // The visual content (an icon, or a `Skip` text) is decorative: its own
-      // semantics are excluded so the button exposes exactly one clean label
-      // ([label]) rather than merging a duplicate (e.g. a `Skip` text label into
-      // the explicit `Skip` label). The GestureDetector's tap action is an
-      // ancestor of the excluded subtree, so it is preserved.
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onPressed,
-        child: Padding(
-          padding: padding,
-          child: ExcludeSemantics(child: child),
-        ),
-      ),
-    );
-  }
-
-  IconData get _backIcon {
-    // Material `Icons`, not `CupertinoIcons.back`: the CupertinoIcons font ships
-    // only when the consuming app depends on `cupertino_icons`, so a Cupertino
-    // glyph renders as a missing-glyph box on iOS in apps that don't bundle it.
-    // `Icons.arrow_back_ios_new` is the Material thin back chevron — an
-    // iOS-appropriate shape that ships with `uses-material-design`.
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-        return Icons.arrow_back_ios_new;
-      case TargetPlatform.android:
-      case TargetPlatform.fuchsia:
-      case TargetPlatform.linux:
-      case TargetPlatform.windows:
-        return Icons.arrow_back;
-    }
   }
 
   bool get _canStartIosEdgeSwipe {
@@ -640,12 +589,12 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     if (_stack.length < 2) return false;
     if (!widget.controller.canBack || widget.controller.isBusy) return false;
     if (_isPopping || _iosEdgeSwipeInProgress) return false;
-    return _transition.status == AnimationStatus.completed;
+    return !_transition.isAnimating;
   }
 
-  /// Mirrors Flutter's Cupertino route edge detector for in-flow back. The
-  /// platform route gesture cannot start while `PopScope.canPop` is false, so
-  /// the flow owns this narrow edge band only when controller history exists.
+  /// Mirrors Flutter's Cupertino route edge detector for in-flow back. A route
+  /// holding local history turns its own back gesture off, so the flow owns
+  /// this narrow edge band exactly while controller history exists.
   Widget _wrapWithIosEdgeSwipe(BuildContext context, Widget child) {
     if (!_canStartIosEdgeSwipe && !_iosEdgeSwipeInProgress) return child;
     final textDirection = Directionality.of(context);
@@ -735,6 +684,8 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       return;
     }
     final targetEntryId = _stack[_popTargetIndex].entryId;
+    // The controller listener drops the matching route entry under the removal
+    // guard, so the commit pops exactly once.
     widget.controller.back();
     if (!mounted) return;
     if (widget.controller.currentScreenEntryId != targetEntryId) {
@@ -743,8 +694,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     }
     _iosEdgeSwipeInProgress = false;
     if (_transition.value <= 0) {
-      _finishPop();
-      _transition.value = 1;
+      setState(_finishPop);
       return;
     }
     _transition.animateBack(
@@ -770,20 +720,30 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     });
   }
 
-  /// Routes the platform system-back gesture through the controller: while
-  /// in-flow back is available it is consumed (`canPop:false` → `controller`
-  /// pops); once exhausted the [RestageFlowView.systemBack] policy decides.
+  /// Applies the [RestageFlowView.systemBack] policy to an exhausted system
+  /// back gesture.
+  ///
+  /// While the flow still has history the route's local-history entries own the
+  /// gesture, and a route consults its [PopScope]s before its local history —
+  /// so the scope must allow the pop in that state or the history pop is
+  /// starved. It is held back only while the controller is busy, when a pop
+  /// would silently do nothing and leave the route a screen ahead of the flow.
+  ///
+  /// A staged candidate layer keeps a scope that always allows the pop: a route
+  /// consults every scope, so a candidate that blocked would starve the visible
+  /// layer and run its own exhausted policy.
   Widget _wrapWithSystemBack(BuildContext context, Widget child) {
     final controller = widget.controller;
     final policy = widget.systemBack;
+    final staged = widget.staged;
     return PopScope<Object?>(
-      canPop: !controller.canBack && policy.propagatesToHost,
+      canPop: staged ||
+          (controller.canBack ? !controller.isBusy : policy.propagatesToHost),
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (controller.canBack) {
-          controller.back();
-          return;
-        }
+        if (didPop || staged) return;
+        // In-flow back is still available and the flow is busy: the gesture is
+        // inert until the controller settles, and the policy does not apply.
+        if (controller.canBack) return;
         // `dismiss` is invoked only by SystemBackPolicy.complete(), which
         // dismisses via the reserved `skip` signal. If the flow wired no skip
         // destination there is nothing to dismiss to, so warn loudly rather than
@@ -860,50 +820,30 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       ),
     );
 
-    // Hold the RFW content under a stable key so that when an episode rebuilds
-    // the transition wrapper fresh (see below), the content's element — and its
-    // RFW state — is *moved* into the new wrapper rather than re-inflated.
+    // The RFW content keeps a stable key so its element, and the screen state
+    // it holds, survives a change of transition wrapper.
     final content = KeyedSubtree(key: screen.contentKey, child: child);
 
-    // Per-screen chrome rides inside the animated slot with the current (top)
-    // screen. The Layout-rung chromeBuilder owns the whole per-screen layout
-    // when supplied; otherwise the built-in chrome rides here when
-    // persistentChrome is false (the persistent path overlays it in `build`).
-    Widget framed = content;
-    if (isTop) {
-      if (widget.chromeBuilder != null) {
-        framed = widget.chromeBuilder!(context, _chromeState(), content);
-      } else if (!widget.persistentChrome) {
-        framed = Stack(
-          fit: StackFit.passthrough,
-          children: <Widget>[content, ..._buildBuiltInChrome(context)],
-        );
-      }
-    }
-
     final visible = isTop || isCompanion;
-    // The top screen plays the primary animation (entering on a push, exiting
-    // on a pop); its companion plays the mirror (secondary) animation as it is
-    // covered/revealed. Settled (and offstage) screens stay at rest. The pop
-    // direction is the same builder run in reverse (`isForward: false`).
+    // While a transition runs, the top screen plays the primary animation
+    // (entering on a push, exiting on a pop) and its companion the mirror
+    // (secondary) animation. At rest every screen reads constant animations,
+    // so the controller's resting value can never paint a screen that is on
+    // its way out. The pop direction is the same builder run in reverse.
+    final running = _transition.isAnimating || _iosEdgeSwipeInProgress;
     Animation<double> primary = kAlwaysCompleteAnimation;
     Animation<double> secondary = kAlwaysDismissedAnimation;
-    if (isTop) {
+    if (running && isTop) {
       primary = _transition.view;
-    } else if (isCompanion) {
+    } else if (running && isCompanion) {
       secondary = _transition.view;
     }
     final builder = widget.transition ?? defaultFlowTransitionBuilder;
     final transitioned =
-        builder(context, primary, secondary, framed, !_isPopping);
+        builder(context, primary, secondary, content, !_isPopping);
 
     // Offstage screens stay mounted (state preserved) but are not painted, not
-    // hit-tested, and their tickers are paused. The transition wrapper is keyed
-    // by the screen's episode so that when a back settles this screen it
-    // rebuilds fresh (see `_finishPop` / [_MountedScreen.episode]) — the
-    // transition re-derives from the screen's current role instead of a stale
-    // one — while [content]'s stable key moves the screen's element (and state)
-    // into the new wrapper unharmed.
+    // hit-tested, and their tickers are paused.
     return RestageFlowEventRegistration(
       controller: controller,
       registration: screen,
@@ -918,10 +858,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
         offstage: !visible,
         child: TickerMode(
           enabled: visible,
-          child: KeyedSubtree(
-            key: ValueKey<int>(screen.episode),
-            child: transitioned,
-          ),
+          child: transitioned,
         ),
       ),
     );
@@ -942,25 +879,8 @@ class _MountedScreen {
   final DynamicContent data;
   late final ContextPublisher contextPublisher = ContextPublisher(data);
 
-  /// A stable key for this screen's RFW content subtree. When a cover→reveal
-  /// episode rebuilds the transition wrapper fresh (see [episode]), the content
-  /// element is *moved* under this key rather than re-inflated, so the screen's
-  /// preserved state (RFW `state.x`, scroll position, entered data) survives —
-  /// the keep-mounted keystone.
+  /// A stable key for this screen's RFW content subtree, so its element and
+  /// preserved state (RFW `state.x`, scroll position, entered data) survive a
+  /// change of transition wrapper.
   final GlobalKey contentKey = GlobalKey();
-
-  /// Incremented when a back settles this screen as the revealed top (see
-  /// `_finishPop`). The transition wrapper is keyed by this so the settled
-  /// screen builds a *fresh* wrapper.
-  ///
-  /// The shared-axis/Cupertino transitions wrap the child in nested
-  /// `DualTransitionBuilder`s, which repoint their internal proxy animations
-  /// only when their effective direction *changes*. Reused on a persistent
-  /// element across a cover (which leaves the secondary path resolved against
-  /// the shared controller) and then the pop's rest reset, the wrapper reads
-  /// the controller's rest value as "fully covered" and stays played out (faded
-  /// to opacity 0 / slid off) — onstage but invisible. Rebuilding the wrapper
-  /// fresh on settle re-derives from the now-current roles, so the screen lands
-  /// fully visible. The content element survives via [contentKey].
-  int episode = 0;
 }

@@ -1,160 +1,189 @@
 # Flow navigation & customization
 
-How to customize the chrome (the back/skip affordances) around a Restage flow,
-how flow navigation and back behave, how to choose between the high-level and
-low-level rendering surfaces, and the compliance boundary that holds however you
-compose them.
+Where a flow's navigation controls come from, how flow navigation and back
+behave, how to choose between the high-level and low-level rendering surfaces,
+and the compliance boundary that holds however you compose them.
 
 This covers `RestageFlowGraph` (the normal full flow surface),
 `RestageFlowView` (the lower-level compositor), and `RestageScreenView` (the
 current-screen rendering surface). All of them render the same flow document
 driven by the same `RestageFlowController`.
 
-## The chrome customization ladder
+## Navigation controls come from your screens
 
-A flow surface draws **chrome** (the back affordance, and an optional skip
-affordance) around each screen. Customization is a ladder: take only the rung
-you need. Higher rungs leave the layout to the SDK; lower rungs hand you more
-control.
+A flow surface draws no back control, no skip control and no bar of its own. The
+runtime moves between screens and keeps the history; what the user taps is app
+structure you place.
 
-The ladder separates the three concerns a typical app bar conflates: the
-affordance's **visual** (the icon/label), its **layout** (where it sits), and
-its **intent** (what it does + when it is available).
-
-| Rung | You take over | You write |
-|---|---|---|
-| **Default** | nothing | nothing (platform-styled back when there is history; skip off by default) |
-| **Theme** | the visual tokens | `chromeTheme: FlowChromeTheme(...)` |
-| **Slots** | the affordance widgets (SDK still positions them) | `backBuilder` / `skipBuilder` |
-| **Layout** | the whole chrome layout | `chromeBuilder` (per-screen) / `persistentChromeBuilder` (frames the flow) |
-| **DIY** | everything | own a `RestageFlowController`; render with `RestageScreenView`; draw your own chrome |
-
-See the *Chrome customization* example in `apps/examples/` for a runnable tour
-that switches between these rungs over one flow (and the *build-your-own-flow*
-example for the DIY rung).
-
-### Default
-
-With no chrome parameters, the surface shows a platform-adaptive back affordance
-whenever there is a prior screen to return to, and no skip affordance. The
-back/skip affordances expose clean accessibility labels (`Back` / `Skip`).
-
-### Theme: restyle the default affordances
-
-`FlowChromeTheme` restyles the built-in affordances without changing their
-layout. Every token is optional; an omitted token keeps the platform-appropriate
-default.
+The usual place is an app bar. Put an `AppBar` (Material) or a
+`CupertinoNavigationBar` (Cupertino) in a screen and it shows the platform back
+control whenever the flow has a screen behind the current one.
 
 ```dart
-RestageFlowGraph<FirstRunResult>(
-  flow: firstRunFlowRef,
-  unavailable: FlowUnavailablePolicy.hide(),
-  chromeTheme: const FlowChromeTheme(
-    backIcon: Icons.chevron_left,
-    color: Color(0xFF6FD6C6),
-    size: 32,
-    padding: EdgeInsets.all(16),
-    skipLabel: 'Not now',
-  ),
-);
+@Screen()
+final class GoalScreen extends StatelessWidget {
+  const GoalScreen({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: const Text('What brings you here?'),
+          ),
+          Expanded(
+            child: Center(
+              child: FilledButton(
+                onPressed: surfaceEvent(next),
+                child: const Text('Continue'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 ```
 
-`FlowChromeTheme` has value equality and a `copyWith`, so you can derive one
-theme from another.
+The bar is the first child of the body, because the catalog's `Scaffold` has no `appBar` slot. `AppBar` takes the status-bar inset itself, so the rest of the body sits below it. Wrap that rest in `SafeArea(top: false)` so the inset is applied once.
 
-### Slots: supply the affordance widget, SDK positions it
+The screen is ordinary Flutter and compiles to a render blob like any other.
+`AppBar` and `CupertinoNavigationBar` are catalog widgets, so the bar you author
+is delivered with the rest of the screen and shows the control a compiled screen
+shows.
 
-`backBuilder` / `skipBuilder` (`FlowChromeAffordanceBuilder`) let you supply the
-affordance widget; the SDK still positions it and supplies the persistent
-framing. `onAction` performs the affordance's intent (a back pop, or a skip).
+### The mechanism: route local history
+
+The flow renders its screens in one keep-mounted stack inside a single host
+route. When the flow has history behind the current screen, the surface
+registers a `LocalHistoryEntry` on that route and keeps the entries in step with
+the flow's back depth. `ModalRoute.canPop` reads true while entries are
+registered, and `AppBar` and `CupertinoNavigationBar` derive their leading
+control from it with `automaticallyImplyLeading` at its default.
+
+Everything that pops the route pops exactly one flow screen: the bar's own back
+control, `Navigator.maybePop`, and the Android system-back gesture. The iOS
+edge-swipe is the surface's own; see below. When the flow itself moves back (an authored
+`back` event, a decision routing backwards), the surface drops the matching
+entries, so route state and flow state stay in agreement.
+
+Two cases show nothing, both correct. A screen with no app bar has no back
+control. The first screen of a flow, and the first screen of a sub-flow, have no
+history behind them; a sub-flow boundary is a barrier. A flow mounted outside any
+route registers no entry and renders normally.
+
+## Drawing your own control
+
+`RestageFlowController` carries what a control needs.
+
+| Member | Meaning |
+|---|---|
+| `canBack` | whether there is a prior screen in this frame |
+| `back()` | pop screen history (a no-op when `canBack` is false) |
+| `canSkip` | whether the current screen has a skip destination |
+| `skip()` | route the reserved `skip` event |
+| `currentScreenId` | the current screen's state id (null when no screen is mounted) |
+| `isComplete` | whether the flow has finished |
+| `isBusy` | whether a transition or host action is in flight |
+
+The controller is a `Listenable`, so read it inside a `ListenableBuilder` and the
+control follows the flow.
 
 ```dart
-RestageFlowGraph<FirstRunResult>(
-  flow: firstRunFlowRef,
-  unavailable: FlowUnavailablePolicy.hide(),
-  backBuilder: (context, onAction) => IconButton(
-    icon: const Icon(Icons.arrow_back_ios_new),
-    onPressed: onAction,
-  ),
-);
-```
-
-> **Accessibility:** a Slots/Layout widget owns its own `Semantics`. The built-in
-> chrome supplies a single clean label per affordance; a custom widget must
-> supply its own (e.g. an `IconButton`'s `tooltip`, or a `Semantics(button: true,
-> label: 'Back')` wrapper) so it stays screen-reader-reachable.
-
-### Layout: own the chrome layout
-
-Two builder layers let you own the layout entirely. Both receive a
-`FlowChromeState` snapshot:
-
-- `chromeBuilder` (`FlowChromeBuilder`) is **per-screen**. It lives inside the
-  animated slot, so it animates with the screen. It receives the screen's
-  rendered widget; compose chrome around or over it.
-- `persistentChromeBuilder` (`FlowPersistentChromeBuilder`) **frames the whole
-  flow**. It lives outside the transition, so it stays put while screens animate
-  beneath. It receives the animated screen stack as `flowBody`.
-
-Both may be set together (the frame composes around the per-screen result).
-
-```dart
-RestageFlowGraph<FirstRunResult>(
-  flow: firstRunFlowRef,
-  unavailable: FlowUnavailablePolicy.hide(),
-  persistentChromeBuilder: (context, state, flowBody) => Column(
+ListenableBuilder(
+  listenable: controller,
+  builder: (context, _) => Row(
     children: [
-      LinearProgressIndicator(value: state.canBack ? 0.5 : 0.0),
-      Expanded(child: flowBody),
+      if (controller.canBack)
+        IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: controller.back,
+        ),
+      const Spacer(),
+      if (controller.canSkip)
+        TextButton(
+          onPressed: controller.skip,
+          child: const Text('Skip'),
+        ),
     ],
   ),
-);
+)
 ```
 
-`FlowChromeState` carries only signals the runtime can stand behind:
+A control drawn this way needs a controller the app owns, so mount the flow with
+`RestageFlowView` and compose around it. Wrapping the view frames the whole flow:
+the control stays put while screens animate beneath it. `_backControl` below is
+the `ListenableBuilder` above.
 
-| Field | Meaning |
-|---|---|
-| `onBack` / `onSkip` | perform a back pop / a skip (no-ops when unavailable) |
-| `canBack` / `canSkip` | whether there is a prior screen / a skip destination |
-| `isForward` | whether the in-flight transition is a forward push (vs a back pop) |
-| `screenId` | the current screen's state id (null when no screen is mounted) |
-| `isComplete` | whether the flow has finished (collapse chrome on completion) |
-| `isBusy` | whether a transition or host action is in flight (keep affordances inert while busy) |
+```dart
+Stack(
+  children: [
+    Positioned.fill(
+      child: RestageFlowView<FirstRunResult>(controller: controller),
+    ),
+    Positioned(top: 0, left: 0, child: _backControl(controller)),
+  ],
+)
+```
+
+A custom control owns its own `Semantics`. An `IconButton`'s `tooltip`, or a
+`Semantics(button: true, label: 'Back')` wrapper, keeps it screen-reader
+reachable. An `AppBar` back control already carries its label.
+
+A control authored inside a screen fires an event like any other. Give it the
+reserved `back` event and it pops screen history with no transition to write:
+
+```dart
+static const back = SurfaceEvent<void>('back');
+```
 
 There is deliberately **no "step N of M"**: a flow can branch (decision states,
 sub-flows), so a total step count is not knowable in general. A progress
 indicator is the author's to derive: you authored the flow's shape and have
-`screenId`.
-
-### Persistent vs per-screen chrome
-
-`persistentChrome` (a bool, default `true`) governs the **built-in** chrome's
-layer: `true` frames the flow with a stable bar that does not slide with the
-content, which is why it is the default; `false` rides inside the animated slot.
-Supplying `chromeBuilder` / `persistentChromeBuilder` chooses the layer
-explicitly and supersedes the bool.
-
-`persistentChrome` is a parameter on `RestageFlowGraph` / `RestageFlowView`
-(not on `FlowChromeTheme`, which stays purely visual). For an app-wide setting,
-pass the same value (or wrap the surface).
-
-### DIY: own the controller
-
-The lowest rung is to drive a `RestageFlowController` yourself and render with
-`RestageScreenView`, drawing your own chrome. See *Choosing a rendering surface*
-below.
+`currentScreenId`.
 
 ## Skip
 
-Skip is **off by default** (a forced onboarding shouldn't be skippable, and there
-is no platform "skip" default to inherit). Set `enableSkip: true` to show it. The
-skip affordance is shown only when the current screen actually has a skip
-destination (an authored `on['skip']` transition, or a declared
-`outbound.customEvents['skip']`), so a skip control is never visible-but-dead.
-`controller.skip()` routes the reserved `skip` event: an authored
-transition takes it, otherwise the declared custom event is emitted for the host
-to handle (commonly to dismiss the flow).
+Skip has no platform affordance to inherit, so it is always a control you draw.
+`controller.skip()` routes the reserved `skip` event: an authored `on['skip']`
+transition takes it, otherwise the declared `outbound.customEvents['skip']` is
+emitted for the host to handle, commonly to dismiss the flow. `canSkip` is false
+when the screen has neither, which is the signal to leave the control out rather
+than show a dead one.
+
+Inside a delivered screen, the natural place for skip is the app bar: a
+`TextButton` in `AppBar.actions`, or a `CupertinoButton` in
+`CupertinoNavigationBar.trailing`, wired to a `SurfaceEvent<void>('skip')`. The
+runtime routes it exactly as `controller.skip()` does.
+
+## Dismissing the flow from a host control
+
+A host route that holds flow history handles `Navigator.pop` and
+`Navigator.maybePop` the way any route with local history does: the call pops
+one flow screen and the route stays. That is what an app bar's back control
+relies on. A close control that should leave the flow regardless of where the
+user is drains that history first, then pops the route:
+
+```dart
+void dismissFlow(BuildContext context) {
+  final navigator = Navigator.of(context);
+  final route = ModalRoute.of(context)!;
+  while (route.willHandlePopInternally) {
+    navigator.pop();
+  }
+  navigator.maybePop();
+}
+```
+
+Completion needs none of this. The controller drops its history before it
+calls `onComplete`, so `Navigator.maybePop` inside that callback pops the
+route.
 
 ## Back navigation
 
@@ -168,38 +197,37 @@ Back follows screen history the way a `Navigator` does:
   *screen* and never re-runs a transition or re-fires a host action.
 - **Barriers are structural.** A sub-flow boundary is an automatic barrier (a
   child flow's back never reaches into its parent); `canBack` is false on a
-  frame's first screen. A completed flow does not navigate (`canBack` /`canSkip`
+  frame's first screen. A completed flow does not navigate (`canBack` / `canSkip`
   are false).
-- **The auto-shown back affordance is a pure pop.** The SDK's back chevron (and
-  the platform system-back gesture) pop screen history; they never run a
-  side-effecting authored action. The reserved `on['back']` transition is for an
-  author-placed in-screen control.
+- **Back is a pure pop.** The app bar's back control, a drawn control calling
+  `controller.back()`, and the platform system-back gesture all pop screen
+  history; they never run a side-effecting authored action.
 
 ### System back when in-flow back is exhausted
 
-While there is screen history, the platform system-back gesture is consumed and
-pops. When in-flow back is exhausted (the first screen, or a barrier), a
-`systemBack` policy (`SystemBackPolicy`) decides what happens:
+While there is screen history, the platform system-back gesture pops one screen
+through the route's local history. When in-flow back is exhausted (the first
+screen, or a barrier), a `systemBack` policy (`SystemBackPolicy`) decides what
+happens:
 
 | Policy | Behavior |
 |---|---|
-| `SystemBackPolicy.popHost` (default) | let system-back propagate to the host (the host's own structure decides: dismiss a pushed route, or the platform's "back at root" behavior) |
+| `SystemBackPolicy.popHost` (default) | let system-back reach the host route (the host's own structure decides: dismiss a pushed route, or the platform's "back at root" behavior) |
 | `SystemBackPolicy.block()` | trap it; back at the first screen is a no-op (a mandatory flow) |
 | `SystemBackPolicy.complete()` | treat exhausted back as completing/dismissing the flow (requires a skip destination: a declared `customEvents['skip']` or `on['skip']`; without one, exhausted back is a no-op) |
 | `SystemBackPolicy.onExhausted(callback)` | a callback escape hatch for bespoke handling |
 
+The policy governs only the exhausted case. While the flow can still go back, the
+local history entries own the pop under every policy.
+
 ### iOS edge-swipe
 
-The flow renders its screens in a single keep-mounted stack within one host
-route, rather than one `Navigator` route per screen. The Android system-back button is a
-whole-route signal, so it is routed through the controller (consumed to step back
-within the flow while history remains, then handed to the `systemBack` policy).
-On iOS, `RestageFlowView` adds an in-flow leading-edge drag while `canBack` is
-true: dragging from the leading edge previews the prior kept-mounted screen, and
-completing the drag performs the same pure history pop as the back chrome. A
-cancelled drag leaves the current screen in place. This is the flow's own
-screen-history gesture; authored `on['back']` transitions are still reserved for
-author-placed in-screen controls.
+A route with local history entries turns its own edge-swipe off, so the host
+route's gesture cannot step back within a flow. `RestageFlowView` adds a
+leading-edge drag of its own while `canBack` is true: dragging from the leading
+edge previews the prior kept-mounted screen, and completing the drag performs
+the same pure history pop as an app bar's back control. A cancelled drag leaves
+the current screen in place.
 
 Once in-flow back is exhausted (the first screen, or a barrier), the route is
 poppable again according to the `systemBack` policy. With the default
@@ -284,12 +312,14 @@ generated `SurfaceFlowRef<R>` with `RestageFlowGraph<R>`.
 
 `RestageFlowGraph` and `RestageScreenView` differ in how much of the
 presentation the SDK owns. `RestageFlowView` is the lower-level compositor used
-when the host needs to control the flow's stack transition visuals.
+when the host needs to control the flow's stack transition visuals or to own the
+controller.
 
 ### `RestageFlowView`: the SDK owns the stack + transitions
 
-`RestageFlowGraph` owns the normal flow host, while `RestageFlowView` owns the
-kept-mounted screen stack, the back-stack, the chrome ladder above, and a
+`RestageFlowGraph` owns the normal flow host, resolving the flow and driving its
+own controller. `RestageFlowView` takes a controller you own and owns the
+kept-mounted screen stack, the back-stack, the route local history, and a
 platform-adaptive transition. To fully customize the transition, supply a
 `transition` (`FlowTransitionBuilder`). That covers a **two-screens-visible**
 (opposing-slide) cross-transition where the outgoing and incoming screens
@@ -299,10 +329,10 @@ the visual.
 ### `RestageScreenView`: you own the driver (single screen)
 
 `RestageScreenView` (`@experimental`) renders the controller's **current screen
-only**: no kept-mounted stack, no transitions, no back-stack, no chrome. You
-drive the `RestageFlowController` (it keeps the server-driven topology,
-experiments, and OTA), render each current screen through `RestageScreenView`,
-and supply your own transitions, back affordance, and chrome around it.
+only**: no kept-mounted stack, no transitions, no back-stack, no route local
+history. You drive the `RestageFlowController` (it keeps the server-driven
+topology, experiments, and OTA), render each current screen through
+`RestageScreenView`, and supply your own transitions and controls around it.
 
 Because it renders the *current* screen, the transition it composes with is an
 **incoming-style** one: animate the new current screen in on each advance; the
@@ -310,12 +340,12 @@ old screen is simply replaced. (A two-screens-visible cross-transition needs the
 outgoing screen too, which a current-only surface does not hold; use
 `RestageFlowView(transition:)` for that.) See the *build-your-own-flow* example
 in `apps/examples/` for a controller + `RestageScreenView` + a host-owned
-incoming transition + an own back affordance.
+incoming transition + a host-owned back control.
 
 | You want… | Use |
 |---|---|
-| the full surface, default or themed chrome | `RestageFlowGraph` |
-| a fully custom two-screens-visible (opposing-slide) transition over the SDK stack | `RestageFlowView(transition:)` |
+| the full surface, resolved and driven for you | `RestageFlowGraph` |
+| a controller you own, or a fully custom two-screens-visible (opposing-slide) transition over the SDK stack | `RestageFlowView` |
 | to own the whole driver: your own switcher timing, back, and incoming-style transitions | `RestageScreenView` |
 
 Every screen still renders through the controller's fail-closed boundary, so
@@ -355,7 +385,7 @@ The onboarding events:
 a screen by navigating forward after a back yields its earlier index again, so it
 stays a stable funnel position rather than an inflating view counter. `stepCount`
 is the number of screens authored in the flow (a best-effort "of N"; for a
-branching flow it is the authored total, not the length of any single path).
+branching flow it counts the authored total across every path).
 
 > **Permission convention.** An onboarding host-action whose result carries a
 > `granted: bool` is recorded as `OnboardingPermissionResponse`. `permission` is
@@ -365,7 +395,7 @@ branching flow it is the authored total, not the length of any single path).
 
 ## Compliance boundary
 
-Restage's flow runtime is declarative-only. The customization surfaces above are
+Restage's flow runtime is declarative-only. The controls and framing above are
 host Flutter widgets composed *around* the rendered screens; they do not change
 what the runtime interprets. The compliance claim is bounded and exact:
 

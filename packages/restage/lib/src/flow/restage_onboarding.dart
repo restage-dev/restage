@@ -5,7 +5,6 @@ import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../refresh/surface_refresh_trigger.dart';
 import '../runtime/context_data.dart';
-import 'flow_chrome.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
@@ -35,13 +34,6 @@ final class RestageOnboarding<R> extends StatefulWidget {
     this.loadingBuilder,
     this.transition,
     this.systemBack = SystemBackPolicy.popHost,
-    this.enableSkip = false,
-    this.chromeTheme,
-    this.persistentChrome = true,
-    this.backBuilder,
-    this.skipBuilder,
-    this.chromeBuilder,
-    this.persistentChromeBuilder,
     this.liveRefresh,
     this.context,
   });
@@ -78,27 +70,6 @@ final class RestageOnboarding<R> extends StatefulWidget {
 
   /// What happens after in-flow back is exhausted.
   final SystemBackPolicy systemBack;
-
-  /// Whether to show the default skip affordance.
-  final bool enableSkip;
-
-  /// Visual tokens for the built-in chrome.
-  final FlowChromeTheme? chromeTheme;
-
-  /// Whether built-in chrome frames the flow persistently.
-  final bool persistentChrome;
-
-  /// Supplies the back affordance widget.
-  final FlowChromeAffordanceBuilder? backBuilder;
-
-  /// Supplies the skip affordance widget.
-  final FlowChromeAffordanceBuilder? skipBuilder;
-
-  /// Owns the per-screen chrome layout.
-  final FlowChromeBuilder? chromeBuilder;
-
-  /// Frames the whole flow.
-  final FlowPersistentChromeBuilder? persistentChromeBuilder;
 
   /// Per-widget live-refresh override.
   final Set<SurfaceRefreshTrigger>? liveRefresh;
@@ -216,13 +187,6 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
         loadingBuilder: widget.loadingBuilder,
         transition: widget.transition,
         systemBack: widget.systemBack,
-        enableSkip: widget.enableSkip,
-        chromeTheme: widget.chromeTheme,
-        persistentChrome: widget.persistentChrome,
-        backBuilder: widget.backBuilder,
-        skipBuilder: widget.skipBuilder,
-        chromeBuilder: widget.chromeBuilder,
-        persistentChromeBuilder: widget.persistentChromeBuilder,
         liveRefresh: widget.liveRefresh,
       ),
     );

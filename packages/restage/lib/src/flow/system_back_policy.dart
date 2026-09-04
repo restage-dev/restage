@@ -1,11 +1,13 @@
 import 'package:flutter/widgets.dart';
 
-/// What happens on a platform system-back gesture (Android predictive back /
-/// iOS edge-swipe) once *in-flow* back navigation is exhausted — the user is at
-/// a flow's first screen (or a barrier) with no prior screen to pop to.
+/// What happens on a platform system-back gesture once *in-flow* back
+/// navigation is exhausted — the user is at a flow's first screen (or a
+/// barrier) with no prior screen to pop to.
 ///
-/// While in-flow back is still available the flow always consumes system-back
-/// and navigates back; this policy only decides the exhausted case. Set it
+/// While in-flow back is still available the enclosing route's local history
+/// owns the gesture and it pops one screen, and the surface owns the iOS
+/// leading-edge swipe; the host route's own back gesture applies once in-flow
+/// back is exhausted. This policy only decides that exhausted case. Set it
 /// per-flow (the default is [popHost]).
 sealed class SystemBackPolicy {
   const SystemBackPolicy();
@@ -18,7 +20,7 @@ sealed class SystemBackPolicy {
   static const SystemBackPolicy popHost = _PopHostSystemBackPolicy();
 
   /// Trap system-back: back at the first screen is a no-op — a mandatory flow
-  /// the user cannot back out of.
+  /// the user cannot back out of. Back within the flow still works.
   const factory SystemBackPolicy.block() = _BlockSystemBackPolicy;
 
   /// Treat exhausted back as dismissing the flow, via the same reserved `skip`
@@ -39,11 +41,15 @@ sealed class SystemBackPolicy {
   ) = _CallbackSystemBackPolicy;
 
   /// Whether system-back should propagate to the host once in-flow back is
-  /// exhausted (the surface sets `PopScope.canPop` to this when `!canBack`).
+  /// exhausted. The rendering surface allows the route to pop when this is set
+  /// or the flow still has history of its own.
   bool get propagatesToHost => this is _PopHostSystemBackPolicy;
 
   /// Applies the exhausted-back behavior. [dismiss] routes the reserved skip
   /// signal (used by [SystemBackPolicy.complete]).
+  ///
+  /// The rendering surface calls this only for a pop the route did not perform,
+  /// which is the exhausted case.
   void handleExhausted(
     BuildContext context, {
     required void Function() dismiss,

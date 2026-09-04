@@ -146,6 +146,33 @@ identity are keyed on the annotation `id` and the event schema, never on Dart
 symbol names — the delivery-artifact digests are byte-identical across this
 release.
 
+**Breaking. The flow surfaces no longer draw back or skip controls.** The
+chrome customization ladder is removed with them. `RestageFlowGraph`,
+`RestageFlowView` and `RestageOnboarding` lose `enableSkip`, `chromeTheme`,
+`persistentChrome`, `backBuilder`, `skipBuilder`, `chromeBuilder` and
+`persistentChromeBuilder`, and `FlowChromeTheme`, `FlowChromeState`,
+`FlowChromeAffordanceBuilder`, `FlowChromeBuilder` and
+`FlowPersistentChromeBuilder` are gone from the public API. There are no
+aliases.
+
+A screen that wants a back control carries an `AppBar` or a
+`CupertinoNavigationBar`. While the flow has a screen behind the current one,
+the surface registers a route local history entry, so `ModalRoute.canPop` reads
+true and both bars show their platform back control with
+`automaticallyImplyLeading` at its default. The bar's back control,
+`Navigator.maybePop` and Android system back each pop one flow screen; the
+surface keeps its own iOS edge swipe for the same pop. A screen with no app bar
+shows no control. A host close control that should leave the flow from any
+screen drains the route's local history before it pops; `onComplete` runs after
+the history is already gone.
+
+For a control you draw yourself, read `controller.canBack` and
+`controller.canSkip` and call `controller.back()` and `controller.skip()` inside
+a `ListenableBuilder`; that path is unchanged and needs a controller you own
+under `RestageFlowView`. `SystemBackPolicy` keeps its four variants and their
+meanings, re-expressed over the route's `canPop`. Built-in skip is dropped with
+no replacement affordance.
+
 ### Also in 2.0.0
 
 **Breaking.** The closed event-name export is removed. Customer callback

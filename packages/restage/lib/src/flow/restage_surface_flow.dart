@@ -22,7 +22,6 @@ import '../refresh/surface_update_channel.dart';
 import '../runtime/context_data.dart';
 import '../runtime/first_paint_lease_guard.dart';
 import '../runtime/restage.dart';
-import 'flow_chrome.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_mount.dart';
@@ -91,13 +90,6 @@ final class RestageFlowGraph<R> extends StatefulWidget {
     this.loadingBuilder,
     this.transition,
     this.systemBack = SystemBackPolicy.popHost,
-    this.enableSkip = false,
-    this.chromeTheme,
-    this.persistentChrome = true,
-    this.backBuilder,
-    this.skipBuilder,
-    this.chromeBuilder,
-    this.persistentChromeBuilder,
     this.liveRefresh,
     this.context,
   });
@@ -154,34 +146,6 @@ final class RestageFlowGraph<R> extends StatefulWidget {
   /// What happens on a platform system-back gesture once in-flow back is
   /// exhausted. Defaults to [SystemBackPolicy.popHost].
   final SystemBackPolicy systemBack;
-
-  /// Whether to show the default skip affordance (off by default; shown only
-  /// when the current screen has a skip destination).
-  final bool enableSkip;
-
-  /// Visual tokens for the built-in chrome (the *Theme* rung). Null keeps the
-  /// platform-appropriate defaults.
-  final FlowChromeTheme? chromeTheme;
-
-  /// Whether the built-in chrome frames the flow persistently (`true`, default)
-  /// or rides inside the animated slot (`false`).
-  final bool persistentChrome;
-
-  /// Supplies the back affordance widget (the *Slots* rung). Null uses the
-  /// themed default chevron.
-  final FlowChromeAffordanceBuilder? backBuilder;
-
-  /// Supplies the skip affordance widget (the *Slots* rung). Null uses the
-  /// themed default skip control.
-  final FlowChromeAffordanceBuilder? skipBuilder;
-
-  /// Owns the per-screen chrome layout (the *Layout* rung). Null uses the
-  /// built-in chrome.
-  final FlowChromeBuilder? chromeBuilder;
-
-  /// Frames the whole flow (the *Layout* rung). Null uses the built-in
-  /// persistent chrome.
-  final FlowPersistentChromeBuilder? persistentChromeBuilder;
 
   /// Per-widget live-refresh override. Null inherits the app-level
   /// configuration (`Restage.configure`); a provided set replaces it wholesale
@@ -1032,19 +996,21 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         controller: controller,
         handler: handler,
         isCurrent: () => _isAuthoredEventHandlerCurrent(controller, handler),
-        child: RestageFlowView<R>(
-          controller: controller,
-          transition: widget.transition,
-          loadingBuilder: widget.loadingBuilder,
-          systemBack: widget.systemBack,
-          enableSkip: widget.enableSkip,
-          chromeTheme: widget.chromeTheme,
-          persistentChrome: widget.persistentChrome,
-          backBuilder: widget.backBuilder,
-          skipBuilder: widget.skipBuilder,
-          chromeBuilder: widget.chromeBuilder,
-          persistentChromeBuilder: widget.persistentChromeBuilder,
-        ),
+        // A candidate is mounted beside the live layer, so it contests no route
+        // state: it registers no back history and never blocks a pop.
+        child: staged
+            ? RestageFlowView.staging<R>(
+                controller: controller,
+                transition: widget.transition,
+                loadingBuilder: widget.loadingBuilder,
+                systemBack: widget.systemBack,
+              )
+            : RestageFlowView<R>(
+                controller: controller,
+                transition: widget.transition,
+                loadingBuilder: widget.loadingBuilder,
+                systemBack: widget.systemBack,
+              ),
       ),
     );
     final session = _measurementSessions[controller];

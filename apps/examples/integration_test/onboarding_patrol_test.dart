@@ -1,3 +1,7 @@
+// `PlatformAutomator` has no `pressBack` in this Patrol version, only the
+// `swipeBack` gesture, so the back walk stays on the native automator.
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_example/onboarding/flows/first_run.dart';
@@ -17,7 +21,7 @@ import 'package:patrol/patrol.dart';
 /// - **Forward:** each screen change ANIMATES forward, native-grade for the
 ///   device platform (a Cupertino push on iOS, a Material-3 shared-axis on
 ///   Android) — never an instant hard cut. The first screen appears at rest.
-/// - **Back:** tapping the default back affordance animates the REVERSE of the
+/// - **Back:** the platform back gesture animates the REVERSE of the
 ///   forward transition; the prior screen returns with its state intact.
 /// - **The sharp edge (back across the action):** "You're all set" is reached by
 ///   the `requestNotifications` host action (which runs *between* the priming
@@ -93,24 +97,23 @@ void main() {
         await Future<void>.delayed(_dwell);
 
         // ── Back ─────────────────────────────────────────────────────────
-        final back = $(find.bySemanticsLabel('Back'));
-
         // Back across the action → notification priming reappears. The action
         // sits between the priming screen and "all set", so it is structurally
         // skipped and NOT re-fired (no second permission prompt).
-        await back.tap();
+        await $.native.pressBack();
         await $.pumpAndSettle();
         await $('Stay on track').waitUntilVisible();
         await Future<void>.delayed(_dwell);
 
         // Back → Value (reverse transition).
-        await back.tap();
+        await $.native.pressBack();
         await $.pumpAndSettle();
         await $('Build a daily practice').waitUntilVisible();
         await Future<void>.delayed(_dwell);
 
-        // Back → Welcome (the first screen; no back affordance there).
-        await back.tap();
+        // Back → Welcome (the first screen; the host control then pops the
+        // route, which this test never reaches).
+        await $.native.pressBack();
         await $.pumpAndSettle();
         await $('Welcome to Aura').waitUntilVisible();
         await Future<void>.delayed(_dwell);
@@ -120,8 +123,8 @@ void main() {
 }
 
 /// Minimal host for the first-run onboarding flow under test — renders it through
-/// [RestageFlowGraph] with the supplied actions. The forward/back walk above
-/// drives the flow's own screens, so the host needs nothing more.
+/// [RestageFlowGraph] with the supplied actions, framed by the gallery's back
+/// control so the walk above has something to tap for back.
 class _FirstRunOnboardingHost extends StatelessWidget {
   const _FirstRunOnboardingHost({required this.actions});
 

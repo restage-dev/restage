@@ -1,57 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Wraps a full-screen example surface with a floating "back to examples"
-/// button so the gallery menu is always reachable.
+/// Wraps a full-screen example surface so the OS status-bar style follows the
+/// *surface's* background brightness.
 ///
-/// The example paywalls and engagement screens are intentionally full-bleed —
-/// real paywalls fill the screen and have no app bar (they're dismissed by a
-/// continue / close, not a navigation back arrow). The gallery is a
-/// browser for those surfaces, so it overlays a small, unobtrusive back control
-/// rather than putting an app bar on top of each example (which would spoil the
-/// full-screen presentation the templates are demonstrating).
-///
-/// The control sits in the top-left safe area on a translucent scrim so it
-/// stays legible over any background — light, dark, or a brand gradient.
-///
-/// Set [showBackButton] to `false` for engagement surfaces (onboarding,
-/// messages) whose own flow chrome owns the top-left back affordance: a gallery
-/// escape there would sit on top of the flow's own back chevron. Those surfaces
-/// stay escapable — the platform system-back returns to the gallery once the
-/// flow's in-flow back is exhausted, and completing the flow hands off to a
-/// paywall, which carries its own escape.
+/// The gallery imposes no chrome of its own. A surface's screens carry a
+/// standard app bar, so the route implies back into the gallery on a single
+/// screen and in-flow back on later ones; a paywall keeps its authored close or
+/// skip, and the platform back leaves either.
 class ExampleViewer extends StatelessWidget {
+  /// Wraps [child] with the surface-aware status-bar style.
   const ExampleViewer({
     required this.child,
-    this.showBackButton = true,
-    this.reserveTopChrome = false,
     this.surfaceBrightness,
     super.key,
   });
 
-  /// Height of the gallery's top chrome (escape button, demo pill). Reserved
-  /// in the child's `MediaQuery` padding so a surface's `SafeArea` clears it.
-  static const double chromeHeight = 56;
-
+  /// The example surface to present.
   final Widget child;
 
-  /// Whether to overlay the floating "back to examples" escape control.
-  final bool showBackButton;
-
-  /// Whether other chrome (the demo pill) sits at the top even when the
-  /// escape control is hidden, so the child still needs the inset.
-  final bool reserveTopChrome;
-
   /// The brightness of *this surface's* background, used to pick a readable OS
-  /// status-bar icon color. A full-screen example fills the screen with no app
-  /// bar, so nothing else sets the status-bar style for it.
+  /// status-bar icon color.
   ///
   /// Many of these surfaces are fixed-brightness by design (a bold dark-brand
-  /// paywall stays dark even under a light app theme), so the status bar must
-  /// follow the *surface*, not the app theme. Pass the surface's actual
-  /// background brightness here; leave `null` for surfaces that adapt to the
-  /// app theme (those painting on `Theme.of(context).colorScheme.surface`),
-  /// which then follow the ambient theme brightness.
+  /// paywall stays dark under a light app theme), so the status bar follows the
+  /// *surface*, not the app theme. Leave `null` for surfaces that adapt.
   final Brightness? surfaceBrightness;
 
   @override
@@ -64,68 +37,9 @@ class ExampleViewer extends StatelessWidget {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark)
         .copyWith(statusBarColor: Colors.transparent);
-    final media = MediaQuery.of(context);
-    final inset = showBackButton || reserveTopChrome ? chromeHeight : 0.0;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GalleryChrome(
-              topPadding: media.padding.top,
-              child: MediaQuery(
-                data: media.copyWith(
-                  padding: media.padding.copyWith(
-                    top: media.padding.top + inset,
-                  ),
-                ),
-                child: child,
-              ),
-            ),
-          ),
-          if (showBackButton)
-            Positioned(
-              top: 0,
-              left: 0,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Material(
-                    color: Colors.black54,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      tooltip: 'Back to examples',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      child: child,
     );
   }
-}
-
-/// The device's real top padding, for chrome drawn inside the inset region.
-class GalleryChrome extends InheritedWidget {
-  /// Records [topPadding] for descendants.
-  const GalleryChrome({
-    required this.topPadding,
-    required super.child,
-    super.key,
-  });
-
-  /// The top padding before [ExampleViewer.chromeHeight] was added.
-  final double topPadding;
-
-  /// The nearest recorded padding, or null outside an [ExampleViewer].
-  static double? maybeTopPaddingOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<GalleryChrome>()?.topPadding;
-
-  @override
-  bool updateShouldNotify(GalleryChrome oldWidget) =>
-      topPadding != oldWidget.topPadding;
 }

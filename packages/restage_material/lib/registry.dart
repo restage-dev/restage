@@ -105,11 +105,39 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0459'),
+          name: 'leading',
+          type: PropertyType.widget,
+          description:
+              '{@template flutter.material.appbar.leading} A widget to display before the toolbar\'s [title].',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0460'),
+          name: 'automaticallyImplyLeading',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.material.appbar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0006'),
           name: 'title',
           type: PropertyType.widget,
           description:
               '{@template flutter.material.appbar.title} The primary widget displayed in the app bar.',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0461'),
+          name: 'actions',
+          type: PropertyType.widgetList,
+          description:
+              '{@template flutter.material.appbar.actions} A list of Widgets to display in a row after the [title] widget.',
           constructorNullable: true,
         ),
         PropertyEntry(
@@ -123,6 +151,42 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.real,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0462'),
+          name: 'scrolledUnderElevation',
+          type: PropertyType.length,
+          description:
+              '{@template flutter.material.appbar.scrolledUnderElevation} The elevation that will be used if this app bar has something scrolled underneath it.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0463'),
+          name: 'shadowColor',
+          type: PropertyType.color,
+          description:
+              '{@template flutter.material.appbar.shadowColor} The color of the shadow below the app bar.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0464'),
+          name: 'surfaceTintColor',
+          type: PropertyType.color,
+          description:
+              '{@template flutter.material.appbar.surfaceTintColor} The color of the surface tint overlay applied to the app bar\'s background color to indicate elevation.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
         ),
         PropertyEntry(
           wireId: WireId('p0260'),
@@ -161,6 +225,18 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
         ),
         PropertyEntry(
+          wireId: WireId('p0465'),
+          name: 'primary',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.material.appbar.primary} Whether this app bar is being displayed at the top of the screen.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0010'),
           name: 'centerTitle',
           type: PropertyType.boolean,
@@ -168,6 +244,54 @@ final Catalog kRegistry = Catalog(
               '{@template flutter.material.appbar.centerTitle} Whether the title should be centered.',
           defaultSource: LiteralDefault(true),
           constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0466'),
+          name: 'titleSpacing',
+          type: PropertyType.length,
+          description:
+              '{@template flutter.material.appbar.titleSpacing} The spacing around [title] content on the horizontal axis. This spacing is applied even if there is no [leading] content or [actions]. If you want [title] to take all the space available, set this value to 0.0.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0467'),
+          name: 'toolbarHeight',
+          type: PropertyType.length,
+          description:
+              '{@template flutter.material.appbar.toolbarHeight} Defines the height of the toolbar component of an [AppBar].',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0468'),
+          name: 'leadingWidth',
+          type: PropertyType.length,
+          description:
+              '{@template flutter.material.appbar.leadingWidth} Defines the width of [AppBar.leading] widget.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0469'),
+          name: 'forceMaterialTransparency',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.material.appbar.forceMaterialTransparency} Forces the AppBar\'s Material widget type to be [MaterialType.transparency] (instead of Material\'s default type).',
+          defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -183,6 +307,19 @@ final Catalog kRegistry = Catalog(
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0470'),
+          name: 'actionsPadding',
+          type: PropertyType.edgeInsets,
+          description:
+              '{@template flutter.material.appbar.actionsPadding} The padding between the [actions] and the end of the AppBar.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.edgeInsets,
+              dartTypeRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/painting/edge_insets.dart',
+                  symbolName: 'EdgeInsetsGeometry')),
         ),
         PropertyEntry(
           wireId: WireId('p0415'),
