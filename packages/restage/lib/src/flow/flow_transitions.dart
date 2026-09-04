@@ -18,11 +18,13 @@ typedef FlowTransitionBuilder = Widget Function(
   bool isForward,
 );
 
-/// The platform-adaptive default flow transition: a Cupertino push on
-/// iOS/macOS, a horizontal shared-axis motion elsewhere.
+/// A platform-adaptive flow transition: a Cupertino push on iOS/macOS, a
+/// horizontal shared-axis motion elsewhere.
 ///
-/// Identical in light and dark. A host that wants a fixed transition regardless
-/// of platform supplies its own [FlowTransitionBuilder].
+/// Flow screens are routes, so with no [FlowTransitionBuilder] supplied they
+/// already move with the app's `pageTransitionsTheme`. Pass this builder to
+/// pin the motion to a shared-axis push regardless of the app's theme.
+/// Identical in light and dark.
 Widget defaultFlowTransitionBuilder(
   BuildContext context,
   Animation<double> animation,

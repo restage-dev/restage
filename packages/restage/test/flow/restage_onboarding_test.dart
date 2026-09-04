@@ -570,52 +570,56 @@ final class _Result {
       textDirection: TextDirection.ltr,
       child: Column(
         children: [
-          RestageOnboarding<_FirstRunResult>(
-            flow: flowRef,
-            resolver: _StaticFlowResolver(
-              ResolvedFlow(
-                document: _flowDocument(
-                  screenHashes: {
-                    'welcome': FlowContentHash.compute(firstWelcomeBlob),
-                    'profile': FlowContentHash.compute(firstThrowingBlob),
+          Expanded(
+            child: RestageOnboarding<_FirstRunResult>(
+              flow: flowRef,
+              resolver: _StaticFlowResolver(
+                ResolvedFlow(
+                  document: _flowDocument(
+                    screenHashes: {
+                      'welcome': FlowContentHash.compute(firstWelcomeBlob),
+                      'profile': FlowContentHash.compute(firstThrowingBlob),
+                    },
+                  ),
+                  screenBlobs: {
+                    'welcome': firstWelcomeBlob,
+                    'profile': firstThrowingBlob,
                   },
+                  cacheHit: false,
                 ),
-                screenBlobs: {
-                  'welcome': firstWelcomeBlob,
-                  'profile': firstThrowingBlob,
-                },
-                cacheHit: false,
               ),
+              unavailable: FlowUnavailablePolicy.fallback(
+                builder: (_, error) =>
+                    Text('fallback:${error.flowId}:${error.reason}'),
+              ),
+              onFlowUnavailable: firstErrors.add,
             ),
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, error) =>
-                  Text('fallback:${error.flowId}:${error.reason}'),
-            ),
-            onFlowUnavailable: firstErrors.add,
           ),
-          RestageOnboarding<_FirstRunResult>(
-            flow: secondFlowRef,
-            resolver: _StaticFlowResolver(
-              ResolvedFlow(
-                document: _flowDocument(
-                  flow: secondFlowRef.id,
-                  screenHashes: {
-                    'welcome': FlowContentHash.compute(secondWelcomeBlob),
-                    'profile': FlowContentHash.compute(secondProfileBlob),
+          Expanded(
+            child: RestageOnboarding<_FirstRunResult>(
+              flow: secondFlowRef,
+              resolver: _StaticFlowResolver(
+                ResolvedFlow(
+                  document: _flowDocument(
+                    flow: secondFlowRef.id,
+                    screenHashes: {
+                      'welcome': FlowContentHash.compute(secondWelcomeBlob),
+                      'profile': FlowContentHash.compute(secondProfileBlob),
+                    },
+                  ),
+                  screenBlobs: {
+                    'welcome': secondWelcomeBlob,
+                    'profile': secondProfileBlob,
                   },
+                  cacheHit: false,
                 ),
-                screenBlobs: {
-                  'welcome': secondWelcomeBlob,
-                  'profile': secondProfileBlob,
-                },
-                cacheHit: false,
               ),
+              unavailable: FlowUnavailablePolicy.fallback(
+                builder: (_, error) =>
+                    Text('fallback:${error.flowId}:${error.reason}'),
+              ),
+              onFlowUnavailable: secondErrors.add,
             ),
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, error) =>
-                  Text('fallback:${error.flowId}:${error.reason}'),
-            ),
-            onFlowUnavailable: secondErrors.add,
           ),
         ],
       ),

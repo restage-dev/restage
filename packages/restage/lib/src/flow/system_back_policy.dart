@@ -4,11 +4,11 @@ import 'package:flutter/widgets.dart';
 /// navigation is exhausted — the user is at a flow's first screen (or a
 /// barrier) with no prior screen to pop to.
 ///
-/// While in-flow back is still available the enclosing route's local history
-/// owns the gesture and it pops one screen, and the surface owns the iOS
-/// leading-edge swipe; the host route's own back gesture applies once in-flow
-/// back is exhausted. This policy only decides that exhausted case. Set it
-/// per-flow (the default is [popHost]).
+/// While in-flow back is still available the surface takes the gesture and pops
+/// one screen, and the flow's own screen route owns the iOS leading-edge swipe
+/// and Android predictive back; the host route's own back gesture applies once
+/// in-flow back is exhausted. This policy only decides that exhausted case. Set
+/// it per-flow (the default is [popHost]).
 sealed class SystemBackPolicy {
   const SystemBackPolicy();
 

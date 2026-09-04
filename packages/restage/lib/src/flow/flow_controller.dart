@@ -240,14 +240,19 @@ final class RestageFlowController<R> extends ChangeNotifier {
           for (final entry in frame.screenHistory) entry.entryId,
       ];
 
-  /// How many screens in-flow back navigation can still pop in the current
-  /// frame. The rendering surface mirrors this as route local history, so a
-  /// navigation bar in the host route implies a back control.
+  /// The screen visits in-flow back can still reach, oldest first and ending
+  /// with the current screen; only the current screen once back is exhausted.
+  /// The rendering surface hosts exactly these as routes.
   ///
-  /// Package-internal: the view↔controller coupling for route local history.
+  /// Package-internal: the view↔controller coupling for the screen routes.
   @internal
-  int get backDepth =>
-      canBack ? (_currentFrame?.screenHistory.length ?? 1) - 1 : 0;
+  List<int> get pagedScreenEntryIds {
+    final frame = _currentFrame;
+    final current = _currentScreenEntryId;
+    if (frame == null || current == null) return const <int>[];
+    if (!canBack) return <int>[current];
+    return <int>[for (final entry in frame.screenHistory) entry.entryId];
+  }
 
   _FlowFrame? get _currentFrame {
     return _frames.isEmpty ? null : _frames.last;

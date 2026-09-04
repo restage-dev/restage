@@ -139,8 +139,8 @@ final class RestageFlowGraph<R> extends StatefulWidget {
   /// Builder shown while the flow is loading.
   final WidgetBuilder? loadingBuilder;
 
-  /// Overrides the screen transition. Defaults to the platform-adaptive forward
-  /// transition (Cupertino push on iOS/macOS, Material-3 shared-axis elsewhere).
+  /// Overrides the screen transition. Defaults to the platform page
+  /// transition, which follows the app's `pageTransitionsTheme`.
   final FlowTransitionBuilder? transition;
 
   /// What happens on a platform system-back gesture once in-flow back is

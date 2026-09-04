@@ -58,25 +58,34 @@ The screen is ordinary Flutter and compiles to a render blob like any other.
 is delivered with the rest of the screen and shows the control a compiled screen
 shows.
 
-### The mechanism: route local history
+### The mechanism: the screens are routes
 
-The flow renders its screens in one keep-mounted stack inside a single host
-route. When the flow has history behind the current screen, the surface
-registers a `LocalHistoryEntry` on that route and keeps the entries in step with
-the flow's back depth. `ModalRoute.canPop` reads true while entries are
-registered, and `AppBar` and `CupertinoNavigationBar` derive their leading
-control from it with `automaticallyImplyLeading` at its default.
+The surface hosts its screens on a `Navigator` of its own: one route per screen
+visit in-flow back can still reach, kept mounted so back restores the screen
+rather than re-decoding it. A screen with another behind it reports `canPop`, and
+`AppBar` and `CupertinoNavigationBar` derive their leading control from that with
+`automaticallyImplyLeading` at its default.
 
-Everything that pops the route pops exactly one flow screen: the bar's own back
-control, `Navigator.maybePop`, and the Android system-back gesture. The iOS
-edge-swipe is the surface's own; see below. When the flow itself moves back (an authored
-`back` event, a decision routing backwards), the surface drops the matching
-entries, so route state and flow state stay in agreement.
+Everything that pops that route pops exactly one flow screen: the bar's own back
+control, `Navigator.maybePop`, the Android system-back gesture, Android's
+predictive back and the iOS leading-edge swipe. The last two are the route's own,
+so they preview the prior screen and complete the same pop. Exactly one level
+owns the gesture at a time: while the flow has a screen to go back to the flow's
+screen owns it and the enclosing route stands down, and once in-flow back is
+exhausted the enclosing route has it again.
+
+Screens move with the app's `pageTransitionsTheme`, like any other route, and a
+`Hero` flies between them. Supply a `transition` to replace that motion for one
+flow.
 
 Two cases show nothing, both correct. A screen with no app bar has no back
-control. The first screen of a flow, and the first screen of a sub-flow, have no
-history behind them; a sub-flow boundary is a barrier. A flow mounted outside any
-route registers no entry and renders normally.
+control. The first screen of a sub-flow has none either, because a sub-flow
+boundary is a barrier. The first screen of a flow has no screen behind it, so its
+app bar shows a control only when the enclosing route can be dismissed, and that
+control leaves the flow. A flow mounted outside any route renders normally.
+
+The surface needs bounded constraints, like any `Navigator`. Make it the body of
+a `Scaffold`, or give it an `Expanded` or a sized box.
 
 ## Drawing your own control
 
@@ -164,26 +173,20 @@ runtime routes it exactly as `controller.skip()` does.
 
 ## Dismissing the flow from a host control
 
-A host route that holds flow history handles `Navigator.pop` and
-`Navigator.maybePop` the way any route with local history does: the call pops
-one flow screen and the route stays. That is what an app bar's back control
-relies on. A close control that should leave the flow regardless of where the
-user is drains that history first, then pops the route:
+`Navigator.maybePop` on the host route pops one flow screen while the flow has
+one to go back to. That is what an app bar's back control relies on. A close
+control that should leave the flow regardless of where the user is calls `pop`,
+which dismisses the route in one step:
 
 ```dart
-void dismissFlow(BuildContext context) {
-  final navigator = Navigator.of(context);
-  final route = ModalRoute.of(context)!;
-  while (route.willHandlePopInternally) {
-    navigator.pop();
-  }
-  navigator.maybePop();
-}
+void dismissFlow(BuildContext context) => Navigator.of(context).pop();
 ```
 
-Completion needs none of this. The controller drops its history before it
-calls `onComplete`, so `Navigator.maybePop` inside that callback pops the
-route.
+Call it from a context outside the flow surface, so `Navigator.of` resolves to
+the host route rather than the flow's own navigator.
+
+Completion needs none of this. The controller finishes before it calls
+`onComplete`, so `Navigator.maybePop` inside that callback pops the route.
 
 ## Back navigation
 
@@ -206,7 +209,7 @@ Back follows screen history the way a `Navigator` does:
 ### System back when in-flow back is exhausted
 
 While there is screen history, the platform system-back gesture pops one screen
-through the route's local history. When in-flow back is exhausted (the first
+from the flow's own navigator. When in-flow back is exhausted (the first
 screen, or a barrier), a `systemBack` policy (`SystemBackPolicy`) decides what
 happens:
 
@@ -218,21 +221,21 @@ happens:
 | `SystemBackPolicy.onExhausted(callback)` | a callback escape hatch for bespoke handling |
 
 The policy governs only the exhausted case. While the flow can still go back, the
-local history entries own the pop under every policy.
+surface takes the gesture and pops one screen under every policy.
 
-### iOS edge-swipe
+### The iOS edge-swipe and Android predictive back
 
-A route with local history entries turns its own edge-swipe off, so the host
-route's gesture cannot step back within a flow. `RestageFlowView` adds a
-leading-edge drag of its own while `canBack` is true: dragging from the leading
-edge previews the prior kept-mounted screen, and completing the drag performs
-the same pure history pop as an app bar's back control. A cancelled drag leaves
-the current screen in place.
+Both are Flutter's, on the flow screen's own route. Dragging from the leading
+edge on iOS previews the prior screen; an Android predictive-back drag does the
+same with the platform's own motion. Completing the drag performs the same pure
+history pop as an app bar's back control, and cancelling leaves the current
+screen in place.
 
-Once in-flow back is exhausted (the first screen, or a barrier), the route is
-poppable again according to the `systemBack` policy. With the default
-`SystemBackPolicy.popHost`, the host route's own iOS edge-swipe dismisses the
-flow route.
+While the flow has a screen to go back to, the enclosing route's gesture is off,
+so the two are never live together. Once in-flow back is exhausted (the first
+screen, or a barrier), the enclosing route owns the gesture again according to
+the `systemBack` policy. With the default `SystemBackPolicy.popHost`, the host
+route's own gesture dismisses the flow route.
 
 ## Two flow→paywall navigation patterns
 
@@ -318,19 +321,23 @@ controller.
 ### `RestageFlowView`: the SDK owns the stack + transitions
 
 `RestageFlowGraph` owns the normal flow host, resolving the flow and driving its
-own controller. `RestageFlowView` takes a controller you own and owns the
-kept-mounted screen stack, the back-stack, the route local history, and a
-platform-adaptive transition. To fully customize the transition, supply a
-`transition` (`FlowTransitionBuilder`). That covers a **two-screens-visible**
-(opposing-slide) cross-transition where the outgoing and incoming screens
-animate against each other. The SDK keeps owning the stack mechanism; you own
+own controller. `RestageFlowView` takes a controller you own and hosts the
+screens as routes on a navigator of its own, so their motion is the app's page
+transition. To replace that motion, supply a `transition`
+(`FlowTransitionBuilder`); it receives the entering screen's animation and the
+secondary animation that displaces the screen beneath, so it covers a
+**two-screens-visible** cross-transition. A supplied builder replaces the
+platform's gesture-driven previews too. The SDK keeps owning the stack; you own
 the visual.
+
+A control that must persist across screens belongs outside the surface, in a
+`Stack` or `Column` you own that reads the controller, because a control inside
+a screen travels with that screen's route.
 
 ### `RestageScreenView`: you own the driver (single screen)
 
 `RestageScreenView` (`@experimental`) renders the controller's **current screen
-only**: no kept-mounted stack, no transitions, no back-stack, no route local
-history. You drive the `RestageFlowController` (it keeps the server-driven
+only**: no kept-mounted stack, no navigator, no transitions, no back-stack. You drive the `RestageFlowController` (it keeps the server-driven
 topology, experiments, and OTA), render each current screen through
 `RestageScreenView`, and supply your own transitions and controls around it.
 
@@ -345,7 +352,7 @@ incoming transition + a host-owned back control.
 | You want… | Use |
 |---|---|
 | the full surface, resolved and driven for you | `RestageFlowGraph` |
-| a controller you own, or a fully custom two-screens-visible (opposing-slide) transition over the SDK stack | `RestageFlowView` |
+| a controller you own, or a custom two-screens-visible transition over the SDK stack | `RestageFlowView` |
 | to own the whole driver: your own switcher timing, back, and incoming-style transitions | `RestageScreenView` |
 
 Every screen still renders through the controller's fail-closed boundary, so

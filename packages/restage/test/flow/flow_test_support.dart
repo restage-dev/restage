@@ -1004,3 +1004,181 @@ ResolvedFlow backEventThreeScreenResolvedFlow() {
     cacheHit: false,
   );
 }
+
+/// The leading box of a hero pair, tagged so a push flies it to [HeroEnd].
+class HeroStart extends StatelessWidget {
+  const HeroStart({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Align(
+        alignment: Alignment.topLeft,
+        child: _FlowHeroBox(label: 'go'),
+      );
+}
+
+/// The trailing box of the same hero pair.
+class HeroEnd extends StatelessWidget {
+  const HeroEnd({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Align(
+        alignment: Alignment.bottomRight,
+        child: _FlowHeroBox(label: 'land'),
+      );
+}
+
+/// The finder handle for the flying box.
+const heroBoxKey = ValueKey<String>('flow-hero-box');
+
+class _FlowHeroBox extends StatelessWidget {
+  const _FlowHeroBox({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Hero(
+        tag: 'flow-hero',
+        child: SizedBox(
+          key: heroBoxKey,
+          width: 60,
+          height: 60,
+          child: Center(
+            child: Text(label, textDirection: TextDirection.ltr),
+          ),
+        ),
+      );
+}
+
+const _heroLibrary = WidgetLibrary.custom('acme.hero');
+
+/// Registers [HeroStart] / [HeroEnd] for the hero-flight fixture.
+void registerHeroProbe() {
+  Restage.registerWidgetLibrary(
+    _heroLibrary,
+    widgets: <RestageWidgetFactory>[
+      RestageWidgetFactory(
+        name: 'HeroStart',
+        builder: (_, __) => const HeroStart(),
+      ),
+      RestageWidgetFactory(
+        name: 'HeroEnd',
+        builder: (_, __) => const HeroEnd(),
+      ),
+    ],
+  );
+}
+
+Uint8List _heroScreenBlob(String widget, String event) {
+  final source = '''
+    import acme.hero;
+    import restage.core;
+    widget OnboardingScreen = GestureDetector(
+      onTap: event "$event" { },
+      child: $widget(),
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// The welcome -> profile flow with a tagged hero on each screen, placed at
+/// opposite corners so a flight is visible as movement.
+ResolvedFlow heroResolvedFlow() => resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': _heroScreenBlob('HeroStart', 'next'),
+        'profile': _heroScreenBlob('HeroEnd', 'finish'),
+      },
+    );
+
+/// A child sub-flow whose single screen carries an `AppBar`.
+ResolvedFlow appBarChildScreenFlow() {
+  final welcome = appBarScreenBlob('Child', 'finish');
+  final document = FlowDocument(
+    flow: 'child_flow',
+    version: 1,
+    schemaVersion: 1,
+    minClient: firstRunFlowRef.minClient,
+    initial: 'welcome',
+    actions: const {},
+    screenArtifacts: {
+      'welcome': ScreenArtifact(
+        path: 'welcome.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: firstRunFlowRef.minClient,
+        contentHash: FlowContentHash.compute(welcome),
+      ),
+    },
+    states: const {
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {'finish': FlowTransition.goto('done')},
+      ),
+      'done': EndFlowState(result: <String, Object?>{}),
+    },
+  );
+  return ResolvedFlow(
+    document: document,
+    screenBlobs: {'welcome': welcome},
+    contentHash: FlowContentHash.compute(
+      Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
+    ),
+    cacheHit: false,
+  );
+}
+
+/// A root whose app-bar welcome screen enters [child], so the sub-flow's first
+/// screen sits behind a barrier with a parent screen still live.
+ResolvedFlow screenThenSubFlowRoot({required ResolvedFlow child}) {
+  final welcome = appBarScreenBlob('Welcome', 'next');
+  return ResolvedFlow(
+    document: FlowDocument(
+      flow: firstRunFlowRef.id,
+      version: firstRunFlowRef.version,
+      schemaVersion: 1,
+      minClient: firstRunFlowRef.minClient,
+      initial: 'welcome',
+      actions: const {},
+      legacyTerminalResultPassthrough: true,
+      screenArtifacts: {
+        'welcome': ScreenArtifact(
+          path: 'welcome.rfw',
+          version: 1,
+          schemaVersion: 1,
+          minClient: firstRunFlowRef.minClient,
+          contentHash: FlowContentHash.compute(welcome),
+        ),
+      },
+      states: {
+        'welcome': const ScreenFlowState(
+          screen: 'welcome',
+          on: {'next': FlowTransition.goto('child')},
+        ),
+        'child': SubFlowState(
+          flow: 'child_flow',
+          version: 1,
+          schemaVersion: 1,
+          minClient: firstRunFlowRef.minClient,
+          contentHash: child.contentHash!,
+          input: const {},
+          onComplete: const [],
+          defaultBranch: const FlowBranchTarget(target: 'done'),
+        ),
+        'done': const EndFlowState(result: {'completed': true}),
+      },
+    ),
+    screenBlobs: {'welcome': welcome},
+    cacheHit: false,
+  );
+}
+
+/// Resolves the sub-flow root and its child.
+final class SubFlowResolver implements FlowResolver {
+  SubFlowResolver({required this.root, required this.child});
+
+  final ResolvedFlow root;
+  final ResolvedFlow child;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async =>
+      flow.id == 'child_flow' ? child : root;
+}
