@@ -65,7 +65,8 @@ final class RestageOnboarding<R> extends StatefulWidget {
   /// Builder shown while the flow is loading.
   final WidgetBuilder? loadingBuilder;
 
-  /// Overrides the screen transition.
+  /// Overrides the screen transition. Defaults to the platform page
+  /// transition, which follows the app's `pageTransitionsTheme`.
   final FlowTransitionBuilder? transition;
 
   /// What happens after in-flow back is exhausted.

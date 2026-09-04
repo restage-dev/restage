@@ -668,10 +668,15 @@ Widget _controllerBackedView(
   required Map<String, Object?>? context,
 }) =>
     switch (view) {
-      _ControllerBackedView.flow => RestageFlowView<FirstRunResult>(
+      // The flow's screens are routes, so the view needs bounded constraints
+      // wherever this helper is mounted.
+      _ControllerBackedView.flow => SizedBox(
           key: key,
-          controller: controller,
-          context: context,
+          height: 200,
+          child: RestageFlowView<FirstRunResult>(
+            controller: controller,
+            context: context,
+          ),
         ),
       _ControllerBackedView.screen => RestageScreenView<FirstRunResult>(
           key: key,
@@ -3202,9 +3207,11 @@ widget OnboardingScreen = GestureDetector(
                     onEvent: controller.handleEvent,
                     child: const SizedBox.shrink(),
                   ),
-                  RestageFlowView<FirstRunResult>(
-                    controller: controller,
-                    context: hostContext,
+                  Expanded(
+                    child: RestageFlowView<FirstRunResult>(
+                      controller: controller,
+                      context: hostContext,
+                    ),
                   ),
                 ],
               );
@@ -3284,11 +3291,13 @@ widget OnboardingScreen = GestureDetector(
                 },
                 child: const SizedBox.shrink(),
               ),
-              RestageFlowView<FirstRunResult>(
-                controller: controller,
-                context: const <String, Object?>{
-                  'secret': 'unprovable-sibling-private-value',
-                },
+              Expanded(
+                child: RestageFlowView<FirstRunResult>(
+                  controller: controller,
+                  context: const <String, Object?>{
+                    'secret': 'unprovable-sibling-private-value',
+                  },
+                ),
               ),
             ],
           ),
@@ -3372,11 +3381,13 @@ widget OnboardingScreen = GestureDetector(
                       },
                     ),
                     if (showView)
-                      RestageFlowView<FirstRunResult>(
-                        controller: controller,
-                        context: const <String, Object?>{
-                          'secret': 'mounted-private-value',
-                        },
+                      Expanded(
+                        child: RestageFlowView<FirstRunResult>(
+                          controller: controller,
+                          context: const <String, Object?>{
+                            'secret': 'mounted-private-value',
+                          },
+                        ),
                       ),
                   ],
                 );
@@ -3793,15 +3804,19 @@ widget OnboardingScreen = GestureDetector(
             onEvent: controller.handleEvent,
             child: Column(
               children: <Widget>[
-                RestageFlowView<FirstRunResult>(
-                  controller: controller,
-                  context: const <String, Object?>{
-                    'secret': 'shared-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: controller,
+                    context: const <String, Object?>{
+                      'secret': 'shared-private-value',
+                    },
+                  ),
                 ),
-                RestageFlowView<FirstRunResult>(
-                  controller: controller,
-                  context: const <String, Object?>{'secret': null},
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: controller,
+                    context: const <String, Object?>{'secret': null},
+                  ),
                 ),
               ],
             ),
@@ -3861,15 +3876,19 @@ widget OnboardingScreen = GestureDetector(
             onEvent: controller.handleEvent,
             child: Column(
               children: <Widget>[
-                RestageFlowView<FirstRunResult>(
-                  controller: controller,
-                  context: const <String, Object?>{
-                    'secret': 'multi-view-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: controller,
+                    context: const <String, Object?>{
+                      'secret': 'multi-view-private-value',
+                    },
+                  ),
                 ),
-                RestageFlowView<FirstRunResult>(
-                  controller: controller,
-                  context: const <String, Object?>{'secret': null},
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: controller,
+                    context: const <String, Object?>{'secret': null},
+                  ),
                 ),
               ],
             ),
@@ -4032,17 +4051,21 @@ widget OnboardingScreen = GestureDetector(
             onEvent: first.handleEvent,
             child: Column(
               children: <Widget>[
-                RestageFlowView<FirstRunResult>(
-                  controller: first,
-                  context: const <String, Object?>{
-                    'secret': 'first-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: first,
+                    context: const <String, Object?>{
+                      'secret': 'first-private-value',
+                    },
+                  ),
                 ),
-                RestageFlowView<FirstRunResult>(
-                  controller: second,
-                  context: const <String, Object?>{
-                    'secret': 'second-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: second,
+                    context: const <String, Object?>{
+                      'secret': 'second-private-value',
+                    },
+                  ),
                 ),
                 Builder(
                   builder: (context) {
@@ -4151,17 +4174,21 @@ widget OnboardingScreen = GestureDetector(
             onEvent: first.handleEvent,
             child: Column(
               children: <Widget>[
-                RestageFlowView<FirstRunResult>(
-                  controller: first,
-                  context: const <String, Object?>{
-                    'secret': 'first-global-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: first,
+                    context: const <String, Object?>{
+                      'secret': 'first-global-private-value',
+                    },
+                  ),
                 ),
-                RestageFlowView<FirstRunResult>(
-                  controller: second,
-                  context: const <String, Object?>{
-                    'secret': 'second-global-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: second,
+                    context: const <String, Object?>{
+                      'secret': 'second-global-private-value',
+                    },
+                  ),
                 ),
               ],
             ),
@@ -4214,12 +4241,17 @@ widget OnboardingScreen = GestureDetector(
         required StaticFlowResolver resolver,
         required Map<String, Object?>? hostContext,
       }) {
-        return RestageFlowGraph<FirstRunResult>(
+        // The flow's screens are routes, so each graph needs bounded
+        // constraints; the key rides the sized wrapper so a reorder moves the
+        // element rather than rebuilding both graphs.
+        return Expanded(
           key: ValueKey<String>(keyName),
-          flow: firstRunFlowRef,
-          resolver: resolver,
-          context: hostContext,
-          unavailable: const FlowUnavailablePolicy.hide(),
+          child: RestageFlowGraph<FirstRunResult>(
+            flow: firstRunFlowRef,
+            resolver: resolver,
+            context: hostContext,
+            unavailable: const FlowUnavailablePolicy.hide(),
+          ),
         );
       }
 
@@ -4353,20 +4385,24 @@ widget OnboardingScreen = GestureDetector(
               updateHost = setState;
               return Column(
                 children: <Widget>[
-                  RestageFlowGraph<FirstRunResult>(
-                    flow: _privateGraphFlow,
-                    resolver: privateResolver,
-                    context: const <String, Object?>{
-                      'secret': 'descendant-private-value',
-                    },
-                    unavailable: const FlowUnavailablePolicy.hide(),
+                  Expanded(
+                    child: RestageFlowGraph<FirstRunResult>(
+                      flow: _privateGraphFlow,
+                      resolver: privateResolver,
+                      context: const <String, Object?>{
+                        'secret': 'descendant-private-value',
+                      },
+                      unavailable: const FlowUnavailablePolicy.hide(),
+                    ),
                   ),
                   if (includeEmptyGraph)
-                    RestageFlowGraph<FirstRunResult>(
-                      flow: _emptyGraphFlow,
-                      resolver: emptyResolver,
-                      context: const <String, Object?>{'secret': null},
-                      unavailable: const FlowUnavailablePolicy.hide(),
+                    Expanded(
+                      child: RestageFlowGraph<FirstRunResult>(
+                        flow: _emptyGraphFlow,
+                        resolver: emptyResolver,
+                        context: const <String, Object?>{'secret': null},
+                        unavailable: const FlowUnavailablePolicy.hide(),
+                      ),
                     ),
                 ],
               );
@@ -4681,7 +4717,9 @@ widget OnboardingScreen = GestureDetector(
         ),
       ),
     );
-    await tester.pump();
+    // The replaced screens leave with their routes, so the old registration
+    // clears once that removal settles.
+    await tester.pumpAndSettle();
     observed.add(
       RestageFlowRenderEventPrivacyRegistry.mayExposeNonEmptyHostContext(first),
     );
@@ -4691,7 +4729,7 @@ widget OnboardingScreen = GestureDetector(
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+    await tester.pumpAndSettle();
     observed.add(
       RestageFlowRenderEventPrivacyRegistry.mayExposeNonEmptyHostContext(
           second),
@@ -4950,11 +4988,13 @@ widget OnboardingScreen = GestureDetector(
             onEvent: controller.handleEvent,
             child: Column(
               children: <Widget>[
-                RestageFlowView<FirstRunResult>(
-                  controller: controller,
-                  context: const <String, Object?>{
-                    'secret': 'mixed-mount-private-value',
-                  },
+                Expanded(
+                  child: RestageFlowView<FirstRunResult>(
+                    controller: controller,
+                    context: const <String, Object?>{
+                      'secret': 'mixed-mount-private-value',
+                    },
+                  ),
                 ),
                 RestageScreenView<FirstRunResult>(
                   controller: controller,

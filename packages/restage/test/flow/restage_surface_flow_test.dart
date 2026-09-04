@@ -237,13 +237,17 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Column(
           children: [
-            RestageFlowGraph<FirstRunResult>(
-              flow: _messageFlowRef,
-              unavailable: const FlowUnavailablePolicy.hide(),
+            const Expanded(
+              child: RestageFlowGraph<FirstRunResult>(
+                flow: _messageFlowRef,
+                unavailable: FlowUnavailablePolicy.hide(),
+              ),
             ),
-            RestageFlowGraph<FirstRunResult>(
-              flow: _surveyFlowRef,
-              unavailable: const FlowUnavailablePolicy.hide(),
+            const Expanded(
+              child: RestageFlowGraph<FirstRunResult>(
+                flow: _surveyFlowRef,
+                unavailable: FlowUnavailablePolicy.hide(),
+              ),
             ),
           ],
         ),

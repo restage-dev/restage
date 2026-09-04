@@ -156,22 +156,33 @@ chrome customization ladder is removed with them. `RestageFlowGraph`,
 aliases.
 
 A screen that wants a back control carries an `AppBar` or a
-`CupertinoNavigationBar`. While the flow has a screen behind the current one,
-the surface registers a route local history entry, so `ModalRoute.canPop` reads
-true and both bars show their platform back control with
-`automaticallyImplyLeading` at its default. The bar's back control,
-`Navigator.maybePop` and Android system back each pop one flow screen; the
-surface keeps its own iOS edge swipe for the same pop. A screen with no app bar
-shows no control. A host close control that should leave the flow from any
-screen drains the route's local history before it pops; `onComplete` runs after
-the history is already gone.
+`CupertinoNavigationBar`. The surface hosts each screen as a route on a
+`Navigator` of its own, so a screen with another behind it reports `canPop` and
+both bars show their platform back control with `automaticallyImplyLeading` at
+its default. The bar's back control, `Navigator.maybePop` and Android system
+back each pop one flow screen. A screen with no app bar shows no control. A host
+close control that should leave the flow from any screen calls
+`Navigator.of(context).pop()` from outside the surface; `onComplete` runs with
+the flow already finished.
+
+Because the screens are routes, they move with the app's `pageTransitionsTheme`,
+a `Hero` flies between them, and the iOS leading-edge swipe and Android
+predictive back work as they do anywhere else. Exactly one level owns the
+gesture at a time: the flow screen while in-flow back is available, the
+enclosing route once it is exhausted. `RestageFlowView.transition`,
+`RestageFlowGraph.transition` and `RestageOnboarding.transition` replace that
+motion for one flow, receiving the entering screen's animation and the secondary
+animation that displaces the screen beneath. The surface needs bounded
+constraints, like any `Navigator`, and says so if it is given none.
 
 For a control you draw yourself, read `controller.canBack` and
 `controller.canSkip` and call `controller.back()` and `controller.skip()` inside
 a `ListenableBuilder`; that path is unchanged and needs a controller you own
-under `RestageFlowView`. `SystemBackPolicy` keeps its four variants and their
-meanings, re-expressed over the route's `canPop`. Built-in skip is dropped with
-no replacement affordance.
+under `RestageFlowView`. A control that must persist across screens belongs
+outside the surface, since a control inside a screen travels with that screen's
+route. `SystemBackPolicy` keeps its four variants and their meanings,
+re-expressed over the route's `canPop`. Built-in skip is dropped with no
+replacement affordance.
 
 ### Also in 2.0.0
 

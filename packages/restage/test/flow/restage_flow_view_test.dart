@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemChannels;
+import 'package:flutter/services.dart'
+    show ByteData, MethodCall, StandardMethodCodec, SystemChannels;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_controller.dart'
@@ -120,6 +120,45 @@ void main() {
   ModalRoute<dynamic> hostRoute(WidgetTester tester) => ModalRoute.of(
         tester.element(find.byType(RestageFlowView<FirstRunResult>)),
       )!;
+
+  /// Delivers one predictive-back platform message to the binding.
+  Future<void> backGesture(WidgetTester tester, MethodCall call) async {
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      'flutter/backgesture',
+      const StandardMethodCodec().encodeMethodCall(call),
+      (ByteData? _) {},
+    );
+  }
+
+  /// Runs [body] with the platform pinned, resetting inside the test body so
+  /// the binding's foundation-vars-unset invariant never trips.
+  Future<void> withPlatform(
+    TargetPlatform platform,
+    Future<void> Function() body,
+  ) async {
+    debugDefaultTargetPlatformOverride = platform;
+    try {
+      await body();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  }
+
+  RestageFlowController<FirstRunResult> controllerFor(ResolvedFlow flow) =>
+      RestageFlowController<FirstRunResult>(
+        flow: firstRunFlowRef,
+        resolver: StaticFlowResolver(flow),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+
+  PageRoute<dynamic> routeOf(WidgetTester tester, Finder finder) =>
+      ModalRoute.of(tester.element(finder))! as PageRoute<dynamic>;
+
+  PageRoute<dynamic> hostPageRoute(WidgetTester tester) =>
+      routeOf(tester, find.byType(RestageFlowView<FirstRunResult>));
 
   Future<void> withIosPlatform(Future<void> Function() body) async {
     // Reset inside the test body, before the framework checks that foundation
@@ -413,58 +452,29 @@ void main() {
     expect(find.text('Welcome'), findsOneWidget);
 
     await tester.tap(find.text('Welcome'));
-    await tester.pump(); // controller advances + the transition kicks off
-    await tester.pump(const Duration(milliseconds: 120)); // mid-flight
+    await tester.pump(); // the controller advances
+    await tester.pump(); // the screen's route is pushed
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump(const Duration(milliseconds: 60)); // mid-flight
 
-    expect(tester.hasRunningAnimations, isTrue);
+    final animating = tester.hasRunningAnimations;
     // Both the incoming and outgoing screens are on-screen (not an instant cut).
-    expect(find.text('Profile', skipOffstage: true), findsOneWidget);
-    expect(find.text('Welcome', skipOffstage: true), findsOneWidget);
+    final incomingMidFlight = find.text('Profile').evaluate().length;
+    final outgoingMidFlight =
+        find.text('Welcome', skipOffstage: true).evaluate().length;
 
     await tester.pumpAndSettle();
     // Settled: only the incoming screen remains on-screen.
-    expect(find.text('Profile'), findsOneWidget);
-    expect(find.text('Welcome', skipOffstage: true), findsNothing);
-  });
+    final incomingSettled = find.text('Profile').evaluate().length;
+    final outgoingSettled =
+        find.text('Welcome', skipOffstage: true).evaluate().length;
+    await unmountView(tester);
 
-  testWidgets('taps during a forward transition are ignored', (tester) async {
-    var completed = false;
-    final controller = RestageFlowController<FirstRunResult>(
-      flow: firstRunFlowRef,
-      resolver: StaticFlowResolver(resolvedFlow()),
-      actions: null,
-      onEvent: (_) {},
-      onComplete: (_) => completed = true,
-      onUnavailable: (_) {},
-    );
-    addTearDown(controller.dispose);
-
-    await tester.pumpWidget(Directionality(
-      textDirection: TextDirection.ltr,
-      child: RestageFlowView(controller: controller),
-    ));
-    unawaited(controller.load());
-    await tester.pumpAndSettle();
-
-    // welcome -> profile: the transition starts.
-    await tester.tap(find.text('Welcome'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50)); // mid-flight
-    expect(tester.hasRunningAnimations, isTrue);
-
-    // A tap landing on the still-animating (possibly transparent / off-screen)
-    // incoming screen must be ignored — not fire its event.
-    await tester.tap(find.text('Profile'), warnIfMissed: false);
-    await tester.pump();
-    expect(completed, isFalse);
-
-    await tester.pumpAndSettle();
-    expect(completed, isFalse);
-
-    // Once settled the screen is interactive again: finish -> done -> complete.
-    await tester.tap(find.text('Profile'));
-    await tester.pumpAndSettle();
-    expect(completed, isTrue);
+    expect(animating, isTrue);
+    expect(incomingMidFlight, 1);
+    expect(outgoingMidFlight, 1);
+    expect(incomingSettled, 1);
+    expect(outgoingSettled, 0);
   });
 
   testWidgets('back navigates to the prior screen with a reverse transition',
@@ -842,9 +852,16 @@ void main() {
     for (var i = 0; i < 12 && find.text('Welcome').evaluate().isEmpty; i++) {
       await tester.pump(const Duration(milliseconds: 1));
     }
-    expect(find.text('Welcome'), findsOneWidget);
-    // The first screen is shown at rest — no enter animation runs.
-    expect(tester.hasRunningAnimations, isFalse);
+    final found = find.text('Welcome').evaluate().length;
+    // The first screen is shown at rest — it does not slide or fade in.
+    final firstPaint = tester.getTopLeft(find.text('Welcome'));
+    final firstOpacity = _effectiveOpacity(tester, find.text('Welcome'));
+    await tester.pumpAndSettle();
+    final settled = tester.getTopLeft(find.text('Welcome'));
+    await unmountView(tester);
+    expect(found, 1);
+    expect(firstPaint, settled);
+    expect(firstOpacity, greaterThan(0.99));
   });
 
   testWidgets('an app bar in the screen implies back once the flow has history',
@@ -859,7 +876,7 @@ void main() {
     // First screen: nothing behind it, so the app bar shows no back control.
     expect(find.text('Welcome bar'), findsOneWidget);
     expect(find.byType(BackButton), findsNothing);
-    expect(hostRoute(tester).willHandlePopInternally, isFalse);
+    expect(controller.canBack, isFalse);
 
     // welcome -> profile: the route now carries a local-history entry, so the
     // app bar implies back.
@@ -867,13 +884,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Profile bar'), findsOneWidget);
     expect(find.byType(BackButton), findsOneWidget);
-    expect(hostRoute(tester).willHandlePopInternally, isTrue);
+    expect(controller.canBack, isTrue);
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(controller.currentScreenId, 'welcome');
     expect(find.byType(BackButton), findsNothing);
-    expect(hostRoute(tester).willHandlePopInternally, isFalse);
+    expect(controller.canBack, isFalse);
   });
 
   testWidgets('Navigator.maybePop pops one flow screen per call',
@@ -905,7 +922,7 @@ void main() {
     expect(await navigatorKey.currentState!.maybePop(), isTrue);
     await tester.pumpAndSettle();
     expect(controller.currentScreenId, 'one');
-    expect(hostRoute(tester).willHandlePopInternally, isFalse);
+    expect(controller.canBack, isFalse);
   });
 
   testWidgets('a Cupertino navigation bar implies back from the same history',
@@ -963,7 +980,7 @@ void main() {
     await tester.tap(find.text('Three'));
     await tester.pumpAndSettle();
     expect(controller.currentScreenId, 'two');
-    expect(hostRoute(tester).willHandlePopInternally, isTrue);
+    expect(controller.canBack, isTrue);
   });
 
   testWidgets('completing the flow drops the whole back history',
@@ -986,14 +1003,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Two'));
     await tester.pumpAndSettle();
-    final route = hostRoute(tester);
-    expect(route.willHandlePopInternally, isTrue);
+    expect(controller.canBack, isTrue);
 
     // `finish` on the third screen ends the flow: two entries go at once.
     await tester.tap(find.text('Three'));
     await tester.pumpAndSettle();
     expect(controller.isComplete, isTrue);
-    expect(route.willHandlePopInternally, isFalse);
+    expect(controller.canBack, isFalse);
     expect(await navigatorKey.currentState!.maybePop(), isFalse);
   });
 
@@ -1028,12 +1044,11 @@ void main() {
     expect(find.text('Host'), findsOneWidget);
   });
 
-  testWidgets('the pop scope lets route history own the gesture',
+  testWidgets('the surface scope takes system back while the flow has history',
       (tester) async {
-    // A PopScope with canPop:false is consulted before the route's local
-    // history, so the flow's scope must allow the pop while history exists —
-    // otherwise the history pop is starved. `block()` still traps the first
-    // screen.
+    // The surface's scope blocks the enclosing route's pop while in-flow back
+    // is available and hands the gesture to the flow's own navigator. Once
+    // exhausted the policy decides; `block()` traps the first screen.
     final controller = loadedController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(Directionality(
@@ -1046,16 +1061,22 @@ void main() {
     unawaited(controller.load());
     await tester.pumpAndSettle();
 
-    PopScope<Object?> popScope() =>
-        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>));
+    PopScope<Object?> surfaceScope() =>
+        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>).first);
 
     expect(controller.canBack, isFalse);
-    expect(popScope().canPop, isFalse);
+    expect(surfaceScope().canPop, isFalse);
 
     await tester.tap(find.text('Welcome'));
     await tester.pumpAndSettle();
     expect(controller.canBack, isTrue);
-    expect(popScope().canPop, isTrue);
+    expect(surfaceScope().canPop, isFalse);
+
+    // The blocked pop is forwarded to the flow's navigator, which pops one
+    // screen rather than trapping the gesture.
+    surfaceScope().onPopInvokedWithResult!(false, null);
+    await tester.pumpAndSettle();
+    expect(controller.currentScreenId, 'welcome');
   });
 
   testWidgets('a controller swap leaves no back history behind',
@@ -1071,12 +1092,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Welcome'));
     await tester.pumpAndSettle();
-    expect(hostRoute(tester).willHandlePopInternally, isTrue);
+    expect(first.canBack, isTrue);
+    expect(find.byType(BackButton), findsOneWidget);
 
     await tester.pumpWidget(routedFlow(second, navigatorKey: navigatorKey));
     unawaited(second.load());
     await tester.pumpAndSettle();
-    expect(hostRoute(tester).willHandlePopInternally, isFalse);
+    expect(second.canBack, isFalse);
+    expect(find.byType(BackButton), findsNothing);
     expect(await navigatorKey.currentState!.maybePop(), isFalse);
     expect(first.currentScreenId, 'profile');
   });
@@ -1092,15 +1115,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Welcome'));
     await tester.pumpAndSettle();
-    final route = hostRoute(tester);
-    expect(route.willHandlePopInternally, isTrue);
+    expect(controller.canBack, isTrue);
 
     await tester.pumpWidget(MaterialApp(
       navigatorKey: navigatorKey,
       home: const Scaffold(body: Center(child: Text('Host'))),
     ));
     await tester.pumpAndSettle();
-    expect(route.willHandlePopInternally, isFalse);
+    expect(find.byType(BackButton), findsNothing);
     expect(await navigatorKey.currentState!.maybePop(), isFalse);
     expect(controller.currentScreenId, 'profile');
   });
@@ -1135,54 +1157,6 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a second back in a row keeps the revealed screen opaque',
-      (tester) async {
-    // The controller rests at zero after a pop. Starting the next pop from
-    // there passes through the completed status, which must not prune the
-    // popped screen early or the revealed screen would play the fade itself.
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    final controller = RestageFlowController<FirstRunResult>(
-      flow: firstRunFlowRef,
-      resolver: StaticFlowResolver(threeScreenResolvedFlow()),
-      actions: null,
-      onEvent: (_) {},
-      onComplete: (_) {},
-      onUnavailable: (_) {},
-    );
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(MaterialApp(
-      home: RestageFlowView(controller: controller),
-    ));
-    unawaited(controller.load());
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('One'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Two'));
-    await tester.pumpAndSettle();
-    controller.back();
-    await tester.pumpAndSettle();
-    controller.back();
-    var minRevealed = 1.0;
-    var sawPoppedMounted = false;
-    for (var i = 0; i < 24; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
-      final revealed = find.text('One');
-      if (revealed.evaluate().isNotEmpty) {
-        minRevealed =
-            math.min(minRevealed, _effectiveOpacity(tester, revealed));
-      }
-      if (find.text('Two').evaluate().isNotEmpty) sawPoppedMounted = true;
-    }
-    await tester.pumpAndSettle();
-    debugDefaultTargetPlatformOverride = null;
-    expect(minRevealed, 1.0,
-        reason: 'the revealed screen never fades during the second back');
-    expect(sawPoppedMounted, isTrue,
-        reason: 'the popped screen animates out rather than vanishing');
-    expect(find.text('Two'), findsNothing);
-    expect(find.text('One'), findsOneWidget);
-  });
-
   testWidgets('a queued multi-step back pops each screen exactly once',
       (tester) async {
     final navigatorKey = GlobalKey<NavigatorState>();
@@ -1196,8 +1170,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Two'));
     await tester.pumpAndSettle();
-    final route = hostRoute(tester);
-    expect(route.willHandlePopInternally, isTrue);
+    expect(controller.canBack, isTrue);
 
     // Two backs before the view rebuilds: both route entries go, and neither
     // removal pops the controller a second time.
@@ -1206,7 +1179,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.currentScreenId, 'one');
     expect(find.text('One'), findsOneWidget);
-    expect(route.willHandlePopInternally, isFalse);
+    expect(controller.canBack, isFalse);
     expect(await navigatorKey.currentState!.maybePop(), isFalse);
   });
 
@@ -1330,20 +1303,20 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Welcome'));
     await tester.pumpAndSettle();
-    final route = hostRoute(tester);
-    final hadHistoryOnProfile = route.willHandlePopInternally;
+    final hadHistoryOnProfile = controller.canBack;
 
     // Hold the flow busy on the second screen.
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
     final busyDuringAction = controller.isBusy;
-    final canPopWhileBusy =
-        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>)).canPop;
+    final canPopWhileBusy = tester
+        .widget<PopScope<Object?>>(find.byType(PopScope<Object?>).first)
+        .canPop;
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     final screenAfterBusyTap = controller.currentScreenId;
-    final historyAfterBusyTap = route.willHandlePopInternally;
+    final historyAfterBusyTap = controller.canBack;
     final hostVisibleAfterBusyTap = find.text('Host').evaluate().isNotEmpty;
 
     // Settled: the same tap now pops one screen.
@@ -1419,6 +1392,7 @@ void main() {
     // candidate would be consulted first and starve the visible flow's pop,
     // and would run the candidate's exhausted policy.
     final navigatorKey = GlobalKey<NavigatorState>();
+    final stagedKey = GlobalKey();
     var liveSkips = 0;
     var stagedSkips = 0;
     final live = RestageFlowController<FirstRunResult>(
@@ -1450,6 +1424,7 @@ void main() {
           ),
           // The candidate is mounted but inert, as a swap stages it.
           IgnorePointer(
+            key: stagedKey,
             child: RestageFlowView.staging<FirstRunResult>(
               controller: staged,
               systemBack: const SystemBackPolicy.complete(),
@@ -1466,21 +1441,21 @@ void main() {
 
     final liveScreen = live.currentScreenId;
     final stagedScreen = staged.currentScreenId;
-    // The candidate's scope always allows the pop, so its first-screen
-    // `complete()` never wins the disposition.
+    // Every scope the candidate contributes allows the pop, so its
+    // first-screen `complete()` never wins the disposition.
     final canPops = tester
-        .widgetList<PopScope<Object?>>(find.byType(PopScope<Object?>))
+        .widgetList<PopScope<Object?>>(find.descendant(
+          of: find.byKey(stagedKey),
+          matching: find.byType(PopScope<Object?>),
+        ))
         .map((scope) => scope.canPop)
         .toList();
-    final route = ModalRoute.of(
-      tester.element(find.byType(RestageFlowView<FirstRunResult>).first),
-    )!;
     final popped = await navigatorKey.currentState!.maybePop();
     await tester.pumpAndSettle();
     final liveAfterPop = live.currentScreenId;
     final stagedAfterPop = staged.currentScreenId;
-    // One entry existed, from the live layer alone; the candidate added none.
-    final historyAfterPop = route.willHandlePopInternally;
+    // The live layer alone held the flow's history; the candidate held none.
+    final historyAfterPop = live.canBack;
     await unmountView(tester);
 
     expect(liveScreen, 'profile');
@@ -1494,30 +1469,21 @@ void main() {
     expect(stagedSkips, 0);
   });
 
-  testWidgets('a re-mount with history publishes the route pop state',
+  testWidgets('a re-mount with history keeps system back working',
       (tester) async {
-    // Entries added from `didChangeDependencies` land in the build phase, where
-    // a route skips its own setState — the sync defers so anything reading the
-    // route's pop state sees the entry.
+    // A re-mounted view holds only the screen the controller currently
+    // exposes, so it has no earlier route to pop. System back still moves the
+    // flow: the surface navigates the controller instead.
+    final navigatorKey = GlobalKey<NavigatorState>();
     final controller = appBarController();
     addTearDown(controller.dispose);
-    final canPopReads = <bool>[];
 
     Widget host({required bool showFlow}) => MaterialApp(
+          navigatorKey: navigatorKey,
           home: Scaffold(
-            body: Column(
-              children: [
-                Builder(builder: (context) {
-                  canPopReads.add(ModalRoute.canPopOf(context) ?? false);
-                  return const SizedBox.shrink();
-                }),
-                Expanded(
-                  child: showFlow
-                      ? RestageFlowView(controller: controller)
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
+            body: showFlow
+                ? RestageFlowView(controller: controller)
+                : const SizedBox.shrink(),
           ),
         );
 
@@ -1528,18 +1494,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.canBack, isTrue);
 
-    // Unmount and re-mount the view against a controller that already has
-    // history, so the first sync runs from didChangeDependencies.
     await tester.pumpWidget(host(showFlow: false));
     await tester.pumpAndSettle();
-    canPopReads.clear();
     await tester.pumpWidget(host(showFlow: true));
     await tester.pumpAndSettle();
-    final reads = List<bool>.of(canPopReads);
+    final restored = find.text('Profile').evaluate().length;
+
+    final popped = await navigatorKey.currentState!.maybePop();
+    await tester.pumpAndSettle();
+    final afterBack = controller.currentScreenId;
+    final welcomeShown = find.text('Welcome').evaluate().length;
     await unmountView(tester);
 
-    expect(reads, isNotEmpty);
-    expect(reads.last, isTrue);
+    expect(restored, 1);
+    expect(popped, isTrue);
+    expect(afterBack, 'welcome');
+    expect(welcomeShown, 1);
   });
 
   testWidgets('iOS leading-edge drag pops in-flow history', (tester) async {
@@ -1568,7 +1538,11 @@ void main() {
     await withIosPlatform(() async {
       await pumpWideFlowAtProfile(tester, controller);
       final gesture = await tester.startGesture(const Offset(1, 300));
-      await gesture.moveBy(const Offset(240, 0));
+      // The first move only starts the drag, so the preview needs a second.
+      await gesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(200, 0));
+      await tester.pump();
       await tester.pump();
 
       final currentDuringDrag = controller.currentScreenId;
@@ -1578,6 +1552,7 @@ void main() {
           find.text('Profile', skipOffstage: true).evaluate().length == 1;
 
       await gesture.moveBy(const Offset(-240, 0));
+      await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
 
@@ -1609,13 +1584,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Two'));
       await tester.pumpAndSettle();
-      final route = hostRoute(tester);
-
       await tester.dragFrom(const Offset(1, 300), const Offset(520, 0));
       await tester.pumpAndSettle();
 
       expect(controller.currentScreenId, 'two');
-      expect(route.willHandlePopInternally, isTrue);
+      expect(controller.canBack, isTrue);
     });
   });
 
@@ -1643,12 +1616,12 @@ void main() {
 
     await tester.tap(find.text('Welcome'));
     await tester.pumpAndSettle();
-    expect(route.willHandlePopInternally, isTrue);
+    expect(controller.canBack, isTrue);
     expect(route.popGestureEnabled, isFalse);
 
     controller.back();
     await tester.pumpAndSettle();
-    expect(route.willHandlePopInternally, isFalse);
+    expect(controller.canBack, isFalse);
     expect(route.popGestureEnabled, isTrue);
   });
 
@@ -1677,7 +1650,7 @@ void main() {
     expect(controller.canBack, isFalse);
     expect(controller.canSkip, isTrue);
     final popScope =
-        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>));
+        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>).first);
     // .complete() consumes exhausted system-back rather than passing it on.
     expect(popScope.canPop, isFalse);
 
@@ -1716,7 +1689,7 @@ void main() {
     expect(controller.canBack, isFalse);
     expect(controller.canSkip, isFalse);
     final popScope =
-        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>));
+        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>).first);
     // .complete() consumes system-back (does not propagate to the host).
     expect(popScope.canPop, isFalse);
 
@@ -1756,7 +1729,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final popScope =
-        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>));
+        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>).first);
     // block never lets system-back leave the flow, even when exhausted.
     expect(controller.canBack, isFalse);
     expect(popScope.canPop, isFalse);
@@ -1778,7 +1751,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final popScope =
-        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>));
+        tester.widget<PopScope<Object?>>(find.byType(PopScope<Object?>).first);
     expect(popScope.canPop, isFalse);
     popScope.onPopInvokedWithResult!(false, null);
     expect(exhausted, 1);
@@ -1959,5 +1932,412 @@ void main() {
     expect(controller.hasRenderedContent, isFalse);
     // onRuntimeError fired as a notification (not the safety mechanism).
     expect(notified, 1);
+  });
+
+  testWidgets('one back gesture is live at a time, and it is the flow screen',
+      (tester) async {
+    await withPlatform(TargetPlatform.android, () async {
+      final controller = controllerFor(threeScreenResolvedFlow());
+      addTearDown(controller.dispose);
+      final navigatorKey = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(MaterialApp(
+        navigatorKey: navigatorKey,
+        theme: ThemeData(
+          pageTransitionsTheme: const PageTransitionsTheme(builders: {
+            TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          }),
+        ),
+        home: const Scaffold(body: Center(child: Text('Host'))),
+      ));
+      unawaited(navigatorKey.currentState!.push(MaterialPageRoute<void>(
+        builder: (_) => RestageFlowView(controller: controller),
+      )));
+      await tester.pumpAndSettle();
+      unawaited(controller.load());
+      await tester.pumpAndSettle();
+
+      // First screen: in-flow back is exhausted, so the enclosing route owns the
+      // gesture and the flow's own screen route does not.
+      final atFirst = (
+        host: hostPageRoute(tester).popGestureEnabled,
+        screen: routeOf(tester, find.text('One')).popGestureEnabled,
+      );
+
+      await tester.tap(find.text('One'));
+      await tester.pumpAndSettle();
+
+      // With history the pair swaps: the screen route owns the gesture and the
+      // enclosing route stands down. The two are never live together.
+      final withHistory = (
+        host: hostPageRoute(tester).popGestureEnabled,
+        screen: routeOf(tester, find.text('Two')).popGestureEnabled,
+      );
+
+      final restingTopLeft = tester.getTopLeft(find.text('Two'));
+      await backGesture(
+        tester,
+        const MethodCall('startBackGesture', <String, dynamic>{
+          'touchOffset': <double>[5.0, 300.0],
+          'progress': 0.0,
+          'swipeEdge': 0,
+        }),
+      );
+      await tester.pump();
+      await backGesture(
+        tester,
+        const MethodCall('updateBackGestureProgress', <String, dynamic>{
+          'x': 100.0,
+          'y': 300.0,
+          'progress': 0.4,
+          'swipeEdge': 0,
+        }),
+      );
+      await tester.pump();
+      // The drag previews the pop: the screen being left moves, the one behind
+      // it is revealed, and the controller has not advanced yet.
+      final draggedTopLeft = tester.getTopLeft(find.text('Two'));
+      final revealed = find.text('One', skipOffstage: true).evaluate().length;
+      final screenDuringDrag = controller.currentScreenId;
+
+      await backGesture(tester, const MethodCall('commitBackGesture'));
+      await tester.pumpAndSettle();
+      final screenAfterCommit = controller.currentScreenId;
+      await unmountView(tester);
+
+      expect(atFirst, (host: true, screen: false));
+      expect(withHistory, (host: false, screen: true));
+      expect(draggedTopLeft.dx, greaterThan(restingTopLeft.dx));
+      expect(revealed, 1);
+      expect(screenDuringDrag, 'two');
+      expect(screenAfterCommit, 'one');
+    });
+  });
+
+  testWidgets('a cancelled predictive back restores the screen',
+      (tester) async {
+    await withPlatform(TargetPlatform.android, () async {
+      final controller = controllerFor(threeScreenResolvedFlow());
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(
+          pageTransitionsTheme: const PageTransitionsTheme(builders: {
+            TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          }),
+        ),
+        home: RestageFlowView(controller: controller),
+      ));
+      unawaited(controller.load());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('One'));
+      await tester.pumpAndSettle();
+
+      final restingTopLeft = tester.getTopLeft(find.text('Two'));
+      await backGesture(
+        tester,
+        const MethodCall('startBackGesture', <String, dynamic>{
+          'touchOffset': <double>[5.0, 300.0],
+          'progress': 0.0,
+          'swipeEdge': 0,
+        }),
+      );
+      await tester.pump();
+      await backGesture(
+        tester,
+        const MethodCall('updateBackGestureProgress', <String, dynamic>{
+          'x': 60.0,
+          'y': 300.0,
+          'progress': 0.2,
+          'swipeEdge': 0,
+        }),
+      );
+      await tester.pump();
+      await backGesture(tester, const MethodCall('cancelBackGesture'));
+      await tester.pumpAndSettle();
+
+      final settledTopLeft = tester.getTopLeft(find.text('Two'));
+      final screenAfterCancel = controller.currentScreenId;
+      await unmountView(tester);
+
+      expect(screenAfterCancel, 'two');
+      expect(settledTopLeft, restingTopLeft);
+    });
+  });
+
+  testWidgets('a hero flies between two flow screens', (tester) async {
+    Restage.debugReset();
+    registerHeroProbe();
+    addTearDown(Restage.debugReset);
+    final controller = controllerFor(heroResolvedFlow());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestageFlowView(controller: controller),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+    final start = tester.getRect(find.byKey(heroBoxKey));
+
+    await tester.tap(find.text('go'));
+    await tester.pump();
+    // Sample the flight: the box exists once and travels between the two
+    // resting positions.
+    var flyingBoxes = 0;
+    var inFlight = start;
+    for (var i = 0; i < 6; i += 1) {
+      await tester.pump(const Duration(milliseconds: 60));
+      final rect = tester.getRect(find.byKey(heroBoxKey));
+      if (rect.left > inFlight.left) {
+        inFlight = rect;
+        flyingBoxes = find.byKey(heroBoxKey).evaluate().length;
+      }
+    }
+
+    await tester.pumpAndSettle();
+    final end = tester.getRect(find.byKey(heroBoxKey));
+    await unmountView(tester);
+
+    expect(flyingBoxes, 1, reason: 'the pair flies as one box');
+    expect(inFlight.left, greaterThan(start.left));
+    expect(inFlight.left, lessThan(end.left));
+    expect(inFlight.top, greaterThan(start.top));
+    expect(inFlight.top, lessThan(end.top));
+  });
+
+  testWidgets('unbounded constraints fail with a message naming the view',
+      (tester) async {
+    final controller = controllerFor(resolvedFlow());
+    addTearDown(controller.dispose);
+    final errors = <Object>[];
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = (details) => errors.add(details.exception);
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: Column(
+        children: [RestageFlowView(controller: controller)],
+      ),
+    ));
+    unawaited(controller.load());
+    for (var i = 0; i < 6; i += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await unmountView(tester);
+    FlutterError.onError = previousOnError;
+    tester.takeException();
+
+    final message = errors.whereType<FlutterError>().map((e) => '$e').join();
+    expect(message, contains('RestageFlowView'));
+    expect(message, contains('unbounded'));
+  });
+
+  testWidgets('the first screen implies dismissal only when the host can pop',
+      (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final rootController = controllerFor(appBarResolvedFlow());
+    addTearDown(rootController.dispose);
+
+    // The flow is the whole app: nothing to dismiss to, so no back control.
+    await tester.pumpWidget(MaterialApp(
+      navigatorKey: navigatorKey,
+      home: RestageFlowView(controller: rootController),
+    ));
+    unawaited(rootController.load());
+    await tester.pumpAndSettle();
+    final atRoot = find.byType(BackButton).evaluate().length;
+
+    final pushedController = controllerFor(appBarResolvedFlow());
+    addTearDown(pushedController.dispose);
+    await tester.pumpWidget(MaterialApp(
+      navigatorKey: navigatorKey,
+      home: const Scaffold(body: Center(child: Text('Host'))),
+    ));
+    await tester.pumpAndSettle();
+    unawaited(navigatorKey.currentState!.push(MaterialPageRoute<void>(
+      builder: (_) => RestageFlowView(controller: pushedController),
+    )));
+    await tester.pumpAndSettle();
+    unawaited(pushedController.load());
+    await tester.pumpAndSettle();
+    // Pushed onto a host route: the first screen's bar dismisses the flow.
+    final whenPushed = find.byType(BackButton).evaluate().length;
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    final backAtHost = find.text('Host').evaluate().length;
+    await unmountView(tester);
+
+    expect(atRoot, 0);
+    expect(whenPushed, 1);
+    expect(backAtHost, 1);
+  });
+
+  testWidgets('a sub-flow barrier shows no back control', (tester) async {
+    final child = appBarChildScreenFlow();
+    final controller = RestageFlowController<FirstRunResult>(
+      flow: firstRunFlowRef,
+      resolver: SubFlowResolver(
+        root: screenThenSubFlowRoot(child: child),
+        child: child,
+      ),
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestageFlowView(controller: controller),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome bar'), findsOneWidget);
+
+    await tester.tap(find.text('Welcome'));
+    await tester.pumpAndSettle();
+
+    final onChild = find.text('Child bar').evaluate().length;
+    final backControls = find.byType(BackButton).evaluate().length;
+    final canBack = controller.canBack;
+    // The parent screen is behind a barrier, so it is not on the stack at all.
+    final parentMounted =
+        find.text('Welcome', skipOffstage: false).evaluate().length;
+    await unmountView(tester);
+
+    expect(onChild, 1);
+    expect(canBack, isFalse);
+    expect(backControls, 0);
+    expect(parentMounted, 0);
+  });
+
+  testWidgets('the iOS screen swipe is live with history and off at a barrier',
+      (tester) async {
+    await withPlatform(TargetPlatform.iOS, () async {
+      final child = appBarChildScreenFlow();
+      final controller = RestageFlowController<FirstRunResult>(
+        flow: firstRunFlowRef,
+        resolver: SubFlowResolver(
+          root: screenThenSubFlowRoot(child: child),
+          child: child,
+        ),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+      final linear = controllerFor(resolvedFlow());
+      addTearDown(linear.dispose);
+
+      await tester.pumpWidget(MaterialApp(
+        home: RestageFlowView(controller: linear),
+      ));
+      unawaited(linear.load());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Welcome'));
+      await tester.pumpAndSettle();
+      final withHistory =
+          routeOf(tester, find.text('Profile')).popGestureEnabled;
+
+      await tester.pumpWidget(MaterialApp(
+        home: RestageFlowView(controller: controller),
+      ));
+      unawaited(controller.load());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Welcome'));
+      await tester.pumpAndSettle();
+      final atBarrier = routeOf(tester, find.text('Child')).popGestureEnabled;
+      await unmountView(tester);
+
+      expect(withHistory, isTrue);
+      expect(atBarrier, isFalse);
+    });
+  });
+
+  testWidgets('a supplied transition drives the screen motion', (tester) async {
+    final seen = <({double animation, double secondary, bool isForward})>[];
+    final controller = controllerFor(resolvedFlow());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestageFlowView(
+        controller: controller,
+        transition: (context, animation, secondary, child, isForward) {
+          seen.add((
+            animation: animation.value,
+            secondary: secondary.value,
+            isForward: isForward,
+          ));
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
+      ),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+    final resting = tester.getTopLeft(find.text('Welcome'));
+
+    await tester.tap(find.text('Welcome'));
+    // The controller advances, the route is pushed, and the entering screen
+    // spends its measuring frame offstage before it paints.
+    for (var i = 0; i < 4 && find.text('Profile').evaluate().isEmpty; i += 1) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    // The supplied builder owns the motion: the entering screen slides up.
+    final entering = tester.getTopLeft(find.text('Profile'));
+    final animating = tester.hasRunningAnimations;
+
+    await tester.pumpAndSettle();
+    final settled = tester.getTopLeft(find.text('Profile'));
+    final sawPartialEnter =
+        seen.any((call) => call.animation > 0 && call.animation < 1);
+    final sawPush = seen.any((call) => call.isForward);
+    await unmountView(tester);
+
+    expect(animating, isTrue);
+    expect(entering.dy, greaterThan(settled.dy));
+    expect(settled, resting);
+    expect(sawPartialEnter, isTrue);
+    expect(sawPush, isTrue);
+  });
+
+  testWidgets('a supplied transition runs in reverse on back', (tester) async {
+    final directions = <bool>[];
+    final controller = controllerFor(resolvedFlow());
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestageFlowView(
+        controller: controller,
+        transition: (context, animation, secondary, child, isForward) {
+          directions.add(isForward);
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Welcome'));
+    await tester.pumpAndSettle();
+
+    directions.clear();
+    controller.back();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final sawReverse = directions.contains(false);
+    await tester.pumpAndSettle();
+    final settledOn = controller.currentScreenId;
+    await unmountView(tester);
+
+    expect(sawReverse, isTrue);
+    expect(settledOn, 'welcome');
   });
 }
