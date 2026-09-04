@@ -574,17 +574,6 @@ void main() {
       retainedTransaction ??= transaction;
     };
 
-    Widget chromeBuilder(
-      BuildContext context,
-      FlowChromeState state,
-      Widget screen,
-    ) {
-      final controller =
-          (context.widget as RestageFlowView<FirstRunResult>).controller;
-      retainedController ??= controller;
-      return screen;
-    }
-
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -592,11 +581,15 @@ void main() {
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
-          chromeBuilder: chromeBuilder,
         ),
       ),
     );
     await _pumpFrames(tester);
+    retainedController = tester
+        .widget<RestageFlowView<FirstRunResult>>(
+          find.byType(RestageFlowView<FirstRunResult>),
+        )
+        .controller;
     final initial = _canonicalEvents(await _capturedEvents(requests)).single;
     requests.clear();
 

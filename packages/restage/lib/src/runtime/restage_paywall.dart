@@ -2252,9 +2252,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
         controller: controller,
         onScreenEvent: _interceptFlowScreenEvent,
         loadingBuilder: widget.loadingBuilder,
-        // A paywall is fully self-authored, so built-in flow chrome never
-        // overlaps its authored back and dismiss affordances.
-        chromeBuilder: (context, state, screen) => screen,
       ),
     );
     final measurementSession = _flowMeasurementSessions[controller];

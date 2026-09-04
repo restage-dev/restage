@@ -68,6 +68,8 @@ final class MeasurementPublicationPlanningResult {
     required this.nextIdentitySequence,
     required Iterable<MeasurementCompilerLedgerNode> ledgerNodes,
     required Iterable<MeasurementCompilerLedgerProposal> proposals,
+    required Iterable<MeasurementCompilerLedgerIntroduction>
+        pendingIntroductions,
     required Map<String, MeasurementPublicationRoutePlanV1> routePlansByKey,
     required Map<String, MeasurementRfwPresentationPublicationPlan>
         presentationPlansByKey,
@@ -75,6 +77,7 @@ final class MeasurementPublicationPlanningResult {
   })  : errors = List.unmodifiable(errors),
         ledgerNodes = List.unmodifiable(ledgerNodes),
         proposals = List.unmodifiable(proposals),
+        pendingIntroductions = List.unmodifiable(pendingIntroductions),
         routePlansByKey = Map.unmodifiable(routePlansByKey),
         presentationPlansByKey = Map.unmodifiable(presentationPlansByKey),
         codeIdentityByStructuralOccurrenceKey =
@@ -84,6 +87,10 @@ final class MeasurementPublicationPlanningResult {
   final int nextIdentitySequence;
   final List<MeasurementCompilerLedgerNode> ledgerNodes;
   final List<MeasurementCompilerLedgerProposal> proposals;
+
+  /// Introductions this pass did not honour; an honoured one is not carried
+  /// forward, so it never reads back as overriding the identity it minted.
+  final List<MeasurementCompilerLedgerIntroduction> pendingIntroductions;
   final Map<String, MeasurementPublicationRoutePlanV1> routePlansByKey;
   final Map<String, MeasurementRfwPresentationPublicationPlan>
       presentationPlansByKey;
@@ -140,6 +147,7 @@ abstract final class MeasurementPublicationPlanner {
       nextIdentitySequence: reconciliation.nextIdentitySequence,
       ledgerNodes: reconciliation.nodes,
       proposals: reconciliation.proposals,
+      pendingIntroductions: reconciliation.pendingIntroductions,
       routePlansByKey: errors.isEmpty ? plans : const {},
       presentationPlansByKey: errors.isEmpty ? presentationPlans : const {},
       codeIdentityByStructuralOccurrenceKey: {
@@ -468,7 +476,28 @@ _LedgerReconciliation _reconcile({
     for (final node in silentMatches.values) node.codeIdentityId.value,
   };
 
+  final introducedKeys = <String>{};
+  for (final introduction in priorOutput.acceptedIntroductions) {
+    if (!introducedKeys.add(introduction.structuralOccurrenceKey)) {
+      throw const FormatException(
+        'Prior Measurement ledger repeats an introduction.',
+      );
+    }
+    if (!currentKeys.contains(introduction.structuralOccurrenceKey)) {
+      throw const FormatException(
+        'Prior Measurement ledger introduces a node that does not exist.',
+      );
+    }
+    if (priorByLocator.containsKey(introduction.structuralOccurrenceKey)) {
+      throw const FormatException(
+        'Prior Measurement ledger introduces a node that already has an '
+        'identity.',
+      );
+    }
+  }
+
   final result = <MeasurementCompilerLedgerNode>[];
+  final honouredIntroductions = <String>{};
   final consumedPriorCodes = <String>{};
   final proposals = <MeasurementCompilerLedgerProposal>[];
   final errors = <String>[];
@@ -523,6 +552,19 @@ _LedgerReconciliation _reconcile({
     );
   }
 
+  MeasurementCompilerLedgerNode mintNode(_CurrentNodeDescriptor current) {
+    final id = sequence();
+    return MeasurementCompilerLedgerNode(
+      structuralOccurrenceKey: current.structuralOccurrenceKey,
+      parentStructuralOccurrenceKey: current.parentStructuralOccurrenceKey,
+      reconciliationFingerprint: current.reconciliationFingerprint,
+      codeIdentityId: CodeIdentityId('code.auto.$id'),
+      canonicalNodeTokenId: NodeTokenId('node.auto.$id'),
+      active: true,
+      events: [for (final event in current.events) newEvent(event)],
+    );
+  }
+
   final ordered = descriptors.values.toList()
     ..sort(
       (left, right) => left.structuralOccurrenceKey.compareTo(
@@ -533,6 +575,13 @@ _LedgerReconciliation _reconcile({
     final exact = priorByLocator[descriptor.structuralOccurrenceKey];
     if (exact != null) {
       result.add(updateNode(exact, descriptor));
+      continue;
+    }
+    // A reviewed introduction says the node is new: it short-circuits before
+    // any matching, so no retired node is offered as its prior.
+    if (introducedKeys.contains(descriptor.structuralOccurrenceKey)) {
+      honouredIntroductions.add(descriptor.structuralOccurrenceKey);
+      result.add(mintNode(descriptor));
       continue;
     }
     if (silentMatches[descriptor.structuralOccurrenceKey] case final paired?) {
@@ -585,18 +634,7 @@ _LedgerReconciliation _reconcile({
       result.add(updateNode(selected, descriptor));
       continue;
     }
-    final id = sequence();
-    result.add(
-      MeasurementCompilerLedgerNode(
-        structuralOccurrenceKey: descriptor.structuralOccurrenceKey,
-        parentStructuralOccurrenceKey: descriptor.parentStructuralOccurrenceKey,
-        reconciliationFingerprint: descriptor.reconciliationFingerprint,
-        codeIdentityId: CodeIdentityId('code.auto.$id'),
-        canonicalNodeTokenId: NodeTokenId('node.auto.$id'),
-        active: true,
-        events: [for (final event in descriptor.events) newEvent(event)],
-      ),
-    );
+    result.add(mintNode(descriptor));
   }
   for (final prior in priorOutput.ledgerNodes) {
     if (consumedPriorCodes.contains(prior.codeIdentityId.value)) continue;
@@ -623,6 +661,13 @@ _LedgerReconciliation _reconcile({
     proposals: proposals,
     errors: errors,
     nextIdentitySequence: nextSequence,
+    pendingIntroductions: [
+      for (final introduction in priorOutput.acceptedIntroductions)
+        if (!honouredIntroductions.contains(
+          introduction.structuralOccurrenceKey,
+        ))
+          introduction,
+    ],
   );
 }
 
@@ -1247,12 +1292,17 @@ final class _LedgerReconciliation {
     required this.proposals,
     required this.errors,
     required this.nextIdentitySequence,
+    required this.pendingIntroductions,
   });
 
   final List<MeasurementCompilerLedgerNode> nodes;
   final List<MeasurementCompilerLedgerProposal> proposals;
   final List<String> errors;
   final int nextIdentitySequence;
+
+  /// Introductions the pass did not honour, so an honoured one never lingers
+  /// to be read back as an attempt to override the identity it minted.
+  final List<MeasurementCompilerLedgerIntroduction> pendingIntroductions;
 }
 
 final class _AutomaticTreatment {

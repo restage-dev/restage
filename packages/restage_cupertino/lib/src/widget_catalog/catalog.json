@@ -433,6 +433,57 @@
           "constructorNullable": true
         },
         {
+          "wireId": "p0173",
+          "name": "automaticallyImplyLeading",
+          "type": "boolean",
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0174",
+          "name": "automaticallyImplyMiddle",
+          "type": "boolean",
+          "description": "Controls whether we should try to imply the middle widget if null.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0175",
+          "name": "previousPageTitle",
+          "type": "string",
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.previousPageTitle} Manually specify the previous route's title when automatically implying the leading back button.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
           "wireId": "p0027",
           "name": "middle",
           "type": "widget",
@@ -459,6 +510,58 @@
             "dartTypeRef": {
               "libraryUri": "dart:ui",
               "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0176",
+          "name": "automaticBackgroundVisibility",
+          "type": "boolean",
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.automaticBackgroundVisibility} Whether the navigation bar appears transparent when no content is scrolled under.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0177",
+          "name": "enableBackgroundFilterBlur",
+          "type": "boolean",
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.enableBackgroundFilterBlur} Whether to have a blur effect when a non-opaque background color is used.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0178",
+          "name": "brightness",
+          "type": "enumValue",
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.brightness} The brightness of the specified [backgroundColor].",
+          "enumType": "Brightness",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Brightness"
             }
           }
         },

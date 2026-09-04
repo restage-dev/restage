@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 import 'flows/apex_drop.dart';
-import 'gallery_dismiss.dart';
 
 /// Hosts the single-screen in-app message engagement surface.
 ///
@@ -78,9 +77,8 @@ class _ShopScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The terminal "acted → opened the shop" hand-off. It needs a close-to-gallery
-    // affordance so the gallery stays reachable (the message screen carried its
-    // own ×; this host screen replaces it once the CTA acts).
+    // The terminal "acted → opened the shop" hand-off. System back returns to
+    // the gallery from here.
     return const Scaffold(
       backgroundColor: Color(0xFF0A0A0A),
       body: Stack(
@@ -97,11 +95,6 @@ class _ShopScreen extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GalleryDismissButton(),
           ),
         ],
       ),

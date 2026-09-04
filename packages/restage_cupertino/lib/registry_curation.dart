@@ -137,15 +137,13 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<CupertinoNavigationBar>(
     category: WidgetCategory.layout,
     excludeParams: [
-      'automaticallyImplyLeading',
-      'automaticallyImplyMiddle',
-      'previousPageTitle',
-      'automaticBackgroundVisibility',
-      'enableBackgroundFilterBlur',
-      'brightness',
+      // An `EdgeInsetsDirectional` slot; the shared edge-insets decoder
+      // yields the `EdgeInsetsGeometry` base, which does not assign.
       'padding',
       'transitionBetweenRoutes',
       'heroTag',
+      // `PreferredSizeWidget` is on the centralized type denylist — the
+      // rendering layer's proxy wrap defeats the static downcast strategy.
       'bottom',
     ],
     brandTokens: {'backgroundColor': 'background'},

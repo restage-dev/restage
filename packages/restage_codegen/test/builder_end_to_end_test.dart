@@ -416,6 +416,148 @@ widget Paywall = AcmeBanner();
     });
 
     test(
+        'AppBar chrome slots lower against the real catalog — leading, '
+        'implied-leading, spacing and tint', () async {
+      // A screen-owned app bar customises its own chrome: the leading control,
+      // the implied-leading switch, the toolbar metrics and the tint colors.
+      const source = '''
+        import 'package:flutter/material.dart';
+        import 'package:restage/restage.dart';
+
+        @PaywallSource(id: 'chrome_bar')
+        class ChromeBar extends StatelessWidget {
+          const ChromeBar({super.key});
+          Widget build(BuildContext context) => AppBar(
+            leading: const Icon(Icons.close),
+            automaticallyImplyLeading: false,
+            title: const Text('Plans'),
+            actions: [
+              TextButton(
+                onPressed: paywallEvent('skip'),
+                child: const Text('Skip'),
+              ),
+              IconButton(
+                onPressed: paywallEvent('help'),
+                icon: const Icon(Icons.help),
+              ),
+            ],
+            primary: false,
+            titleSpacing: 8.0,
+            toolbarHeight: 56.0,
+            leadingWidth: 40.0,
+            scrolledUnderElevation: 2.0,
+            shadowColor: const Color(0xFF101010),
+            surfaceTintColor: const Color(0xFF202020),
+            forceMaterialTransparency: true,
+            actionsPadding: const EdgeInsets.only(right: 12.0),
+          );
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: true,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/chrome_bar.dart'),
+        source,
+      );
+
+      await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/paywalls/chrome_bar.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|assets/paywalls/chrome_bar.rfwtxt': decodedMatches(
+            allOf([
+              contains('AppBar('),
+              contains('leading: Icon('),
+              contains('automaticallyImplyLeading: false'),
+              contains('actions: [TextButton('),
+              contains('onPressed: event "skip" {}'),
+              contains('IconButton(onPressed: event "help" {}'),
+              contains('primary: false'),
+              contains('titleSpacing: 8.0'),
+              contains('toolbarHeight: 56.0'),
+              contains('leadingWidth: 40.0'),
+              contains('scrolledUnderElevation: 2.0'),
+              contains('shadowColor: 0xFF101010'),
+              contains('surfaceTintColor: 0xFF202020'),
+              contains('forceMaterialTransparency: true'),
+              contains('actionsPadding: [0.0, 0.0, 12.0, 0.0]'),
+            ]),
+          ),
+          'apps_examples|assets/paywalls/chrome_bar.rfw': isNotEmpty,
+          'apps_examples|assets/paywalls/chrome_bar.capability.json': anything,
+          'apps_examples|assets/paywalls/screens/paywall_chrome_bar.capability.json':
+              anything,
+          'apps_examples|assets/paywalls/screens/paywall_chrome_bar.rfw':
+              const _RootWidgetMatcher('OnboardingScreen'),
+        },
+      );
+    });
+
+    test(
+        'CupertinoNavigationBar chrome slots lower against the real '
+        'catalog — implied leading, previous-page title, background', () async {
+      const source = '''
+        import 'package:flutter/cupertino.dart';
+        $kStubAnnotationsAndBases
+
+        @PaywallSource(id: 'chrome_nav_bar')
+        class ChromeNavBar extends StatelessWidget {
+          const ChromeNavBar();
+          Widget build(BuildContext context) => CupertinoNavigationBar(
+            automaticallyImplyLeading: false,
+            automaticallyImplyMiddle: false,
+            previousPageTitle: 'Plans',
+            middle: const Text('Choose'),
+            automaticBackgroundVisibility: false,
+            enableBackgroundFilterBlur: false,
+            brightness: Brightness.dark,
+          );
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: true,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/chrome_nav_bar.dart'),
+        source,
+      );
+
+      await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/paywalls/chrome_nav_bar.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|assets/paywalls/chrome_nav_bar.rfwtxt': decodedMatches(
+            allOf(
+              contains('CupertinoNavigationBar('),
+              contains('automaticallyImplyLeading: false'),
+              contains('automaticallyImplyMiddle: false'),
+              contains('previousPageTitle: "Plans"'),
+              contains('automaticBackgroundVisibility: false'),
+              contains('enableBackgroundFilterBlur: false'),
+              contains('brightness: "dark"'),
+            ),
+          ),
+          'apps_examples|assets/paywalls/chrome_nav_bar.rfw': isNotEmpty,
+          'apps_examples|assets/paywalls/chrome_nav_bar.capability.json':
+              anything,
+          'apps_examples|assets/paywalls/screens/paywall_chrome_nav_bar.capability.json':
+              anything,
+          'apps_examples|assets/paywalls/screens/paywall_chrome_nav_bar.rfw':
+              const _RootWidgetMatcher('OnboardingScreen'),
+        },
+      );
+    });
+
+    test(
         'FilledButton(style: styleFrom(minimumSize: Size(...))) lowers the '
         'size slot to a {width, height} map against the real catalog',
         () async {

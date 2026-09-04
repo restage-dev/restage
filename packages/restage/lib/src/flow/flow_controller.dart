@@ -179,8 +179,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// Whether the flow has reached an end state and finished.
   ///
   /// A completed flow no longer navigates ([canBack]/[canSkip] are false). A
-  /// rendering surface uses this to collapse chrome on completion — the last
-  /// screen remains rendered but its affordances are gone.
+  /// host control reads this to hide itself on completion — the last screen
+  /// remains rendered with nowhere left to navigate.
   bool get isComplete => _isComplete;
 
   /// Whether an interaction would currently be a no-op because the controller
@@ -239,6 +239,15 @@ final class RestageFlowController<R> extends ChangeNotifier {
         for (final frame in _frames)
           for (final entry in frame.screenHistory) entry.entryId,
       ];
+
+  /// How many screens in-flow back navigation can still pop in the current
+  /// frame. The rendering surface mirrors this as route local history, so a
+  /// navigation bar in the host route implies a back control.
+  ///
+  /// Package-internal: the view↔controller coupling for route local history.
+  @internal
+  int get backDepth =>
+      canBack ? (_currentFrame?.screenHistory.length ?? 1) - 1 : 0;
 
   _FlowFrame? get _currentFrame {
     return _frames.isEmpty ? null : _frames.last;
@@ -379,8 +388,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     }
     if (transition == null) {
       // The reserved `back` event falls back to the default history pop when the
-      // screen authors no `on['back']` handler, so an in-screen or chrome back
-      // affordance works without per-screen wiring.
+      // screen authors no `on['back']` handler, so an in-screen back control
+      // works without per-screen wiring.
       if (flowEventName == _backEventName) {
         back();
         return;
@@ -1528,8 +1537,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _isComplete = true;
     _markSurveyTransactionTriggerCompletion(frame);
     // Announce completion before the host callback: a completed flow no longer
-    // navigates (`canBack`/`canSkip` are false), so a rendering surface rebuilds
-    // and collapses its chrome. Notifying *before* `onComplete` keeps it safe if
+    // navigates (`canBack`/`canSkip` are false), so the rendering surface drops
+    // its route history first. Notifying *before* `onComplete` keeps it safe if
     // the host disposes the controller inside that callback. The current screen
     // entry is unchanged, so the view's screen reconciliation is a no-op.
     _notifyHostListeners();
@@ -1877,8 +1886,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final token = Object();
     _activeActionToken = token;
     // The flow is now busy (a host action is in flight): notify so a rendering
-    // surface can reflect [isBusy] — e.g. hold the back/skip chrome inert while
-    // the action runs. This is purely a listener ping; it does not change the
+    // surface can reflect [isBusy] — e.g. hold a back or skip control inert
+    // while the action runs. This is purely a listener ping; it does not change the
     // current screen, so the view's screen reconciliation is a no-op.
     _notifyHostListeners();
     try {
@@ -1942,8 +1951,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
       }
     } finally {
       // Reached when the action did not advance the flow (predicate false, or a
-      // failure already handled). Clear the in-flight token and notify so chrome
-      // affordances become interactive again — unless the controller was
+      // failure already handled). Clear the in-flight token and notify so host
+      // controls become interactive again — unless the controller was
       // disposed mid-action (then notifying would throw; dispose already cleared
       // the token).
       if (identical(_activeActionToken, token)) {

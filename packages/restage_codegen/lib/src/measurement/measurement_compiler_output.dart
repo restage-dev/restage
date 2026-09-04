@@ -480,6 +480,36 @@ final class MeasurementCompilerLedgerRelocation {
       };
 }
 
+/// A reviewed declaration that a node is new, so a same-fingerprint retired
+/// node is not proposed as its prior.
+final class MeasurementCompilerLedgerIntroduction {
+  const MeasurementCompilerLedgerIntroduction({
+    required this.structuralOccurrenceKey,
+  });
+
+  factory MeasurementCompilerLedgerIntroduction.fromJson(Object? value) {
+    final json = _object(value, 'ledger introduction');
+    _exactKeys(
+      json,
+      const {'structuralOccurrenceKey'},
+      'ledger introduction',
+    );
+    return MeasurementCompilerLedgerIntroduction(
+      structuralOccurrenceKey: _string(
+        json,
+        'structuralOccurrenceKey',
+        'ledger introduction',
+      ),
+    );
+  }
+
+  final String structuralOccurrenceKey;
+
+  Map<String, Object?> toJson() => {
+        'structuralOccurrenceKey': structuralOccurrenceKey,
+      };
+}
+
 /// Non-authoritative continuity proposal emitted for review.
 final class MeasurementCompilerLedgerProposal {
   MeasurementCompilerLedgerProposal({
@@ -612,6 +642,8 @@ final class RestageMeasurementCompilerOutputV1 {
     required this.nextIdentitySequence,
     required Iterable<MeasurementCompilerLedgerNode> ledgerNodes,
     required Iterable<MeasurementCompilerLedgerRelocation> acceptedRelocations,
+    required Iterable<MeasurementCompilerLedgerIntroduction>
+        acceptedIntroductions,
     required Iterable<MeasurementCompilerLedgerProposal> proposals,
     required Iterable<MeasurementCompilerPublication> publications,
   })  : errors = List.unmodifiable(errors.toList()..sort()),
@@ -628,6 +660,14 @@ final class RestageMeasurementCompilerOutputV1 {
             ..sort(
               (left, right) => left.toStructuralOccurrenceKey.compareTo(
                 right.toStructuralOccurrenceKey,
+              ),
+            ),
+        ),
+        acceptedIntroductions = List.unmodifiable(
+          acceptedIntroductions.toList()
+            ..sort(
+              (left, right) => left.structuralOccurrenceKey.compareTo(
+                right.structuralOccurrenceKey,
               ),
             ),
         ),
@@ -696,6 +736,16 @@ final class RestageMeasurementCompilerOutputV1 {
             'Measurement publication selectors must be unique.');
       }
     }
+    final introducedKeys = <String>{};
+    for (final introduction in this.acceptedIntroductions) {
+      if (introduction.structuralOccurrenceKey.isEmpty ||
+          !introducedKeys.add(introduction.structuralOccurrenceKey)) {
+        throw ArgumentError(
+          'Measurement ledger introductions must name a unique non-empty '
+          'locator.',
+        );
+      }
+    }
     final relocationSources = <String>{};
     final relocationTargets = <String>{};
     final relocationCodes = <String>{};
@@ -719,6 +769,7 @@ final class RestageMeasurementCompilerOutputV1 {
         nextIdentitySequence: 1,
         ledgerNodes: const [],
         acceptedRelocations: const [],
+        acceptedIntroductions: const [],
         proposals: const [],
         publications: const [],
       );
@@ -736,6 +787,7 @@ final class RestageMeasurementCompilerOutputV1 {
     _exactKeys(
       json,
       const {
+        'acceptedIntroductions',
         'acceptedRelocations',
         'errors',
         'kind',
@@ -790,6 +842,14 @@ final class RestageMeasurementCompilerOutputV1 {
         ))
           MeasurementCompilerLedgerRelocation.fromJson(relocation),
       ],
+      acceptedIntroductions: [
+        for (final introduction in _list(
+          json,
+          'acceptedIntroductions',
+          'measurement compiler output',
+        ))
+          MeasurementCompilerLedgerIntroduction.fromJson(introduction),
+      ],
       proposals: [
         for (final proposal in _list(
           json,
@@ -821,10 +881,15 @@ final class RestageMeasurementCompilerOutputV1 {
   final int nextIdentitySequence;
   final List<MeasurementCompilerLedgerNode> ledgerNodes;
   final List<MeasurementCompilerLedgerRelocation> acceptedRelocations;
+  final List<MeasurementCompilerLedgerIntroduction> acceptedIntroductions;
   final List<MeasurementCompilerLedgerProposal> proposals;
   final List<MeasurementCompilerPublication> publications;
 
   Map<String, Object?> toJson() => {
+        'acceptedIntroductions': [
+          for (final introduction in acceptedIntroductions)
+            introduction.toJson(),
+        ],
         'acceptedRelocations': [
           for (final relocation in acceptedRelocations) relocation.toJson(),
         ],

@@ -758,3 +758,249 @@ final class TestActionRegistry implements FlowActionRegistry {
   @override
   final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings;
 }
+
+/// Encodes a screen framed by a Material `AppBar`, in the shape a delivered
+/// screen writes: the bar is the first child of the scaffold body's column and
+/// the content sits under it. The bar's title is `"$text bar"`; the body
+/// renders [text] and fires [event] on tap.
+Uint8List appBarScreenBlob(String text, String event) {
+  final source = '''
+    import restage.core;
+    import restage.material;
+    widget OnboardingScreen = Scaffold(
+      body: Column(
+        crossAxisAlignment: "stretch",
+        children: [
+          AppBar(title: Text(text: "$text bar")),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: GestureDetector(
+                onTap: event "$event" { },
+                child: Text(text: "$text"),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// The linear welcome -> profile flow with each screen under an `AppBar`.
+ResolvedFlow appBarResolvedFlow() => resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': appBarScreenBlob('Welcome', 'next'),
+        'profile': appBarScreenBlob('Profile', 'finish'),
+      },
+    );
+
+/// Encodes a welcome screen whose `AppBar` carries a "Skip" action wired to the
+/// reserved `skip` event — a developer-drawn skip in the place Material puts
+/// one.
+Uint8List appBarSkipScreenBlob() {
+  const source = '''
+    import restage.core;
+    import restage.material;
+    widget OnboardingScreen = Scaffold(
+      body: Column(
+        crossAxisAlignment: "stretch",
+        children: [
+          AppBar(
+            title: Text(text: "Welcome bar"),
+            actions: [
+              TextButton(
+                onPressed: event "skip" { },
+                child: Text(text: "Skip"),
+              ),
+            ],
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Text(text: "Welcome"),
+            ),
+          ),
+        ],
+      ),
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// The same skip control in a `CupertinoNavigationBar`'s trailing slot.
+Uint8List cupertinoBarSkipScreenBlob() {
+  const source = '''
+    import restage.core;
+    import restage.cupertino;
+    widget OnboardingScreen = CupertinoPageScaffold(
+      child: Column(
+        crossAxisAlignment: "stretch",
+        children: [
+          CupertinoNavigationBar(
+            middle: Text(text: "Welcome bar"),
+            trailing: CupertinoButton(
+              onPressed: event "skip" { },
+              child: Text(text: "Skip"),
+            ),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Text(text: "Welcome"),
+            ),
+          ),
+        ],
+      ),
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// A two-screen flow reachable only through the welcome screen's authored
+/// `skip` transition, so landing on profile proves the bar control drove it.
+ResolvedFlow barSkipResolvedFlow({
+  required Uint8List welcome,
+  required Uint8List profile,
+}) =>
+    resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': welcome,
+        'profile': profile,
+      },
+      states: const {
+        'welcome': ScreenFlowState(
+          screen: 'welcome',
+          on: {'skip': FlowTransition.goto('profile')},
+        ),
+        'profile': ScreenFlowState(
+          screen: 'profile',
+          on: {'finish': FlowTransition.goto('done')},
+        ),
+        'done': EndFlowState(result: {'completed': true}),
+      },
+    );
+
+/// The app-bar welcome -> profile flow whose profile screen fires a host
+/// action, so a [HoldActionRegistry] can hold the controller busy on a screen
+/// that has history behind it.
+ResolvedFlow appBarActionResolvedFlow() {
+  final welcome = appBarScreenBlob('Welcome', 'next');
+  final profile = appBarScreenBlob('Profile', 'request');
+  return ResolvedFlow(
+    document: flowDocument(
+      legacyTerminalResultPassthrough: true,
+      actions: {'requestNotifications': actionContract()},
+      states: const {
+        'welcome': ScreenFlowState(
+          screen: 'welcome',
+          on: {'next': FlowTransition.goto('profile')},
+        ),
+        'profile': ScreenFlowState(
+          screen: 'profile',
+          on: {
+            'request': ActionFlowTransition(
+              action: 'requestNotifications',
+              resultPredicate: BoolEqualsActionResultPredicate(value: true),
+              target: 'done',
+            ),
+          },
+        ),
+        'done': EndFlowState(result: {'completed': true}),
+      },
+      screenHashes: {
+        'welcome': FlowContentHash.compute(welcome),
+        'profile': FlowContentHash.compute(profile),
+      },
+    ),
+    screenBlobs: {'welcome': welcome, 'profile': profile},
+    cacheHit: false,
+  );
+}
+
+/// Encodes a screen framed by a `CupertinoNavigationBar`, shaped like
+/// [appBarScreenBlob].
+Uint8List cupertinoBarScreenBlob(String text, String event) {
+  final source = '''
+    import restage.core;
+    import restage.cupertino;
+    widget OnboardingScreen = CupertinoPageScaffold(
+      child: Column(
+        crossAxisAlignment: "stretch",
+        children: [
+          CupertinoNavigationBar(middle: Text(text: "$text bar")),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: GestureDetector(
+                onTap: event "$event" { },
+                child: Text(text: "$text"),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// The linear welcome -> profile flow with each screen under a
+/// `CupertinoNavigationBar`.
+ResolvedFlow cupertinoBarResolvedFlow() => resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': cupertinoBarScreenBlob('Welcome', 'next'),
+        'profile': cupertinoBarScreenBlob('Profile', 'finish'),
+      },
+    );
+
+/// A three-screen linear flow (One -> Two -> Three) whose third screen fires
+/// the reserved `back` event, which no screen authors a handler for — so it
+/// falls through to the controller's history pop.
+ResolvedFlow backEventThreeScreenResolvedFlow() {
+  final one = screenBlob('One', 'next');
+  final two = screenBlob('Two', 'next');
+  final three = screenBlob('Three', 'back');
+  return ResolvedFlow(
+    document: FlowDocument(
+      flow: 'first_run',
+      version: 1,
+      schemaVersion: 1,
+      minClient: 3,
+      initial: 'one',
+      legacyTerminalResultPassthrough: true,
+      screenArtifacts: {
+        for (final entry in <String, Uint8List>{
+          'one': one,
+          'two': two,
+          'three': three,
+        }.entries)
+          entry.key: ScreenArtifact(
+            path: '${entry.key}.rfw',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 3,
+            contentHash: FlowContentHash.compute(entry.value),
+          ),
+      },
+      states: const {
+        'one': ScreenFlowState(
+          screen: 'one',
+          on: {'next': FlowTransition.goto('two')},
+        ),
+        'two': ScreenFlowState(
+          screen: 'two',
+          on: {'next': FlowTransition.goto('three')},
+        ),
+        'three': ScreenFlowState(
+          screen: 'three',
+          on: {'finish': FlowTransition.goto('done')},
+        ),
+        'done': EndFlowState(result: {'completed': true}),
+      },
+    ),
+    screenBlobs: {'one': one, 'two': two, 'three': three},
+    cacheHit: false,
+  );
+}

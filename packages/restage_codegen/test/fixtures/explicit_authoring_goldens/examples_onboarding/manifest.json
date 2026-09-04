@@ -7,499 +7,499 @@
       "path": "assets/onboarding/flows/bare_surface.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 417,
-      "sha256": "sha256:9ec6721ca35f7850e5a31e326bfa20e53ac6bfc6d7020a568b7f1a6bb69e2c81"
+      "sha256": "sha256:e9460b33a6f09287abe8ebbb8ea7f2236037d633aa6ba379e10e8b572e0e8ec4"
     },
     {
       "path": "assets/onboarding/flows/first_run.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 1959,
-      "sha256": "sha256:fbd9328bc8ef5637d5214a981441371547c93a58dc80af87e6eb368885e1c0a6"
+      "sha256": "sha256:5b48775c9700d50a7b9351012cafee329b8a9bd5d21bf28a96a6d711cdcdf9b6"
     },
     {
       "path": "assets/onboarding/flows/lumen_onboarding.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 2606,
-      "sha256": "sha256:ae16b2f38a35830f51e73f087c11831cb16d1f4a0d08c31e01ec1ea612247a53"
+      "sha256": "sha256:72308cf0921a67fddf27c9bd1a811e96ac6ee825a152d80fbdf80b555fe77d08"
     },
     {
       "path": "assets/onboarding/flows/minimal_onboarding.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 1826,
-      "sha256": "sha256:c732bb35ce74800357c1a99041464b1ac7c45562a316e61a394aa3a2d7fd01d6"
+      "sha256": "sha256:923206c271c740cf09be7267e718bc4c41aeaa36813ea575580d01830b6fa0cb"
     },
     {
       "path": "assets/onboarding/flows/stride_first_run.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 2147,
-      "sha256": "sha256:316e9a822d2d1a6473e6ed40e835123138711e135f5ddb125642da717ae5c9cc"
+      "sha256": "sha256:b11f7f21d0115248f9acaf582bf57b9de69bdd0b72aa1f7477d35ed32d31b9a2"
     },
     {
       "path": "assets/onboarding/flows/tally_onboarding.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 3127,
-      "sha256": "sha256:342bd1e359480503ac8d0c8fdcff60d4b20e11be1defe90ece7bbc3bf883c29d"
+      "sha256": "sha256:5ddc9127431abdb01f7711fd3df0950ce2f224438d59a9687ad35897740a7304"
     },
     {
       "path": "assets/onboarding/screens/lumen_experience.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:4b0680bee6edd1d0d89c3947fbac66c1f2520da36c669cfabcf936240c094042"
+      "sha256": "sha256:714c49f7fa1a68137859be7f205cf6cbd605d06f81f788a743baa65d9dad678e"
     },
     {
       "path": "assets/onboarding/screens/lumen_experience.rfw",
       "kind": "rfw-binary",
-      "byteLength": 3396,
-      "sha256": "sha256:7aa567a965fe88eee3256c643774ab0f967e4872d90e97b18b4aa424ca9f51ee"
+      "byteLength": 3649,
+      "sha256": "sha256:6e7462c33fbec14b838492954e1f54b5b368c234ea81ead17bf641f9ef94257b"
     },
     {
       "path": "assets/onboarding/screens/lumen_experience.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1996,
-      "sha256": "sha256:816fdeaaa0df871f4fb3cd8aaef87cf24adcf5f4af2d7a251c79fdfa89b9adcb"
+      "byteLength": 2157,
+      "sha256": "sha256:6cc46ad16dfdcc13b8b72103b67dc4917b4ef3484a783855b71e560143940a67"
     },
     {
       "path": "assets/onboarding/screens/lumen_goal.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:4495be44d45674abbf6c10807fd8dd7c9ba0532d77979010b7846eb14c5b45c3"
+      "sha256": "sha256:a58d6592e6f70ed7f4e8bd49c0e48819f063cd25532bec6dad358d738d791e31"
     },
     {
       "path": "assets/onboarding/screens/lumen_goal.rfw",
       "kind": "rfw-binary",
-      "byteLength": 4177,
-      "sha256": "sha256:b46aeed1f71dbbfca36db549f4f5111a3c47889c9824b9ee759ff717f92392cd"
+      "byteLength": 4430,
+      "sha256": "sha256:454170c530522ad7f23ea71108fa5130fd5d96c66cfce8b983ad04ea849f779a"
     },
     {
       "path": "assets/onboarding/screens/lumen_goal.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2438,
-      "sha256": "sha256:5d7019ec3f43e06efe9df7f2af66393d56b3c19fb41bd29120f908853ec73fce"
+      "byteLength": 2599,
+      "sha256": "sha256:98d1aa0038356ca23d8254a38185c7d60410c984cf8d7abe366f2cde0c951b11"
     },
     {
       "path": "assets/onboarding/screens/lumen_recap.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:1e5b7a196dcd1f3382e7c2017982e04412a8e58ed2dea963e2915258ca32904f"
+      "sha256": "sha256:d1e4ecfd4503104d40eddbfcf8beafb4943307be5c02a3febfbe3159db393b22"
     },
     {
       "path": "assets/onboarding/screens/lumen_recap.rfw",
       "kind": "rfw-binary",
-      "byteLength": 1940,
-      "sha256": "sha256:827d04612955aab21f74db2502ef0a457287666a42d85ae5702dca356ce87b33"
+      "byteLength": 2193,
+      "sha256": "sha256:5d1d5fcd80c6b81b3a32acf72ef68b77770635a7348f9de23286a67f623b80de"
     },
     {
       "path": "assets/onboarding/screens/lumen_recap.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1148,
-      "sha256": "sha256:902f9e3739b18a715294af4364582528ebb89e7219e68c77527fd04ddf8e4702"
+      "byteLength": 1309,
+      "sha256": "sha256:410485e59c8e15fda276b5fe14bc2640c51fa7a978ab2e3b8fa8dd2ae79e29de"
     },
     {
       "path": "assets/onboarding/screens/lumen_reminder.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:2efe0c840efebe78511cdef672c193db4527d1c89baf082915cf27890b21f51f"
+      "sha256": "sha256:f546ddc20a13867346458ba26eb32aa6944aaf100f0f1189122d29a9a3550ef2"
     },
     {
       "path": "assets/onboarding/screens/lumen_reminder.rfw",
       "kind": "rfw-binary",
-      "byteLength": 1953,
-      "sha256": "sha256:22700c033723ad89c8d0a6563209c3b36eb469e49dd925c2dc0f12f1a0f3bb8d"
+      "byteLength": 2206,
+      "sha256": "sha256:8835d08db06302d7d7a63665c8ebe5552d7d97cb8a08a787fd47718a9f3157a4"
     },
     {
       "path": "assets/onboarding/screens/lumen_reminder.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1162,
-      "sha256": "sha256:5d6c209f5e06466d526578c5e8a0980639307e7b03ed0ef2da3897d32aae52ec"
+      "byteLength": 1323,
+      "sha256": "sha256:5d4ba4fb5d5cd20edc4071aa0e1b9b19e76177ba64abd202bf41876f45287d68"
     },
     {
       "path": "assets/onboarding/screens/lumen_welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:f7d3af9ea93edc8f1f9f6f8342482034adf1f73ef00ec5bc3e659ac86b7e0d47"
+      "sha256": "sha256:875f152466fa50f344f23930e647708b5b23cdf7c7f325ae64aeee273b7f5275"
     },
     {
       "path": "assets/onboarding/screens/lumen_welcome.rfw",
       "kind": "rfw-binary",
-      "byteLength": 1942,
-      "sha256": "sha256:3636ccc10261d54ac427e81c3fd66a28e525953b1ec76467efa03a08486d10e5"
+      "byteLength": 2195,
+      "sha256": "sha256:2910ff0a6c959d98a6a718f9e2359463993444abb6d239471aeb7a3f2afc9ea8"
     },
     {
       "path": "assets/onboarding/screens/lumen_welcome.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1151,
-      "sha256": "sha256:786b193ecc4a92700cdaca3d7d03c9ab0bf72fc6064f4d070d5a711d708c6bd9"
+      "byteLength": 1313,
+      "sha256": "sha256:1003ac4e53cbc4f060aaf3ebb0777f0c6fed532ee68503f978b33f46079a42d6"
     },
     {
       "path": "assets/onboarding/screens/notify.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:fad76c068d13d2c2719941961bb9276d7a9ec9e4be524c749700934acde77140"
+      "sha256": "sha256:ae62aa0d8751d60acdf167638767785374057fa7b18d3393abe3e1ce1639df02"
     },
     {
       "path": "assets/onboarding/screens/notify.rfw",
       "kind": "rfw-binary",
-      "byteLength": 8623,
-      "sha256": "sha256:38fd54bf0669dfb57bd1a08907b660fabd1e15d500729baa193eb690bb5584b0"
+      "byteLength": 9737,
+      "sha256": "sha256:067e98150b09fa67bcf8e6d84d94cd90a64d93b5bde915cbe7bcb81b093ab159"
     },
     {
       "path": "assets/onboarding/screens/notify.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1293,
-      "sha256": "sha256:ea14063b83d8a5e49df262130d13bcf509ee1e445bbe295defa6a1bb43a02305"
+      "byteLength": 1455,
+      "sha256": "sha256:7a48c28c49608b9227187b819d22700883480db4ba9f6c2ca4cf9b7d4d84badc"
     },
     {
       "path": "assets/onboarding/screens/ready.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:b3fc602686a66b0e5279de125cdf70c2b5a4fc539b06629963c95bcb0c12faa1"
+      "sha256": "sha256:ccb62833b0cbfbb09e2ebe77e20f57909a5372366136f3944a094e8f3f17e011"
     },
     {
       "path": "assets/onboarding/screens/ready.rfw",
       "kind": "rfw-binary",
-      "byteLength": 7029,
-      "sha256": "sha256:5d54ecdf1965ff92ee89c08f2b901da747c0936a67fc2b6c1b845617b26ea8cc"
+      "byteLength": 8143,
+      "sha256": "sha256:143157c94ffbc33ab1d5ae999ec2f6c1de4384c274fac89165de4ac9cc67e236"
     },
     {
       "path": "assets/onboarding/screens/ready.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1127,
-      "sha256": "sha256:2f187f4de8095f0a53f81e1a3ae0ad019cd1033063858ce71b28e8620e861ca5"
+      "byteLength": 1289,
+      "sha256": "sha256:bde107b69c8865851ae45fc9c314ad068df5268661910a5b3026780ba1927181"
     },
     {
       "path": "assets/onboarding/screens/starter_bare_surface.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:bba9bb704911dd6161cd6ecdf5a16bc2fd60a269f57dbe480a64e303b76f3b44"
+      "sha256": "sha256:d241a55a10290f431866f046aac4f1f266ada84d534a1e0b6fa73da24d35aef7"
     },
     {
       "path": "assets/onboarding/screens/starter_bare_surface.rfw",
       "kind": "rfw-binary",
-      "byteLength": 4452,
-      "sha256": "sha256:6de2728859c0aec0004660708955a42e3db73435fccdf0669914780bd07b60bb"
+      "byteLength": 5572,
+      "sha256": "sha256:13a5af4c38820c6d42baff8944d8598a77a1377407c1b40a7169586688a5a35c"
     },
     {
       "path": "assets/onboarding/screens/starter_bare_surface.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 742,
-      "sha256": "sha256:57597c1cbd168f746bda9b82acc18fd25f6fb542618359f38d99f734de29d03d"
+      "byteLength": 883,
+      "sha256": "sha256:0ce3a05287e8e1eaaaf42c277be1c4cf266093233d0219e74afb90167a034bcc"
     },
     {
       "path": "assets/onboarding/screens/starter_done_explore.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:77fa634f2e6121ea0fd06ee561ef2a5b9c82bbc7f2511c6bf9d09cedc9773789"
+      "sha256": "sha256:55dea5c6293434c4d60d8e8c32fb3ae48656f64bf437b8393e6d2bf73e025bdf"
     },
     {
       "path": "assets/onboarding/screens/starter_done_explore.rfw",
       "kind": "rfw-binary",
-      "byteLength": 4775,
-      "sha256": "sha256:62cda5c154453f1ffd2cb7dde14f12f7ff9f1e6420c86ee1452d3090330ca280"
+      "byteLength": 5907,
+      "sha256": "sha256:834bfdd51c628d9ba6099be07ab726e6746017c75647b2178e7d603d5e18c2a3"
     },
     {
       "path": "assets/onboarding/screens/starter_done_explore.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 619,
-      "sha256": "sha256:4d94f48d32f4b656a5868d94a357770de8d2ee29a7ca5211d77cd32740b337f2"
+      "byteLength": 772,
+      "sha256": "sha256:b6c0c6532b406c312df5889065e534708442b631d55b638374042dc163b2b8d5"
     },
     {
       "path": "assets/onboarding/screens/starter_done_guided.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:60e3617b23cc44417c7889c7c634e278e60b800158d40300fc54113e84e77764"
+      "sha256": "sha256:f5eca7e4a9f7afc1bb628ad5a35c8d5e58d7683dace0c836b5902a486e4a3966"
     },
     {
       "path": "assets/onboarding/screens/starter_done_guided.rfw",
       "kind": "rfw-binary",
-      "byteLength": 4777,
-      "sha256": "sha256:0962187c9b11ac8b878bb43c71c1369b0e4b2553570acb3cb724f20ee02565df"
+      "byteLength": 5909,
+      "sha256": "sha256:e1baaed2707baad545339f1b40d954270b2231e79d7b4b86c6574c7253ffea48"
     },
     {
       "path": "assets/onboarding/screens/starter_done_guided.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 622,
-      "sha256": "sha256:72c39f6fbd22652d547cc06a73cc85633ea0e1c1aae2e198ed0a3eba0fc1d82c"
+      "byteLength": 775,
+      "sha256": "sha256:1ca8d5c9469000924c3d90b563b525458054cb77d9eda26b8fc7d140fa8719b3"
     },
     {
       "path": "assets/onboarding/screens/starter_question.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:e452dc014a3cb72fe328f2e5434502e474e76ffce340de32f73a9aa54bbf707e"
+      "sha256": "sha256:ee8fcddf0abc9d06a2db63af63282d238b1a0995a58eaa95ceffa50c70eac8c2"
     },
     {
       "path": "assets/onboarding/screens/starter_question.rfw",
       "kind": "rfw-binary",
-      "byteLength": 9265,
-      "sha256": "sha256:cb35cad5ed6ce5657a6c665dedcded825ede271efbb12a6452efeded295d79d2"
+      "byteLength": 10062,
+      "sha256": "sha256:5a53fa9ad3c90afd50dbfa71f9cfd6beee2943b7f6c3d8477e1d5a94d78ffdb7"
     },
     {
       "path": "assets/onboarding/screens/starter_question.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1244,
-      "sha256": "sha256:2245a71fa4ffd70084d74a5d41ecd9d6cee9e76deef0f759626a0bda3b1fdc00"
+      "byteLength": 1372,
+      "sha256": "sha256:1600f86b792e1d9e520904d32a5ef4bc13d590f79d3ade24d68be6ce6a5ca06d"
     },
     {
       "path": "assets/onboarding/screens/starter_welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:c44aa2221d21e33ed317aacf425c4c4aebf41407a292bb90d5c7e9c22c0b527f"
+      "sha256": "sha256:7bca55044420209699a95030e4772c6a355ff5cdd9c87ab0ebb2b6c6d730086f"
     },
     {
       "path": "assets/onboarding/screens/starter_welcome.rfw",
       "kind": "rfw-binary",
-      "byteLength": 4853,
-      "sha256": "sha256:fb7ad162fed0e177bc10d4cb35a05cf063110f1f8261ba3335f68c951bc20f97"
+      "byteLength": 5985,
+      "sha256": "sha256:dbbb16677c10250c552ba57a31d068a27815cd0e200a0ad34e3d0411a17e7fc4"
     },
     {
       "path": "assets/onboarding/screens/starter_welcome.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 673,
-      "sha256": "sha256:3bd0b3196ce96ac0a6504439b6c415983350d1a4441757a30b652bd4b1c5e723"
+      "byteLength": 826,
+      "sha256": "sha256:a2746a68c7e85a7e47947db1affc4ada4784cbdf2fecea849b1485a7ae174228"
     },
     {
       "path": "assets/onboarding/screens/stride_goals.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:2a0113362d3826e1dcb8ca2a33fd611aa04cb523585292ddb86e9f20856f081e"
+      "sha256": "sha256:ad5d4165515ad0055c9d09b3524e111ea2f504ce6ac805dd1e90475c315c55eb"
     },
     {
       "path": "assets/onboarding/screens/stride_goals.rfw",
       "kind": "rfw-binary",
-      "byteLength": 7028,
-      "sha256": "sha256:6a80c1e35eae9de2bcf13310fac41bd2c3f91b6ce329f60cb48accc07343b2b8"
+      "byteLength": 8142,
+      "sha256": "sha256:97742f406d98b54505a7d9343d154117c6438519989423e583547e6d29b16b54"
     },
     {
       "path": "assets/onboarding/screens/stride_goals.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1126,
-      "sha256": "sha256:874799d4e24992d21c9686bc30ee1b257566a0e01003be645fb60c64cc4f08c8"
+      "byteLength": 1288,
+      "sha256": "sha256:98e035ae5d913c13429bc3fbeaf105504d3836973a203fa7a0e9c46e1efa3912"
     },
     {
       "path": "assets/onboarding/screens/stride_ready.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:c5c16a934c366d7c1527cefdc846129ac5b40466e61d6c4e3f089c08a779c555"
+      "sha256": "sha256:d010c0c43c25e0d3aaea52ca4fb6584055be5e92d1d04d6e4b7a732362465b3c"
     },
     {
       "path": "assets/onboarding/screens/stride_ready.rfw",
       "kind": "rfw-binary",
-      "byteLength": 7017,
-      "sha256": "sha256:ed1661400bb59552ee38da7d80bf893d065762b563b1bad435e65c014acf0767"
+      "byteLength": 8131,
+      "sha256": "sha256:8149c998324526ac1d2054ed08023851961c0c88bfc4a5ecb25017154a581669"
     },
     {
       "path": "assets/onboarding/screens/stride_ready.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1115,
-      "sha256": "sha256:1bc5ff7bd136d51fca9b853e5e5bebc31eedbda6e76dec54fa66a2b3e777ab83"
+      "byteLength": 1277,
+      "sha256": "sha256:6202b4e61394d4ddbe6bcb99dfc937db2316a4556ab9c1f18addfb74a08b0feb"
     },
     {
       "path": "assets/onboarding/screens/stride_reminders.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:7a046c85a7f98339da1d269e13dd8a6c536fe599c1a824da0bbe443e0831b2de"
+      "sha256": "sha256:89a131bc811c5dbd3351a7d82b1611d4f317dfe534650fb8f3c7f5d841274eaf"
     },
     {
       "path": "assets/onboarding/screens/stride_reminders.rfw",
       "kind": "rfw-binary",
-      "byteLength": 8602,
-      "sha256": "sha256:b68c84a5f6b643046f5be7ad871cd38b00a5ade27015be779582fb2f2e7429db"
+      "byteLength": 9716,
+      "sha256": "sha256:6d3638d6f799f7be5c19ba46fe8c3936724def72d05def7ed87676cee586d1a4"
     },
     {
       "path": "assets/onboarding/screens/stride_reminders.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1272,
-      "sha256": "sha256:181dd34fa82ff023ba19ab337afc8b9c520f7582297bfcdb6544361257c8033c"
+      "byteLength": 1434,
+      "sha256": "sha256:e6bc3a185420fceffb6bf905fc3c24cfd80efeda38001a31555d100cd55917e5"
     },
     {
       "path": "assets/onboarding/screens/stride_welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:f5082464c51eaa004ef5fdae0bf2f22bf4f80b5d6cf5b4ed9f8e002848a1f481"
+      "sha256": "sha256:a52a3c3133a15abf2dd2ca7b55e7f9f388bc47d9455a005a04d1e268846a6480"
     },
     {
       "path": "assets/onboarding/screens/stride_welcome.rfw",
       "kind": "rfw-binary",
-      "byteLength": 7042,
-      "sha256": "sha256:c88ce52054ea4f1ceb949a92d1e489823e071ddfed99e3b533f2fd139eeaa0a5"
+      "byteLength": 8156,
+      "sha256": "sha256:baed612fe55112b179049015cf40cd139dfc3fb70855cd42c3558a508df6fddf"
     },
     {
       "path": "assets/onboarding/screens/stride_welcome.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1140,
-      "sha256": "sha256:484fc927689795ba4afaaa1f52174db530f5caa3c6b6187084261e0489636292"
+      "byteLength": 1302,
+      "sha256": "sha256:127e89dac657d45fde430959c953ff12b716999cc12eb7c1a5140ffc16f7e4ac"
     },
     {
       "path": "assets/onboarding/screens/tally_debt.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:c66993cf8d7e9c16d4d69df9207d376640a44f761cc79a90fd1416d419ce728f"
+      "sha256": "sha256:b51b877c873e0eb9e3d484ecdbb6344f992e68dc1a8da592123468524e4fa0e7"
     },
     {
       "path": "assets/onboarding/screens/tally_debt.rfw",
       "kind": "rfw-binary",
-      "byteLength": 13815,
-      "sha256": "sha256:4a0e7afb36fac2039189fa4c92a92a4c9e251c46fbcd2cd52d8c358024020a8c"
+      "byteLength": 14929,
+      "sha256": "sha256:67689d164669d36af45c3d45e549950e431f40033426babc7767d61d31ee9b37"
     },
     {
       "path": "assets/onboarding/screens/tally_debt.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2130,
-      "sha256": "sha256:6a9b6ab3d8f77683acd83a727f9dd2a52eb4ef2e5e55637ec31857af7c4e573c"
+      "byteLength": 2292,
+      "sha256": "sha256:5c1bc1728d418cff9f0aeaed26ded689b7e193f38034dc591eb3060376e98fa3"
     },
     {
       "path": "assets/onboarding/screens/tally_goal.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:e59072a9bd457853f1fbe7a5ad55741bf91bda360db4dd17dc3d951ca5541fb9"
+      "sha256": "sha256:7b7a30e57700741132cf57bc746d4b9148a7c3a65c1e9617a6ccc44d7bafb37f"
     },
     {
       "path": "assets/onboarding/screens/tally_goal.rfw",
       "kind": "rfw-binary",
-      "byteLength": 19730,
-      "sha256": "sha256:9d017c27d4c9aa31138282556cc70d1e4870be68bbe62f3093ee9a85c4ddd2ec"
+      "byteLength": 20844,
+      "sha256": "sha256:e5bd696043e1ec513449964b79c381632910d55311bb501d315fbed4bed77075"
     },
     {
       "path": "assets/onboarding/screens/tally_goal.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2676,
-      "sha256": "sha256:4baacef6c44c7e352ceefa53f57432637c30310bb57467a3fd932620bfc33e8d"
+      "byteLength": 2838,
+      "sha256": "sha256:bd0e39705beea1e11adca08daeb9124f379b24746a162548826a0eca96f2ba0f"
     },
     {
       "path": "assets/onboarding/screens/tally_invest.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:4e1723197a59bc71a5bac97d54953cd8ad588d48bc22b567edaac0ab52ec9ab0"
+      "sha256": "sha256:0ccf4c2ff469eed4d3b1dfcecc34191534bb36596052568382136e5627292edd"
     },
     {
       "path": "assets/onboarding/screens/tally_invest.rfw",
       "kind": "rfw-binary",
-      "byteLength": 18157,
-      "sha256": "sha256:a77199df3c2ab3b9f2c323b1f5240db1ff842ec7516df9d85aedaa0aa9cc7884"
+      "byteLength": 19271,
+      "sha256": "sha256:cc53509bc8f1b6954eb1f454bc6d4ff9783483f0bf8eacbc045d5b33782c1d46"
     },
     {
       "path": "assets/onboarding/screens/tally_invest.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2622,
-      "sha256": "sha256:6cab4bdf669ad04ddb08fba2394257064468e78ac527d1a6c4ddf6437f20f129"
+      "byteLength": 2784,
+      "sha256": "sha256:1e5a40219678e5a1b2141d062a249b916efc12f4b604a330505d81ff3381a5a0"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_debt.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:4154d68694dec0a318b1a7ca7084e8a9a01db94413e5b2f7e5f70f28d3ed44b7"
+      "sha256": "sha256:6da3258ef9feee3583b5f6d081e82135244691f0a6d6e6c7e66929b5dbf95948"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_debt.rfw",
       "kind": "rfw-binary",
-      "byteLength": 9641,
-      "sha256": "sha256:f64a53475187a2b12c7bc37054570a9668f29c2fe795f6f903b015bba6125e39"
+      "byteLength": 10755,
+      "sha256": "sha256:0b9e44badf5bcff151ad28b14d35e5c7ac62e1237c9c43b22e4a61138ae8d2e4"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_debt.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1524,
-      "sha256": "sha256:8e80a5ef517c64c46609058164a3a0d02979e9a63d852883ab3c16c0373e8943"
+      "byteLength": 1686,
+      "sha256": "sha256:ec56b376533ebae1ef592ee9f2442388dc8e55e775aba3fc7b36eac5efa120fd"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_invest.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:62b9ab496ca8e3d8e7c205d1fe152bf22470d0197e96b1a0a6a88a796a4b4b9f"
+      "sha256": "sha256:f8dfb19b53e3178e3a890f503ccda3d779434c0556f86fe4c45f2e3a47659770"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_invest.rfw",
       "kind": "rfw-binary",
-      "byteLength": 9633,
-      "sha256": "sha256:8c093d2915e596ffad49b2d68c2c3a889a0ac440c7bf2b492852dd6f3944da36"
+      "byteLength": 10747,
+      "sha256": "sha256:b4edbd2c2f314328323caf565dcce298ecc8618d21302f53d7deadec3a5066ce"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_invest.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1517,
-      "sha256": "sha256:bcf8523b0957bf59caf3deb16627143d6db9b31c726ec6ea7b009a779b2e9c26"
+      "byteLength": 1679,
+      "sha256": "sha256:c4f256b9fecfa6990625cab0a5dc3f7bf5eb362640c56d78628a7083f7a6c451"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_savings.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:60f5214857f91d6b25b2ca05a05f24ed437301639765a6ab56aa32186a04eb7d"
+      "sha256": "sha256:55cd96fe0a34b046bca02b452ad9bf8a059cce5f3b323a2fe979ffbef49fc76a"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_savings.rfw",
       "kind": "rfw-binary",
-      "byteLength": 9643,
-      "sha256": "sha256:4b54c561481aee5da3aa7bd13e5af9ba6adc9daf16e4f81c2b8199ca756135ea"
+      "byteLength": 10757,
+      "sha256": "sha256:7ef36dad11958fdf645edca828d36a8da23b27a2832c3b483c0dba72cc854e8e"
     },
     {
       "path": "assets/onboarding/screens/tally_recap_savings.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1527,
-      "sha256": "sha256:fc631d6efb5e0f984b2439d11de53d1197de8c3718740d5c36ce13c7b1e66a4f"
+      "byteLength": 1689,
+      "sha256": "sha256:a4ff8f96cbef91952782daace795bc22ec8822f0105235314d572da6e624a8dd"
     },
     {
       "path": "assets/onboarding/screens/tally_savings.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:5e12a4900012cf993c542cdade34d3bd6e5682b211e1e7083144bbb4bcfc9a02"
+      "sha256": "sha256:e47b872507965e72426b48a818a941f5277bb47e83aa44137f2b042fe42e332f"
     },
     {
       "path": "assets/onboarding/screens/tally_savings.rfw",
       "kind": "rfw-binary",
-      "byteLength": 13810,
-      "sha256": "sha256:41e2fe19034b37c39e8fe69917e23ff537b26757af74a470af0266955877ff0a"
+      "byteLength": 14924,
+      "sha256": "sha256:87c73cd326b34e59b6d239f6879b2d0c271906c27bf27e0caaec0c8a60ad7db7"
     },
     {
       "path": "assets/onboarding/screens/tally_savings.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2125,
-      "sha256": "sha256:b9ce40613fc480be32bd1ce0f6578eead28827040b90727dbb006199c1f66ad8"
+      "byteLength": 2287,
+      "sha256": "sha256:84ed5602c256bd2e6f30d7bf828929a1c169c2eaee8d7a2c695969692b31eb33"
     },
     {
       "path": "assets/onboarding/screens/tally_welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:0a7abd319e37f9d1a26356e1f58e1c152e91bcbf50980e3f907710a5f520a7de"
+      "sha256": "sha256:32f4117c9bfab39013298c457bbae76038b4bd1cb6cf220d80e79186fbc17df3"
     },
     {
       "path": "assets/onboarding/screens/tally_welcome.rfw",
       "kind": "rfw-binary",
-      "byteLength": 10783,
-      "sha256": "sha256:882e34d5a90ff4196433a216a5449ddb3b33e95b2d6813b363d70f03d44e81cb"
+      "byteLength": 11897,
+      "sha256": "sha256:cbb6c000f00ef99efc043248b131d29275f2e80211395c49e8a84a527db9ba34"
     },
     {
       "path": "assets/onboarding/screens/tally_welcome.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1713,
-      "sha256": "sha256:601ae83e27407f9cb3f538992c3b51e5d64cc851fa63259f12a6b1f8995f124a"
+      "byteLength": 1875,
+      "sha256": "sha256:e0867144a18d30d2edc23f92aa848dcc49b6eb99fd2f214558fb1b3d93e64430"
     },
     {
       "path": "assets/onboarding/screens/value.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:88330b04cb0cd1ef18fbf5c78616d2c45cefa60d3f2bac84d3ff0dc748e1704f"
+      "sha256": "sha256:88cfe130d0c88feb6ef15e04d516b0e6a03f91ea8337ccb3db502c0b1b28e386"
     },
     {
       "path": "assets/onboarding/screens/value.rfw",
       "kind": "rfw-binary",
-      "byteLength": 7038,
-      "sha256": "sha256:002999082be5d82bc0efb1c858ccf1b35337311c9d605cd0e7bda773688e3e71"
+      "byteLength": 8152,
+      "sha256": "sha256:4934231b3553b687d2fb0aaedcf7ad34050abbceb7af3f72fb2cc15e830b7f60"
     },
     {
       "path": "assets/onboarding/screens/value.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1136,
-      "sha256": "sha256:bb1170483f76568d204127b75754b5039547bb33717310f7702dcdb7122e19aa"
+      "byteLength": 1298,
+      "sha256": "sha256:6e1fcb301aeb93c04d80ec1750f1d2a520c6bf42047b53b2b55929ccc7abf857"
     },
     {
       "path": "assets/onboarding/screens/welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 141,
-      "sha256": "sha256:68dfba21a81e4e7eb3c8262a51f867b46350efd5b9f5c8781a49eef242d88433"
+      "sha256": "sha256:42dd25049587d11597c58f453e9e037afdd991791c91ce4e880f70e44674b8de"
     },
     {
       "path": "assets/onboarding/screens/welcome.rfw",
       "kind": "rfw-binary",
       "byteLength": 7032,
-      "sha256": "sha256:9ac5d1fb421b3ab0637e9b51195aa95e8bce58c01c4a7a08a674fc7cab74d9ad"
+      "sha256": "sha256:96d237cc24f1c64ace9a00b0ecdcc564e4246e0b403171230214bf4c9fb415b5"
     },
     {
       "path": "assets/onboarding/screens/welcome.rfwtxt",
@@ -541,13 +541,13 @@
       "path": "lib/onboarding/flows/restage.generated/bare_surface.restage.g.dart",
       "kind": "descriptor",
       "byteLength": 978,
-      "sha256": "sha256:ac1250ba1f24a903300c1a60088fcc13cdf4f79de9083f1482372a65b4bfdcb8"
+      "sha256": "sha256:7e0f108517e747397de1d99f4095b4423ddf38917e28def2121107f8e6eb4c26"
     },
     {
       "path": "lib/onboarding/flows/restage.generated/first_run.restage.g.dart",
       "kind": "descriptor",
       "byteLength": 2686,
-      "sha256": "sha256:0590b0e3f82bf24e9a891ffd0d9367f30eae3ce063023d851b363b3731339009"
+      "sha256": "sha256:0725df97b6284de4d25f47332ed0552a5bbe2cf532c197aca3f6f484d06cac1d"
     },
     {
       "path": "lib/onboarding/flows/restage.generated/lumen_onboarding.restage.g.dart",
@@ -559,19 +559,19 @@
       "path": "lib/onboarding/flows/restage.generated/minimal_onboarding.restage.g.dart",
       "kind": "descriptor",
       "byteLength": 1091,
-      "sha256": "sha256:5636019ab58373c6f15c53251d8fe38b6120398c3ac6e145cb7d0342ab4ef7ab"
+      "sha256": "sha256:34c76c2d84bd0c76d7b533d8924ce60af342e9ca7e3ba88cde5033d7d6593657"
     },
     {
       "path": "lib/onboarding/flows/restage.generated/stride_first_run.restage.g.dart",
       "kind": "descriptor",
       "byteLength": 2423,
-      "sha256": "sha256:9d58e53adb62e7d53149a74be3d4933a452a29bce28a891c5c39d832f89deb7e"
+      "sha256": "sha256:a82a379f840ca09d5ec07351789a9778d3db56db7e70dd5e204e2ea07252405c"
     },
     {
       "path": "lib/onboarding/flows/restage.generated/tally_onboarding.restage.g.dart",
       "kind": "descriptor",
       "byteLength": 1057,
-      "sha256": "sha256:07b4f6080c1e6886a450fd0c01240af75761ed702ae4f90cd34c739fa784aff6"
+      "sha256": "sha256:d501e1ef5a7a812b1ba131b72f699a4423e450e8c8e001f1da97dc1bd3e9ee9e"
     },
     {
       "path": "lib/onboarding/screens/restage.generated/lumen_experience.restage.g.dart",

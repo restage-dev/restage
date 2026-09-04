@@ -842,38 +842,27 @@ void main() {
   });
 
   group('gallery navigation (back affordance)', () {
-    testWidgets(
-        'tapping a tile mounts the example under a back button, and '
-        'the back button returns to the gallery menu', (tester) async {
+    testWidgets('tapping a tile mounts the example and system back returns',
+        (tester) async {
       _useTallSurface(tester);
       await tester.pumpWidget(const RestageExampleApp());
       await tester.pumpAndSettle();
 
-      // The gallery menu is showing and the back affordance is not.
       expect(find.text('Restage SDK Examples'), findsOneWidget);
       expect(find.byType(ExampleViewer), findsNothing);
-      expect(find.byTooltip('Back to examples'), findsNothing);
 
-      // Open a closeless full-bleed surface — one that has no own close
-      // affordance, so it keeps the host back button as its only escape. The
-      // "Hello" demo blob is exactly that surface (the only tile with the host
-      // escape button enabled).
+      // A closeless full-bleed surface: leaving it is the platform's own back.
       await tester.tap(find.text('Hello'));
       await tester.pumpAndSettle();
 
-      // The example mounts full-screen under the back affordance, and the
-      // gallery menu is no longer the active (on-stage) route.
       expect(find.byType(ExampleViewer), findsOneWidget);
-      expect(find.byTooltip('Back to examples'), findsOneWidget);
       expect(find.text('Restage SDK Examples'), findsNothing);
 
-      // The back button returns to the gallery menu.
-      await tester.tap(find.byTooltip('Back to examples'));
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
       expect(find.text('Restage SDK Examples'), findsOneWidget);
       expect(find.byType(ExampleViewer), findsNothing);
-      expect(find.byTooltip('Back to examples'), findsNothing);
     });
   });
 

@@ -1824,10 +1824,10 @@ bool _isEmittableProperty(
       // (sort_child_properties_last lint).
       return true;
     case PropertyType.widgetList:
-      // Customer factories lower every exact list property. Curated catalogs
-      // retain their historical single canonical `children` policy, which is
-      // dispatched through `_canonicalChildPropertyOf`.
-      return customerChildProperties;
+      // Every exact list property lowers: the canonical `children` slot is
+      // dispatched through `_canonicalChildPropertyOf`, and any other named
+      // list reads its own `source.childList` path.
+      return true;
     case PropertyType.event:
     case PropertyType.dataReference:
       return false;

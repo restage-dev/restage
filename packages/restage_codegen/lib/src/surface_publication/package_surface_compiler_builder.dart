@@ -655,6 +655,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         nextIdentitySequence: measurementAssembly.nextIdentitySequence,
         ledgerNodes: measurementAssembly.ledgerNodes,
         acceptedRelocations: priorMeasurementOutput.acceptedRelocations,
+        acceptedIntroductions: measurementAssembly.pendingIntroductions,
         proposals: measurementAssembly.proposals,
         publications: const [],
       ),
@@ -865,6 +866,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     nextIdentitySequence: measurementAssembly.nextIdentitySequence,
     ledgerNodes: measurementAssembly.ledgerNodes,
     acceptedRelocations: priorMeasurementOutput.acceptedRelocations,
+    acceptedIntroductions: measurementAssembly.pendingIntroductions,
     proposals: const [],
     publications: bundle.measurementPublications,
   );
@@ -2633,6 +2635,7 @@ TrackedPackageSurfaceCompilation _invalidCompilation(
           nextIdentitySequence: supplied?.nextIdentitySequence ?? 1,
           ledgerNodes: supplied?.ledgerNodes ?? const [],
           acceptedRelocations: supplied?.acceptedRelocations ?? const [],
+          acceptedIntroductions: supplied?.acceptedIntroductions ?? const [],
           proposals: supplied?.proposals ?? const [],
           publications: const [],
         );

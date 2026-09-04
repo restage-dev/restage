@@ -108,10 +108,42 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0459",
+          "name": "leading",
+          "type": "widget",
+          "description": "{@template flutter.material.appbar.leading} A widget to display before the toolbar's [title].",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0460",
+          "name": "automaticallyImplyLeading",
+          "type": "boolean",
+          "description": "{@template flutter.material.appbar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
           "wireId": "p0006",
           "name": "title",
           "type": "widget",
           "description": "{@template flutter.material.appbar.title} The primary widget displayed in the app bar.",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0461",
+          "name": "actions",
+          "type": "widgetList",
+          "description": "{@template flutter.material.appbar.actions} A list of Widgets to display in a row after the [title] widget.",
           "constructorNullable": true
         },
         {
@@ -126,6 +158,51 @@
             "dartTypeRef": {
               "libraryUri": "dart:core",
               "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0462",
+          "name": "scrolledUnderElevation",
+          "type": "length",
+          "description": "{@template flutter.material.appbar.scrolledUnderElevation} The elevation that will be used if this app bar has something scrolled underneath it.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0463",
+          "name": "shadowColor",
+          "type": "color",
+          "description": "{@template flutter.material.appbar.shadowColor} The color of the shadow below the app bar.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0464",
+          "name": "surfaceTintColor",
+          "type": "color",
+          "description": "{@template flutter.material.appbar.surfaceTintColor} The color of the surface tint overlay applied to the app bar's background color to indicate elevation.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
             }
           }
         },
@@ -169,6 +246,24 @@
           }
         },
         {
+          "wireId": "p0465",
+          "name": "primary",
+          "type": "boolean",
+          "description": "{@template flutter.material.appbar.primary} Whether this app bar is being displayed at the top of the screen.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
           "wireId": "p0010",
           "name": "centerTitle",
           "type": "boolean",
@@ -178,6 +273,69 @@
             "value": true
           },
           "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0466",
+          "name": "titleSpacing",
+          "type": "length",
+          "description": "{@template flutter.material.appbar.titleSpacing} The spacing around [title] content on the horizontal axis. This spacing is applied even if there is no [leading] content or [actions]. If you want [title] to take all the space available, set this value to 0.0.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0467",
+          "name": "toolbarHeight",
+          "type": "length",
+          "description": "{@template flutter.material.appbar.toolbarHeight} Defines the height of the toolbar component of an [AppBar].",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0468",
+          "name": "leadingWidth",
+          "type": "length",
+          "description": "{@template flutter.material.appbar.leadingWidth} Defines the width of [AppBar.leading] widget.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0469",
+          "name": "forceMaterialTransparency",
+          "type": "boolean",
+          "description": "{@template flutter.material.appbar.forceMaterialTransparency} Forces the AppBar's Material widget type to be [MaterialType.transparency] (instead of Material's default type).",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -200,6 +358,21 @@
             "enumRef": {
               "libraryUri": "dart:ui",
               "symbolName": "Clip"
+            }
+          }
+        },
+        {
+          "wireId": "p0470",
+          "name": "actionsPadding",
+          "type": "edgeInsets",
+          "description": "{@template flutter.material.appbar.actionsPadding} The padding between the [actions] and the end of the AppBar.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "edgeInsets",
+            "dartTypeRef": {
+              "libraryUri": "package:flutter/src/painting/edge_insets.dart",
+              "symbolName": "EdgeInsetsGeometry"
             }
           }
         },

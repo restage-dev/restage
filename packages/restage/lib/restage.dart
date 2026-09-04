@@ -22,7 +22,6 @@ export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
 export 'src/events/event_enums.dart';
 export 'src/events/restage_event.dart';
-export 'src/flow/flow_chrome.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
 export 'src/flow/flow_descriptors.dart';
 export 'src/flow/flow_experiment_artifact_metadata.dart'

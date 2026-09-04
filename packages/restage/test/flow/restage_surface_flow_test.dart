@@ -179,21 +179,13 @@ void main() {
       loadingBuilder: (_) => const Text('loading'),
       transition: null,
       systemBack: SystemBackPolicy.popHost,
-      enableSkip: true,
-      chromeTheme: null,
-      persistentChrome: false,
-      backBuilder: null,
-      skipBuilder: null,
-      chromeBuilder: null,
-      persistentChromeBuilder: null,
       liveRefresh: const {},
     );
 
     expect(widget.flow, _messageFlowRef);
     expect(widget.resolver, same(resolver));
     expect(widget.installedSignalNames, {'signal'});
-    expect(widget.enableSkip, isTrue);
-    expect(widget.persistentChrome, isFalse);
+    expect(widget.systemBack, SystemBackPolicy.popHost);
   });
 
   for (final testCase in const [

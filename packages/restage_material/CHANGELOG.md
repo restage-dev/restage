@@ -2,6 +2,11 @@
 
 ## 2.0.0
 
+- `AppBar` admits `leading`, `actions`, `automaticallyImplyLeading`,
+  `toolbarHeight`, `titleSpacing`, `leadingWidth`, `scrolledUnderElevation`,
+  `shadowColor`, `surfaceTintColor`, `primary`, `forceMaterialTransparency`
+  and `actionsPadding`. A delivered screen can place its own controls in the
+  bar, and the bar's back control follows the host route.
 - Remove the authored commerce widgets `Package` and
   `ExpressCheckoutButton`. Authored surfaces do not initiate purchases or
   restores; host code decides how to handle UI intent.

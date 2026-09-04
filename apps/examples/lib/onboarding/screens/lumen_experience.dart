@@ -20,160 +20,175 @@ class LumenExperienceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F5FB),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              const Text(
-                'How much have you meditated?',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF2A2833),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "We'll tailor your first sessions to fit.",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF847F92),
-                  height: 1.4,
-                ),
-              ),
-              Expanded(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // The flow's history lives on the host route, so this bar shows a
+          // back button from the second screen on with no wiring of its own.
+          AppBar(
+            backgroundColor: const Color(0xFFF7F5FB),
+            elevation: 0,
+            foregroundColor: const Color(0xFF2A2833),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    GestureDetector(
-                      onTap: surfaceEvent(next),
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(
-                            color: const Color(0xFFE5E1F0),
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.spa_rounded,
-                              color: Color(0xFF7C6CD6),
-                              size: 26,
-                            ),
-                            const SizedBox(width: 14),
-                            const Expanded(
-                              child: Text(
-                                "I'm new to meditation",
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF2A2833),
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Color(0xFFA9A4BB),
-                              size: 24,
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'How much have you meditated?',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF2A2833),
+                        letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    GestureDetector(
-                      onTap: surfaceEvent(next),
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(
-                            color: const Color(0xFFE5E1F0),
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.eco_rounded,
-                              color: Color(0xFF7C6CD6),
-                              size: 26,
-                            ),
-                            const SizedBox(width: 14),
-                            const Expanded(
-                              child: Text(
-                                "I've practiced a little",
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF2A2833),
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Color(0xFFA9A4BB),
-                              size: 24,
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      "We'll tailor your first sessions to fit.",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF847F92),
+                        height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    GestureDetector(
-                      onTap: surfaceEvent(next),
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(
-                            color: const Color(0xFFE5E1F0),
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.forest_rounded,
-                              color: Color(0xFF7C6CD6),
-                              size: 26,
-                            ),
-                            const SizedBox(width: 14),
-                            const Expanded(
-                              child: Text(
-                                "I'm experienced",
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF2A2833),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          GestureDetector(
+                            onTap: surfaceEvent(next),
+                            child: Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: const Color(0xFFE5E1F0),
+                                  width: 2,
                                 ),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.spa_rounded,
+                                    color: Color(0xFF7C6CD6),
+                                    size: 26,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  const Expanded(
+                                    child: Text(
+                                      "I'm new to meditation",
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF2A2833),
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFFA9A4BB),
+                                    size: 24,
+                                  ),
+                                ],
                               ),
                             ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Color(0xFFA9A4BB),
-                              size: 24,
+                          ),
+                          const SizedBox(height: 14),
+                          GestureDetector(
+                            onTap: surfaceEvent(next),
+                            child: Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: const Color(0xFFE5E1F0),
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.eco_rounded,
+                                    color: Color(0xFF7C6CD6),
+                                    size: 26,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  const Expanded(
+                                    child: Text(
+                                      "I've practiced a little",
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF2A2833),
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFFA9A4BB),
+                                    size: 24,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 14),
+                          GestureDetector(
+                            onTap: surfaceEvent(next),
+                            child: Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: const Color(0xFFE5E1F0),
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.forest_rounded,
+                                    color: Color(0xFF7C6CD6),
+                                    size: 26,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  const Expanded(
+                                    child: Text(
+                                      "I'm experienced",
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF2A2833),
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFFA9A4BB),
+                                    size: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

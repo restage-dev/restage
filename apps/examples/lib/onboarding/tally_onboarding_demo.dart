@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 import 'flows/tally_onboarding.dart';
-import 'gallery_dismiss.dart';
 
 /// Hosts the Tally goal-fork onboarding — the public answer-branching template.
 ///
@@ -37,15 +36,6 @@ class _TallyOnboardingDemoState extends State<TallyOnboardingDemo> {
         if (mounted) setState(() => _completed = true);
       },
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFFFBF7F0)),
-      // The flow paints on a light cream canvas, so the escape chrome glyphs
-      // are dark; the chevron handles in-flow back.
-      persistentChromeBuilder: (context, state, body) => GalleryFlowChrome(
-        state: state,
-        body: body,
-        backColor: const Color(0xFF1F2421),
-        closeColor: const Color(0xFF1F2421),
-        closeScrim: const Color(0x14000000),
-      ),
       unavailable: FlowUnavailablePolicy.fallback(
         builder: (context, error) => Scaffold(
           backgroundColor: const Color(0xFFFBF7F0),
@@ -67,8 +57,8 @@ class _CompletionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The terminal hand-off. In a real app this is the app itself; in the
-    // gallery it needs a way back, so it carries the close-to-gallery affordance.
+    // The terminal hand-off. In a real app this is the app itself; system
+    // back returns to the gallery from here.
     return Scaffold(
       backgroundColor: const Color(0xFFFBF7F0),
       body: Stack(
@@ -84,14 +74,6 @@ class _CompletionScreen extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: GalleryDismissButton(
-              color: Color(0xFF1F2421),
-              scrim: Color(0x14000000),
             ),
           ),
         ],

@@ -411,6 +411,42 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
         ),
         PropertyEntry(
+          wireId: WireId('p0173'),
+          name: 'automaticallyImplyLeading',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.cupertino.CupertinoNavigationBar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0174'),
+          name: 'automaticallyImplyMiddle',
+          type: PropertyType.boolean,
+          description:
+              'Controls whether we should try to imply the middle widget if null.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0175'),
+          name: 'previousPageTitle',
+          type: PropertyType.string,
+          description:
+              '{@template flutter.cupertino.CupertinoNavigationBar.previousPageTitle} Manually specify the previous route\'s title when automatically implying the leading back button.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0027'),
           name: 'middle',
           type: PropertyType.widget,
@@ -438,6 +474,43 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.color,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0176'),
+          name: 'automaticBackgroundVisibility',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.cupertino.CupertinoNavigationBar.automaticBackgroundVisibility} Whether the navigation bar appears transparent when no content is scrolled under.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0177'),
+          name: 'enableBackgroundFilterBlur',
+          type: PropertyType.boolean,
+          description:
+              '{@template flutter.cupertino.CupertinoNavigationBar.enableBackgroundFilterBlur} Whether to have a blur effect when a non-opaque background color is used.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0178'),
+          name: 'brightness',
+          type: PropertyType.enumValue,
+          description:
+              '{@template flutter.cupertino.CupertinoNavigationBar.brightness} The brightness of the specified [backgroundColor].',
+          enumType: 'Brightness',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Brightness')),
         ),
         PropertyEntry(
           wireId: WireId('p0163'),

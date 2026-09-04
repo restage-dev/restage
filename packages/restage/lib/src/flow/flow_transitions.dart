@@ -1,10 +1,6 @@
-// Transition widgets come from two libraries: `CupertinoPageTransition` from
-// the framework's Cupertino library and `SharedAxisTransition` from the
-// Flutter-team `animations` package. Both are platform-motion sources isolated
-// to these imports, so when the framework's Material/Cupertino libraries become
-// standalone packages, swapping these import lines is the whole migration — no
-// call-site changes.
-import 'package:animations/animations.dart';
+// `CupertinoPageTransition` comes from the framework's Cupertino library, the
+// only platform-motion import here, so when that library becomes a standalone
+// package swapping the import line is the whole migration.
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 
@@ -23,7 +19,7 @@ typedef FlowTransitionBuilder = Widget Function(
 );
 
 /// The platform-adaptive default flow transition: a Cupertino push on
-/// iOS/macOS, a Material-3 shared-axis (horizontal) transition elsewhere.
+/// iOS/macOS, a horizontal shared-axis motion elsewhere.
 ///
 /// Identical in light and dark. A host that wants a fixed transition regardless
 /// of platform supplies its own [FlowTransitionBuilder].
@@ -47,21 +43,48 @@ Widget defaultFlowTransitionBuilder(
     case TargetPlatform.fuchsia:
     case TargetPlatform.linux:
     case TargetPlatform.windows:
-      // The canonical Material-3 shared-axis (horizontal) transition. The
-      // existing AnimationController drives [animation]/[secondaryAnimation] (so
-      // the flow keeps duration control); the package owns the slide offset,
-      // fade stagger, and curve, tracking the Material spec automatically. An
-      // incoming screen has [secondaryAnimation] at 0 and an outgoing screen
-      // has [animation] at 1, so each mounted screen plays exactly one role.
-      return SharedAxisTransition(
-        transitionType: SharedAxisTransitionType.horizontal,
+      // A horizontal shared-axis motion in which only the entering screen
+      // fades. Each flow screen paints its own background, so the screen
+      // beneath stays opaque while the one above slides and fades over it and
+      // nothing shows through between them.
+      return _SharedAxisOverlay(
         animation: animation,
         secondaryAnimation: secondaryAnimation,
-        // Transparent fill: each flow screen paints its own background, so the
-        // package's default opaque `Theme.canvasColor` fill would flash through
-        // the slide+fade between screens. (0x00000000 is fully transparent.)
-        fillColor: const Color(0x00000000),
         child: child,
       );
+  }
+}
+
+/// Horizontal shared-axis motion for one flow screen.
+///
+/// The entering screen slides in from the trailing edge and fades in over the
+/// screen it covers, which stays put at full opacity, so nothing behind the
+/// pair ever shows through. Run in reverse the same motion plays a back.
+class _SharedAxisOverlay extends StatelessWidget {
+  const _SharedAxisOverlay({
+    required this.animation,
+    required this.secondaryAnimation,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+
+  /// Unused: the covered screen does not move.
+  final Animation<double> secondaryAnimation;
+  final Widget child;
+
+  static const double _shift = 0.08;
+  static const Curve _curve = Curves.easeInOutCubicEmphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final enter = CurvedAnimation(parent: animation, curve: _curve);
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(_shift, 0),
+        end: Offset.zero,
+      ).animate(enter),
+      child: FadeTransition(opacity: enter, child: child),
+    );
   }
 }

@@ -2,6 +2,16 @@
 
 ## 2.0.0
 
+A named widget list on a catalog widget lowers under its own name, so
+`AppBar.actions` reaches the delivered screen. The canonical `children` slot is
+unchanged.
+
+The Measurement ledger accepts a reviewed introduction: an entry under
+`acceptedIntroductions` naming a structural key declares the node new, so a
+retired node with the same fingerprint is not proposed as its prior. An entry
+is honoured once and retires itself. The ledger's `acceptedIntroductions` key
+is always written and required on read.
+
 **Breaking: typed survey flows emit schema version 2.** Their generated flow
 documents include `surveyQuestionOrder`, preserving the authored order of
 declared survey answer identifiers.
