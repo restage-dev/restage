@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="brand/restage-wordmark-oscillate-4.0s-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="brand/restage-wordmark-oscillate-4.0s-light.svg">
-    <img alt="Restage" src="brand/restage-wordmark-oscillate-4.0s-light.webp" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="brand/restage-wordmark-bold-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="brand/restage-wordmark-bold-light.svg">
+    <img alt="Restage" src="brand/restage-wordmark-banner-dark.png" width="320">
   </picture>
 </p>
 
@@ -102,7 +102,7 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
 - **It covers any part of the app.** A whole screen, a paywall, an onboarding
   flow, a survey, or one card inside your own `Scaffold`. One runtime renders
   all of them.
-- **It has a catalog of 118 widgets** across `restage_core`,
+- **It has a catalog of 116 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
   `@RestageWidget`.
 - **It ships only content.** An update changes what your app shows. It runs
