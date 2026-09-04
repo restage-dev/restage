@@ -1,9 +1,6 @@
 # Changelog
 
-## Unreleased — coordinated breaking release
-
-This section records the package side of a coordinated breaking release. The
-release version and publication timing are assigned separately.
+## 2.0.0
 
 - Make the unnamed generative constructor the source of truth for custom
   widget inputs, requiredness, positionalness, and order; descriptions may come
@@ -24,9 +21,6 @@ release version and publication timing are assigned separately.
   are derived from every exact `Widget` and `List<Widget>` constructor input;
   the `ChildrenSlot` enum and `WidgetEntry.childrenSlot` wire field remain for
   curated built-ins and backwards-compatible decoding.
-
-## 1.2.0
-
 - Add typed `RestageConstraints` to property annotations and catalog entries,
   with deterministic schema-v4 encoding and structural preservation of unknown
   constraint keywords.

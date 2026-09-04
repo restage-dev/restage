@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — coordinated breaking release
+## 2.0.0
 
 - Regenerate the catalog as schema v5 with callback property names serving as
   open event identities.

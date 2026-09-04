@@ -1,19 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Added optional host render context to screen, paywall, flow, and onboarding
-  mounts through `context:`.
-- Added `populateContextData` for publishing inert host values under
-  `data.context.*`.
-- Host context supports 32 collection levels below the root, 10,000 retained
-  normalized nodes including the root, and 100,000 inspected map entries or
-  list elements per normalization. Null map values are omitted; null list
-  elements are dropped and lists compact. Invalid input throws in debug or
-  reports and omits the offending value or collection in release.
-- A scalar context change rebuilds only the nodes that read its path; list
-  reconciliation is positional.
-
 ## 2.0.0
 
 A breaking release. The breaking changes are called out below; everything
@@ -221,6 +207,17 @@ Other changes:
   surfaces attribute an experiment the same way a paywall does. Experiment
   dimensions come only from an authoritative root binding; payload-claimed
   assignments are scrubbed and never trusted.
+- Added optional host render context to screen, paywall, flow, and onboarding
+  mounts through `context:`.
+- Added `populateContextData` for publishing inert host values under
+  `data.context.*`.
+- Host context supports 32 collection levels below the root, 10,000 retained
+  normalized nodes including the root, and 100,000 inspected map entries or
+  list elements per normalization. Null map values are omitted; null list
+  elements are dropped and lists compact. Invalid input throws in debug or
+  reports and omits the offending value or collection in release.
+- A scalar context change rebuilds only the nodes that read its path; list
+  reconciliation is positional.
 
 ## 1.3.0
 

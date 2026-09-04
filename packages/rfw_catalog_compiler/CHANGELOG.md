@@ -1,4 +1,6 @@
-# Unreleased — coordinated breaking release
+# Changelog
+
+## 2.0.0
 
 - Carry open event properties through compiler IR without a closed event-name
   list or rename field, and lower canonical catalog schema v5.
@@ -12,32 +14,29 @@
   label, require exactly one trailing source delimiter, and cascade through
   their parameters from the most specific current or historical owner prefix
   with exactly one delimiter across named/unnamed changes.
-
-# 1.2.0
-
 - Preserve typed property constraints through compiler IR, linking, adapters,
   and schema lowering.
 - Resolve deterministic nested field descriptions for structured catalog
   shapes.
-- Require `rfw_catalog_schema` ^1.2.0.
+- Require `rfw_catalog_schema` ^2.0.0.
 
-# 1.1.0
+## 1.1.0
 
 - Resolve a property typed as a list of structured values to the opaque
   list-of-structured shape added in `rfw_catalog_schema` 1.1.0, so the item
   shape survives the walk instead of degrading to an unknown list.
 - Require `rfw_catalog_schema` ^1.1.0.
 
-# 1.0.3
+## 1.0.3
 
 - Documentation: README refresh.
 
-# 1.0.2
+## 1.0.2
 
 - Export the element-FQN helpers (`elementFqn`, `interfaceFqn`, `typeFqn`,
   `classElementFor`, `interfaceFqnOrNull`) from the public API.
 
-# 1.0.1
+## 1.0.1
 
 - Widen the `analyzer` dependency constraint to `>=10.0.0 <15.0.0`: raise the
   floor to a verified-compiling version and admit the latest stable analyzer
@@ -45,7 +44,7 @@
   analyzer 14 added to the element interface.
 - Add an example.
 
-# 1.0.0
+## 1.0.0
 
 - Initial release of the analyzer-backed catalog compiler pipeline: the source
   walker (`walkRestageLibrary` / `walkStructuredType` / union resolution with

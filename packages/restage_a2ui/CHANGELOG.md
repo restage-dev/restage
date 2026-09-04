@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.0
 
 - Accept constructor-derived custom properties and canonical
   `a2ui.Config` usage/write-back metadata from the coordinated catalog
@@ -24,13 +24,9 @@
 - Expand the executable example with several arbitrary child-bearing input
   names on one component and real genui render coverage for the uniform
   `props` layout.
-
-## 0.1.6
-
 - Update the bundled generated catalog and documentation for content-derived
   catalog identity, typed constraints, controlled values, nested data
   descriptions, and automatic custom-widget generation.
-- Keep genui pinned to 0.9.2. The package runtime is unchanged.
 
 ## 0.1.5
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — coordinated breaking release
+## 2.0.0
 
 - `CupertinoNavigationBar` admits `automaticallyImplyLeading`,
   `automaticallyImplyMiddle`, `previousPageTitle`,
