@@ -36,6 +36,7 @@ appear in the gallery's first section, "Starters".
 | **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that navigates, writes the captured answer, and routes the ending on it with a `decision()`. |
 | **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | The smallest flow: one screen, a notice. The CTA completes; the × is a host-handled `dismiss`. |
 | **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | A `@RestageWidget` (`StatBadge`) whose pure-composition `build` codegen inlines into the artifact, so your own widget renders through RFW inside a delivered surface with no runtime factory. |
+| **Host data** | `lib/surfaces/starter_host_data.dart` + `starter_host_data_demo.dart` | A `@Screen` whose rows are constructor parameters. The build generates `StarterChecklistSurface`, which takes them as ordinary arguments and keeps the authored widget as its fallback; the `for` over them becomes a loop in the artifact, and a tap reaches the app as a typed event. |
 
 The gallery keeps paywall, screen, and flow sources in `lib/paywalls/`,
 `lib/onboarding/screens/`, and `lib/onboarding/flows/`. That is a source
