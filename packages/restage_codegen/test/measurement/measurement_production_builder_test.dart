@@ -2078,8 +2078,8 @@ final class QuietFlow extends RestageFlow {
   });
 
   test(
-    'ledger rebuild is stable and source movement requires explicit reviewed '
-    'relocation',
+    'ledger rebuild is stable and an unambiguous in-screen move keeps '
+    'identities',
     () async {
       final first = await _compileLedgerSource(_ledgerSource());
       expect(first.result.succeeded, isTrue);
@@ -2105,78 +2105,40 @@ final class QuietFlow extends RestageFlow {
       );
       expect(
         moved.result.succeeded,
-        isFalse,
-        reason:
-            'first=${first.output.ledgerNodes.map((node) => node.structuralOccurrenceKey).toList()} '
-            'moved=${moved.output.ledgerNodes.map((node) => node.structuralOccurrenceKey).toList()} '
-            'next=${first.output.nextIdentitySequence}/'
-            '${moved.output.nextIdentitySequence}',
-      );
-      expect(moved.output.valid, isFalse);
-      expect(moved.output.proposals, isNotEmpty);
-      expect(moved.output.publications, isEmpty);
-
-      final relocations = <MeasurementCompilerLedgerRelocation>[];
-      for (final proposal in moved.output.proposals) {
-        expect(proposal.candidatePriorStructuralOccurrenceKeys, hasLength(1));
-        final priorLocator =
-            proposal.candidatePriorStructuralOccurrenceKeys.single;
-        final priorNode = first.output.ledgerNodes.singleWhere(
-          (node) => node.structuralOccurrenceKey == priorLocator,
-        );
-        relocations.add(
-          MeasurementCompilerLedgerRelocation(
-            fromStructuralOccurrenceKey: priorLocator,
-            toStructuralOccurrenceKey: proposal.toStructuralOccurrenceKey,
-            codeIdentityId: priorNode.codeIdentityId,
-          ),
-        );
-      }
-      final reviewedPrior = RestageMeasurementCompilerOutputV1(
-        valid: true,
-        errors: const [],
-        policy: first.output.policy,
-        nextIdentitySequence: first.output.nextIdentitySequence,
-        ledgerNodes: first.output.ledgerNodes,
-        acceptedRelocations: relocations,
-        proposals: const [],
-        publications: first.output.publications,
-      );
-      final accepted = await _compileLedgerSource(
-        _ledgerSource(wrapped: true),
-        priorOutput: reviewedPrior,
-      );
-      expect(
-        accepted.result.succeeded,
         isTrue,
-        reason: accepted.result.errors.join('\n'),
+        reason: moved.result.errors.join('\n'),
       );
+      expect(moved.output.valid, isTrue);
+      expect(moved.output.proposals, isEmpty);
+      expect(moved.output.publications, isNotEmpty);
+
       final firstReference = first.output.ledgerNodes
           .expand((node) => node.events)
           .singleWhere((event) => event.active)
           .generatedReferenceId;
-      final acceptedReference = accepted.output.ledgerNodes
+      final movedReference = moved.output.ledgerNodes
           .expand((node) => node.events)
           .singleWhere((event) => event.active)
           .generatedReferenceId;
-      expect(acceptedReference, firstReference);
-      for (final relocation in relocations) {
-        expect(
-          accepted.output.ledgerNodes
-              .singleWhere(
-                (node) =>
-                    node.structuralOccurrenceKey ==
-                    relocation.toStructuralOccurrenceKey,
-              )
-              .codeIdentityId,
-          relocation.codeIdentityId,
-        );
-      }
+      expect(movedReference, firstReference);
+      Set<String> sourceCodeIdentities(
+        RestageMeasurementCompilerOutputV1 output,
+      ) =>
+          {
+            for (final node in output.ledgerNodes)
+              if (node.active && node.structuralOccurrenceKey.contains('|'))
+                node.codeIdentityId.value,
+          };
+      expect(
+        sourceCodeIdentities(moved.output),
+        containsAll(sourceCodeIdentities(first.output)),
+      );
     },
   );
 
-  test('ambiguous structural movement proposes candidates and never aliases',
-      () async {
+  test(
+      'ambiguous structural movement proposes candidates and accepts reviewed '
+      'relocations', () async {
     final first = await _compileLedgerSource(
       _ledgerSource(repeated: true),
     );
@@ -2187,6 +2149,7 @@ final class QuietFlow extends RestageFlow {
     );
     expect(ambiguous.result.succeeded, isFalse);
     expect(ambiguous.output.valid, isFalse);
+    expect(ambiguous.output.publications, isEmpty);
     expect(
       ambiguous.output.proposals.any(
         (proposal) =>
@@ -2194,6 +2157,53 @@ final class QuietFlow extends RestageFlow {
       ),
       isTrue,
     );
+
+    final relocations = <MeasurementCompilerLedgerRelocation>[];
+    for (final proposal in ambiguous.output.proposals) {
+      final priorLocator =
+          proposal.candidatePriorStructuralOccurrenceKeys.first;
+      final priorNode = first.output.ledgerNodes.singleWhere(
+        (node) => node.structuralOccurrenceKey == priorLocator,
+      );
+      relocations.add(
+        MeasurementCompilerLedgerRelocation(
+          fromStructuralOccurrenceKey: priorLocator,
+          toStructuralOccurrenceKey: proposal.toStructuralOccurrenceKey,
+          codeIdentityId: priorNode.codeIdentityId,
+        ),
+      );
+    }
+    final reviewedPrior = RestageMeasurementCompilerOutputV1(
+      valid: true,
+      errors: const [],
+      policy: first.output.policy,
+      nextIdentitySequence: first.output.nextIdentitySequence,
+      ledgerNodes: first.output.ledgerNodes,
+      acceptedRelocations: relocations,
+      proposals: const [],
+      publications: first.output.publications,
+    );
+    final accepted = await _compileLedgerSource(
+      _ledgerSource(wrapped: true),
+      priorOutput: reviewedPrior,
+    );
+    expect(
+      accepted.result.succeeded,
+      isTrue,
+      reason: accepted.result.errors.join('\n'),
+    );
+    for (final relocation in relocations) {
+      expect(
+        accepted.output.ledgerNodes
+            .singleWhere(
+              (node) =>
+                  node.structuralOccurrenceKey ==
+                  relocation.toStructuralOccurrenceKey,
+            )
+            .codeIdentityId,
+        relocation.codeIdentityId,
+      );
+    }
   });
 
   test('tracked builder rejects malformed committed ledger authority',

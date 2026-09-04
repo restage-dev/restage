@@ -13,6 +13,7 @@ import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 
 /// Writes each authored library's one generated Dart part.
 final class RestageGeneratedDartBuilder implements Builder {
@@ -39,7 +40,13 @@ final class RestageGeneratedDartBuilder implements Builder {
     if (!isAuthoredDartLibraryAsset(buildStep.inputId)) return;
 
     final bundle = await readRestageCompilerHandoff(buildStep);
-    if (bundle == null) return;
+    if (bundle == null) {
+      await restorePreservedOutput(
+        buildStep,
+        neutralPartPath(plan, libraryPath),
+      );
+      return;
+    }
 
     // The compiler keys generated parts by the same plan-resolved path this
     // builder declares, so agreement is by construction rather than by a

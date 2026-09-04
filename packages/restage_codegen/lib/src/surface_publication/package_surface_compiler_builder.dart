@@ -36,6 +36,7 @@ import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -1101,10 +1102,13 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     this.options, {
     MeasurementCompilerLedgerWriter ledgerWriter =
         _persistMeasurementCompilerLedgerSource,
-  }) : _ledgerWriter = ledgerWriter;
+    PriorGeneratedOutputReader priorOutputReader = readPriorGeneratedOutputs,
+  })  : _ledgerWriter = ledgerWriter,
+        _priorOutputReader = priorOutputReader;
 
   final BuilderOptions options;
   final MeasurementCompilerLedgerWriter _ledgerWriter;
+  final PriorGeneratedOutputReader _priorOutputReader;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -1117,9 +1121,10 @@ final class PackageSurfaceCompilerBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
+    final plan = RestageOutputPlacementPlan.fromBuilderOptions(options);
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
-      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      plan: plan,
       measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
         options,
       ),
@@ -1132,6 +1137,16 @@ final class PackageSurfaceCompilerBuilder implements Builder {
       await _ledgerWriter(
         package: buildStep.inputId.package,
         output: compilation.measurementCompilerOutput,
+      );
+    } else {
+      // A refused build materializes nothing, so the outputs it would
+      // otherwise lose are captured here for the builders that own them.
+      final preserved = await buildStep.fetchResource(
+        restagePreservedOutputsResource,
+      );
+      preserved.capture(
+        buildStep.inputId.package,
+        await _priorOutputReader(buildStep.inputId.package, plan),
       );
     }
     await Future.wait([
