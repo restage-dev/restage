@@ -55,14 +55,25 @@ with Restage, provided that it does not imply endorsement or official status.
 
 ## Choosing an asset
 
+The files at the top level are the current logo: the "r" cut into its stem and
+its arm, one ink each, laid across each other so the overlap is the
+registration, and the wordmark with the rest of the word in the colour the two
+inks make together.
+
 - **Mark:** the standalone Restage symbol, for compact or square placements.
-- **Wordmark:** the Restage name without the standalone mark.
+- **Wordmark:** the Restage name.
 - **Lockup:** the mark and wordmark together.
 - **Light:** intended for light backgrounds.
 - **Dark:** intended for dark backgrounds.
-- **Static:** preferred for documentation, navigation, and other persistent UI.
-- **Animated:** intended for prominent brand moments where motion is
-  appropriate.
+- **Bold Italic:** the mark is also supplied in the italic face.
+- **Banner:** the wordmark or lockup on its own dark ground, for places that
+  show one image on any background (a package listing, an avatar, a slide).
+  Supplied as SVG and PNG.
+
+`v1/` holds the earlier logo — the same letter printed twice, the copy offset —
+for anything already built on it. Its animated variants (`*-oscillate-*`) stay
+at their original names here, because pages already published point at them.
+The earlier files remain official Restage assets and the same terms apply.
 
 Use the supplied files rather than recreating the artwork.
 

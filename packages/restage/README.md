@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-oscillate-4.0s-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-oscillate-4.0s-light.svg">
-    <img alt="restage" src="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-oscillate-4.0s-light.webp" width="300">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-bold-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-bold-light.svg">
+    <img alt="restage" src="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-banner-dark.png" width="300">
   </picture>
 </p>
 
@@ -15,9 +15,9 @@
 </p>
 
 <!--
-  Logo: animated overprint wordmark. GitHub renders the light/dark SVG (vector,
-  theme-adaptive, animated); pub.dev and other viewers that strip SVG fall back to
-  the WebP <img>. A mark+wordmark lockup variant ships alongside in /brand/.
+  Logo: the split-r wordmark. GitHub renders the theme-matched SVG; viewers that
+  strip <picture> sources (pub.dev among them) fall back to the PNG banner on a
+  dark ground. The mark and a mark+wordmark lockup ship alongside in /brand/.
 -->
 
 Restage is a server-driven UI toolkit for Flutter. Build any part of your app
