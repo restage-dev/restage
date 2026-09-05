@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_shared/restage_shared.dart' show kThemeContractPaths;
+import 'package:restage_shared/restage_shared.dart'
+    show kDeviceContractPaths, kThemeContractPaths;
 import 'package:rfw/rfw.dart';
 
 /// Reads a top-level key from [DynamicContent] using its public `subscribe`
@@ -31,9 +32,14 @@ void main() {
 
       final device = _readKey(dc, 'device') as Map;
       expect(device['locale'], 'en_US');
+      expect(device['languageCode'], 'en');
+      expect(device['countryCode'], 'US');
       expect(device['platform'], 'ios');
       expect(device['screenWidth'], 390.0);
       expect(device['screenHeight'], 844.0);
+      expect(device['shortestSide'], 390.0);
+      expect(device['longestSide'], 844.0);
+      expect(device['orientation'], 'portrait');
       expect(device['pixelRatio'], 3.0);
       expect(device['safeAreaTop'], 47.0);
       expect(device['safeAreaBottom'], 34.0);
@@ -52,6 +58,37 @@ void main() {
       final device = _readKey(dc, 'device') as Map;
       expect(device['platform'], 'unknown');
       expect(device['locale'], 'fr');
+      expect(device['languageCode'], 'fr');
+      expect(device.containsKey('countryCode'), isFalse);
+    });
+
+    test('reports landscape when the width exceeds the height', () {
+      final dc = DynamicContent();
+      populateDeviceData(
+        dc,
+        locale: const Locale('en'),
+        mediaQuery: const MediaQueryData(size: Size(1024, 768)),
+      );
+
+      final device = _readKey(dc, 'device') as Map;
+      expect(device['orientation'], 'landscape');
+      expect(device['shortestSide'], 768.0);
+      expect(device['longestSide'], 1024.0);
+    });
+
+    test(
+        'a country-bearing locale publishes exactly the kDeviceContractPaths '
+        'set — drift gate against the codegen-side contract validation', () {
+      final dc = DynamicContent();
+      populateDeviceData(
+        dc,
+        locale: const Locale('en', 'US'),
+        mediaQuery: const MediaQueryData(),
+        platform: 'iOS',
+      );
+
+      final device = _readKey(dc, 'device') as Map;
+      expect(device.keys.cast<String>().toSet(), kDeviceContractPaths);
     });
   });
 
@@ -70,6 +107,7 @@ void main() {
         colorScheme: cs,
         iconTheme: const IconThemeData(),
         defaultTextStyle: const TextStyle(),
+        textTheme: const TextTheme(),
       );
 
       final theme = _readKey(dc, 'theme') as Map;
@@ -99,6 +137,7 @@ void main() {
         colorScheme: const ColorScheme.light(),
         iconTheme: const IconThemeData(color: Color(0xFF445566), size: 28),
         defaultTextStyle: const TextStyle(),
+        textTheme: const TextTheme(),
       );
       final iconTheme = (_readKey(dc, 'theme') as Map)['iconTheme'] as Map;
       expect(iconTheme['color'], 0xFF445566);
@@ -112,13 +151,14 @@ void main() {
         colorScheme: const ColorScheme.light(),
         iconTheme: const IconThemeData(),
         defaultTextStyle: const TextStyle(),
+        textTheme: const TextTheme(),
       );
       final iconTheme = (_readKey(dc, 'theme') as Map)['iconTheme'] as Map;
       expect(iconTheme.containsKey('color'), isFalse);
       expect(iconTheme.containsKey('size'), isFalse);
     });
 
-    test('writes defaultTextStyle color, fontSize, fontWeight (w-string)', () {
+    test('writes defaultTextStyle color, family, size, weight, style', () {
       final dc = DynamicContent();
       populateThemeData(
         dc,
@@ -126,14 +166,19 @@ void main() {
         iconTheme: const IconThemeData(),
         defaultTextStyle: const TextStyle(
           color: Color(0xFF778899),
+          fontFamily: 'Charter',
           fontSize: 17,
           fontWeight: FontWeight.w600,
+          fontStyle: FontStyle.italic,
         ),
+        textTheme: const TextTheme(),
       );
       final style = (_readKey(dc, 'theme') as Map)['defaultTextStyle'] as Map;
       expect(style['color'], 0xFF778899);
+      expect(style['fontFamily'], 'Charter');
       expect(style['fontSize'], 17.0);
       expect(style['fontWeight'], 'w600');
+      expect(style['fontStyle'], 'italic');
     });
 
     test('omits defaultTextStyle keys that are null', () {
@@ -143,11 +188,67 @@ void main() {
         colorScheme: const ColorScheme.light(),
         iconTheme: const IconThemeData(),
         defaultTextStyle: const TextStyle(),
+        textTheme: const TextTheme(),
       );
       final style = (_readKey(dc, 'theme') as Map)['defaultTextStyle'] as Map;
       expect(style.containsKey('color'), isFalse);
+      expect(style.containsKey('fontFamily'), isFalse);
       expect(style.containsKey('fontSize'), isFalse);
       expect(style.containsKey('fontWeight'), isFalse);
+      expect(style.containsKey('fontStyle'), isFalse);
+    });
+
+    test('writes each text-theme style as its own field sub-map', () {
+      final dc = DynamicContent();
+      populateThemeData(
+        dc,
+        colorScheme: const ColorScheme.light(),
+        iconTheme: const IconThemeData(),
+        defaultTextStyle: const TextStyle(),
+        textTheme: const TextTheme(
+          titleLarge: TextStyle(
+            color: Color(0xFF223344),
+            fontFamily: 'Charter',
+            fontSize: 22,
+            fontWeight: FontWeight.w500,
+            fontStyle: FontStyle.italic,
+            letterSpacing: 0.15,
+            height: 1.25,
+          ),
+        ),
+      );
+      final textTheme = (_readKey(dc, 'theme') as Map)['textTheme'] as Map;
+      final titleLarge = textTheme['titleLarge'] as Map;
+      expect(titleLarge['color'], 0xFF223344);
+      expect(titleLarge['fontFamily'], 'Charter');
+      expect(titleLarge['fontSize'], 22.0);
+      expect(titleLarge['fontWeight'], 'w500');
+      // The member name an enum-by-name decoder reads.
+      expect(titleLarge['fontStyle'], 'italic');
+      expect(titleLarge['letterSpacing'], 0.15);
+      expect(titleLarge['height'], 1.25);
+    });
+
+    test('omits text-theme fields that are null, and null styles entirely', () {
+      final dc = DynamicContent();
+      populateThemeData(
+        dc,
+        colorScheme: const ColorScheme.light(),
+        iconTheme: const IconThemeData(),
+        defaultTextStyle: const TextStyle(),
+        textTheme: const TextTheme(bodyMedium: TextStyle(fontSize: 14)),
+      );
+      final textTheme = (_readKey(dc, 'theme') as Map)['textTheme'] as Map;
+      final bodyMedium = textTheme['bodyMedium'] as Map;
+      expect(bodyMedium['fontSize'], 14.0);
+      expect(bodyMedium.containsKey('color'), isFalse);
+      expect(bodyMedium.containsKey('fontFamily'), isFalse);
+      expect(bodyMedium.containsKey('fontWeight'), isFalse);
+      expect(bodyMedium.containsKey('fontStyle'), isFalse);
+      expect(bodyMedium.containsKey('letterSpacing'), isFalse);
+      expect(bodyMedium.containsKey('height'), isFalse);
+      // A null style publishes an empty map, so every field reads back null.
+      expect(textTheme['titleLarge'], isEmpty);
     });
 
     test(
@@ -162,11 +263,8 @@ void main() {
         dc,
         colorScheme: const ColorScheme.light(),
         iconTheme: const IconThemeData(color: Color(0xFF000000), size: 24),
-        defaultTextStyle: const TextStyle(
-          color: Color(0xFF000000),
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-        ),
+        defaultTextStyle: _style(0),
+        textTheme: _fullTextTheme,
       );
 
       Set<String> flatten(Map<dynamic, dynamic> tree, [String prefix = '']) {
@@ -186,6 +284,23 @@ void main() {
       expect(published, kThemeContractPaths);
     });
 
+    test('publishes the brightness of the theme it is given', () {
+      String brightnessFor(ColorScheme colorScheme) {
+        final dc = DynamicContent();
+        populateThemeData(
+          dc,
+          colorScheme: colorScheme,
+          iconTheme: const IconThemeData(),
+          defaultTextStyle: const TextStyle(),
+          textTheme: const TextTheme(),
+        );
+        return (_readKey(dc, 'theme') as Map)['brightness'] as String;
+      }
+
+      expect(brightnessFor(const ColorScheme.dark()), 'dark');
+      expect(brightnessFor(const ColorScheme.light()), 'light');
+    });
+
     test('snaps a non-standard fontWeight to the nearest standard weight', () {
       // FontWeight's public ctor accepts any 1-1000 value (variable fonts),
       // but the contract and RFW's enumValue<FontWeight> only know w100-w900.
@@ -196,6 +311,7 @@ void main() {
           colorScheme: const ColorScheme.light(),
           iconTheme: const IconThemeData(),
           defaultTextStyle: TextStyle(fontWeight: weight),
+          textTheme: const TextTheme(),
         );
         return ((_readKey(dc, 'theme') as Map)['defaultTextStyle']
             as Map)['fontWeight'] as String;
@@ -206,3 +322,35 @@ void main() {
     });
   });
 }
+
+/// Every published style carrying every published field — the fully-populated
+/// input the contract drift gate needs.
+final TextTheme _fullTextTheme = TextTheme(
+  displayLarge: _style(0),
+  displayMedium: _style(1),
+  displaySmall: _style(2),
+  headlineLarge: _style(3),
+  headlineMedium: _style(4),
+  headlineSmall: _style(5),
+  titleLarge: _style(6),
+  titleMedium: _style(7),
+  titleSmall: _style(8),
+  bodyLarge: _style(9),
+  bodyMedium: _style(10),
+  bodySmall: _style(11),
+  labelLarge: _style(12),
+  labelMedium: _style(13),
+  labelSmall: _style(14),
+);
+
+/// A distinct [TextStyle] per index, so a cross-wired style reads as a wrong
+/// value rather than a coincidental match.
+TextStyle _style(int index) => TextStyle(
+      color: Color(0xFF000000 + index),
+      fontFamily: 'Face$index',
+      fontSize: 10.0 + index,
+      fontWeight: FontWeight.w400,
+      fontStyle: FontStyle.italic,
+      letterSpacing: 0.1 + index,
+      height: 1.1 + index,
+    );

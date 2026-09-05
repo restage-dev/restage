@@ -248,11 +248,12 @@ enum IssueCode {
   /// reference in the emitted blob ambiguous.
   customWidgetNameCollision,
 
-  /// A `Theme.of(context).<x>(.<y>)` read in a transpiled widget resolves
-  /// to a path the SDK's `data.theme.*` channel does not publish — e.g. a
-  /// `textTheme.*` read, an app-defined `ThemeExtension`, or a deprecated
-  /// `ColorScheme` role. Emitting the reference would silently resolve to
-  /// null at render time, so the build surfaces it as an authoring error.
+  /// An ambient host-data read the shipped blob cannot express: a
+  /// `data.theme.*` or `data.device.*` path the SDK does not publish, a
+  /// brightness compared in a shape other than equality against
+  /// `Brightness.light` / `Brightness.dark`, or an operation on device data
+  /// the data language has no operator for. Emitting it would resolve to null
+  /// at render time, so the build refuses.
   themeReadOutOfContract,
 
   /// A transpiled widget binds `Theme.of(context)` (or a sub-tree of it)

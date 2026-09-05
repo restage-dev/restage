@@ -1920,6 +1920,7 @@ void main() {
         colorScheme: colorScheme,
         iconTheme: const IconThemeData(size: 24),
         defaultTextStyle: const TextStyle(fontSize: 16),
+        textTheme: const TextTheme(),
       );
 
       populateContextData(

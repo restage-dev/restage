@@ -13,8 +13,8 @@ enum InliningMechanism {
   /// `EdgeInsets.all(_kGap)` where `_kGap` is a `const`.
   constantFolding,
 
-  /// A `Theme.of(context).<role>` read, rewritten to a `data.theme.*`
-  /// reference.
+  /// An ambient host-data read — theme, or a `MediaQuery` / platform / locale
+  /// read — rewritten to a `data.theme.*` or `data.device.*` reference.
   themeAsData,
 
   /// A `StatefulWidget` with plain bool / int / enum state, emitted as an

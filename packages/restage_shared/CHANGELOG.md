@@ -2,6 +2,18 @@
 
 ## 2.0.0
 
+- The `data.theme.*` contract publishes `brightness`, a `light` / `dark` token
+  for the ambient theme's brightness.
+- The `data.theme.*` contract publishes `textTheme.<style>.<field>` for the
+  fifteen Material text-theme styles. Each style, and `defaultTextStyle`,
+  carries `color`, `fontFamily`, `fontSize`, `fontWeight`, `fontStyle`,
+  `letterSpacing`, and `height`. `defaultTextStyle` gains `fontFamily` and
+  `fontStyle` so the two families stay symmetric.
+- The published `data.device.*` contract is shared as `kDeviceContractPaths`
+  and `kDeviceContractPathKinds`, and gains the `languageCode` and
+  `countryCode` locale subtags. It also gains `shortestSide`,
+  `longestSide`, and `orientation`.
+
 - **Breaking:** `SurfaceExperimentAssignment` and assignment fields on
   standalone-screen delivery types are removed. Purchase-intent and analytics
   envelopes no longer include experiment assignment metadata.

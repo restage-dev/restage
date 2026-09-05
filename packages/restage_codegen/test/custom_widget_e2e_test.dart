@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
+import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -1791,8 +1792,9 @@ Object x() => const AcmeShaped();
     });
 
     test(
-        'an out-of-contract theme read transpiles to a themeReadOutOfContract '
-        'diagnostic, no blob emitted', () async {
+        'a whole-style theme read into a slot with no style decomposition '
+        'transpiles to a themeReadOutOfContract diagnostic, no blob emitted',
+        () async {
       final result = await _transpile(
         '''
 $kFlutterClassifierStubs
@@ -1834,6 +1836,197 @@ Object x() => const AcmeBanner();
         result.issues.any((i) => i.code == IssueCode.themeReadOutOfContract),
         isTrue,
       );
+    });
+
+    test(
+        'a bound whole text-theme style decomposes into the flat style '
+        'properties', () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Label extends StatelessWidget {
+  const Label({this.text, this.style, super.key});
+  final String? text;
+  final TextStyle? style;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeHeading',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration,
+  description: 'heading',
+)
+class AcmeHeading extends StatelessWidget {
+  const AcmeHeading({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Label(text: 'Go Pro', style: text.titleLarge);
+  }
+}
+
+Object x() => const AcmeHeading();
+''',
+        _styleDecomposeCatalog(),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty);
+      final heading = _widget(result.decoded!, 'AcmeHeading');
+      expect(heading.name, 'Label');
+      expect(heading.arguments['style'], isNull);
+      for (final field in [
+        'color',
+        'fontFamily',
+        'fontSize',
+        'fontWeight',
+        'fontStyle',
+        'letterSpacing',
+        'height',
+      ]) {
+        final value = heading.arguments[field];
+        expect(value, isA<fmt.DataReference>(), reason: field);
+        expect(
+          (value! as fmt.DataReference).parts,
+          ['theme', 'textTheme', 'titleLarge', field],
+        );
+      }
+    });
+
+    test('copyWith on a bound whole-style read overrides the fields it names',
+        () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Label extends StatelessWidget {
+  const Label({this.text, this.style, super.key});
+  final String? text;
+  final TextStyle? style;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeHeading',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration,
+  description: 'heading',
+)
+class AcmeHeading extends StatelessWidget {
+  const AcmeHeading({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Label(
+      text: 'Go Pro',
+      style: text.titleLarge!.copyWith(
+        color: Theme.of(context).colorScheme.primary,
+        fontFamily: 'Charter',
+        fontWeight: FontWeight.w700,
+        height: 1.4,
+      ),
+    );
+  }
+}
+
+Object x() => const AcmeHeading();
+''',
+        _styleDecomposeCatalog(),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty);
+      // copyWith on a theme style must inline the widget, not defer it.
+      const headingKey = 'package:apps_examples/_e2e_probe.dart#AcmeHeading';
+      final classified = result.classification.classifications[headingKey];
+      expect(classified, isA<ComposableWidget>());
+      expect(
+        (classified! as ComposableWidget).requiredMechanisms,
+        {InliningMechanism.themeAsData},
+      );
+      expect(result.classification.blueprints, contains(headingKey));
+
+      final heading = _widget(result.decoded!, 'AcmeHeading');
+      expect(heading.name, 'Label');
+      // A colour-role theme read as the override lands as its own binding.
+      final color = heading.arguments['color'];
+      expect(color, isA<fmt.DataReference>());
+      expect(
+        (color! as fmt.DataReference).parts,
+        ['theme', 'colorScheme', 'primary'],
+      );
+      expect(heading.arguments['fontFamily'], 'Charter');
+      expect(heading.arguments['fontWeight'], 'w700');
+      expect(heading.arguments['height'], 1.4);
+      // Unnamed fields stay bound to the style, the font style among them.
+      for (final field in ['fontSize', 'fontStyle', 'letterSpacing']) {
+        final value = heading.arguments[field];
+        expect(value, isA<fmt.DataReference>(), reason: field);
+        expect(
+          (value! as fmt.DataReference).parts,
+          ['theme', 'textTheme', 'titleLarge', field],
+        );
+      }
+    });
+
+    test('copyWith naming a field the theme style does not carry is refused',
+        () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Label extends StatelessWidget {
+  const Label({this.text, this.style, super.key});
+  final String? text;
+  final TextStyle? style;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeHeading',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration,
+  description: 'heading',
+)
+class AcmeHeading extends StatelessWidget {
+  const AcmeHeading({super.key});
+  @override
+  Widget build(BuildContext context) => Label(
+        text: 'Go Pro',
+        style: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(wordSpacing: 2),
+      );
+}
+
+Object x() => const AcmeHeading();
+''',
+        _styleDecomposeCatalog(),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.decoded, isNull);
+      final refusal = result.issues.singleWhere(
+        (i) => i.code == IssueCode.themeReadOutOfContract,
+      );
+      expect(refusal.message, contains('wordSpacing'));
+      for (final field in [
+        'color',
+        'fontFamily',
+        'fontSize',
+        'fontWeight',
+        'fontStyle',
+        'letterSpacing',
+        'height',
+      ]) {
+        expect(refusal.message, contains(field), reason: field);
+      }
     });
 
     test(
@@ -2053,6 +2246,104 @@ Object x() => const AcmeBanner();
         (completed! as fmt.DataReference).parts,
         ['theme', 'colorScheme', 'primary'],
       );
+    });
+
+    test('a bound text-theme local reads through a null-aware field access',
+        () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.width, super.key});
+  final double? width;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeGap',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'gap',
+)
+class AcmeGap extends StatelessWidget {
+  const AcmeGap({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Box(width: text.titleLarge?.fontSize);
+  }
+}
+
+Object x() => const AcmeGap();
+''',
+        catalogWith([
+          _entry(
+            'Box',
+            [prop('width', PropertyType.length)],
+            rootPackage: 'apps_examples',
+          ),
+        ]),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty);
+      final width = _widget(result.decoded!, 'AcmeGap').arguments['width'];
+      expect(width, isA<fmt.DataReference>());
+      expect(
+        (width! as fmt.DataReference).parts,
+        ['theme', 'textTheme', 'titleLarge', 'fontSize'],
+      );
+    });
+
+    test(
+        'a device read through a bound `final` local inlines to a '
+        'data.device reference', () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.width, super.key});
+  final double? width;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeStrip',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'strip',
+)
+class AcmeStrip extends StatelessWidget {
+  const AcmeStrip({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return Box(width: size.width);
+  }
+}
+
+Object x() => const AcmeStrip();
+''',
+        catalogWith([
+          _entry(
+            'Box',
+            [prop('width', PropertyType.length)],
+            rootPackage: 'apps_examples',
+          ),
+        ]),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty);
+      final strip = _widget(result.decoded!, 'AcmeStrip');
+      expect(strip.name, 'Box');
+      final width = strip.arguments['width'];
+      expect(width, isA<fmt.DataReference>());
+      expect((width! as fmt.DataReference).parts, ['device', 'screenWidth']);
     });
 
     // The null-coalescing completion table, value-asserted per branch. A
@@ -5027,4 +5318,139 @@ class _TranspileProbeBuilder implements Builder {
       );
     }
   }
+}
+
+/// A catalog whose `Label` widget decomposes a `style:` argument into one flat
+/// property per published style field, as the shipped `Text` entry does.
+Catalog _styleDecomposeCatalog() {
+  final styleRef = WireIdRef(library: 'restage.core', wireId: WireId('s8100'));
+  final ctorRef = WireIdRef(library: 'restage.core', wireId: WireId('v8100'));
+  final textProp = WireId('p8101');
+  final colorProp = WireId('p8102');
+  final fontSizeProp = WireId('p8103');
+  final fontWeightProp = WireId('p8104');
+  final letterSpacingProp = WireId('p8105');
+  final heightProp = WireId('p8106');
+  final fontFamilyProp = WireId('p8107');
+  final fontStyleProp = WireId('p8108');
+  final colorField = WireId('p8202');
+  final fontSizeField = WireId('p8203');
+  final fontWeightField = WireId('p8204');
+  final letterSpacingField = WireId('p8205');
+  final heightField = WireId('p8206');
+  final fontFamilyField = WireId('p8207');
+  final fontStyleField = WireId('p8208');
+
+  PropertyEntry property(WireId wireId, String name, PropertyType type) =>
+      PropertyEntry(
+        wireId: wireId,
+        name: name,
+        type: type,
+        description: '',
+      );
+  StructuredField field(WireId wireId, String name, PropertyType type) =>
+      StructuredField(
+        wireId: wireId,
+        name: name,
+        type: type,
+        description: '',
+      );
+  DecompositionFieldMapping mapping(WireId fieldRef, WireId propertyRef) =>
+      DecompositionFieldMapping(
+        fieldRef: fieldRef,
+        propertyRef: propertyRef,
+        transform: const IdentityTransform(),
+      );
+
+  return Catalog(
+    schemaVersion: kSupportedSchemaVersion,
+    generatedAt: '1970-01-01T00:00:00Z',
+    libraries: {WidgetLibrary.core: const LibraryInfo(version: '0.1.0')},
+    widgets: [
+      WidgetEntry(
+        wireId: WireId('w8100'),
+        name: 'Label',
+        library: WidgetLibrary.core,
+        category: WidgetCategory.decoration,
+        description: '',
+        flutterType: 'package:apps_examples/_e2e_probe.dart#Label',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          property(textProp, 'text', PropertyType.string),
+          property(colorProp, 'color', PropertyType.color),
+          property(fontSizeProp, 'fontSize', PropertyType.length),
+          property(fontWeightProp, 'fontWeight', PropertyType.fontWeight),
+          property(letterSpacingProp, 'letterSpacing', PropertyType.length),
+          property(heightProp, 'height', PropertyType.length),
+          property(fontFamilyProp, 'fontFamily', PropertyType.string),
+          PropertyEntry(
+            wireId: fontStyleProp,
+            name: 'fontStyle',
+            type: PropertyType.enumValue,
+            description: '',
+            valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                libraryUri: 'dart:ui',
+                symbolName: 'FontStyle',
+              ),
+            ),
+          ),
+        ],
+        decomposes: [
+          DecompositionRecipe(
+            structuredRef: styleRef,
+            flatProperties: const {},
+            targetArg: 'style',
+            construction: FactoryInvocation(
+              variantRef: ctorRef,
+              receiver: const ResultStructuredTypeReceiver(),
+            ),
+            fieldMappings: [
+              mapping(colorField, colorProp),
+              mapping(fontSizeField, fontSizeProp),
+              mapping(fontWeightField, fontWeightProp),
+              mapping(letterSpacingField, letterSpacingProp),
+              mapping(heightField, heightProp),
+              mapping(fontFamilyField, fontFamilyProp),
+              mapping(fontStyleField, fontStyleProp),
+            ],
+          ),
+        ],
+      ),
+    ],
+    structuredTypes: [
+      StructuredEntry(
+        wireId: styleRef.wireId,
+        name: 'TextStyle',
+        library: WidgetLibrary.core,
+        description: '',
+        sourceType: 'package:flutter/src/painting/text_style.dart#TextStyle',
+        fields: [
+          field(colorField, 'color', PropertyType.color),
+          field(fontSizeField, 'fontSize', PropertyType.length),
+          field(fontWeightField, 'fontWeight', PropertyType.fontWeight),
+          field(letterSpacingField, 'letterSpacing', PropertyType.length),
+          field(heightField, 'height', PropertyType.length),
+          field(fontFamilyField, 'fontFamily', PropertyType.string),
+          field(fontStyleField, 'fontStyle', PropertyType.enumValue),
+        ],
+        variants: [
+          ConstructorVariant(
+            wireId: ctorRef.wireId,
+            argMappings: {
+              'color': ArgMapping(targetFields: [colorField]),
+              'fontSize': ArgMapping(targetFields: [fontSizeField]),
+              'fontWeight': ArgMapping(targetFields: [fontWeightField]),
+              'letterSpacing': ArgMapping(targetFields: [letterSpacingField]),
+              'height': ArgMapping(targetFields: [heightField]),
+              'fontFamily': ArgMapping(targetFields: [fontFamilyField]),
+              'fontStyle': ArgMapping(targetFields: [fontStyleField]),
+            },
+            parameters: const [],
+          ),
+        ],
+      ),
+    ],
+  );
 }

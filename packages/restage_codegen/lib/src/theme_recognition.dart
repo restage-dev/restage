@@ -117,7 +117,8 @@ Expression? propertyAccessRoot(Expression expr) {
 ///
 /// Recognised shapes:
 /// - `Theme.of(c).<x>(.<y>)` — any chain that reaches the `Theme` root, mapping
-///   directly to the path segments.
+///   directly to the path segments. `?.` and `!` steps are transparent, so
+///   `textTheme.titleLarge?.fontSize` reads as the same path.
 /// - `DefaultTextStyle.of(c).style.<x>` — must lead with `.style.`; the leading
 ///   `style` segment normalises to the `defaultTextStyle.<x>` contract path so
 ///   unrelated accesses (e.g. `.maxLines`) fall through to `null`.
@@ -141,6 +142,12 @@ List<String>? themeReadSegments(
   while (true) {
     while (current is ParenthesizedExpression) {
       current = current.expression;
+    }
+    // A `!` in the chain is a step, not a segment. (`?.` already parses as
+    // a PropertyAccess.)
+    if (current is PostfixExpression && current.operator.lexeme == '!') {
+      current = current.operand;
+      continue;
     }
     if (current is PropertyAccess) {
       final target = current.target;
@@ -196,3 +203,82 @@ bool isThemeReadChain(
   Map<Element, Expression> bindings = const {},
 }) =>
     themeReadSegments(expr, bindings: bindings) != null;
+
+/// The `Brightness` members a brightness comparison may test against, mapped
+/// to the `data.theme.brightness` token the host publishes for each.
+const Map<String, String> _kBrightnessMembers = {
+  'light': 'light',
+  'dark': 'dark',
+};
+
+/// Recognises `<brightness read> ==|!= Brightness.<light|dark>` in either
+/// operand order, returning the token the comparison tests for and whether the
+/// operator is an equality. Returns `null` for any other shape.
+///
+/// The brightness read is any chain [themeReadSegments] resolves to the single
+/// `brightness` segment, so a bound `final b = Theme.of(c).brightness;` is
+/// recognised through [bindings]. [isFrameworkLibrary] gates the `Brightness`
+/// member to the framework's own enum; pass a predicate that also admits an
+/// unresolved element to keep name-based recognition for unresolved input.
+({String token, bool equals})? brightnessComparison(
+  BinaryExpression expr, {
+  Map<Element, Expression> bindings = const {},
+  bool Function(Element?) isFrameworkLibrary = isFrameworkValueTypeLibrary,
+}) {
+  final operator = expr.operator.lexeme;
+  if (operator != '==' && operator != '!=') return null;
+  final left = expr.leftOperand;
+  final right = expr.rightOperand;
+  String? token;
+  if (isBrightnessRead(left, bindings: bindings)) {
+    token = _brightnessMember(right, isFrameworkLibrary);
+  } else if (isBrightnessRead(right, bindings: bindings)) {
+    token = _brightnessMember(left, isFrameworkLibrary);
+  }
+  if (token == null) return null;
+  return (token: token, equals: operator == '==');
+}
+
+/// Whether [expr] reads the ambient theme's brightness. Both `.brightness` and
+/// `.colorScheme.brightness` count: Flutter defines `ThemeData.brightness` as
+/// its colour scheme's brightness, so the two chains name one value, and both
+/// lower to the single published `data.theme.brightness` path. This says
+/// nothing about `colorScheme.brightness` as a contract PATH — it is not one,
+/// so reading it into a slot still refuses.
+bool isBrightnessRead(
+  Expression expr, {
+  Map<Element, Expression> bindings = const {},
+}) {
+  final segments = themeReadSegments(expr, bindings: bindings);
+  if (segments == null || segments.last != 'brightness') return false;
+  return segments.length == 1 ||
+      (segments.length == 2 && segments.first == 'colorScheme');
+}
+
+/// Whether [expr] is a comparison with a brightness read on either side —
+/// the near-miss set the caller refuses loudly rather than lowering.
+bool comparisonInvolvesBrightnessRead(
+  BinaryExpression expr, {
+  Map<Element, Expression> bindings = const {},
+}) {
+  const comparisonOperators = {'==', '!=', '<', '>', '<=', '>='};
+  if (!comparisonOperators.contains(expr.operator.lexeme)) return false;
+  return isBrightnessRead(expr.leftOperand, bindings: bindings) ||
+      isBrightnessRead(expr.rightOperand, bindings: bindings);
+}
+
+/// The `light` / `dark` token [expr] names as a framework `Brightness` member,
+/// or `null` when it is not one.
+String? _brightnessMember(
+  Expression expr,
+  bool Function(Element?) isFrameworkLibrary,
+) {
+  var current = expr;
+  while (current is ParenthesizedExpression) {
+    current = current.expression;
+  }
+  if (current is! PrefixedIdentifier) return null;
+  if (current.prefix.name != 'Brightness') return null;
+  if (!isFrameworkLibrary(current.identifier.element)) return null;
+  return _kBrightnessMembers[current.identifier.name];
+}

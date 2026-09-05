@@ -2,6 +2,30 @@
 
 ## 2.0.0
 
+A ternary comparing `Theme.of(context).brightness` against `Brightness.light`
+or `Brightness.dark` lowers to a branch on the published brightness token, so a
+screen can choose its own dark-mode values.
+
+A text-theme field read — `Theme.of(context).textTheme.titleLarge?.fontSize`,
+with or without the null-aware step — lowers to its published binding. A whole
+style read into a `TextStyle` slot, `style: Theme.of(context).textTheme.titleLarge`,
+binds each published field of that style, and a trailing `copyWith` overrides
+the fields it names with literals, other theme reads, or values in scope.
+`copyWith` on a theme style is limited to the fields the theme publishes. The
+font-style token binds only to a slot whose shape names `FontStyle`.
+Screens read the device they render on. `MediaQuery.sizeOf(context)`,
+`MediaQuery.paddingOf(context)`, `MediaQuery.devicePixelRatioOf(context)`,
+`defaultTargetPlatform`, `Theme.of(context).platform`, and
+`Localizations.localeOf(context).languageCode` lower to the published device
+data, and a platform or locale-subtag comparison in a ternary lowers to a match
+on it. A numeric comparison on device data is refused: the artifact's data
+language has no comparison operators. `kIsWeb` and the `dart:io` `Platform.isX`
+getters lower to the matching platform key, and a device comparison used as a
+ternary condition now inlines inside a custom widget instead of refusing.
+`MediaQuery.sizeOf(context).shortestSide` and `.longestSide`, and
+`MediaQuery.orientationOf(context)`, lower too, and an orientation comparison
+lowers to a match on the token.
+
 A named widget list on a catalog widget lowers under its own name, so
 `AppBar.actions` reaches the delivered screen. The canonical `children` slot is
 unchanged.

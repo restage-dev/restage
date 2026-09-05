@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show ColorScheme, Theme;
+import 'package:flutter/material.dart' show ColorScheme, TextTheme, Theme;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart' show internal;
 import 'package:restage_core/library_registration.dart' as restage_core;
@@ -249,11 +249,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
   // re-push gate, and the *only* dedup: `DynamicContent.update` deep-clones
   // its value, so it can't identity-compare a re-push away. ThemeData has no
   // value `==` (a `Theme(data: x.copyWith(...))` ancestor mints a fresh
-  // instance every build), but ColorScheme / IconThemeData / TextStyle each do
-  // — and they are exactly populateThemeData's inputs, so keep the two in sync.
+  // instance every build), but ColorScheme / IconThemeData / TextStyle /
+  // TextTheme each do — and they are exactly populateThemeData's inputs, so
+  // keep the two in sync.
   ColorScheme? _lastThemeColorScheme;
   IconThemeData? _lastThemeIconTheme;
   TextStyle? _lastThemeTextStyle;
+  TextTheme? _lastThemeTextTheme;
+  MediaQueryData? _lastDeviceMediaQuery;
   ContextSnapshot? _context;
 
   void _refreshContext() {
@@ -358,14 +361,23 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final colorScheme = theme.colorScheme;
     final iconTheme = theme.iconTheme;
     final defaultTextStyle = DefaultTextStyle.of(context).style;
+    final textTheme = theme.textTheme;
     final themeChanged = colorScheme != _lastThemeColorScheme ||
         iconTheme != _lastThemeIconTheme ||
-        defaultTextStyle != _lastThemeTextStyle;
+        defaultTextStyle != _lastThemeTextStyle ||
+        textTheme != _lastThemeTextTheme;
     if (themeChanged) {
       _lastThemeColorScheme = colorScheme;
       _lastThemeIconTheme = iconTheme;
       _lastThemeTextStyle = defaultTextStyle;
+      _lastThemeTextTheme = textTheme;
     }
+    // Republish `data.device.*` on a rotation or resize, not on every
+    // unrelated MediaQuery change.
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final deviceChanged =
+        mediaQuery != null && !_publishesSameDevice(mediaQuery);
+    if (deviceChanged) _lastDeviceMediaQuery = mediaQuery;
     for (final stage in <_BlobStage?>[
       _blobPresentation,
       _pendingBlobStage,
@@ -377,9 +389,28 @@ class _RestagePaywallState extends State<RestagePaywall> {
           colorScheme: colorScheme,
           iconTheme: iconTheme,
           defaultTextStyle: defaultTextStyle,
+          textTheme: textTheme,
+        );
+      }
+      if (deviceChanged) {
+        populateDeviceData(
+          stage.data,
+          locale: widget.locale ?? const Locale('en'),
+          mediaQuery: mediaQuery,
+          platform: currentDevicePlatform(),
         );
       }
     }
+  }
+
+  /// Whether [mediaQuery] would publish the same `data.device.*` values as the
+  /// last publish.
+  bool _publishesSameDevice(MediaQueryData mediaQuery) {
+    final last = _lastDeviceMediaQuery;
+    return last != null &&
+        last.size == mediaQuery.size &&
+        last.devicePixelRatio == mediaQuery.devicePixelRatio &&
+        last.padding == mediaQuery.padding;
   }
 
   @override
@@ -1828,6 +1859,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     stage.contextPublisher.publishSnapshot(_context);
     final mq = MediaQuery.maybeOf(context);
     if (mq != null) {
+      _lastDeviceMediaQuery = mq;
       populateDeviceData(
         stage.data,
         locale: widget.locale ?? const Locale('en'),
@@ -1838,12 +1870,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final colorScheme = _lastThemeColorScheme;
     final iconTheme = _lastThemeIconTheme;
     final textStyle = _lastThemeTextStyle;
-    if (colorScheme != null && iconTheme != null && textStyle != null) {
+    final textTheme = _lastThemeTextTheme;
+    if (colorScheme != null &&
+        iconTheme != null &&
+        textStyle != null &&
+        textTheme != null) {
       populateThemeData(
         stage.data,
         colorScheme: colorScheme,
         iconTheme: iconTheme,
         defaultTextStyle: textStyle,
+        textTheme: textTheme,
       );
     }
   }
