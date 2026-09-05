@@ -14,7 +14,8 @@ part 'restage.generated/lumen_onboarding.restage.g.dart';
 /// → a reminder **host-action gate** (the one conditional the flow runtime
 /// offers — advance only on a granted result) → a recap → the meditation
 /// paywall as the final flow screen via `paywallScreen(...)`, whose continue
-/// action ends the flow.
+/// action ends the flow. The paywall's close and terms controls leave the
+/// graph as declared custom events.
 ///
 /// The questions are linear by design: the flow runtime authors exactly one
 /// forward transition per screen, so a personalization answer tailors the
@@ -47,6 +48,12 @@ final class LumenOnboardingFlow extends RestageFlow {
             ),
           },
         ),
+        customEvents: {
+          // Dismissing or reading the terms is host-owned; neither is a second
+          // graph transition, and neither completes the flow.
+          'close': FlowOutboundPayloadDeclaration(),
+          'terms': FlowOutboundPayloadDeclaration(),
+        },
       ),
       states: [
         screen(lumenWelcomeScreenRef)

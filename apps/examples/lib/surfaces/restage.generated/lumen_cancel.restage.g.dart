@@ -142,9 +142,9 @@ final _lumenCancelThanksScreenProvenance =
         logicalPath:
             "assets/survey/screens/measurement/79821ca45fbefc0b/lumen_cancel_thanks.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 8151,
+        byteLength: 7492,
         sha256:
-            "sha256:d0db5008770bf18da911e19db90e3d5ac8fe8832752c6b20c66c78688962d40a",
+            "sha256:be1a5a736b8ad9f92edc1c2f21bc316b1e5cfde990e45ad48ca1f7d9584208b6",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -152,7 +152,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:3ee0d9139c793840ce9bfdb669c25ba49d026f232aa0f15562dc3f5e5d051bf8",
+            "sha256:da58e411d77324dbad1579e9aeb0251a97b72bda69c099c4c3053b8b5dbee804",
       ),
     ],
   ),
@@ -163,7 +163,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      "c1e3a1c892520dcd361cbe5557e714d30844ed697418466ac10023fe35c548cd",
+      "87d2345f1ae345dc69d2df54f88c61794068716e1d2ac44bd0c8043003b8a29e",
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(
