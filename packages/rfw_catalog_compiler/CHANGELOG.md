@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- Breaking: the compiler IR and its lowered catalogs use catalog schema v5
+  from `rfw_catalog_schema` 2.0.0; the closed event-name list and the rename
+  field are gone from the IR.
 - Carry open event properties through compiler IR without a closed event-name
   list or rename field, and lower canonical catalog schema v5.
 - Allow wire-ID `rename` events to express source-only moves and opt into

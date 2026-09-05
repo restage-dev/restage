@@ -42,6 +42,7 @@ const _publishable = <String>{
   'restage_codegen',
   'rfw_catalog_compiler',
   'restage_a2ui',
+  'restage_measurement_schema',
 };
 
 /// Packages whose `test/` directory must NOT ship in the published archive

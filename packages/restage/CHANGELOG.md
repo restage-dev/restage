@@ -129,7 +129,7 @@ unused.
 
 No wire-format change. The `.rfw`, the event-contract hash, and the published
 identity are keyed on the annotation `id` and the event schema, never on Dart
-symbol names — the delivery-artifact digests are byte-identical across this
+symbol names — the delivery-artifact digests are identical across this
 release.
 
 **Breaking. The flow surfaces no longer draw back or skip controls.** The
@@ -203,8 +203,8 @@ Other changes:
   entrypoints for target-specific custom catalog configuration.
 - Add the Widgetbook configuration entrypoint and typed per-widget/per-input
   emit-target routing annotations.
-- Experiment attribution is surface-general: onboarding, message and survey
-  surfaces attribute an experiment the same way a paywall does. Experiment
+- Experiment attribution applies to every surface: onboarding, message and
+  survey surfaces attribute an experiment the same way a paywall does. Experiment
   dimensions come only from an authoritative root binding; payload-claimed
   assignments are scrubbed and never trusted.
 - Added optional host render context to screen, paywall, flow, and onboarding
@@ -218,6 +218,10 @@ Other changes:
   reports and omits the offending value or collection in release.
 - A scalar context change rebuilds only the nodes that read its path; list
   reconciliation is positional.
+- A generated `<Screen>Surface` displays the compiled-in authored widget when
+  delivery or rendering is unavailable, and delivery refuses with a
+  contract-mismatch reason when the served contract does not match the
+  installed build.
 
 ## 1.3.0
 

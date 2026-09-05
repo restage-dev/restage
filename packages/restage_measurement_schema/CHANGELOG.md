@@ -15,5 +15,5 @@
 - The policy bodies, the audience and eligibility vocabulary, the metric and
   metric-binding definitions, the layer and activation vocabulary, and
   statistical inference and result reporting are deliberately not part of this
-  package. The service evaluates them, so that vocabulary is platform-internal
+  package. The service evaluates them, so that vocabulary belongs to the service
   and is not published here.
