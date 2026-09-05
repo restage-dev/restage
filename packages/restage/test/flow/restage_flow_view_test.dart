@@ -1530,6 +1530,67 @@ void main() {
     });
   });
 
+  Future<void> pumpWideFlowAtProfileThemed(
+    WidgetTester tester,
+    RestageFlowController<FirstRunResult> controller,
+    TargetPlatform platform,
+  ) async {
+    await tester.pumpWidget(Theme(
+      data: ThemeData(platform: platform),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 800,
+          height: 600,
+          child: RestageFlowView(controller: controller),
+        ),
+      ),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Welcome'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile'), findsOneWidget);
+  }
+
+  testWidgets('the theme platform picks the page, not the host platform',
+      (tester) async {
+    final controller = loadedController();
+    addTearDown(controller.dispose);
+
+    // Host says Android; the theme says iOS. A host that simulates a device
+    // (a preview frame) sets the theme, so the iOS edge drag must pop.
+    await withPlatform(TargetPlatform.android, () async {
+      await pumpWideFlowAtProfileThemed(tester, controller, TargetPlatform.iOS);
+      await tester.dragFrom(const Offset(1, 300), const Offset(520, 0));
+      await tester.pumpAndSettle();
+
+      final returnedToWelcome = find.text('Welcome').evaluate().length == 1;
+      await unmountView(tester);
+      expect(returnedToWelcome, isTrue);
+    });
+  });
+
+  testWidgets('an Android theme on an iOS host offers no edge drag',
+      (tester) async {
+    final controller = loadedController();
+    addTearDown(controller.dispose);
+
+    await withIosPlatform(() async {
+      await pumpWideFlowAtProfileThemed(
+        tester,
+        controller,
+        TargetPlatform.android,
+      );
+      await tester.dragFrom(const Offset(1, 300), const Offset(520, 0));
+      await tester.pumpAndSettle();
+
+      final stillOnProfile = find.text('Profile').evaluate().length == 1;
+      await unmountView(tester);
+      expect(stillOnProfile, isTrue);
+    });
+  });
+
   testWidgets('iOS leading-edge drag previews back without early mutation',
       (tester) async {
     final controller = loadedController();
