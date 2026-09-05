@@ -2,16 +2,24 @@
 
 ## 2.0.0
 
+The published device data carries the ambient view padding alongside the safe
+areas, so a surface can read the inset the operating system applies whether or
+not something is covering it.
+
 The published theme data carries `brightness`, the ambient theme's `light` /
 `dark` token, so a delivered surface can pick its own palette per mode.
 
 The published theme data carries the ambient `TextTheme` as
 `textTheme.<style>.<field>`, so a delivered surface can follow the app's own
 type scale, whether a screen reads one field or hands a whole style to a
-`style:` slot. Each style carries the font family and font style alongside
-size, weight, colour, letter spacing, and height, so a branded app's display
-face reaches the surface; `defaultTextStyle` carries the same seven fields.
-`populateThemeData` takes the text theme as a required argument.
+`style:` slot. Each style carries every `TextStyle` field a slot holds as a
+scalar or a list of scalars — the two colours, the font family and its
+fallbacks, size, weight, posture, letter and word spacing, height, baseline,
+leading distribution, overflow, and the decoration group — so a branded app's
+display face, its italics and its underlines reach the surface;
+`defaultTextStyle` carries the same set. A `decoration` combining more than one
+line has no published token, so its key is omitted and the slot keeps its own
+default. `populateThemeData` takes the text theme as a required argument.
 The device data published on every mount gains `languageCode` and
 `countryCode`, so a surface can match a locale subtag without parsing the full
 locale tag. `countryCode` is omitted when the ambient locale carries no

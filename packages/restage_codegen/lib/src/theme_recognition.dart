@@ -122,6 +122,14 @@ Expression? propertyAccessRoot(Expression expr) {
 /// - `DefaultTextStyle.of(c).style.<x>` — must lead with `.style.`; the leading
 ///   `style` segment normalises to the `defaultTextStyle.<x>` contract path so
 ///   unrelated accesses (e.g. `.maxLines`) fall through to `null`.
+/// - `ColorScheme.of(c).<x>` and `TextTheme.of(c).<x>(.<y>)` — Flutter's
+///   shortcut statics for `Theme.of(c).colorScheme` / `Theme.of(c).textTheme`,
+///   normalised to the same paths by prepending the segment they stand for.
+///
+/// `IconTheme.of(c)` is NOT one of these: it reads the nearest ancestor
+/// `IconTheme` widget's data (merged down the tree, defaulted against
+/// `IconThemeData.fallback()`), which many widgets install over the theme's
+/// own, so it can name a different value than `iconTheme.*` publishes.
 ///
 /// Binding-aware: the chain may pass through a bound `final` theme-local
 /// captured in [bindings] (element-keyed) — `scheme.primary` where a leading
@@ -183,6 +191,14 @@ List<String>? themeReadSegments(
   // object that can't be emitted as a blob primitive — not a theme read.
   if (segments.isEmpty) return null;
   if (isFlutterStaticOf(current, 'Theme')) return segments;
+  // The shortcut statics are one-liners over `Theme.of(c)`, so they read the
+  // same values under the segment they stand for.
+  if (isFlutterStaticOf(current, 'ColorScheme')) {
+    return ['colorScheme', ...segments];
+  }
+  if (isFlutterStaticOf(current, 'TextTheme')) {
+    return ['textTheme', ...segments];
+  }
   if (isFlutterStaticOf(current, 'DefaultTextStyle')) {
     // The contract publishes `defaultTextStyle.<x>` from the ambient
     // `DefaultTextStyle`'s `.style.<x>`; require and consume the leading

@@ -133,6 +133,20 @@ void main() {
       );
     });
 
+    test('the ColorScheme.of shortcut names the same value', () async {
+      final result = await lower(
+        'ColorScheme.of(context).brightness == Brightness.dark '
+        "? Text('night') : Text('day')",
+      );
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        'switch data.theme.brightness '
+        '{ "dark": Text(text: "night"), default: Text(text: "day") }',
+      );
+    });
+
     test('a bare colorScheme.brightness read is out of contract', () async {
       final result = await lower(
         'Icon(color: Theme.of(context).colorScheme.brightness)',

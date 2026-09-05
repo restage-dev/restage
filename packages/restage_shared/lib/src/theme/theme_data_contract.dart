@@ -65,17 +65,40 @@ const List<String> kThemeContractTextThemeStyles = [
 ];
 
 /// The `TextStyle` fields a published style carries, mapped to the wire kind
-/// each publishes. `letterSpacing` and `height` are doubles like `fontSize`,
-/// so they share its [ThemeContractValueKind.size] kind. The same set backs
-/// every `textTheme.<style>` and `defaultTextStyle`.
+/// each publishes — every field a catalog `TextStyle` slot holds as a scalar
+/// or a list of scalars, so a whole-style read binds the style the host set
+/// rather than a subset of it.
+///
+/// `letterSpacing`, `wordSpacing`, `height` and `decorationThickness` are
+/// doubles like `fontSize`, so they share its [ThemeContractValueKind.size]
+/// kind. `decoration` publishes the token naming one of `underline`,
+/// `overline`, `lineThrough` and `none`; a value combining more than one line
+/// has no token, so its key is omitted and the slot falls through to its own
+/// default.
+///
+/// Not carried: `shadows`, `fontFeatures`, `fontVariations`, `foreground`,
+/// `background`, `locale`, `debugLabel` and `inherit`. Write a literal
+/// `TextStyle` to set any of those.
+///
+/// The same set backs every `textTheme.<style>` and `defaultTextStyle`.
 const Map<String, ThemeContractValueKind> kThemeContractTextThemeFieldKinds = {
   'color': ThemeContractValueKind.color,
+  'backgroundColor': ThemeContractValueKind.color,
   'fontFamily': ThemeContractValueKind.text,
+  'fontFamilyFallback': ThemeContractValueKind.textList,
   'fontSize': ThemeContractValueKind.size,
   'fontWeight': ThemeContractValueKind.fontWeight,
   'fontStyle': ThemeContractValueKind.fontStyle,
   'letterSpacing': ThemeContractValueKind.size,
+  'wordSpacing': ThemeContractValueKind.size,
   'height': ThemeContractValueKind.size,
+  'leadingDistribution': ThemeContractValueKind.leadingDistribution,
+  'textBaseline': ThemeContractValueKind.textBaseline,
+  'overflow': ThemeContractValueKind.textOverflow,
+  'decoration': ThemeContractValueKind.textDecoration,
+  'decorationColor': ThemeContractValueKind.color,
+  'decorationStyle': ThemeContractValueKind.textDecorationStyle,
+  'decorationThickness': ThemeContractValueKind.size,
 };
 
 /// Every `textTheme.<style>.<field>` path, one per style × field pair.
@@ -105,6 +128,27 @@ enum ThemeContractValueKind {
   /// A `normal` / `italic` font-style token string, named for the `FontStyle`
   /// member it denotes so an enum-by-name decoder resolves it.
   fontStyle,
+
+  /// A list of plain strings, such as the fallback font families.
+  textList,
+
+  /// An `underline` / `overline` / `lineThrough` / `none` token naming the
+  /// `TextDecoration` value it denotes. A decoration combining more than one
+  /// line has no token and is not published.
+  textDecoration,
+
+  /// A `TextDecorationStyle` member name, resolved by an enum-by-name decoder.
+  textDecorationStyle,
+
+  /// A `TextLeadingDistribution` member name, resolved by an enum-by-name
+  /// decoder.
+  leadingDistribution,
+
+  /// A `TextBaseline` member name, resolved by an enum-by-name decoder.
+  textBaseline,
+
+  /// A `TextOverflow` member name, resolved by an enum-by-name decoder.
+  textOverflow,
 
   /// A `light` / `dark` brightness token string. No catalog slot accepts it;
   /// it exists to be branched on, not assigned.

@@ -7154,14 +7154,15 @@ GestureDetector(
 
       expect(r.issues, isEmpty);
       // Only published fields bind, and only where the fixture declares a
-      // property: `decoration` keeps its default, `fontFamily` has no slot.
+      // property: `fontFamily` has no slot here.
       expect(
         r.dsl,
         'Text(text: "Go Pro", '
         'color: data.theme.textTheme.titleLarge.color, '
         'fontSize: data.theme.textTheme.titleLarge.fontSize, '
         'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
-        'fontStyle: data.theme.textTheme.titleLarge.fontStyle)',
+        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+        'decoration: data.theme.textTheme.titleLarge.decoration)',
       );
     });
 
@@ -7208,7 +7209,62 @@ GestureDetector(
         'Text(text: "Go Pro", color: 0xFF112233, '
         'fontSize: data.theme.textTheme.titleLarge.fontSize, '
         'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
-        'fontStyle: data.theme.textTheme.titleLarge.fontStyle)',
+        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+        'decoration: data.theme.textTheme.titleLarge.decoration)',
+      );
+    });
+
+    test('the TextTheme.of shortcut decomposes and copies the same way',
+        () async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          text: 'Go Pro',
+          style: TextTheme.of(context).titleLarge
+              ?.copyWith(color: const Color(0xFF112233)),
+        );
+        """,
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        'Text(text: "Go Pro", color: 0xFF112233, '
+        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+        'decoration: data.theme.textTheme.titleLarge.decoration)',
+      );
+    });
+
+    test('a whole TextTheme.of style on a style slot decomposes per field',
+        () async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          text: 'Go Pro',
+          style: TextTheme.of(context).titleLarge,
+        );
+        """,
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        'Text(text: "Go Pro", '
+        'color: data.theme.textTheme.titleLarge.color, '
+        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+        'fontStyle: data.theme.textTheme.titleLarge.fontStyle, '
+        'decoration: data.theme.textTheme.titleLarge.decoration)',
       );
     });
 
@@ -7219,7 +7275,7 @@ GestureDetector(
         Object x() => Text(
           text: 'Go Pro',
           style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(wordSpacing: 2.0),
+              ?.copyWith(inherit: false),
         );
         """,
         rootPackage: 'apps_examples',
@@ -7233,7 +7289,7 @@ GestureDetector(
       );
       expect(
         r.issues.map((issue) => issue.message).join('\n'),
-        contains('wordSpacing'),
+        contains('inherit'),
       );
     });
 

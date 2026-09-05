@@ -652,6 +652,52 @@ class AcmeBanner extends StatelessWidget {
       );
     });
 
+    test('a ColorScheme.of(context) read marks the themeAsData mechanism',
+        () async {
+      final result = await classifyFixture(
+        {
+          'lib/shortcut_banner.dart': '''
+$kFlutterClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.color, super.key});
+  final Color? color;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeShortcutBanner',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'banner',
+)
+class AcmeShortcutBanner extends StatelessWidget {
+  const AcmeShortcutBanner({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Box(color: ColorScheme.of(context).primary);
+}
+''',
+        },
+        inputPath: 'lib/shortcut_banner.dart',
+        widgetName: 'AcmeShortcutBanner',
+        catalog: catalogWith([
+          entry(
+            name: 'Box',
+            properties: const [],
+            flutterType: 'package:apps_examples/shortcut_banner.dart#Box',
+          ),
+        ]),
+      );
+
+      expect(result, isA<ComposableWidget>());
+      expect(
+        (result as ComposableWidget).requiredMechanisms,
+        contains(InliningMechanism.themeAsData),
+      );
+    });
+
     test('a structured value with literal args is plain composition', () async {
       final result = await classifyFixture(
         _mechanismsFixture,

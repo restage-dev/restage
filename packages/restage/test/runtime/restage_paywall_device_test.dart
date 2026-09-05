@@ -93,4 +93,51 @@ void main() {
     expect(rotatedWidth, 844.0,
         reason: 'a resize re-publishes data.device.screenWidth');
   });
+
+  testWidgets('a view-padding-only change re-publishes the device channel',
+      (tester) async {
+    final resolver = _StaticResolver(
+      Uint8List.fromList(
+        encodeLibraryBlob(
+          parseLibraryFile('''
+            import restage.core;
+            import acme.fixtures;
+            widget Paywall = DeviceProbe(width: data.device.viewPaddingTop);
+          '''),
+        ),
+      ),
+    );
+
+    Widget app(EdgeInsets viewPadding) => MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(390, 844),
+              viewPadding: viewPadding,
+            ),
+            child: Scaffold(
+              body: RestagePaywall(id: 'p', resolver: resolver),
+            ),
+          ),
+        );
+
+    _DeviceProbe probe() =>
+        tester.widget<_DeviceProbe>(find.byType(_DeviceProbe));
+
+    await tester.pumpWidget(app(EdgeInsets.zero));
+    await tester.pumpAndSettle();
+    final firstTop = probe().width;
+
+    // Only the view padding moves: the size and the padding are unchanged.
+    await tester.pumpWidget(app(const EdgeInsets.only(top: 44)));
+    await tester.pumpAndSettle();
+    final coveredTop = probe().width;
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+
+    expect(firstTop, 0.0);
+    expect(coveredTop, 44.0,
+        reason:
+            'a view-padding change re-publishes data.device.viewPaddingTop');
+  });
 }
