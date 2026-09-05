@@ -66,6 +66,9 @@ const Map<String, LocalWidgetBuilder> kMaterialLibraryFactories =
   'SwitchListTile': _buildSwitchListTile,
   'TextButton': _buildTextButton,
   'TextButtonIcon': _buildTextButtonIcon,
+  'PreferredSize': _buildPreferredSize,
+  'DefaultTabController': _buildDefaultTabController,
+  'TabBar': _buildTabBar,
   'Tab': _buildTab,
   'TextField': _buildTextField,
   'Tooltip': _buildTooltip,
@@ -94,6 +97,9 @@ Widget _buildAppBar(BuildContext context, DataSource source) {
     actions: source.isList(<Object>['actions'])
         ? source.childList(<Object>['actions'])
         : null,
+    bottom: RestageDecoders.optionalPreferredSize(
+        source.optionalChild(<Object>['bottom']),
+        source.v<double>(<Object>['bottomHeight'])),
     elevation: source.v<double>(<Object>['elevation']),
     scrolledUnderElevation:
         source.v<double>(<Object>['scrolledUnderElevation']),
@@ -610,6 +616,9 @@ Widget _buildOutlinedButtonIcon(BuildContext context, DataSource source) {
 
 Widget _buildScaffold(BuildContext context, DataSource source) {
   return Scaffold(
+    appBar: RestageDecoders.optionalPreferredSize(
+        source.optionalChild(<Object>['appBar']),
+        source.v<double>(<Object>['appBarHeight'])),
     body: source.optionalChild(<Object>['body']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
@@ -713,6 +722,37 @@ Widget _buildTextButtonIcon(BuildContext context, DataSource source) {
         Clip.none,
     icon: source.child(<Object>['icon']),
     label: source.child(<Object>['label']),
+  );
+}
+
+Widget _buildPreferredSize(BuildContext context, DataSource source) {
+  return PreferredSize(
+    preferredSize: Size.fromHeight(
+        source.v<double>(<Object>['preferredSize']) ??
+            (throw ArgumentError('PreferredSize.preferredSize is required.'))),
+    child: source.child(<Object>['child']),
+  );
+}
+
+Widget _buildDefaultTabController(BuildContext context, DataSource source) {
+  return DefaultTabController(
+    length: source.v<int>(<Object>['length']) ??
+        (throw ArgumentError('DefaultTabController.length is required.')),
+    initialIndex: source.v<int>(<Object>['initialIndex']) ?? 0,
+    child: source.child(<Object>['child']),
+  );
+}
+
+Widget _buildTabBar(BuildContext context, DataSource source) {
+  return TabBar(
+    tabs: source.childList(<Object>['tabs']),
+    isScrollable: source.v<bool>(<Object>['isScrollable']) ?? false,
+    indicatorColor: ArgumentDecoders.color(source, <Object>['indicatorColor']),
+    labelColor: ArgumentDecoders.color(source, <Object>['labelColor']),
+    unselectedLabelColor:
+        ArgumentDecoders.color(source, <Object>['unselectedLabelColor']),
+    onTap: source.handler<ValueChanged<int>>(<Object>['onTap'],
+        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
   );
 }
 

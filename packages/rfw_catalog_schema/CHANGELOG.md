@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- Name the `PreferredSizeWidget` slot type and the synthetic strategies that
+  carry such a slot's height and that surface a `Size` argument as a height.
 - Make the unnamed generative constructor the source of truth for custom
   widget inputs, requiredness, positionalness, and order; descriptions may come
   from Dartdoc and `RestageProperty` becomes an optional metadata overlay.

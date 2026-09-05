@@ -9,7 +9,7 @@ const tallyOnboardingFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeTallyOnboardingFlowResult,
   measurementPublicationDraftDigest:
-      '55521eff4bb8b0d77a5384da2f943a51a99c8d5f048e93e3734f9fa893fb72b0',
+      '1182e9c59ae90923f75756fa12a78ae995611e8c67f6470f49e52bd4fa301f99',
 );
 
 TallyOnboardingResult _decodeTallyOnboardingFlowResult(

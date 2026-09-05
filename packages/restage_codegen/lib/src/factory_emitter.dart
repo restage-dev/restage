@@ -279,6 +279,16 @@ String? emitFactoryFunction(
 
   for (final p in entry.properties) {
     if (p.positional) continue;
+    if (p.synthetic == _sizeFromHeightSynthetic) {
+      final value = _wrappedValueFor(
+        p,
+        entry.name,
+        nullable: false,
+        index: nativeIndex,
+      );
+      argLines.add('    ${p.name}: $value,');
+      continue;
+    }
     if (p.synthetic == _borderRadiusCircularSynthetic) {
       // Direct-property borderRadius wrap (e.g. `ClipRRect.borderRadius`,
       // whose Flutter slot is non-nullable). Recipe-hoisted flats with the
@@ -372,6 +382,7 @@ String? emitFactoryFunction(
       pathExpression: presence?.valuePathExpression,
       applyDefault: presence == null,
       customChildProperties: customChildProperties,
+      preferredSizeHeightPath: _preferredSizeHeightPathFor(p, entry),
     );
     argLines.add('    ${p.name}: $decoded,');
   }
@@ -1133,6 +1144,10 @@ String _wrappedValueFor(
     tolerantNumbers: tolerantNumbers,
   );
   switch (prop.synthetic) {
+    case _sizeFromHeightSynthetic:
+      return prop.required || prop.defaultValue != null
+          ? 'Size.fromHeight($decoded)'
+          : 'Size.fromHeight($decoded ?? 0.0)';
     case _borderRadiusCircularSynthetic:
       // Required / default-bearing slots resolve to non-null `double`
       // via `_decodeExpression`'s own fallback — wrap directly.
@@ -1286,6 +1301,15 @@ const String _borderRadiusCornerSynthetic = 'borderRadiusCorner';
 /// Strategy identifier for the catalog-only occurrence identifier property.
 const String _analyticsIdSynthetic = kAnalyticsIdSyntheticStrategy;
 
+/// Strategy identifier for `PropertyEntry.synthetic`: the height of the
+/// entry's `PreferredSizeWidget` slot, carried beside the slot.
+const String _preferredSizeHeightSynthetic =
+    kPreferredSizeHeightSyntheticStrategy;
+
+/// Strategy identifier for `PropertyEntry.synthetic`: rebuild the
+/// property's decoded `double` as `Size.fromHeight(<value>)`.
+const String _sizeFromHeightSynthetic = kSizeFromHeightSyntheticStrategy;
+
 /// The four corner property names, in Flutter `BorderRadius.only` ctor
 /// order, paired with the `Radius` ctor parameter each one feeds.
 const List<({String property, String corner})> _kBorderRadiusCorners = [
@@ -1310,6 +1334,8 @@ const Set<String> kSupportedSyntheticStrategies = {
   _borderRadiusCircularSynthetic,
   _borderRadiusCornerSynthetic,
   _analyticsIdSynthetic,
+  _preferredSizeHeightSynthetic,
+  _sizeFromHeightSynthetic,
 };
 
 /// Returns the non-exported function identifier for [entry]'s factory closure.
@@ -1663,6 +1689,17 @@ PropertyEntry? _gatingPropertyOf(WidgetEntry entry) =>
       (p) => p.synthetic == _gateOnPressedSynthetic,
     );
 
+/// The wire path of the height that sizes [prop], when it is a
+/// `PreferredSizeWidget` slot whose entry declares the height synthetic.
+String? _preferredSizeHeightPathFor(PropertyEntry prop, WidgetEntry entry) {
+  if (prop.type != PropertyType.widget) return null;
+  if (prop.widgetType != kPreferredSizeWidgetType) return null;
+  final height = entry.properties.firstWhereOrNull(
+    (p) => p.synthetic == _preferredSizeHeightSynthetic,
+  );
+  return height == null ? null : _sourcePath(height.name);
+}
+
 /// True when [prop]'s `synthetic` strategy is one the mechanical
 /// emitter knows how to consume on [entry]. `null`-synthetic properties
 /// don't reach this check; the caller filters them.
@@ -1726,6 +1763,20 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
           prop.type == PropertyType.string &&
           !prop.required &&
           !prop.positional;
+    case _sizeFromHeightSynthetic:
+      // The synthetic stands in for a `Size` argument of the same name.
+      return prop.type == PropertyType.real;
+    case _preferredSizeHeightSynthetic:
+      // The synthetic supplies the height of the entry's
+      // `PreferredSizeWidget` slot, so the entry must declare one.
+      return prop.type == PropertyType.real &&
+          !prop.required &&
+          !prop.positional &&
+          entry.properties.any(
+            (p) =>
+                p.type == PropertyType.widget &&
+                p.widgetType == kPreferredSizeWidgetType,
+          );
     default:
       return false;
   }
@@ -1887,6 +1938,7 @@ String _decodeExpression(
   String? pathExpression,
   bool applyDefault = true,
   bool customChildProperties = false,
+  String? preferredSizeHeightPath,
 }) {
   final path = pathExpression ?? _sourcePath(prop.name);
   final decoded = _decoderCallFor(
@@ -1896,6 +1948,7 @@ String _decodeExpression(
     aliases: aliases,
     tolerantNumbers: tolerantNumbers,
     customChildProperties: customChildProperties,
+    preferredSizeHeightPath: preferredSizeHeightPath,
   );
   // RFW's childList read turns a missing slot into an empty list. Guard the
   // nullable no-default constructor shape so omission/null remains null, while
@@ -2972,7 +3025,11 @@ String _decoderCallFor(
   Map<String, String> aliases = const {},
   bool tolerantNumbers = false,
   bool customChildProperties = false,
+  String? preferredSizeHeightPath,
 }) {
+  final preferredSizeHeightHint = preferredSizeHeightPath == null
+      ? null
+      : 'source.v<double>($preferredSizeHeightPath)';
   switch (prop.type) {
     case PropertyType.boolean:
       return 'source.v<bool>($path)';
@@ -3077,6 +3134,15 @@ String _decoderCallFor(
           ? 'source.optionalChild($path)'
           : 'source.child($path)';
       if (prop.widgetType == null) return base;
+      if (prop.widgetType == kPreferredSizeWidgetType) {
+        // A built slot value never implements the interface, so the
+        // adapter wraps it at the height carried beside the slot.
+        final height =
+            preferredSizeHeightPath == null ? '' : ', $preferredSizeHeightHint';
+        return nullableDecoder
+            ? 'RestageDecoders.optionalPreferredSize($base$height)'
+            : 'RestageDecoders.preferredSize($base$height)';
+      }
       return nullableDecoder
           ? '$base as ${prop.widgetType}?'
           : '$base as ${prop.widgetType}';

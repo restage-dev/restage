@@ -20,197 +20,186 @@ class LumenCancelReasonScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F5FB),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AppBar(
-            backgroundColor: const Color(0xFFF7F5FB),
-            elevation: 0,
-            foregroundColor: const Color(0xFF2A2833),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF7F5FB),
+        elevation: 0,
+        foregroundColor: const Color(0xFF2A2833),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              const Text(
+                'Why are you leaving?',
+                style: TextStyle(
+                  color: Color(0xFF2A2833),
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'One quiet question — it shapes what we build next.',
+                style: TextStyle(
+                  color: Color(0xFF847F92),
+                  fontSize: 16,
+                  height: 1.4,
+                ),
+              ),
+              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Why are you leaving?',
-                      style: TextStyle(
-                        color: Color(0xFF2A2833),
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
+                    GestureDetector(
+                      onTap: surfaceEvent(reason, 'no_time'),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFFFF),
+                          border: Border.all(
+                            color: const Color(0xFFE5E1F0),
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              color: Color(0xFF7C6CD6),
+                              size: 24,
+                            ),
+                            SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                'I ran out of time to practice',
+                                style: TextStyle(
+                                  color: Color(0xFF2A2833),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'One quiet question — it shapes what we build next.',
-                      style: TextStyle(
-                        color: Color(0xFF847F92),
-                        fontSize: 16,
-                        height: 1.4,
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: surfaceEvent(reason, 'too_expensive'),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFFFF),
+                          border: Border.all(
+                            color: const Color(0xFFE5E1F0),
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.savings_rounded,
+                              color: Color(0xFF7C6CD6),
+                              size: 24,
+                            ),
+                            SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                'It costs more than I use',
+                                style: TextStyle(
+                                  color: Color(0xFF2A2833),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          GestureDetector(
-                            onTap: surfaceEvent(reason, 'no_time'),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFFFFF),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: surfaceEvent(reason, 'content'),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFFFF),
+                          border: Border.all(
+                            color: const Color(0xFFE5E1F0),
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.library_music_rounded,
+                              color: Color(0xFF7C6CD6),
+                              size: 24,
+                            ),
+                            SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                'I wanted different sessions',
+                                style: TextStyle(
+                                  color: Color(0xFF2A2833),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.schedule_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 14),
-                                  Expanded(
-                                    child: Text(
-                                      'I ran out of time to practice',
-                                      style: TextStyle(
-                                        color: Color(0xFF2A2833),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: surfaceEvent(reason, 'break'),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFFFF),
+                          border: Border.all(
+                            color: const Color(0xFFE5E1F0),
+                            width: 2,
                           ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: surfaceEvent(reason, 'too_expensive'),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFFFFF),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.spa_rounded,
+                              color: Color(0xFF7C6CD6),
+                              size: 24,
+                            ),
+                            SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                'Just taking a break',
+                                style: TextStyle(
+                                  color: Color(0xFF2A2833),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.savings_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 14),
-                                  Expanded(
-                                    child: Text(
-                                      'It costs more than I use',
-                                      style: TextStyle(
-                                        color: Color(0xFF2A2833),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: surfaceEvent(reason, 'content'),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFFFFF),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.library_music_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 14),
-                                  Expanded(
-                                    child: Text(
-                                      'I wanted different sessions',
-                                      style: TextStyle(
-                                        color: Color(0xFF2A2833),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: surfaceEvent(reason, 'break'),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFFFFF),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.spa_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 14),
-                                  Expanded(
-                                    child: Text(
-                                      'Just taking a break',
-                                      style: TextStyle(
-                                        color: Color(0xFF2A2833),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

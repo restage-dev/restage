@@ -9,7 +9,7 @@ const minimalStatsFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalStatsFlowResult,
   measurementPublicationDraftDigest:
-      'c8eb634040222353d80d5605dda4c469a995206a74f86176e72b56671719f86b',
+      'f57422023fd14f8569fbc483c800b30e2ff06fbe3fdffdbee25416d9b76c29bd',
 );
 
 MinimalStatsResult _decodeMinimalStatsFlowResult(Map<String, Object?> result) {

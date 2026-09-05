@@ -34,6 +34,7 @@ export 'src/discriminator_spec.dart';
 export 'src/factory_variant.dart';
 export 'src/library_info.dart';
 export 'src/native_decompose.dart';
+export 'src/preferred_size_slot.dart';
 export 'src/property_entry.dart';
 export 'src/property_exclusion.dart';
 export 'src/property_metadata.dart';

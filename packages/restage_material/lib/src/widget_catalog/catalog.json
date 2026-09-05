@@ -147,6 +147,14 @@
           "constructorNullable": true
         },
         {
+          "wireId": "p0473",
+          "name": "bottom",
+          "type": "widget",
+          "description": "A widget shown at the bottom of the app bar.",
+          "widgetType": "PreferredSizeWidget",
+          "constructorNullable": true
+        },
+        {
           "wireId": "p0007",
           "name": "elevation",
           "type": "length",
@@ -375,6 +383,13 @@
               "symbolName": "EdgeInsetsGeometry"
             }
           }
+        },
+        {
+          "wireId": "p0474",
+          "name": "bottomHeight",
+          "type": "real",
+          "description": "The height of the widget below the app bar.",
+          "synthetic": "preferredSizeHeight"
         },
         {
           "wireId": "p0415",
@@ -4325,6 +4340,14 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0471",
+          "name": "appBar",
+          "type": "widget",
+          "description": "An app bar to display at the top of the scaffold.",
+          "widgetType": "PreferredSizeWidget",
+          "constructorNullable": true
+        },
+        {
           "wireId": "p0138",
           "name": "body",
           "type": "widget",
@@ -4346,6 +4369,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0472",
+          "name": "appBarHeight",
+          "type": "real",
+          "description": "The height of the app bar.",
+          "synthetic": "preferredSizeHeight"
         },
         {
           "wireId": "p0449",
@@ -5210,6 +5240,199 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "wireId": "w0046",
+      "name": "PreferredSize",
+      "library": "restage.material",
+      "category": "layout",
+      "description": "A widget with a preferred size.",
+      "flutterType": "package:flutter/src/widgets/preferred_size.dart#PreferredSize",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0475",
+          "name": "child",
+          "type": "widget",
+          "description": "The widget below this widget in the tree.",
+          "required": true,
+          "priority": "primary"
+        },
+        {
+          "wireId": "p0476",
+          "name": "preferredSize",
+          "type": "real",
+          "description": "The height this widget asks its parent to give it.",
+          "required": true,
+          "synthetic": "sizeFromHeight",
+          "priority": "primary"
+        },
+        {
+          "wireId": "p0477",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ]
+    },
+    {
+      "wireId": "w0047",
+      "name": "DefaultTabController",
+      "library": "restage.material",
+      "category": "layout",
+      "description": "The [TabController] for descendant widgets that don't specify one explicitly.",
+      "flutterType": "package:flutter/src/material/tab_controller.dart#DefaultTabController",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0478",
+          "name": "length",
+          "type": "integer",
+          "description": "The total number of tabs.",
+          "required": true,
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        },
+        {
+          "wireId": "p0479",
+          "name": "initialIndex",
+          "type": "integer",
+          "description": "The initial index of the selected tab.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": 0
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        },
+        {
+          "wireId": "p0480",
+          "name": "child",
+          "type": "widget",
+          "description": "The widget below this widget in the tree.",
+          "required": true,
+          "priority": "primary"
+        },
+        {
+          "wireId": "p0481",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ]
+    },
+    {
+      "wireId": "w0048",
+      "name": "TabBar",
+      "library": "restage.material",
+      "category": "input",
+      "description": "A Material Design primary tab bar.",
+      "flutterType": "package:flutter/src/material/tabs.dart#TabBar",
+      "childrenSlot": "none",
+      "properties": [
+        {
+          "wireId": "p0482",
+          "name": "tabs",
+          "type": "widgetList",
+          "description": "Typically a list of two or more [Tab] widgets.",
+          "required": true,
+          "priority": "primary"
+        },
+        {
+          "wireId": "p0483",
+          "name": "isScrollable",
+          "type": "boolean",
+          "description": "Whether this tab bar can be scrolled horizontally.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": false
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0484",
+          "name": "indicatorColor",
+          "type": "color",
+          "description": "The color of the line that appears below the selected tab.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0485",
+          "name": "labelColor",
+          "type": "color",
+          "description": "The color of selected tab labels.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0486",
+          "name": "unselectedLabelColor",
+          "type": "color",
+          "description": "The color of unselected tab labels.",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0487",
+          "name": "onTap",
+          "type": "event",
+          "description": "An optional callback that's called when the [TabBar] is tapped.",
+          "callbackSignature": "ValueChanged<int>",
+          "constructorNullable": true,
+          "category": "behavior"
+        },
+        {
+          "wireId": "p0488",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },

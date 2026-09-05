@@ -141,6 +141,14 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
         ),
         PropertyEntry(
+          wireId: WireId('p0473'),
+          name: 'bottom',
+          type: PropertyType.widget,
+          description: 'A widget shown at the bottom of the app bar.',
+          widgetType: 'PreferredSizeWidget',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
           wireId: WireId('p0007'),
           name: 'elevation',
           type: PropertyType.length,
@@ -320,6 +328,13 @@ final Catalog kRegistry = Catalog(
               dartTypeRef: DartTypeRef(
                   libraryUri: 'package:flutter/src/painting/edge_insets.dart',
                   symbolName: 'EdgeInsetsGeometry')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0474'),
+          name: 'bottomHeight',
+          type: PropertyType.real,
+          description: 'The height of the widget below the app bar.',
+          synthetic: 'preferredSizeHeight',
         ),
         PropertyEntry(
           wireId: WireId('p0415'),
@@ -3531,6 +3546,14 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0471'),
+          name: 'appBar',
+          type: PropertyType.widget,
+          description: 'An app bar to display at the top of the scaffold.',
+          widgetType: 'PreferredSizeWidget',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
           wireId: WireId('p0138'),
           name: 'body',
           type: PropertyType.widget,
@@ -3550,6 +3573,13 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.color,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0472'),
+          name: 'appBarHeight',
+          type: PropertyType.real,
+          description: 'The height of the app bar.',
+          synthetic: 'preferredSizeHeight',
         ),
         PropertyEntry(
           wireId: WireId('p0449'),
@@ -4233,6 +4263,174 @@ final Catalog kRegistry = Catalog(
               transform: IdentityTransform(),
             ),
           ],
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0046'),
+      name: 'PreferredSize',
+      library: WidgetLibrary.material,
+      category: WidgetCategory.layout,
+      description: 'A widget with a preferred size.',
+      flutterType:
+          'package:flutter/src/widgets/preferred_size.dart#PreferredSize',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0475'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: 'The widget below this widget in the tree.',
+          required: true,
+          priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0476'),
+          name: 'preferredSize',
+          type: PropertyType.real,
+          description: 'The height this widget asks its parent to give it.',
+          required: true,
+          synthetic: 'sizeFromHeight',
+          priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0477'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0047'),
+      name: 'DefaultTabController',
+      library: WidgetLibrary.material,
+      category: WidgetCategory.layout,
+      description:
+          'The [TabController] for descendant widgets that don\'t specify one explicitly.',
+      flutterType:
+          'package:flutter/src/material/tab_controller.dart#DefaultTabController',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0478'),
+          name: 'length',
+          type: PropertyType.integer,
+          description: 'The total number of tabs.',
+          required: true,
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0479'),
+          name: 'initialIndex',
+          type: PropertyType.integer,
+          description: 'The initial index of the selected tab.',
+          defaultSource: LiteralDefault(0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0480'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: 'The widget below this widget in the tree.',
+          required: true,
+          priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0481'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0048'),
+      name: 'TabBar',
+      library: WidgetLibrary.material,
+      category: WidgetCategory.input,
+      description: 'A Material Design primary tab bar.',
+      flutterType: 'package:flutter/src/material/tabs.dart#TabBar',
+      childrenSlot: ChildrenSlot.none,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0482'),
+          name: 'tabs',
+          type: PropertyType.widgetList,
+          description: 'Typically a list of two or more [Tab] widgets.',
+          required: true,
+          priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0483'),
+          name: 'isScrollable',
+          type: PropertyType.boolean,
+          description: 'Whether this tab bar can be scrolled horizontally.',
+          defaultSource: LiteralDefault(false),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0484'),
+          name: 'indicatorColor',
+          type: PropertyType.color,
+          description:
+              'The color of the line that appears below the selected tab.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0485'),
+          name: 'labelColor',
+          type: PropertyType.color,
+          description: 'The color of selected tab labels.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0486'),
+          name: 'unselectedLabelColor',
+          type: PropertyType.color,
+          description: 'The color of unselected tab labels.',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0487'),
+          name: 'onTap',
+          type: PropertyType.event,
+          description:
+              'An optional callback that\'s called when the [TabBar] is tapped.',
+          callbackSignature: 'ValueChanged<int>',
+          constructorNullable: true,
+          category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0488'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
