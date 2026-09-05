@@ -18,8 +18,8 @@
     {
       "path": "assets/onboarding/flows/lumen_onboarding.flow.json",
       "kind": "canonical-flow-json",
-      "byteLength": 2606,
-      "sha256": "sha256:da9f62fcaadb95055a60506f4a7e07d9e86d69f61592549da25cd35ddbb69df7"
+      "byteLength": 2667,
+      "sha256": "sha256:5b9d4d500d8466703815009e87ae0003f0417ad7054e5329b60302dac587d4b8"
     },
     {
       "path": "assets/onboarding/flows/minimal_onboarding.flow.json",

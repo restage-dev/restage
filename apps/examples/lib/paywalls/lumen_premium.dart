@@ -22,6 +22,12 @@ class LumenPremiumPaywall extends StatefulWidget {
   /// Continues from the plan selector, carrying the selected plan.
   static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
 
+  /// Dismisses the plan selector.
+  static const close = SurfaceEvent<void>('close');
+
+  /// Opens the subscription terms. The host decides how.
+  static const terms = SurfaceEvent<void>('terms');
+
   const LumenPremiumPaywall({super.key});
 
   @override

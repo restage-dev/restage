@@ -5,10 +5,8 @@ part 'restage.generated/lumen_cancel.restage.g.dart';
 
 /// Survey — the one question asked when a meditation subscription is cancelled.
 ///
-/// Every card fires the same [reason] event carrying its own answer value, so
-/// the flow captures which one was chosen without forking the graph. The cards
-/// are written out in full because the transpiler lowers literal widget trees,
-/// not method calls in widget position.
+/// Every card fires the same [reason] event with its own answer value, so the
+/// flow captures the choice without forking the graph.
 @Screen(id: 'lumen_cancel_reason', surface: Surface.survey)
 class LumenCancelReasonScreen extends StatelessWidget {
   /// Records the chosen reason and advances.
@@ -217,97 +215,90 @@ class LumenCancelThanksScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F5FB),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AppBar(
-            backgroundColor: const Color(0xFFF7F5FB),
-            elevation: 0,
-            foregroundColor: const Color(0xFF2A2833),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 8, 28, 28),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF7F5FB),
+        elevation: 0,
+        foregroundColor: const Color(0xFF2A2833),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 8, 28, 28),
+          child: Column(
+            children: [
+              Expanded(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 104,
-                            height: 104,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFF8B7BE0), Color(0xFFB6A8F0)],
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.favorite_rounded,
-                              size: 48,
-                              color: Color(0xFFFFFFFF),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          const Text(
-                            'Thank you',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Color(0xFF2A2833),
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'Your sessions stay saved. Come back whenever the '
-                            'quiet is useful again.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Color(0xFF847F92),
-                              fontSize: 16,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
+                    Container(
+                      width: 104,
+                      height: 104,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF8B7BE0), Color(0xFFB6A8F0)],
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.favorite_rounded,
+                        size: 48,
+                        color: Color(0xFFFFFFFF),
                       ),
                     ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF7C6CD6),
-                              foregroundColor: const Color(0xFFFFFFFF),
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            onPressed: surfaceEvent(finish),
-                            child: const Text(
-                              'Done',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Thank you',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF2A2833),
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Your sessions stay saved. Come back whenever the '
+                      'quiet is useful again.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF847F92),
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C6CD6),
+                        foregroundColor: const Color(0xFFFFFFFF),
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      onPressed: surfaceEvent(finish),
+                      child: const Text(
+                        'Done',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
