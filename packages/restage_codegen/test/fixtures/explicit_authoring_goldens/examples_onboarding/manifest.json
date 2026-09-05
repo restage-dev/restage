@@ -18,8 +18,8 @@
     {
       "path": "assets/onboarding/flows/lumen_onboarding.flow.json",
       "kind": "canonical-flow-json",
-      "byteLength": 2667,
-      "sha256": "sha256:5b9d4d500d8466703815009e87ae0003f0417ad7054e5329b60302dac587d4b8"
+      "byteLength": 2721,
+      "sha256": "sha256:5fe3bb38268d849ab72aba8f33cfb59c66285d2f3db40e48d386534fad80bda1"
     },
     {
       "path": "assets/onboarding/flows/minimal_onboarding.flow.json",
@@ -43,91 +43,91 @@
       "path": "assets/onboarding/screens/lumen_experience.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:714c49f7fa1a68137859be7f205cf6cbd605d06f81f788a743baa65d9dad678e"
+      "sha256": "sha256:fdd87522fe2cfb6f2f9964be3e406db2e3652211d48e98c28cb6f03423aa180b"
     },
     {
       "path": "assets/onboarding/screens/lumen_experience.rfw",
       "kind": "rfw-binary",
-      "byteLength": 3649,
-      "sha256": "sha256:6e7462c33fbec14b838492954e1f54b5b368c234ea81ead17bf641f9ef94257b"
+      "byteLength": 9569,
+      "sha256": "sha256:f7d38fd4d1ddd766cc159117482f6c28cf2b3dd559d39d80eff1577e5967de2c"
     },
     {
       "path": "assets/onboarding/screens/lumen_experience.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2157,
-      "sha256": "sha256:6cc46ad16dfdcc13b8b72103b67dc4917b4ef3484a783855b71e560143940a67"
+      "byteLength": 6059,
+      "sha256": "sha256:6d33249806ed5dd649c7cb5a2ea299a82c202daa3c1924924185ac6589924b5f"
     },
     {
       "path": "assets/onboarding/screens/lumen_goal.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:a58d6592e6f70ed7f4e8bd49c0e48819f063cd25532bec6dad358d738d791e31"
+      "sha256": "sha256:2be9e7d8687ffe8fe238d5dd4436a973123d6a2d5fb2935b6a635d44a856017a"
     },
     {
       "path": "assets/onboarding/screens/lumen_goal.rfw",
       "kind": "rfw-binary",
-      "byteLength": 4430,
-      "sha256": "sha256:454170c530522ad7f23ea71108fa5130fd5d96c66cfce8b983ad04ea849f779a"
+      "byteLength": 10904,
+      "sha256": "sha256:92e8203752dedc6ba1c496b47db07a63ea211c65140325a0a051eb7e7038eaa2"
     },
     {
       "path": "assets/onboarding/screens/lumen_goal.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 2599,
-      "sha256": "sha256:98d1aa0038356ca23d8254a38185c7d60410c984cf8d7abe366f2cde0c951b11"
+      "byteLength": 6911,
+      "sha256": "sha256:1c0d96dab98af01325e11eea779c653024f92b8aa3ff968cfc931dfdd87d3856"
     },
     {
       "path": "assets/onboarding/screens/lumen_recap.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:d1e4ecfd4503104d40eddbfcf8beafb4943307be5c02a3febfbe3159db393b22"
+      "sha256": "sha256:6d5583750c5a942c9c5a05b08a59f37005f02b392657f6ef2587484ce40b60d9"
     },
     {
       "path": "assets/onboarding/screens/lumen_recap.rfw",
       "kind": "rfw-binary",
-      "byteLength": 2193,
-      "sha256": "sha256:5d1d5fcd80c6b81b3a32acf72ef68b77770635a7348f9de23286a67f623b80de"
+      "byteLength": 5761,
+      "sha256": "sha256:c4e7fdc4d12437628d1c3aecbae554825216d41a8008dfca163b4fe41e7c0d5e"
     },
     {
       "path": "assets/onboarding/screens/lumen_recap.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1309,
-      "sha256": "sha256:410485e59c8e15fda276b5fe14bc2640c51fa7a978ab2e3b8fa8dd2ae79e29de"
+      "byteLength": 3632,
+      "sha256": "sha256:34cf1aa8d1d5fc256c69fa9e2233f1b87912bdda0e4abc463e8169cc020fff08"
     },
     {
       "path": "assets/onboarding/screens/lumen_reminder.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:f546ddc20a13867346458ba26eb32aa6944aaf100f0f1189122d29a9a3550ef2"
+      "sha256": "sha256:c13dedca9f3603233511336d85c412165117dbcd54e1dc1d6acd4af7a6961702"
     },
     {
       "path": "assets/onboarding/screens/lumen_reminder.rfw",
       "kind": "rfw-binary",
-      "byteLength": 2206,
-      "sha256": "sha256:8835d08db06302d7d7a63665c8ebe5552d7d97cb8a08a787fd47718a9f3157a4"
+      "byteLength": 5774,
+      "sha256": "sha256:486b433bcd3ca4d4734e87488772ed47c3b8312f81a38cae50866f6ebf499e3f"
     },
     {
       "path": "assets/onboarding/screens/lumen_reminder.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1323,
-      "sha256": "sha256:5d4ba4fb5d5cd20edc4071aa0e1b9b19e76177ba64abd202bf41876f45287d68"
+      "byteLength": 3646,
+      "sha256": "sha256:7019144c121a2d6e1371cd9db705c4db03fe089e7008fd0b8b9b68d2bd40ae63"
     },
     {
       "path": "assets/onboarding/screens/lumen_welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:6e5cc06ba1c50f72473d9651b259dc0cc0ab16a7b858a265693d493fb2f822a8"
+      "sha256": "sha256:7453ef47af054e6bafe2bbc217b7b2ebdd28fa0ffc86283c99f1e19bb2af65ac"
     },
     {
       "path": "assets/onboarding/screens/lumen_welcome.rfw",
       "kind": "rfw-binary",
-      "byteLength": 2110,
-      "sha256": "sha256:3bc6ad9c4076c7ddf622f5d3fc5f9dcbaebcf0be8505ccb5e1de3b8a76634c48"
+      "byteLength": 7291,
+      "sha256": "sha256:4fe161b7050bdfa57d658d405c75c6632b07e0b9ea9e385f498e94bd3717f2df"
     },
     {
       "path": "assets/onboarding/screens/lumen_welcome.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1273,
-      "sha256": "sha256:2696e19b8704cea619b3a77ce1bf98b237f9147b8f69b53f016cb7c5406782ff"
+      "byteLength": 4523,
+      "sha256": "sha256:3fde28f55c81bb99d220972c0e4b9e60bfdb2a4b8a39d535aa7cabaf8838f7b4"
     },
     {
       "path": "assets/onboarding/screens/notify.capability.json",
@@ -526,6 +526,24 @@
       "sha256": "sha256:c021e47c36682fe2fcc8601a20badcc08f3525c696d5537ed0372e4121d91b66"
     },
     {
+      "path": "assets/paywalls/lumen_welcome_offer.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:984137601a9930b14c6a851dfa04696d02de0b963dfdde0c083501ee45a71ba9"
+    },
+    {
+      "path": "assets/paywalls/lumen_welcome_offer.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 10752,
+      "sha256": "sha256:5ac91b974f9652502c6b7907a0f706cafcaf347b3617245fbc8456a42cf04c99"
+    },
+    {
+      "path": "assets/paywalls/lumen_welcome_offer.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 6963,
+      "sha256": "sha256:6d2d6d986b14b855dec6690dae056b456f7338230a3b628e5551bc5ccd54ec85"
+    },
+    {
       "path": "assets/paywalls/screens/paywall_lumen_premium.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
@@ -536,6 +554,18 @@
       "kind": "rfw-binary",
       "byteLength": 7498,
       "sha256": "sha256:2bd6a632f691413e5e6edbcec307a000b6d1dc60c25550cb1840e6f747cc9336"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_lumen_welcome_offer.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:cf8fe12e59152f61d4d63b90638e739f654ee34b6c2bbc58019648fc47346aaf"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_lumen_welcome_offer.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 10761,
+      "sha256": "sha256:70954a0b72453d26262754d8d4122140125ea2fbf21aaf133dc490eac593807d"
     },
     {
       "path": "lib/onboarding/flows/restage.generated/bare_surface.restage.g.dart",

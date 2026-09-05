@@ -10,13 +10,18 @@ import 'onboarding/apex_drop_demo.dart';
 import 'onboarding/bare_surface_demo.dart';
 import 'onboarding/crave_permission_demo.dart';
 import 'onboarding/lumen_onboarding_demo.dart';
+import 'surfaces/lumen_cancel_demo.dart';
+import 'surfaces/lumen_trial_ending_demo.dart';
 import 'onboarding/minimal_notice_demo.dart';
 import 'onboarding/minimal_onboarding_demo.dart';
 import 'onboarding/reel_cancel_demo.dart';
 import 'onboarding/tally_onboarding_demo.dart';
 import 'paywalls/ascend_premium.dart';
 import 'paywalls/fluent_pro.dart';
+import 'paywalls/lumen_annual_upgrade.dart';
+import 'paywalls/lumen_holiday_promo.dart';
 import 'paywalls/lumen_premium.dart';
+import 'paywalls/lumen_welcome_offer.dart';
 import 'paywalls/narrate_membership.dart';
 import 'paywalls/pulse_premium.dart';
 import 'paywalls/sentinel_protection.dart';
@@ -364,12 +369,35 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Lumen Premium',
                 subtitle: 'Calm meditation plan-selector. Tap a plan — the '
-                    'radio moves and the CTA re-targets. The subscription '
-                    'climax of the meditation onboarding below.',
+                    'radio moves and the CTA re-targets.',
                 leading: const Icon(Icons.self_improvement_outlined),
                 destination: const LumenPremiumPaywall(),
                 // Fixed light calm canvas regardless of app theme.
                 surfaceBrightness: Brightness.light,
+              ),
+              // The three offers below carry both palettes in one compiled
+              // surface, so they follow the app theme rather than pinning one.
+              _ExampleTile(
+                title: 'Lumen Welcome Offer',
+                subtitle: 'Aurora ground, two glass plan cards with the annual '
+                    'term pre-selected, and the subscription climax of the '
+                    'meditation onboarding below.',
+                leading: const Icon(Icons.auto_awesome_outlined),
+                destination: const LumenWelcomeOfferPaywall(),
+              ),
+              _ExampleTile(
+                title: 'Lumen Annual Upgrade',
+                subtitle: 'A sunrise hero over one yearly plan: the first year '
+                    'discounted against a struck comparison price.',
+                leading: const Icon(Icons.wb_twilight_outlined),
+                destination: const LumenAnnualUpgradePaywall(),
+              ),
+              _ExampleTile(
+                title: 'Lumen Holiday Promo',
+                subtitle: 'A seasonal offer under an aurora sweep, with the '
+                    'renewal price stated beside the discount.',
+                leading: const Icon(Icons.ac_unit_outlined),
+                destination: const LumenHolidayPromoPaywall(),
               ),
               const Divider(height: 32),
               const _SectionHeader('Delivered render blob'),
@@ -435,6 +463,31 @@ class _GalleryHome extends StatelessWidget {
                 surfaceBrightness: Brightness.light,
               ),
               _ExampleTile(
+                title: 'Lumen Welcome Offer — bundled',
+                subtitle: 'The same offer as a delivered blob. Both palettes '
+                    'travel inside it; the app theme picks one.',
+                leading: const Icon(Icons.auto_awesome),
+                destination: const _RemotePaywallScreen(
+                  id: 'lumen_welcome_offer',
+                ),
+              ),
+              _ExampleTile(
+                title: 'Lumen Annual Upgrade — bundled',
+                subtitle: 'The yearly offer as a delivered blob.',
+                leading: const Icon(Icons.wb_twilight),
+                destination: const _RemotePaywallScreen(
+                  id: 'lumen_annual_upgrade',
+                ),
+              ),
+              _ExampleTile(
+                title: 'Lumen Holiday Promo — bundled',
+                subtitle: 'The seasonal offer as a delivered blob.',
+                leading: const Icon(Icons.ac_unit),
+                destination: const _RemotePaywallScreen(
+                  id: 'lumen_holiday_promo',
+                ),
+              ),
+              _ExampleTile(
                 title: 'Hello',
                 subtitle: 'Minimal .rfw via RestagePaywall(id: "hello"). '
                     'Demonstrates the runtime decode + render path.',
@@ -451,14 +504,28 @@ class _GalleryHome extends StatelessWidget {
               // (advance on a granted result) → recap → the paywall step;
               // continuing ends the flow.
               _ExampleTile(
-                title: 'Meditation onboarding → paywall',
+                title: 'Meditation onboarding → offer',
                 subtitle: 'A calm multi-screen flow: welcome → two questions → '
                     'enable reminders (a host-action gate) → your plan → the '
-                    'meditation paywall. Continue ends the flow.',
+                    'welcome offer. Continue ends the flow.',
                 leading: const Icon(Icons.spa_outlined),
                 destination: const LumenOnboardingDemo(),
-                // The Lumen flow paints on a fixed light calm canvas.
-                surfaceBrightness: Brightness.light,
+              ),
+              _ExampleTile(
+                title: 'Trial-ending message → offer',
+                subtitle: 'A glass sheet before the trial runs out. "See the '
+                    'offer" walks on to the welcome offer; "Maybe later" and '
+                    'the close control end the message.',
+                leading: const Icon(Icons.notifications_none_outlined),
+                destination: const LumenTrialEndingDemo(),
+              ),
+              _ExampleTile(
+                title: 'Meditation exit survey',
+                subtitle: 'One question with five reasons. The answer is '
+                    'captured into flow state and reaches the host on '
+                    'completion; Skip finishes with none.',
+                leading: const Icon(Icons.rate_review_outlined),
+                destination: const LumenCancelDemo(),
               ),
               // A location permission primer: the "Use current location" CTA
               // runs a host-action gate (advance only on a granted result);
@@ -493,7 +560,7 @@ class _GalleryHome extends StatelessWidget {
               // redemption; "No thanks" fires a host-handled cancel). The demo
               // redeems so the gallery walks the retained path.
               _ExampleTile(
-                title: 'Cancellation survey',
+                title: 'Streaming cancellation survey',
                 subtitle: 'A streaming retention flow: two questions → a '
                     'save-offer host-action gate. Keep the discount or cancel.',
                 leading: const Icon(Icons.live_tv_outlined),

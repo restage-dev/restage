@@ -32,18 +32,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // Welcome → experience question.
-    expect(find.text('Welcome to Lumen'), findsOneWidget);
-    await tester.tap(find.text('Get started'));
+    expect(find.text('Find your\nquiet.'), findsOneWidget);
+    await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
 
     // Experience question → goal question (any option advances; the flow is
     // linear by design).
-    expect(find.text('How much have you meditated?'), findsOneWidget);
+    expect(find.text('How much have\nyou meditated?'), findsOneWidget);
     await tester.tap(find.text("I'm new to meditation"));
     await tester.pumpAndSettle();
 
     // Goal question → reminder priming.
-    expect(find.text('What brings you here?'), findsOneWidget);
+    expect(find.text('What brings\nyou here?'), findsOneWidget);
     await tester.tap(find.text('Sleep better'));
     await tester.pumpAndSettle();
 
@@ -53,15 +53,15 @@ void main() {
     await tester.tap(find.text('Enable daily reminders'));
     await tester.pumpAndSettle();
 
-    // Recap → the embedded meditation paywall step.
+    // Recap → the embedded welcome offer step.
     expect(find.text("You're all set"), findsOneWidget);
     await tester.tap(find.text('See your plan'));
     await tester.pumpAndSettle();
 
-    // The paywall step: the continue action ends the flow.
-    expect(find.text('Unlock Lumen Plus'), findsOneWidget,
+    // The offer step: the continue action ends the flow.
+    expect(find.text('Sleep deeper\ntonight.'), findsOneWidget,
         reason: _seen(tester));
-    await tester.tap(find.text('Start free trial'));
+    await tester.tap(find.text('Start 14 days free'));
     await tester.pumpAndSettle();
 
     expect(find.text('Onboarding complete'), findsOneWidget);
@@ -78,7 +78,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Get started'));
+    await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
     await tester.tap(find.text("I'm new to meditation"));
     await tester.pumpAndSettle();

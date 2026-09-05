@@ -11,10 +11,15 @@ final class LumenCancelReasonScreenReasonEvent
   final String value;
 }
 
+final class LumenCancelReasonScreenSkipEvent
+    extends LumenCancelReasonScreenEvent {
+  const LumenCancelReasonScreenSkipEvent();
+}
+
 final _lumenCancelReasonScreenEvents =
     SurfaceScreenEventContract<LumenCancelReasonScreenEvent>.generated(
   hash:
-      "sha256:e25d96c534ebc7ec3564efb7139e1831d07efa017eb30f377ba275931befe1d2",
+      "sha256:55bb77c38f6e53b2258a45594521bc78c955d54ae17505b1633c04fbba822784",
   decodeValidated: _decodeValidatedLumenCancelReasonScreenEvent,
 );
 
@@ -28,7 +33,7 @@ final _lumenCancelReasonScreenProvenance =
     requiredLibraries: const [],
   ),
   eventSchemaJson:
-      "{\"schemaVersion\":1,\"events\":[{\"id\":\"reason\",\"arguments\":{\"encoding\":\"value\",\"shape\":{\"kind\":\"string\"}}}]}",
+      "{\"schemaVersion\":1,\"events\":[{\"id\":\"reason\",\"arguments\":{\"encoding\":\"value\",\"shape\":{\"kind\":\"string\"}}},{\"id\":\"skip\",\"arguments\":{\"encoding\":\"none\"}}]}",
   bundle: SurfaceScreenBundleLocator(
     assetKey: "assets/restage/bundles/lib/surfaces/lumen_cancel.rsbundle",
     packageName: "restage_example",
@@ -38,9 +43,9 @@ final _lumenCancelReasonScreenProvenance =
         logicalPath:
             "assets/survey/screens/measurement/7986973e7d641fcd/lumen_cancel_reason.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 18143,
+        byteLength: 30878,
         sha256:
-            "sha256:4abb516a4ca591d69507a5a4f144764a743680268ff95bc2d89519b5385b775d",
+            "sha256:8366cd1cb2713e75cd8c022f5be906ec186eced354bc5458cc46a319e83ce115",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -48,7 +53,7 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:15f70cfb5866d27f37f4c85025ce25262398436e9ee9eed45a13e70e7bc2104d",
+            "sha256:3ce4aba65d728c89653633437c6430a49987b1561086c772de02dd674c439848",
       ),
     ],
   ),
@@ -59,7 +64,7 @@ final lumenCancelReasonScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
-      "a79f9ca188ad6994c87631bbca85395cedd293f3124d530c9c2a87496a94c73b",
+      "2b1a2d0058ddd8c0a90224a0470271938c621c6df13accb427d82e11564e2711",
 );
 
 LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
@@ -69,6 +74,8 @@ LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
   switch (name) {
     case "reason":
       return LumenCancelReasonScreenReasonEvent(arguments['value'] as String);
+    case "skip":
+      return const LumenCancelReasonScreenSkipEvent();
   }
   throw FormatException(
       "Invalid LumenCancelReasonScreen event \"" + name + "\".");
@@ -142,9 +149,9 @@ final _lumenCancelThanksScreenProvenance =
         logicalPath:
             "assets/survey/screens/measurement/79821ca45fbefc0b/lumen_cancel_thanks.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 7492,
+        byteLength: 14841,
         sha256:
-            "sha256:be1a5a736b8ad9f92edc1c2f21bc316b1e5cfde990e45ad48ca1f7d9584208b6",
+            "sha256:d5350c4ed384691071e8fdeedae0187939952ddb541113ca3ac91918b381780b",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -152,7 +159,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:da58e411d77324dbad1579e9aeb0251a97b72bda69c099c4c3053b8b5dbee804",
+            "sha256:48b8276329bb2348eb30be856df076caf36265e69260c08cb6a2c127b6579b3e",
       ),
     ],
   ),
@@ -163,7 +170,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      "87d2345f1ae345dc69d2df54f88c61794068716e1d2ac44bd0c8043003b8a29e",
+      "821b7adc7f2ac7b76b04d5354c687d2b39b73d9436890007fa699b6aa70bc75e",
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(
