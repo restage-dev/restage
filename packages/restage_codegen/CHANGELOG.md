@@ -2,6 +2,20 @@
 
 ## 2.0.0
 
+A condition in a screen may negate (`!`), combine with `&&` and `||`, and
+compare a String state field, parameter, or context value to a literal, both
+as a ternary condition and bound directly to a boolean input such as
+`Visibility(visible:)`. A collection-`if` whose condition is known only at run
+time lowers to a conditional element in a list input of any type, with `else`
+and nesting, so `children: [if (isPro) Badge()]` no longer needs a
+`Visibility` wrapper. An element whose condition does not hold is absent
+rather than empty, matching Flutter: a `Column`'s spacing, a `Wrap`'s runs,
+and a `Stack`'s indices all count the children that are there. Both work
+inside a custom widget: a conditional element is an inlining mechanism the
+build implements, and a String or `int` constructor parameter is a comparable
+reference, so an equality chain may key on a parameter as well as on a state
+field.
+
 A widget slot typed `PreferredSizeWidget` lowers through a runtime adapter
 instead of a downcast, so `Scaffold(appBar: ...)` and `AppBar(bottom: ...)`
 reach the delivered screen. The slot content's height travels beside the slot,
@@ -14,7 +28,9 @@ as a height alone.
 
 A ternary comparing `Theme.of(context).brightness` against `Brightness.light`
 or `Brightness.dark` lowers to a branch on the published brightness token, so a
-screen can choose its own dark-mode values.
+screen can choose its own dark-mode values. That comparison is a condition like
+any other: it negates, composes, binds to a boolean input, and gates a
+collection-`if`.
 
 A text-theme field read — `Theme.of(context).textTheme.titleLarge?.fontSize`,
 with or without the null-aware step — lowers to its published binding. A whole
@@ -34,7 +50,8 @@ getters lower to the matching platform key, and a device comparison used as a
 ternary condition now inlines inside a custom widget instead of refusing.
 `MediaQuery.sizeOf(context).shortestSide` and `.longestSide`, and
 `MediaQuery.orientationOf(context)`, lower too, and an orientation comparison
-lowers to a match on the token.
+lowers to a match on the token. A device match is a condition like any other:
+it negates, composes, binds to a boolean input, and gates a collection-`if`.
 
 A named widget list on a catalog widget lowers under its own name, so
 `AppBar.actions` reaches the delivered screen. The canonical `children` slot is

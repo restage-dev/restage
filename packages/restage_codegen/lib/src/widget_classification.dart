@@ -24,6 +24,10 @@ enum InliningMechanism {
   /// A catalog-widget callback that opens a modal sheet through a synthetic
   /// declarative state flag.
   modalSheet,
+
+  /// A collection-`if` on a run-time condition, emitted as a conditional
+  /// element in the list.
+  conditionalElement,
 }
 
 /// The kind of construct that makes a custom widget imperative and app-backed —

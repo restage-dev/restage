@@ -778,11 +778,27 @@ class _Walk {
           case CollectionListElement(:final occurrence):
             await _classifyCollectionOccurrence(occurrence);
           case CollectionListRefusal(:final refusal):
-            _collectionRefusal ??= refusal.detail;
-            _unclassifiable(
-              refusal.detail,
-              diagnosticCode: IssueCode.unsupportedCollectionFlow,
+            final runtimeIf = refusal.runtimeIf;
+            if (runtimeIf == null) {
+              _collectionRefusal ??= refusal.detail;
+              _unclassifiable(
+                refusal.detail,
+                diagnosticCode: IssueCode.unsupportedCollectionFlow,
+              );
+              return;
+            }
+            final verdict = await _verdictOf(
+              () => _classifyRuntimeIf(runtimeIf),
             );
+            if (verdict.admitted) break;
+            // A branch that named its own reason keeps it.
+            if (!verdict.recorded) {
+              _collectionRefusal ??= refusal.detail;
+              _unclassifiable(
+                refusal.detail,
+                diagnosticCode: IssueCode.unsupportedCollectionFlow,
+              );
+            }
             return;
         }
       }
@@ -843,7 +859,12 @@ class _Walk {
       return;
     }
     if (expr is ConditionalExpression) {
-      await classify(expr.condition);
+      final verdict = await _verdictOf(
+        () => _tryClassifyCondition(expr.condition),
+      );
+      if (!verdict.admitted && !verdict.recorded) {
+        await classify(expr.condition);
+      }
       await classify(expr.thenExpression);
       await classify(expr.elseExpression);
       return;
@@ -1216,6 +1237,113 @@ class _Walk {
           );
         },
       );
+
+  /// Runs [attempt] and reports whether it recorded a blocker or reason, so a
+  /// caller can tell "not recognised" from "recognised and rejected".
+  Future<({bool admitted, bool recorded})> _verdictOf(
+    Future<bool> Function() attempt,
+  ) async {
+    final blockersBefore = _blockers.length;
+    final reasonBefore = _unclassifiableReason;
+    final admitted = await attempt();
+    final recorded = _blockers.length != blockersBefore ||
+        (reasonBefore == null && _unclassifiableReason != null);
+    return (admitted: admitted, recorded: recorded);
+  }
+
+  /// Classifies a condition the build lowers to switches: a negation, an `&&`
+  /// or `||` composition, or an equality against an int or string literal.
+  /// False for any other shape, leaving the caller its ordinary handling.
+  Future<bool> _tryClassifyCondition(Expression expr) async {
+    final cond = _conditionOperand(expr);
+    if (cond is PrefixExpression && cond.operator.lexeme == '!') {
+      return _tryClassifyCondition(cond.operand);
+    }
+    if (cond is BinaryExpression) {
+      final op = cond.operator.lexeme;
+      if (op == '&&' || op == '||') {
+        final left = await _tryClassifyCondition(cond.leftOperand);
+        final right = await _tryClassifyCondition(cond.rightOperand);
+        return left && right;
+      }
+      if (op != '==' && op != '!=') return false;
+      if (brightnessComparison(cond, bindings: _activeBindings) != null ||
+          deviceTokenComparison(cond, bindings: _activeBindings) != null) {
+        _mechanisms.add(InliningMechanism.themeAsData);
+        return true;
+      }
+      final left = _conditionOperand(cond.leftOperand);
+      final right = _conditionOperand(cond.rightOperand);
+      if (_isConditionKeyLiteral(right)) return _classifyConditionLeaf(left);
+      if (_isConditionKeyLiteral(left)) return _classifyConditionLeaf(right);
+      return false;
+    }
+    return _classifyConditionLeaf(cond);
+  }
+
+  Future<bool> _classifyConditionLeaf(Expression expr) async {
+    final verdict = await _verdictOf(() async {
+      await classify(expr);
+      return true;
+    });
+    return !verdict.recorded;
+  }
+
+  /// [expr] through parens and any active binding, matching what the build
+  /// resolves before lowering a condition.
+  Expression _conditionOperand(Expression expr) {
+    var current = expr;
+    final seen = <Element>{};
+    while (true) {
+      if (current is ParenthesizedExpression) {
+        current = current.expression;
+        continue;
+      }
+      if (current is SimpleIdentifier) {
+        final element = current.element;
+        if (element == null || !seen.add(element)) break;
+        final binding = _activeBindingFor(element);
+        if (binding == null) break;
+        current = binding;
+        continue;
+      }
+      break;
+    }
+    return current;
+  }
+
+  bool _isConditionKeyLiteral(Expression expr) =>
+      expr is IntegerLiteral || expr is SimpleStringLiteral;
+
+  /// Classifies a run-time collection-`if` and records the conditional-element
+  /// mechanism when its condition and every branch classify.
+  Future<bool> _classifyRuntimeIf(
+    CollectionRuntimeIfCandidate candidate,
+  ) async {
+    if (!await _tryClassifyCondition(candidate.condition)) return false;
+    if (!await _classifyRuntimeIfBranch(candidate.thenBranch)) return false;
+    final otherwise = candidate.elseBranch;
+    if (otherwise != null && !await _classifyRuntimeIfBranch(otherwise)) {
+      return false;
+    }
+    _mechanisms.add(InliningMechanism.conditionalElement);
+    return true;
+  }
+
+  Future<bool> _classifyRuntimeIfBranch(
+    CollectionRuntimeIfBranch branch,
+  ) async {
+    switch (branch) {
+      case CollectionRuntimeIfNested(:final candidate):
+        return _classifyRuntimeIf(candidate);
+      case CollectionRuntimeIfLeaf(:final occurrence):
+        final verdict = await _verdictOf(() async {
+          await _classifyCollectionOccurrence(occurrence);
+          return true;
+        });
+        return !verdict.recorded;
+    }
+  }
 
   Future<void> _classifyCollectionOccurrence(
     CollectionSemanticOccurrence occurrence,
@@ -1944,17 +2072,21 @@ final class _StaticallyAdmittedExpressionVisitor {
           bindings: bindings,
         );
         for (final entry in traversal.entries) {
-          final occurrence = switch (entry) {
-            CollectionListElement(:final occurrence) => occurrence,
-            CollectionListRefusal(:final refusal) =>
-              refusal.runtimeLoop?.template,
+          final occurrences = switch (entry) {
+            CollectionListElement(:final occurrence) => [occurrence],
+            CollectionListRefusal(:final refusal) => [
+                if (refusal.runtimeLoop?.template case final template?)
+                  template,
+                ...?refusal.runtimeIf?.leafOccurrences,
+              ],
           };
-          if (occurrence == null) continue;
-          _collect(
-            occurrence.terminalExpression,
-            session: session,
-            bindings: occurrence.bindings,
-          );
+          for (final occurrence in occurrences) {
+            _collect(
+              occurrence.terminalExpression,
+              session: session,
+              bindings: occurrence.bindings,
+            );
+          }
         }
         return;
       }

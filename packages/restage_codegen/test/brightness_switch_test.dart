@@ -258,12 +258,16 @@ void main() {
 
     test('a bound boolean flag lowers identically', () {
       expect(
-          text('bound_flag'), text('direct').replaceAll('Direct', 'BoundFlag'));
+        text('bound_flag'),
+        text('direct').replaceAll('Direct', 'BoundFlag'),
+      );
     });
 
     test('a bound brightness read lowers identically', () {
       expect(
-          text('bound_read'), text('direct').replaceAll('Direct', 'BoundRead'));
+        text('bound_read'),
+        text('direct').replaceAll('Direct', 'BoundRead'),
+      );
     });
 
     test('the colorScheme chain lowers identically', () {
