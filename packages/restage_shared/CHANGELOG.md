@@ -2,13 +2,20 @@
 
 ## 2.0.0
 
+- The `data.device.*` contract publishes `viewPaddingTop`,
+  `viewPaddingBottom`, `viewPaddingLeft` and `viewPaddingRight` — the insets
+  the operating system applies regardless of what covers the screen.
 - The `data.theme.*` contract publishes `brightness`, a `light` / `dark` token
   for the ambient theme's brightness.
 - The `data.theme.*` contract publishes `textTheme.<style>.<field>` for the
   fifteen Material text-theme styles. Each style, and `defaultTextStyle`,
-  carries `color`, `fontFamily`, `fontSize`, `fontWeight`, `fontStyle`,
-  `letterSpacing`, and `height`. `defaultTextStyle` gains `fontFamily` and
-  `fontStyle` so the two families stay symmetric.
+  carries every `TextStyle` field a slot holds as a scalar or a list of
+  scalars: `color`, `backgroundColor`, `fontFamily`, `fontFamilyFallback`,
+  `fontSize`, `fontWeight`, `fontStyle`, `letterSpacing`, `wordSpacing`,
+  `height`, `leadingDistribution`, `textBaseline`, `overflow`, `decoration`,
+  `decorationColor`, `decorationStyle`, and `decorationThickness`. `shadows`,
+  `fontFeatures`, `fontVariations`, `foreground`, `background`, `locale`,
+  `debugLabel`, and `inherit` are not carried.
 - The published `data.device.*` contract is shared as `kDeviceContractPaths`
   and `kDeviceContractPathKinds`, and gains the `languageCode` and
   `countryCode` locale subtags. It also gains `shortestSide`,

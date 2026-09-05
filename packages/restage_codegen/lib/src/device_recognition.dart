@@ -18,11 +18,20 @@ const Map<String, String> _kSizeMembers = {
   'longestSide': 'longestSide',
 };
 
+// An inset read resolves at the screen's build context, above any consumer the
+// screen authors, so the published inset is Flutter's answer at every position.
 const Map<String, String> _kPaddingMembers = {
   'top': 'safeAreaTop',
   'bottom': 'safeAreaBottom',
   'left': 'safeAreaLeft',
   'right': 'safeAreaRight',
+};
+
+const Map<String, String> _kViewPaddingMembers = {
+  'top': 'viewPaddingTop',
+  'bottom': 'viewPaddingBottom',
+  'left': 'viewPaddingLeft',
+  'right': 'viewPaddingRight',
 };
 
 const Set<String> _kLocaleSubtags = {'languageCode', 'countryCode'};
@@ -39,6 +48,8 @@ const Set<String> _kLocaleSubtags = {'languageCode', 'countryCode'};
 /// - `MediaQuery.devicePixelRatioOf(c)` and `MediaQuery.of(c).devicePixelRatio`
 /// - `MediaQuery.paddingOf(c).top|bottom|left|right` and
 ///   `MediaQuery.of(c).padding.<same>`
+/// - `MediaQuery.viewPaddingOf(c).top|bottom|left|right` and
+///   `MediaQuery.of(c).viewPadding.<same>`
 /// - `Localizations.localeOf(c).languageCode|countryCode`
 /// - `defaultTargetPlatform` and `Theme.of(c).platform`
 ///
@@ -130,6 +141,8 @@ String? _mediaQueryPath(String method, List<String> segments) {
       return segments.length == 1 ? _kSizeMembers[segments.first] : null;
     case 'paddingOf':
       return segments.length == 1 ? _kPaddingMembers[segments.first] : null;
+    case 'viewPaddingOf':
+      return segments.length == 1 ? _kViewPaddingMembers[segments.first] : null;
     case 'devicePixelRatioOf':
       return segments.isEmpty ? 'pixelRatio' : null;
     case 'orientationOf':
@@ -145,6 +158,7 @@ String? _mediaQueryPath(String method, List<String> segments) {
       return switch (segments.first) {
         'size' => _kSizeMembers[segments[1]],
         'padding' => _kPaddingMembers[segments[1]],
+        'viewPadding' => _kViewPaddingMembers[segments[1]],
         _ => null,
       };
     default:

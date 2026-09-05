@@ -26,6 +26,7 @@ void main() {
           size: Size(390, 844),
           devicePixelRatio: 3.0,
           padding: EdgeInsets.only(top: 47, bottom: 34),
+          viewPadding: EdgeInsets.only(top: 47, bottom: 34),
         ),
         platform: 'ios',
       );
@@ -45,6 +46,28 @@ void main() {
       expect(device['safeAreaBottom'], 34.0);
       expect(device['safeAreaLeft'], 0.0);
       expect(device['safeAreaRight'], 0.0);
+      expect(device['viewPaddingTop'], 47.0);
+      expect(device['viewPaddingBottom'], 34.0);
+      expect(device['viewPaddingLeft'], 0.0);
+      expect(device['viewPaddingRight'], 0.0);
+    });
+
+    test('view padding is published apart from the padding it survives', () {
+      final dc = DynamicContent();
+      populateDeviceData(
+        dc,
+        locale: const Locale('en'),
+        // A keyboard consumes the bottom padding and leaves the view padding.
+        mediaQuery: const MediaQueryData(
+          padding: EdgeInsets.only(top: 47),
+          viewPadding: EdgeInsets.only(top: 47, bottom: 34),
+          viewInsets: EdgeInsets.only(bottom: 300),
+        ),
+      );
+
+      final device = _readKey(dc, 'device') as Map;
+      expect(device['safeAreaBottom'], 0.0);
+      expect(device['viewPaddingBottom'], 34.0);
     });
 
     test('defaults platform to "unknown" when not specified', () {
@@ -181,6 +204,67 @@ void main() {
       expect(style['fontStyle'], 'italic');
     });
 
+    test('writes every published field of the style it is given', () {
+      final dc = DynamicContent();
+      populateThemeData(
+        dc,
+        colorScheme: const ColorScheme.light(),
+        iconTheme: const IconThemeData(),
+        defaultTextStyle: _style(3),
+        textTheme: const TextTheme(),
+      );
+      final style = (_readKey(dc, 'theme') as Map)['defaultTextStyle'] as Map;
+      expect(style['color'], 0xFF000003);
+      expect(style['backgroundColor'], 0xFF100003);
+      expect(style['fontFamily'], 'Face3');
+      expect(style['fontFamilyFallback'], ['Fallback3', 'Serif']);
+      expect(style['fontSize'], 13.0);
+      expect(style['fontWeight'], 'w400');
+      expect(style['fontStyle'], 'italic');
+      expect(style['letterSpacing'], closeTo(3.1, 1e-9));
+      expect(style['wordSpacing'], closeTo(3.2, 1e-9));
+      expect(style['height'], closeTo(4.1, 1e-9));
+      // Each enum-valued field publishes the member name its decoder reads.
+      expect(style['leadingDistribution'], 'even');
+      expect(style['textBaseline'], 'ideographic');
+      expect(style['overflow'], 'ellipsis');
+      expect(style['decoration'], 'underline');
+      expect(style['decorationColor'], 0xFF200003);
+      expect(style['decorationStyle'], 'dashed');
+      expect(style['decorationThickness'], 5.0);
+    });
+
+    test('publishes a token for each named decoration', () {
+      String? decorationFor(TextDecoration decoration) {
+        final dc = DynamicContent();
+        populateThemeData(
+          dc,
+          colorScheme: const ColorScheme.light(),
+          iconTheme: const IconThemeData(),
+          defaultTextStyle: TextStyle(decoration: decoration),
+          textTheme: const TextTheme(),
+        );
+        final style = (_readKey(dc, 'theme') as Map)['defaultTextStyle'] as Map;
+        return style['decoration'] as String?;
+      }
+
+      expect(decorationFor(TextDecoration.none), 'none');
+      expect(decorationFor(TextDecoration.underline), 'underline');
+      expect(decorationFor(TextDecoration.overline), 'overline');
+      expect(decorationFor(TextDecoration.lineThrough), 'lineThrough');
+      // A combined decoration has no token, so the key is omitted and the
+      // consumer keeps its own default.
+      expect(
+        decorationFor(
+          TextDecoration.combine([
+            TextDecoration.underline,
+            TextDecoration.overline,
+          ]),
+        ),
+        isNull,
+      );
+    });
+
     test('omits defaultTextStyle keys that are null', () {
       final dc = DynamicContent();
       populateThemeData(
@@ -191,11 +275,7 @@ void main() {
         textTheme: const TextTheme(),
       );
       final style = (_readKey(dc, 'theme') as Map)['defaultTextStyle'] as Map;
-      expect(style.containsKey('color'), isFalse);
-      expect(style.containsKey('fontFamily'), isFalse);
-      expect(style.containsKey('fontSize'), isFalse);
-      expect(style.containsKey('fontWeight'), isFalse);
-      expect(style.containsKey('fontStyle'), isFalse);
+      expect(style, isEmpty);
     });
 
     test('writes each text-theme style as its own field sub-map', () {
@@ -344,13 +424,24 @@ final TextTheme _fullTextTheme = TextTheme(
 );
 
 /// A distinct [TextStyle] per index, so a cross-wired style reads as a wrong
-/// value rather than a coincidental match.
+/// value rather than a coincidental match. Carries every published field, so
+/// the contract drift gate sees a fully-populated style.
 TextStyle _style(int index) => TextStyle(
       color: Color(0xFF000000 + index),
+      backgroundColor: Color(0xFF100000 + index),
       fontFamily: 'Face$index',
+      fontFamilyFallback: ['Fallback$index', 'Serif'],
       fontSize: 10.0 + index,
       fontWeight: FontWeight.w400,
       fontStyle: FontStyle.italic,
       letterSpacing: 0.1 + index,
+      wordSpacing: 0.2 + index,
       height: 1.1 + index,
+      leadingDistribution: TextLeadingDistribution.even,
+      textBaseline: TextBaseline.ideographic,
+      overflow: TextOverflow.ellipsis,
+      decoration: TextDecoration.underline,
+      decorationColor: Color(0xFF200000 + index),
+      decorationStyle: TextDecorationStyle.dashed,
+      decorationThickness: 2.0 + index,
     );

@@ -410,7 +410,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     return last != null &&
         last.size == mediaQuery.size &&
         last.devicePixelRatio == mediaQuery.devicePixelRatio &&
-        last.padding == mediaQuery.padding;
+        last.padding == mediaQuery.padding &&
+        last.viewPadding == mediaQuery.viewPadding;
   }
 
   @override

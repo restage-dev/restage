@@ -50,6 +50,12 @@ void main() {
       'MediaQuery.paddingOf(context).right': 'safeAreaRight',
       'MediaQuery.of(context).padding.top': 'safeAreaTop',
       'MediaQuery.of(context).padding.right': 'safeAreaRight',
+      'MediaQuery.viewPaddingOf(context).top': 'viewPaddingTop',
+      'MediaQuery.viewPaddingOf(context).bottom': 'viewPaddingBottom',
+      'MediaQuery.viewPaddingOf(context).left': 'viewPaddingLeft',
+      'MediaQuery.viewPaddingOf(context).right': 'viewPaddingRight',
+      'MediaQuery.of(context).viewPadding.top': 'viewPaddingTop',
+      'MediaQuery.of(context).viewPadding.bottom': 'viewPaddingBottom',
       'Localizations.localeOf(context).languageCode': 'languageCode',
       'Localizations.localeOf(context).countryCode': 'countryCode',
       'defaultTargetPlatform': 'platform',
@@ -80,7 +86,7 @@ void main() {
     });
 
     test('an out-of-contract MediaQuery member refuses loud', () async {
-      final result = await lower('MediaQuery.viewPaddingOf(context).top');
+      final result = await lower('MediaQuery.viewInsetsOf(context).bottom');
 
       expect(result.dsl, '');
       expect(result.issues.single.code, IssueCode.themeReadOutOfContract);

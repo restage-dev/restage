@@ -45,6 +45,10 @@ void populateDeviceData(
     'safeAreaBottom': mediaQuery.padding.bottom,
     'safeAreaLeft': mediaQuery.padding.left,
     'safeAreaRight': mediaQuery.padding.right,
+    'viewPaddingTop': mediaQuery.viewPadding.top,
+    'viewPaddingBottom': mediaQuery.viewPadding.bottom,
+    'viewPaddingLeft': mediaQuery.viewPadding.left,
+    'viewPaddingRight': mediaQuery.viewPadding.right,
   });
 }
 
@@ -64,13 +68,14 @@ String currentDevicePlatform() => kIsWeb ? 'web' : defaultTargetPlatform.name;
 /// via `data.theme.colorScheme.primary`, `data.theme.iconTheme.size`, etc.
 ///
 /// Colors are written as 32-bit ARGB integers ([Color.toARGB32]); sizes as
-/// doubles; `fontWeight` as a `w100`–`w900` string; `fontStyle` as its
-/// `FontStyle` member name; `brightness` as the
-/// ambient theme's `light` / `dark` token. All 46 [ColorScheme] color
-/// roles are always written. [IconThemeData] and [TextStyle] fields are
-/// nullable — a null field has its key omitted (`DynamicContent` cannot hold
-/// null; a missing key reads back as null, so the consumer falls through to
-/// its own default).
+/// doubles; `fontWeight` as a `w100`–`w900` string; every other enum-valued
+/// text-style field as its own member name; `brightness` as the ambient
+/// theme's `light` / `dark` token. All 46 [ColorScheme] color roles are always
+/// written. [IconThemeData] and [TextStyle] fields are nullable — a null field
+/// has its key omitted (`DynamicContent` cannot hold null; a missing key reads
+/// back as null, so the consumer falls through to its own default). A
+/// `decoration` combining more than one line has no token and is omitted the
+/// same way.
 ///
 /// [colorScheme], [iconTheme], and [textTheme] are taken from the ambient
 /// `ThemeData`; [defaultTextStyle] is the ambient `DefaultTextStyle`'s style.
@@ -122,21 +127,56 @@ Map<String, Object?> _textThemeData(TextTheme textTheme) => <String, Object?>{
 Map<String, Object?> _textStyleData(TextStyle? style) {
   if (style == null) return const <String, Object?>{};
   final color = style.color;
+  final backgroundColor = style.backgroundColor;
   final fontFamily = style.fontFamily;
+  final fontFamilyFallback = style.fontFamilyFallback;
   final fontSize = style.fontSize;
   final fontWeight = style.fontWeight;
   final fontStyle = style.fontStyle;
   final letterSpacing = style.letterSpacing;
+  final wordSpacing = style.wordSpacing;
   final height = style.height;
+  final leadingDistribution = style.leadingDistribution;
+  final textBaseline = style.textBaseline;
+  final overflow = style.overflow;
+  final decoration = style.decoration;
+  final decorationToken =
+      decoration == null ? null : _textDecorationToken(decoration);
+  final decorationColor = style.decorationColor;
+  final decorationStyle = style.decorationStyle;
+  final decorationThickness = style.decorationThickness;
   return <String, Object?>{
     if (color != null) 'color': color.toARGB32(),
+    if (backgroundColor != null) 'backgroundColor': backgroundColor.toARGB32(),
     if (fontFamily != null) 'fontFamily': fontFamily,
+    if (fontFamilyFallback != null)
+      'fontFamilyFallback': List<Object?>.of(fontFamilyFallback),
     if (fontSize != null) 'fontSize': fontSize,
     if (fontWeight != null) 'fontWeight': _fontWeightToken(fontWeight),
     if (fontStyle != null) 'fontStyle': fontStyle.name,
     if (letterSpacing != null) 'letterSpacing': letterSpacing,
+    if (wordSpacing != null) 'wordSpacing': wordSpacing,
     if (height != null) 'height': height,
+    if (leadingDistribution != null)
+      'leadingDistribution': leadingDistribution.name,
+    if (textBaseline != null) 'textBaseline': textBaseline.name,
+    if (overflow != null) 'overflow': overflow.name,
+    if (decorationToken != null) 'decoration': decorationToken,
+    if (decorationColor != null) 'decorationColor': decorationColor.toARGB32(),
+    if (decorationStyle != null) 'decorationStyle': decorationStyle.name,
+    if (decorationThickness != null) 'decorationThickness': decorationThickness,
   };
+}
+
+/// The token naming [decoration], or null when it combines more than one
+/// line — the contract carries the four named decorations only, so a combined
+/// value has its key omitted and the consumer keeps its own default.
+String? _textDecorationToken(TextDecoration decoration) {
+  if (decoration == TextDecoration.none) return 'none';
+  if (decoration == TextDecoration.underline) return 'underline';
+  if (decoration == TextDecoration.overline) return 'overline';
+  if (decoration == TextDecoration.lineThrough) return 'lineThrough';
+  return null;
 }
 
 /// The nearest standard `w100`–`w900` token for [weight].

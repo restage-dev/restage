@@ -4478,8 +4478,34 @@ final class ExpressionTranslator {
       issues.add(_deviceReadOutOfContractIssue(expr));
       return '';
     }
+    // A custom widget reads its OWN context, which sits below whatever the
+    // screen composes it under, so the mount-point inset is not its value.
+    if (_walk.classKey != null && _kInsetPaths.contains(path)) {
+      issues.add(
+        Issue(
+          code: IssueCode.themeReadOutOfContract,
+          message: "The inset '${expr.toSource()}' is read inside a custom "
+              'widget, whose context is decided by the call sites that compose '
+              'it. Read it in the screen and pass the value down.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
     return 'data.device.$path';
   }
+
+  /// The published inset paths — the reads a custom widget cannot answer.
+  static const Set<String> _kInsetPaths = {
+    'safeAreaTop',
+    'safeAreaBottom',
+    'safeAreaLeft',
+    'safeAreaRight',
+    'viewPaddingTop',
+    'viewPaddingBottom',
+    'viewPaddingLeft',
+    'viewPaddingRight',
+  };
 
   Issue _deviceReadOutOfContractIssue(Expression expr) => Issue(
         code: IssueCode.themeReadOutOfContract,
@@ -4488,6 +4514,7 @@ final class ExpressionTranslator {
             '`MediaQuery.sizeOf(context).width|height|shortestSide|'
             'longestSide`, '
             '`MediaQuery.paddingOf(context).top|bottom|left|right`, '
+            '`MediaQuery.viewPaddingOf(context).top|bottom|left|right`, '
             '`MediaQuery.devicePixelRatioOf(context)`, '
             '`MediaQuery.orientationOf(context)` (and the equivalent '
             '`MediaQuery.of(context)` chains), '
@@ -8469,6 +8496,11 @@ final class ExpressionTranslator {
     DartType? declaredItemType,
   }) {
     final resolved = _resolveBoundIdentifier(_stripParens(source));
+    // A theme read is a data reference to a published list, not a Dart list
+    // expression; the slot's contract validation has already checked it.
+    if (_recognizeThemeRead(resolved) != null) {
+      return _translate(resolved, issues);
+    }
     final rootAccess = _rootParamAccess(resolved);
     if (rootAccess == null || rootAccess.isRefused) {
       if (resolved is ListLiteral) {
@@ -8976,6 +9008,9 @@ final class ExpressionTranslator {
     if (property.valueShape is! EnumShape && property.enumType == null) {
       return null;
     }
+    // A theme read is a data reference the slot's contract validation has
+    // already checked, not an enum member to resolve.
+    if (_recognizeThemeRead(expr) != null) return null;
     if (expr is! PrefixedIdentifier && expr is! PropertyAccess) return null;
 
     final memberName = _enumMemberName(expr);
@@ -10890,10 +10925,13 @@ bool propertyTypeAcceptsThemeKind(
         kind == ThemeContractValueKind.size,
       PropertyType.fontWeight => kind == ThemeContractValueKind.fontWeight,
       PropertyType.string => kind == ThemeContractValueKind.text,
-      // `enumValue` spans every catalog enum, so the font-style token binds
-      // only where the slot's shape names `FontStyle`.
-      PropertyType.enumValue => kind == ThemeContractValueKind.fontStyle &&
-          _slotEnumSymbol(property) == 'FontStyle',
+      PropertyType.stringList => kind == ThemeContractValueKind.textList,
+      PropertyType.textDecoration =>
+        kind == ThemeContractValueKind.textDecoration,
+      // `enumValue` spans every catalog enum, so an enum-valued token binds
+      // only where the slot's shape names that token's own enum.
+      PropertyType.enumValue => _kThemeKindEnumSymbols[kind] != null &&
+          _slotEnumSymbol(property) == _kThemeKindEnumSymbols[kind],
       PropertyType.widget ||
       PropertyType.widgetList ||
       PropertyType.edgeInsets ||
@@ -10904,7 +10942,6 @@ bool propertyTypeAcceptsThemeKind(
       PropertyType.curve ||
       PropertyType.boolean ||
       PropertyType.integer ||
-      PropertyType.stringList ||
       PropertyType.booleanList ||
       PropertyType.event ||
       PropertyType.dataReference ||
@@ -10916,7 +10953,6 @@ bool propertyTypeAcceptsThemeKind(
       PropertyType.shadowList ||
       PropertyType.fontFeatureList ||
       PropertyType.fontVariationList ||
-      PropertyType.textDecoration ||
       PropertyType.shapeBorder ||
       PropertyType.structured ||
       PropertyType.inlineSpan ||
@@ -10925,6 +10961,17 @@ bool propertyTypeAcceptsThemeKind(
       PropertyType.unknown =>
         false,
     };
+
+/// The enum each enum-valued theme kind names, so its token binds only where
+/// the slot's shape declares that same enum. A kind absent here is not an
+/// enum token and binds to no `enumValue` slot.
+const Map<ThemeContractValueKind, String> _kThemeKindEnumSymbols = {
+  ThemeContractValueKind.fontStyle: 'FontStyle',
+  ThemeContractValueKind.textDecorationStyle: 'TextDecorationStyle',
+  ThemeContractValueKind.leadingDistribution: 'TextLeadingDistribution',
+  ThemeContractValueKind.textBaseline: 'TextBaseline',
+  ThemeContractValueKind.textOverflow: 'TextOverflow',
+};
 
 /// The enum a slot's declared shape names, or `null` when it has no enum
 /// shape, so an enum-keyed kind fails closed.

@@ -2231,15 +2231,7 @@ Object x() => const AcmeHeading();
       final heading = _widget(result.decoded!, 'AcmeHeading');
       expect(heading.name, 'Label');
       expect(heading.arguments['style'], isNull);
-      for (final field in [
-        'color',
-        'fontFamily',
-        'fontSize',
-        'fontWeight',
-        'fontStyle',
-        'letterSpacing',
-        'height',
-      ]) {
+      for (final field in _publishedStyleFields) {
         final value = heading.arguments[field];
         expect(value, isA<fmt.DataReference>(), reason: field);
         expect(
@@ -2316,7 +2308,9 @@ Object x() => const AcmeHeading();
       expect(heading.arguments['fontWeight'], 'w700');
       expect(heading.arguments['height'], 1.4);
       // Unnamed fields stay bound to the style, the font style among them.
-      for (final field in ['fontSize', 'fontStyle', 'letterSpacing']) {
+      const overridden = {'color', 'fontFamily', 'fontWeight', 'height'};
+      for (final field
+          in _publishedStyleFields.where((f) => !overridden.contains(f))) {
         final value = heading.arguments[field];
         expect(value, isA<fmt.DataReference>(), reason: field);
         expect(
@@ -2354,7 +2348,7 @@ class AcmeHeading extends StatelessWidget {
         style: Theme.of(context)
             .textTheme
             .titleLarge
-            ?.copyWith(wordSpacing: 2),
+            ?.copyWith(inherit: false),
       );
 }
 
@@ -2368,16 +2362,8 @@ Object x() => const AcmeHeading();
       final refusal = result.issues.singleWhere(
         (i) => i.code == IssueCode.themeReadOutOfContract,
       );
-      expect(refusal.message, contains('wordSpacing'));
-      for (final field in [
-        'color',
-        'fontFamily',
-        'fontSize',
-        'fontWeight',
-        'fontStyle',
-        'letterSpacing',
-        'height',
-      ]) {
+      expect(refusal.message, contains('inherit'));
+      for (final field in _publishedStyleFields) {
         expect(refusal.message, contains(field), reason: field);
       }
     });
@@ -5673,6 +5659,28 @@ class _TranspileProbeBuilder implements Builder {
   }
 }
 
+/// Every field a published theme style carries — the set a whole-style read
+/// expands to. Pinned literally so a contract change shows up here.
+const List<String> _publishedStyleFields = [
+  'color',
+  'backgroundColor',
+  'fontFamily',
+  'fontFamilyFallback',
+  'fontSize',
+  'fontWeight',
+  'fontStyle',
+  'letterSpacing',
+  'wordSpacing',
+  'height',
+  'leadingDistribution',
+  'textBaseline',
+  'overflow',
+  'decoration',
+  'decorationColor',
+  'decorationStyle',
+  'decorationThickness',
+];
+
 /// A catalog whose `Label` widget decomposes a `style:` argument into one flat
 /// property per published style field, as the shipped `Text` entry does.
 Catalog _styleDecomposeCatalog() {
@@ -5686,6 +5694,16 @@ Catalog _styleDecomposeCatalog() {
   final heightProp = WireId('p8106');
   final fontFamilyProp = WireId('p8107');
   final fontStyleProp = WireId('p8108');
+  final backgroundColorProp = WireId('p8109');
+  final fontFamilyFallbackProp = WireId('p8110');
+  final wordSpacingProp = WireId('p8111');
+  final leadingDistributionProp = WireId('p8112');
+  final textBaselineProp = WireId('p8113');
+  final overflowProp = WireId('p8114');
+  final decorationProp = WireId('p8115');
+  final decorationColorProp = WireId('p8116');
+  final decorationStyleProp = WireId('p8117');
+  final decorationThicknessProp = WireId('p8118');
   final colorField = WireId('p8202');
   final fontSizeField = WireId('p8203');
   final fontWeightField = WireId('p8204');
@@ -5693,6 +5711,16 @@ Catalog _styleDecomposeCatalog() {
   final heightField = WireId('p8206');
   final fontFamilyField = WireId('p8207');
   final fontStyleField = WireId('p8208');
+  final backgroundColorField = WireId('p8209');
+  final fontFamilyFallbackField = WireId('p8210');
+  final wordSpacingField = WireId('p8211');
+  final leadingDistributionField = WireId('p8212');
+  final textBaselineField = WireId('p8213');
+  final overflowField = WireId('p8214');
+  final decorationField = WireId('p8215');
+  final decorationColorField = WireId('p8216');
+  final decorationStyleField = WireId('p8217');
+  final decorationThicknessField = WireId('p8218');
 
   PropertyEntry property(WireId wireId, String name, PropertyType type) =>
       PropertyEntry(
@@ -5707,6 +5735,17 @@ Catalog _styleDecomposeCatalog() {
         name: name,
         type: type,
         description: '',
+      );
+  PropertyEntry enumProperty(WireId wireId, String name, String symbol) =>
+      PropertyEntry(
+        wireId: wireId,
+        name: name,
+        type: PropertyType.enumValue,
+        description: '',
+        valueShape: EnumShape(
+          propertyType: PropertyType.enumValue,
+          enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: symbol),
+        ),
       );
   DecompositionFieldMapping mapping(WireId fieldRef, WireId propertyRef) =>
       DecompositionFieldMapping(
@@ -5736,18 +5775,32 @@ Catalog _styleDecomposeCatalog() {
           property(letterSpacingProp, 'letterSpacing', PropertyType.length),
           property(heightProp, 'height', PropertyType.length),
           property(fontFamilyProp, 'fontFamily', PropertyType.string),
-          PropertyEntry(
-            wireId: fontStyleProp,
-            name: 'fontStyle',
-            type: PropertyType.enumValue,
-            description: '',
-            valueShape: EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                libraryUri: 'dart:ui',
-                symbolName: 'FontStyle',
-              ),
-            ),
+          enumProperty(fontStyleProp, 'fontStyle', 'FontStyle'),
+          property(backgroundColorProp, 'backgroundColor', PropertyType.color),
+          property(
+            fontFamilyFallbackProp,
+            'fontFamilyFallback',
+            PropertyType.stringList,
+          ),
+          property(wordSpacingProp, 'wordSpacing', PropertyType.length),
+          enumProperty(
+            leadingDistributionProp,
+            'leadingDistribution',
+            'TextLeadingDistribution',
+          ),
+          enumProperty(textBaselineProp, 'textBaseline', 'TextBaseline'),
+          enumProperty(overflowProp, 'overflow', 'TextOverflow'),
+          property(decorationProp, 'decoration', PropertyType.textDecoration),
+          property(decorationColorProp, 'decorationColor', PropertyType.color),
+          enumProperty(
+            decorationStyleProp,
+            'decorationStyle',
+            'TextDecorationStyle',
+          ),
+          property(
+            decorationThicknessProp,
+            'decorationThickness',
+            PropertyType.length,
           ),
         ],
         decomposes: [
@@ -5767,6 +5820,16 @@ Catalog _styleDecomposeCatalog() {
               mapping(heightField, heightProp),
               mapping(fontFamilyField, fontFamilyProp),
               mapping(fontStyleField, fontStyleProp),
+              mapping(backgroundColorField, backgroundColorProp),
+              mapping(fontFamilyFallbackField, fontFamilyFallbackProp),
+              mapping(wordSpacingField, wordSpacingProp),
+              mapping(leadingDistributionField, leadingDistributionProp),
+              mapping(textBaselineField, textBaselineProp),
+              mapping(overflowField, overflowProp),
+              mapping(decorationField, decorationProp),
+              mapping(decorationColorField, decorationColorProp),
+              mapping(decorationStyleField, decorationStyleProp),
+              mapping(decorationThicknessField, decorationThicknessProp),
             ],
           ),
         ],
@@ -5787,6 +5850,32 @@ Catalog _styleDecomposeCatalog() {
           field(heightField, 'height', PropertyType.length),
           field(fontFamilyField, 'fontFamily', PropertyType.string),
           field(fontStyleField, 'fontStyle', PropertyType.enumValue),
+          field(backgroundColorField, 'backgroundColor', PropertyType.color),
+          field(
+            fontFamilyFallbackField,
+            'fontFamilyFallback',
+            PropertyType.stringList,
+          ),
+          field(wordSpacingField, 'wordSpacing', PropertyType.length),
+          field(
+            leadingDistributionField,
+            'leadingDistribution',
+            PropertyType.enumValue,
+          ),
+          field(textBaselineField, 'textBaseline', PropertyType.enumValue),
+          field(overflowField, 'overflow', PropertyType.enumValue),
+          field(decorationField, 'decoration', PropertyType.textDecoration),
+          field(decorationColorField, 'decorationColor', PropertyType.color),
+          field(
+            decorationStyleField,
+            'decorationStyle',
+            PropertyType.enumValue,
+          ),
+          field(
+            decorationThicknessField,
+            'decorationThickness',
+            PropertyType.length,
+          ),
         ],
         variants: [
           ConstructorVariant(
@@ -5799,6 +5888,22 @@ Catalog _styleDecomposeCatalog() {
               'height': ArgMapping(targetFields: [heightField]),
               'fontFamily': ArgMapping(targetFields: [fontFamilyField]),
               'fontStyle': ArgMapping(targetFields: [fontStyleField]),
+              'backgroundColor':
+                  ArgMapping(targetFields: [backgroundColorField]),
+              'fontFamilyFallback':
+                  ArgMapping(targetFields: [fontFamilyFallbackField]),
+              'wordSpacing': ArgMapping(targetFields: [wordSpacingField]),
+              'leadingDistribution':
+                  ArgMapping(targetFields: [leadingDistributionField]),
+              'textBaseline': ArgMapping(targetFields: [textBaselineField]),
+              'overflow': ArgMapping(targetFields: [overflowField]),
+              'decoration': ArgMapping(targetFields: [decorationField]),
+              'decorationColor':
+                  ArgMapping(targetFields: [decorationColorField]),
+              'decorationStyle':
+                  ArgMapping(targetFields: [decorationStyleField]),
+              'decorationThickness':
+                  ArgMapping(targetFields: [decorationThicknessField]),
             },
             parameters: const [],
           ),

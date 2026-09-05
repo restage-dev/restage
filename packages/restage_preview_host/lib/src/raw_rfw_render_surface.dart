@@ -307,6 +307,10 @@ Map<String, Object?> previewDeviceData(RenderEnv environment) {
     'safeAreaBottom': 0.0,
     'safeAreaLeft': 0.0,
     'safeAreaRight': 0.0,
+    'viewPaddingTop': 0.0,
+    'viewPaddingBottom': 0.0,
+    'viewPaddingLeft': 0.0,
+    'viewPaddingRight': 0.0,
   };
 }
 

@@ -8,7 +8,9 @@
 library;
 
 /// Every in-contract path in the `data.device.*` namespace. `countryCode` is
-/// omitted when the ambient locale carries no country.
+/// omitted when the ambient locale carries no country. The `safeArea*` paths
+/// carry `MediaQueryData.padding`, the `viewPadding*` paths carry
+/// `MediaQueryData.viewPadding`, both at the surface's mount point.
 const Set<String> kDeviceContractPaths = {
   'locale',
   'languageCode',
@@ -24,6 +26,10 @@ const Set<String> kDeviceContractPaths = {
   'safeAreaBottom',
   'safeAreaLeft',
   'safeAreaRight',
+  'viewPaddingTop',
+  'viewPaddingBottom',
+  'viewPaddingLeft',
+  'viewPaddingRight',
 };
 
 /// The wire-value kind a device contract path publishes, paired with every
@@ -55,4 +61,8 @@ final Map<String, DeviceContractValueKind> kDeviceContractPathKinds =
   'safeAreaBottom': DeviceContractValueKind.size,
   'safeAreaLeft': DeviceContractValueKind.size,
   'safeAreaRight': DeviceContractValueKind.size,
+  'viewPaddingTop': DeviceContractValueKind.size,
+  'viewPaddingBottom': DeviceContractValueKind.size,
+  'viewPaddingLeft': DeviceContractValueKind.size,
+  'viewPaddingRight': DeviceContractValueKind.size,
 });

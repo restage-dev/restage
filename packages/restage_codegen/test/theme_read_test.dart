@@ -4,9 +4,11 @@
 
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_shared/restage_shared.dart'
     show ThemeContractValueKind, kThemeContractPathKinds, kThemeContractPaths;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -200,14 +202,18 @@ void main() {
       expect(result.issues.single.message, contains('whole TextStyle'));
       expect(
         result.issues.single.message,
-        contains('textTheme.bodyLarge.{color, fontFamily, fontSize, '
-            'fontWeight, fontStyle, letterSpacing, height}'),
+        contains('textTheme.bodyLarge.{color, backgroundColor, fontFamily, '
+            'fontFamilyFallback, fontSize, fontWeight, fontStyle, '
+            'letterSpacing, wordSpacing, height, leadingDistribution, '
+            'textBaseline, overflow, decoration, decorationColor, '
+            'decorationStyle, decorationThickness}'),
       );
     });
 
     test('an out-of-contract text-theme field is refused', () async {
+      // `shadows` is one of the fields the contract deliberately leaves out.
       final expr = await parseExpressionForTest(
-        'Theme.of(context).textTheme.titleLarge.decoration',
+        'Theme.of(context).textTheme.titleLarge.shadows',
       );
       final result = translator.translate(expr);
 
@@ -216,7 +222,7 @@ void main() {
       expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
       expect(
         result.issues.single.message,
-        contains('textTheme.titleLarge.decoration'),
+        contains('textTheme.titleLarge.shadows'),
       );
       expect(result.issues.single.message, isNot(contains('whole TextStyle')));
     });
@@ -325,10 +331,10 @@ void main() {
       expect(result.dsl, 'data.theme.defaultTextStyle.fontFamily');
     });
 
-    test('DefaultTextStyle.of(c).style.wordSpacing is out of contract',
+    test('DefaultTextStyle.of(c).style.debugLabel is out of contract',
         () async {
       final expr = await parseExpressionForTest(
-        'DefaultTextStyle.of(context).style.wordSpacing',
+        'DefaultTextStyle.of(context).style.debugLabel',
       );
       final result = translator.translate(expr);
 
@@ -357,6 +363,142 @@ void main() {
     });
   });
 
+  group('ExpressionTranslator — theme shortcut statics', () {
+    late ExpressionTranslator translator;
+
+    setUp(() {
+      translator = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+      );
+    });
+
+    test('ColorScheme.of(c).primary emits the colorScheme contract path',
+        () async {
+      final expr = await parseExpressionForTest(
+        'ColorScheme.of(context).primary',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'data.theme.colorScheme.primary');
+    });
+
+    test('TextTheme.of(c).titleLarge.fontSize emits the textTheme path',
+        () async {
+      final expr = await parseExpressionForTest(
+        'TextTheme.of(context).titleLarge.fontSize',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'data.theme.textTheme.titleLarge.fontSize');
+    });
+
+    test('a TextTheme.of whole-style read with no style slot is refused',
+        () async {
+      final expr = await parseExpressionForTest(
+        'TextTheme.of(context).titleLarge',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.dsl, '');
+      expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
+      expect(result.issues.single.message, contains('whole TextStyle'));
+    });
+
+    test('an out-of-contract shortcut read is refused', () async {
+      final expr = await parseExpressionForTest(
+        'ColorScheme.of(context).background',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.dsl, '');
+      expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
+    });
+
+    test('IconTheme.of(c) is not a theme read', () async {
+      // It reads the nearest ancestor IconTheme widget's data, which many
+      // widgets install over the theme's own, so it can name a different
+      // value than `iconTheme.*` publishes.
+      final expr = await parseExpressionForTest('IconTheme.of(context).size');
+      final result = translator.translate(expr);
+
+      expect(result.dsl, '');
+      expect(
+        result.issues.any((i) => i.message.contains('data.theme')),
+        isFalse,
+      );
+    });
+
+    test('the resolved shortcut statics originate from Flutter', () async {
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        Object x(BuildContext context) => [
+              ColorScheme.of(context).primary,
+              TextTheme.of(context).titleLarge?.fontSize,
+            ];
+      ''',
+        rootPackage: 'apps_examples',
+      );
+
+      final reads = (expr as ListLiteral).elements.cast<Expression>();
+      expect(
+        themeReadSegments(reads[0]),
+        ['colorScheme', 'primary'],
+      );
+      expect(
+        themeReadSegments(reads[1]),
+        ['textTheme', 'titleLarge', 'fontSize'],
+      );
+    });
+
+    test('an app class named ColorScheme is not recognised', () async {
+      final expr = await parseExpressionFromSourceForTest('''
+        class BuildContext {}
+
+        class ColorScheme {
+          const ColorScheme();
+          static ColorScheme of(BuildContext context) => const ColorScheme();
+          Object get primary => 0;
+        }
+
+        Object x(BuildContext context) => ColorScheme.of(context).primary;
+      ''');
+
+      expect(themeReadSegments(expr), isNull);
+    });
+
+    test('a bound ColorScheme.of local splices into the same path', () async {
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        Object value(BuildContext context) {
+          final scheme = ColorScheme.of(context);
+          return scheme.primary;
+        }
+
+        Object x(BuildContext context) => value(context);
+      ''',
+        rootPackage: 'apps_examples',
+      );
+
+      final helper = (expr.root as CompilationUnit)
+          .declarations
+          .whereType<FunctionDeclaration>()
+          .singleWhere((declaration) => declaration.name.lexeme == 'value');
+      final body = extractInlinableBuildBody(helper.functionExpression.body)!;
+
+      expect(
+        themeReadSegments(body.expression, bindings: body.localBindings),
+        ['colorScheme', 'primary'],
+      );
+    });
+  });
+
   group('ExpressionTranslator — theme reads in widget property values', () {
     late ExpressionTranslator translator;
 
@@ -370,6 +512,18 @@ void main() {
               prop('color', PropertyType.color),
               prop('size', PropertyType.length),
               prop('fontWeight', PropertyType.fontWeight),
+              prop('fontFamilyFallback', PropertyType.stringList),
+              prop('decoration', PropertyType.textDecoration),
+              _enumSlotNamed(
+                WireId('p0002'),
+                'overflow',
+                'TextOverflow',
+              ),
+              _enumSlotNamed(
+                WireId('p0003'),
+                'textBaseline',
+                'TextBaseline',
+              ),
             ],
           ),
           entry(
@@ -467,6 +621,62 @@ void main() {
       expect(
         result.dsl,
         'Icon(size: data.theme.textTheme.titleLarge.letterSpacing)',
+      );
+    });
+
+    test('a text-theme fallback-family read binds to a string-list slot',
+        () async {
+      final expr = await parseExpressionForTest(
+        'Icon(fontFamilyFallback: '
+        'Theme.of(context).textTheme.titleLarge!.fontFamilyFallback)',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        'Icon(fontFamilyFallback: '
+        'data.theme.textTheme.titleLarge.fontFamilyFallback)',
+      );
+    });
+
+    test('a text-theme decoration read binds to a decoration slot', () async {
+      final expr = await parseExpressionForTest(
+        'Icon(decoration: Theme.of(context).textTheme.titleLarge!.decoration)',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        'Icon(decoration: data.theme.textTheme.titleLarge.decoration)',
+      );
+    });
+
+    test('a text-theme overflow read binds to a TextOverflow slot', () async {
+      final expr = await parseExpressionForTest(
+        'Icon(overflow: Theme.of(context).textTheme.titleLarge!.overflow)',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        'Icon(overflow: data.theme.textTheme.titleLarge.overflow)',
+      );
+    });
+
+    test('an enum token is refused by a slot naming a different enum',
+        () async {
+      final expr = await parseExpressionForTest(
+        'Icon(textBaseline: Theme.of(context).textTheme.titleLarge!.overflow)',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+      expect(
+        result.issues.single.message,
+        contains("Theme value 'data.theme.textTheme.titleLarge.overflow'"),
       );
     });
 
@@ -602,7 +812,7 @@ void main() {
               (type) => propertyTypeAcceptsThemeKind(
                 type,
                 pathKind.value,
-                property: _fontStyleSlot,
+                property: _probeSlotFor(pathKind.value),
               ),
             ),
             isFalse,
@@ -616,7 +826,7 @@ void main() {
             (type) => propertyTypeAcceptsThemeKind(
               type,
               pathKind.value,
-              property: _fontStyleSlot,
+              property: _probeSlotFor(pathKind.value),
             ),
           ),
           isTrue,
@@ -628,27 +838,39 @@ void main() {
     });
   });
 
-  group('the font-style token binds only to a FontStyle slot', () {
-    test('an enum slot naming another enum refuses the font-style token', () {
-      expect(
-        propertyTypeAcceptsThemeKind(
-          PropertyType.enumValue,
-          ThemeContractValueKind.fontStyle,
-          property: _enumSlot('TextBaseline'),
-        ),
-        isFalse,
-      );
-    });
+  group('an enum token binds only to a slot naming its own enum', () {
+    for (final pair in _enumKindSymbols.entries) {
+      test('${pair.key.name} binds to a ${pair.value} slot', () {
+        expect(
+          propertyTypeAcceptsThemeKind(
+            PropertyType.enumValue,
+            pair.key,
+            property: _enumSlot(pair.value),
+          ),
+          isTrue,
+        );
+      });
 
-    test('an enum slot with no declared shape refuses it', () {
-      expect(
-        propertyTypeAcceptsThemeKind(
-          PropertyType.enumValue,
-          ThemeContractValueKind.fontStyle,
-        ),
-        isFalse,
-      );
-    });
+      test('${pair.key.name} is refused by a slot naming another enum', () {
+        final other = _enumKindSymbols.values
+            .firstWhere((symbol) => symbol != pair.value);
+        expect(
+          propertyTypeAcceptsThemeKind(
+            PropertyType.enumValue,
+            pair.key,
+            property: _enumSlot(other),
+          ),
+          isFalse,
+        );
+      });
+
+      test('${pair.key.name} is refused by a slot with no declared shape', () {
+        expect(
+          propertyTypeAcceptsThemeKind(PropertyType.enumValue, pair.key),
+          isFalse,
+        );
+      });
+    }
   });
 
   group('blob-global theme invariant', () {
@@ -741,5 +963,30 @@ PropertyEntry _enumSlot(String symbol) => PropertyEntry(
       ),
     );
 
-/// The one slot shape that accepts the published font-style token.
-final PropertyEntry _fontStyleSlot = _enumSlot('FontStyle');
+/// An `enumValue` slot named [name] whose shape declares [symbol].
+PropertyEntry _enumSlotNamed(WireId wireId, String name, String symbol) =>
+    PropertyEntry(
+      wireId: wireId,
+      name: name,
+      type: PropertyType.enumValue,
+      description: '',
+      valueShape: EnumShape(
+        propertyType: PropertyType.enumValue,
+        enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: symbol),
+      ),
+    );
+
+/// The enum each enum-valued token names. A new enum kind must be listed
+/// here, or the coverage sweep below finds no slot that accepts it.
+const Map<ThemeContractValueKind, String> _enumKindSymbols = {
+  ThemeContractValueKind.fontStyle: 'FontStyle',
+  ThemeContractValueKind.textDecorationStyle: 'TextDecorationStyle',
+  ThemeContractValueKind.leadingDistribution: 'TextLeadingDistribution',
+  ThemeContractValueKind.textBaseline: 'TextBaseline',
+  ThemeContractValueKind.textOverflow: 'TextOverflow',
+};
+
+/// The slot shape a [kind]'s token could bind to — the matching enum slot for
+/// an enum token, and an arbitrary one for every other kind (which ignores it).
+PropertyEntry _probeSlotFor(ThemeContractValueKind kind) =>
+    _enumSlot(_enumKindSymbols[kind] ?? 'FontStyle');

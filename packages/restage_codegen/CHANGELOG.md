@@ -37,8 +37,10 @@ with or without the null-aware step — lowers to its published binding. A whole
 style read into a `TextStyle` slot, `style: Theme.of(context).textTheme.titleLarge`,
 binds each published field of that style, and a trailing `copyWith` overrides
 the fields it names with literals, other theme reads, or values in scope.
-`copyWith` on a theme style is limited to the fields the theme publishes. The
-font-style token binds only to a slot whose shape names `FontStyle`.
+`copyWith` on a theme style is limited to the fields the theme publishes. An
+enum-valued theme token binds only to a slot whose shape names that same enum,
+and the published fallback-family list and decoration token bind to their own
+slot types.
 Screens read the device they render on. `MediaQuery.sizeOf(context)`,
 `MediaQuery.paddingOf(context)`, `MediaQuery.devicePixelRatioOf(context)`,
 `defaultTargetPlatform`, `Theme.of(context).platform`, and
@@ -52,6 +54,13 @@ ternary condition now inlines inside a custom widget instead of refusing.
 `MediaQuery.orientationOf(context)`, lower too, and an orientation comparison
 lowers to a match on the token. A device match is a condition like any other:
 it negates, composes, binds to a boolean input, and gates a collection-`if`.
+
+`MediaQuery.viewPaddingOf(context).<side>` and
+`MediaQuery.of(context).viewPadding.<side>` lower to the published view
+padding. Both inset families lower to the value published at the mount point in
+every position: the read resolves at the screen's build context, which sits
+above every consumer the screen authors. A read inside a custom widget refuses,
+because the call sites that compose it decide its context.
 
 A named widget list on a catalog widget lowers under its own name, so
 `AppBar.actions` reaches the delivered screen. The canonical `children` slot is
