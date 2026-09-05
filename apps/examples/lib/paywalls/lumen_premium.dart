@@ -19,6 +19,9 @@ import 'package:restage/restage.dart';
 /// below the fold on a small device.
 @Paywall()
 class LumenPremiumPaywall extends StatefulWidget {
+  /// Continues from the plan selector, carrying the selected plan.
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   const LumenPremiumPaywall({super.key});
 
   @override
