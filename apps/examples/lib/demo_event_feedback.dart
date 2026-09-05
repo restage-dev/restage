@@ -17,6 +17,7 @@ String? demoPaywallEventLabel(RestageEvent event) {
       'terms' || 'terms_of_service' => 'Would open the Terms of Service',
       'privacy' || 'privacy_policy' => 'Would open the Privacy Policy',
       'subscription_info' => 'Would open the subscription details',
+      'restore_purchases' => 'Restore purchases',
       _ => 'Event: ${event.eventName}',
     };
   }

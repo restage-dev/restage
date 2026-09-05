@@ -19,7 +19,7 @@
       "path": "assets/onboarding/flows/lumen_onboarding.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 2721,
-      "sha256": "sha256:5fe3bb38268d849ab72aba8f33cfb59c66285d2f3db40e48d386534fad80bda1"
+      "sha256": "sha256:9455409b2499b8477f815c2821df103d702c6d849e5900df4e1372f302775ee7"
     },
     {
       "path": "assets/onboarding/flows/minimal_onboarding.flow.json",
@@ -529,19 +529,19 @@
       "path": "assets/paywalls/lumen_welcome_offer.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:984137601a9930b14c6a851dfa04696d02de0b963dfdde0c083501ee45a71ba9"
+      "sha256": "sha256:f061982309c30c580eb7b3c24563bd37916bc5d66bdf732394a34d6bb06d88b0"
     },
     {
       "path": "assets/paywalls/lumen_welcome_offer.rfw",
       "kind": "rfw-binary",
-      "byteLength": 10752,
-      "sha256": "sha256:5ac91b974f9652502c6b7907a0f706cafcaf347b3617245fbc8456a42cf04c99"
+      "byteLength": 10844,
+      "sha256": "sha256:945c1a83c7f4e4c569caacca97d22d25a56831761cb0fd75f962a241b29b91fa"
     },
     {
       "path": "assets/paywalls/lumen_welcome_offer.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 6963,
-      "sha256": "sha256:6d2d6d986b14b855dec6690dae056b456f7338230a3b628e5551bc5ccd54ec85"
+      "byteLength": 7024,
+      "sha256": "sha256:15b5d49e31cda40fc6d759be37c3cde858df744246f96ddbf20da86f2d0ebfef"
     },
     {
       "path": "assets/paywalls/screens/paywall_lumen_premium.capability.json",
@@ -559,13 +559,13 @@
       "path": "assets/paywalls/screens/paywall_lumen_welcome_offer.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:cf8fe12e59152f61d4d63b90638e739f654ee34b6c2bbc58019648fc47346aaf"
+      "sha256": "sha256:8738a282e027be6e966c78d8026f935dd27fa3f87b8bd7766285d51ed64afdee"
     },
     {
       "path": "assets/paywalls/screens/paywall_lumen_welcome_offer.rfw",
       "kind": "rfw-binary",
-      "byteLength": 10761,
-      "sha256": "sha256:70954a0b72453d26262754d8d4122140125ea2fbf21aaf133dc490eac593807d"
+      "byteLength": 10853,
+      "sha256": "sha256:f809aa600e507e03d44d8663d79400cefa0332cdce2f9864f1b10a30d4635182"
     },
     {
       "path": "lib/onboarding/flows/restage.generated/bare_surface.restage.g.dart",

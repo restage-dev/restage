@@ -21,6 +21,10 @@ class LumenWelcomeOfferPaywall extends StatefulWidget {
   /// Opens the privacy policy.
   static const privacy = SurfaceEvent<void>('privacy');
 
+  /// Asks the app to restore an existing subscription; the app answers this
+  /// event by running its own restore.
+  static const restorePurchases = SurfaceEvent<void>('restore_purchases');
+
   const LumenWelcomeOfferPaywall({super.key});
 
   @override
@@ -474,13 +478,14 @@ class _LumenWelcomeOfferPaywallState extends State<LumenWelcomeOfferPaywall> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Restore is a reserved commerce action: the host owns
-                          // it, so the blob carries the label only.
-                          const Text(
-                            'Restore',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF8E86B3),
+                          GestureDetector(
+                            onTap: paywallEvent('restore_purchases'),
+                            child: const Text(
+                              'Restore',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF8E86B3),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 18),
