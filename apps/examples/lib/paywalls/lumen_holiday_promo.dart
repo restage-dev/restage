@@ -21,6 +21,10 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
   /// Opens the privacy policy.
   static const privacy = SurfaceEvent<void>('privacy');
 
+  /// Asks the app to restore an existing subscription; the app answers this
+  /// event by running its own restore.
+  static const restorePurchases = SurfaceEvent<void>('restore_purchases');
+
   const LumenHolidayPromoPaywall({super.key});
 
   @override
@@ -289,8 +293,8 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                               const SizedBox(height: 14),
                               Row(
                                 children: [
-                                  // The mockup caps this line rather than
-                                  // fixing it, so a narrow phone can shrink it.
+                                  // Capped rather than fixed, so a narrow
+                                  // phone can shrink it.
                                   Flexible(
                                     child: Container(
                                       constraints: const BoxConstraints(
@@ -504,12 +508,17 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Flexible(
-                            child: Text(
-                              'Restore',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF8895AA),
+                          Flexible(
+                            child: GestureDetector(
+                              onTap: paywallEvent('restore_purchases'),
+                              child: Text(
+                                'Restore',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: dark
+                                      ? const Color(0xFF6F83A0)
+                                      : const Color(0xFF8895AA),
+                                ),
                               ),
                             ),
                           ),

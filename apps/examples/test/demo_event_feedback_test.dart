@@ -41,6 +41,13 @@ void main() {
       );
     });
 
+    test('labels the restore affordance fired by the paywalls', () {
+      expect(
+        demoPaywallEventLabel(custom('restore_purchases')),
+        contains('Restore purchases'),
+      );
+    });
+
     test('falls back to the raw event name for an unmapped custom event', () {
       expect(demoPaywallEventLabel(custom('subscribe')), contains('subscribe'));
     });
