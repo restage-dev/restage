@@ -729,6 +729,7 @@ List<_FlowAction> _collectActions(ClassElement cls) {
         outputType: args[1].getDisplayString(),
         inputDartType: args[0],
         outputDartType: args[1],
+        duplicateOf: null,
       ),
     );
   }
@@ -5060,7 +5061,7 @@ final class _FlowAction {
     required this.outputType,
     required this.inputDartType,
     required this.outputDartType,
-    this.duplicateOf,
+    required this.duplicateOf,
   });
 
   factory _FlowAction.invalidDuplicate({
