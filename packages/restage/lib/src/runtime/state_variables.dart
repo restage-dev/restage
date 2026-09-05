@@ -2,16 +2,16 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart'
-    show ColorScheme, IconThemeData, MediaQueryData, TextStyle;
+    show ColorScheme, IconThemeData, MediaQueryData, TextStyle, TextTheme;
 import 'package:rfw/rfw.dart';
 
 import 'context_data.dart';
 
 /// Populates the `data.device.*` namespace on [target].
 ///
-/// Includes locale, platform identifier, screen size, device pixel ratio, and
-/// safe-area insets. Paywall authors reference these via
-/// `data.device.screenWidth`, `data.device.safeAreaTop`, etc.
+/// Includes the locale and its subtags, the platform identifier, screen size
+/// and orientation, device pixel ratio, and safe-area insets. Authors reference
+/// these via `data.device.screenWidth`, `data.device.orientation`, and so on.
 ///
 /// ```dart
 /// populateDeviceData(
@@ -27,11 +27,19 @@ void populateDeviceData(
   required MediaQueryData mediaQuery,
   String platform = 'unknown',
 }) {
+  final countryCode = locale.countryCode;
   target.update('device', <String, Object?>{
     'locale': locale.toString(),
+    'languageCode': locale.languageCode,
+    // Nullable at the source; a missing key reads back as null.
+    if (countryCode != null && countryCode.isNotEmpty)
+      'countryCode': countryCode,
     'platform': platform,
     'screenWidth': mediaQuery.size.width,
     'screenHeight': mediaQuery.size.height,
+    'shortestSide': mediaQuery.size.shortestSide,
+    'longestSide': mediaQuery.size.longestSide,
+    'orientation': mediaQuery.orientation.name,
     'pixelRatio': mediaQuery.devicePixelRatio,
     'safeAreaTop': mediaQuery.padding.top,
     'safeAreaBottom': mediaQuery.padding.bottom,
@@ -56,37 +64,79 @@ String currentDevicePlatform() => kIsWeb ? 'web' : defaultTargetPlatform.name;
 /// via `data.theme.colorScheme.primary`, `data.theme.iconTheme.size`, etc.
 ///
 /// Colors are written as 32-bit ARGB integers ([Color.toARGB32]); sizes as
-/// doubles; `fontWeight` as a `w100`–`w900` string. All 46 [ColorScheme] color
+/// doubles; `fontWeight` as a `w100`–`w900` string; `fontStyle` as its
+/// `FontStyle` member name; `brightness` as the
+/// ambient theme's `light` / `dark` token. All 46 [ColorScheme] color
 /// roles are always written. [IconThemeData] and [TextStyle] fields are
 /// nullable — a null field has its key omitted (`DynamicContent` cannot hold
 /// null; a missing key reads back as null, so the consumer falls through to
 /// its own default).
 ///
-/// [colorScheme] and [iconTheme] are taken from the ambient `ThemeData`;
-/// [defaultTextStyle] is the ambient `DefaultTextStyle`'s style.
+/// [colorScheme], [iconTheme], and [textTheme] are taken from the ambient
+/// `ThemeData`; [defaultTextStyle] is the ambient `DefaultTextStyle`'s style.
 void populateThemeData(
   DynamicContent target, {
   required ColorScheme colorScheme,
   required IconThemeData iconTheme,
   required TextStyle defaultTextStyle,
+  required TextTheme textTheme,
 }) {
   final iconColor = iconTheme.color;
   final iconSize = iconTheme.size;
-  final textColor = defaultTextStyle.color;
-  final fontSize = defaultTextStyle.fontSize;
-  final fontWeight = defaultTextStyle.fontWeight;
   target.update('theme', <String, Object?>{
+    // `ThemeData.brightness` is defined as its colour scheme's brightness.
+    'brightness': colorScheme.brightness.name,
     'colorScheme': _colorSchemeData(colorScheme),
     'iconTheme': <String, Object?>{
       if (iconColor != null) 'color': iconColor.toARGB32(),
       if (iconSize != null) 'size': iconSize,
     },
-    'defaultTextStyle': <String, Object?>{
-      if (textColor != null) 'color': textColor.toARGB32(),
-      if (fontSize != null) 'fontSize': fontSize,
-      if (fontWeight != null) 'fontWeight': _fontWeightToken(fontWeight),
-    },
+    'defaultTextStyle': _textStyleData(defaultTextStyle),
+    'textTheme': _textThemeData(textTheme),
   });
+}
+
+/// Each published [TextTheme] style as its own sub-map of the fields the
+/// `data.theme.textTheme.<style>.<field>` contract carries.
+Map<String, Object?> _textThemeData(TextTheme textTheme) => <String, Object?>{
+      'displayLarge': _textStyleData(textTheme.displayLarge),
+      'displayMedium': _textStyleData(textTheme.displayMedium),
+      'displaySmall': _textStyleData(textTheme.displaySmall),
+      'headlineLarge': _textStyleData(textTheme.headlineLarge),
+      'headlineMedium': _textStyleData(textTheme.headlineMedium),
+      'headlineSmall': _textStyleData(textTheme.headlineSmall),
+      'titleLarge': _textStyleData(textTheme.titleLarge),
+      'titleMedium': _textStyleData(textTheme.titleMedium),
+      'titleSmall': _textStyleData(textTheme.titleSmall),
+      'bodyLarge': _textStyleData(textTheme.bodyLarge),
+      'bodyMedium': _textStyleData(textTheme.bodyMedium),
+      'bodySmall': _textStyleData(textTheme.bodySmall),
+      'labelLarge': _textStyleData(textTheme.labelLarge),
+      'labelMedium': _textStyleData(textTheme.labelMedium),
+      'labelSmall': _textStyleData(textTheme.labelSmall),
+    };
+
+/// One published style's fields, null fields omitted. Shared by every
+/// `textTheme.<style>` and by `defaultTextStyle`, so the two carry the same
+/// keys.
+Map<String, Object?> _textStyleData(TextStyle? style) {
+  if (style == null) return const <String, Object?>{};
+  final color = style.color;
+  final fontFamily = style.fontFamily;
+  final fontSize = style.fontSize;
+  final fontWeight = style.fontWeight;
+  final fontStyle = style.fontStyle;
+  final letterSpacing = style.letterSpacing;
+  final height = style.height;
+  return <String, Object?>{
+    if (color != null) 'color': color.toARGB32(),
+    if (fontFamily != null) 'fontFamily': fontFamily,
+    if (fontSize != null) 'fontSize': fontSize,
+    if (fontWeight != null) 'fontWeight': _fontWeightToken(fontWeight),
+    if (fontStyle != null) 'fontStyle': fontStyle.name,
+    if (letterSpacing != null) 'letterSpacing': letterSpacing,
+    if (height != null) 'height': height,
+  };
 }
 
 /// The nearest standard `w100`–`w900` token for [weight].

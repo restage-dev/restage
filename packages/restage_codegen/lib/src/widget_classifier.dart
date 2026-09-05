@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/device_recognition.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
@@ -790,6 +791,16 @@ class _Walk {
       _capturedHelpers.addAll(followed);
       return;
     }
+    // A bare platform flag the translator lowers to a platform switch.
+    if (devicePlatformFlag(expr) != null) {
+      _mechanisms.add(InliningMechanism.themeAsData);
+      return;
+    }
+    // An ambient device read the translator rewrites to `data.device.*`.
+    if (isDeviceReadChain(expr, bindings: _activeBindings)) {
+      _mechanisms.add(InliningMechanism.themeAsData);
+      return;
+    }
     if (expr is MethodInvocation) {
       await _methodInvocation(expr);
       return;
@@ -801,6 +812,14 @@ class _Walk {
     // constant-folding mechanism (transpilable); recognised-but-unfoldable →
     // deferred (the translator loud-defers the same access).
     if (_tryConstObjectField(expr)) return;
+    // A `!` step inside a theme read. The shared recogniser walks through
+    // it, so the classifier agrees.
+    if (expr is PostfixExpression &&
+        expr.operator.lexeme == '!' &&
+        isThemeReadChain(expr, bindings: _activeBindings)) {
+      _mechanisms.add(InliningMechanism.themeAsData);
+      return;
+    }
     if (expr is PropertyAccess) {
       _propertyAccess(expr);
       return;
@@ -811,6 +830,13 @@ class _Walk {
       // runtime-computed-value blocker so the canonical themable-default shape
       // lowers via call-site completion.
       if (expr.operator.lexeme == '??' && await _tryClassifyCoalesce(expr)) {
+        return;
+      }
+      // A brightness or device equality the translator lowers to a switch on
+      // the published token.
+      if (brightnessComparison(expr, bindings: _activeBindings) != null ||
+          deviceTokenComparison(expr, bindings: _activeBindings) != null) {
+        _mechanisms.add(InliningMechanism.themeAsData);
         return;
       }
       _binaryExpression(expr);
@@ -1012,6 +1038,20 @@ class _Walk {
     // a Dart call from the blob's perspective, just like any other.
     if (isUnsupportedCommerceHelperCall(expr) || _isRegisteredHelper(expr)) {
       // A recognised paywall helper — composition, not a Dart call.
+      return;
+    }
+    // `<theme style read>.copyWith(...)`. The translator expands it and
+    // checks the contract, as it does for every other theme read.
+    final copyWithTarget =
+        expr.methodName.name == 'copyWith' ? expr.target : null;
+    if (copyWithTarget != null &&
+        isThemeReadChain(copyWithTarget, bindings: _activeBindings)) {
+      _mechanisms.add(InliningMechanism.themeAsData);
+      for (final argument in expr.argumentList.arguments) {
+        await classify(
+          argument is NamedExpression ? argument.expression : argument,
+        );
+      }
       return;
     }
     // A Widget-/value-returning helper resolving by ELEMENT to the widget's own

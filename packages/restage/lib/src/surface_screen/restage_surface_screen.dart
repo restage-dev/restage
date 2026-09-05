@@ -280,6 +280,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       colorScheme: theme.colorScheme,
       iconTheme: theme.iconTheme,
       defaultTextStyle: DefaultTextStyle.of(context).style,
+      textTheme: theme.textTheme,
     );
   }
 

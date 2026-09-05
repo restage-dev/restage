@@ -8,7 +8,7 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show kThemeContractPathKinds, kThemeContractPaths;
+    show ThemeContractValueKind, kThemeContractPathKinds, kThemeContractPaths;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -154,9 +154,41 @@ void main() {
       expect(result.dsl, 'data.theme.defaultTextStyle.fontWeight');
     });
 
+    test('an in-contract text-theme field emits the data ref', () async {
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).textTheme.titleLarge.fontSize',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'data.theme.textTheme.titleLarge.fontSize');
+    });
+
+    test('a null-aware text-theme field read emits the same data ref',
+        () async {
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).textTheme.labelSmall?.letterSpacing',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'data.theme.textTheme.labelSmall.letterSpacing');
+    });
+
+    test('a null-asserted text-theme field read emits the same data ref',
+        () async {
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).textTheme.bodyLarge!.height',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'data.theme.textTheme.bodyLarge.height');
+    });
+
     test(
-        'an out-of-contract path (textTheme.bodyLarge) emits the '
-        'themeReadOutOfContract diagnostic, no data ref', () async {
+        'a whole-style read with no style slot to decompose into is refused '
+        'and names the per-field reads', () async {
       final expr = await parseExpressionForTest(
         'Theme.of(context).textTheme.bodyLarge',
       );
@@ -165,7 +197,28 @@ void main() {
       expect(result.dsl, '');
       expect(result.issues, hasLength(1));
       expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
-      expect(result.issues.single.message, contains('textTheme.bodyLarge'));
+      expect(result.issues.single.message, contains('whole TextStyle'));
+      expect(
+        result.issues.single.message,
+        contains('textTheme.bodyLarge.{color, fontFamily, fontSize, '
+            'fontWeight, fontStyle, letterSpacing, height}'),
+      );
+    });
+
+    test('an out-of-contract text-theme field is refused', () async {
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).textTheme.titleLarge.decoration',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.dsl, '');
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.themeReadOutOfContract);
+      expect(
+        result.issues.single.message,
+        contains('textTheme.titleLarge.decoration'),
+      );
+      expect(result.issues.single.message, isNot(contains('whole TextStyle')));
     });
 
     test(
@@ -261,11 +314,21 @@ void main() {
       expect(result.dsl, 'data.theme.defaultTextStyle.color');
     });
 
-    test(
-        'DefaultTextStyle.of(c).style.fontFamily is out of contract '
-        '(only color/fontSize/fontWeight ship)', () async {
+    test('DefaultTextStyle.of(c).style.fontFamily emits the contract path',
+        () async {
       final expr = await parseExpressionForTest(
         'DefaultTextStyle.of(context).style.fontFamily',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'data.theme.defaultTextStyle.fontFamily');
+    });
+
+    test('DefaultTextStyle.of(c).style.wordSpacing is out of contract',
+        () async {
+      final expr = await parseExpressionForTest(
+        'DefaultTextStyle.of(context).style.wordSpacing',
       );
       final result = translator.translate(expr);
 
@@ -392,6 +455,34 @@ void main() {
       );
     });
 
+    test('a text-theme letterSpacing read binds to a length slot', () async {
+      // `letterSpacing` and `height` publish the same double-scalar kind as
+      // `fontSize`, so they bind wherever a length slot does.
+      final expr = await parseExpressionForTest(
+        'Icon(size: Theme.of(context).textTheme.titleLarge!.letterSpacing)',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.dsl,
+        'Icon(size: data.theme.textTheme.titleLarge.letterSpacing)',
+      );
+    });
+
+    test('a text-theme colour read is refused by a length slot', () async {
+      final expr = await parseExpressionForTest(
+        'Icon(size: Theme.of(context).textTheme.bodySmall?.color)',
+      );
+      final result = translator.translate(expr);
+
+      expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+      expect(
+        result.issues.single.message,
+        contains("Theme value 'data.theme.textTheme.bodySmall.color'"),
+      );
+    });
+
     test('a font-size-compatible path stays compatible with a length slot',
         () async {
       final expr = await parseExpressionForTest(
@@ -500,12 +591,33 @@ void main() {
       expect(kThemeContractPathKinds.keys.toSet(), kThemeContractPaths);
     });
 
-    test('every contract path kind is accepted by at least one property type',
+    test('every assignable contract path kind is accepted by a property type',
         () {
       for (final pathKind in kThemeContractPathKinds.entries) {
+        // `brightness` is branched on, never assigned to a slot, so no
+        // property type accepts it.
+        if (pathKind.value == ThemeContractValueKind.brightness) {
+          expect(
+            PropertyType.values.any(
+              (type) => propertyTypeAcceptsThemeKind(
+                type,
+                pathKind.value,
+                property: _fontStyleSlot,
+              ),
+            ),
+            isFalse,
+            reason: 'A slot type accepts ${pathKind.key}; the brightness '
+                'token has no assignable slot.',
+          );
+          continue;
+        }
         expect(
           PropertyType.values.any(
-            (type) => propertyTypeAcceptsThemeKind(type, pathKind.value),
+            (type) => propertyTypeAcceptsThemeKind(
+              type,
+              pathKind.value,
+              property: _fontStyleSlot,
+            ),
           ),
           isTrue,
           reason: 'No property type accepts ${pathKind.key} '
@@ -513,6 +625,29 @@ void main() {
               'propertyTypeAcceptsThemeKind have drifted apart.',
         );
       }
+    });
+  });
+
+  group('the font-style token binds only to a FontStyle slot', () {
+    test('an enum slot naming another enum refuses the font-style token', () {
+      expect(
+        propertyTypeAcceptsThemeKind(
+          PropertyType.enumValue,
+          ThemeContractValueKind.fontStyle,
+          property: _enumSlot('TextBaseline'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('an enum slot with no declared shape refuses it', () {
+      expect(
+        propertyTypeAcceptsThemeKind(
+          PropertyType.enumValue,
+          ThemeContractValueKind.fontStyle,
+        ),
+        isFalse,
+      );
     });
   });
 
@@ -528,7 +663,13 @@ void main() {
     test(
         'every contract path is a flat global theme namespace '
         '(no subtree/context dimension)', () {
-      const globalThemeRoots = {'colorScheme', 'iconTheme', 'defaultTextStyle'};
+      const globalThemeRoots = {
+        'colorScheme',
+        'iconTheme',
+        'defaultTextStyle',
+        'textTheme',
+        'brightness',
+      };
       for (final path in kThemeContractPaths) {
         final root = path.split('.').first;
         expect(
@@ -587,3 +728,18 @@ class _MethodInvocationFinder extends RecursiveAstVisitor<void> {
     super.visitMethodInvocation(node);
   }
 }
+
+/// A catalog slot shaped as the named enum.
+PropertyEntry _enumSlot(String symbol) => PropertyEntry(
+      wireId: WireId('p0001'),
+      name: 'slot',
+      type: PropertyType.enumValue,
+      description: '',
+      valueShape: EnumShape(
+        propertyType: PropertyType.enumValue,
+        enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: symbol),
+      ),
+    );
+
+/// The one slot shape that accepts the published font-style token.
+final PropertyEntry _fontStyleSlot = _enumSlot('FontStyle');

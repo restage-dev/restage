@@ -273,8 +273,42 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
 Map<String, Object?> _renderData(RawRfwRenderSurface widget) =>
     <String, Object?>{
       ...widget.data,
-      'theme': widget.environment.theme,
+      // The host's brightness joins the theme namespace so a surface can
+      // branch on it the same way it does under the SDK.
+      'theme': <String, Object?>{
+        ...widget.environment.theme,
+        'brightness': widget.environment.brightness,
+      },
+      'device': previewDeviceData(widget.environment),
     };
+
+/// The `data.device.*` namespace for a previewed surface. The preview renders
+/// in the browser at the requested frame, so the platform is `web`, the pixel
+/// ratio is 1, and there are no safe-area insets.
+@visibleForTesting
+Map<String, Object?> previewDeviceData(RenderEnv environment) {
+  final locale = _parseLocale(environment.locale);
+  final countryCode = locale.countryCode;
+  return <String, Object?>{
+    'locale': locale.toString(),
+    'languageCode': locale.languageCode,
+    if (countryCode != null && countryCode.isNotEmpty)
+      'countryCode': countryCode,
+    'platform': 'web',
+    'screenWidth': environment.frame.width,
+    'screenHeight': environment.frame.height,
+    'shortestSide': environment.frame.shortestSide,
+    'longestSide': environment.frame.longestSide,
+    'orientation': environment.frame.width > environment.frame.height
+        ? 'landscape'
+        : 'portrait',
+    'pixelRatio': 1.0,
+    'safeAreaTop': 0.0,
+    'safeAreaBottom': 0.0,
+    'safeAreaLeft': 0.0,
+    'safeAreaRight': 0.0,
+  };
+}
 
 bool _sameEnvironment(RenderEnv left, RenderEnv right) =>
     left.brightness == right.brightness &&

@@ -7137,6 +7137,106 @@ GestureDetector(
       );
     });
 
+    test('a whole text-theme style on a style slot decomposes per field',
+        () async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          text: 'Go Pro',
+          style: Theme.of(context).textTheme.titleLarge,
+        );
+        """,
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(r.issues, isEmpty);
+      // Only published fields bind, and only where the fixture declares a
+      // property: `decoration` keeps its default, `fontFamily` has no slot.
+      expect(
+        r.dsl,
+        'Text(text: "Go Pro", '
+        'color: data.theme.textTheme.titleLarge.color, '
+        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+        'fontStyle: data.theme.textTheme.titleLarge.fontStyle)',
+      );
+    });
+
+    test('a null-aware whole-style read decomposes the same way', () async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          text: 'Go Pro',
+          style: Theme.of(context).textTheme.bodySmall!,
+        );
+        """,
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('color: data.theme.textTheme.bodySmall.color'));
+      expect(
+        r.dsl,
+        contains('fontWeight: data.theme.textTheme.bodySmall.fontWeight'),
+      );
+    });
+
+    test('copyWith on a whole-style read overrides the named field', () async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          text: 'Go Pro',
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(color: const Color(0xFF112233)),
+        );
+        """,
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        'Text(text: "Go Pro", color: 0xFF112233, '
+        'fontSize: data.theme.textTheme.titleLarge.fontSize, '
+        'fontWeight: data.theme.textTheme.titleLarge.fontWeight, '
+        'fontStyle: data.theme.textTheme.titleLarge.fontStyle)',
+      );
+    });
+
+    test('copyWith naming an unpublished field is refused', () async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          text: 'Go Pro',
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(wordSpacing: 2.0),
+        );
+        """,
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(
+        r.issues.map((issue) => issue.code),
+        contains(IssueCode.themeReadOutOfContract),
+      );
+      expect(
+        r.issues.map((issue) => issue.message).join('\n'),
+        contains('wordSpacing'),
+      );
+    });
+
     test('Text.rich drops a resolved Flutter widget key', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

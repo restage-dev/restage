@@ -16,6 +16,7 @@ import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_structured_value_emitter.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/device_recognition.dart';
 import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
 import 'package:restage_codegen/src/dsl_emission.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -46,13 +47,18 @@ import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        DeviceContractValueKind,
         ThemeContractValueKind,
         kCapturedEventValueKey,
+        kDeviceContractPathKinds,
+        kDeviceContractPaths,
         kMaxInlineSpanDepth,
         kRestageFormattedTextProps,
         kSupportedCurveNames,
         kThemeContractPathKinds,
-        kThemeContractPaths;
+        kThemeContractPaths,
+        kThemeContractTextThemeFieldKinds,
+        kThemeContractTextThemeStyles;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
     show
@@ -1340,6 +1346,10 @@ final class ExpressionTranslator {
         }
       }
     }
+    // A MediaQuery / Localizations / platform read lowers to `data.device.*`;
+    // one outside the contract refuses rather than falling through.
+    final deviceRead = _recognizeDeviceRead(expr);
+    if (deviceRead != null) return _deviceRead(deviceRead, expr, issues);
     if (expr is InstanceCreationExpression) {
       return _instanceCreation(expr, issues);
     }
@@ -2546,6 +2556,12 @@ final class ExpressionTranslator {
     final themeSegments = _recognizeThemeRead(expr);
     if (themeSegments != null) {
       return _themeRead(themeSegments, _locationOf(expr), issues);
+    }
+
+    // A device read through a bound local, or a prefixed framework value.
+    final prefixedDeviceRead = _recognizeDeviceRead(expr);
+    if (prefixedDeviceRead != null) {
+      return _deviceRead(prefixedDeviceRead, expr, issues);
     }
 
     // A const variable / static-const field — `Tokens.gap` — folds to its
@@ -4186,10 +4202,18 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.themeReadOutOfContract,
-          message: "The theme read '$path' is not part of the published "
-              "'data.theme.*' contract. Supported reads cover the "
-              "'colorScheme' colour roles, 'iconTheme.{color, size}', "
-              "and 'defaultTextStyle.{color, fontSize, fontWeight}'.",
+          message: _wholeTextThemeStyleRead(segments)
+              ? "The theme read '$path' reads a whole TextStyle. A slot that "
+                  'takes a TextStyle accepts it and binds each field; this '
+                  'one does not, so read the fields individually — '
+                  "'$path.{${kThemeContractTextThemeFieldKinds.keys.join(', ')}}'."
+              : "The theme read '$path' is not part of the published "
+                  "'data.theme.*' contract. Supported reads cover the "
+                  "'colorScheme' colour roles, 'iconTheme.{color, size}', "
+                  "'defaultTextStyle.<field>', 'textTheme.<style>.<field>' "
+                  "where <field> is one of "
+                  "{${kThemeContractTextThemeFieldKinds.keys.join(', ')}}, "
+                  "and 'brightness'.",
           location: location,
         ),
       );
@@ -4197,6 +4221,53 @@ final class ExpressionTranslator {
     }
     return 'data.theme.$path';
   }
+
+  /// Whether [segments] name a published text-theme style with no field —
+  /// `textTheme.titleLarge`, a whole `TextStyle` the contract does not carry.
+  bool _wholeTextThemeStyleRead(List<String> segments) =>
+      segments.length == 2 &&
+      segments.first == 'textTheme' &&
+      kThemeContractTextThemeStyles.contains(segments[1]);
+
+  /// Recognises a device read through the canonical [deviceRead] walk.
+  DeviceRead? _recognizeDeviceRead(Expression expr) =>
+      deviceRead(expr, bindings: _walk.inlined.localBindings);
+
+  /// Lowers a recognised device read to its `data.device.<path>` reference,
+  /// refusing a read outside the published contract.
+  String _deviceRead(DeviceRead read, Expression expr, List<Issue> issues) {
+    final path = read.path;
+    if (path == null || !kDeviceContractPaths.contains(path)) {
+      issues.add(_deviceReadOutOfContractIssue(expr));
+      return '';
+    }
+    return 'data.device.$path';
+  }
+
+  Issue _deviceReadOutOfContractIssue(Expression expr) => Issue(
+        code: IssueCode.themeReadOutOfContract,
+        message: "The device read '${expr.toSource()}' is not part of the "
+            "published 'data.device.*' contract. Supported reads are "
+            '`MediaQuery.sizeOf(context).width|height|shortestSide|'
+            'longestSide`, '
+            '`MediaQuery.paddingOf(context).top|bottom|left|right`, '
+            '`MediaQuery.devicePixelRatioOf(context)`, '
+            '`MediaQuery.orientationOf(context)` (and the equivalent '
+            '`MediaQuery.of(context)` chains), '
+            '`Localizations.localeOf(context).languageCode|countryCode`, and '
+            '`defaultTargetPlatform`.',
+        location: _locationOf(expr),
+      );
+
+  /// Refuses a condition using an operator the blob's data language lacks.
+  Issue _deviceConditionIssue(Expression expr, String reason) => Issue(
+        code: IssueCode.themeReadOutOfContract,
+        message: "The condition '${expr.toSource()}' cannot be expressed in "
+            'the shipped blob: $reason. The blob matches device data by '
+            'equality only, on the platform identifier, the orientation, and '
+            'the locale subtags.',
+        location: _locationOf(expr),
+      );
 
   String _translateHelperArgument(Expression expr, List<Issue> issues) {
     final descriptorId = _constDescriptorId(expr);
@@ -7299,8 +7370,12 @@ final class ExpressionTranslator {
     List<Issue> issues,
     String Function(Expression) branch,
   ) {
+    final brightnessSwitch = _tryBrightnessSwitch(expr, issues, branch);
+    if (brightnessSwitch != null) return brightnessSwitch;
     final intSwitch = _tryIntStateEqualitySwitch(expr, issues, branch);
     if (intSwitch != null) return intSwitch;
+    final deviceSwitch = _tryDeviceTokenSwitch(expr, issues, branch);
+    if (deviceSwitch != null) return deviceSwitch;
     final beforeCondition = issues.length;
     final cond = _translateSlotValue(
       expr.condition,
@@ -7321,6 +7396,56 @@ final class ExpressionTranslator {
 
   bool _diagnosedEmpty(String value, List<Issue> issues, int beforeIssues) =>
       value.isEmpty && issues.length > beforeIssues;
+
+  /// Attempts to lower [expr] — a conditional testing the ambient theme's
+  /// brightness — to a `switch` keyed on `data.theme.brightness`. Returns the
+  /// switch DSL for `<brightness read> ==|!= Brightness.<light|dark>` in either
+  /// operand order, `''` after a diagnostic for a comparison that involves a
+  /// brightness read without matching that shape, and `null` when the condition
+  /// is not about brightness at all so the caller falls through.
+  String? _tryBrightnessSwitch(
+    ConditionalExpression expr,
+    List<Issue> issues,
+    String Function(Expression) branch,
+  ) {
+    final resolved = _resolveBoundIdentifier(_stripParens(expr.condition));
+    final cond = _stripParens(resolved);
+    if (cond is! BinaryExpression) return null;
+    final bindings = _walk.inlined.localBindings;
+    final match = brightnessComparison(
+      cond,
+      bindings: bindings,
+      isFrameworkLibrary: _frameworkOrUnresolved,
+    );
+    if (match == null) {
+      if (!comparisonInvolvesBrightnessRead(cond, bindings: bindings)) {
+        return null;
+      }
+      issues.add(
+        Issue(
+          code: IssueCode.themeReadOutOfContract,
+          message: 'A brightness read lowers only as an equality against '
+              '`Brightness.light` or `Brightness.dark` '
+              '(`Theme.of(context).brightness == Brightness.dark ? a : b`). '
+              '${cond.toSource()} is not that shape.',
+          location: _locationOf(cond),
+        ),
+      );
+      return '';
+    }
+    // Lower every arm before refusing so each diagnosed arm is reported.
+    final beforeThen = issues.length;
+    final thenDsl = branch(expr.thenExpression);
+    var refused = _diagnosedEmpty(thenDsl, issues, beforeThen);
+    final beforeElse = issues.length;
+    final elseDsl = branch(expr.elseExpression);
+    refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
+    if (refused) return '';
+    final matched = match.equals ? thenDsl : elseDsl;
+    final other = match.equals ? elseDsl : thenDsl;
+    return 'switch data.theme.brightness '
+        '{ ${_stringLiteral(match.token)}: $matched, default: $other }';
+  }
 
   /// Attempts to lower [expr] — a conditional whose condition is an
   /// integer-state equality — to a native N-arm `switch` keyed on the int
@@ -7397,6 +7522,137 @@ final class ExpressionTranslator {
     final armsDsl = arms.join(', ');
     return 'switch state${_rfwPathPart(fieldName)} '
         '{ $armsDsl, default: $defaultDsl }';
+  }
+
+  /// Lowers a conditional whose condition matches device data by equality to a
+  /// `switch` on `data.device.<path>`. Returns `''` after a diagnostic when the
+  /// condition reads device data through an unsupported operator, and `null`
+  /// when it does not read device data at all.
+  String? _tryDeviceTokenSwitch(
+    ConditionalExpression expr,
+    List<Issue> issues,
+    String Function(Expression) branch,
+  ) {
+    final cond = _stripParens(_resolveBoundIdentifier(expr.condition));
+    // A bare platform flag — `kIsWeb`, or a `dart:io` `Platform.isX` getter.
+    final flag = devicePlatformFlag(cond);
+    if (flag != null) {
+      return _deviceSwitch(
+        path: 'platform',
+        arms: <(String, Expression)>[(flag, expr.thenExpression)],
+        defaultBranch: expr.elseExpression,
+        issues: issues,
+        branch: branch,
+      );
+    }
+    final head = _deviceTokenComparison(expr.condition);
+    if (head == null) {
+      if (_readsDeviceData(expr.condition)) {
+        issues.add(_deviceConditionIssue(cond, _deviceConditionReason(cond)));
+        return '';
+      }
+      return null;
+    }
+    if (head.negated) {
+      // `p != X ? a : b` selects `b` when the value matches, so the arms swap.
+      return _deviceSwitch(
+        path: head.path,
+        arms: <(String, Expression)>[(head.key, expr.elseExpression)],
+        defaultBranch: expr.thenExpression,
+        issues: issues,
+        branch: branch,
+      );
+    }
+    // Flatten consecutive SAME-path `==` arms into one switch.
+    final arms = <(String, Expression)>[];
+    Expression? defaultBranch;
+    ConditionalExpression? current = expr;
+    while (current != null) {
+      final match = _deviceTokenComparison(current.condition);
+      if (match == null || match.negated || match.path != head.path) {
+        defaultBranch = current;
+        break;
+      }
+      arms.add((match.key, current.thenExpression));
+      final elseExpr = _stripParens(current.elseExpression);
+      if (elseExpr is ConditionalExpression) {
+        current = elseExpr;
+      } else {
+        defaultBranch = current.elseExpression;
+        current = null;
+      }
+    }
+    return _deviceSwitch(
+      path: head.path,
+      arms: arms,
+      defaultBranch: defaultBranch!,
+      issues: issues,
+      branch: branch,
+    );
+  }
+
+  /// Emits the device `switch`, lowering every arm before refusing.
+  String _deviceSwitch({
+    required String path,
+    required List<(String, Expression)> arms,
+    required Expression defaultBranch,
+    required List<Issue> issues,
+    required String Function(Expression) branch,
+  }) {
+    var refused = false;
+    final armsDsl = <String>[];
+    for (final (key, value) in arms) {
+      final before = issues.length;
+      final dsl = branch(value);
+      refused |= _diagnosedEmpty(dsl, issues, before);
+      armsDsl.add('${_stringLiteral(key)}: $dsl');
+    }
+    final beforeDefault = issues.length;
+    final defaultDsl = branch(defaultBranch);
+    refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
+    if (refused) return '';
+    return 'switch data.device.$path '
+        '{ ${armsDsl.join(', ')}, default: $defaultDsl }';
+  }
+
+  /// The device-token equality [cond] expresses, via the canonical
+  /// [deviceTokenComparison] recogniser the classifier also calls.
+  ({String path, String key, bool negated})? _deviceTokenComparison(
+    Expression cond,
+  ) {
+    final resolved = _stripParens(_resolveBoundIdentifier(cond));
+    if (resolved is! BinaryExpression) return null;
+    final match = deviceTokenComparison(
+      resolved,
+      bindings: _walk.inlined.localBindings,
+      resolve: _resolveBoundIdentifier,
+      isFrameworkLibrary: _frameworkOrUnresolved,
+    );
+    if (match == null) return null;
+    return (path: match.path, key: match.key, negated: !match.equals);
+  }
+
+  /// Whether [expr] reads device data anywhere in a comparison tree.
+  bool _readsDeviceData(Expression expr) {
+    final e = _stripParens(_resolveBoundIdentifier(expr));
+    if (_recognizeDeviceRead(e) != null) return true;
+    if (e is BinaryExpression) {
+      return _readsDeviceData(e.leftOperand) ||
+          _readsDeviceData(e.rightOperand);
+    }
+    if (e is PrefixExpression) return _readsDeviceData(e.operand);
+    return false;
+  }
+
+  String _deviceConditionReason(Expression cond) {
+    const relational = {'<', '>', '<=', '>='};
+    final e = _stripParens(cond);
+    if (e is BinaryExpression && relational.contains(e.operator.lexeme)) {
+      return 'the data language has no comparison or arithmetic operators, '
+          'so a numeric comparison on device data cannot be expressed';
+    }
+    return 'only equality against a `TargetPlatform` value or a string '
+        'literal lowers';
   }
 
   /// The root integer State field [expr] (through parens) references, or
@@ -7613,7 +7869,7 @@ final class ExpressionTranslator {
     bool coerce = true,
   }) {
     final beforeValidation = issues.length;
-    _validateDataRefForSlot(expr, type, issues);
+    _validateDataRefForSlot(expr, type, issues, property: property);
     if (issues.length > beforeValidation) return '';
     final widgetOccurrence = _walk.measurementWidget;
     final eventOccurrence = type == PropertyType.event &&
@@ -8548,15 +8804,26 @@ final class ExpressionTranslator {
   void _validateDataRefForSlot(
     Expression source,
     PropertyType type,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    PropertyEntry? property,
+  }) {
     var current = source;
     while (current is ParenthesizedExpression) {
       current = current.expression;
     }
     if (current is ConditionalExpression) {
-      _validateDataRefForSlot(current.thenExpression, type, issues);
-      _validateDataRefForSlot(current.elseExpression, type, issues);
+      _validateDataRefForSlot(
+        current.thenExpression,
+        type,
+        issues,
+        property: property,
+      );
+      _validateDataRefForSlot(
+        current.elseExpression,
+        type,
+        issues,
+        property: property,
+      );
       return;
     }
     // Null-coalescing optional property — `<prop> ?? <fallback>`. The fallback
@@ -8565,11 +8832,31 @@ final class ExpressionTranslator {
     // before the rewrite, exactly as if it were written directly.
     final coalesce = _coalesceParamAt(current);
     if (coalesce != null) {
-      _validateDataRefForSlot(coalesce.fallback, type, issues);
+      _validateDataRefForSlot(
+        coalesce.fallback,
+        type,
+        issues,
+        property: property,
+      );
       // Record that this property's fallback was validated against a slot —
       // the body rewrite is sound only for validated coalesced reads (see
       // [_translateCoalesce]).
       _walk.validatedCoalesceParams.add(coalesce.name);
+      return;
+    }
+    final devicePath = _recognizeDeviceRead(current)?.path;
+    if (devicePath != null) {
+      final deviceKind = kDeviceContractPathKinds[devicePath];
+      if (deviceKind == null) return;
+      if (propertyTypeAcceptsDeviceKind(type, deviceKind)) return;
+      issues.add(
+        Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: "Device value 'data.device.$devicePath' cannot be "
+              "assigned to a '${type.name}' property type at this site.",
+          location: _locationOf(current),
+        ),
+      );
       return;
     }
     // Binding-aware: a `scheme.primary` fallback is a PrefixedIdentifier, not a
@@ -8583,7 +8870,7 @@ final class ExpressionTranslator {
     }
     final kind = kThemeContractPathKinds[segments.join('.')];
     if (kind == null) return;
-    if (propertyTypeAcceptsThemeKind(type, kind)) return;
+    if (propertyTypeAcceptsThemeKind(type, kind, property: property)) return;
     issues.add(
       Issue(
         code: IssueCode.propertyValueTypeMismatch,
@@ -8766,7 +9053,17 @@ final class ExpressionTranslator {
         resultStructured: structured,
         variant: variant,
       );
-      if (match == null) continue;
+      if (match == null) {
+        final themed = _decomposeThemeTextStyle(
+          expr,
+          recipe: recipe,
+          structured: structured,
+          entry: entry,
+          issues: issues,
+        );
+        if (themed != null) return themed;
+        continue;
+      }
 
       final out = <String>[];
       final mappedFields = recipe.fieldMappings.map((m) => m.fieldRef).toSet();
@@ -8873,6 +9170,122 @@ final class ExpressionTranslator {
       return out;
     }
     return null;
+  }
+
+  /// Expands a whole-style theme read into the flat properties [recipe] maps,
+  /// each bound to its published `data.theme.textTheme.*` reference, with a
+  /// trailing `copyWith(...)` overriding the fields it names. Returns `null`
+  /// when [expr] is not such a read, so the caller falls through.
+  List<String>? _decomposeThemeTextStyle(
+    Expression expr, {
+    required DecompositionRecipe recipe,
+    required StructuredEntry structured,
+    required WidgetEntry entry,
+    required List<Issue> issues,
+  }) {
+    if (structured.sourceType.split('#').last != 'TextStyle') return null;
+    var read = _stripParens(expr);
+    var overrides = const <String, Expression>{};
+    if (read is MethodInvocation && read.methodName.name == 'copyWith') {
+      final target = read.target;
+      if (target == null) return null;
+      overrides = <String, Expression>{
+        for (final argument in read.argumentList.arguments)
+          if (argument is NamedExpression)
+            argument.name.label.name: argument.expression,
+      };
+      if (overrides.length != read.argumentList.arguments.length) return null;
+      read = target;
+    }
+    final segments = _recognizeThemeRead(read);
+    if (segments == null || !_wholeTextThemeStyleRead(segments)) return null;
+
+    // Scoped to the published fields, so the same source compiles the same
+    // way whatever slot it lands in.
+    final fields = kThemeContractTextThemeFieldKinds.keys;
+    final unpublished =
+        overrides.keys.where((name) => !fields.contains(name)).toList();
+    if (unpublished.isNotEmpty) {
+      issues.add(
+        Issue(
+          code: IssueCode.themeReadOutOfContract,
+          message: "copyWith on a theme style cannot set '${unpublished.first}'"
+              '. A theme style carries ${fields.join(', ')}; build a literal '
+              'TextStyle to set anything else.',
+          location: _locationOf(expr),
+        ),
+      );
+      return const [];
+    }
+
+    final index = _nativeCatalogIndex;
+    final emitted = <String>[];
+    final overridden = <String>{};
+    for (final mapping in recipe.fieldMappings) {
+      final field =
+          index.structuredField(recipe.structuredRef, mapping.fieldRef);
+      final fieldName = field?.name;
+      if (fieldName == null) continue;
+      final destination =
+          index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
+      if (destination == null) continue;
+      final override = overrides[fieldName];
+      if (override != null) {
+        overridden.add(fieldName);
+        final translated = _decompositionValue(
+          mapping.transform,
+          override,
+          owningWidget: entry,
+          destination: destination,
+          issues: issues,
+        );
+        if (translated == null) continue;
+        emitted.add(
+          '${_rfwMapKey(destination.name)}: '
+          '${_coerceForPropertyType(destination.type, translated)}',
+        );
+        continue;
+      }
+      final path = '${segments.join('.')}.$fieldName';
+      final kind = kThemeContractPathKinds[path];
+      if (kind == null) continue;
+      if (!propertyTypeAcceptsThemeKind(
+        destination.type,
+        kind,
+        property: destination,
+      )) {
+        issues.add(
+          Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: "Theme value 'data.theme.$path' cannot be assigned to "
+                "the '${destination.type.name}' property "
+                "'${entry.name}.${destination.name}' the style decomposes to.",
+            location: _locationOf(expr),
+          ),
+        );
+        return const [];
+      }
+      emitted.add(
+        '${_rfwMapKey(destination.name)}: '
+        '${_coerceForPropertyType(destination.type, 'data.theme.$path')}',
+      );
+    }
+    if (emitted.isEmpty) return null;
+
+    final unmapped = overrides.keys.where((n) => !overridden.contains(n));
+    if (unmapped.isNotEmpty) {
+      issues.add(
+        Issue(
+          code: IssueCode.unknownProperty,
+          message: "copyWith argument '${unmapped.first}' has no flat property "
+              "on '${entry.name}' to carry it.",
+          location: _locationOf(expr),
+        ),
+      );
+      return const [];
+    }
+
+    return emitted;
   }
 
   String _nativeParameterLabel(FactoryParameter parameter) {
@@ -9718,17 +10131,24 @@ const Map<String, String> _kMaterialColors = {
 /// value kinds and the catalog's slot types. Exhaustive over [PropertyType]
 /// so a new slot type forces an explicit decision here; the conservative
 /// answer for a new type is `false` (the build fails closed rather than
-/// shipping a value the slot's decoder would silently null).
+/// shipping a value the slot's decoder would silently null). The `brightness`
+/// kind is accepted by no slot: it is branched on, never assigned.
 bool propertyTypeAcceptsThemeKind(
   PropertyType type,
-  ThemeContractValueKind kind,
-) =>
+  ThemeContractValueKind kind, {
+  PropertyEntry? property,
+}) =>
     switch (type) {
       PropertyType.color => kind == ThemeContractValueKind.color,
       PropertyType.length ||
       PropertyType.real =>
         kind == ThemeContractValueKind.size,
       PropertyType.fontWeight => kind == ThemeContractValueKind.fontWeight,
+      PropertyType.string => kind == ThemeContractValueKind.text,
+      // `enumValue` spans every catalog enum, so the font-style token binds
+      // only where the slot's shape names `FontStyle`.
+      PropertyType.enumValue => kind == ThemeContractValueKind.fontStyle &&
+          _slotEnumSymbol(property) == 'FontStyle',
       PropertyType.widget ||
       PropertyType.widgetList ||
       PropertyType.edgeInsets ||
@@ -9739,12 +10159,64 @@ bool propertyTypeAcceptsThemeKind(
       PropertyType.curve ||
       PropertyType.boolean ||
       PropertyType.integer ||
-      PropertyType.string ||
       PropertyType.stringList ||
       PropertyType.booleanList ||
       PropertyType.event ||
       PropertyType.dataReference ||
-      PropertyType.enumValue ||
+      PropertyType.gradient ||
+      PropertyType.border ||
+      PropertyType.boxShadowList ||
+      PropertyType.locale ||
+      PropertyType.paint ||
+      PropertyType.shadowList ||
+      PropertyType.fontFeatureList ||
+      PropertyType.fontVariationList ||
+      PropertyType.textDecoration ||
+      PropertyType.shapeBorder ||
+      PropertyType.structured ||
+      PropertyType.inlineSpan ||
+      PropertyType.decorationImage ||
+      PropertyType.selectionOptionList ||
+      PropertyType.unknown =>
+        false,
+    };
+
+/// The enum a slot's declared shape names, or `null` when it has no enum
+/// shape, so an enum-keyed kind fails closed.
+String? _slotEnumSymbol(PropertyEntry? property) {
+  final shape = property?.valueShape;
+  return shape is EnumShape ? shape.enumRef.symbolName : null;
+}
+
+/// Whether a slot of catalog property [type] accepts a device-contract value
+/// of [kind]. Exhaustive over [PropertyType]; a new slot type answers `false`.
+bool propertyTypeAcceptsDeviceKind(
+  PropertyType type,
+  DeviceContractValueKind kind,
+) =>
+    switch (type) {
+      PropertyType.length ||
+      PropertyType.real =>
+        kind == DeviceContractValueKind.size,
+      PropertyType.string ||
+      PropertyType.enumValue =>
+        kind == DeviceContractValueKind.token,
+      PropertyType.color ||
+      PropertyType.fontWeight ||
+      PropertyType.widget ||
+      PropertyType.widgetList ||
+      PropertyType.edgeInsets ||
+      PropertyType.alignment ||
+      PropertyType.alignmentXY ||
+      PropertyType.offset ||
+      PropertyType.duration ||
+      PropertyType.curve ||
+      PropertyType.boolean ||
+      PropertyType.integer ||
+      PropertyType.stringList ||
+      PropertyType.booleanList ||
+      PropertyType.event ||
+      PropertyType.dataReference ||
       PropertyType.gradient ||
       PropertyType.border ||
       PropertyType.boxShadowList ||

@@ -29,6 +29,7 @@ export 'src/capability/installed_capability.dart';
 export 'src/catalog/curve_vocabulary.dart';
 export 'src/catalog/formatted_text_props.dart';
 export 'src/catalog/inline_span_limits.dart';
+export 'src/device/device_data_contract.dart';
 export 'src/flow_document/flow_action_schema.dart';
 export 'src/flow_document/flow_active_render_gate.dart';
 export 'src/flow_document/flow_document.dart';

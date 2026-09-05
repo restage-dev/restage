@@ -2,6 +2,25 @@
 
 ## 2.0.0
 
+The published theme data carries `brightness`, the ambient theme's `light` /
+`dark` token, so a delivered surface can pick its own palette per mode.
+
+The published theme data carries the ambient `TextTheme` as
+`textTheme.<style>.<field>`, so a delivered surface can follow the app's own
+type scale, whether a screen reads one field or hands a whole style to a
+`style:` slot. Each style carries the font family and font style alongside
+size, weight, colour, letter spacing, and height, so a branded app's display
+face reaches the surface; `defaultTextStyle` carries the same seven fields.
+`populateThemeData` takes the text theme as a required argument.
+The device data published on every mount gains `languageCode` and
+`countryCode`, so a surface can match a locale subtag without parsing the full
+locale tag. `countryCode` is omitted when the ambient locale carries no
+country. It also gains `shortestSide`, `longestSide`, and `orientation`.
+
+A mounted paywall re-publishes its device data when the screen it renders on
+changes. It previously published once per load, so a rotation or a window
+resize left `data.device.*` stale.
+
 A breaking release. The breaking changes are called out below; everything
 else is additive.
 

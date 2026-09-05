@@ -39,6 +39,22 @@ void main() {
       expect(themeReadSegments(expr), isNull);
     });
 
+    test('a null-aware text-theme field read keeps the plain segments',
+        () async {
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).textTheme.titleLarge?.fontSize',
+      );
+      expect(themeReadSegments(expr), ['textTheme', 'titleLarge', 'fontSize']);
+    });
+
+    test('a null-asserted text-theme field read keeps the plain segments',
+        () async {
+      final expr = await parseExpressionForTest(
+        'Theme.of(context).textTheme.titleLarge!.fontSize',
+      );
+      expect(themeReadSegments(expr), ['textTheme', 'titleLarge', 'fontSize']);
+    });
+
     test('a non-theme PropertyAccess → null', () async {
       final expr = await parseExpressionForTest('someFn().length');
       expect(themeReadSegments(expr), isNull);

@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_preview_host/restage_preview_host.dart';
+import 'package:restage_shared/restage_shared.dart' show kDeviceContractPaths;
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 RenderEnv _environment({
@@ -60,6 +61,92 @@ widget Preview = Text(text: data.title);
 
     expect(events.whereType<Settled>().single.epoch, 7);
     expect(events.whereType<RenderError>(), isEmpty);
+  });
+
+  testWidgets('raw core publishes the device namespace from the environment',
+      (tester) async {
+    final blob = encodeLibraryBlob(
+      parseLibraryFile("""
+import restage.core;
+widget Preview = SizedBox(
+  width: data.device.screenWidth,
+  height: 20.0,
+  child: Text(text: data.device.platform),
+);
+"""),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RawRfwRenderSurface(
+          epoch: 1,
+          blob: blob,
+          data: const <String, Object?>{},
+          environment: _environment(frame: const Size(1024, 768)),
+          registrations: const <RestageWidgetLibraryRegistration>[],
+          entryWidgetName: 'Preview',
+          onRemoteEvent: (_, __) {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('web'), findsOneWidget);
+    final box = find
+        .ancestor(of: find.text('web'), matching: find.byType(SizedBox))
+        .first;
+    expect(tester.widget<SizedBox>(box).width, 1024.0);
+  });
+
+  test('the previewed device namespace is keyed to the published contract', () {
+    final published = previewDeviceData(
+      RenderEnv(
+        theme: const <String, Object?>{},
+        brightness: 'light',
+        locale: 'sv-SE',
+        textScale: 1,
+        zoom: 1,
+        frame: const Size(390, 844),
+      ),
+    );
+
+    expect(published.keys.toSet(), kDeviceContractPaths);
+    expect(published['screenWidth'], 390.0);
+    expect(published['shortestSide'], 390.0);
+    expect(published['longestSide'], 844.0);
+    expect(published['orientation'], 'portrait');
+    expect(published['languageCode'], 'sv');
+    expect(published['countryCode'], 'SE');
+  });
+
+  testWidgets('raw core publishes the host brightness in the theme namespace',
+      (tester) async {
+    final blob = encodeLibraryBlob(
+      parseLibraryFile('''
+import restage.core;
+widget Preview = Text(
+  text: switch data.theme.brightness { "dark": "night", default: "day" },
+);
+'''),
+    );
+    Widget surface(String brightness) => MaterialApp(
+          home: RawRfwRenderSurface(
+            epoch: 1,
+            blob: blob,
+            data: const <String, Object?>{},
+            environment: _environment(brightness: brightness),
+            registrations: const <RestageWidgetLibraryRegistration>[],
+            entryWidgetName: 'Preview',
+            onRemoteEvent: (_, __) {},
+          ),
+        );
+
+    await tester.pumpWidget(surface('dark'));
+    await tester.pump();
+    expect(find.text('night'), findsOneWidget);
+
+    await tester.pumpWidget(surface('light'));
+    await tester.pump();
+    expect(find.text('day'), findsOneWidget);
   });
 
   testWidgets('raw core renders measurement-wrapped content', (tester) async {
