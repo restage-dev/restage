@@ -39,6 +39,8 @@ import 'package:flutter/painting.dart'
         TextStyle;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/rendering.dart' show BoxConstraints;
+import 'package:flutter/widgets.dart' show PreferredSizeWidget, Widget;
+import 'package:restage_core/src/runtime/preferred_size_slot.dart';
 import 'package:restage_shared/restage_shared.dart' show kMaxInlineSpanDepth;
 import 'package:rfw/rfw.dart';
 
@@ -785,6 +787,23 @@ abstract final class RestageDecoders {
     }
     return values;
   }
+
+  /// Adapts a built slot value to a `PreferredSizeWidget` argument at
+  /// [height], or the standard toolbar height when none is given. `null`
+  /// when the slot is absent.
+  static PreferredSizeWidget? optionalPreferredSize(
+    Widget? child, [
+    double? height,
+  ]) =>
+      child == null ? null : preferredSize(child, height);
+
+  /// Adapts a built slot value to a required `PreferredSizeWidget`
+  /// argument at [height], or the standard toolbar height.
+  static PreferredSizeWidget preferredSize(Widget child, [double? height]) =>
+      RestagePreferredSizeSlot(
+        preferredHeight: height ?? kRestagePreferredSlotHeight,
+        child: child,
+      );
 }
 
 /// One option in a single-select widget (a radio group / dropdown).

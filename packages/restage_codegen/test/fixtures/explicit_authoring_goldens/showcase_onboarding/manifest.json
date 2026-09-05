@@ -7,7 +7,7 @@
       "path": "assets/onboarding/flows/hs_onboarding.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 2548,
-      "sha256": "sha256:a4bbf39018bb706fe8ae819528a9af241aa827b47e94dfcd9fc6f09c48e0038c"
+      "sha256": "sha256:e5cbf97ab1712105c4901469150831e757ce5980e68d2a42bfc3cee69a09d298"
     },
     {
       "path": "assets/onboarding/screens/hs_experience.capability.json",
@@ -85,19 +85,19 @@
       "path": "assets/onboarding/screens/hs_welcome.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:374f69dda12ed695e0f4ac250dfd9723b913bd03d818b30eafa64282f5ee4073"
+      "sha256": "sha256:7a6d22410d345027b51124c0012baeff668dcb791f0f7f87fe8b5e220b907a86"
     },
     {
       "path": "assets/onboarding/screens/hs_welcome.rfw",
       "kind": "rfw-binary",
-      "byteLength": 2199,
-      "sha256": "sha256:a16e10ea38a8485d223814fcd7c0eb95f1c5c38f1707f7a9939978e57856258d"
+      "byteLength": 2114,
+      "sha256": "sha256:fb0afe243a3ef0e0f571ab7082e816048e10c2827cfcc97d7dc4380dd17a1cb7"
     },
     {
       "path": "assets/onboarding/screens/hs_welcome.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 1317,
-      "sha256": "sha256:e758f83b46bccb7eaa531267d2fb18049e229293ccd6857805da806fb0c7de02"
+      "byteLength": 1277,
+      "sha256": "sha256:8bcfb4756bdac57a7bd88d2530e14f165e244f210a76748feb8f2ca499db0dc3"
     },
     {
       "path": "assets/paywalls/headspace_premium.capability.json",

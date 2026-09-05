@@ -425,7 +425,7 @@ void main() {
     });
 
     test(
-      'required nullable widget decoders and casts follow constructor '
+      'required nullable widget decoders and adapters follow constructor '
       'nullability for named and positional arguments',
       () {
         final src = emitUserFactoriesDart([
@@ -473,33 +473,34 @@ void main() {
         ]);
 
         expect(src, isNotNull);
-        final flat = src!.replaceAll(RegExp(r'\s+'), ' ');
+        // Packed rather than flattened: the adapter call may wrap.
+        final packed = src!.replaceAll(RegExp(r'\s+'), '');
         expect(
-          flat,
+          packed,
           contains(
-            "source.optionalChild(<Object>['positionalNullable']) "
-            'as PreferredSizeWidget?',
+            'RestageDecoders.optionalPreferredSize('
+            "source.optionalChild(<Object>['positionalNullable']))",
           ),
         );
         expect(
-          flat,
+          packed,
           contains(
-            "source.child(<Object>['positionalControl']) "
-            'as PreferredSizeWidget',
+            'RestageDecoders.preferredSize('
+            "source.child(<Object>['positionalControl']))",
           ),
         );
         expect(
-          flat,
+          packed,
           contains(
-            "namedNullable: source.optionalChild(<Object>['namedNullable']) "
-            'as PreferredSizeWidget?',
+            'namedNullable:RestageDecoders.optionalPreferredSize('
+            "source.optionalChild(<Object>['namedNullable']))",
           ),
         );
         expect(
-          flat,
+          packed,
           contains(
-            "namedControl: source.child(<Object>['namedControl']) "
-            'as PreferredSizeWidget',
+            'namedControl:RestageDecoders.preferredSize('
+            "source.child(<Object>['namedControl']))",
           ),
         );
       },

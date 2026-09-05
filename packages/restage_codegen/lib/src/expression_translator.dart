@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
@@ -30,6 +32,7 @@ import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
 import 'package:restage_codegen/src/number_format_recognition.dart';
+import 'package:restage_codegen/src/preferred_heights.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
@@ -2990,6 +2993,12 @@ final class ExpressionTranslator {
         return variant == null
             ? null
             : _structured.borderRadius(variant, args.toList(), issues, loc);
+      case 'Size':
+        // Only the height factory lowers here; `Size(width, height)` is a
+        // structured value handled by its own recipe.
+        return variant == 'fromHeight'
+            ? _structured.sizeFromHeight(args.toList(), issues, loc)
+            : null;
       case 'LinearGradient':
         return variant == null
             ? _structured.linearGradient(args, issues, loc)
@@ -6408,6 +6417,11 @@ final class ExpressionTranslator {
       );
     }
 
+    // A `PreferredSizeWidget` slot cannot report a size of its own once it
+    // is rendered, so the authored bar's height travels beside it.
+    final barHeight = _preferredSizeHeightEmission(entry, args, issues);
+    if (barHeight != null) emitted.add(barHeight);
+
     // Detect string interpolation sentinel in Text's text argument. A
     // multi-segment interpolation is definitionally equivalent to
     // `Text.rich(TextSpan(children: ...))`: Flutter renders the same text run,
@@ -6424,6 +6438,149 @@ final class ExpressionTranslator {
     }
 
     return '${entry.name}(${emitted.join(', ')})';
+  }
+
+  /// The height emission for [entry]'s `PreferredSizeWidget` slot, read
+  /// from the widget the author put in it. A height it cannot read is
+  /// refused.
+  String? _preferredSizeHeightEmission(
+    WidgetEntry entry,
+    NodeList<Expression> args,
+    List<Issue> issues,
+  ) {
+    final heightProp = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == kPreferredSizeHeightSyntheticStrategy,
+    );
+    if (heightProp == null) return null;
+    final slot = entry.properties.firstWhereOrNull(
+      (p) =>
+          p.type == PropertyType.widget &&
+          p.widgetType == kPreferredSizeWidgetType,
+    );
+    if (slot == null) return null;
+    final slotArg = args
+        .whereType<NamedExpression>()
+        .firstWhereOrNull((a) => a.name.label.name == slot.name);
+    if (slotArg == null) return null;
+    final height = _preferredHeightOf(slotArg.expression, heightProp, issues);
+    if (height == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.unknownProperty,
+          message: "The height of '${entry.name}.${slot.name}' cannot be read "
+              'from this widget, and the enclosing widget needs it before the '
+              'slot lays out. Use an AppBar, a TabBar, or a PreferredSize '
+              'stating its own height.',
+          location: _locationOf(slotArg),
+        ),
+      );
+      return null;
+    }
+    return '${_rfwMapKey(heightProp.name)}: ${height.dsl}';
+  }
+
+  /// The height [widget] asks its parent for, with its folded value when
+  /// the fragment is a literal. `null` when the height cannot be read.
+  ({double? value, String dsl})? _preferredHeightOf(
+    Expression widget,
+    PropertyEntry heightProp,
+    List<Issue> issues,
+  ) {
+    final call = _widgetCallOf(widget);
+    if (call == null) return null;
+    switch (call.name) {
+      case 'AppBar':
+        final toolbar = _namedArgument(call.args, 'toolbarHeight');
+        final bar = toolbar == null
+            ? (value: kRestageToolbarHeight, dsl: '$kRestageToolbarHeight')
+            : _realFragment(toolbar, heightProp, issues);
+        if (bar == null) return null;
+        final bottom = _namedArgument(call.args, 'bottom');
+        if (bottom == null) return bar;
+        final under = _preferredHeightOf(bottom, heightProp, issues);
+        if (under?.value == null || bar.value == null) return null;
+        final total = bar.value! + under!.value!;
+        return (value: total, dsl: '$total');
+      case 'PreferredSize':
+        final declared = _namedArgument(call.args, 'preferredSize');
+        return declared == null
+            ? null
+            : _realFragment(declared, heightProp, issues);
+      case 'TabBar':
+        final tabs = _namedArgument(call.args, 'tabs');
+        if (tabs is! ListLiteral) return null;
+        var tallest = kRestageTabHeight;
+        for (final element in tabs.elements) {
+          final height = _tabHeightOf(element, heightProp, issues);
+          if (height == null) return null;
+          tallest = math.max(tallest, height);
+        }
+        final total = tallest + kRestageTabIndicatorWeight;
+        return (value: total, dsl: '$total');
+      default:
+        return null;
+    }
+  }
+
+  /// The height one tab occupies: a stated height, else the taller size
+  /// for a tab carrying both an icon and a label.
+  double? _tabHeightOf(
+    CollectionElement element,
+    PropertyEntry heightProp,
+    List<Issue> issues,
+  ) {
+    if (element is! Expression) return null;
+    final call = _widgetCallOf(element);
+    if (call == null || call.name != 'Tab') return null;
+    final stated = _namedArgument(call.args, 'height');
+    if (stated != null) {
+      return _realFragment(stated, heightProp, issues)?.value;
+    }
+    final hasIcon = _namedArgument(call.args, 'icon') != null;
+    final hasLabel = _namedArgument(call.args, 'text') != null ||
+        _namedArgument(call.args, 'child') != null;
+    return hasIcon && hasLabel ? kRestageTabWithIconHeight : kRestageTabHeight;
+  }
+
+  /// The constructor name and argument list of a widget construction, or
+  /// `null` when the expression is not one.
+  ({String name, NodeList<Expression> args})? _widgetCallOf(Expression expr) {
+    return switch (expr) {
+      InstanceCreationExpression(:final constructorName, :final argumentList) =>
+        (
+          name: constructorName.type.name.lexeme,
+          args: argumentList.arguments,
+        ),
+      MethodInvocation(:final methodName, :final argumentList) => (
+          name: methodName.name,
+          args: argumentList.arguments,
+        ),
+      _ => null,
+    };
+  }
+
+  /// The named argument [name] of an argument list, unwrapped.
+  Expression? _namedArgument(NodeList<Expression> args, String name) => args
+      .whereType<NamedExpression>()
+      .firstWhereOrNull((a) => a.name.label.name == name)
+      ?.expression;
+
+  /// [expr] lowered as a real, with its folded value when the lowering is
+  /// a bare number.
+  ({double? value, String dsl})? _realFragment(
+    Expression expr,
+    PropertyEntry heightProp,
+    List<Issue> issues,
+  ) {
+    final before = issues.length;
+    final dsl = _translateSlotValue(
+      expr,
+      PropertyType.real,
+      issues,
+      property: heightProp,
+    );
+    if (dsl.isEmpty || issues.length > before) return null;
+    return (value: double.tryParse(dsl), dsl: dsl);
   }
 
   Map<Expression, FormalParameterElement> _resolvedSourceParameters(

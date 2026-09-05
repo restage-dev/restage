@@ -2,6 +2,12 @@
 
 ## 2.0.0
 
+- `Scaffold` admits `appBar`, so a screen composes its bar in the
+  scaffold's own slot and the bar sits below the status bar inset. A bar that
+  sets its own `toolbarHeight` is laid out at that height.
+- `AppBar` admits `bottom`, and `TabBar`, `DefaultTabController` and
+  `PreferredSize` join the catalog, so a tabbed bar is authored in plain
+  Flutter without host code owning a tab controller.
 - `AppBar` admits `leading`, `actions`, `automaticallyImplyLeading`,
   `toolbarHeight`, `titleSpacing`, `leadingWidth`, `scrolledUnderElevation`,
   `shadowColor`, `surfaceTintColor`, `primary`, `forceMaterialTransparency`

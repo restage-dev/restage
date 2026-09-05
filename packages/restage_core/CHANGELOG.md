@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- Add `RestageDecoders.preferredSize` / `optionalPreferredSize`, which adapt a
+  rendered slot value to a `PreferredSizeWidget` argument at the height carried
+  beside it.
 - Breaking: the registry and catalog use catalog schema v5 from
   `rfw_catalog_schema` 2.0.0. The closed event-name list is gone; a callback's
   constructor property name is its event identity, and a 1.x runtime or

@@ -113,6 +113,17 @@ const Map<String, String> _curatedMinimalRfwSource = <String, String>{
   // `items` option-list (each option a `{value, label}` map); the factories
   // assert on a missing list — the required-prop convention, like
   // RestagePager's children. A single option lays out cleanly in the Column.
+  // PreferredSize declares a height for its child; both are required.
+  'PreferredSize':
+      'PreferredSize(preferredSize: 48.0, child: Text(text: "smoke"))',
+  // DefaultTabController requires `length` (scalar) + `child` (slot).
+  'DefaultTabController':
+      'DefaultTabController(length: 1, child: Text(text: "smoke"))',
+  // TabBar reads its selection from an enclosing DefaultTabController and
+  // asserts without one; it also fills its parent's width, so bound it.
+  'TabBar': 'SizedBox(width: 200.0, height: 48.0, '
+      'child: DefaultTabController(length: 1, '
+      'child: TabBar(tabs: [Tab(text: "smoke")])))',
   'RestageRadioGroupString':
       'RestageRadioGroupString(items: [{value: "a", label: "A"}], '
           'selected: "a")',
@@ -253,6 +264,12 @@ Type _flutterTypeFor(String entryName) {
       return SwitchListTile;
     case 'Tab':
       return Tab;
+    case 'TabBar':
+      return TabBar;
+    case 'DefaultTabController':
+      return DefaultTabController;
+    case 'PreferredSize':
+      return PreferredSize;
     case 'TextButton':
     case 'TextButtonIcon':
       return TextButton;

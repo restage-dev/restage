@@ -286,9 +286,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.layout,
     excludeParams: [
       'flexibleSpace',
-      // `PreferredSizeWidget` is on the centralized type denylist — the
-      // rendering layer's proxy wrap defeats the static downcast strategy.
-      'bottom',
       'notificationPredicate',
       // The two `TextStyle` slots reach the walker as structured types with
       // no flat property; `IconThemeData` has no catalog value shape at all.
@@ -318,7 +315,26 @@ const List<BuiltinWidgetCuration> kCuration = [
       // (the runtime infers from theme); we surface the paywall-friendly
       // default so authors don't need to set it explicitly.
       'centerTitle': PropertyOverride(defaultValue: true),
+      // `PreferredSizeWidget` is on the centralized type denylist; the
+      // explicit catalog type surfaces the slot, and the runtime adapter
+      // named by `widgetType` wraps whatever the slot renders.
+      'bottom': PropertyOverride(
+        type: PropertyType.widget,
+        widgetType: kPreferredSizeWidgetType,
+        description: 'A widget shown at the bottom of the app bar.',
+      ),
     },
+    synthetics: [
+      // The height of the widget under the bar, written by the toolchain
+      // from that widget rather than by hand.
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'bottomHeight',
+        type: PropertyType.real,
+        description: 'The height of the widget below the app bar.',
+        synthetic: kPreferredSizeHeightSyntheticStrategy,
+      ),
+    ],
   ),
   // Counter / status overlay (notifications dot, "NEW" tag). `label` is
   // a non-canonical `Widget?` slot used for the badge contents (typically
@@ -1198,16 +1214,8 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<Scaffold>(
     category: WidgetCategory.layout,
     excludeParams: [
-      // `appBar: PreferredSizeWidget` and `drawerDragStartBehavior:
-      // DragStartBehavior` are excluded via the centralized type
-      // denylist.
-      //
-      // The `appBar` slot is also not surfaced for a runtime reason:
-      // the rendering layer wraps user widgets in a proxy stand-in —
-      // a static `as PreferredSizeWidget?` cast fails at runtime even
-      // when the underlying widget implements `PreferredSizeWidget`.
-      // Re-exposing it cleanly needs a runtime wrap helper; tracked
-      // as a follow-up.
+      // `drawerDragStartBehavior: DragStartBehavior` is excluded via the
+      // centralized type denylist.
       'floatingActionButton',
       'floatingActionButtonLocation',
       'floatingActionButtonAnimator',
@@ -1232,6 +1240,27 @@ const List<BuiltinWidgetCuration> kCuration = [
       'drawerBarrierDismissible',
     ],
     brandTokens: {'backgroundColor': 'background'},
+    propertyOverrides: {
+      // `PreferredSizeWidget` is on the centralized type denylist; the
+      // explicit catalog type surfaces the slot, and the runtime adapter
+      // named by `widgetType` wraps whatever the slot renders.
+      'appBar': PropertyOverride(
+        type: PropertyType.widget,
+        widgetType: kPreferredSizeWidgetType,
+        description: 'An app bar to display at the top of the scaffold.',
+      ),
+    },
+    synthetics: [
+      // The bar's own height, written by the toolchain from the authored
+      // bar rather than by hand.
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'appBarHeight',
+        type: PropertyType.real,
+        description: 'The height of the app bar.',
+        synthetic: kPreferredSizeHeightSyntheticStrategy,
+      ),
+    ],
   ),
   // Wraps a scrollable child (typically `SingleChildScrollView` /
   // `ListView` from the core library once those land). `controller` is
@@ -1393,6 +1422,60 @@ const List<BuiltinWidgetCuration> kCuration = [
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kTransparentButtonStyleNativeDecompose],
+  ),
+  // Declares a height for an arbitrary widget in a bar slot. The catalog
+  // surfaces the height alone and rebuilds the `Size` at construction.
+  BuiltinWidgetCuration<PreferredSize>(
+    category: WidgetCategory.layout,
+    excludeParams: ['preferredSize'],
+    synthetics: [
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'preferredSize',
+        type: PropertyType.real,
+        description: 'The height this widget asks its parent to give it.',
+        required: true,
+        synthetic: kSizeFromHeightSyntheticStrategy,
+      ),
+    ],
+  ),
+  // Supplies the tab selection an enclosing `TabBar` reads, so a bar can
+  // be authored without host code owning a controller.
+  BuiltinWidgetCuration<DefaultTabController>(
+    category: WidgetCategory.layout,
+    excludeParams: ['animationDuration'],
+  ),
+  // Reads its selection from an enclosing `DefaultTabController`. The
+  // surface is the tab set plus the colors a bar is themed by.
+  BuiltinWidgetCuration<TabBar>(
+    category: WidgetCategory.input,
+    excludeParams: [
+      // `controller: TabController` and `scrollController:
+      // ScrollController` are excluded via the centralized type denylist.
+      'padding',
+      'automaticIndicatorColorAdjustment',
+      'indicatorWeight',
+      'indicatorPadding',
+      'indicator',
+      'indicatorSize',
+      'dividerColor',
+      'dividerHeight',
+      'labelStyle',
+      'labelPadding',
+      'unselectedLabelStyle',
+      'overlayColor',
+      'enableFeedback',
+      'onHover',
+      'onFocusChange',
+      'splashFactory',
+      'splashBorderRadius',
+      'tabAlignment',
+      'textScaler',
+      'indicatorAnimation',
+    ],
+    propertyOverrides: {
+      'onTap': PropertyOverride(callbackSignature: 'ValueChanged<int>'),
+    },
   ),
   // `Tab` is the leaf used inside `TabBar.tabs` — the constructor
   // asserts at least one of `text` / `child` / `icon` is non-null.

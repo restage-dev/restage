@@ -562,8 +562,8 @@ void main() {
         'emits entries with non-canonical widget properties '
         '(Scaffold-shaped: childrenSlot.none + body/appBar widgets)', () {
       // body emits as a plain `optionalChild` slot; appBar carries
-      // `widgetType: 'PreferredSizeWidget'` so the codegen appends a
-      // downcast to satisfy Flutter's narrower ctor param.
+      // `widgetType: 'PreferredSizeWidget'` so it routes through the
+      // runtime adapter that satisfies Flutter's narrower ctor param.
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
         name: 'ScaffoldLike',
@@ -596,8 +596,8 @@ void main() {
       expect(
         source,
         contains(
-          "appBar: source.optionalChild(<Object>['appBar']) "
-          'as PreferredSizeWidget?',
+          'appBar: RestageDecoders.optionalPreferredSize('
+          "source.optionalChild(<Object>['appBar']))",
         ),
       );
     });
@@ -2165,17 +2165,16 @@ void main() {
       expect(emitFactoryFunction(entry), isNull);
     });
 
-    test('emits widgetType-bearing widget property with downcast', () {
-      // Scaffold.appBar is `PreferredSizeWidget?`, narrower than
-      // `Widget?`; the codegen appends a downcast so the slot
-      // type-checks against the Flutter ctor parameter.
+    test('emits widgetType-bearing widget property through the adapter', () {
+      // Scaffold.appBar is `PreferredSizeWidget?`, narrower than `Widget?`,
+      // and a built slot value never implements it; the adapter wraps it.
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
-        name: 'WithCastSlot',
+        name: 'WithAdapterSlot',
         library: WidgetLibrary.material,
         category: WidgetCategory.layout,
         description: '',
-        flutterType: 'package:test_pkg/w.dart#WithCastSlot',
+        flutterType: 'package:test_pkg/w.dart#WithAdapterSlot',
         childrenSlot: ChildrenSlot.none,
         properties: [
           PropertyEntry(
@@ -2193,8 +2192,8 @@ void main() {
       expect(
         source,
         contains(
-          "appBar: source.optionalChild(<Object>['appBar']) "
-          'as PreferredSizeWidget?',
+          'appBar: RestageDecoders.optionalPreferredSize('
+          "source.optionalChild(<Object>['appBar']))",
         ),
       );
     });
@@ -2234,18 +2233,18 @@ void main() {
         expect(
           curated,
           contains(
-            "appBar: source.child(<Object>['appBar']) "
-            'as PreferredSizeWidget',
+            'appBar: RestageDecoders.preferredSize('
+            "source.child(<Object>['appBar']))",
           ),
         );
         expect(curated, isNot(contains('source.optionalChild')));
-        expect(curated, isNot(contains('as PreferredSizeWidget?')));
+        expect(curated, isNot(contains('optionalPreferredSize')));
         expect(custom, isNotNull);
         expect(
           custom,
           contains(
-            "appBar: source.optionalChild(<Object>['appBar']) "
-            'as PreferredSizeWidget?',
+            'appBar: RestageDecoders.optionalPreferredSize('
+            "source.optionalChild(<Object>['appBar']))",
           ),
         );
         expect(custom, isNot(contains("source.child(<Object>['appBar'])")));

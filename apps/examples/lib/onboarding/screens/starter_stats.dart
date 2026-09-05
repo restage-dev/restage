@@ -24,63 +24,52 @@ class StarterStatsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AppBar(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              elevation: 0),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Spacer(),
-                    Text(
-                      'Your widget, delivered',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'StatBadge is your @RestageWidget — rendered here from the blob.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.4,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    const Center(
-                        child: StatBadge(label: 'Streak', value: '7 days')),
-                    const SizedBox(height: 12),
-                    const Center(
-                        child: StatBadge(label: 'Saved', value: r'$48.20')),
-                    const SizedBox(height: 12),
-                    const Center(
-                        child: StatBadge(label: 'Rank', value: 'Top 5%')),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: surfaceEvent(done),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Done'),
-                    ),
-                  ],
+      appBar: AppBar(
+          backgroundColor: Theme.of(context).colorScheme.surface, elevation: 0),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Spacer(),
+              Text(
+                'Your widget, delivered',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                'StatBadge is your @RestageWidget — rendered here from the blob.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.4,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Center(child: StatBadge(label: 'Streak', value: '7 days')),
+              const SizedBox(height: 12),
+              const Center(child: StatBadge(label: 'Saved', value: r'$48.20')),
+              const SizedBox(height: 12),
+              const Center(child: StatBadge(label: 'Rank', value: 'Top 5%')),
+              const Spacer(),
+              FilledButton(
+                onPressed: surfaceEvent(done),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('Done'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

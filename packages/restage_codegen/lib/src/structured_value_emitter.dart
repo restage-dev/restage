@@ -235,6 +235,27 @@ final class StructuredValueEmitter {
     }
   }
 
+  /// `Size.fromHeight(<height>)` -> the bare height, for a slot that
+  /// surfaces the size as a height alone.
+  String sizeFromHeight(
+    List<Expression> args,
+    List<Issue> issues,
+    String loc,
+  ) {
+    final positional = args.where((a) => a is! NamedExpression).toList();
+    if (positional.length != 1) {
+      issues.add(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message: 'Size.fromHeight() requires one positional argument.',
+          location: loc,
+        ),
+      );
+      return '0';
+    }
+    return _radiusScalarDsl(positional.first, issues);
+  }
+
   /// `BorderRadius.circular(<radius>)` / `.all(Radius.circular(<radius>))`
   /// flatten to the inner radius expression (the uniform `borderRadius`
   /// slot). The asymmetric `.only` / `.vertical` / `.horizontal` factories

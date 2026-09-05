@@ -9,7 +9,7 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeBareSurfaceFlowResult,
   measurementPublicationDraftDigest:
-      '1219961ed3b4a83dcc663bd01535dba14b5e01bae09f1c1adaa43cb196c481bb',
+      '60c0a3f7a3914a6e0f4715ea48e7262122054a65b1c1f51621e0541af96dcf86',
 );
 
 BareSurfaceResult _decodeBareSurfaceFlowResult(Map<String, Object?> result) {

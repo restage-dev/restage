@@ -9,7 +9,7 @@ const lumenCancelRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeLumenCancelResult,
   measurementPublicationDraftDigest:
-      '7d35ab196db9179fd8d21c14e2f35675100ddc0ba925058d7b97fd14b1826fae',
+      '38e0fe13d6ad673c785c8e356a299f334e225214b54438dfdd0174b116742896',
 );
 
 LumenCancelResult _decodeLumenCancelResult(Map<String, Object?> result) {

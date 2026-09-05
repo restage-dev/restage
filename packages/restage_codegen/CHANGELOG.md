@@ -2,6 +2,16 @@
 
 ## 2.0.0
 
+A widget slot typed `PreferredSizeWidget` lowers through a runtime adapter
+instead of a downcast, so `Scaffold(appBar: ...)` and `AppBar(bottom: ...)`
+reach the delivered screen. The slot content's height travels beside the slot,
+because a rendered slot value cannot report a size of its own: the build reads
+it from the authored app bar, tab bar or `PreferredSize`, sums a bar with the
+widget under it, and refuses a widget whose height it cannot read.
+
+`Size.fromHeight(...)` lowers to its bare height at a slot that surfaces a size
+as a height alone.
+
 A ternary comparing `Theme.of(context).brightness` against `Brightness.light`
 or `Brightness.dark` lowers to a branch on the published brightness token, so a
 screen can choose its own dark-mode values.
