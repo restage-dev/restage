@@ -52,9 +52,6 @@ Generated Dart changes; generated delivery artifacts do not.
 
 ### Also in 2.0.0
 
-This section records the package side of a coordinated breaking release. The
-release version and publication timing are assigned separately.
-
 - Generate `registerRestageWidgets()` as the app startup helper.
   `registerRestageCustomerWidgets()` remains a deprecated forwarding alias
   through 2.x and is removed at 3.0.
@@ -137,6 +134,19 @@ release version and publication timing are assigned separately.
   definition/reference documentation.
 - Generate native Widgetbook v4 story inputs for custom `@RestageWidget`s
   during the ordinary `build_runner` invocation, without auxiliary authoring.
+- Generate a typed `<Screen>Surface` widget for each screen whose constructor
+  takes host values. It mirrors the authored constructor, serializes the
+  values, and keeps the authored widget as its fallback.
+- Lower constructor reads and `for` over a context list from exact path and
+  type evidence.
+- Resolve const identifiers at property and collection slots through their
+  declarations.
+- Accept a finite prelude of `final` or `const` locals before the returned
+  widget expression; an unread local with side effects is refused.
+- Lower static collection elements: finite `for` elements, conditionals that
+  fold to a constant, and non-null spreads.
+- Lower value-callback closures at event slots on catalog widgets, segmented
+  controls, and inlined custom widgets.
 
 ## 1.2.0
 

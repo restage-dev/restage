@@ -21,6 +21,7 @@ const publishablePackages = <String>{
   'restage_codegen',
   'rfw_catalog_compiler',
   'restage_a2ui',
+  'restage_measurement_schema',
 };
 
 const _headlinePriority = <String>[
@@ -33,6 +34,7 @@ const _headlinePriority = <String>[
   'restage_material',
   'restage_cupertino',
   'restage_core',
+  'restage_measurement_schema',
 ];
 
 final _tagPattern = RegExp(

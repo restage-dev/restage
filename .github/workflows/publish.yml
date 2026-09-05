@@ -56,7 +56,8 @@ jobs:
           # auto-publish. Add a package here once its publisher is configured.
           allow=" restage restage_core restage_material restage_cupertino"
           allow="$allow rfw_catalog_schema restage_shared restage_codegen"
-          allow="$allow rfw_catalog_compiler restage_a2ui "
+          allow="$allow rfw_catalog_compiler restage_a2ui"
+          allow="$allow restage_measurement_schema "
           if [[ "$allow" != *" $pkg "* ]]; then
             echo "::error::'$pkg' is not in the auto-publish allowlist; add it in publish.yml once its pub.dev trusted publisher is configured"
             exit 1

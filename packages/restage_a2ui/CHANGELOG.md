@@ -1,8 +1,7 @@
 ## 0.2.0
 
 - Accept constructor-derived custom properties and canonical
-  `a2ui.Config` usage/write-back metadata from the coordinated catalog
-  authoring release.
+  `a2ui.Config` usage/write-back metadata.
 - Derive callback identity from the exact constructor property name; custom
   widgets no longer declare events through an RFW event list.
 - **Migrate the A2UI integration to genui 0.10.1 and `a2ui_core`.** The A2UI
@@ -12,11 +11,11 @@
   bump). 0.1.6 serializes the JSON-schema default `additionalProperties: true`
   explicitly on the runtime schema value — a runtime-only detail that does not
   reach the emitted catalog document. The bundled generated catalog and its
-  content-derived `catalogId` are UNCHANGED.
+  content-derived `catalogId` are unchanged.
 - genui 0.10.1 performs full JSON-schema validation of components (a tightening
   over 0.9.2's enum-only checks). Validation is report-only and does not change
   the fail-closed pre-render check, which remains the authoritative gate.
-- **Coordinated generated-payload break:** custom widgets and opaque native
+- **Breaking generated payload layout:** custom widgets and opaque native
   screens now keep protocol `id`/`component` on the envelope and nest every
   exact constructor input under one required `props` object. Regenerate the
   catalog and migrate producer/cached fixtures together. The runtime

@@ -2,6 +2,10 @@
 
 ## 2.0.0
 
+- Breaking: the registry and catalog use catalog schema v5 from
+  `rfw_catalog_schema` 2.0.0. The closed event-name list is gone; a callback's
+  constructor property name is its event identity, and a 1.x runtime or
+  toolchain does not read this catalog.
 - `CupertinoNavigationBar` admits `automaticallyImplyLeading`,
   `automaticallyImplyMiddle`, `previousPageTitle`,
   `automaticBackgroundVisibility`, `enableBackgroundFilterBlur` and
