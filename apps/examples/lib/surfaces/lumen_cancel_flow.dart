@@ -15,6 +15,7 @@ const lumenCancelReason = FlowStateRef<String>(
 /// Every reason card fires the same event with its own value, so the capture
 /// records the chosen answer without forking the graph. The answer reaches the
 /// host twice — as the terminal result and as the survey answer payload.
+/// Skipping completes the survey with no answer captured.
 @FlowGraph(id: 'lumen_cancel', surface: Surface.survey)
 const lumenCancel = FlowDefinition(
   start: LumenCancelReasonScreen,
@@ -25,6 +26,7 @@ const lumenCancel = FlowDefinition(
       capture: lumenCancelReason,
       to: LumenCancelThanksScreen,
     ),
+    Transition.complete(LumenCancelReasonScreen.skip),
     Transition.complete(LumenCancelThanksScreen.finish),
   ],
   outbound: FlowOutboundPolicy(

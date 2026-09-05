@@ -89,12 +89,20 @@ const _corpora = <_CorpusCase>[
       'lib/onboarding/screens/lumen_reminder.dart',
       'lib/onboarding/screens/lumen_welcome.dart',
       'lib/paywalls/lumen_premium.dart',
+      // The onboarding flow ends on this offer, so the corpus must carry it.
+      'lib/paywalls/lumen_welcome_offer.dart',
     ],
     absentOutputPaths: <String>[
       'assets/onboarding/flows/first_run.rfw',
     ],
     staleOutputPaths: <String>[
       'assets/onboarding/flows/first_run.capability.json',
+    ],
+    // No flow ends on the plan selector any more, so the app ships no
+    // flow-screen form of it; this subset still compiles one.
+    unshippedBuildOutputPaths: <String>[
+      'assets/paywalls/screens/paywall_lumen_premium.capability.json',
+      'assets/paywalls/screens/paywall_lumen_premium.rfw',
     ],
   ),
   _CorpusCase(

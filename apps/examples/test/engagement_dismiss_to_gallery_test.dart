@@ -81,11 +81,11 @@ void main() {
     testWidgets('system back at the flow root returns to the gallery',
         (tester) async {
       await pushSurface(tester, const LumenOnboardingDemo());
-      expect(find.text('Welcome to Lumen'), findsOneWidget);
+      expect(find.text('Find your\nquiet.'), findsOneWidget);
 
       await systemBack(tester);
 
-      expect(find.text('Welcome to Lumen'), findsNothing);
+      expect(find.text('Find your\nquiet.'), findsNothing);
       expect(find.text(galleryMarker), findsOneWidget);
     });
 
@@ -94,13 +94,13 @@ void main() {
       // The flow parks its screen history on this route, so a close that only
       // asked the route to pop would step back a screen instead of closing.
       await pushSurface(tester, const LumenOnboardingDemo());
-      await tester.tap(find.text('Get started'));
+      await tester.tap(find.text('Begin'));
       await tester.pumpAndSettle();
       expect(find.text("I'm new to meditation"), findsOneWidget);
 
       // From screen two, system back steps back one screen.
       await systemBack(tester);
-      final steppedBack = find.text('Welcome to Lumen').evaluate().length == 1;
+      final steppedBack = find.text('Find your\nquiet.').evaluate().length == 1;
       final secondGone = find.text("I'm new to meditation").evaluate().isEmpty;
       final stillHosted = find.text(galleryMarker).evaluate().isEmpty;
 
@@ -120,7 +120,7 @@ void main() {
         (tester) async {
       await pushSurface(tester, const LumenOnboardingDemo());
       // Drive the whole flow to the "Onboarding complete" terminal.
-      await tester.tap(find.text('Get started'));
+      await tester.tap(find.text('Begin'));
       await tester.pumpAndSettle();
       await tester.tap(find.text("I'm new to meditation"));
       await tester.pumpAndSettle();
@@ -130,7 +130,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('See your plan'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Start free trial'));
+      await tester.tap(find.text('Start 14 days free'));
       await tester.pumpAndSettle();
       expect(find.text('Onboarding complete'), findsOneWidget);
 

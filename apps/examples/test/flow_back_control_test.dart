@@ -48,19 +48,28 @@ void main() {
 
   /// Drives [surface] from its first screen to its second by tapping [advance],
   /// asserting the back control appears only on the second.
+  /// Matches a drawn glyph by its code point.
+  Finder glyph(IconData icon) => find.byWidgetPredicate(
+        (widget) => widget is Icon && widget.icon?.codePoint == icon.codePoint,
+      );
+
+  /// A surface whose screens draw their own back affordance names its finder;
+  /// the rest imply back through the app bar's [BackButton].
   Future<void> expectBackOnSecondScreenOnly(
     WidgetTester tester,
     Widget surface, {
     required String advance,
     required String secondScreen,
+    Finder? backControl,
   }) async {
+    final back = backControl ?? find.byType(BackButton);
     await pumpSurface(tester, surface);
-    final backOnFirst = find.byType(BackButton).evaluate().length;
+    final backOnFirst = back.evaluate().length;
 
     await tester.tap(find.text(advance));
     await tester.pumpAndSettle();
     final reachedSecond = find.text(secondScreen).evaluate().length;
-    final backOnSecond = find.byType(BackButton).evaluate().length;
+    final backOnSecond = back.evaluate().length;
     await unmountSurface(tester);
 
     expect(backOnFirst, 0,
@@ -106,8 +115,10 @@ void main() {
     await expectBackOnSecondScreenOnly(
       tester,
       const LumenOnboardingDemo(),
-      advance: 'Get started',
+      advance: 'Begin',
       secondScreen: "I'm new to meditation",
+      // These screens draw their own chip rather than an app bar.
+      backControl: glyph(Icons.chevron_left_rounded),
     );
   });
 

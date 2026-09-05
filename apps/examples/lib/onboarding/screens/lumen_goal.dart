@@ -3,226 +3,520 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/lumen_goal.restage.g.dart';
 
-/// Onboarding — the goal/reason question.
+/// Onboarding — what the practice is for.
 ///
-/// A second personalization question. Like the experience screen, the flow is
-/// linear: each option fires the same [next] event (the answer tailors the
-/// recommendations, it does not fork the graph).
+/// The pattern the rest of the questions follow: a back chip and progress dots
+/// over a heading, then glass choice cards, then the pinned call to action.
+/// Every card fires the same [next] event, so the answer tailors the practice
+/// without forking the graph.
 @Screen()
 class LumenGoalScreen extends StatelessWidget {
-  /// Advances to the reminder priming screen.
+  /// Advances to the reminder step.
   static const next = SurfaceEvent<void>('next');
+
+  /// Steps back. The flow runtime pops its own history for this
+  /// reserved name when the graph authors no transition for it.
+  static const back = SurfaceEvent<void>('back');
 
   const LumenGoalScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F5FB),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
         children: [
-          // The flow's history lives on the host route, so this bar shows a
-          // back button from the second screen on with no wiring of its own.
-          AppBar(
-            backgroundColor: const Color(0xFFF7F5FB),
-            elevation: 0,
-            foregroundColor: const Color(0xFF2A2833),
+          Positioned(
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: dark
+                      ? const [
+                          Color(0xFF0F0B1F),
+                          Color(0xFF14102A),
+                          Color(0xFF0B0817),
+                        ]
+                      : const [
+                          Color(0xFFFBFAFF),
+                          Color(0xFFF4F1FC),
+                          Color(0xFFEFEAF9),
+                        ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
+              ),
+            ),
           ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    const Text(
-                      'What brings you here?',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF2A2833),
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Pick what matters most — you can change it later.',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF847F92),
-                        height: 1.4,
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+          Positioned(
+            left: -90,
+            top: -40,
+            child: Container(
+              width: 340,
+              height: 340,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: dark
+                      ? const [Color(0xB38B7CF6), Color(0x008B7CF6)]
+                      : const [Color(0x668B7CF6), Color(0x008B7CF6)],
+                  stops: const [0.0, 0.7],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -120,
+            top: 120,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: dark
+                      ? const [Color(0x805EDBD1), Color(0x005EDBD1)]
+                      : const [Color(0x665EDBD1), Color(0x005EDBD1)],
+                  stops: const [0.0, 0.7],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: Center(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 72, 24, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           GestureDetector(
-                            onTap: surfaceEvent(next),
+                            onTap: surfaceEvent(back),
                             child: Container(
-                              padding: const EdgeInsets.all(16),
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
+                                shape: BoxShape.circle,
+                                color: dark
+                                    ? const Color(0x1AFFFFFF)
+                                    : const Color(0x1A7C6CD6),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.bedtime_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 14),
-                                  const Expanded(
-                                    child: Text(
-                                      'Sleep better',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF2A2833),
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Color(0xFFA9A4BB),
-                                    size: 22,
-                                  ),
-                                ],
+                              child: Center(
+                                child: Icon(
+                                  Icons.chevron_left_rounded,
+                                  size: 22,
+                                  color: dark
+                                      ? const Color(0xFFB6AFD6)
+                                      : const Color(0xFF6F6889),
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: surfaceEvent(next),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: dark
+                                      ? const Color(0x2EFFFFFF)
+                                      : const Color(0x1A7C6CD6),
                                 ),
-                                borderRadius: BorderRadius.circular(16),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.air_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 14),
-                                  const Expanded(
-                                    child: Text(
-                                      'Stress less',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF2A2833),
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Color(0xFFA9A4BB),
-                                    size: 22,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: surfaceEvent(next),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 22,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(999),
+                                  color: dark
+                                      ? const Color(0xFFC39BFF)
+                                      : const Color(0xFF6A55C4),
                                 ),
-                                borderRadius: BorderRadius.circular(16),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.center_focus_strong_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 14),
-                                  const Expanded(
-                                    child: Text(
-                                      'Focus more',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF2A2833),
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Color(0xFFA9A4BB),
-                                    size: 22,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: surfaceEvent(next),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: const Color(0xFFE5E1F0),
-                                  width: 2,
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: dark
+                                      ? const Color(0x2EFFFFFF)
+                                      : const Color(0x1A7C6CD6),
                                 ),
-                                borderRadius: BorderRadius.circular(16),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.wb_sunny_rounded,
-                                    color: Color(0xFF7C6CD6),
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 14),
-                                  const Expanded(
-                                    child: Text(
-                                      'Feel happier',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF2A2833),
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Color(0xFFA9A4BB),
-                                    size: 22,
-                                  ),
-                                ],
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: dark
+                                      ? const Color(0x2EFFFFFF)
+                                      : const Color(0x1A7C6CD6),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 36),
+                              Text(
+                                'What brings\nyou here?',
+                                style: TextStyle(
+                                  fontSize: 36,
+                                  height: 1.06,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -1.2,
+                                  color: dark
+                                      ? const Color(0xFFF4F1FF)
+                                      : const Color(0xFF221E33),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Pick one to start. You can change it any time.',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  height: 1.45,
+                                  color: dark
+                                      ? const Color(0xFFB6AFD6)
+                                      : const Color(0xFF6F6889),
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              // The first choice carries the selected treatment, so the
+                              // pattern is visible at rest.
+                              GestureDetector(
+                                onTap: surfaceEvent(next),
+                                child: Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: dark
+                                        ? const Color(0x388B7CF6)
+                                        : const Color(0x1F7C6CD6),
+                                    border: Border.all(
+                                      width: 1.5,
+                                      color: dark
+                                          ? const Color(0xFFA899FF)
+                                          : const Color(0xFF7C6CD6),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Sleep better',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: dark
+                                                    ? const Color(0xFFF4F1FF)
+                                                    : const Color(0xFF221E33),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Wind-downs and sleep stories',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: dark
+                                                    ? const Color(0xFFB6AFD6)
+                                                    : const Color(0xFF6F6889),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            width: 2,
+                                            color: dark
+                                                ? const Color(0xFFC39BFF)
+                                                : const Color(0xFF6A55C4),
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: dark
+                                                  ? const Color(0xFFC39BFF)
+                                                  : const Color(0xFF6A55C4),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: surfaceEvent(next),
+                                child: Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: dark
+                                        ? const Color(0x14FFFFFF)
+                                        : const Color(0x99FFFFFF),
+                                    border: Border.all(
+                                      width: 1.5,
+                                      color: dark
+                                          ? const Color(0x24FFFFFF)
+                                          : const Color(0x2E7C6CD6),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Less stress',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: dark
+                                                    ? const Color(0xFFF4F1FF)
+                                                    : const Color(0xFF221E33),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Short resets through the day',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: dark
+                                                    ? const Color(0xFFB6AFD6)
+                                                    : const Color(0xFF6F6889),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            width: 2,
+                                            color: dark
+                                                ? const Color(0x2EFFFFFF)
+                                                : const Color(0x2E7C6CD6),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: surfaceEvent(next),
+                                child: Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: dark
+                                        ? const Color(0x14FFFFFF)
+                                        : const Color(0x99FFFFFF),
+                                    border: Border.all(
+                                      width: 1.5,
+                                      color: dark
+                                          ? const Color(0x24FFFFFF)
+                                          : const Color(0x2E7C6CD6),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Deeper focus',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: dark
+                                                    ? const Color(0xFFF4F1FF)
+                                                    : const Color(0xFF221E33),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Music and timers for work',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: dark
+                                                    ? const Color(0xFFB6AFD6)
+                                                    : const Color(0xFF6F6889),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            width: 2,
+                                            color: dark
+                                                ? const Color(0x2EFFFFFF)
+                                                : const Color(0x2E7C6CD6),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: surfaceEvent(next),
+                                child: Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: dark
+                                        ? const Color(0x14FFFFFF)
+                                        : const Color(0x99FFFFFF),
+                                    border: Border.all(
+                                      width: 1.5,
+                                      color: dark
+                                          ? const Color(0x24FFFFFF)
+                                          : const Color(0x2E7C6CD6),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Just curious',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: dark
+                                                    ? const Color(0xFFF4F1FF)
+                                                    : const Color(0xFF221E33),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Show me around',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: dark
+                                                    ? const Color(0xFFB6AFD6)
+                                                    : const Color(0xFF6F6889),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            width: 2,
+                                            color: dark
+                                                ? const Color(0x2EFFFFFF)
+                                                : const Color(0x2E7C6CD6),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      GestureDetector(
+                        onTap: surfaceEvent(next),
+                        child: Container(
+                          height: 58,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: dark
+                                  ? const [Color(0xFF8B7CF6), Color(0xFFC39BFF)]
+                                  : const [
+                                      Color(0xFF6A55C4),
+                                      Color(0xFF8B7CF6)
+                                    ],
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x4D7C6CD6),
+                                blurRadius: 30,
+                                offset: Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Continue',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: dark
+                                    ? const Color(0xFF14102A)
+                                    : const Color(0xFFFFFFFF),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

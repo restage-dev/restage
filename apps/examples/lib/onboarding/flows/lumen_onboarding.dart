@@ -13,7 +13,7 @@ part 'restage.generated/lumen_onboarding.restage.g.dart';
 /// The shape: welcome → two linear personalization questions (experience, goal)
 /// → a reminder **host-action gate** (the one conditional the flow runtime
 /// offers — advance only on a granted result) → a recap → the meditation
-/// paywall as the final flow screen via `paywallScreen(...)`, whose continue
+/// welcome offer as the final flow screen via `paywallScreen(...)`, whose continue
 /// action ends the flow. The paywall's close and terms controls leave the
 /// graph as declared custom events.
 ///
@@ -52,6 +52,7 @@ final class LumenOnboardingFlow extends RestageFlow {
           // Dismissing or reading the terms is host-owned; neither is a second
           // graph transition, and neither completes the flow.
           'close': FlowOutboundPayloadDeclaration(),
+          'sign_in': FlowOutboundPayloadDeclaration(),
           'terms': FlowOutboundPayloadDeclaration(),
         },
       ),
@@ -72,8 +73,8 @@ final class LumenOnboardingFlow extends RestageFlow {
             .goTo(lumenRecapScreenRef),
         screen(lumenRecapScreenRef)
             .on(LumenRecapScreen.next)
-            .goTo(paywallScreen('lumen_premium')),
-        screen(paywallScreen('lumen_premium'))
+            .goTo(paywallScreen('lumen_welcome_offer')),
+        screen(paywallScreen('lumen_welcome_offer'))
             .on(LumenOnboardingFlow.continueFlow)
             .goTo(done),
         end(done, result: {'completed': true}),
