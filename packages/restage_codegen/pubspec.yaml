@@ -28,12 +28,13 @@ dependencies:
   # soon as a stable Flutter pins `test_api` >= 0.7.12. Floor 10.0.0 is the
   # verified-compiling lower bound; earlier majors lack element-model APIs
   # this package uses (e.g. FormalParameterElement).
-  analyzer: ">=10.0.0 <13.0.0"
+  analyzer: ">=12.1.0 <13.0.0"
   build: ">=2.4.0 <5.0.0"
   collection: ^1.18.0
   crypto: ^3.0.7
   dart_style: ">=2.3.0 <4.0.0"
   glob: ^2.1.2
+  logging: ^1.3.0
   meta: ^1.16.0
   package_config: ">=2.0.0 <4.0.0"
   path: ^1.9.0
@@ -66,7 +67,6 @@ dev_dependencies:
   intl: ^0.20.2
   # Test-only standards oracle for emitted Draft 2020-12 constraint keywords.
   json_schema: 5.2.2
-  logging: ^1.2.0
   restage_cli:
     path: ../restage_cli
   test: ^1.25.0

@@ -5,3 +5,4 @@
 # They are not part of the package's API or runtime; exclude them from the
 # published archive only (they remain in the repository for local tests).
 test/coverage_measurement/coverage_fixtures/
+test/
