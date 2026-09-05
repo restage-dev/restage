@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart' show CupertinoApp, CupertinoPage;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, internal;
-import 'package:flutter/material.dart' show MaterialApp, MaterialPage;
+import 'package:flutter/material.dart' show MaterialApp, MaterialPage, Theme;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
@@ -452,7 +452,13 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     if (transition != null) {
       return _FlowScreenPage(key: key, transition: transition, child: child);
     }
-    return switch (defaultTargetPlatform) {
+    // A Theme ancestor may simulate another device's platform (a preview
+    // frame); without one the host's platform stands. Theme.of registers the
+    // dependency so a changed simulation rebuilds the pages.
+    final platform = context.findAncestorWidgetOfExactType<Theme>() == null
+        ? defaultTargetPlatform
+        : Theme.of(context).platform;
+    return switch (platform) {
       TargetPlatform.iOS ||
       TargetPlatform.macOS =>
         CupertinoPage<Object?>(key: key, child: child),
