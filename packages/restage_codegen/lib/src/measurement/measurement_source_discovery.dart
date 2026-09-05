@@ -588,18 +588,26 @@ final class _MeasurementSourceDiscovery {
       bindings: resolution.bindings,
     );
     for (final entry in traversal.entries) {
-      final occurrence = switch (entry) {
-        CollectionListElement(:final occurrence) => occurrence,
-        CollectionListRefusal(:final refusal) =>
-          refusal.runtimeLoop?.template ??
-              (throw ArgumentError(refusal.detail)),
+      // A run-time collection-`if` is one element built from several
+      // branches, so every branch is visited at the same ordinal.
+      final occurrences = switch (entry) {
+        CollectionListElement(:final occurrence) => [occurrence],
+        CollectionListRefusal(:final refusal) => switch (refusal.runtimeIf) {
+            final runtimeIf? => runtimeIf.leafOccurrences.toList(),
+            _ => [
+                refusal.runtimeLoop?.template ??
+                    (throw ArgumentError(refusal.detail)),
+              ],
+          },
       };
-      _visitWidgetExpression(
-        occurrence.terminalExpression,
-        resolved.context
-            .child(parent: parent, slot: slot, ordinal: ordinal)
-            .withCollectionOccurrence(occurrence),
-      );
+      for (final occurrence in occurrences) {
+        _visitWidgetExpression(
+          occurrence.terminalExpression,
+          resolved.context
+              .child(parent: parent, slot: slot, ordinal: ordinal)
+              .withCollectionOccurrence(occurrence),
+        );
+      }
       ordinal++;
     }
   }

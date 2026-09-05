@@ -412,6 +412,7 @@ final class ExpressionTranslator {
     InliningMechanism.constantFolding,
     InliningMechanism.themeAsData,
     InliningMechanism.declarativeState,
+    InliningMechanism.conditionalElement,
   };
 
   static const Set<String> _kCarriedTextSpanProps = {
@@ -1876,6 +1877,19 @@ final class ExpressionTranslator {
           );
           ordinal++;
         case CollectionListRefusal(:final refusal):
+          final runtimeIf = refusal.runtimeIf;
+          if (runtimeIf != null) {
+            final emitted = _emitRuntimeIf(
+              runtimeIf,
+              refusal,
+              issues,
+              ordinal: ordinal,
+              itemType: itemType,
+            );
+            if (emitted != null) parts.add(emitted);
+            ordinal++;
+            continue;
+          }
           final runtimeLoop = refusal.runtimeLoop;
           if (runtimeLoop == null) {
             _recordCollectionRefusal(refusal, issues);
@@ -1896,6 +1910,220 @@ final class ExpressionTranslator {
       }
     }
     return '[${parts.join(', ')}]';
+  }
+
+  /// Lowers a run-time collection-`if` to the elements it contributes.
+  String? _emitRuntimeIf(
+    CollectionRuntimeIfCandidate candidate,
+    CollectionUnrollRefused refusal,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+  }) {
+    final before = issues.length;
+    final emitted = _emitRuntimeIfCandidate(
+      candidate,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+    );
+    if (emitted == null) {
+      if (issues.length == before) _recordCollectionRefusal(refusal, issues);
+      return null;
+    }
+    return emitted;
+  }
+
+  String? _emitRuntimeIfCandidate(
+    CollectionRuntimeIfCandidate candidate,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+  }) {
+    // A tree that yields an element on every path is one element, so one
+    // switch. Otherwise the element must be absent on some path, and a
+    // placeholder would not do — a parent counts its children — so each leaf
+    // becomes a loop guarded by the conditions along its path.
+    if (_runtimeIfIsTotal(candidate)) {
+      return _emitTotalRuntimeIf(
+        candidate,
+        issues,
+        ordinal: ordinal,
+        itemType: itemType,
+      );
+    }
+    final elements = <String>[];
+    final refused = _emitGuardedLeaves(
+      candidate,
+      const _ConditionLowering(_unguarded),
+      elements,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+    );
+    if (refused) return null;
+    return elements.join(', ');
+  }
+
+  /// Emits one guarded loop per leaf, composing [guard] with each condition
+  /// along the path. True when a part refused.
+  bool _emitGuardedLeaves(
+    CollectionRuntimeIfCandidate candidate,
+    _ConditionLowering guard,
+    List<String> elements,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+  }) {
+    final conditionIssues = <Issue>[];
+    final lowering = _lowerCondition(candidate.condition, conditionIssues);
+    if (lowering == null) return true;
+    issues.addAll(conditionIssues);
+    final thenGuard = _ConditionLowering(
+      (present, absent) => guard(lowering(present, absent), absent),
+    );
+    if (_emitGuardedBranch(
+      candidate.thenBranch,
+      thenGuard,
+      elements,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+    )) {
+      return true;
+    }
+    final otherwise = candidate.elseBranch;
+    if (otherwise == null) return false;
+    final elseGuard = _ConditionLowering(
+      (present, absent) => guard(lowering(absent, present), absent),
+    );
+    return _emitGuardedBranch(
+      otherwise,
+      elseGuard,
+      elements,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+    );
+  }
+
+  bool _emitGuardedBranch(
+    CollectionRuntimeIfBranch branch,
+    _ConditionLowering guard,
+    List<String> elements,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+  }) {
+    switch (branch) {
+      case CollectionRuntimeIfNested(:final candidate):
+        return _emitGuardedLeaves(
+          candidate,
+          guard,
+          elements,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+        );
+      case CollectionRuntimeIfLeaf():
+        final dsl = _emitRuntimeIfBranch(
+          branch,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+        );
+        if (dsl == null) return true;
+        elements.add(
+          '...for ${_absentLoopIdentifier()} in '
+          '${guard(_kPresentSelector, _kAbsentSelector)}: $dsl',
+        );
+        return false;
+    }
+  }
+
+  String? _emitTotalRuntimeIf(
+    CollectionRuntimeIfCandidate candidate,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+  }) {
+    final conditionIssues = <Issue>[];
+    final lowering = _lowerCondition(candidate.condition, conditionIssues);
+    if (lowering == null) return null;
+    issues.addAll(conditionIssues);
+    final thenDsl = _emitRuntimeIfBranch(
+      candidate.thenBranch,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+    );
+    if (thenDsl == null) return null;
+    final elseDsl = _emitRuntimeIfBranch(
+      candidate.elseBranch!,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+    );
+    if (elseDsl == null) return null;
+    return lowering(thenDsl, elseDsl);
+  }
+
+  /// Whether every path through [candidate] yields an element.
+  bool _runtimeIfIsTotal(CollectionRuntimeIfCandidate candidate) {
+    final otherwise = candidate.elseBranch;
+    return otherwise != null &&
+        _branchIsTotal(candidate.thenBranch) &&
+        _branchIsTotal(otherwise);
+  }
+
+  bool _branchIsTotal(CollectionRuntimeIfBranch branch) => switch (branch) {
+        CollectionRuntimeIfLeaf() => true,
+        CollectionRuntimeIfNested(:final candidate) =>
+          _runtimeIfIsTotal(candidate),
+      };
+
+  String? _emitRuntimeIfBranch(
+    CollectionRuntimeIfBranch branch,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+  }) {
+    switch (branch) {
+      case CollectionRuntimeIfNested(:final candidate):
+        return _emitRuntimeIfCandidate(
+          candidate,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+        );
+      case CollectionRuntimeIfLeaf(:final occurrence):
+        final before = issues.length;
+        final dsl = _translateOccurrence(
+          occurrence,
+          issues,
+          itemType: itemType,
+          measurementScope: _walk.measurementWidgetList?.element(
+            ordinal,
+            collectionOccurrence: occurrence,
+          ),
+        );
+        if (dsl.isEmpty || issues.length != before) return null;
+        return dsl;
+    }
+  }
+
+  /// A loop name no authored loop in scope shadows.
+  String _absentLoopIdentifier() {
+    final taken = {
+      for (final loop in _walk.runtimeLoops) loop.identifier,
+      ..._kRfwLoopReservedWords,
+    };
+    var name = _kAbsentLoopIdentifier;
+    var suffix = 0;
+    while (taken.contains(name)) {
+      name = '$_kAbsentLoopIdentifier${++suffix}';
+    }
+    return name;
   }
 
   String? _emitRuntimeLoop(
@@ -7533,6 +7761,10 @@ final class ExpressionTranslator {
     if (intSwitch != null) return intSwitch;
     final deviceSwitch = _tryDeviceTokenSwitch(expr, issues, branch);
     if (deviceSwitch != null) return deviceSwitch;
+    final stringSwitch = _tryStringEqualitySwitch(expr, issues, branch);
+    if (stringSwitch != null) return stringSwitch;
+    final composedSwitch = _tryComposedConditionSwitch(expr, issues, branch);
+    if (composedSwitch != null) return composedSwitch;
     final beforeCondition = issues.length;
     final cond = _translateSlotValue(
       expr.condition,
@@ -7624,17 +7856,30 @@ final class ExpressionTranslator {
     final cond = _stripParens(expr.condition);
     final head = _intStateEquality(cond);
     if (head == null) {
+      if (cond is BinaryExpression) {
+        final negated = _intStateComparison(cond);
+        if (negated != null) {
+          return _twoArmSwitch(
+            expr,
+            issues,
+            branch,
+            negated.ref,
+            negated.key,
+            negated: true,
+          );
+        }
+      }
       if (cond is BinaryExpression && _comparisonInvolvesIntStateField(cond)) {
         issues.add(
           Issue(
             code: IssueCode.intStateConditionUnsupported,
-            message: 'Only `<intStateField> == <intLiteral>` equality '
-                'comparisons on an integer state field lower to a switch in '
-                'this transpiler increment (with the field on the left and an '
-                'integer literal on the right). `!=`, `<`, `>`, a non-literal '
-                'comparison, and the literal-on-the-left form are not yet '
-                'supported — express the selection as an equality chain '
-                '(`field == 0 ? … : field == 1 ? … : …`).',
+            message: 'Only `== <intLiteral>` and `!= <intLiteral>` '
+                'comparisons on an integer state field or an integer '
+                'constructor parameter lower to a switch (with the reference '
+                'on the left and an integer literal on the right). `<`, `>`, '
+                'a non-literal comparison, and the literal-on-the-left form '
+                'are not supported — express the selection as an equality '
+                'chain (`field == 0 ? … : field == 1 ? … : …`).',
             location: _locationOf(cond),
           ),
         );
@@ -7643,8 +7888,9 @@ final class ExpressionTranslator {
       return null;
     }
 
-    // Flatten consecutive SAME-field `== <intLiteral>` arms into one switch.
-    final fieldName = head.field.name;
+    // Flatten consecutive same-reference `== <intLiteral>` arms into one
+    // switch.
+    final ref = head.ref;
     final arms = <String>[];
     // Lower every arm before refusing so each diagnosed arm is reported.
     var refused = false;
@@ -7652,7 +7898,7 @@ final class ExpressionTranslator {
     ConditionalExpression? current = expr;
     while (current != null) {
       final match = _intStateEquality(_stripParens(current.condition));
-      if (match == null || match.field.name != fieldName) {
+      if (match == null || match.ref != ref) {
         // The else chain reached a condition that is not `<sameField> ==
         // <intLiteral>` — this conditional (a different-field comparison, a
         // bool ref, …) is the default; [branch] lowers it normally, so a
@@ -7677,8 +7923,322 @@ final class ExpressionTranslator {
     refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
     if (refused) return '';
     final armsDsl = arms.join(', ');
-    return 'switch state${_rfwPathPart(fieldName)} '
-        '{ $armsDsl, default: $defaultDsl }';
+    return 'switch $ref { $armsDsl, default: $defaultDsl }';
+  }
+
+  /// Lowers a condition bound straight to a boolean slot —
+  /// `Visibility(visible: !trialUsed && isPro)` — to the switches a ternary
+  /// condition produces, selecting `true` or `false`. `null` for a bare
+  /// reference, which keeps the ordinary path.
+  String? _booleanSlotCondition(Expression expr, List<Issue> issues) {
+    final shaped = _isComposedCondition(expr) ||
+        (expr is BinaryExpression &&
+            (_intStateComparison(expr) != null ||
+                _stringComparison(expr) != null ||
+                _deviceTokenComparison(expr) != null ||
+                brightnessComparison(
+                      expr,
+                      bindings: _walk.inlined.localBindings,
+                      isFrameworkLibrary: _frameworkOrUnresolved,
+                    ) !=
+                    null));
+    if (!shaped) return null;
+    final conditionIssues = <Issue>[];
+    final lowering = _lowerCondition(expr, conditionIssues);
+    if (lowering == null) return null;
+    issues.addAll(conditionIssues);
+    return lowering('true', 'false');
+  }
+
+  /// Renders both arms once into a 2-arm `switch` keyed on [ref]. [negated]
+  /// swaps them, so a `!=` comparison selects the else branch on a match.
+  String _twoArmSwitch(
+    ConditionalExpression expr,
+    List<Issue> issues,
+    String Function(Expression) branch,
+    String ref,
+    String key, {
+    required bool negated,
+  }) {
+    final beforeThen = issues.length;
+    final thenDsl = branch(expr.thenExpression);
+    var refused = _diagnosedEmpty(thenDsl, issues, beforeThen);
+    final beforeElse = issues.length;
+    final elseDsl = branch(expr.elseExpression);
+    refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
+    if (refused) return '';
+    final onMatch = negated ? elseDsl : thenDsl;
+    final otherwise = negated ? thenDsl : elseDsl;
+    return 'switch $ref { $key: $onMatch, default: $otherwise }';
+  }
+
+  /// Lowers a conditional whose condition compares a String reference to a
+  /// literal, flattening a same-reference `==` chain into one N-arm switch.
+  /// `null` when the condition is not a string comparison.
+  String? _tryStringEqualitySwitch(
+    ConditionalExpression expr,
+    List<Issue> issues,
+    String Function(Expression) branch,
+  ) {
+    final head = _stringComparison(_stripParens(expr.condition));
+    if (head == null) return null;
+    if (head.negated) {
+      return _twoArmSwitch(
+        expr,
+        issues,
+        branch,
+        head.ref,
+        head.key,
+        negated: true,
+      );
+    }
+    final ref = head.ref;
+    final arms = <String>[];
+    var refused = false;
+    Expression? defaultBranch;
+    ConditionalExpression? current = expr;
+    while (current != null) {
+      final match = _stringComparison(_stripParens(current.condition));
+      if (match == null || match.negated || match.ref != ref) {
+        defaultBranch = current;
+        break;
+      }
+      final beforeArm = issues.length;
+      final armDsl = branch(current.thenExpression);
+      refused |= _diagnosedEmpty(armDsl, issues, beforeArm);
+      arms.add('${match.key}: $armDsl');
+      final elseExpr = _stripParens(current.elseExpression);
+      if (elseExpr is ConditionalExpression) {
+        current = elseExpr;
+      } else {
+        defaultBranch = current.elseExpression;
+        current = null;
+      }
+    }
+    final beforeDefault = issues.length;
+    final defaultDsl = branch(defaultBranch!);
+    refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
+    if (refused) return '';
+    return 'switch $ref { ${arms.join(', ')}, default: $defaultDsl }';
+  }
+
+  /// Lowers a conditional whose condition negates or composes other
+  /// conditions. `null` when it is not a composition or an operand does not
+  /// lower, leaving the caller's bool path to refuse it.
+  String? _tryComposedConditionSwitch(
+    ConditionalExpression expr,
+    List<Issue> issues,
+    String Function(Expression) branch,
+  ) {
+    final cond = _resolveBoundIdentifier(expr.condition);
+    if (!_isComposedCondition(cond)) return null;
+    // Collect separately: on a refusal the caller's bool path reports the
+    // condition, so these would be a second diagnostic.
+    final conditionIssues = <Issue>[];
+    final lowering = _lowerCondition(cond, conditionIssues);
+    if (lowering == null) return null;
+    issues.addAll(conditionIssues);
+    final beforeThen = issues.length;
+    final thenDsl = branch(expr.thenExpression);
+    var refused = _diagnosedEmpty(thenDsl, issues, beforeThen);
+    final beforeElse = issues.length;
+    final elseDsl = branch(expr.elseExpression);
+    refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
+    if (refused) return '';
+    return lowering(thenDsl, elseDsl);
+  }
+
+  bool _isComposedCondition(Expression cond) {
+    if (cond is PrefixExpression) return cond.operator.lexeme == '!';
+    if (cond is BinaryExpression) {
+      final op = cond.operator.lexeme;
+      return op == '&&' || op == '||';
+    }
+    return false;
+  }
+
+  /// Lowers a condition to a builder that wraps two already-rendered arms in
+  /// the selecting switches, or `null` when it is not expressible as a
+  /// composition of switches. Arms arrive as strings, so a composition that
+  /// repeats one repeats text rather than re-rendering it.
+  _ConditionLowering? _lowerCondition(
+    Expression condition,
+    List<Issue> issues,
+  ) {
+    final cond = _resolveBoundIdentifier(condition);
+    final flag = devicePlatformFlag(cond);
+    if (flag != null) {
+      return _keyedLowering(
+        'data.device.platform',
+        _stringLiteral(flag),
+        negated: false,
+      );
+    }
+    if (cond is PrefixExpression && cond.operator.lexeme == '!') {
+      final inner = _lowerCondition(cond.operand, issues);
+      return inner == null
+          ? null
+          : _ConditionLowering(
+              (whenTrue, whenFalse) => inner(whenFalse, whenTrue),
+            );
+    }
+    if (cond is BinaryExpression) {
+      final op = cond.operator.lexeme;
+      if (op == '&&' || op == '||') {
+        final left = _lowerCondition(cond.leftOperand, issues);
+        if (left == null) return null;
+        final right = _lowerCondition(cond.rightOperand, issues);
+        if (right == null) return null;
+        return op == '&&'
+            ? _ConditionLowering(
+                (whenTrue, whenFalse) =>
+                    left(right(whenTrue, whenFalse), whenFalse),
+              )
+            : _ConditionLowering(
+                (whenTrue, whenFalse) =>
+                    left(whenTrue, right(whenTrue, whenFalse)),
+              );
+      }
+      final device = _deviceTokenComparison(cond);
+      if (device != null) {
+        return _keyedLowering(
+          'data.device.${device.path}',
+          _stringLiteral(device.key),
+          negated: device.negated,
+        );
+      }
+      final brightness = brightnessComparison(
+        cond,
+        bindings: _walk.inlined.localBindings,
+        isFrameworkLibrary: _frameworkOrUnresolved,
+      );
+      if (brightness != null) {
+        return _keyedLowering(
+          'data.theme.brightness',
+          _stringLiteral(brightness.token),
+          negated: !brightness.equals,
+        );
+      }
+      final intMatch = _intStateComparison(cond);
+      if (intMatch != null) {
+        return _keyedLowering(
+          intMatch.ref,
+          intMatch.key,
+          negated: intMatch.negated,
+        );
+      }
+      final stringMatch = _stringComparison(cond);
+      if (stringMatch != null) {
+        return _keyedLowering(
+          stringMatch.ref,
+          stringMatch.key,
+          negated: stringMatch.negated,
+        );
+      }
+      return null;
+    }
+    final before = issues.length;
+    final dsl = _translateSlotValue(cond, PropertyType.boolean, issues);
+    if (dsl.isEmpty || issues.length > before) return null;
+    return _ConditionLowering(
+      (whenTrue, whenFalse) =>
+          'switch $dsl { true: $whenTrue, false: $whenFalse }',
+    );
+  }
+
+  _ConditionLowering _keyedLowering(
+    String ref,
+    String key, {
+    required bool negated,
+  }) =>
+      _ConditionLowering(
+        (whenTrue, whenFalse) => negated
+            ? 'switch $ref { $key: $whenFalse, default: $whenTrue }'
+            : 'switch $ref { $key: $whenTrue, default: $whenFalse }',
+      );
+
+  /// The `(ref, key, negated)` of an `<intRef> == <intLiteral>` or `!=`
+  /// comparison, or `null` for any other shape.
+  ({String ref, String key, bool negated})? _intStateComparison(
+    BinaryExpression cond,
+  ) {
+    final op = cond.operator.lexeme;
+    if (op != '==' && op != '!=') return null;
+    final ref = _intConditionRef(cond.leftOperand);
+    if (ref == null) return null;
+    final key = _intConditionKey(cond.rightOperand);
+    return key == null ? null : (ref: ref, key: key, negated: op == '!=');
+  }
+
+  /// The `(ref, key, negated)` of a `<stringRef> == '<literal>'` or `!=`
+  /// comparison, in either operand order, or `null` for any other shape.
+  ({String ref, String key, bool negated})? _stringComparison(Expression cond) {
+    if (cond is! BinaryExpression) return null;
+    final op = cond.operator.lexeme;
+    if (op != '==' && op != '!=') return null;
+    final negated = op == '!=';
+    final left = _stringConditionRef(cond.leftOperand);
+    if (left != null) {
+      final key = _stringConditionKey(cond.rightOperand);
+      return key == null ? null : (ref: left, key: key, negated: negated);
+    }
+    final right = _stringConditionRef(cond.rightOperand);
+    if (right == null) return null;
+    final key = _stringConditionKey(cond.leftOperand);
+    return key == null ? null : (ref: right, key: key, negated: negated);
+  }
+
+  /// The constructor-parameter name a String-typed reference reads.
+  String? _stringArgName(Expression expr) =>
+      expr.staticType?.isDartCoreString == true ? _argName(expr) : null;
+
+  /// The constructor-parameter name [expr] reads inside the custom-widget
+  /// definition being translated, as a bare identifier or `widget.<name>`.
+  String? _argName(Expression expr) {
+    if (expr is SimpleIdentifier && _walk.argNames.contains(expr.name)) {
+      return expr.name;
+    }
+    if (expr is PrefixedIdentifier &&
+        expr.prefix.name == 'widget' &&
+        _walk.stateFields != null &&
+        _walk.argNames.contains(expr.identifier.name)) {
+      return expr.identifier.name;
+    }
+    return null;
+  }
+
+  /// The DSL key for a string switch arm, or `null` for a non-literal.
+  String? _stringConditionKey(Expression expr) {
+    final literal = _stripParens(expr);
+    if (literal is! SimpleStringLiteral) return null;
+    return _stringLiteral(literal.value);
+  }
+
+  /// The data reference for a String condition operand: a State field, a
+  /// constructor parameter, or a host-data read of a String scalar.
+  String? _stringConditionRef(Expression expr) {
+    final resolved = _resolveBoundIdentifier(expr);
+    if (resolved is SimpleIdentifier &&
+        resolved.element is! LocalVariableElement &&
+        resolved.element is! FormalParameterElement) {
+      final field = _walk.stateFields?[resolved.name];
+      if (field != null && field.initialValue is String) {
+        return 'state${_rfwPathPart(resolved.name)}';
+      }
+    }
+    final argName = _stringArgName(resolved);
+    if (argName != null) return 'args${_rfwPathPart(argName)}';
+    final root = _rootParamAccess(resolved);
+    if (root != null && root.param.hasNonNullDefault) return null;
+    final reference = _shapedReference(resolved);
+    if (reference
+        case (
+          :final dsl,
+          shape: HostDataScalarShape(kind: HostDataScalarKind.string)
+        )) {
+      return dsl;
+    }
+    return null;
   }
 
   /// Lowers a conditional whose condition matches device data by equality to a
@@ -7705,6 +8265,11 @@ final class ExpressionTranslator {
     final head = _deviceTokenComparison(expr.condition);
     if (head == null) {
       if (_readsDeviceData(expr.condition)) {
+        // A negation or `&&` / `||` over lowerable operands belongs to the
+        // composed attempt; only an unsupported shape refuses here.
+        if (_isComposedCondition(cond) && _lowerCondition(cond, []) != null) {
+          return null;
+        }
         issues.add(_deviceConditionIssue(cond, _deviceConditionReason(cond)));
         return '';
       }
@@ -7833,31 +8398,50 @@ final class ExpressionTranslator {
     return field;
   }
 
-  /// The `(field, key)` of an `<intStateField> == <intLiteral>` comparison —
-  /// the int State field on the left, an integer literal on the right — or
-  /// `null` for any other shape.
-  ({CustomWidgetStateField field, String key})? _intStateEquality(
-    Expression cond,
-  ) {
-    if (cond is! BinaryExpression || cond.operator.lexeme != '==') return null;
-    final field = _intStateFieldOf(cond.leftOperand);
-    if (field == null) return null;
-    final right = _stripParens(cond.rightOperand);
-    if (right is! IntegerLiteral) return null;
-    final value = right.value;
-    if (value == null) return null;
-    return (field: field, key: value.toString());
+  /// The constructor-parameter name an `int`-typed reference reads. An `int`
+  /// parameter carries [PropertyType.integer], so its call-site value stays a
+  /// bare int and the switch keys match it.
+  String? _intArgName(Expression expr) {
+    if (expr.staticType?.isDartCoreInt != true) return null;
+    return _argName(expr);
   }
 
-  /// Whether [cond] is a comparison (`==`/`!=`/`<`/`>`/`<=`/`>=`) with an
-  /// integer state field on either side — used to surface the named
-  /// "equality-only this increment" defer for a near-miss instead of the
-  /// generic unsupported-expression error.
+  /// The data reference for an integer condition operand: a State field or a
+  /// constructor parameter. The one definition of "an integer reference",
+  /// shared by the equality decomposition and the near-miss check.
+  String? _intConditionRef(Expression expr) {
+    final resolved = _resolveBoundIdentifier(expr);
+    final field = _intStateFieldOf(resolved);
+    if (field != null) return 'state${_rfwPathPart(field.name)}';
+    final argName = _intArgName(resolved);
+    return argName == null ? null : 'args${_rfwPathPart(argName)}';
+  }
+
+  /// The `(ref, key)` of `<intRef> == <intLiteral>`, or `null` for any other
+  /// shape.
+  ({String ref, String key})? _intStateEquality(Expression cond) {
+    if (cond is! BinaryExpression || cond.operator.lexeme != '==') return null;
+    final ref = _intConditionRef(cond.leftOperand);
+    if (ref == null) return null;
+    final key = _intConditionKey(cond.rightOperand);
+    return key == null ? null : (ref: ref, key: key);
+  }
+
+  /// The DSL key for an integer switch arm, or `null` for a non-literal.
+  String? _intConditionKey(Expression expr) {
+    final literal = _stripParens(expr);
+    if (literal is! IntegerLiteral) return null;
+    final value = literal.value;
+    return value?.toString();
+  }
+
+  /// Whether [cond] compares an integer reference, so a near-miss gets the
+  /// equality-only defer instead of the generic unsupported-expression error.
   bool _comparisonInvolvesIntStateField(BinaryExpression cond) {
     const comparisonOps = {'==', '!=', '<', '>', '<=', '>='};
     if (!comparisonOps.contains(cond.operator.lexeme)) return false;
-    return _intStateFieldOf(cond.leftOperand) != null ||
-        _intStateFieldOf(cond.rightOperand) != null;
+    return _intConditionRef(cond.leftOperand) != null ||
+        _intConditionRef(cond.rightOperand) != null;
   }
 
   String _normalizePresentDsl(
@@ -8137,6 +8721,10 @@ final class ExpressionTranslator {
           property: property,
         ),
       );
+    }
+    if (type == PropertyType.boolean) {
+      final condition = _booleanSlotCondition(resolved, issues);
+      if (condition != null) return condition;
     }
     // Preserve the authored TextDecoration member before const-object expansion
     // reaches the private constructor behind the static constant.
@@ -10794,4 +11382,23 @@ final class _RuntimeLoopReference {
 
   String dsl(String Function(String) pathPart) =>
       '${binding.identifier}${parts.map(pathPart).join()}';
+}
+
+/// A conditional element loops over one entry when its condition holds and
+/// none when it does not.
+const String _kPresentSelector = '[0]';
+const String _kAbsentSelector = '[]';
+
+/// The loop name for a conditional element. The template never reads it.
+const String _kAbsentLoopIdentifier = 'presence';
+
+String _unguarded(String whenPresent, String whenAbsent) => whenPresent;
+
+/// Builds the RFW switch that selects between two already-rendered arms.
+final class _ConditionLowering {
+  const _ConditionLowering(this._build);
+
+  final String Function(String whenTrue, String whenFalse) _build;
+
+  String call(String whenTrue, String whenFalse) => _build(whenTrue, whenFalse);
 }

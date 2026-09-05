@@ -175,6 +175,202 @@ Object x() => AcmeCard(label: "Pro");
       expect((text! as fmt.ConstructorCall).name, 'Text');
     });
 
+    test('a custom widget inlines a run-time collection-`if`', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class SizedBox extends StatelessWidget {
+  const SizedBox();
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'PlanCard',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'plan card',
+)
+class PlanCard extends StatelessWidget {
+  const PlanCard({required this.isPro, required this.plan});
+  final bool isPro;
+  final String plan;
+  Widget build(BuildContext context) => Column(
+        children: [
+          Text('Plan'),
+          if (isPro && plan == 'annual') Text('Best value'),
+        ],
+      );
+}
+
+Object x() => PlanCard(isPro: true, plan: "annual");
+''',
+        catalogWith([
+          _entry('Column', [prop('children', PropertyType.widgetList)]),
+          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
+          _entry('SizedBox', []),
+        ]),
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      final classified = result.classification.classifications.values
+          .whereType<ComposableWidget>();
+      expect(classified, hasLength(1));
+      expect(
+        classified.single.requiredMechanisms,
+        contains(InliningMechanism.conditionalElement),
+      );
+      final decoded = result.decoded!;
+      expect(
+        decoded.widgets.map((w) => w.name),
+        containsAll(['PlanCard', 'Paywall']),
+      );
+      final card = _widget(decoded, 'PlanCard');
+      final children = card.arguments['children']! as List<Object?>;
+      expect(children, hasLength(2));
+      // A guarded loop, not a placeholder child: the element is absent when
+      // the condition does not hold.
+      final gate = children[1]! as fmt.Loop;
+      expect((gate.input as fmt.Switch).outputs[false], <Object?>[]);
+    });
+
+    test('a custom widget keys an equality chain on an int parameter',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'TierLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'tier label',
+)
+class TierLabel extends StatelessWidget {
+  const TierLabel({required this.tier});
+  final int tier;
+  Widget build(BuildContext context) =>
+      Text(tier == 0 ? 'Basic' : tier == 1 ? 'Plus' : 'Max');
+}
+
+Object x() => TierLabel(tier: 1);
+''',
+        catalogWith([
+          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
+        ]),
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      final decoded = result.decoded!;
+      final label = _widget(decoded, 'TierLabel');
+      final selection = label.arguments['text'];
+      expect(selection, isA<fmt.Switch>());
+      final chain = selection! as fmt.Switch;
+      // One switch keyed on the parameter.
+      expect((chain.input as fmt.ArgsReference).parts, ['tier']);
+      expect(chain.outputs[0], 'Basic');
+      expect(chain.outputs[1], 'Plus');
+      expect(chain.outputs[null], 'Max');
+      // The call site passes a bare int, so the keys match.
+      expect(_widget(decoded, 'Paywall').arguments['tier'], 1);
+    });
+
+    test('an int parameter `!=` lowers to the swapped 2-arm form', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'TierNote',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'tier note',
+)
+class TierNote extends StatelessWidget {
+  const TierNote({required this.tier});
+  final int tier;
+  Widget build(BuildContext context) =>
+      Text(tier != 0 ? 'Paid' : 'Free');
+}
+
+Object x() => TierNote(tier: 0);
+''',
+        catalogWith([
+          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
+        ]),
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      final note = _widget(result.decoded!, 'TierNote');
+      final swapped = note.arguments['text']! as fmt.Switch;
+      expect((swapped.input as fmt.ArgsReference).parts, ['tier']);
+      expect(swapped.outputs[0], 'Free');
+      expect(swapped.outputs[null], 'Paid');
+    });
+
+    test('a `<` comparison on an int parameter refuses loudly', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'TierRange',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'tier range',
+)
+class TierRange extends StatelessWidget {
+  const TierRange({required this.tier});
+  final int tier;
+  Widget build(BuildContext context) => Text(tier < 2 ? 'Low' : 'High');
+}
+
+Object x() => TierRange(tier: 1);
+''',
+        catalogWith([
+          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
+        ]),
+      );
+
+      // The classifier reaches it first, so an ordering comparison reads as
+      // imperative rather than as the translator's equality-only defer.
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.customWidgetImperative),
+      );
+      expect(result.decoded, isNull);
+    });
+
     test('a custom widget emits statically repeated children in order',
         () async {
       final result = await _transpile(
@@ -1460,6 +1656,163 @@ Object x() => AcmeBadge(label: "Pro");
       // The const local wins over the (shadowed) constructor parameter: the
       // definition renders the literal "gold", not `args.label`.
       expect(badge.arguments['text'], 'gold');
+    });
+
+    test('a custom widget inlines a platform-gated conditional element',
+        () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children, super.key});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class Label extends StatelessWidget {
+  const Label({required this.text, super.key});
+  final String text;
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmePlatformNote',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'platform note',
+)
+class AcmePlatformNote extends StatelessWidget {
+  const AcmePlatformNote({required this.verbose});
+  final bool verbose;
+  Widget build(BuildContext context) => Column(
+        children: [
+          Label(text: 'Always'),
+          if (defaultTargetPlatform == TargetPlatform.iOS && verbose)
+            Label(text: 'App Store'),
+        ],
+      );
+}
+
+Object x() => AcmePlatformNote(verbose: true);
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+            rootPackage: 'apps_examples',
+          ),
+          _entry(
+            'Label',
+            [prop('text', PropertyType.string, required: true)],
+            rootPackage: 'apps_examples',
+          ),
+          _entry('SizedBox', [], rootPackage: 'apps_examples'),
+        ]),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      final classified = result.classification.classifications.values
+          .whereType<ComposableWidget>()
+          .single;
+      expect(
+        classified.requiredMechanisms,
+        containsAll([
+          InliningMechanism.conditionalElement,
+          InliningMechanism.themeAsData,
+        ]),
+      );
+      final note = _widget(result.decoded!, 'AcmePlatformNote');
+      final children = note.arguments['children']! as List<Object?>;
+      expect(children, hasLength(2));
+      final gate = children[1]! as fmt.Loop;
+      final outer = gate.input as fmt.Switch;
+      expect(
+        (outer.input as fmt.DataReference).parts,
+        ['device', 'platform'],
+      );
+    });
+
+    test('a custom widget inlines a brightness-gated conditional element',
+        () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children, super.key});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class Label extends StatelessWidget {
+  const Label({required this.text, super.key});
+  final String text;
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class Empty extends StatelessWidget {
+  const Empty({super.key});
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeNightNote',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'night note',
+)
+class AcmeNightNote extends StatelessWidget {
+  const AcmeNightNote({required this.dimmed});
+  final bool dimmed;
+  Widget build(BuildContext context) => Column(
+        children: [
+          Label(text: 'Always'),
+          if (Theme.of(context).brightness == Brightness.dark && dimmed)
+            Label(text: 'Night'),
+        ],
+      );
+}
+
+Object x() => AcmeNightNote(dimmed: true);
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+            rootPackage: 'apps_examples',
+          ),
+          _entry(
+            'Label',
+            [prop('text', PropertyType.string, required: true)],
+            rootPackage: 'apps_examples',
+          ),
+          _entry('SizedBox', [], rootPackage: 'apps_examples'),
+        ]),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      final classified = result.classification.classifications.values
+          .whereType<ComposableWidget>()
+          .single;
+      expect(
+        classified.requiredMechanisms,
+        containsAll([
+          InliningMechanism.conditionalElement,
+          InliningMechanism.themeAsData,
+        ]),
+      );
+      final note = _widget(result.decoded!, 'AcmeNightNote');
+      final children = note.arguments['children']! as List<Object?>;
+      expect(children, hasLength(2));
+      final gate = children[1]! as fmt.Loop;
+      final outer = gate.input as fmt.Switch;
+      expect(
+        (outer.input as fmt.DataReference).parts,
+        ['theme', 'brightness'],
+      );
     });
 
     test('an object-valued const local lowers through its initializer',

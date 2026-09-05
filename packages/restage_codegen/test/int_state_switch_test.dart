@@ -1,10 +1,8 @@
-// An integer-state equality chain lowers to a native N-arm `switch` keyed on
-// the int field. Only `<intStateField> == <intLiteral>` lowers (equality-only
-// this increment); `!=`/`<`/`>`, a non-literal RHS, and the
-// literal-on-the-left form defer with a named diagnostic — never a silent
-// wrong/degraded blob. Same-field arms flatten into one switch; a
-// different-field arm recurses to its OWN nested switch and can never be
-// absorbed into the outer switch's arm set.
+// An integer equality chain lowers to a native N-arm `switch` keyed on the int
+// reference, and `!=` to the swapped 2-arm form. `<`/`>`, a non-literal RHS,
+// and the literal-on-the-left form defer with a named diagnostic. Same-field
+// arms flatten into one switch; a different-field arm recurses to its own
+// nested switch and is never absorbed into the outer arm set.
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -129,11 +127,16 @@ void main() {
       return translator().translate(expr, rootState: state).issues;
     }
 
-    test('`!=` on an int state field defers with a named diagnostic', () async {
-      final issues = await issuesFor("selectedTier != 0 ? 'A' : 'B'");
+    test('`!=` on an int state field lowers to the swapped 2-arm form',
+        () async {
+      final expr = await parseExpressionForTest(
+        "Text(text: selectedTier != 0 ? 'A' : 'B')",
+      );
+      final result = translator().translate(expr, rootState: [tier]);
+      expect(result.issues, isEmpty);
       expect(
-        issues.map((i) => i.code),
-        contains(IssueCode.intStateConditionUnsupported),
+        result.dsl,
+        contains('switch state.selectedTier { 0: "B", default: "A" }'),
       );
     });
 

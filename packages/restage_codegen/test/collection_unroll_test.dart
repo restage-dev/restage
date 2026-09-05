@@ -1733,9 +1733,10 @@ Object x() => [if (kDebugMode) 1, 2];
     expect(result.dsl, isNot(contains('1')));
   });
 
-  test('a collection-if over each build-mode constant refuses', () async {
+  test('a collection-if over a non-device build-mode constant refuses',
+      () async {
     final translator = _scalarTranslator();
-    for (final name in ['kReleaseMode', 'kProfileMode', 'kIsWeb']) {
+    for (final name in ['kReleaseMode', 'kProfileMode']) {
       final result = translator.translate(
         await parseExpressionFromSourceForTest(
           '''
@@ -1755,6 +1756,26 @@ Object x() => [if ($name) 1, 2];
       );
       expect(result.dsl, '[2]', reason: name);
     }
+  });
+
+  test('a collection-if over `kIsWeb` lowers to a guarded element', () async {
+    final result = _scalarTranslator().translate(
+      await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/foundation.dart';
+
+Object x() => [if (kIsWeb) 1, 2];
+''',
+        rootPackage: 'apps_examples',
+      ),
+    );
+
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    expect(
+      result.dsl,
+      '[...for presence in switch data.device.platform '
+      '{ "web": [0], default: [] }: 1, 2]',
+    );
   });
 
   test(
