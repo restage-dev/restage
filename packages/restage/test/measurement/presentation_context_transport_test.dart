@@ -12,6 +12,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/measurement_outbox_test_support.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 
 void main() {
   final context = MeasurementPresentationContextV1(
@@ -45,6 +46,7 @@ void main() {
             : null);
     await Restage.debugResetAndWait();
     SharedPreferences.setMockInitialValues({});
+    debugSetOsVersion(null);
     PackageInfo.setMockInitialValues(
         appName: 'Example',
         packageName: 'example.app',

@@ -20,12 +20,15 @@ SurfaceDeliveryObservations _snapshot({
   String? platform = 'ios',
   int build = 42,
   String country = 'SE',
+  String? language,
 }) =>
     SurfaceDeliveryObservations(
       presentationCountry: country,
+      presentationLanguage: language,
       platform: platform,
       appBuildOrdinal: build,
       deviceClass: 'phone',
+      osVersion: null,
       sdkApiLevel: 3,
     );
 

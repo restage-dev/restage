@@ -247,12 +247,16 @@ of those controls can enable measurement in a build that disables it.
 
 Hosted surface requests describe the device. Every request includes the
 platform (for example, `ios`). From request API level 3 a request also carries
-the app build ordinal (`412`), the device region (`se`) and the device class
-(`phone`) whenever the device can supply them, and omits any it cannot — an app
-whose build number is not a plain number, for instance, sends the rest without
-it. These facts travel regardless of `analyticsEnabled` and
-`measurementEnabled`. They let the service choose a published version of a
-surface for your device, such as a version for one country or for tablets.
+the app build ordinal (`412`), the device region (`se`), the device class
+(`phone`), the device language (`sv`) and the operating-system version (`17` on
+iOS and macOS, the API level `34` on Android) whenever the device can supply
+them, and omits any it cannot — an app whose build number is not a plain
+number, for instance, sends the rest without it. A web build reads neither an
+app build ordinal nor an operating-system version, so it sends its platform,
+region, device class and language. These facts travel regardless
+of `analyticsEnabled` and `measurementEnabled`. They let the service choose a
+published version of a surface for your device, such as a version for one
+country, for tablets, or for a language your app has just been translated into.
 Without them, the service can only serve the default.
 
 With analytics off, hosted requests carry no analytics identifier and no

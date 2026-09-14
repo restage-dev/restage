@@ -13,6 +13,7 @@ import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,7 @@ void main() {
       () async {
     SharedPreferences.setMockInitialValues({});
     Restage.debugReset();
+    debugSetOsVersion(null);
     PackageInfo.setMockInitialValues(
         appName: 'Web',
         packageName: 'example.web',
@@ -48,10 +50,12 @@ void main() {
         expect(body.containsKey(key), isFalse, reason: key);
       }
       expect(body.containsKey('sdkBuiltInsCanonicalBase64'), isTrue);
+      // A browser build reads no app build number and omits the key.
       expect(
-        jsonDecode(utf8.decode(base64Url.decode(base64Url
-            .normalize(body['sdkBuiltInsCanonicalBase64'] as String)))),
-        containsPair('appBuildOrdinal', 42),
+        (jsonDecode(utf8.decode(base64Url.decode(base64Url
+                .normalize(body['sdkBuiltInsCanonicalBase64'] as String))))
+            as Map)['appBuildOrdinal'],
+        isNull,
       );
       expect(
         jsonDecode(utf8.decode(base64Url.decode(base64Url

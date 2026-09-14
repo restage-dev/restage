@@ -24,6 +24,9 @@ dependencies:
   flutter:
     sdk: flutter
   crypto: ^3.0.0
+  # Reads the operating-system version on Android, iOS and macOS. No runtime
+  # permission on any platform.
+  device_info_plus: '>=11.5.0 <14.0.0'
   http: ^1.2.0
   restage_core:
     path: ../restage_core
