@@ -71,19 +71,14 @@ class _MarketingLumenAppState extends State<_MarketingLumenApp> {
       theme: ThemeData(brightness: Brightness.light, useMaterial3: true),
       darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
       themeMode: _state.dark ? ThemeMode.dark : ThemeMode.light,
-      home: ColoredBox(
-        color: const Color(0xFF14171E),
-        child: DeviceFrameHost(
-          device: DeviceInfo.iPhone16ProMax,
-          child: _LumenDevice(
-            state: _state,
-            onEvent: _bridge.sendEvent,
-            onApplied: _bridge.sendApplied,
-            onError: (error) => _bridge.sendError(
-              error,
-              requestId: _state.requestId,
-            ),
-          ),
+      home: DeviceFrameHost(
+        device: DeviceInfo.iPhone16ProMax,
+        child: _LumenDevice(
+          state: _state,
+          onEvent: _bridge.sendEvent,
+          onApplied: _bridge.sendApplied,
+          onError: (error) =>
+              _bridge.sendError(error, requestId: _state.requestId),
         ),
       ),
     );
@@ -109,6 +104,7 @@ class _LumenDevice extends StatefulWidget {
 
 class _LumenDeviceState extends State<_LumenDevice> {
   bool _flowStarted = false;
+  int _flowGeneration = 0;
   String? _notice;
 
   @override
@@ -121,6 +117,7 @@ class _LumenDeviceState extends State<_LumenDevice> {
         state.enabled != oldState.enabled;
     if (shouldReset) {
       _flowStarted = false;
+      _flowGeneration++;
       _notice = null;
     }
   }
@@ -137,16 +134,6 @@ class _LumenDeviceState extends State<_LumenDevice> {
 
   @override
   Widget build(BuildContext context) {
-    if (_flowStarted) {
-      return _withNotice(
-        MarketingLumenFlow(
-          key: ValueKey(widget.state.resetGeneration),
-          onEvent: widget.onEvent,
-          onRestart: () => setState(() => _flowStarted = false),
-          onHostNotice: (message) => setState(() => _notice = message),
-        ),
-      );
-    }
     final delivered = widget.state.published || widget.state.enabled;
     final screen = delivered
         ? _DeliveredLumen(
@@ -157,13 +144,16 @@ class _LumenDeviceState extends State<_LumenDevice> {
           )
         : _NativeLumen(onEvent: _handleWelcomeEvent);
     return _withNotice(
-      ClipRect(
-        child: AnimatedSwitcher(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 280),
-          child: KeyedSubtree(key: ValueKey(delivered), child: screen),
-        ),
+      MarketingLumenFlow(
+        generation: _flowGeneration,
+        started: _flowStarted,
+        onEvent: widget.onEvent,
+        onRestart: () => setState(() {
+          _flowStarted = false;
+          _flowGeneration++;
+        }),
+        onHostNotice: (message) => setState(() => _notice = message),
+        welcome: ClipRect(child: screen),
       ),
     );
   }
@@ -198,12 +188,18 @@ class _LumenDeviceState extends State<_LumenDevice> {
 
 class MarketingLumenFlow extends StatefulWidget {
   const MarketingLumenFlow({
+    required this.generation,
+    required this.started,
+    required this.welcome,
     required this.onEvent,
     required this.onRestart,
     required this.onHostNotice,
     super.key,
   });
 
+  final int generation;
+  final bool started;
+  final Widget welcome;
   final ValueChanged<String> onEvent;
   final VoidCallback onRestart;
   final ValueChanged<String> onHostNotice;
@@ -216,6 +212,7 @@ class _MarketingLumenFlowState extends State<MarketingLumenFlow> {
   RestageFlowController<Map<String, Object?>>? _controller;
   FlowUnavailableError? _error;
   bool _completed = false;
+  bool _ready = false;
 
   @override
   void initState() {
@@ -223,18 +220,31 @@ class _MarketingLumenFlowState extends State<MarketingLumenFlow> {
     unawaited(_start());
   }
 
+  @override
+  void didUpdateWidget(MarketingLumenFlow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.generation != widget.generation) {
+      _resetController();
+      unawaited(_start());
+    }
+  }
+
   Future<void> _start() async {
+    final generation = widget.generation;
     late final FlowSurfacePayload payload;
     try {
-      final resolved =
-          await Restage.defaultFlowResolver.resolve(lumenOnboardingFlowRef);
-      if (!mounted) return;
+      final resolved = await Restage.defaultFlowResolver.resolve(
+        lumenOnboardingFlowRef,
+      );
+      if (!mounted || generation != widget.generation) return;
       payload = FlowSurfacePayload(
         flowDocument: resolved.document,
         screenBlobs: resolved.screenBlobs,
       );
     } on FlowUnavailableError catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && generation == widget.generation) {
+        setState(() => _error = error);
+      }
       return;
     }
     late final RestageFlowController<Map<String, Object?>> controller;
@@ -273,24 +283,63 @@ class _MarketingLumenFlowState extends State<MarketingLumenFlow> {
         }
       },
     );
-    _controller = controller;
+    _controller = controller..addListener(_flowChanged);
     await controller.load();
     if (!mounted || !identical(_controller, controller)) return;
-    setState(() {});
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted || !identical(_controller, controller)) return;
+    // The welcome is already visible outside the flow. Prepare its next screen
+    // before mounting the flow view so that welcome never appears twice.
     controller.handleEvent('next', null);
+  }
+
+  void _flowChanged() {
+    if (!_ready &&
+        _controller?.currentScreenId == lumenExperienceScreenRef.id &&
+        _controller?.currentLibrary != null) {
+      setState(() => _ready = true);
+    }
   }
 
   @override
   void dispose() {
+    _resetController();
+    super.dispose();
+  }
+
+  void _resetController() {
+    _controller?.removeListener(_flowChanged);
     _controller?.dispose();
     _controller = null;
-    super.dispose();
+    _ready = false;
+    _completed = false;
+    _error = null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final showFlow = widget.started && (_ready || _error != null);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(
+          offstage: showFlow,
+          child: IgnorePointer(ignoring: widget.started, child: widget.welcome),
+        ),
+        Offstage(offstage: !showFlow, child: _buildFlow(context)),
+        if (widget.started && !showFlow)
+          const Center(
+            child: SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                semanticsLabel: 'Loading onboarding',
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildFlow(BuildContext context) {
     if (_completed) {
       return _LumenCompletion(onRestart: widget.onRestart);
     }
@@ -299,15 +348,13 @@ class _MarketingLumenFlowState extends State<MarketingLumenFlow> {
       return _LumenFlowError(
         message: error.message,
         onRetry: () {
-          _controller?.dispose();
-          _controller = null;
-          setState(() => _error = null);
+          setState(_resetController);
           unawaited(_start());
         },
       );
     }
     final controller = _controller;
-    if (controller == null) return const SizedBox.expand();
+    if (controller == null || !_ready) return const SizedBox.expand();
     return PreviewFlowView<Map<String, Object?>>(
       controller: controller,
       brightness: Theme.of(context).brightness,
@@ -358,7 +405,9 @@ class _LumenCompletion extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               FilledButton(
-                  onPressed: onRestart, child: const Text('Start over')),
+                onPressed: onRestart,
+                child: const Text('Start over'),
+              ),
             ],
           ),
         ),
@@ -449,8 +498,9 @@ class _DeliveredLumenState extends State<_DeliveredLumen> {
         rfw_formats.parseLibraryFile(source),
       ),
       published: rfw_formats.encodeLibraryBlob(
-        rfw_formats
-            .parseLibraryFile(source.replaceFirst(original, replacement)),
+        rfw_formats.parseLibraryFile(
+          source.replaceFirst(original, replacement),
+        ),
       ),
     );
   }
@@ -486,7 +536,8 @@ class _DeliveredLumenState extends State<_DeliveredLumen> {
           return const SizedBox.shrink();
         }
         final blobs = snapshot.data;
-        if (blobs == null) return const SizedBox.shrink();
+        // Connecting does not change the app: retain its welcome until ready.
+        if (blobs == null) return _NativeLumen(onEvent: widget.onEvent);
         return RawRfwRenderSurface(
           epoch: widget.state.requestId,
           blob: widget.state.published ? blobs.published : blobs.original,
