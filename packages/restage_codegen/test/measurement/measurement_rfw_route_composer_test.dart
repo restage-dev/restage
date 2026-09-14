@@ -484,6 +484,8 @@ MeasurementPublicationRoutePlanV1 _routePlan(List<String> references) {
           artifactOccurrenceEdgeToken: edge,
         ),
     ],
+    presentations: const [],
+    presentationRouteSeeds: const [],
     lineageIntents: [
       for (var index = 0; index < references.length; index += 1)
         MeasurementPublicationLineageIntentV1(

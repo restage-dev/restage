@@ -13,7 +13,9 @@ import 'package:restage/src/measurement/measurement_resolved_publication_provena
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
+import '../support/restage_runtime_test_support.dart';
 
 /// The built-in catalog version this SDK build installs. A delivered document
 /// at or below this renders; above it must fail closed — the authoritative
@@ -41,6 +43,7 @@ const int _aboveRefFloorMinClient = _refFloorMinClient + 1;
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  installRestageRuntimeTestSupport();
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_abc123';
 
@@ -51,8 +54,6 @@ void main() {
     surface: Surface.onboarding,
     decodeResult: _decodeMapResult,
   );
-
-  setUp(Restage.debugReset);
 
   test('flow descriptors carry their explicit surface', () {
     expect(flowRef.surfaceType, Surface.onboarding);
@@ -279,6 +280,7 @@ void main() {
     final envelope =
         _envelope(_validDocument(screenBytes: screenBytes), screenBytes);
     final bindingReference = _bindingReference('a');
+    final assignment = canonicalAssignmentFixture();
     var fetches = 0;
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
@@ -287,6 +289,7 @@ void main() {
         envelope,
         onRequest: (_) => fetches++,
         publicationBindingReference: bindingReference,
+        assignment: assignment,
       ),
     );
 
@@ -299,10 +302,12 @@ void main() {
       measurementPublicationBindingReferenceFor(first),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(first), assignment);
     expect(
       measurementPublicationBindingReferenceFor(second),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(second), assignment);
     // A pinned version is served from cache: only one network fetch.
     expect(fetches, 1);
     // The cached result is still deep-frozen and carries the same bytes.
@@ -886,11 +891,15 @@ MockClient _server(
   Uint8List envelope, {
   void Function(http.Request request)? onRequest,
   MeasurementPublicationBindingReferenceV1? publicationBindingReference,
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
 }) {
   return _delivery.client((request) async {
     onRequest?.call(request);
     return http.Response(
-      jsonEncode({..._delivery.describeEnvelope(envelope)}),
+      jsonEncode({
+        ..._delivery.describeEnvelope(envelope),
+        if (assignment != null) 'assignment': assignment.toJson()
+      }),
       200,
       headers: {
         if (publicationBindingReference != null)

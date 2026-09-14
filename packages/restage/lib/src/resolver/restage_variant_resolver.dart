@@ -8,6 +8,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        CanonicalSurfaceExperimentAssignmentV1,
         BlobRenderCapabilityGate,
         BlobRenderRejected,
         BlobSurfacePayload,
@@ -302,6 +303,7 @@ final class RestageVariantResolver
         paywallId: id,
         activeVersion: fresh.version,
         publicationBindingReference: fresh.publicationBindingReference,
+        canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
       );
       if (arm is FlowPaywallActiveAccepted) {
         _requireCurrent(fresh.assignmentLease);
@@ -309,6 +311,7 @@ final class RestageVariantResolver
           activePayload: fresh.activePayload,
           version: fresh.version,
           publicationBindingReference: fresh.publicationBindingReference,
+          canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
           assignmentLease: fresh.assignmentLease,
         );
         if (!deferFreshPublication) {
@@ -388,32 +391,15 @@ final class RestageVariantResolver
     final assignmentLease = await SurfaceAssignmentKeyProvider.captureLease();
     _requireCurrent(assignmentLease);
 
-    var result = await client.fetchSurface(
+    final result = await client.fetchSurface(
       surfaceType: Surface.paywall.wireName,
       surfaceSlug: id,
       assignmentKey: assignmentLease.assignmentKey,
-      contractHash: installed.contentHash,
       // version omitted → the delivery service's active-version arm.
     );
     _requireCurrent(assignmentLease);
     if (result == null) {
       return const _FreshRejected(); // transport failure
-    }
-    if (result.contractRequired) {
-      // Upload-on-miss: the server has no cached contract for this hash. Retry
-      // ONCE with the full contract attached. A second consecutive
-      // contractRequired is treated as a fetch failure — never loop.
-      result = await client.fetchSurface(
-        surfaceType: Surface.paywall.wireName,
-        surfaceSlug: id,
-        assignmentKey: assignmentLease.assignmentKey,
-        contractHash: installed.contentHash,
-        contract: installed,
-      );
-      _requireCurrent(assignmentLease);
-      if (result == null || result.contractRequired) {
-        return const _FreshRejected();
-      }
     }
 
     // Both artifact refusals land on the same rung they always have: a hosted
@@ -470,6 +456,7 @@ final class RestageVariantResolver
           paywallPublishedVersion: document.version,
         ),
         result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
       );
       return _FreshBlob(
         _CachedBlob(
@@ -489,6 +476,7 @@ final class RestageVariantResolver
         payload,
         document.version,
         result.publicationBindingReference,
+        result.canonicalExperimentAssignment,
         assignmentLease,
       );
     }
@@ -547,6 +535,7 @@ final class RestageVariantResolver
         paywallId: id,
         activeVersion: cached.version,
         publicationBindingReference: cached.publicationBindingReference,
+        canonicalExperimentAssignment: cached.canonicalExperimentAssignment,
         cacheHit: true,
       );
       if (arm is FlowPaywallActiveAccepted) {
@@ -590,6 +579,8 @@ final class RestageVariantResolver
       attachMeasurementPublicationBindingReference(
         variant.copyWith(cacheHit: true),
         measurementPublicationBindingReferenceFor(variant),
+        canonicalExperimentAssignment:
+            measurementExperimentAssignmentFor(variant),
       );
 
   RestagePaywallError _unavailable(
@@ -763,33 +754,12 @@ final class _RestagePaywallExperimentPresentation
     FlowMountContractSnapshot snapshot,
   ) async {
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
-    var result = await _fetchSurface(
+    final result = await _fetchSurface(
       snapshot: snapshot,
       boundary: FlowMountRevalidationBoundary.request,
-      flowContract: FlowContractFetchRequest.hashOnly(
-        snapshot.contentHash.value,
-      ),
     );
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
     if (result == null) return null;
-
-    if (result.flowContractRequired) {
-      final bytes = snapshot.bytesForRetry(
-        FlowMountRevalidationBoundary.uploadRetry,
-        _captureCurrentSeed(),
-      );
-      if (bytes == null) throw const StaleSurfaceAssignmentResolution();
-      result = await _fetchSurface(
-        snapshot: snapshot,
-        boundary: FlowMountRevalidationBoundary.uploadRetry,
-        flowContract: FlowContractFetchRequest.retry(
-          snapshot.contentHash.value,
-          bytes,
-        ),
-      );
-      _requireCurrent(snapshot, FlowMountRevalidationBoundary.uploadRetry);
-      if (result == null || result.flowContractRequired) return null;
-    }
 
     final decoded = _decodeHostedFlow(
       result,
@@ -809,6 +779,7 @@ final class _RestagePaywallExperimentPresentation
           cacheHit: false,
         ),
         result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -821,14 +792,12 @@ final class _RestagePaywallExperimentPresentation
   Future<SurfaceFetchResult?> _fetchSurface({
     required FlowMountContractSnapshot snapshot,
     required FlowMountRevalidationBoundary boundary,
-    required FlowContractFetchRequest flowContract,
   }) async {
     try {
       return await owner._client!.fetchSurface(
         surfaceType: Surface.paywall.wireName,
         surfaceSlug: paywallId,
         assignmentKey: snapshot.assignmentKey,
-        flowContract: flowContract,
         publicationGuard: () => _snapshotIsCurrent(snapshot, boundary),
       );
     } on SurfaceRequestPublicationRejected {
@@ -897,6 +866,7 @@ final class _RestagePaywallExperimentPresentation
           cacheHit: false,
         ),
         result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -1005,14 +975,6 @@ final class _RestagePaywallExperimentPresentation
     abandonHostedLastGood();
   }
 
-  FlowMountLeaseSeed _captureCurrentSeed() {
-    try {
-      return captureSeed();
-    } on Object {
-      throw const StaleSurfaceAssignmentResolution();
-    }
-  }
-
   bool _snapshotIsCurrent(
     FlowMountContractSnapshot snapshot,
     FlowMountRevalidationBoundary boundary,
@@ -1106,12 +1068,14 @@ final class _FreshFlow extends _FreshOutcome {
     this.activePayload,
     this.version,
     this.publicationBindingReference,
+    this.canonicalExperimentAssignment,
     this.assignmentLease,
   );
 
   final FlowSurfacePayload activePayload;
   final int version;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
   final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
@@ -1152,6 +1116,7 @@ final class _CachedFlow extends _CachedPayload {
     required this.activePayload,
     required this.version,
     required this.publicationBindingReference,
+    required this.canonicalExperimentAssignment,
     required super.assignmentLease,
   });
 
@@ -1162,6 +1127,7 @@ final class _CachedFlow extends _CachedPayload {
   final FlowSurfacePayload activePayload;
   final int version;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
 }
 
 /// Adds the exact assignment/publication transaction to a flow payload.

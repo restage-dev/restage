@@ -19,6 +19,8 @@ resolution: workspace
 dependencies:
   crypto: ^3.0.0
   meta: ^1.16.0
+  restage_measurement_schema:
+    path: ../restage_measurement_schema
   rfw_catalog_schema:
     path: ../rfw_catalog_schema
 

@@ -611,8 +611,8 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     required this.completeMeasurementManifest,
     required List<MeasurementPublicationMountedArtifactRoutesV1>
         mountedArtifactRoutes,
-    List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
-        mountedArtifactPresentationRoutes = const [],
+    required List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
+        mountedArtifactPresentationRoutes,
   })  : publishedArtifacts = _sortedUniqueBindingPublishedArtifacts(
           publishedArtifacts,
         ),
@@ -662,6 +662,7 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'completeMeasurementManifest',
         'exactArtifactGraph',
         'kind',
+        'mountedArtifactPresentationRoutes',
         'mountedArtifactRoutes',
         'publicationAuthorityReference',
         'publishedArtifacts',
@@ -691,9 +692,9 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'input bound',
       );
     }
-    final mountedArtifactPresentationRoutes =
-        reader.optionalList('mountedArtifactPresentationRoutes') ??
-            const <Object?>[];
+    final mountedArtifactPresentationRoutes = reader.list(
+      'mountedArtifactPresentationRoutes',
+    );
     if (mountedArtifactPresentationRoutes.length >
         kMaximumMeasurementPublicationBindingMountedArtifactCount) {
       throw const CanonicalFormatException(
@@ -826,11 +827,10 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'completeMeasurementManifest': completeMeasurementManifest.toJson(),
         'exactArtifactGraph': exactArtifactGraph.toJson(),
         'kind': 'measurementPublicationBinding',
-        if (mountedArtifactPresentationRoutes.isNotEmpty)
-          'mountedArtifactPresentationRoutes': [
-            for (final routes in mountedArtifactPresentationRoutes)
-              routes.toJson(),
-          ],
+        'mountedArtifactPresentationRoutes': [
+          for (final routes in mountedArtifactPresentationRoutes)
+            routes.toJson(),
+        ],
         'mountedArtifactRoutes': [
           for (final routes in mountedArtifactRoutes) routes.toJson(),
         ],

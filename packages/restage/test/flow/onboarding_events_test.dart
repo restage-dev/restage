@@ -7,7 +7,7 @@ import 'flow_test_support.dart';
 /// Emission-point coverage for the onboarding analytics events fired by the
 /// flow controller: `onboarding_step_viewed`, `onboarding_skipped`, and
 /// `onboarding_permission_response`. The event→envelope conformance is locked
-/// separately in `analytics/analytics_event_mapper_test.dart`.
+/// separately by the flow event tests.
 void main() {
   setUp(Restage.debugReset);
 

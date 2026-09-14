@@ -4,10 +4,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
-import 'package:restage_shared/flow_experiment.dart'
-    show kFlowExperimentClientContractVersionV1, kFlowExperimentContractKind;
 import 'package:restage_shared/restage_shared.dart';
 
+import '../resolver/surface_canonical_carrier_provider.dart';
+import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
 import 'surface_artifact_assembly.dart';
@@ -27,30 +27,43 @@ final class SurfaceRequestPublicationRejected implements Exception {
   const SurfaceRequestPublicationRejected();
 }
 
-/// Strict flow-contract identity attached to one hosted surface fetch.
-final class FlowContractFetchRequest {
-  /// Sends only [flowContractHash] for the first content-addressed lookup.
-  const FlowContractFetchRequest.hashOnly(this.flowContractHash)
-      : canonicalBytes = null;
+/// Why a hosted surface carried no assignment it could commit.
+///
+/// The four refusal causes are the ones the delivery service names; a serve
+/// that refuses one carries nothing else. [assignmentNotPresented] is not a
+/// refusal: the device is enrolled, served its arm, and presented nothing to
+/// confirm.
+enum SurfaceAssignmentDiagnostic {
+  /// Claimed authority did not close, or the surface identity disagreed.
+  authorityUnavailable,
 
-  /// Retries a cache miss with the exact canonical V1 contract bytes.
-  factory FlowContractFetchRequest.retry(
-    String flowContractHash,
-    List<int> canonicalBytes,
-  ) {
-    return FlowContractFetchRequest._(
-      flowContractHash,
-      List<int>.unmodifiable(canonicalBytes),
-    );
-  }
+  /// The activated design fixes no obligation this serve could record.
+  populationUnavailable,
 
-  const FlowContractFetchRequest._(this.flowContractHash, this.canonicalBytes);
+  /// A presented assignment claims this epoch and is not the recorded one.
+  assignmentDisagrees,
 
-  /// Exact `sha256:<lowercase hex>` content identity.
-  final String flowContractHash;
+  /// A presented assignment could not be read at all.
+  notDelivered,
 
-  /// Canonical V1 bytes included only on a cache-miss retry.
-  final List<int>? canonicalBytes;
+  /// The device is enrolled and presented no assignment to confirm.
+  assignmentNotPresented,
+}
+
+/// Reads the closed cause the delivery service echoed, or null for anything
+/// this build does not recognise.
+SurfaceAssignmentDiagnostic? surfaceAssignmentDiagnosticFrom(Object? value) {
+  if (value is! Map || value.length != 1) return null;
+  return switch (value['result']) {
+    'authorityUnavailable' => SurfaceAssignmentDiagnostic.authorityUnavailable,
+    'populationUnavailable' =>
+      SurfaceAssignmentDiagnostic.populationUnavailable,
+    'assignmentDisagrees' => SurfaceAssignmentDiagnostic.assignmentDisagrees,
+    'notDelivered' => SurfaceAssignmentDiagnostic.notDelivered,
+    'assignmentNotPresented' =>
+      SurfaceAssignmentDiagnostic.assignmentNotPresented,
+    _ => null,
+  };
 }
 
 /// Result of a successful hosted surface fetch.
@@ -58,36 +71,33 @@ final class SurfaceFetchResult {
   /// Creates a hosted surface fetch result.
   const SurfaceFetchResult({
     required this.artifact,
-    this.contractRequired = false,
-    this.flowContractRequired = false,
     this.publicationBindingReference,
+    this.canonicalExperimentAssignment,
+    this.assignmentDiagnostic,
   });
 
   /// What the artifact half of this delivery produced: the assembled document,
   /// nothing (the fetch did not deliver it), or a refusal to decode it.
-  ///
-  /// A result exists whenever the SERVER answered, so the retry signals below
-  /// are readable even when the artifact is not — a client asked to re-send its
-  /// capability contract must be able to do so without the artifact of a
-  /// response it is about to discard.
   @internal
   final SurfaceArtifactOutcome artifact;
-
-  /// Whether the server needs the full client contract uploaded to resolve
-  /// eligibility (a content-hash cache miss). The caller retries the fetch
-  /// once with the contract attached.
-  final bool contractRequired;
-
-  /// Whether the server needs the strict canonical flow contract uploaded.
-  ///
-  /// This is independent from the legacy blob [contractRequired] channel.
-  final bool flowContractRequired;
 
   /// Exact immutable Measurement reference carried beside this publication payload.
   ///
   /// `null` disables Measurement for this payload only. It is never inferred
   /// from a surface identity, version, payload bytes, or current pointer.
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+
+  /// The experiment assignment this delivery was served under.
+  ///
+  /// `null` for ordinary unassigned content. Inert data the host attaches back
+  /// to matching measurement events; it observes nothing about the app.
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+
+  /// Why this delivery carried no assignment, when the service said why.
+  ///
+  /// Never set beside an assignment: a serve either commits one or explains
+  /// its absence.
+  final SurfaceAssignmentDiagnostic? assignmentDiagnostic;
 }
 
 /// The active-version stamp for a surface.
@@ -119,10 +129,18 @@ final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
   const SurfaceScreenDeliveryAvailable(
     this.response, {
     this.publicationBindingReference,
+    this.canonicalExperimentAssignment,
+    this.assignmentDiagnostic,
   });
 
   /// The strict shared delivery response.
   final SurfaceScreenDeliveryResponse response;
+
+  /// Assignment accepted for this exact delivered publication.
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+
+  /// Closed explanation when the service admitted no assignment.
+  final SurfaceAssignmentDiagnostic? assignmentDiagnostic;
 
   /// Exact immutable Measurement reference carried beside [response].
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
@@ -249,6 +267,7 @@ final class IttAssignmentRpcRequest {
     required this.credentialHandle,
     required this.sdkBuiltInsCanonicalBase64,
     this.assignmentContextCanonicalBase64,
+    this.assignmentCanonicalBase64,
   });
 
   /// Exact immutable accepted receipt carrier.
@@ -263,23 +282,34 @@ final class IttAssignmentRpcRequest {
   /// Exact typed request context when required by the pinned audience policy.
   final String? assignmentContextCanonicalBase64;
 
+  /// The assignment this build already holds, for the service to replay
+  /// against. A request that carries none can learn only that a decision
+  /// exists.
+  final String? assignmentCanonicalBase64;
+
   /// Whether every carrier component satisfies the closed wire grammar.
   bool get isValid =>
       _isCanonicalBase64UrlCarrier(acceptedReceiptCanonicalBase64) &&
       _ittCredentialHandle.hasMatch(credentialHandle) &&
       _isCanonicalBase64UrlCarrier(sdkBuiltInsCanonicalBase64) &&
       (assignmentContextCanonicalBase64 == null ||
-          _isCanonicalBase64UrlCarrier(assignmentContextCanonicalBase64!));
+          _isCanonicalBase64UrlCarrier(assignmentContextCanonicalBase64!)) &&
+      (assignmentCanonicalBase64 == null ||
+          _isCanonicalBase64UrlCarrier(assignmentCanonicalBase64!));
 
   /// Exact JSON object sent to the authenticated route.
-  String get canonicalJson => assignmentContextCanonicalBase64 == null
-      ? '{"acceptedReceiptCanonicalBase64":"$acceptedReceiptCanonicalBase64",'
-          '"credentialHandle":"$credentialHandle",'
-          '"sdkBuiltInsCanonicalBase64":"$sdkBuiltInsCanonicalBase64"}'
-      : '{"acceptedReceiptCanonicalBase64":"$acceptedReceiptCanonicalBase64",'
-          '"credentialHandle":"$credentialHandle",'
-          '"sdkBuiltInsCanonicalBase64":"$sdkBuiltInsCanonicalBase64",'
-          '"assignmentContextCanonicalBase64":"$assignmentContextCanonicalBase64"}';
+  ///
+  /// Members appear in exactly this order; the route admits no other.
+  String get canonicalJson => '{${<String>[
+        '"acceptedReceiptCanonicalBase64":"$acceptedReceiptCanonicalBase64"',
+        '"credentialHandle":"$credentialHandle"',
+        '"sdkBuiltInsCanonicalBase64":"$sdkBuiltInsCanonicalBase64"',
+        if (assignmentContextCanonicalBase64 != null)
+          '"assignmentContextCanonicalBase64":'
+              '"$assignmentContextCanonicalBase64"',
+        if (assignmentCanonicalBase64 != null)
+          '"assignmentCanonicalBase64":"$assignmentCanonicalBase64"',
+      ].join(',')}}';
 }
 
 /// Candidate-delivery state reported after durable admission.
@@ -331,24 +361,43 @@ sealed class IttAssignmentRpcOutcome {
 @internal
 final class IttAssignmentRpcAssigned extends IttAssignmentRpcOutcome {
   /// Creates the durable admission outcome.
-  const IttAssignmentRpcAssigned(this.candidateDelivery);
+  const IttAssignmentRpcAssigned(this.candidateDelivery, this.assignment);
 
   /// Candidate-delivery diagnostic only.
   final IttAssignmentRpcCandidateDelivery candidateDelivery;
+
+  /// The assignment the service committed before it answered.
+  final CanonicalSurfaceExperimentAssignmentV1 assignment;
 }
 
-/// The audience policy closed the request outside its exact audience.
+/// The service recorded no assignment for this request.
 @internal
-final class IttAssignmentRpcOutsideAudience extends IttAssignmentRpcOutcome {
-  /// Creates the outside-audience outcome.
-  const IttAssignmentRpcOutsideAudience();
+final class IttAssignmentRpcReplayMiss extends IttAssignmentRpcOutcome {
+  /// Creates the replay-miss outcome.
+  const IttAssignmentRpcReplayMiss();
 }
 
-/// The audience policy closed the request as ineligible.
+/// An assignment exists, and this request presented none to replay against.
 @internal
-final class IttAssignmentRpcIneligible extends IttAssignmentRpcOutcome {
-  /// Creates the ineligible outcome.
-  const IttAssignmentRpcIneligible();
+final class IttAssignmentRpcAssignmentNotPresented
+    extends IttAssignmentRpcOutcome {
+  /// Creates the unpresented-assignment outcome.
+  const IttAssignmentRpcAssignmentNotPresented();
+}
+
+/// The presented assignment disagrees with the one the service recorded.
+@internal
+final class IttAssignmentRpcAssignmentDisagrees
+    extends IttAssignmentRpcOutcome {
+  /// Creates the disagreement outcome.
+  const IttAssignmentRpcAssignmentDisagrees();
+}
+
+/// The assignment agrees, and no candidate delivery is recorded for it yet.
+@internal
+final class IttAssignmentRpcNotDelivered extends IttAssignmentRpcOutcome {
+  /// Creates the undelivered-assignment outcome.
+  const IttAssignmentRpcNotDelivered();
 }
 
 /// Exact activation or audience authority could not be established.
@@ -598,6 +647,69 @@ class RestageRpcClient {
     }
   }
 
+  /// Reads the finite collection decision for one exact publication binding.
+  Future<MeasurementCollectionDecisionV1?>
+      readMeasurementCollectionDecisionExact(
+    MeasurementPublicationBindingReferenceV1 reference,
+  ) async {
+    final response = await _postJsonObjectAnyStatus(
+      path: '/sdk/v1/measurement-collection-decision',
+      body: {
+        'bindingReferenceCanonicalBase64':
+            base64UrlEncode(reference.canonicalBytes).replaceAll('=', '')
+      },
+    );
+    if (response == null ||
+        response.statusCode != 200 ||
+        response.json.length != 1) {
+      return null;
+    }
+    final encoded = response.json['decisionCanonicalBase64'];
+    if (encoded is! String ||
+        !_isCanonicalBase64UrlCarrier(encoded) ||
+        encoded.length > 21846) {
+      return null;
+    }
+    try {
+      final decision = MeasurementCollectionDecisionV1.fromCanonicalBytes(
+        base64Url.decode(base64Url.normalize(encoded)),
+      );
+      return decision.bindingReference == reference ? decision : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Registers or resumes an opaque assignment credential for this installation.
+  Future<({String credentialHandle, int expiresAtMicros})?>
+      registerAssignmentCredential({
+    required String registrationNonce,
+    required int registrationCreatedAtMicros,
+    String? credentialHandle,
+  }) async {
+    final response = await _postJsonObjectAnyStatus(
+      path: '/sdk/v1/measurement-assignment-credential',
+      body: {
+        'registrationNonce': registrationNonce,
+        'registrationCreatedAtMicros': registrationCreatedAtMicros,
+        if (credentialHandle != null) 'credentialHandle': credentialHandle,
+      },
+    );
+    if (response == null || response.statusCode != 200) return null;
+    final json = response.json;
+    if (json.length != 2) return null;
+    final handle = json['credentialHandle'];
+    final expiry = json['expiresAtMicros'];
+    if (handle is! String ||
+        !_ittCredentialHandle.hasMatch(handle) ||
+        expiry is! int ||
+        expiry <= 0 ||
+        expiry > kMaximumPortableJsonInteger) {
+      return null;
+    }
+    return (credentialHandle: handle, expiresAtMicros: expiry);
+  }
+
   /// Delivers one strict authenticated assignment carrier.
   ///
   /// The response carries only closed diagnostics. It cannot transport an
@@ -791,12 +903,23 @@ class RestageRpcClient {
     required String surfaceSlug,
     int? version,
     String? assignmentKey,
-    String? contractHash,
-    InstalledCapability? contract,
-    FlowContractFetchRequest? flowContract,
     SurfaceRequestPublicationGuard? publicationGuard,
   }) async {
+    final lease = await SurfaceAssignmentKeyProvider.captureLease();
+    assignmentKey ??= lease.assignmentKey;
     final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
+    // Both carriers are forwarded verbatim and only when they satisfy the
+    // wire grammar, so a malformed one is never sent as if it were readable.
+    final builtIns = _carrierOrNull(
+      await SurfaceCanonicalCarrierProvider.builtIns(),
+    );
+    final heldAssignment = _carrierOrNull(
+      await SurfaceCanonicalCarrierProvider.heldAssignment(
+        surface: surfaceType,
+        slug: surfaceSlug,
+        assignmentKey: assignmentKey,
+      ),
+    );
     if (publicationGuard != null) {
       final bool canPublish;
       try {
@@ -808,7 +931,7 @@ class RestageRpcClient {
         throw const SurfaceRequestPublicationRejected();
       }
     }
-    final httpResult = await _postJsonObjectWithHeaders(
+    final httpResult = await _postJsonObjectAnyStatus(
       path: '/sdk/v1/surface',
       body: {
         'surfaceType': surfaceType,
@@ -816,31 +939,29 @@ class RestageRpcClient {
         if (version != null) 'version': version,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
         if (meteringKey != null) 'meteringKey': meteringKey,
-        if (contractHash != null) 'contractHash': contractHash,
-        if (contract != null) 'contract': contract.toJson(),
-        if (flowContract != null) ...{
-          'flowContractKind': kFlowExperimentContractKind,
-          'flowContractVersion': kFlowExperimentClientContractVersionV1,
-          'flowContractHash': flowContract.flowContractHash,
-          if (flowContract.canonicalBytes case final bytes?)
-            'flowContractBytes': base64UrlEncode(bytes).replaceAll('=', ''),
-        },
+        if (builtIns != null) 'sdkBuiltInsCanonicalBase64': builtIns,
+        if (heldAssignment != null) 'assignmentCanonicalBase64': heldAssignment,
       },
     );
     final json = httpResult?.json;
     if (json == null) return null;
+    if (httpResult!.statusCode < 200 || httpResult.statusCode >= 300) {
+      // A refusal says why. Reporting the cause is the whole point of the
+      // slot; the surface is still unavailable either way.
+      final refusal = surfaceAssignmentDiagnosticFrom(json['assignment']);
+      debugPrint(
+        refusal == null
+            ? '[restage] surface delivery failed with '
+                'status ${httpResult.statusCode}'
+            : '[restage] surface delivery refused: ${refusal.name}',
+      );
+      return null;
+    }
 
     if (_containsRetiredSurfaceResponseField(json)) {
       debugPrint('[restage] surface delivery contains an unsupported field');
       return null;
     }
-    final rawContractRequired = json['contractRequired'];
-    final contractRequired =
-        rawContractRequired is bool ? rawContractRequired : false;
-    final rawFlowContractRequired = json['flowContractRequired'];
-    final flowContractRequired =
-        rawFlowContractRequired is bool ? rawFlowContractRequired : false;
-
     final SurfaceArtifactDescriptor descriptor;
     try {
       descriptor = SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
@@ -851,26 +972,44 @@ class RestageRpcClient {
       return null;
     }
 
-    // A response that only asks for the capability contract is about to be
-    // discarded by the caller, so fetching its artifact would spend a request
-    // on bytes nobody will read — and a failure of that request would look like
-    // a delivery failure instead of the retry it actually is.
-    final artifact = contractRequired || flowContractRequired
-        ? const SurfaceArtifactUnavailable(
-            SurfaceArtifactFetchFailure.transport,
-          )
-        : await _resolveArtifact(descriptor);
+    // Decoded before the artifact request: an assignment this build cannot
+    // read refuses the delivery rather than spending a fetch on it.
+    final rawAssignment = json['assignment'];
+    final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
+    final CanonicalSurfaceExperimentAssignmentV1? assignment;
+    try {
+      assignment = (rawAssignment == null || diagnostic != null)
+          ? null
+          : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
+    } on FormatException catch (error) {
+      debugPrint('[restage] surface assignment was not readable: $error');
+      return null;
+    }
+
+    if (assignmentKey == lease.assignmentKey) {
+      await SurfaceCanonicalCarrierProvider.retain(
+        surface: surfaceType,
+        slug: surfaceSlug,
+        lease: lease,
+        assignment: assignment,
+      );
+    }
+    final artifact = await _resolveArtifact(descriptor);
 
     return SurfaceFetchResult(
       artifact: artifact,
-      contractRequired: contractRequired,
-      flowContractRequired: flowContractRequired,
       publicationBindingReference:
           _measurementPublicationBindingReferenceFromHeaders(
-        httpResult!.headers,
+        httpResult.headers,
       ),
+      canonicalExperimentAssignment: assignment,
+      assignmentDiagnostic: diagnostic,
     );
   }
+
+  /// The carrier when it satisfies the wire grammar, else null.
+  static String? _carrierOrNull(String? value) =>
+      (value != null && _isCanonicalBase64UrlCarrier(value)) ? value : null;
 
   bool _containsRetiredSurfaceResponseField(Map<String, dynamic> json) {
     return json.containsKey('decision') ||
@@ -1067,10 +1206,20 @@ class RestageRpcClient {
     }
 
     final SurfaceScreenDeliveryDescriptor described;
+    final CanonicalSurfaceExperimentAssignmentV1? assignment;
+    final SurfaceAssignmentDiagnostic? diagnostic;
     try {
-      described = SurfaceScreenDeliveryDescriptorV1Codec.decodeJson(
-        response.body,
-      );
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Expected a screen delivery object.');
+      }
+      final descriptor = Map<String, dynamic>.of(decoded);
+      final rawAssignment = descriptor.remove('assignment');
+      diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
+      assignment = rawAssignment == null || diagnostic != null
+          ? null
+          : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
+      described = SurfaceScreenDeliveryDescriptorV1Codec.decode(descriptor);
     } on Object {
       debugPrint('[restage] standalone-screen delivery response was malformed');
       return const SurfaceScreenDeliveryInvalidResponse(
@@ -1142,6 +1291,8 @@ class RestageRpcClient {
     }
     return SurfaceScreenDeliveryAvailable(
       delivery,
+      canonicalExperimentAssignment: assignment,
+      assignmentDiagnostic: diagnostic,
       publicationBindingReference:
           _measurementPublicationBindingReferenceFromHeaders(response.headers),
     );
@@ -1188,7 +1339,27 @@ class RestageRpcClient {
 
   /// Like [_postJsonObject], while retaining response headers for the one
   /// additive carrier that must remain attached to a hosted publication payload.
+  /// Posts [body] and returns the decoded object only on success.
   Future<_JsonObjectHttpResponse?> _postJsonObjectWithHeaders({
+    required String path,
+    required Map<String, dynamic> body,
+  }) async {
+    final result = await _postJsonObjectAnyStatus(path: path, body: body);
+    if (result == null) return null;
+    if (result.statusCode < 200 || result.statusCode >= 300) {
+      debugPrint(
+        '[restage] request to $path failed with status ${result.statusCode}',
+      );
+      return null;
+    }
+    return result;
+  }
+
+  /// Posts [body] and returns the decoded object whatever the status.
+  ///
+  /// A refused delivery answers with the reason it refused, and that reason is
+  /// the only thing that says WHY a surface is unavailable.
+  Future<_JsonObjectHttpResponse?> _postJsonObjectAnyStatus({
     required String path,
     required Map<String, dynamic> body,
   }) async {
@@ -1202,13 +1373,6 @@ class RestageRpcClient {
         },
         body: jsonEncode(body),
       );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        debugPrint(
-          '[restage] request to $path failed with '
-          'status ${response.statusCode}',
-        );
-        return null;
-      }
       final decoded = jsonDecode(response.body);
       if (decoded is! Map) {
         debugPrint('[restage] response from $path was not a JSON object');
@@ -1217,6 +1381,7 @@ class RestageRpcClient {
       return _JsonObjectHttpResponse(
         json: decoded.cast<String, dynamic>(),
         headers: response.headers,
+        statusCode: response.statusCode,
       );
     } on Object {
       // Transport exceptions can include request details. Keep diagnostics
@@ -1228,7 +1393,13 @@ class RestageRpcClient {
 }
 
 final class _JsonObjectHttpResponse {
-  const _JsonObjectHttpResponse({required this.json, required this.headers});
+  const _JsonObjectHttpResponse({
+    required this.json,
+    required this.headers,
+    required this.statusCode,
+  });
+
+  final int statusCode;
 
   final Map<String, dynamic> json;
   final Map<String, String> headers;
@@ -1282,27 +1453,56 @@ MeasurementIngestRpcOutcome _parseMeasurementIngestAcceptedResponse(
   );
 }
 
-IttAssignmentRpcOutcome _parseIttAssignmentResponse(String body) {
-  const assignedPrefix = '{"result":"assigned","candidateDelivery":"';
-  const assignedSuffix = '"}';
-  if (body.startsWith(assignedPrefix) && body.endsWith(assignedSuffix)) {
-    final candidate = body.substring(
-      assignedPrefix.length,
-      body.length - assignedSuffix.length,
-    );
-    final delivery = switch (candidate) {
-      'rendered' => IttAssignmentRpcCandidateDelivery.rendered,
-      'renderFailedButEnrolled' =>
-        IttAssignmentRpcCandidateDelivery.renderFailedButEnrolled,
-      'alreadyRendered' => IttAssignmentRpcCandidateDelivery.alreadyRendered,
-      'renderInFlight' => IttAssignmentRpcCandidateDelivery.renderInFlight,
-      _ => null,
-    };
-    if (delivery != null) return IttAssignmentRpcAssigned(delivery);
+/// Decodes the assigned response, or null when [body] is not a valid one.
+///
+/// An assigned answer must carry the committed assignment. A missing or
+/// unreadable one is not an assignment this build may act on.
+IttAssignmentRpcAssigned? _parseIttAssignmentAssigned(String body) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(body);
+  } on FormatException {
+    return null;
   }
+  if (decoded is! Map<String, dynamic>) return null;
+  if (decoded['result'] != 'assigned') return null;
+  if (decoded.keys.length != 3 ||
+      !decoded.containsKey('candidateDelivery') ||
+      !decoded.containsKey('assignment')) {
+    return null;
+  }
+  final delivery = switch (decoded['candidateDelivery']) {
+    'rendered' => IttAssignmentRpcCandidateDelivery.rendered,
+    'renderFailedButEnrolled' =>
+      IttAssignmentRpcCandidateDelivery.renderFailedButEnrolled,
+    'alreadyRendered' => IttAssignmentRpcCandidateDelivery.alreadyRendered,
+    'renderInFlight' => IttAssignmentRpcCandidateDelivery.renderInFlight,
+    _ => null,
+  };
+  if (delivery == null) return null;
+  try {
+    return IttAssignmentRpcAssigned(
+      delivery,
+      CanonicalSurfaceExperimentAssignmentV1Codec.decode(
+        decoded['assignment'],
+      ),
+    );
+  } on FormatException catch (error) {
+    debugPrint('[restage] assignment response was not readable: $error');
+    return null;
+  }
+}
+
+IttAssignmentRpcOutcome _parseIttAssignmentResponse(String body) {
+  final assigned = _parseIttAssignmentAssigned(body);
+  if (assigned != null) return assigned;
   return switch (body) {
-    '{"result":"outsideAudience"}' => const IttAssignmentRpcOutsideAudience(),
-    '{"result":"ineligible"}' => const IttAssignmentRpcIneligible(),
+    '{"result":"replayMiss"}' => const IttAssignmentRpcReplayMiss(),
+    '{"result":"assignmentNotPresented"}' =>
+      const IttAssignmentRpcAssignmentNotPresented(),
+    '{"result":"assignmentDisagrees"}' =>
+      const IttAssignmentRpcAssignmentDisagrees(),
+    '{"result":"notDelivered"}' => const IttAssignmentRpcNotDelivered(),
     '{"result":"authorityUnavailable"}' =>
       const IttAssignmentRpcAuthorityUnavailable(),
     '{"result":"populationUnavailable"}' =>

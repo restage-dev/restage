@@ -301,7 +301,6 @@ final class FlowMountContractSnapshotBuilder {
 
 enum FlowMountRevalidationBoundary {
   request,
-  uploadRetry,
   candidatePrefetch,
   fallback,
   pendingPromotion,
@@ -340,14 +339,6 @@ final class FlowMountContractSnapshot {
     FlowMountLeaseSeed current,
   ) =>
       seed.sameIdentityAs(current);
-
-  Uint8List? bytesForRetry(
-    FlowMountRevalidationBoundary boundary,
-    FlowMountLeaseSeed current,
-  ) =>
-      revalidate(boundary, current)
-          ? Uint8List.fromList(_canonicalBytes).asUnmodifiableView()
-          : null;
 }
 
 enum FlowCandidatePrefetchRejection {
@@ -522,6 +513,7 @@ ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
       cacheHit: true,
     ),
     measurementPublicationBindingReferenceFor(flow),
+    canonicalExperimentAssignment: measurementExperimentAssignmentFor(flow),
   );
 }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import '../analytics/render_event_privacy.dart';
+import 'event_dispatch_admission.dart';
 import 'authoring_refusal_diagnostic.dart';
 
 typedef RestagePaywallDispatchHandler = void Function(
@@ -14,14 +14,12 @@ final class RestagePaywallEventTargetScope extends InheritedWidget {
     required this.owner,
     required this.content,
     required this.isCurrent,
-    required this.mayExposeNonEmptyHostContext,
     required super.child,
   });
 
   final Object owner;
   final Object content;
   final bool Function() isCurrent;
-  final bool Function() mayExposeNonEmptyHostContext;
 
   static RestagePaywallEventTargetScope? maybeOf(BuildContext context) =>
       context
@@ -71,21 +69,17 @@ final class RestagePaywallEventDispatchRegistration {
     final content = target?.content ?? this;
     final handler = _handler;
     final lease = RestageTargetEventDispatchLease(
-      mayExposeNonEmptyHostContext: _mayExpose(target),
-      resolveLiveExposure: () {
+      isCurrent: () {
         if (!_mounted ||
             !RestagePaywallEventDispatchAuthority._contains(this) ||
             !identical(revision, _revision) ||
             !identical(handler, _handler)) {
-          return null;
+          return false;
         }
         final liveTarget = _target;
-        if (!identical(owner, liveTarget?.owner ?? this) ||
-            !identical(content, liveTarget?.content ?? this) ||
-            !_isTargetCurrent(liveTarget)) {
-          return null;
-        }
-        return _mayExpose(liveTarget);
+        return identical(owner, liveTarget?.owner ?? this) &&
+            identical(content, liveTarget?.content ?? this) &&
+            _isTargetCurrent(liveTarget);
       },
     );
     return (name, args) {
@@ -108,15 +102,6 @@ final class RestagePaywallEventDispatchRegistration {
       return target.isCurrent();
     } on Object {
       return false;
-    }
-  }
-
-  static bool _mayExpose(RestagePaywallEventTargetScope? target) {
-    if (target == null) return false;
-    try {
-      return target.mayExposeNonEmptyHostContext();
-    } on Object {
-      return true;
     }
   }
 }

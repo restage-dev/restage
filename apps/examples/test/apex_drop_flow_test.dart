@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/onboarding/apex_drop_demo.dart';
@@ -30,12 +33,38 @@ class _FailingFlowResolver implements FlowResolver {
 /// the flow → host opens the shop), and its × dismisses (a host-handled custom
 /// event → the message closes).
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  const supportChannel = MethodChannel('plugins.flutter.io/path_provider');
+  late Directory support;
+
+  setUp(() async {
+    support = await Directory.systemTemp.createTemp('apex-drop-test-');
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      supportChannel,
+      (call) async {
+        if (call.method != 'getApplicationSupportDirectory') {
+          throw MissingPluginException('Unexpected method: ${call.method}');
+        }
+        return support.path;
+      },
+    );
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),
     );
+  });
+
+  tearDown(() async {
+    try {
+      await Restage.debugResetAndWait();
+    } finally {
+      binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        supportChannel,
+        null,
+      );
+      await support.delete(recursive: true);
+    }
   });
 
   // Pushes the message over a trivial home so a dismiss has somewhere to pop to.
@@ -88,11 +117,13 @@ void main() {
   });
 
   testWidgets('an unavailable flow pops the message route', (tester) async {
-    Restage.configure(
-      apiKey: 'rs_pk_test',
-      resolver: const AssetVariantResolver(),
-      flowResolver: const _FailingFlowResolver(),
-    );
+    await tester.runAsync(() async {
+      Restage.configure(
+        apiKey: 'rs_pk_test',
+        resolver: const AssetVariantResolver(),
+        flowResolver: const _FailingFlowResolver(),
+      );
+    });
 
     await openMessage(tester);
 

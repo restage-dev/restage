@@ -39,6 +39,11 @@ void main() {
     expect(SurfacePublicationUploadResult, isNotNull);
     expect(SurfaceNotFound, isNotNull);
     expect(FileCredentialStore, isNotNull);
+    expect(ExperimentApi, isNotNull);
+    expect(ExperimentDiscovery, isNotNull);
+    expect(ExperimentResponseMismatchException, isNotNull);
+    expect(ExperimentPageCursorRepeatedException, isNotNull);
+    expect(experimentRequest, isNotNull);
   });
 
   test(

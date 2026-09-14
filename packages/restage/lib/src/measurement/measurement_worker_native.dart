@@ -209,6 +209,7 @@ final class _NativeMeasurementWorkerRuntimeState
   Future<MeasurementWorkerBatchResult> requestSessionBarrier(
     _NativeMeasurementWorkerSessionState session, {
     required bool isFinal,
+    int? frameElapsedMicros,
   }) {
     if (!isAvailable) {
       return Future.value(
@@ -251,10 +252,12 @@ final class _NativeMeasurementWorkerRuntimeState
             ? MeasurementWorkerProtocol.teardown(
                 requestId: requestId,
                 sessionId: session.sessionId,
+                frameElapsedMicros: frameElapsedMicros,
               )
             : MeasurementWorkerProtocol.checkpoint(
                 requestId: requestId,
                 sessionId: session.sessionId,
+                frameElapsedMicros: frameElapsedMicros,
               ),
       );
     } on Object {
@@ -771,7 +774,7 @@ final class _NativeMeasurementWorkerSessionState
   }
 
   @override
-  Future<MeasurementWorkerBatchResult> checkpoint() {
+  Future<MeasurementWorkerBatchResult> checkpoint({int? frameElapsedMicros}) {
     if (_status == _NativeSessionStatus.unavailable) {
       return _runtime._unavailableBatchResult();
     }
@@ -783,11 +786,12 @@ final class _NativeMeasurementWorkerSessionState
         ),
       );
     }
-    return _runtime.requestSessionBarrier(this, isFinal: false);
+    return _runtime.requestSessionBarrier(this,
+        isFinal: false, frameElapsedMicros: frameElapsedMicros);
   }
 
   @override
-  Future<MeasurementWorkerBatchResult> teardown() {
+  Future<MeasurementWorkerBatchResult> teardown({int? frameElapsedMicros}) {
     if (_status == _NativeSessionStatus.unavailable) {
       return _runtime._unavailableBatchResult();
     }
@@ -799,7 +803,8 @@ final class _NativeMeasurementWorkerSessionState
         ),
       );
     }
-    return _runtime.requestSessionBarrier(this, isFinal: true);
+    return _runtime.requestSessionBarrier(this,
+        isFinal: true, frameElapsedMicros: frameElapsedMicros);
   }
 
   void _onBarrierResult(
@@ -993,7 +998,8 @@ final class _MeasurementWorkerKernel {
       );
       return;
     }
-    _prepareAndSend(message.requestId, session, isFinal: false);
+    _prepareAndSend(message.requestId, session,
+        isFinal: false, frameElapsedMicros: message.frameElapsedMicros);
   }
 
   void _teardown(MeasurementWorkerTeardownMessage message) {
@@ -1005,7 +1011,8 @@ final class _MeasurementWorkerKernel {
       );
       return;
     }
-    final prepared = _prepare(session, isFinal: true);
+    final prepared = _prepare(session,
+        isFinal: true, frameElapsedMicros: message.frameElapsedMicros);
     _sendPreparation(message.requestId, prepared);
     if (prepared.outcome == MeasurementWorkerBatchOutcome.prepared) {
       _sessions.remove(session.sessionId);
@@ -1044,7 +1051,12 @@ final class _MeasurementWorkerKernel {
   void _shutdown(MeasurementWorkerShutdownMessage message) {
     final orderedSessions = _sessions.values.toList()
       ..sort((left, right) => left.sessionId.compareTo(right.sessionId));
-    if (_prepared.length + orderedSessions.length >
+    final ordinarySessionCount = orderedSessions
+        .where(
+          (session) => session.experimentAssignment == null,
+        )
+        .length;
+    if (_prepared.length + ordinarySessionCount >
         maximumRetainedPreparedBatches) {
       events.send(
         MeasurementWorkerProtocol.shutdownResult(
@@ -1056,6 +1068,10 @@ final class _MeasurementWorkerKernel {
       return;
     }
     for (final session in orderedSessions) {
+      if (session.experimentAssignment != null) {
+        _sessions.remove(session.sessionId);
+        continue;
+      }
       final prepared = _prepare(session, isFinal: true);
       if (prepared.outcome != MeasurementWorkerBatchOutcome.prepared) {
         events.send(
@@ -1095,10 +1111,18 @@ final class _MeasurementWorkerKernel {
     int requestId,
     _WorkerSession session, {
     required bool isFinal,
+    int? frameElapsedMicros,
   }) =>
-      _sendPreparation(requestId, _prepare(session, isFinal: isFinal));
+      _sendPreparation(
+          requestId,
+          _prepare(session,
+              isFinal: isFinal, frameElapsedMicros: frameElapsedMicros));
 
-  _Preparation _prepare(_WorkerSession session, {required bool isFinal}) {
+  _Preparation _prepare(_WorkerSession session,
+      {required bool isFinal, int? frameElapsedMicros}) {
+    if (!session.admitFrameElapsed(frameElapsedMicros, isFinal: isFinal)) {
+      return const _Preparation.outcome(MeasurementWorkerBatchOutcome.invalid);
+    }
     if (!isFinal) {
       final checkpointId = session.checkpointBatchId;
       if (checkpointId != null) {
@@ -1179,6 +1203,7 @@ final class _WorkerSession {
     required this.routes,
     required this.limits,
     required this.nextSequence,
+    required this.experimentAssignment,
   }) : _slots = List<_WorkerFactSlot>.generate(
           routes.length,
           (_) => _WorkerFactSlot(),
@@ -1222,6 +1247,12 @@ final class _WorkerSession {
         registration.captureSessionNonce.length > 128) {
       throw ArgumentError('Invalid worker session registration');
     }
+    final assignmentBytes = registration.experimentAssignmentCanonicalBytes;
+    final assignment = assignmentBytes == null
+        ? null
+        : MeasurementExperimentAssignmentV1.fromJson(
+            decodeCanonicalObject(assignmentBytes),
+          );
     return _WorkerSession._(
       sessionId: registration.sessionId,
       captureSessionNonce: registration.captureSessionNonce,
@@ -1230,21 +1261,24 @@ final class _WorkerSession {
       routes: List.unmodifiable(routes),
       limits: registration.limits,
       nextSequence: registration.firstSequence,
+      experimentAssignment: assignment,
     );
   }
 
   static const int _fixedOwnedByteCount = 48;
-  static const int _slotOwnedByteCount = 8;
+  static const int _slotOwnedByteCount = 24;
 
   final String sessionId;
   final String captureSessionNonce;
   final Uint8List contextCanonicalBytes;
   final ExactMeasurementPublicationContextRefV1 publishedContext;
+  final MeasurementExperimentAssignmentV1? experimentAssignment;
   final List<_WorkerRoute> routes;
   final MeasurementWorkerSessionLimits limits;
   final List<_WorkerFactSlot> _slots;
   int nextSequence;
   int _lastTimestampMicros = -1;
+  int? _frameElapsedMicros;
   int _presentedPointCount = 0;
   int _interactionCounterCount = 0;
   int _droppedPresentedPointCount = 0;
@@ -1256,6 +1290,7 @@ final class _WorkerSession {
         sessionId.length +
         captureSessionNonce.length +
         contextCanonicalBytes.length +
+        (experimentAssignment?.outcomeLinkCarrier.length ?? 0) +
         (_slots.length * _slotOwnedByteCount);
     for (final route in routes) {
       total += route.structuralOwnedByteCount;
@@ -1268,7 +1303,10 @@ final class _WorkerSession {
   ) {
     if (record.routeIndex < 0 ||
         record.routeIndex >= _slots.length ||
-        record.monotonicTimestampMicros < _lastTimestampMicros) {
+        record.monotonicTimestampMicros < _lastTimestampMicros ||
+        (experimentAssignment != null &&
+            record.monotonicTimestampMicros >
+                measurementIngestMaximumOutcomeWitnessMicros)) {
       return MeasurementWorkerAppendAcknowledgementOutcome.rejected;
     }
     _lastTimestampMicros = record.monotonicTimestampMicros;
@@ -1283,6 +1321,10 @@ final class _WorkerSession {
         return MeasurementWorkerAppendAcknowledgementOutcome.truncated;
       }
       slot.presented = true;
+      if (experimentAssignment != null) {
+        slot.presentationFirstOccurrenceMicros =
+            record.monotonicTimestampMicros;
+      }
       _presentedPointCount += 1;
       if (_interactionCounterCount == limits.maximumInteractionCounters) {
         slot.interactionTruncated = true;
@@ -1296,11 +1338,29 @@ final class _WorkerSession {
     }
     if (record.value == MeasurementWorkerAppendValue.interaction &&
         slot.hasInteractionCounter) {
+      if (experimentAssignment != null) {
+        slot.interactionFirstOccurrenceMicros ??=
+            record.monotonicTimestampMicros;
+      }
       slot.recordInteraction(limits.maximumCounterValue);
     }
     return slot.hasInteractionCounter
         ? MeasurementWorkerAppendAcknowledgementOutcome.recorded
         : MeasurementWorkerAppendAcknowledgementOutcome.truncated;
+  }
+
+  bool admitFrameElapsed(int? elapsed, {required bool isFinal}) {
+    if (experimentAssignment == null) return true;
+    if (elapsed == null ||
+        elapsed < 0 ||
+        elapsed > measurementIngestMaximumOutcomeWitnessMicros ||
+        elapsed < _lastTimestampMicros ||
+        (_frameElapsedMicros != null && elapsed < _frameElapsedMicros!)) {
+      return false;
+    }
+    _lastTimestampMicros = elapsed;
+    if (isFinal || checkpointBatchId == null) _frameElapsedMicros = elapsed;
+    return true;
   }
 
   void advanceForFinalization() {
@@ -1326,7 +1386,11 @@ final class _WorkerSession {
         'maximumPresentedPoints': limits.maximumPresentedPoints,
       },
       'captureSessionNonce': captureSessionNonce,
+      if (experimentAssignment != null)
+        'experimentAssignment': experimentAssignment!.toJson(),
       'facts': facts,
+      if (_frameElapsedMicros != null)
+        'frameElapsedMicros': _frameElapsedMicros,
       'finality': {'kind': isFinal ? 'final' : 'pending'},
       'kind': 'measurementFactFrame',
       'missingness': const <Object?>[],
@@ -1383,6 +1447,8 @@ final class _WorkerFactSlot {
   bool interactionTruncated = false;
   int _interactionCount = 0;
   bool _interactionSaturated = false;
+  int? presentationFirstOccurrenceMicros;
+  int? interactionFirstOccurrenceMicros;
 
   void recordInteraction(int maximum) {
     if (_interactionSaturated) return;
@@ -1398,6 +1464,9 @@ final class _WorkerFactSlot {
     if (interactionTruncated) {
       return {
         'interactionState': 'transportTruncated',
+        if (presentationFirstOccurrenceMicros != null)
+          'presentationFirstOccurrenceMicros':
+              presentationFirstOccurrenceMicros,
         'lineageId': route.lineageId,
         'occurrenceId': route.occurrenceId,
       };
@@ -1413,6 +1482,10 @@ final class _WorkerFactSlot {
         'value': _interactionCount,
       },
       'interactionState': state,
+      if (presentationFirstOccurrenceMicros != null)
+        'presentationFirstOccurrenceMicros': presentationFirstOccurrenceMicros,
+      if (interactionFirstOccurrenceMicros != null)
+        'interactionFirstOccurrenceMicros': interactionFirstOccurrenceMicros,
       'lineageId': route.lineageId,
       'occurrenceId': route.occurrenceId,
     };
@@ -1497,6 +1570,7 @@ Future<MeasurementWorkerOwnedDeliveryRuntimeLaunchResult>
     startMeasurementWorkerOwnedDelivery({
   required MeasurementWorkerOwnedDeliveryConfiguration configuration,
   MeasurementWorkerOwnedDeliveryPathResolver? pathResolver,
+  MeasurementWorkerOwnedDeliveryCancellation? cancellation,
 }) async {
   if (!configuration.admission.isAdmitted || !configuration.isValidForStartup) {
     return MeasurementWorkerOwnedDeliveryRuntimeLaunchResult.unavailable(
@@ -1517,9 +1591,14 @@ Future<MeasurementWorkerOwnedDeliveryRuntimeLaunchResult>
       'application_support_path_unavailable',
     );
   }
+  if (cancellation?.isCancelled ?? false) {
+    return MeasurementWorkerOwnedDeliveryRuntimeLaunchResult.unavailable(
+        'collection_cancelled');
+  }
   final state = _NativeMeasurementWorkerOwnedDeliveryState(
     configuration: configuration,
     applicationSupportPath: supportPath,
+    cancellation: cancellation,
   );
   try {
     await state.start();
@@ -1530,6 +1609,30 @@ Future<MeasurementWorkerOwnedDeliveryRuntimeLaunchResult>
       'native_worker_owned_delivery_unavailable',
     );
   }
+}
+
+/// Recovers and purges the same journal in a transport-free cleanup isolate.
+Future<void> purgeMeasurementWorkerOwnedDelivery({
+  MeasurementWorkerOwnedDeliveryPathResolver? pathResolver,
+}) async {
+  final path = await (pathResolver ?? const _PathProviderSupportPathResolver())
+      .resolveApplicationSupportPath();
+  await Isolate.run(() async {
+    final store = createMeasurementOutboxStore(
+      configuration: MeasurementOutboxConfiguration(
+        applicationSupportPath: path,
+        configurationFingerprint: 'privacy-reset',
+      ),
+    );
+    if (!(await store.open()).isOpened) {
+      throw StateError(
+          'Measurement privacy cleanup could not open the journal');
+    }
+    final purged = await store.purge(MeasurementOutboxPurgeReason.privacyReset);
+    if (purged.outcome != MeasurementOutboxPurgeOutcome.purgedUnacknowledged) {
+      throw StateError('Measurement privacy cleanup did not complete');
+    }
+  });
 }
 
 final class _PathProviderSupportPathResolver
@@ -1546,10 +1649,12 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
   _NativeMeasurementWorkerOwnedDeliveryState({
     required this.configuration,
     required this.applicationSupportPath,
+    this.cancellation,
   });
 
   final MeasurementWorkerOwnedDeliveryConfiguration configuration;
   final String applicationSupportPath;
+  final MeasurementWorkerOwnedDeliveryCancellation? cancellation;
   final Completer<SendPort> _ready = Completer<SendPort>();
   final Map<String, _NativeWorkerOwnedDeliverySessionState> _sessions = {};
   final Map<int, _WorkerOwnedDeliveryOpenPending> _opens = {};
@@ -1602,6 +1707,12 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
     );
     _spawnCount = 1;
     _commands = await _ready.future;
+    cancellation?.attach(() async {
+      await reset(MeasurementOutboxPurgeReason.privacyReset);
+    });
+    if (!(cancellation?.isCancelled ?? false)) {
+      _commands!.send(MeasurementWorkerOwnedDeliveryProtocol.activate());
+    }
   }
 
   @override
@@ -1703,6 +1814,7 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> requestCheckpoint(
     _NativeWorkerOwnedDeliverySessionState session, {
     required bool isFinal,
+    int? frameElapsedMicros,
   }) {
     if (!isAvailable || session._barrierRequestId != null) {
       return Future.value(
@@ -1740,6 +1852,7 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
         MeasurementWorkerOwnedDeliveryProtocol.checkpoint(
           requestId: requestId,
           sessionId: session.sessionId,
+          frameElapsedMicros: frameElapsedMicros,
           isFinal: isFinal,
         ),
       );
@@ -1818,7 +1931,9 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
   Future<MeasurementWorkerOwnedDeliveryResetResult> reset(
     MeasurementOutboxPurgeReason reason,
   ) {
-    if (!isAvailable) return Future.value(_unavailableResetResult());
+    if (!_available || _disposed) {
+      return Future.value(_unavailableResetResult());
+    }
     final commands = _commands;
     if (commands == null) return Future.value(_unavailableResetResult());
     _stopping = true;
@@ -2042,7 +2157,7 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
             purgedRecordCount: purgedRecordCount,
           ),
         );
-        dispose();
+        _failWorker();
       case MeasurementWorkerOwnedDeliveryShutdownResultMessage(
           :final requestId,
           :final outcome,
@@ -2054,7 +2169,7 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
         }
         _available = false;
         pending.complete(MeasurementWorkerOwnedDeliveryShutdownResult(outcome));
-        dispose();
+        _failWorker();
       case MeasurementWorkerOwnedDeliveryDebugMessage(
           :final stage,
           :final workerIsolateId,
@@ -2241,7 +2356,8 @@ final class _NativeWorkerOwnedDeliverySessionState
   }
 
   @override
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint() {
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint(
+      {int? frameElapsedMicros}) {
     if (_status == _NativeWorkerOwnedDeliverySessionStatus.unavailable) {
       return Future.value(
         _runtime._checkpointResult(
@@ -2256,11 +2372,13 @@ final class _NativeWorkerOwnedDeliverySessionState
         ),
       );
     }
-    return _runtime.requestCheckpoint(this, isFinal: false);
+    return _runtime.requestCheckpoint(this,
+        isFinal: false, frameElapsedMicros: frameElapsedMicros);
   }
 
   @override
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown() {
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
+      {int? frameElapsedMicros}) {
     if (_status == _NativeWorkerOwnedDeliverySessionStatus.unavailable) {
       return Future.value(
         _runtime._checkpointResult(
@@ -2275,7 +2393,8 @@ final class _NativeWorkerOwnedDeliverySessionState
         ),
       );
     }
-    return _runtime.requestCheckpoint(this, isFinal: true);
+    return _runtime.requestCheckpoint(this,
+        isFinal: true, frameElapsedMicros: frameElapsedMicros);
   }
 
   @override
@@ -2380,6 +2499,7 @@ Future<void> _runMeasurementWorkerOwnedDeliveryIsolate(
           headersProvider: () => headers,
         ),
       ),
+      isCancelled: () => kernel._collectionCancelled,
       onSend: () => kernel.trace(MeasurementWorkerOwnedDeliveryDebugStage.http),
     );
     kernel = _MeasurementWorkerOwnedDeliveryKernel(
@@ -2402,7 +2522,6 @@ Future<void> _runMeasurementWorkerOwnedDeliveryIsolate(
       ),
     );
     commands.listen(kernel.handle);
-    kernel.start();
   } on Object {
     events.send(MeasurementWorkerOwnedDeliveryProtocol.fatal());
   }
@@ -2429,26 +2548,14 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   ReceivePort? _commands;
   Timer? _retryTimer;
   bool _closed = false;
+  bool _collectionCancelled = false;
+  bool _activated = false;
 
   void attach(ReceivePort commands) {
     _commands = commands;
   }
 
-  void start() => _enqueue(() async {
-        trace(MeasurementWorkerOwnedDeliveryDebugStage.journal);
-        await _drainAndSchedule();
-      });
-
-  void handle(Object? raw) => _enqueue(() => _handle(raw));
-
-  void _enqueue(Future<void> Function() operation) {
-    _commandTail = _commandTail
-        .then<void>((_) => operation())
-        .onError((Object _, StackTrace __) => _fatal());
-  }
-
-  Future<void> _handle(Object? raw) async {
-    if (_closed) return;
+  void handle(Object? raw) {
     late final MeasurementWorkerOwnedDeliveryInboundMessage message;
     try {
       message = MeasurementWorkerOwnedDeliveryProtocol.decodeInbound(raw);
@@ -2456,7 +2563,32 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
       _fatal();
       return;
     }
+    // Latch reset before waiting for earlier asynchronous journal or HTTP work.
+    if (message is MeasurementWorkerOwnedDeliveryResetMessage) {
+      _collectionCancelled = true;
+      _retryTimer?.cancel();
+      final reset = message;
+      _enqueue(() => _reset(reset));
+      return;
+    }
+    _enqueue(() => _handle(message));
+  }
+
+  void _enqueue(Future<void> Function() operation) {
+    _commandTail = _commandTail
+        .then<void>((_) => operation())
+        .onError((Object _, StackTrace __) => _fatal());
+  }
+
+  Future<void> _handle(
+      MeasurementWorkerOwnedDeliveryInboundMessage message) async {
+    if (_closed || _collectionCancelled) return;
     switch (message) {
+      case MeasurementWorkerOwnedDeliveryActivateMessage():
+        if (_activated) return;
+        _activated = true;
+        trace(MeasurementWorkerOwnedDeliveryDebugStage.journal);
+        await _drainAndSchedule();
       case MeasurementWorkerOwnedDeliveryRegisterMessage():
         _register(message);
       case MeasurementWorkerOwnedDeliveryAppendMessage():
@@ -2532,7 +2664,9 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
       );
       return;
     }
-    final result = await _prepareAndDeliver(session, isFinal: message.isFinal);
+    final result = await _prepareAndDeliver(session,
+        isFinal: message.isFinal,
+        frameElapsedMicros: message.frameElapsedMicros);
     if (message.isFinal) _sessions.remove(session.sessionId);
     _sendCheckpointResult(
       requestId: message.requestId,
@@ -2559,7 +2693,16 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   Future<_WorkerOwnedDeliveryPreparedResult> _prepareAndDeliver(
     _WorkerSession session, {
     required bool isFinal,
+    int? frameElapsedMicros,
   }) async {
+    if (!session.admitFrameElapsed(frameElapsedMicros, isFinal: isFinal)) {
+      return _WorkerOwnedDeliveryPreparedResult(
+        outcome:
+            MeasurementWorkerOwnedDeliveryCheckpointOutcome.persistenceFailure,
+        sequence: null,
+        isFinal: null,
+      );
+    }
     late final _WorkerPreparedBatch workerBatch;
     try {
       if (isFinal) session.advanceForFinalization();
@@ -2595,6 +2738,14 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
     switch (committed.outcome) {
       case MeasurementOutboxCommitOutcome.committed ||
             MeasurementOutboxCommitOutcome.duplicate:
+        if (_collectionCancelled) {
+          return _WorkerOwnedDeliveryPreparedResult(
+            outcome:
+                MeasurementWorkerOwnedDeliveryCheckpointOutcome.unavailable,
+            sequence: workerBatch.sequence,
+            isFinal: workerBatch.isFinal,
+          );
+        }
         final uploaded = await uploadCoordinator.uploadNext();
         await _scheduleNextDelivery();
         return _WorkerOwnedDeliveryPreparedResult(
@@ -2640,7 +2791,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   }
 
   Future<void> _drainAndSchedule() async {
-    if (_closed) return;
+    if (_closed || _collectionCancelled) return;
     await uploadCoordinator.uploadNext();
     await _scheduleNextDelivery();
   }
@@ -2648,10 +2799,14 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   Future<void> _scheduleNextDelivery() async {
     _retryTimer?.cancel();
     _retryTimer = null;
-    if (_closed || store is! MeasurementOutboxRetrySchedule) return;
+    if (_closed ||
+        _collectionCancelled ||
+        store is! MeasurementOutboxRetrySchedule) {
+      return;
+    }
     final delay =
         await (store as MeasurementOutboxRetrySchedule).nextReadyDelay();
-    if (_closed || delay == null) return;
+    if (_closed || _collectionCancelled || delay == null) return;
     _retryTimer = Timer(delay, () => _enqueue(_drainAndSchedule));
   }
 
@@ -2688,6 +2843,8 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
     final sessions = _sessions.values.toList()
       ..sort((left, right) => left.sessionId.compareTo(right.sessionId));
     for (final session in sessions) {
+      if (_collectionCancelled) return;
+      if (session.experimentAssignment != null) continue;
       final result = await _prepareAndDeliver(session, isFinal: true);
       if (!_isDurablyRetained(result.outcome)) {
         outcome = MeasurementWorkerOwnedDeliveryShutdownOutcome.unavailable;
@@ -2824,13 +2981,16 @@ final class _WorkerOwnedTracingUploadClient implements MeasurementUploadClient {
   const _WorkerOwnedTracingUploadClient({
     required this.delegate,
     required this.onSend,
+    required this.isCancelled,
   });
 
   final MeasurementUploadClient delegate;
   final void Function() onSend;
+  final bool Function() isCancelled;
 
   @override
   Future<MeasurementUploadOutcome> send(MeasurementOutboxLease lease) async {
+    if (isCancelled()) return const MeasurementUploadOutcome.unavailable();
     onSend();
     return delegate.send(lease);
   }

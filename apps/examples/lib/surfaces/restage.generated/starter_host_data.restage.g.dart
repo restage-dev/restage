@@ -39,14 +39,14 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 7269,
         sha256:
-            "sha256:9599731c37091dc1d77545c2f83a86e197ea58901c2a466c1567ecdd205038dd",
+            "sha256:318db688b54bea81b13602d3f6b9065921e96932f0a2984245a8bfe9879aeaaf",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/general/screens/starter_checklist.capability.json",
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:3d98c8f31bae841b9ad2e0339f79081e9df83df0c5b7c2de423c1dedec003dd9",
+            "sha256:b76bba3a26d9aab0f3d1971c1ba0ce17965fbf8a9d2ffbf9abbecdd44258f00b",
       ),
     ],
   ),
@@ -57,7 +57,7 @@ final starterChecklistRef = SurfaceScreenRef<
   provenance: _starterChecklistProvenance,
   eventContract: _starterChecklistEvents,
   measurementPublicationDraftDigest:
-      "72c49fc7f3f51619b903f932c62be98644425140e3313112094e29513d28c690",
+      "d1f4eedc915d50e171e33899184244e825025324ffeb7e8471aec3c584306101",
 );
 
 StarterChecklistEvent _decodeValidatedStarterChecklistEvent(

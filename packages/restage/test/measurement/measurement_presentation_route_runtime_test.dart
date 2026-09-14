@@ -11,6 +11,83 @@ import 'package:rfw/formats.dart';
 import 'package:rfw/rfw.dart';
 
 void main() {
+  test('capture retains the opaque assignment through cumulative snapshots',
+      () {
+    final fixture = _fixture();
+    var micros = 20;
+    final session = _session(
+      fixture,
+      bounds: MeasurementFactFrameBounds(
+        maximumCounterValue: 4,
+        maximumPresentedPoints: 2,
+        maximumInteractionCounters: 2,
+        maximumMissingnessEntries: 1,
+      ),
+      monotonicMicrosSource: () => micros,
+      experimentAssignment: const MeasurementExperimentAssignmentV1(
+        outcomeLinkCarrier: 'AQID',
+      ),
+    );
+    session.recordPresentation(fixture.interaction);
+    final first = session.checkpoint();
+    expect(
+        first.validatedIngestFrameV1.experimentAssignment!.outcomeLinkCarrier,
+        'AQID');
+    expect(identical(first, session.checkpoint()), isTrue);
+    micros = 60;
+    session.recordInteraction(fixture.interaction);
+    micros = 100;
+    session.recordInteraction(fixture.interaction);
+    final last = session.teardown().validatedIngestFrameV1;
+    expect(last.experimentAssignment!.outcomeLinkCarrier, 'AQID');
+    expect(last.facts.single.interactionCount!.value, 2);
+    expect(first.validatedIngestFrameV1.frameElapsedMicros, 20);
+    expect(last.frameElapsedMicros, 100);
+    expect(
+        first.validatedIngestFrameV1.facts.single
+            .presentationFirstOccurrenceMicros,
+        20);
+    expect(
+        first.validatedIngestFrameV1.facts.single
+            .interactionFirstOccurrenceMicros,
+        isNull);
+    expect(last.facts.single.presentationFirstOccurrenceMicros, 20);
+    expect(last.facts.single.interactionFirstOccurrenceMicros, 60);
+  });
+
+  test('capture refuses nonmonotonic and unbounded occurrence witnesses', () {
+    final fixture = _fixture();
+    var micros = 10;
+    final session = _session(
+      fixture,
+      bounds: MeasurementFactFrameBounds(
+          maximumCounterValue: 4,
+          maximumPresentedPoints: 2,
+          maximumInteractionCounters: 2,
+          maximumMissingnessEntries: 1),
+      experimentAssignment:
+          const MeasurementExperimentAssignmentV1(outcomeLinkCarrier: 'AQID'),
+      monotonicMicrosSource: () => micros,
+    );
+    session.recordPresentation(fixture.interaction);
+    final checkpoint = session.checkpoint();
+    for (final invalid in [
+      -1,
+      9,
+      measurementIngestMaximumOutcomeWitnessMicros + 1
+    ]) {
+      micros = invalid;
+      expect(() => session.recordInteraction(fixture.interaction),
+          throwsStateError);
+      expect(identical(checkpoint, session.checkpoint()), isTrue);
+    }
+    micros = 11;
+    session.recordInteraction(fixture.interaction);
+    final finalFrame = session.teardown().validatedIngestFrameV1;
+    expect(finalFrame.facts.single.interactionCount!.value, 1);
+    expect(finalFrame.facts.single.interactionFirstOccurrenceMicros, 11);
+  });
+
   test('painted source routes retain zero before an interaction value', () {
     final fixture = _fixture();
     final session = _session(
@@ -322,9 +399,13 @@ _RouteFixture _fixture() {
 MeasurementRuntimeCaptureSession _session(
   _RouteFixture fixture, {
   required MeasurementFactFrameBounds bounds,
+  MeasurementExperimentAssignmentV1? experimentAssignment,
+  int Function()? monotonicMicrosSource,
 }) =>
     MeasurementRuntimeCaptureSession.testOnlySuccessfulPresentation(
       bounds: bounds,
+      experimentAssignment: experimentAssignment,
+      monotonicMicrosSource: monotonicMicrosSource,
       captureSessionNonce: MeasurementCaptureSessionNonce('runtime-route'),
       publicationContextRef: ExactMeasurementPublicationContextRefV1(
         bindingReference: _bindingReference(),

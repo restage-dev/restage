@@ -5,7 +5,6 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration;
 import '../runtime/context_data.dart';
@@ -527,8 +526,6 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     // never to a controller the view was later swapped to.
     final controller = widget.controller;
     final isCurrent = screen.entryId == controller.currentScreenEntryId;
-    bool mayExposeNonEmptyHostContext() =>
-        screen.contextPublisher.mayExposeNonEmptyHostContext;
     final child = RuntimeErrorBoundary(
       key: ValueKey<int>(screen.entryId),
       onFirstBuildSuccess: () {
@@ -541,30 +538,21 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RestagePrivacyAwareRemoteWidget(
+      child: RemoteWidget(
         runtime: screen.runtime,
         data: screen.data,
         widget: kFlowScreenWidget,
-        mayExposeNonEmptyHostContext: mayExposeNonEmptyHostContext,
         onEvent: (name, args) {
-          RestageRenderEventPrivacy.run<void>(
-            mayExposeNonEmptyHostContext:
-                screen.contextPublisher.mayExposeNonEmptyHostContext,
-            body: () {
-              if (isReservedCommerceEventName(name)) return;
-              // Inert unless this is the owning controller's current screen.
-              if (screen.entryId != controller.currentScreenEntryId) return;
-              final normalized = normalizeEventArgs(
-                sanitizeAndRecordHostFlowEvent(controller, args),
-              );
-              // The owner's interceptor runs first. If it consumes the event,
-              // the controller never sees it.
-              if (widget.onScreenEvent?.call(name, normalized) ?? false) {
-                return;
-              }
-              controller.handleEvent(name, normalized);
-            },
+          if (isReservedCommerceEventName(name)) return;
+          // Inert unless this is the owning controller's current screen.
+          if (screen.entryId != controller.currentScreenEntryId) return;
+          final normalized = normalizeEventArgs(
+            sanitizeAndRecordHostFlowEvent(controller, args),
           );
+          // The owner's interceptor runs first. If it consumes the event, the
+          // controller never sees it.
+          if (widget.onScreenEvent?.call(name, normalized) ?? false) return;
+          controller.handleEvent(name, normalized);
         },
       ),
     );
@@ -581,7 +569,6 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       isCurrent: () =>
           identical(widget.controller, controller) &&
           controller.currentScreenEntryId == screen.entryId,
-      mayExposeNonEmptyHostContext: mayExposeNonEmptyHostContext,
       child: content,
     );
 

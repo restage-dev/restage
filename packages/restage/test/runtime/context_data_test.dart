@@ -1572,31 +1572,6 @@ void main() {
       expect(content.updates, equals(1));
     });
 
-    test('tracks whether the target may expose non-empty host context', () {
-      final content = _CountingContent();
-      final publisher = ContextPublisher(content);
-
-      expect(publisher.mayExposeNonEmptyHostContext, isFalse);
-      publisher.publish(<String, Object?>{});
-      expect(publisher.mayExposeNonEmptyHostContext, isFalse);
-      publisher.publish(<String, Object?>{'secret': 'local'});
-      expect(publisher.mayExposeNonEmptyHostContext, isTrue);
-      publisher.publish(null);
-      expect(publisher.mayExposeNonEmptyHostContext, isFalse);
-
-      void throwOnUpdate(Object _) => throw StateError('listener failure');
-      content.subscribe(<Object>[kContextDataKey], throwOnUpdate);
-      expect(
-        () => publisher.publish(<String, Object?>{'secret': 'unknown'}),
-        throwsA(isA<StateError>()),
-      );
-      expect(publisher.mayExposeNonEmptyHostContext, isTrue);
-      content.unsubscribe(<Object>[kContextDataKey], throwOnUpdate);
-
-      publisher.publish(null);
-      expect(publisher.mayExposeNonEmptyHostContext, isFalse);
-    });
-
     test('serializes reentrant publish requests', () {
       final content = _CountingContent();
       final publisher = ContextPublisher(content);

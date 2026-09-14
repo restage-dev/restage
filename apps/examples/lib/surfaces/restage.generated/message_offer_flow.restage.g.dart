@@ -9,7 +9,7 @@ const messageOfferRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMessageOfferResult,
   measurementPublicationDraftDigest:
-      'c59035255e46ef021e813c4088498a066d5eff76b2d0fc7b0d70cd75157dfd3d',
+      '544d07461561a2944ecf7536186892561517a5cfd0795719ba4f78461156a61b',
 );
 
 MessageOfferResult _decodeMessageOfferResult(Map<String, Object?> result) {

@@ -1,8 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
-import 'package:restage_shared/legacy_analytics.dart';
-import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -11,37 +9,6 @@ void main() {
     RootAnalyticsRuntime.clear();
   });
   tearDown(RootAnalyticsRuntime.clear);
-
-  test('stage is invisible until activation and activation emits exactly once',
-      () async {
-    final presented = <RootAnalyticsEventContext>[];
-    final identity = _identity();
-    await identity.anonymousId();
-    RootAnalyticsRuntime.install(
-      identity: identity,
-      onSurfacePresented: presented.add,
-    );
-    final presentation = RootAnalyticsRuntime.createPresentation(
-      surface: 'survey',
-      surfaceId: 'survey-root',
-    );
-
-    presentation.stage(surfaceVersion: '7');
-
-    expect(_bindingFrom(presentation).context, isNull);
-    expect(presented, isEmpty);
-
-    presentation
-      ..activate()
-      ..activate();
-
-    final binding = _bindingFrom(presentation);
-    expect(binding.surface, 'survey');
-    expect(binding.surfaceId, 'survey-root');
-    expect(binding.context, presented.single);
-    expect(binding.context!.surfaceVersion, '7');
-    expect(binding.context!.surfaceSessionId, isNotEmpty);
-  });
 
   test('stage rejects an empty surface version', () {
     final presentation = RootAnalyticsRuntime.createPresentation(
@@ -55,42 +22,12 @@ void main() {
     );
   });
 
-  test('retains source and payload kind through active and deferred bindings',
-      () async {
-    final presented = <RootAnalyticsEventContext>[];
-    final identity = _identity();
-    await identity.anonymousId();
-    RootAnalyticsRuntime.install(
-      identity: identity,
-      onSurfacePresented: presented.add,
-    );
-    final presentation = RootAnalyticsRuntime.createPresentation(
-      surface: AnalyticsSurface.general,
-      surfaceId: 'maintenance-notice',
-      sourceKind: SurfaceSourceKind.screen,
-      payloadKind: SurfacePayloadKind.blob,
-    )..stage(surfaceVersion: '3');
-
-    presentation.activate();
-    final deferred = presentation.captureDeferredContext();
-    final activeBinding = _bindingFrom(presentation);
-    final deferredBinding = _bindingFrom(deferred);
-
-    expect(presented.single.sourceKind, SurfaceSourceKind.screen);
-    expect(presented.single.payloadKind, SurfacePayloadKind.blob);
-    expect(activeBinding.sourceKind, SurfaceSourceKind.screen);
-    expect(activeBinding.payloadKind, SurfacePayloadKind.blob);
-    expect(deferredBinding.sourceKind, SurfaceSourceKind.screen);
-    expect(deferredBinding.payloadKind, SurfacePayloadKind.blob);
-  });
-
   test('overlapping presentations retain owner-specific active context',
       () async {
     final identity = _identity();
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: (_) {},
     );
     final retained = RootAnalyticsRuntime.createPresentation(
       surface: 'message',
@@ -123,7 +60,6 @@ void main() {
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: (_) {},
     );
     final first = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
@@ -150,46 +86,12 @@ void main() {
     );
   });
 
-  test('overlapping paint winner activates once and loser activates zero',
-      () async {
-    final presented = <RootAnalyticsEventContext>[];
-    final identity = _identity();
-    await identity.anonymousId();
-    RootAnalyticsRuntime.install(
-      identity: identity,
-      onSurfacePresented: presented.add,
-    );
-    final retainedWinner = RootAnalyticsRuntime.createPresentation(
-      surface: 'message',
-      surfaceId: 'retained',
-    )..stage(surfaceVersion: '1');
-    final rejectedLoser = RootAnalyticsRuntime.createPresentation(
-      surface: 'message',
-      surfaceId: 'candidate',
-    )..stage(surfaceVersion: '2');
-
-    rejectedLoser
-      ..abandon()
-      ..activate();
-    retainedWinner
-      ..activate()
-      ..activate();
-
-    expect(presented, hasLength(1));
-    expect(presented.single.surfaceId, 'retained');
-    expect(presented.single.surfaceVersion, '1');
-    expect(_bindingFrom(rejectedLoser).context, isNull);
-    expect(_bindingFrom(retainedWinner).context, presented.single);
-  });
-
   test('staged build/layout/paint failures activate zero canonical events',
       () async {
-    final presented = <RootAnalyticsEventContext>[];
     final identity = _identity();
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: presented.add,
     );
 
     for (final failure in const <String>['build', 'layout', 'paint']) {
@@ -202,18 +104,14 @@ void main() {
         ..activate();
       expect(_bindingFrom(presentation).context, isNull);
     }
-
-    expect(presented, isEmpty);
   });
 
   test('reset before activation retires staged canonical presentation',
       () async {
-    final presented = <RootAnalyticsEventContext>[];
     final identity = _identity();
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: presented.add,
     );
     final stale = RootAnalyticsRuntime.createPresentation(
       surface: 'onboarding',
@@ -225,7 +123,6 @@ void main() {
     stale.activate();
     await reset;
 
-    expect(presented, isEmpty);
     expect(_bindingFrom(stale).context, isNull);
   });
 
@@ -235,7 +132,6 @@ void main() {
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: (_) {},
     );
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'onboarding',
@@ -260,7 +156,6 @@ void main() {
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: (_) {},
     );
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
@@ -283,46 +178,12 @@ void main() {
   });
 
   test(
-      'same-authority install updates the emitter without retiring active or '
-      'pending presentations', () async {
-    final firstEmitter = <RootAnalyticsEventContext>[];
-    final secondEmitter = <RootAnalyticsEventContext>[];
-    final identity = _identity();
-    await identity.anonymousId();
-    RootAnalyticsRuntime.install(
-      identity: identity,
-      onSurfacePresented: firstEmitter.add,
-    );
-    final active = RootAnalyticsRuntime.createPresentation(
-      surface: 'message',
-      surfaceId: 'active',
-    )..stage(surfaceVersion: '1');
-    active.activate();
-    final pending = RootAnalyticsRuntime.createPresentation(
-      surface: 'message',
-      surfaceId: 'pending',
-    )..stage(surfaceVersion: '2');
-
-    RootAnalyticsRuntime.install(
-      identity: identity,
-      onSurfacePresented: secondEmitter.add,
-    );
-    pending.activate();
-
-    expect(_bindingFrom(active).context, firstEmitter.single);
-    expect(pending.isInvalidatedByIdentityReset, isFalse);
-    expect(secondEmitter, hasLength(1));
-    expect(secondEmitter.single.surfaceId, 'pending');
-  });
-
-  test(
       'authority retirement permanently invalidates pending and deferred '
       'contexts across reinstall', () async {
     final identity = _identity();
     await identity.anonymousId();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: (_) {},
     );
     final active = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
@@ -338,7 +199,6 @@ void main() {
     RootAnalyticsRuntime.retireAuthority();
     RootAnalyticsRuntime.install(
       identity: identity,
-      onSurfacePresented: (_) {},
     );
 
     expect(pending.isInvalidatedByIdentityReset, isTrue);

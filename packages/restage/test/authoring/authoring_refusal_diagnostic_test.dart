@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/analytics/render_event_privacy.dart';
+import 'package:restage/src/authoring/event_dispatch_admission.dart';
 import 'package:restage/src/authoring/authoring_refusal_diagnostic.dart';
 import 'package:restage/src/authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration;
@@ -59,7 +59,7 @@ Future<
   late final SurfaceEventHandler handler;
   handler = (_, __) {
     handlerWasCalled = true;
-    RestageFlowRenderEventPrivacyRegistry.runControllerEvent(
+    RestageFlowEventDispatchRegistry.runControllerEvent(
       controller: rejectedController,
       body: () => eventWasRun = true,
     );
@@ -74,7 +74,6 @@ Future<
         contentToken: Object(),
         associatedHandler: handler,
         isCurrent: () => true,
-        mayExposeNonEmptyHostContext: () => false,
         child: Builder(
           builder: (context) {
             callback = capture(context);
@@ -287,7 +286,6 @@ void main() {
             contentToken: content,
             associatedHandler: differentHandler,
             isCurrent: () => true,
-            mayExposeNonEmptyHostContext: () => false,
             child: Builder(
               builder: (context) {
                 callback = surfaceEventWithContext(

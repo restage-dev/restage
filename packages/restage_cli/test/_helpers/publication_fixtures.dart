@@ -286,6 +286,8 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
             ),
           ]
         : const [],
+    presentations: const [],
+    presentationRouteSeeds: const [],
     lineageIntents: admittedRoute
         ? [
             MeasurementPublicationLineageIntentV1(

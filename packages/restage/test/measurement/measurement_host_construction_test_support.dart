@@ -387,11 +387,13 @@ final class _DeterministicDeliverySession
       _worker._append(this, record);
 
   @override
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint() =>
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint(
+          {int? frameElapsedMicros}) =>
       _worker._checkpoint(this, isFinal: false);
 
   @override
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown() =>
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
+          {int? frameElapsedMicros}) =>
       _worker._checkpoint(this, isFinal: true);
 
   @override

@@ -4,14 +4,9 @@ import 'dart:ui' show AppLifecycleState, Locale;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart'
     show WidgetsBinding, WidgetsBindingObserver;
-import 'package:http/http.dart' as http;
-import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-import '../analytics/analytics_event_mapper.dart';
 import '../analytics/analytics_identity.dart';
-import '../analytics/analytics_transport.dart';
-import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../commerce/restage_commerce.dart'
     show RestageCommerce, restageCommerceInstance;
@@ -19,6 +14,13 @@ import '../metering/metering_token_store.dart';
 import '../measurement/governed_measurement_transport.dart';
 import '../measurement/governed_measurement_rpc_transport.dart';
 import '../measurement/measurement_assignment_transport.dart';
+import '../measurement/measurement_host_construction_owner.dart';
+import '../measurement/measurement_host_session.dart';
+import '../measurement/measurement_worker_delivery.dart'
+    show
+        measurementWorkerDeliverySupported,
+        MeasurementWorkerOwnedDeliveryRuntime;
+import '../measurement/hosted_measurement_construction_profile_read_port.dart';
 import '../measurement/itt_assignment_rpc_adapter.dart';
 import '../measurement/restage_measurement.dart';
 import '../measurement/restage_privacy.dart';
@@ -36,6 +38,10 @@ import '../refresh/surface_update_channel.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/restage_variant_resolver.dart';
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/surface_assignment_credential_store.dart';
+import '../resolver/surface_assignment_persistence.dart';
+import '../resolver/surface_assignment_built_ins.dart';
+import '../resolver/surface_canonical_carrier_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
@@ -52,8 +58,6 @@ import 'restage_widget_library_registration.dart';
 /// also be rendered directly with `AssetVariantResolver` and
 /// `AssetFlowResolver`.
 abstract final class Restage {
-  Restage._();
-
   /// App-wide commerce operations and state.
   static final RestageCommerce commerce = restageCommerceInstance;
 
@@ -72,6 +76,10 @@ abstract final class Restage {
       const AssetSurfaceScreenResolver();
   static int _configurationGeneration = 0;
   static bool _measurementEnabled = true;
+  static MeasurementHostConstructionOwner? _measurementHostOwner;
+  static final Set<MeasurementHostConstructionOwner>
+      _measurementRetiringOwners = {};
+  static Future<void> _measurementHostBarrier = Future<void>.value();
 
   // App-global live-refresh configuration. `_liveRefresh` is the fallback
   // trigger set; `_liveRefreshOverrides` pins a per-surface set by id; both are
@@ -87,26 +95,16 @@ abstract final class Restage {
   static RestageRpcClient? _rpcClient;
   static _RestageLifecycleObserver? _lifecycleObserver;
 
-  // The SDK version stamped into the app context of each recorded event.
-  static const String _sdkVersion = '2.0.0';
-
   // The behavioral-analytics transport. Active only when [configure] is given a
   // [baseUrl]; otherwise `track`/`identify`/`reset` are inert (no endpoint).
   static AnalyticsIdentity? _analyticsIdentity;
-  static AnalyticsTransport? _analyticsTransport;
-  static AnalyticsAppContext? _analyticsAppContext;
 
   // Observes every event passed to [fireEvent], after the host broadcast leg.
   // Registered by the recording runtime when it is configured and cleared when
   // it is torn down; there is no host-facing way to install one. Keeping it a
   // registration rather than a hard call in [fireEvent] is what lets the event
   // stream and the recording path be reasoned about — and retired — separately.
-  static void Function(RestageEvent, bool)? _recordingSink;
-  static ({
-    String apiKey,
-    String endpoint,
-    RestageEnvironment environment
-  })? _analyticsAuthority;
+  static ({String apiKey, RestageEnvironment environment})? _analyticsAuthority;
 
   /// Configure the SDK at app startup.
   ///
@@ -127,13 +125,12 @@ abstract final class Restage {
   /// installed and falls back only to the exact bundled screen closure.
   ///
   /// [baseUrl] is the hosted service origin (e.g.
-  /// `'https://api.example.com'`). When omitted, hosted delivery, analytics,
-  /// metering, and governed operations remain inactive.
+  /// `'https://api.example.com'`). When omitted, hosted delivery, metering, and
+  /// governed operations remain inactive.
   ///
-  /// [analyticsEnabled] (default `true`) controls the conversion-analytics
-  /// transport. When `false`, no analytics events are sent even if [baseUrl] is
-  /// set — hosted delivery and governed operations remain available. With no
-  /// [baseUrl] analytics is already inactive regardless of this flag.
+  /// [analyticsEnabled] (default `true`) gates local anonymous identity and
+  /// automatic assignment credential registration. When `false`, no identifier
+  /// is minted; hosted delivery and governed operations remain available.
   ///
   /// [measurementEnabled] (default `true`) controls new Measurement sessions.
   /// When `false`, new sessions do not load publications or submit data.
@@ -246,10 +243,10 @@ abstract final class Restage {
     );
     _configureSurfaceAssignmentKeyProvider(
       baseUrl: baseUrl,
-      enabled: analyticsEnabled,
+      enabled: analyticsEnabled && measurementEnabled,
     );
     _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
-    SurfaceDeliveryEvidence.install(_emitSurfaceArtifactFetchFailed);
+    _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
     if (baseUrl != null) {
       // Microtask-defer so `configure` stays sync-returning. The cold-start
       // sync runs after the host's `runApp` settles. Re-calls of
@@ -306,46 +303,16 @@ abstract final class Restage {
         _retireAnalyticsAuthority();
       }
       _analyticsAuthority = null;
-      _analyticsTransport?.close();
-      _analyticsTransport = null;
-      _analyticsAppContext = null;
-      _recordingSink = null;
       return;
     }
-    final endpoint = _analyticsEndpoint(baseUrl);
-    final authority = (
-      apiKey: apiKey,
-      endpoint: endpoint,
-      environment: environment,
-    );
+    final authority = (apiKey: apiKey, environment: environment);
     final previousAuthority = _analyticsAuthority;
     if (previousAuthority != null && previousAuthority != authority) {
       _retireAnalyticsAuthority();
     }
     _analyticsAuthority = authority;
     _analyticsIdentity ??= RootAnalyticsRuntime.createIdentity();
-    _analyticsAppContext = AnalyticsAppContext(
-      platform: _platformWireName(),
-      locale: locale?.toLanguageTag() ?? 'und',
-      sdkVersion: _sdkVersion,
-    );
-    final preservesTransport =
-        previousAuthority == authority && _analyticsTransport != null;
-    if (!preservesTransport) {
-      _analyticsTransport?.close();
-      _analyticsTransport = AnalyticsTransport(
-        endpointUrl: endpoint,
-        apiKey: apiKey,
-        httpClient: debugAnalyticsHttpClient,
-        onError: (error, _) =>
-            debugPrint('[restage][analytics] dropped a batch: $error'),
-      );
-    }
-    RootAnalyticsRuntime.install(
-      identity: _analyticsIdentity!,
-      onSurfacePresented: _emitSurfacePresented,
-    );
-    _recordingSink = _bridgeEventToAnalytics;
+    RootAnalyticsRuntime.install(identity: _analyticsIdentity!);
   }
 
   static void _retireAnalyticsAuthority() {
@@ -367,39 +334,92 @@ abstract final class Restage {
     required bool enabled,
   }) {
     final identity = _analyticsIdentity;
-    if (!enabled || baseUrl == null || baseUrl.isEmpty || identity == null) {
+    SurfaceCanonicalCarrierProvider.clear();
+    if (!enabled ||
+        !measurementWorkerDeliverySupported ||
+        baseUrl == null ||
+        baseUrl.isEmpty ||
+        identity == null) {
       SurfaceAssignmentKeyProvider.clear();
       return;
     }
-    SurfaceAssignmentKeyProvider.install(
-      key: identity.anonymousId,
+    final namespace = '$baseUrl|$_apiKey|${_environment.name}';
+    final configurationGeneration = _configurationGeneration;
+    final credentialStore = SurfaceAssignmentCredentialStore(
+      namespace: namespace,
+      actor: identity.anonymousId,
+      onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
       identityGeneration: () => identity.generation,
+      client: () => configurationGeneration == _configurationGeneration
+          ? _requireRpcClient()
+          : null,
+    );
+    SurfaceCanonicalCarrierProvider.enableAssignmentRetention(namespace);
+    SurfaceCanonicalCarrierProvider.installBuiltIns(
+        readSurfaceAssignmentBuiltIns);
+    SurfaceAssignmentKeyProvider.install(
+      key: credentialStore.resolve,
+      identityGeneration: () => credentialStore.generation,
     );
   }
 
-  static String _analyticsEndpoint(String baseUrl) {
-    final trimmed = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    return '$trimmed/analytics/events';
-  }
-
-  static String _platformWireName() {
-    if (kIsWeb) return AnalyticsPlatform.web;
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.iOS:
-        return AnalyticsPlatform.ios;
-      case TargetPlatform.android:
-        return AnalyticsPlatform.android;
-      case TargetPlatform.macOS:
-        return AnalyticsPlatform.macos;
-      case TargetPlatform.windows:
-        return AnalyticsPlatform.windows;
-      case TargetPlatform.linux:
-        return AnalyticsPlatform.linux;
-      case TargetPlatform.fuchsia:
-        return 'fuchsia';
+  static void _configureMeasurementHost({
+    required bool enabled,
+    bool privacyReset = true,
+  }) {
+    final previous = _measurementHostOwner;
+    _measurementHostOwner = null;
+    MeasurementHostSessionConstructionRegistry.installProduction(null);
+    final baseUrl = _baseUrl;
+    final apiKey = _apiKey;
+    final admitted =
+        enabled && baseUrl != null && baseUrl.isNotEmpty && apiKey != null;
+    if (previous != null) _measurementRetiringOwners.add(previous);
+    final previousBarrier = _measurementHostBarrier;
+    if (!admitted && privacyReset) {
+      final completed = Completer<void>();
+      final owners = _measurementRetiringOwners.toList();
+      final cancellations = [
+        for (final owner in owners)
+          owner.cancelCollection(purgeCompletion: completed.future),
+      ];
+      final cleanup = () async {
+        // A new cleanup attempt may recover from an earlier failed deletion.
+        await previousBarrier.catchError((Object _) {});
+        await Future.wait(cancellations);
+        await MeasurementWorkerOwnedDeliveryRuntime.purgePersisted();
+        _measurementRetiringOwners.removeAll(owners);
+      }();
+      _measurementHostBarrier = completed.future;
+      unawaited(
+          cleanup.then(completed.complete, onError: completed.completeError));
+      // Keep the failure on the startup barrier while avoiding an unobserved
+      // asynchronous error when collection remains disabled.
+      unawaited(completed.future.catchError((Object _) {}));
+      return;
     }
+    if (previous != null) {
+      final retirement = previous.close();
+      _measurementHostBarrier = Future.wait<void>([previousBarrier, retirement])
+          .then((_) => _measurementRetiringOwners.remove(previous));
+      unawaited(_measurementHostBarrier.catchError((Object _) {}));
+    }
+    if (!admitted) return;
+    final generation = _configurationGeneration;
+    final owner = MeasurementHostConstructionOwner.production(
+      startupBarrier: _measurementHostBarrier,
+      profileReadPort: HostedMeasurementConstructionProfileReadPort(
+        client: () =>
+            generation == _configurationGeneration ? _requireRpcClient() : null,
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+      ),
+    );
+    _measurementHostOwner = owner;
+    MeasurementHostSessionConstructionRegistry.installProduction(
+      MeasurementHostSessionConstructionAuthority.production(
+          constructionOwner: owner),
+    );
   }
 
   /// App-wide event stream. Receives presentation and interaction events.
@@ -414,9 +434,10 @@ abstract final class Restage {
   /// Rotates the on-device pseudonymous actor.
   ///
   /// What it does, exactly: mints a fresh pseudonymous id, rotates the session,
+  /// removes persisted assignment credentials and held assignments,
   /// and clears the current surface-session identity rather than carrying it
-  /// across. Because that id is also the experiment assignment key, the
-  /// installation becomes a new, unlinked randomized unit — assignment is
+  /// across. The next hosted resolution registers a new assignment credential,
+  /// so the installation becomes a new, unlinked randomized unit. Assignment is
   /// re-drawn on the next surface presentation, and no relationship is recorded
   /// or claimed between the old unit and the new one. Pending hosted first-paint
   /// work selected under the previous id is invalidated; presentations already
@@ -437,31 +458,13 @@ abstract final class Restage {
     // reset() advances the in-memory generation synchronously before its first
     // persistence await. Reject pending hosted paint work against that new
     // generation now; accepted presentations remain pinned.
-    unawaited(identity.reset());
+    final identityReset = identity.reset();
+    SurfaceCanonicalCarrierProvider.clearHeldAssignments();
+    unawaited(SurfaceAssignmentPersistence.forget(
+      afterIdentityReset: identityReset,
+    ));
     RootAnalyticsRuntime.retireAll();
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
-  }
-
-  /// Resolves the pseudonymous id (cached, else awaited) and enqueues the event
-  /// built by [build]. The shared fail-safe enqueue path for both the custom
-  /// `track` call and the `fireEvent` bridge — never throws into host code.
-  static Future<void> _enqueue(
-    AnalyticsTransport transport,
-    AnalyticsIdentity identity,
-    AnalyticsEvent Function(String anonymousId) build, {
-    required String label,
-    bool flushAfterEnqueue = false,
-  }) async {
-    try {
-      final anonymousId =
-          identity.cachedAnonymousId ?? await identity.anonymousId();
-      transport.enqueue(build(anonymousId));
-      if (flushAfterEnqueue) {
-        unawaited(transport.flush());
-      }
-    } on Object catch (error) {
-      debugPrint('[restage][analytics] $label dropped: $error');
-    }
   }
 
   /// Register an app-defined widget [library] so its [widgets] can be
@@ -510,132 +513,12 @@ abstract final class Restage {
   /// Adds [event] to the [events] broadcast stream.
   ///
   /// The broadcast leg short-circuits when nothing is listening to [events].
-  /// Recording is a separate concern: it runs through [_recordingSink], which
-  /// the recording runtime registers for itself, so it observes every fired
-  /// event even when the host does not subscribe to [events].
   static void fireEvent(RestageEvent event) {
     final controller = _events;
     if (controller != null && controller.hasListener) {
       controller.add(event);
     }
-    _recordingSink?.call(
-      event,
-      RestageRenderEventPrivacy.omitsAuthoredArguments,
-    );
   }
-
-  static void _bridgeEventToAnalytics(
-    RestageEvent event,
-    bool omitAuthoredArguments,
-  ) {
-    final transport = _analyticsTransport;
-    final identity = _analyticsIdentity;
-    final appContext = _analyticsAppContext;
-    if (transport == null || identity == null || appContext == null) return;
-    // Prod does not emit the Tier-2 session summary (capture is v1).
-    if (isProdSuppressedAnalyticsEvent(event.name)) return;
-    // Capture the mutable identity snapshot SYNCHRONOUSLY: `surfaceSessionId`
-    // can change on the next mount/dismiss before the (possibly async)
-    // anonymousId resolves, so the event must bind the values at fire time.
-    final snapshot = _IdentitySnapshot.capture(identity);
-    final rootAttribution = RootAnalyticsRuntime.currentEventBinding;
-    unawaited(
-      _enqueue(
-        transport,
-        identity,
-        (anonymousId) => mapRestageEventToEnvelope(
-          event,
-          eventId: identity.newEventId(),
-          anonymousId: anonymousId,
-          sessionId: snapshot.sessionId,
-          surfaceSessionId: snapshot.surfaceSessionId,
-          userId: snapshot.userId,
-          appContext: appContext,
-          now: DateTime.now().toUtc(),
-          rootAttribution: rootAttribution,
-          omitAuthoredArguments: omitAuthoredArguments,
-        ),
-        label: event.name,
-        flushAfterEnqueue: _isMeteredExposureEvent(event),
-      ),
-    );
-  }
-
-  /// Reports a delivery whose description resolved and whose content did not
-  /// arrive.
-  ///
-  /// Built here rather than at the delivery path, and directly rather than
-  /// through the paywall-shaped event hierarchy: the failure is surface-general
-  /// — it happens identically to an onboarding flow, a message and a survey —
-  /// and the hierarchy's only load-failure member names a paywall. The
-  /// canonical presentation event next door is emitted the same way for the
-  /// same reason.
-  static void _emitSurfaceArtifactFetchFailed({
-    required Surface surfaceType,
-    required String surfaceSlug,
-    required int version,
-    required String reason,
-  }) {
-    final transport = _analyticsTransport;
-    final identity = _analyticsIdentity;
-    final appContext = _analyticsAppContext;
-    if (transport == null || identity == null || appContext == null) return;
-    final snapshot = _IdentitySnapshot.capture(identity);
-    unawaited(
-      _enqueue(
-        transport,
-        identity,
-        (anonymousId) => AnalyticsEvent(
-          eventId: identity.newEventId(),
-          name: kSurfaceArtifactFetchFailedEventName,
-          occurredAt: DateTime.now().toUtc(),
-          surface: surfaceType.wireName,
-          surfaceId: surfaceSlug,
-          surfaceVersion: '$version',
-          surfaceSessionId: snapshot.surfaceSessionId,
-          anonymousId: anonymousId,
-          sessionId: snapshot.sessionId,
-          userId: snapshot.userId,
-          appContext: appContext,
-          properties: <String, Object?>{'reason': reason},
-        ),
-        label: kSurfaceArtifactFetchFailedEventName,
-      ),
-    );
-  }
-
-  static void _emitSurfacePresented(RootAnalyticsEventContext context) {
-    final transport = _analyticsTransport;
-    final identity = _analyticsIdentity;
-    final appContext = _analyticsAppContext;
-    if (transport == null || identity == null || appContext == null) return;
-    final snapshot = _IdentitySnapshot.capture(identity);
-    unawaited(
-      _enqueue(
-        transport,
-        identity,
-        (anonymousId) => AnalyticsEvent(
-          eventId: context.canonicalEventId!,
-          name: 'surface_presented',
-          occurredAt: context.canonicalOccurredAt!,
-          surface: context.surface,
-          surfaceId: context.surfaceId,
-          surfaceVersion: context.surfaceVersion,
-          surfaceSessionId: context.surfaceSessionId,
-          anonymousId: anonymousId,
-          sessionId: snapshot.sessionId,
-          userId: snapshot.userId,
-          appContext: appContext,
-          properties: const <String, Object?>{},
-        ),
-        label: 'surface_presented',
-        flushAfterEnqueue: true,
-      ),
-    );
-  }
-
-  static bool _isMeteredExposureEvent(RestageEvent event) =>
-      event.name == 'paywall_viewed' || event.name == 'onboarding_step_viewed';
 
   /// Resolver used when a `RestagePaywall` is constructed without an explicit
   /// `resolver:` parameter.
@@ -762,10 +645,12 @@ abstract final class Restage {
   static RestageRpcClient? get debugRestageRpcClient => _rpcClient;
 
   /// Resets all module-global state. **Tests must call this in `setUp`
-  /// to avoid leaking state between tests.**
+  /// to avoid leaking state between tests.** Native fixtures that dispose
+  /// worker resources must await [debugResetAndWait] instead.
   @visibleForTesting
   static void debugReset() {
     _configurationGeneration += 1;
+    _configureMeasurementHost(enabled: false, privacyReset: false);
     _apiKey = null;
     _baseUrl = null;
     _environment = RestageEnvironment.production;
@@ -780,18 +665,14 @@ abstract final class Restage {
     _events = null;
     _rpcClient = null;
     MeasurementAssignmentTransportRegistry.debugReset();
-    _analyticsTransport?.close();
-    _analyticsTransport = null;
     RootAnalyticsRuntime.clear();
     _analyticsIdentity = null;
-    _analyticsAppContext = null;
     _analyticsAuthority = null;
-    _recordingSink = null;
     SurfaceAssignmentKeyProvider.clear();
+    SurfaceCanonicalCarrierProvider.clear();
     _meteringTokenStore = null;
     SurfaceMeteringKeyProvider.clear();
     SurfaceDeliveryEvidence.clear();
-    debugAnalyticsHttpClient = null;
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();
     resetRestagePaywallCache();
@@ -799,16 +680,13 @@ abstract final class Restage {
     GovernedMeasurementPortRegistry.debugReset();
   }
 
-  /// Test-only — injects the [http.Client] the analytics transport uses, so a
-  /// test can capture or stub the ingest POST. Cleared by [debugReset].
-  @internal
-  static http.Client? debugAnalyticsHttpClient;
-
-  /// Test-only — flushes the analytics transport synchronously so a test can
-  /// assert on the ingest POST without waiting for the batch threshold.
-  @internal
-  static Future<void> debugFlushAnalytics() =>
-      _analyticsTransport?.flush() ?? Future<void>.value();
+  /// Resets state synchronously and acknowledges retirement of native workers.
+  /// Invoke and await this inside the async context that owns those resources.
+  @visibleForTesting
+  static Future<void> debugResetAndWait() {
+    debugReset();
+    return _measurementHostBarrier;
+  }
 
   static void _handleLifecycleState(AppLifecycleState state) {
     switch (state) {
@@ -826,7 +704,6 @@ abstract final class Restage {
             state == AppLifecycleState.paused) {
           SurfaceRefreshRegistry.instance.onAppBackgrounded();
         }
-        unawaited(_analyticsTransport?.flush() ?? Future<void>.value());
     }
   }
 }
@@ -838,28 +715,4 @@ class _RestageLifecycleObserver with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     Restage._handleLifecycleState(state);
   }
-}
-
-/// An immutable snapshot of the **mutable** identity fields, captured
-/// synchronously at event-fire time so a later mount/dismiss cannot change the
-/// values the in-flight (async) bridge binds onto the event. The per-event
-/// `eventId` is minted inside the build closure (it is a fresh UUID, not
-/// captured mutable state).
-class _IdentitySnapshot {
-  const _IdentitySnapshot({
-    required this.sessionId,
-    required this.surfaceSessionId,
-    required this.userId,
-  });
-
-  factory _IdentitySnapshot.capture(AnalyticsIdentity identity) =>
-      _IdentitySnapshot(
-        sessionId: identity.sessionId,
-        surfaceSessionId: identity.surfaceSessionId,
-        userId: identity.userId,
-      );
-
-  final String sessionId;
-  final String? surfaceSessionId;
-  final String? userId;
 }

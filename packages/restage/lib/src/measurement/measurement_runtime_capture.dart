@@ -706,12 +706,15 @@ final class MeasurementRuntimeCaptureSession
     required ExactMeasurementPublicationContextRefV1 publicationContextRef,
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
   }) : this._(
           bounds: bounds,
           captureSessionNonce: captureSessionNonce,
           publicationContextRef: publicationContextRef,
           routeTable: routeTable,
           sequence: sequence,
+          experimentAssignment: experimentAssignment,
+          monotonicMicrosSource: null,
           successfulRootPresentation: false,
         );
 
@@ -727,12 +730,16 @@ final class MeasurementRuntimeCaptureSession
     required ExactMeasurementPublicationContextRefV1 publicationContextRef,
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+    int Function()? monotonicMicrosSource,
   }) : this._(
           bounds: bounds,
           captureSessionNonce: captureSessionNonce,
           publicationContextRef: publicationContextRef,
           routeTable: routeTable,
           sequence: sequence,
+          experimentAssignment: experimentAssignment,
+          monotonicMicrosSource: monotonicMicrosSource,
           successfulRootPresentation: true,
         );
 
@@ -743,7 +750,16 @@ final class MeasurementRuntimeCaptureSession
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
     required bool successfulRootPresentation,
-  })  : _routeTable = routeTable,
+    required this.experimentAssignment,
+    required int Function()? monotonicMicrosSource,
+  })  : _monotonicMicrosSource = monotonicMicrosSource,
+        _presentationWitnesses = experimentAssignment == null
+            ? null
+            : List<int?>.filled(routeTable._routeCount, null),
+        _interactionWitnesses = experimentAssignment == null
+            ? null
+            : List<int?>.filled(routeTable._routeCount, null),
+        _routeTable = routeTable,
         _nextSequence = sequence,
         _slotStates = Uint32List(routeTable._routeCount),
         _missingnessCounts = List<int>.filled(
@@ -784,9 +800,17 @@ final class MeasurementRuntimeCaptureSession
   /// unchanged.
   final ExactMeasurementPublicationContextRefV1 publicationContextRef;
 
+  /// Server-issued assignment retained unchanged for this capture session.
+  final MeasurementExperimentAssignmentV1? experimentAssignment;
+
   /// Sequence that the next emitted snapshot will carry.
   int get sequence => _nextSequence;
 
+  final Stopwatch _monotonicClock = Stopwatch()..start();
+  final int Function()? _monotonicMicrosSource;
+  List<int?>? _presentationWitnesses;
+  List<int?>? _interactionWitnesses;
+  int _lastElapsedMicros = -1;
   MeasurementRuntimeRouteTable? _routeTable;
   Uint32List? _slotStates;
   List<int>? _missingnessCounts;
@@ -852,6 +876,7 @@ final class MeasurementRuntimeCaptureSession
     }
     final index = route._index;
     final originalSlotState = slotStates[index];
+    final witness = experimentAssignment == null ? null : _readElapsedMicros();
     var slotState = originalSlotState;
     _beginNewSnapshotAfterCheckpoint();
     if ((slotState & _measurementSlotPresentedFlag) == 0) {
@@ -866,6 +891,7 @@ final class MeasurementRuntimeCaptureSession
         return MeasurementCaptureWriteDisposition.truncated;
       }
       slotState |= _measurementSlotPresentedFlag;
+      if (witness != null) _presentationWitnesses![index] = witness;
       _presentedPointCount += 1;
       if (_interactionCounterCount == bounds.maximumInteractionCounters) {
         slotState |= _measurementSlotInteractionCounterTruncatedFlag;
@@ -879,6 +905,7 @@ final class MeasurementRuntimeCaptureSession
     }
     if (recordsInteraction &&
         (slotState & _measurementSlotHasInteractionCounterFlag) != 0) {
+      if (witness != null) _interactionWitnesses![index] ??= witness;
       final interactionCount = slotState & _measurementSlotInteractionCountMask;
       if (interactionCount < bounds.maximumCounterValue) {
         final nextInteractionCount = interactionCount + 1;
@@ -893,6 +920,19 @@ final class MeasurementRuntimeCaptureSession
     return (slotState & _measurementSlotHasInteractionCounterFlag) != 0
         ? MeasurementCaptureWriteDisposition.recorded
         : MeasurementCaptureWriteDisposition.truncated;
+  }
+
+  int _readElapsedMicros() {
+    final micros =
+        _monotonicMicrosSource?.call() ?? _monotonicClock.elapsedMicroseconds;
+    if (micros < 0 ||
+        micros < _lastElapsedMicros ||
+        micros > measurementIngestMaximumOutcomeWitnessMicros) {
+      throw StateError(
+          'Capture occurrence is outside the monotonic witness bounds');
+    }
+    _lastElapsedMicros = micros;
+    return micros;
   }
 
   /// Records bounded missingness outside the callback capture sub-entry.
@@ -997,6 +1037,8 @@ final class MeasurementRuntimeCaptureSession
           lineageId: route.lineageId.value,
           interactionState: _interactionStateForSlotState(slotState),
           interactionCount: _interactionCountJsonForSlotState(slotState),
+          presentationFirstOccurrenceMicros: _presentationWitnesses?[index],
+          interactionFirstOccurrenceMicros: _interactionWitnesses?[index],
         ),
       );
     }
@@ -1016,7 +1058,11 @@ final class MeasurementRuntimeCaptureSession
           'maximumPresentedPoints': bounds.maximumPresentedPoints,
         },
         'captureSessionNonce': captureSessionNonce._value,
+        if (experimentAssignment != null)
+          'experimentAssignment': experimentAssignment!.toJson(),
         'facts': [for (final fact in facts) fact.toJson()],
+        if (experimentAssignment != null)
+          'frameElapsedMicros': _readElapsedMicros(),
         'finality': {'kind': isFinal ? 'final' : 'pending'},
         'kind': 'measurementFactFrame',
         'missingness': missingness,
@@ -1051,6 +1097,9 @@ final class MeasurementRuntimeCaptureSession
   void _releaseMutableState() {
     _routeTable = null;
     _slotStates = null;
+    _presentationWitnesses = null;
+    _interactionWitnesses = null;
+    _monotonicClock.stop();
     _missingnessCounts = null;
   }
 
@@ -1104,18 +1153,27 @@ final class _MeasurementSerializedFact {
     required this.lineageId,
     required this.interactionState,
     required this.interactionCount,
+    required this.presentationFirstOccurrenceMicros,
+    required this.interactionFirstOccurrenceMicros,
   });
 
   final String occurrenceId;
   final String lineageId;
   final MeasurementFactInteractionState interactionState;
   final Map<String, Object?>? interactionCount;
+  final int? presentationFirstOccurrenceMicros;
+  final int? interactionFirstOccurrenceMicros;
 
   String get identity => '$occurrenceId\u0000$lineageId';
 
   Map<String, Object?> toJson() => {
         if (interactionCount != null) 'interactionCount': interactionCount,
         'interactionState': interactionState.wireName,
+        if (presentationFirstOccurrenceMicros != null)
+          'presentationFirstOccurrenceMicros':
+              presentationFirstOccurrenceMicros,
+        if (interactionFirstOccurrenceMicros != null)
+          'interactionFirstOccurrenceMicros': interactionFirstOccurrenceMicros,
         'lineageId': lineageId,
         'occurrenceId': occurrenceId,
       };

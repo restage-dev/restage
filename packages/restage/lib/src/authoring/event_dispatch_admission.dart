@@ -2,240 +2,27 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/widgets.dart';
-import 'package:rfw/rfw.dart' as rfw;
 
-import '../events/restage_event.dart';
-
-/// Keeps host render data out of automatic custom-event analytics.
-final class RestageRenderEventPrivacy {
-  static final Object _scopeKey = Object();
-
-  /// Runs one rendered event with the privacy state of its content target.
-  static T run<T>({
-    required bool mayExposeNonEmptyHostContext,
-    required T Function() body,
-  }) {
-    return runZoned<T>(
-      body,
-      zoneValues: <Object, Object?>{
-        _scopeKey: omitsAuthoredArguments || mayExposeNonEmptyHostContext,
-      },
-    );
-  }
-
-  /// Whether automatic analytics must omit authored custom-event arguments.
-  static bool get omitsAuthoredArguments => Zone.current[_scopeKey] == true;
-
-  /// Returns the event map used by the automatic analytics bridge.
-  static Map<String, Object?> analyticsMap(
-    RestageEvent event, {
-    required bool omitAuthoredArguments,
-  }) {
-    if (!omitAuthoredArguments) return event.toMap();
-    return switch (event) {
-      PaywallCustomEvent() => <String, Object?>{
-          'name': event.name,
-          'paywallId': event.paywallId,
-          'eventName': event.eventName,
-        },
-      FlowCustomEvent() => <String, Object?>{
-          'name': event.name,
-          'flowId': event.flowId,
-          'flowVersion': event.flowVersion,
-          if (event.resolvedVersion != null)
-            'resolvedVersion': event.resolvedVersion,
-          'eventName': event.eventName,
-          if (event.firedAt != null)
-            'firedAt': event.firedAt!.toIso8601String(),
-        },
-      _ => event.toMap(),
-    };
-  }
-}
-
-final class RestageRenderRuntime extends rfw.Runtime {
-  @override
-  void update(rfw.LibraryName name, rfw.WidgetLibrary library) {
-    super.update(name, _privacyAwareLibrary(library));
-  }
-
-  rfw.WidgetLibrary _privacyAwareLibrary(rfw.WidgetLibrary library) {
-    if (library is! rfw.LocalWidgetLibrary ||
-        library is _RestagePrivacyAwareLocalWidgetLibrary) {
-      return library;
-    }
-    return _RestagePrivacyAwareLocalWidgetLibrary(<String,
-        rfw.LocalWidgetBuilder>{
-      for (final entry in library.widgets.entries)
-        entry.key: (context, source) {
-          final exposure = _RestageRfwEventPrivacyScope.maybeOf(context);
-          return entry.value(
-            context,
-            exposure == null
-                ? source
-                : _RestagePrivacyAwareDataSource(source, exposure),
-          );
-        },
-    });
-  }
-}
-
-final class RestagePrivacyAwareRemoteWidget extends StatelessWidget {
-  const RestagePrivacyAwareRemoteWidget({
-    super.key,
-    required this.runtime,
-    required this.widget,
-    required this.data,
-    required this.mayExposeNonEmptyHostContext,
-    this.onEvent,
-  });
-
-  final rfw.Runtime runtime;
-  final rfw.FullyQualifiedWidgetName widget;
-  final rfw.DynamicContent data;
-  final bool Function() mayExposeNonEmptyHostContext;
-  final rfw.RemoteEventHandler? onEvent;
-
-  @override
-  Widget build(BuildContext context) {
-    return _RestageRfwEventPrivacyScope(
-      mayExposeNonEmptyHostContext: mayExposeNonEmptyHostContext,
-      child: rfw.RemoteWidget(
-        runtime: runtime,
-        widget: widget,
-        data: data,
-        onEvent: onEvent,
-      ),
-    );
-  }
-}
-
-final class _RestageRfwEventPrivacyScope extends InheritedWidget {
-  const _RestageRfwEventPrivacyScope({
-    required this.mayExposeNonEmptyHostContext,
-    required super.child,
-  });
-
-  final bool Function() mayExposeNonEmptyHostContext;
-
-  static bool Function()? maybeOf(BuildContext context) => context
-      .getInheritedWidgetOfExactType<_RestageRfwEventPrivacyScope>()
-      ?.mayExposeNonEmptyHostContext;
-
-  @override
-  bool updateShouldNotify(_RestageRfwEventPrivacyScope oldWidget) => !identical(
-        mayExposeNonEmptyHostContext,
-        oldWidget.mayExposeNonEmptyHostContext,
-      );
-}
-
-final class _RestagePrivacyAwareLocalWidgetLibrary
-    extends rfw.LocalWidgetLibrary {
-  _RestagePrivacyAwareLocalWidgetLibrary(super.widgets);
-}
-
-final class _RestagePrivacyAwareDataSource implements rfw.DataSource {
-  const _RestagePrivacyAwareDataSource(this._source, this._resolveExposure);
-
-  final rfw.DataSource _source;
-  final bool Function() _resolveExposure;
-
-  bool _mayExposeNonEmptyHostContext() {
-    try {
-      return _resolveExposure();
-    } on Object {
-      return true;
-    }
-  }
-
-  @override
-  T? v<T extends Object>(List<Object> argsKey) => _source.v<T>(argsKey);
-
-  @override
-  bool isList(List<Object> argsKey) => _source.isList(argsKey);
-
-  @override
-  int length(List<Object> argsKey) => _source.length(argsKey);
-
-  @override
-  bool isMap(List<Object> argsKey) => _source.isMap(argsKey);
-
-  @override
-  Widget child(List<Object> argsKey) => _source.child(argsKey);
-
-  @override
-  Widget? optionalChild(List<Object> argsKey) => _source.optionalChild(argsKey);
-
-  @override
-  List<Widget> childList(List<Object> argsKey) => _source.childList(argsKey);
-
-  @override
-  Widget builder(List<Object> argsKey, rfw.DynamicMap builderArg) =>
-      _source.builder(argsKey, builderArg);
-
-  @override
-  Widget? optionalBuilder(
-    List<Object> argsKey,
-    rfw.DynamicMap builderArg,
-  ) =>
-      _source.optionalBuilder(argsKey, builderArg);
-
-  @override
-  VoidCallback? voidHandler(
-    List<Object> argsKey, [
-    rfw.DynamicMap? extraArguments,
-  ]) {
-    return handler<VoidCallback>(
-      argsKey,
-      (trigger) => () => trigger(extraArguments),
-    );
-  }
-
-  @override
-  T? handler<T extends Function>(
-    List<Object> argsKey,
-    rfw.HandlerGenerator<T> generator,
-  ) {
-    return _source.handler<T>(argsKey, (trigger) {
-      final mayExposeAtCapture = _mayExposeNonEmptyHostContext();
-      return generator(([rfw.DynamicMap? extraArguments]) {
-        RestageRenderEventPrivacy.run<void>(
-          mayExposeNonEmptyHostContext: mayExposeAtCapture,
-          body: () => trigger(extraArguments),
-        );
-      });
-    });
-  }
-}
-
+/// Runs a target's event only while that target is still the current one.
 final class RestageTargetEventDispatchLease {
-  const RestageTargetEventDispatchLease({
-    required bool mayExposeNonEmptyHostContext,
-    required bool? Function() resolveLiveExposure,
-  })  : _mayExposeAtCapture = mayExposeNonEmptyHostContext,
-        _resolveLiveExposure = resolveLiveExposure;
+  const RestageTargetEventDispatchLease({required bool Function() isCurrent})
+      : _isCurrent = isCurrent;
 
-  final bool _mayExposeAtCapture;
-  final bool? Function() _resolveLiveExposure;
+  final bool Function() _isCurrent;
 
   bool invoke(void Function() body) {
-    final bool? mayExposeLive;
     try {
-      mayExposeLive = _resolveLiveExposure();
+      if (!_isCurrent()) return false;
     } on Object {
       return false;
     }
-    if (mayExposeLive == null) return false;
-    RestageRenderEventPrivacy.run<void>(
-      mayExposeNonEmptyHostContext: _mayExposeAtCapture || mayExposeLive,
-      body: body,
-    );
+    body();
     return true;
   }
 }
 
-final class RestageFlowRenderEventPrivacyBinding {
-  const RestageFlowRenderEventPrivacyBinding({
+final class RestageFlowEventDispatchBinding {
+  const RestageFlowEventDispatchBinding({
     required this.controller,
     required this.registration,
   });
@@ -244,8 +31,8 @@ final class RestageFlowRenderEventPrivacyBinding {
   final Object registration;
 }
 
-final class RestageFlowRenderEventPrivacyScope extends InheritedWidget {
-  const RestageFlowRenderEventPrivacyScope({
+final class RestageFlowEventDispatchScope extends InheritedWidget {
+  const RestageFlowEventDispatchScope({
     super.key,
     required Object controller,
     required Object registration,
@@ -256,35 +43,33 @@ final class RestageFlowRenderEventPrivacyScope extends InheritedWidget {
   final Object _controller;
   final Object _registration;
 
-  static RestageFlowRenderEventPrivacyBinding? maybeOf(
+  static RestageFlowEventDispatchBinding? maybeOf(
     BuildContext context,
   ) {
-    final scope = context.dependOnInheritedWidgetOfExactType<
-        RestageFlowRenderEventPrivacyScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<RestageFlowEventDispatchScope>();
     if (scope == null) return null;
-    return RestageFlowRenderEventPrivacyBinding(
+    return RestageFlowEventDispatchBinding(
       controller: scope._controller,
       registration: scope._registration,
     );
   }
 
   @override
-  bool updateShouldNotify(RestageFlowRenderEventPrivacyScope oldWidget) =>
+  bool updateShouldNotify(RestageFlowEventDispatchScope oldWidget) =>
       !identical(_controller, oldWidget._controller) ||
       !identical(_registration, oldWidget._registration);
 }
 
-final class RestageFlowRenderEventPrivacyRegistry {
+final class RestageFlowEventDispatchRegistry {
   static final Object _dispatchLeaseKey = Object();
   static final Object _dispatchRefusalKey = Object();
   static final Map<Object,
-          Map<Object, Map<Object, _RestageFlowRenderEventPrivacyRegistration>>>
+          Map<Object, Map<Object, _RestageFlowEventDispatchRegistration>>>
       _owners = HashMap<
           Object,
-          Map<
-              Object,
-              Map<Object,
-                  _RestageFlowRenderEventPrivacyRegistration>>>.identity();
+          Map<Object,
+              Map<Object, _RestageFlowEventDispatchRegistration>>>.identity();
   static final Map<Object, _RestageFlowContentState> _contentStates =
       HashMap<Object, _RestageFlowContentState>.identity();
   static final Map<Object, Map<Object, _RestageFlowEventHandlerAssociation>>
@@ -297,7 +82,6 @@ final class RestageFlowRenderEventPrivacyRegistry {
     required Object controller,
     required Object owner,
     required Object registration,
-    required bool Function() mayExposeNonEmptyHostContext,
     Object? contentToken,
     bool Function()? isCurrent,
     void Function(String, Object?)? associatedHandler,
@@ -307,18 +91,16 @@ final class RestageFlowRenderEventPrivacyRegistry {
     final controllers = _owners.putIfAbsent(
       owner,
       () => HashMap<Object,
-          Map<Object, _RestageFlowRenderEventPrivacyRegistration>>.identity(),
+          Map<Object, _RestageFlowEventDispatchRegistration>>.identity(),
     );
     final callbacks = controllers.putIfAbsent(
       controller,
-      () => HashMap<Object,
-          _RestageFlowRenderEventPrivacyRegistration>.identity(),
+      () => HashMap<Object, _RestageFlowEventDispatchRegistration>.identity(),
     );
-    callbacks[registration] = _RestageFlowRenderEventPrivacyRegistration(
+    callbacks[registration] = _RestageFlowEventDispatchRegistration(
       contentToken: contentToken,
       isCurrent: isCurrent,
       associatedHandler: associatedHandler,
-      mayExposeNonEmptyHostContext: mayExposeNonEmptyHostContext,
     );
     _refreshCurrentContent(controller);
   }
@@ -338,24 +120,6 @@ final class RestageFlowRenderEventPrivacyRegistry {
       if (controllers.isEmpty) _owners.remove(owner);
     }
     _refreshCurrentContent(controller);
-  }
-
-  static bool mayExposeNonEmptyHostContext(Object controller) {
-    return _mayExpose(<bool Function()>[
-      for (final controllers in _owners.values)
-        ...?controllers[controller]?.values.map(
-              (registration) => registration.mayExposeNonEmptyHostContext,
-            ),
-    ]);
-  }
-
-  static bool? mayExposeNonEmptyHostContextForOwner({
-    required Object controller,
-    required Object owner,
-  }) {
-    final callbacks = _owners[owner]?[controller];
-    if (callbacks == null) return null;
-    return mayExposeNonEmptyHostContext(controller);
   }
 
   static bool hasRegistration({
@@ -396,7 +160,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
 
   static void Function(String, Object?)? bindDispatcherHandler({
     required Object owner,
-    required RestageFlowRenderEventPrivacyBinding? binding,
+    required RestageFlowEventDispatchBinding? binding,
     required void Function(String, Object?) handler,
     required void Function(void Function()) invokeWithOwner,
     required bool Function() dispatcherIsActive,
@@ -420,25 +184,16 @@ final class RestageFlowRenderEventPrivacyRegistry {
       dispatcherIsActive: dispatcherIsActive,
       handlerIsCurrent: handlerIsCurrent,
     );
-    final mayExposeAtCapture =
-        admission == null ? false : _mayExposeAdmission(admission);
     final targetLease = RestageTargetEventDispatchLease(
-      mayExposeNonEmptyHostContext: mayExposeAtCapture,
-      resolveLiveExposure: () {
-        if (!_isDispatchLeaseCurrent(lease)) return null;
+      isCurrent: () {
+        if (!_isDispatchLeaseCurrent(lease)) return false;
         final liveAdmission = _acquireAdmission(
           owner: owner,
           binding: binding,
           handler: handler,
         );
-        if (admission == null) {
-          if (!_remainedUnregistered(owner)) return null;
-        } else if (!_sameAdmission(admission, liveAdmission)) {
-          return null;
-        }
-        return liveAdmission == null
-            ? false
-            : _mayExposeAdmission(liveAdmission);
+        if (admission == null) return _remainedUnregistered(owner);
+        return _sameAdmission(admission, liveAdmission);
       },
     );
 
@@ -493,12 +248,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
       body();
       return;
     }
-    RestageRenderEventPrivacy.run<void>(
-      mayExposeNonEmptyHostContext:
-          RestageRenderEventPrivacy.omitsAuthoredArguments ||
-              _mayExposeAdmission(liveAdmission!),
-      body: body,
-    );
+    body();
   }
 
   static T runWithControllerEventRefusal<T>({
@@ -517,7 +267,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
 
   static _RestageFlowRenderEventAdmission? _acquireAdmission({
     required Object owner,
-    required RestageFlowRenderEventPrivacyBinding? binding,
+    required RestageFlowEventDispatchBinding? binding,
     required void Function(String, Object?) handler,
   }) {
     if (binding != null) {
@@ -612,7 +362,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
 
   static _RestageFlowRenderEventAdmission? _acquireBindingAdmission({
     required Object owner,
-    required RestageFlowRenderEventPrivacyBinding binding,
+    required RestageFlowEventDispatchBinding binding,
     required void Function(String, Object?) handler,
   }) {
     final exactMatch = _uniqueExactRegistration(binding);
@@ -679,7 +429,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
   }) {
     return <_RestageFlowEventHandlerAssociationEvidence>[
       for (final entry in _owners[owner]?[controller]?.entries ??
-          <MapEntry<Object, _RestageFlowRenderEventPrivacyRegistration>>[])
+          <MapEntry<Object, _RestageFlowEventDispatchRegistration>>[])
         if (entry.value.associatedHandler == handler &&
             entry.value.contentToken == contentToken &&
             _isCurrent(entry.value))
@@ -721,7 +471,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
   }
 
   static _RestageFlowExactRegistration? _uniqueExactRegistration(
-    RestageFlowRenderEventPrivacyBinding binding,
+    RestageFlowEventDispatchBinding binding,
   ) {
     _RestageFlowExactRegistration? match;
     for (final ownerEntry in _owners.entries) {
@@ -755,7 +505,6 @@ final class RestageFlowRenderEventPrivacyRegistry {
         }
         contentToken = registration.contentToken;
         registrations.add(entry.key);
-        callbacks.add(registration.mayExposeNonEmptyHostContext);
       }
     }
     if (contentToken == null || registrations.isEmpty) {
@@ -783,7 +532,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
   }
 
   static bool _hasCurrentRegistration(
-    Map<Object, _RestageFlowRenderEventPrivacyRegistration> registrations,
+    Map<Object, _RestageFlowEventDispatchRegistration> registrations,
   ) =>
       registrations.values.any(
         (registration) =>
@@ -819,7 +568,7 @@ final class RestageFlowRenderEventPrivacyRegistry {
   }
 
   static bool _isCurrent(
-    _RestageFlowRenderEventPrivacyRegistration registration,
+    _RestageFlowEventDispatchRegistration registration,
   ) {
     try {
       return registration.isCurrent?.call() ?? false;
@@ -848,25 +597,9 @@ final class RestageFlowRenderEventPrivacyRegistry {
     }
   }
 
-  static bool _mayExposeAdmission(
-    _RestageFlowRenderEventAdmission admission,
-  ) =>
-      _mayExpose(admission.callbacks);
-
   static bool _remainedUnregistered(Object owner) =>
       _registeredOwners[owner] != true &&
       !(_owners[owner]?.isNotEmpty ?? false);
-
-  static bool _mayExpose(Iterable<bool Function()> callbacks) {
-    for (final callback in callbacks) {
-      try {
-        if (callback()) return true;
-      } on Object {
-        return true;
-      }
-    }
-    return false;
-  }
 }
 
 final class _RestageFlowEventDispatchLease {
@@ -880,25 +613,23 @@ final class _RestageFlowEventDispatchLease {
   });
 
   final Object owner;
-  final RestageFlowRenderEventPrivacyBinding? binding;
+  final RestageFlowEventDispatchBinding? binding;
   final void Function(String, Object?) handler;
   final _RestageFlowRenderEventAdmission? admission;
   final bool Function() dispatcherIsActive;
   final bool Function() handlerIsCurrent;
 }
 
-final class _RestageFlowRenderEventPrivacyRegistration {
-  const _RestageFlowRenderEventPrivacyRegistration({
+final class _RestageFlowEventDispatchRegistration {
+  const _RestageFlowEventDispatchRegistration({
     required this.contentToken,
     required this.isCurrent,
     required this.associatedHandler,
-    required this.mayExposeNonEmptyHostContext,
   });
 
   final Object? contentToken;
   final bool Function()? isCurrent;
   final void Function(String, Object?)? associatedHandler;
-  final bool Function() mayExposeNonEmptyHostContext;
 }
 
 final class _RestageFlowEventHandlerAssociation {
@@ -985,7 +716,7 @@ final class _RestageFlowExactRegistration {
   });
 
   final Object owner;
-  final _RestageFlowRenderEventPrivacyRegistration registration;
+  final _RestageFlowEventDispatchRegistration registration;
 }
 
 final class _RestageFlowContentState {

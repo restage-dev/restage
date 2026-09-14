@@ -142,7 +142,14 @@ void main() {
       final trace = <MeasurementWorkerOwnedDeliveryDebugEvent>[];
       final traceSubscription = runtime.debugEvents.listen(trace.add);
       addTearDown(traceSubscription.cancel);
-      final session = await _open(runtime, 'session.worker-owned-flow');
+      final opened = await runtime.openSession(_registration(
+        'session.worker-owned-flow',
+        experimentAssignment: const MeasurementExperimentAssignmentV1(
+          outcomeLinkCarrier: 'AQID',
+        ),
+      ));
+      expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
+      final session = opened.session!;
 
       expect(runtime.debugWorkerSpawnCount, 1);
       final acknowledgement = runtime.appendAcknowledgements.first;
@@ -157,7 +164,7 @@ void main() {
         MeasurementWorkerAppendOutcome.accepted,
       );
       await acknowledgement;
-      final result = await session.checkpoint();
+      final result = await session.checkpoint(frameElapsedMicros: 50);
 
       expect(
         result.outcome,
@@ -166,6 +173,20 @@ void main() {
       expect(result.sequence, 1);
       expect(runtime.debugWorkerSpawnCount, 1);
       expect(received, hasLength(1));
+      final envelope =
+          jsonDecode(utf8.decode(received.single)) as Map<String, dynamic>;
+      expect(envelope.keys, ['canonicalRequestBase64']);
+      final delivered = MeasurementIngestRequestV1.fromBase64(
+        envelope['canonicalRequestBase64'] as String,
+      );
+      expect(
+          delivered.factFrame.experimentAssignment!.outcomeLinkCarrier, 'AQID');
+      expect(delivered.factFrame.frameElapsedMicros, 50);
+      expect(delivered.factFrame.facts.single.presentationFirstOccurrenceMicros,
+          1);
+      expect(delivered.factFrame.facts.single.interactionFirstOccurrenceMicros,
+          isNull);
+
       await _eventually(
         () => trace.map((event) => event.stage).toSet().containsAll({
           MeasurementWorkerOwnedDeliveryDebugStage.canonicalized,
@@ -181,7 +202,7 @@ void main() {
         everyElement(runtime.debugWorkerIsolateId),
       );
 
-      final finalization = await session.teardown();
+      final finalization = await session.teardown(frameElapsedMicros: 100);
       expect(finalization.isFinal, isTrue);
     });
 
@@ -315,7 +336,12 @@ void main() {
 
       final first =
           await _start(support: support, endpoint: _endpointFor(server));
-      final firstSession = await _open(first, 'session.worker-owned-replay');
+      final firstSession = (await first.openSession(_registration(
+        'session.worker-owned-replay',
+        experimentAssignment:
+            const MeasurementExperimentAssignmentV1(outcomeLinkCarrier: 'AQID'),
+      )))
+          .session!;
       final acknowledgement = first.appendAcknowledgements.first;
       expect(
         firstSession.append(
@@ -329,7 +355,7 @@ void main() {
       );
       await acknowledgement;
       expect(
-        (await firstSession.checkpoint()).outcome,
+        (await firstSession.checkpoint(frameElapsedMicros: 20)).outcome,
         MeasurementWorkerOwnedDeliveryCheckpointOutcome.retryScheduled,
       );
       expect(received, hasLength(1));
@@ -344,6 +370,15 @@ void main() {
       await _eventually(() => received.length == 2,
           timeout: const Duration(seconds: 4));
       expect(received[1], orderedEquals(received[0]));
+      final replayEnvelope =
+          jsonDecode(utf8.decode(received[1])) as Map<String, dynamic>;
+      final replayed = MeasurementIngestRequestV1.fromBase64(
+        replayEnvelope['canonicalRequestBase64'] as String,
+      ).factFrame;
+      expect(replayed.experimentAssignment!.outcomeLinkCarrier, 'AQID');
+      expect(replayed.facts.single.presentationFirstOccurrenceMicros, 1);
+      expect(replayed.frameElapsedMicros, 20);
+
       await _eventually(
         () =>
             !_outboxDirectory(support).existsSync() ||
@@ -591,7 +626,10 @@ MeasurementWorkerOwnedDeliveryConfiguration _configuration({
       debugTracing: debugTracing,
     );
 
-MeasurementWorkerSessionRegistration _registration(String sessionId) {
+MeasurementWorkerSessionRegistration _registration(
+  String sessionId, {
+  MeasurementExperimentAssignmentV1? experimentAssignment,
+}) {
   final context = ExactMeasurementPublicationContextRefV1(
     bindingReference: _bindingReference,
     surfaceIdentity: PublishedSurfaceIdentityV1(
@@ -611,6 +649,9 @@ MeasurementWorkerSessionRegistration _registration(String sessionId) {
   return MeasurementWorkerSessionRegistration(
     sessionId: sessionId,
     captureSessionNonce: 'nonce.$sessionId',
+    experimentAssignmentCanonicalBytes: experimentAssignment == null
+        ? null
+        : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
     publicationContextCanonicalBytes: context.canonicalBytes,
     routes: const [
       MeasurementWorkerRouteIdentity(

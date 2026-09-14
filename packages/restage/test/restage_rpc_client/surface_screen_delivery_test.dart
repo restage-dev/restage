@@ -55,6 +55,65 @@ void main() {
       expect(available.publicationBindingReference, bindingReference);
     });
 
+    test('owns assignment responses before strict descriptor decoding',
+        () async {
+      final assignment = <String, Object?>{
+        'schemaVersion': 1,
+        'experimentId': 'experiment.message',
+        'experimentRevisionId': 'revision.message',
+        'experimentEpochId': 'epoch.message',
+        'armId': 'arm.treatment',
+        'outcomeLinkCarrier': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      };
+      for (final raw in <Object?>[
+        assignment,
+        {'result': 'assignmentNotPresented'},
+        null,
+      ]) {
+        final response = jsonDecode(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              _response()),
+        ) as Map<String, dynamic>;
+        if (raw != null) response['assignment'] = raw;
+        final client =
+            _client((_) async => http.Response(jsonEncode(response), 200));
+        final available =
+            await _fetch(client, _request()) as SurfaceScreenDeliveryAvailable;
+        expect(available.canonicalExperimentAssignment?.toJson(),
+            identical(raw, assignment) ? assignment : null);
+        expect(
+            available.assignmentDiagnostic,
+            raw is Map && raw['result'] == 'assignmentNotPresented'
+                ? SurfaceAssignmentDiagnostic.assignmentNotPresented
+                : null);
+        if (raw != null) {
+          expect(() => SurfaceScreenDeliveryDescriptorV1Codec.decode(response),
+              throwsFormatException);
+        }
+      }
+    });
+
+    test('refuses malformed assignment before fetching screen bytes', () async {
+      for (final raw in <Object?>[
+        {},
+        {'schemaVersion': 2},
+        {'result': 'assignmentNotPresented', 'extra': true},
+        'unknownAssignment',
+      ]) {
+        final response = jsonDecode(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              _response()),
+        ) as Map<String, dynamic>;
+        response['assignment'] = raw;
+        final client =
+            _client((_) async => http.Response(jsonEncode(response), 200));
+        final artifactCount = _delivery.artifactRequests.length;
+        expect(await _fetch(client, _request()),
+            isA<SurfaceScreenDeliveryInvalidResponse>());
+        expect(_delivery.artifactRequests.length, artifactCount);
+      }
+    });
+
     test(
       'missing, malformed, future, and coalesced binding headers do not invalidate a strict publication response',
       () async {

@@ -96,6 +96,22 @@ final class SurfaceRevisionId extends MeasurementIdentifier {
   SurfaceRevisionId(super.value);
 }
 
+/// The prefix on every surface identity the platform mints.
+const String kMintedSurfaceIdPrefix = 'surface.v1.';
+
+/// The prefix on every surface-revision identity the platform mints.
+const String kMintedSurfaceRevisionIdPrefix = 'surface-revision.v1.';
+
+final RegExp _mintedDigestPattern = RegExp(r'^[0-9a-f]{64}$');
+
+/// Whether [value] is an identity the platform minted under [prefix].
+///
+/// A minted identity is the prefix and the digest that names the exact thing
+/// it was minted for. A name chosen anywhere else is not one.
+bool isMintedMeasurementIdentity(String value, String prefix) =>
+    value.startsWith(prefix) &&
+    _mintedDigestPattern.hasMatch(value.substring(prefix.length));
+
 final class ArtifactId extends MeasurementIdentifier {
   ArtifactId(super.value);
 }

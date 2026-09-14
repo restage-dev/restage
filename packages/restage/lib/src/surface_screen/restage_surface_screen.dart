@@ -5,9 +5,13 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
-    show DynamicContent, Runtime, WidgetLibrary, decodeLibraryBlob;
+    show
+        DynamicContent,
+        RemoteWidget,
+        Runtime,
+        WidgetLibrary,
+        decodeLibraryBlob;
 
-import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart' show PagerPageChanged;
 import '../flow/flow_descriptors.dart';
@@ -381,17 +385,11 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       child: stage.wrapMeasuredRoot(
         RestagePagerEventScope(
           sink: _pagerSinkForStage(stage),
-          child: RestagePrivacyAwareRemoteWidget(
+          child: RemoteWidget(
             runtime: stage.runtime,
             data: stage.data,
             widget: kFlowScreenWidget,
-            mayExposeNonEmptyHostContext: () =>
-                stage.contextPublisher.mayExposeNonEmptyHostContext,
-            onEvent: (name, value) => RestageRenderEventPrivacy.run<void>(
-              mayExposeNonEmptyHostContext:
-                  stage.contextPublisher.mayExposeNonEmptyHostContext,
-              body: () => _handleEvent(stage, name, value),
-            ),
+            onEvent: (name, value) => _handleEvent(stage, name, value),
           ),
         ),
       ),

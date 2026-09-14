@@ -174,7 +174,6 @@ final class _RootAnalyticsArtifact {
 /// so overlapping roots and refresh candidates cannot overwrite one another.
 abstract final class RootAnalyticsRuntime {
   static AnalyticsIdentity? _identity;
-  static void Function(RootAnalyticsEventContext)? _onSurfacePresented;
   static int _authorityEpoch = 0;
   static final Set<RootAnalyticsPresentation> _presentations =
       HashSet<RootAnalyticsPresentation>.identity();
@@ -195,15 +194,11 @@ abstract final class RootAnalyticsRuntime {
   static AnalyticsIdentity createIdentity() =>
       debugIdentityFactory?.call() ?? AnalyticsIdentity();
 
-  static void install({
-    required AnalyticsIdentity identity,
-    required void Function(RootAnalyticsEventContext) onSurfacePresented,
-  }) {
+  static void install({required AnalyticsIdentity identity}) {
     if (_identity != null && !identical(_identity, identity)) {
       retireAuthority();
     }
     _identity = identity;
-    _onSurfacePresented = onSurfacePresented;
   }
 
   static RootAnalyticsPresentation createPresentation({
@@ -250,7 +245,6 @@ abstract final class RootAnalyticsRuntime {
     _authorityEpoch += 1;
     _retirePresentations();
     _identity = null;
-    _onSurfacePresented = null;
   }
 
   /// Clears process-global analytics context state in tests/config teardown.
@@ -263,7 +257,6 @@ abstract final class RootAnalyticsRuntime {
     _presentations.clear();
     _eventBindings.clear();
     _identity = null;
-    _onSurfacePresented = null;
     debugIdentityFactory = null;
     debugClock = DateTime.now;
     debugPostFrameScheduler = null;
@@ -380,7 +373,6 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
         occurredAt: RootAnalyticsRuntime.debugClock().toUtc(),
       );
       _active = active;
-      RootAnalyticsRuntime._onSurfacePresented?.call(active);
     }
     final deferred = captureDeferredContext();
     final callbacks = List<void Function(RootAnalyticsDeferredContext)>.of(

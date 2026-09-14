@@ -89,6 +89,7 @@ final class ResolvedFlow {
         cacheHit: true,
       ),
       measurementPublicationBindingReferenceFor(this),
+      canonicalExperimentAssignment: measurementExperimentAssignmentFor(this),
     );
     final sourceCarrier = attachMeasurementBundledGeneratedSourceCarrier(
       cacheHit,

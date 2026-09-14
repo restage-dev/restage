@@ -8,17 +8,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/analytics/analytics_event_mapper.dart';
 import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
-import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import 'flow_test_support.dart';
 
+import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 
 /// The installed built-in catalog version this SDK build ships. The active arm's
@@ -90,10 +89,13 @@ void main() {
     expect(requests, hasLength(1));
     final body = jsonDecode(requests.single.body) as Map<String, Object?>;
     expect(body['assignmentKey'], 'anon-controlled');
-    expect(body['flowContractKind'], 'flow');
-    expect(body['flowContractVersion'], 1);
-    expect(body['flowContractHash'], startsWith('sha256:'));
-    expect(body.containsKey('flowContractBytes'), isFalse);
+    expect(
+        body.keys,
+        unorderedEquals(<String>[
+          'surfaceType',
+          'surfaceSlug',
+          'assignmentKey',
+        ]));
   });
 
   test('old client → newer compatible active: renders the ACTIVE doc',
@@ -155,21 +157,6 @@ void main() {
     expect(started.toMap(), containsPair('flowId', 'first_run'));
     expect(started.toMap(), containsPair('flowVersion', 1));
     expect(started.toMap(), containsPair('resolvedVersion', 2));
-
-    final envelope = mapRestageEventToEnvelope(
-      started,
-      eventId: 'evt-1',
-      anonymousId: 'anon-1',
-      sessionId: 'sess-1',
-      appContext: const AnalyticsAppContext(
-        platform: 'ios',
-        locale: 'en_US',
-        sdkVersion: '1.0.0',
-      ),
-      now: DateTime.utc(2026, 6, 13, 12),
-    );
-    expect(envelope.surface, AnalyticsSurface.onboarding);
-    expect(envelope.surfaceId, 'first_run');
   });
 
   test('new client → breaking active: fails closed to the BUNDLED doc',
@@ -201,6 +188,7 @@ void main() {
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
     final bindingReference = _bindingReference('a');
+    final assignment = canonicalAssignmentFixture();
     var fetches = 0;
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
@@ -212,6 +200,7 @@ void main() {
         liveFor: 1,
         onRequest: (_) => fetches++,
         publicationBindingReference: bindingReference,
+        assignment: assignment,
       ),
     );
 
@@ -227,10 +216,12 @@ void main() {
       measurementPublicationBindingReferenceFor(first),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(first), assignment);
     expect(
       measurementPublicationBindingReferenceFor(second),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(second), assignment);
     final provider = resolver as FlowExperimentArtifactMetadataProvider;
     for (final resolved in [first, second]) {
       final metadata = provider.metadataFor(resolved);
@@ -570,13 +561,17 @@ MockClient _flakyServer(
   required int liveFor,
   void Function(http.Request request)? onRequest,
   MeasurementPublicationBindingReferenceV1? publicationBindingReference,
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
 }) {
   var seen = 0;
   return _delivery.client((request) async {
     onRequest?.call(request);
     if (seen++ < liveFor) {
       return http.Response(
-        jsonEncode({..._delivery.describeEnvelope(envelope)}),
+        jsonEncode({
+          ..._delivery.describeEnvelope(envelope),
+          if (assignment != null) 'assignment': assignment.toJson()
+        }),
         200,
         headers: {
           if (publicationBindingReference != null)

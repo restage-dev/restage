@@ -9,7 +9,7 @@ const cravePermissionFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeCravePermissionFlowResult,
   measurementPublicationDraftDigest:
-      '468c4fb3c124e6ff1ca213d74ca25e8b9bcdbf22428abe1b099c1701d56277d8',
+      'd454e62721a2b5a80f82f44953d4afb0404b43de798acf52eb03f52f604583af',
 );
 
 CravePermissionResult _decodeCravePermissionFlowResult(

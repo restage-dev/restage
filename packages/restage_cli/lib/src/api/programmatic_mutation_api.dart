@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/measurement_wire.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -70,12 +70,12 @@ class ProgrammaticMutationApi {
           'environmentSlug': environmentSlug,
           'environmentTargetId': environmentTargetId,
           'runtimePlane': runtimePlane.wireName,
-          'requestBytes': _byteDataWire(request.canonicalBytes),
+          'requestBytes': encodeByteDataWire(request.canonicalBytes),
           'organizationId': organizationId,
           'appId': appId,
         });
     return ProgrammaticMutationResponseWireV1.fromCanonicalBytes(
-      _strictResponseBytes(rawResponse),
+      _responseBytes(rawResponse),
     );
   }
 }
@@ -98,8 +98,6 @@ final class ProgrammaticMutationTargetMismatchException implements Exception {
 
 const _endpointName = 'programmaticMutation';
 const _methodName = 'mutate';
-const _byteDataPrefix = "decode('";
-const _byteDataSuffix = "', 'base64')";
 
 ProgrammaticMutationRequestWireV1 _strictCanonicalRequest(List<int> source) {
   // An out-of-range byte count is a caller mistake at this API, not a malformed
@@ -136,35 +134,8 @@ void _requireExactTarget(
   }
 }
 
-String _byteDataWire(Uint8List bytes) =>
-    "$_byteDataPrefix${base64Encode(bytes)}$_byteDataSuffix";
-
-Uint8List _strictResponseBytes(Object? rawResponse) {
-  if (rawResponse is! String ||
-      !rawResponse.startsWith(_byteDataPrefix) ||
-      !rawResponse.endsWith(_byteDataSuffix)) {
-    throw const FormatException('Expected a ByteData response');
-  }
-  final encoded = rawResponse.substring(
-    _byteDataPrefix.length,
-    rawResponse.length - _byteDataSuffix.length,
-  );
-  final maximumEncodedLength =
-      ((kMaximumProgrammaticMutationWireBytes + 2) ~/ 3) * 4;
-  if (encoded.isEmpty || encoded.length > maximumEncodedLength) {
-    throw const FormatException('Response ByteData exceeds its bounded shape');
-  }
-
-  late final Uint8List bytes;
-  try {
-    bytes = Uint8List.fromList(base64Decode(encoded));
-  } on FormatException {
-    throw const FormatException('Response ByteData is not valid base64');
-  }
-  if (bytes.isEmpty ||
-      bytes.length > kMaximumProgrammaticMutationWireBytes ||
-      base64Encode(bytes) != encoded) {
-    throw const FormatException('Response ByteData is not canonical');
-  }
-  return bytes;
-}
+Uint8List _responseBytes(Object? rawResponse) => decodeByteDataWire(
+  rawResponse,
+  maximumBytes: kMaximumProgrammaticMutationWireBytes,
+  malformed: (detail) => FormatException('The mutation reply $detail'),
+);

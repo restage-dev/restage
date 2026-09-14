@@ -14,12 +14,18 @@ enum RuntimePlane {
   /// Stable canonical-wire spelling.
   final String wireName;
 
-  static RuntimePlane _fromWire(String value) {
+  /// The plane a stored or transported spelling names, or null for any other.
+  static RuntimePlane? tryFromWire(String value) {
     for (final plane in values) {
       if (plane.wireName == value) return plane;
     }
-    throw CanonicalFormatException('Unknown runtime plane "$value"');
+    return null;
   }
+
+  /// The plane a stored or transported spelling names.
+  static RuntimePlane fromWire(String value) =>
+      tryFromWire(value) ??
+      (throw CanonicalFormatException('Unknown runtime plane "$value"'));
 }
 
 /// Exact post-resolution control-plane coordinate.
@@ -88,7 +94,7 @@ final class TargetCoordinate extends CanonicalDocument {
         appId: ApplicationId(appId),
         environmentTargetId: EnvironmentTargetId(environmentTargetId),
         namedEnvironmentId: NamedEnvironmentId(namedEnvironmentId),
-        runtimePlane: RuntimePlane._fromWire(reader.string('runtimePlane')),
+        runtimePlane: RuntimePlane.fromWire(reader.string('runtimePlane')),
       );
     } catch (error) {
       if (error is! ArgumentError) rethrow;

@@ -32,7 +32,7 @@ const String kMeasurementDefaultPrivacyPolicyRevisionId =
 
 /// The collection budget revision this compiler stamps.
 const String kMeasurementDefaultCollectionBudgetRevisionId =
-    'restage.collection-budget.v1';
+    'restage.collection-budget.v2';
 
 /// The Measurement client revision floor this compiler stamps.
 const int kMeasurementDefaultMinimumClient = 1;

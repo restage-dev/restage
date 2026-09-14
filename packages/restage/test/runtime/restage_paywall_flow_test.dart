@@ -837,51 +837,6 @@ void main() {
   });
 
   testWidgets(
-      'a flow-hosted paywall emits one canonical root with served version',
-      (tester) async {
-    final requests = <http.Request>[];
-    Restage.debugAnalyticsHttpClient = _delivery.client((request) async {
-      requests.add(request);
-      return http.Response('', 200);
-    });
-    Restage.configure(
-      apiKey: 'rs_pk_test',
-      baseUrl: 'http://127.0.0.1:1',
-    );
-
-    await _pumpFlowPaywall(
-      tester,
-      resolver: _PublishedFlowResolver(publishedVersion: 7),
-    );
-    await Restage.debugFlushAnalytics();
-
-    final events = _analyticsEvents(requests);
-    final presentations =
-        events.where((event) => event['name'] == 'surface_presented').toList();
-    expect(presentations, hasLength(1));
-    expect(presentations.single['surface'], 'paywall');
-    expect(presentations.single['surfaceId'], 'pro_upgrade');
-    expect(presentations.single['surfaceVersion'], '7');
-    expect(presentations.single['surfaceSessionId'], isNotNull);
-    expect(presentations.single, isNot(contains('experimentId')));
-    expect(presentations.single, isNot(contains('variantId')));
-    expect(presentations.single, isNot(contains('experimentEpoch')));
-
-    final viewed =
-        events.singleWhere((event) => event['name'] == 'paywall_viewed');
-    expect(viewed['surface'], 'paywall');
-    expect(viewed['surfaceId'], 'pro_upgrade');
-    expect(viewed['surfaceVersion'], '7');
-    expect(
-      viewed['surfaceSessionId'],
-      presentations.single['surfaceSessionId'],
-    );
-    expect(viewed, isNot(contains('experimentId')));
-    expect(viewed, isNot(contains('variantId')));
-    expect(viewed, isNot(contains('experimentEpoch')));
-  });
-
-  testWidgets(
       'tapping skip on the entry screen completes the flow as a paywall '
       'dismiss keyed on paywallId (not an onboarding completion)',
       (tester) async {
@@ -1094,11 +1049,3 @@ void main() {
     expect(second.whereType<PaywallLoadFailed>(), isNotEmpty);
   });
 }
-
-List<Map<String, Object?>> _analyticsEvents(List<http.Request> requests) =>
-    <Map<String, Object?>>[
-      for (final request in requests)
-        for (final event in (jsonDecode(request.body)
-            as Map<String, Object?>)['events']! as List)
-          (event! as Map).cast<String, Object?>(),
-    ];

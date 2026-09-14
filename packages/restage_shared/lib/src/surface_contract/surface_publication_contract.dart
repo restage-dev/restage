@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/capability/capability_sidecar.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
@@ -940,6 +941,8 @@ final class SurfaceScreenDeliveryRequest {
     required int contractVersion,
     String? assignmentKey,
     String? meteringKey,
+    String? assignmentCanonicalBase64,
+    String? sdkBuiltInsCanonicalBase64,
   }) {
     _requireIdentity(slug, 'delivery request.slug');
     if (contractVersion < 1) {
@@ -952,6 +955,8 @@ final class SurfaceScreenDeliveryRequest {
       contractVersion: contractVersion,
       assignmentKey: normalizeAssignmentKey(assignmentKey),
       meteringKey: normalizeMeteringKey(meteringKey),
+      assignmentCanonicalBase64: assignmentCanonicalBase64,
+      sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
     );
   }
 
@@ -961,6 +966,8 @@ final class SurfaceScreenDeliveryRequest {
     required this.contractVersion,
     required this.assignmentKey,
     required this.meteringKey,
+    required this.assignmentCanonicalBase64,
+    required this.sdkBuiltInsCanonicalBase64,
   });
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
@@ -992,6 +999,12 @@ final class SurfaceScreenDeliveryRequest {
   final String? assignmentKey;
   final String? meteringKey;
 
+  /// The canonical assignment the device already holds, passed through as sent.
+  final String? assignmentCanonicalBase64;
+
+  /// The device's canonical audience observations, passed through as sent.
+  final String? sdkBuiltInsCanonicalBase64;
+
   Map<String, Object?> toJson() => <String, Object?>{
         'schemaVersion': schemaVersion,
         'surface': surface.wireName,
@@ -999,6 +1012,10 @@ final class SurfaceScreenDeliveryRequest {
         'contractVersion': contractVersion,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
         if (meteringKey != null) 'meteringKey': meteringKey,
+        if (assignmentCanonicalBase64 != null)
+          'assignmentCanonicalBase64': assignmentCanonicalBase64,
+        if (sdkBuiltInsCanonicalBase64 != null)
+          'sdkBuiltInsCanonicalBase64': sdkBuiltInsCanonicalBase64,
       };
 
   static SurfaceScreenDeliveryRequest fromJson(Object? value) {
@@ -1012,6 +1029,8 @@ final class SurfaceScreenDeliveryRequest {
         'contractVersion',
         'assignmentKey',
         'meteringKey',
+        'assignmentCanonicalBase64',
+        'sdkBuiltInsCanonicalBase64',
       },
       r'$',
     );
@@ -1028,6 +1047,16 @@ final class SurfaceScreenDeliveryRequest {
       ),
       assignmentKey: normalizeAssignmentKey(json['assignmentKey']),
       meteringKey: normalizeMeteringKey(json['meteringKey']),
+      assignmentCanonicalBase64: SurfaceContractJson.optionalString(
+        json,
+        'assignmentCanonicalBase64',
+        r'$',
+      ),
+      sdkBuiltInsCanonicalBase64: SurfaceContractJson.optionalString(
+        json,
+        'sdkBuiltInsCanonicalBase64',
+        r'$',
+      ),
     );
   }
 }
@@ -1401,6 +1430,152 @@ abstract final class SurfaceScreenDeliveryDescriptorV1Codec {
     SurfaceScreenDeliveryDescriptor descriptor,
   ) =>
       SurfaceContractJson.encode(encode(descriptor));
+}
+
+/// The sole experiment assignment a delivery response may carry.
+///
+/// Inert data the host echoes back on matching measurement events. It observes
+/// nothing about the app and the reader never interprets it.
+@immutable
+final class CanonicalSurfaceExperimentAssignmentV1 {
+  /// Creates a canonical assignment from already-validated identities.
+  CanonicalSurfaceExperimentAssignmentV1({
+    required this.experimentId,
+    required this.experimentRevisionId,
+    required this.experimentEpochId,
+    required this.armId,
+    required this.outcomeLinkCarrier,
+  }) {
+    _requireOutcomeLinkCarrier(
+      outcomeLinkCarrier,
+      'assignment.outcomeLinkCarrier',
+    );
+  }
+
+  /// Decodes a canonical assignment, refusing every noncanonical key.
+  factory CanonicalSurfaceExperimentAssignmentV1.fromJson(Object? value) {
+    final json = SurfaceContractJson.requireObject(value, 'assignment');
+    SurfaceContractJson.exactKeys(json, _assignmentFields, 'assignment');
+    _requireSchemaVersion(json, 'assignment');
+    return CanonicalSurfaceExperimentAssignmentV1(
+      experimentId: _identity(
+        json,
+        'experimentId',
+        ExperimentPublicIdV1.new,
+      ),
+      experimentRevisionId: _identity(
+        json,
+        'experimentRevisionId',
+        ExperimentPublicRevisionIdV1.new,
+      ),
+      experimentEpochId: _identity(
+        json,
+        'experimentEpochId',
+        ExperimentPublicEpochIdV1.new,
+      ),
+      armId: _identity(json, 'armId', ExperimentPublicArmIdV1.new),
+      outcomeLinkCarrier: SurfaceContractJson.requiredString(
+        json,
+        'outcomeLinkCarrier',
+        'assignment',
+      ),
+    );
+  }
+
+  static const int schemaVersion = _surfacePublicationSchemaVersion;
+
+  /// Longest accepted opaque carrier.
+  static const int maxOutcomeLinkCarrierLength = 4096;
+
+  final ExperimentPublicIdV1 experimentId;
+  final ExperimentPublicRevisionIdV1 experimentRevisionId;
+  final ExperimentPublicEpochIdV1 experimentEpochId;
+  final ExperimentPublicArmIdV1 armId;
+
+  /// Opaque capability the host echoes back; it exposes no readable identity.
+  final String outcomeLinkCarrier;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'schemaVersion': schemaVersion,
+        'experimentId': experimentId.value,
+        'experimentRevisionId': experimentRevisionId.value,
+        'experimentEpochId': experimentEpochId.value,
+        'armId': armId.value,
+        'outcomeLinkCarrier': outcomeLinkCarrier,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is CanonicalSurfaceExperimentAssignmentV1 &&
+      other.experimentId == experimentId &&
+      other.experimentRevisionId == experimentRevisionId &&
+      other.experimentEpochId == experimentEpochId &&
+      other.armId == armId &&
+      other.outcomeLinkCarrier == outcomeLinkCarrier;
+
+  @override
+  int get hashCode => Object.hash(
+        experimentId,
+        experimentRevisionId,
+        experimentEpochId,
+        armId,
+        outcomeLinkCarrier,
+      );
+}
+
+abstract final class CanonicalSurfaceExperimentAssignmentV1Codec {
+  static CanonicalSurfaceExperimentAssignmentV1 decode(Object? value) =>
+      CanonicalSurfaceExperimentAssignmentV1.fromJson(value);
+
+  static CanonicalSurfaceExperimentAssignmentV1 decodeJson(String source) =>
+      decode(SurfaceContractJson.decode(source, label: 'surface assignment'));
+
+  static Map<String, Object?> encode(
+    CanonicalSurfaceExperimentAssignmentV1 assignment,
+  ) =>
+      assignment.toJson();
+
+  static String encodeCanonicalJson(
+    CanonicalSurfaceExperimentAssignmentV1 assignment,
+  ) =>
+      SurfaceContractJson.encode(encode(assignment));
+}
+
+const Set<String> _assignmentFields = <String>{
+  'armId',
+  'experimentEpochId',
+  'experimentId',
+  'experimentRevisionId',
+  'outcomeLinkCarrier',
+  'schemaVersion',
+};
+
+/// Builds one identity member, mapping its rejection to a wire format error.
+T _identity<T>(
+  Map<String, Object?> json,
+  String key,
+  T Function(String value) build,
+) {
+  final value = SurfaceContractJson.requiredString(json, key, 'assignment');
+  try {
+    return build(value);
+  } on ArgumentError catch (error) {
+    throw FormatException(
+        'Field "assignment.$key" is invalid: ${error.message}');
+  }
+}
+
+void _requireOutcomeLinkCarrier(String value, String path) {
+  if (value.isEmpty) {
+    throw FormatException('Expected "$path" to be nonempty.');
+  }
+  if (value.length >
+      CanonicalSurfaceExperimentAssignmentV1.maxOutcomeLinkCarrierLength) {
+    throw FormatException('Expected "$path" to be at most '
+        '${CanonicalSurfaceExperimentAssignmentV1.maxOutcomeLinkCarrierLength} '
+        'characters.');
+  }
+  SurfaceContractJson.decodeCanonicalBase64Url(value, path);
 }
 
 const Set<String> _publicationFields = <String>{

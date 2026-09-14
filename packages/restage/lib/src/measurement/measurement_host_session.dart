@@ -53,13 +53,23 @@ abstract interface class MeasurementHostSessionLifecycleRegistrar {
   );
 }
 
-/// Dormant construction dependencies for one host-session controller.
+/// Construction dependencies for one host-session controller.
 ///
-/// Production composition does not install an instance. The
-/// regular constructor always uses a cryptographically secure nonce source;
-/// deterministic nonce injection is restricted to [forTesting].
+/// Production constructors use a cryptographically secure nonce source;
+/// deterministic nonce injection is restricted to test constructors.
 @internal
 final class MeasurementHostSessionConstructionAuthority {
+  /// Creates the production authority for one governed worker owner.
+  MeasurementHostSessionConstructionAuthority.production({
+    required MeasurementHostConstructionOwner constructionOwner,
+  })  : transport = const MeasurementIngestTransport.disabled(),
+        installedCapabilities = MeasurementCaptureInstalledCapabilities.current,
+        _nonceBytesSource = _secureNonceBytes,
+        _hostedBindingReadPortLookup = _lookupHostedBindingReadPort,
+        _bundledTargetProfileLoader = _loadBundledTargetProfile,
+        _lifecycleRegistrar = const _WidgetsBindingLifecycleRegistrar(),
+        _constructionOwner = constructionOwner;
+
   /// Creates dormant host-session construction dependencies.
   MeasurementHostSessionConstructionAuthority({
     required this.transport,
@@ -250,13 +260,17 @@ final class _DiscardingLifecycleRegistration
   void unregister() {}
 }
 
-/// Nullable construction-plane registry shared by future host owners.
-///
-/// Its production value is absent. Tests
-/// may temporarily install an authority and restore the exact prior value.
+/// Construction authority shared by host owners, with isolated test overrides.
 @internal
 abstract final class MeasurementHostSessionConstructionRegistry {
   static MeasurementHostSessionCutoverInstallation? _installation;
+  static MeasurementHostSessionConstructionAuthority? _productionAuthority;
+
+  /// Replaces the configured production authority without changing test overrides.
+  static void installProduction(
+      MeasurementHostSessionConstructionAuthority? authority) {
+    _productionAuthority = authority;
+  }
 
   static final MeasurementCutoverGeneration _focusedTestGeneration =
       MeasurementCutoverGeneration(
@@ -264,8 +278,12 @@ abstract final class MeasurementHostSessionConstructionRegistry {
     cutoverGeneration: 0,
   );
 
-  static MeasurementHostSessionConstructionAuthority? get _authority =>
-      _installation?._selectedAuthority;
+  static MeasurementHostSessionConstructionAuthority? get _authority {
+    final installation = _installation;
+    return installation == null
+        ? _productionAuthority
+        : installation._selectedAuthority;
+  }
 
   /// The currently installed test seam, if any.
   @visibleForTesting
@@ -420,9 +438,22 @@ final class MeasurementHostSessionController
         FlowPaywallPayload(:final flow) => flow,
         _ => resolvedOrPayload,
       };
+      final canonicalAssignment = measurementExperimentAssignmentFor(
+        provenanceOwner,
+      );
+      final experimentAssignment = canonicalAssignment == null
+          ? null
+          : MeasurementExperimentAssignmentV1.fromJson({
+              'kind': 'measurementExperimentAssignment',
+              'outcomeLinkCarrier': canonicalAssignment.outcomeLinkCarrier,
+              'schemaVersion': kMeasurementSchemaVersion,
+            });
       final hostedReference = measurementPublicationBindingReferenceFor(
         provenanceOwner,
       );
+      if (canonicalAssignment != null && hostedReference == null) {
+        return MeasurementHostSessionController._disabled();
+      }
       if (hostedReference != null) {
         final hostedReadPort = authority._hostedBindingReadPortLookup();
         if (hostedReadPort == null) {
@@ -434,6 +465,7 @@ final class MeasurementHostSessionController
             bindingReadPort: hostedReadPort,
           ),
           authority,
+          experimentAssignment: experimentAssignment,
         );
       }
 
@@ -460,8 +492,9 @@ final class MeasurementHostSessionController
 
   static Future<MeasurementHostSessionController> _openWithAuthority(
     MeasurementHostSessionOpenRequest request,
-    MeasurementHostSessionConstructionAuthority authority,
-  ) async {
+    MeasurementHostSessionConstructionAuthority authority, {
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+  }) async {
     try {
       final resolution = await request._resolveExact();
       final resolvedMount = resolution.resolvedMount;
@@ -496,6 +529,7 @@ final class MeasurementHostSessionController
           resolvedMount: resolvedMount,
           routeTable: routeTable,
           capabilityAdmission: admission,
+          experimentAssignment: experimentAssignment,
           captureSessionNonceSource: () =>
               _encodeNonce(authority.takeNonceBytes()),
         );
@@ -531,6 +565,7 @@ final class MeasurementHostSessionController
           _encodeNonce(authority.takeNonceBytes()),
         ),
         publicationContextRef: resolvedMount.publicationContextRef,
+        experimentAssignment: experimentAssignment,
         routeTable: routeTable,
         sequence: 1,
       );

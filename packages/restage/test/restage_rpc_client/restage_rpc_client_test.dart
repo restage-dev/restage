@@ -245,81 +245,24 @@ void main() {
   });
 
   group('RestageRpcClient.fetchSurface version omission', () {
-    test(
-      'flow contract identity and retry bytes use the exact independent wire',
-      () async {
-        final requests = <http.Request>[];
-        final client = RestageRpcClient(
-          baseUrl: 'https://example.com',
-          apiKey: 'rs_pk_test',
-          httpClient: _delivery.client((request) async {
-            requests.add(request);
-            return http.Response(
-              jsonEncode(
-                requests.length == 1
-                    ? {
-                        ..._blobDelivery([1, 2, 3]),
-                        'contractRequired': true,
-                        'flowContractRequired': false,
-                      }
-                    : {
-                        ..._blobDelivery([1, 2, 3]),
-                        'contractRequired': false,
-                        'flowContractRequired': true,
-                      },
-              ),
-              200,
-            );
-          }),
-        );
-        const hash = 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef'
-            '0123456789abcdef';
-        final callerOwnedBytes = <int>[251, 255];
-        final retryRequest = FlowContractFetchRequest.retry(
-          hash,
-          callerOwnedBytes,
-        );
-        callerOwnedBytes
-          ..[0] = 0
-          ..add(1);
-        expect(retryRequest.canonicalBytes, [251, 255]);
-        expect(
-          () => retryRequest.canonicalBytes![0] = 0,
-          throwsUnsupportedError,
-        );
+    test('the request never carries a retired negotiation member', () async {
+      late Map<String, dynamic> sent;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: _delivery.client((request) async {
+          sent = (jsonDecode(request.body) as Map).cast();
+          return http.Response(jsonEncode(_blobDelivery([1, 2, 3])), 200);
+        }),
+      );
 
-        final hashOnly = await client.fetchSurface(
-          surfaceType: 'onboarding',
-          surfaceSlug: 'first_run',
-          flowContract: const FlowContractFetchRequest.hashOnly(hash),
-        );
-        final retry = await client.fetchSurface(
-          surfaceType: 'onboarding',
-          surfaceSlug: 'first_run',
-          flowContract: retryRequest,
-        );
+      await client.fetchSurface(
+        surfaceType: 'onboarding',
+        surfaceSlug: 'first_run',
+      );
 
-        expect(jsonDecode(requests[0].body), {
-          'surfaceType': 'onboarding',
-          'surfaceSlug': 'first_run',
-          'flowContractKind': 'flow',
-          'flowContractVersion': 1,
-          'flowContractHash': hash,
-        });
-        expect(jsonDecode(requests[1].body), {
-          'surfaceType': 'onboarding',
-          'surfaceSlug': 'first_run',
-          'flowContractKind': 'flow',
-          'flowContractVersion': 1,
-          'flowContractHash': hash,
-          'flowContractBytes': '-_8',
-        });
-        expect(hashOnly!.contractRequired, isTrue);
-        expect(hashOnly.flowContractRequired, isFalse);
-        expect(retry!.contractRequired, isFalse);
-        expect(retry.flowContractRequired, isTrue);
-      },
-    );
+      expect(sent, {'surfaceType': 'onboarding', 'surfaceSlug': 'first_run'});
+    });
 
     test(
       'six opaque API keys remain the only exact-target SDK authority',

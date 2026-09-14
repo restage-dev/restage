@@ -178,6 +178,40 @@ normal push, use the surface-family tools above:
 | `restage_list_api_keys` | List an environment's API keys (redacted: no hash or plaintext). |
 | `restage_revoke_api_key` | Revoke a key by id (admin). |
 
+**Experiments** (experimental — set `RESTAGE_EXPERIMENTAL=1` to register)
+
+| Tool | What it does |
+| --- | --- |
+| `restage_experiment_apply` | Apply one experiment operation at an exact target. |
+
+`operation` is a closed choice of the fifteen experiment operations —
+`discoverTargetsAndCapabilities`, `openDraft`, `readDraft`, `replaceDraft`,
+`copyDraftToTarget`, `validateDraft`, `reviewDraft`, `activateDraft`,
+`pauseExperiment`, `resumeExperiment`, `concludeExperiment`, `listExperiments`,
+`readExperiment`, `readExperimentResults`, `setExperimentArchived` — and
+`payload` is that operation's own document.
+
+Reading a draft, reading an experiment, and reading its results are three
+separate operations. They ask different questions and return different answers,
+so none of them is a mode of the others.
+
+The tool takes no base64 and rejects an unknown property. A malformed payload is
+refused before it reaches the network, which means a mistake costs you a message
+rather than a request. Where a choice can be left to the service, say so with
+the bare `serverDefault` sentinel; passing a resolved value alongside it is
+refused, because deciding a value and asking the service to decide it are
+different requests.
+
+Pass `idempotencyKey` for an operation that changes state, and leave it off for
+one that does not. A refusal from the service comes back as a refusal carrying
+its code, not as a tool error.
+
+The tool adds no confirmation step of its own for a write to a live experiment.
+Your MCP host already approves each tool call, and that approval is the consent
+step; a `confirm: true` argument would only be a box an agent ticks. The
+command-line tool asks for `--yes` instead, because a shell has no such
+approval. Approve live calls deliberately, or run against a sandbox target.
+
 > Minting API keys is intentionally not exposed here: it returns a one-time
 > plaintext secret. Mint keys from the dashboard or the `restage` CLI.
 

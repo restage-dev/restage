@@ -10,6 +10,7 @@ import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
 import 'package:restage_cli/src/commands/experiment_activation_command.dart';
+import 'package:restage_cli/src/commands/experiment_command.dart';
 import 'package:restage_cli/src/commands/init_command.dart';
 import 'package:restage_cli/src/commands/login_command.dart';
 import 'package:restage_cli/src/commands/logout_command.dart';
@@ -240,6 +241,16 @@ class RestageCli {
       )
       ..addCommand(
         ProgrammaticMutationCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+          environment: _environment,
+        ),
+      )
+      ..addCommand(
+        ExperimentCommand(
           stdout: _stdout,
           stderr: _stderr,
           interactive: interactive,

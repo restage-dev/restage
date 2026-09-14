@@ -6,6 +6,7 @@ import '../flow/flow_descriptors.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/restage_variant_resolver.dart' show RestageEnvironment;
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/surface_canonical_carrier_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
@@ -65,6 +66,14 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         return _resolveBundled(screen, provenance);
       }
       final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
+      final builtIns = await SurfaceCanonicalCarrierProvider.builtIns();
+      final heldAssignment =
+          await SurfaceCanonicalCarrierProvider.heldAssignment(
+        surface: screen.surface.wireName,
+        slug: screen.slug,
+        contractVersion: screen.contractVersion,
+        assignmentKey: lease.assignmentKey,
+      );
       if (!lease.isCurrent) continue;
       final request = SurfaceScreenDeliveryRequest(
         surface: screen.surface,
@@ -72,6 +81,8 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         contractVersion: screen.contractVersion,
         assignmentKey: lease.assignmentKey,
         meteringKey: meteringKey,
+        sdkBuiltInsCanonicalBase64: builtIns,
+        assignmentCanonicalBase64: heldAssignment,
       );
       final result = await client.fetchSurfaceScreen(
         request,
@@ -82,11 +93,21 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         case SurfaceScreenDeliveryAvailable(
             :final response,
             :final publicationBindingReference,
+            :final canonicalExperimentAssignment,
           ):
+          await SurfaceCanonicalCarrierProvider.retain(
+            surface: screen.surface.wireName,
+            slug: screen.slug,
+            contractVersion: screen.contractVersion,
+            lease: lease,
+            assignment: canonicalExperimentAssignment,
+          );
+          if (!lease.isCurrent) continue;
           final resolved = _resolveHosted(
             response,
             provenance,
             publicationBindingReference,
+            canonicalExperimentAssignment,
           );
           _cache[key] = _CachedHostedScreen(screen: resolved, lease: lease);
           return resolved;
@@ -117,6 +138,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
     SurfaceScreenDeliveryResponse response,
     SurfaceScreenRuntimeProvenance provenance,
     MeasurementPublicationBindingReferenceV1? publicationBindingReference,
+    CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment,
   ) {
     final document = response.document;
     final payload = document.payload;
@@ -175,6 +197,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         cacheHit: false,
       ),
       publicationBindingReference,
+      canonicalExperimentAssignment: canonicalExperimentAssignment,
     );
   }
 

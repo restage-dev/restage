@@ -58,7 +58,8 @@ final class MeasurementWorkerRuntime {
   Future<MeasurementWorkerReleaseResult> releasePreparedBatch(String batchId) =>
       _state.releasePreparedBatch(batchId);
 
-  /// Runs ordered finalization barriers and stops the one worker isolate.
+  /// Finalizes unassigned sessions and stops the worker isolate.
+  /// Assigned sessions require an explicit teardown with an elapsed sample.
   Future<MeasurementWorkerShutdownResult> shutdown() => _state.shutdown();
 
   /// Test-only crash control proving future calls fail closed.
