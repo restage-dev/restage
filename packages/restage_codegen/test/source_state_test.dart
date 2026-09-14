@@ -124,6 +124,78 @@ void main() {
       expect(params[1].defaultValueCode, '2');
     });
 
+    test('renders function-typed formals as reusable function types', () async {
+      const source = '''
+        // @dart=3.6
+        import 'dart:typed_data';
+        import 'dart:typed_data' as data;
+
+        $kSourceStateStubs
+
+        class OrdinaryCallback extends StatelessWidget {
+          const OrdinaryCallback(
+            data.Uint8List? callback<Uint8List extends num>(
+              final data.Uint8List value, {
+              required void nested(final Uint8List item),
+            })?,
+          ) : callback = callback;
+          final data.Uint8List? Function<Uint8List extends num>(
+            data.Uint8List, {
+            required void Function(Uint8List) nested,
+          })? callback;
+          Widget build(BuildContext context) => const Widget();
+        }
+
+        class FieldCallback extends StatelessWidget {
+          const FieldCallback(
+            void this.callback(final int value, [String? label]),
+          );
+          final void Function(int, [String?]) callback;
+          Widget build(BuildContext context) => const Widget();
+        }
+
+        class CallbackBase extends StatelessWidget {
+          const CallbackBase(this.callback);
+          final void Function(int) callback;
+        }
+
+        class SuperCallback extends CallbackBase {
+          const SuperCallback(void super.callback(num value));
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''';
+
+      final ordinary = await _extractBlueprint(
+        source,
+        className: 'OrdinaryCallback',
+      );
+      final field = await _extractBlueprint(
+        source,
+        className: 'FieldCallback',
+      );
+      final superFormal = await _extractBlueprint(
+        source,
+        className: 'SuperCallback',
+      );
+
+      expect(ordinary.issues, isEmpty);
+      expect(
+        ordinary.blueprint!.constructorParams.single.typeCode,
+        'data.Uint8List? Function<Uint8List extends num>(data.Uint8List '
+        'value, {required void Function(Uint8List item) nested})?',
+      );
+      expect(field.issues, isEmpty);
+      expect(
+        field.blueprint!.constructorParams.single.typeCode,
+        'void Function(int value, [String? label])',
+      );
+      expect(superFormal.issues, isEmpty);
+      expect(
+        superFormal.blueprint!.constructorParams.single.typeCode,
+        'void Function(num value)',
+      );
+    });
+
     test('refuses Object list elements with one remedy', () async {
       for (final element in ['Object?', 'Object']) {
         final result = await _extractBlueprint(

@@ -35,6 +35,12 @@ import 'shared_resolvers.dart';
 export 'package:build_test/build_test.dart'
     hide resolveSources, testBuilder, testBuilders;
 
+/// Whether the resolving analyzer parses Dart 3.13 primary constructors.
+final bool primaryConstructorsSupported = parseString(
+  content: '// @dart=3.13\nclass const Point(final int x);',
+  throwIfDiagnostics: false,
+).errors.isEmpty;
+
 /// The library URI under which [parseExpressionFromSourceForTest] mounts a
 /// synthetic source — its value-type stubs AND (for the native-decompose
 /// tests) its decompose-recipe identities both live here.

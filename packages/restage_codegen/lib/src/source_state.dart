@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -574,14 +575,7 @@ Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
     );
   }
 
-  final explicit = switch (formal) {
-    SimpleFormalParameter(:final type) => type?.toSource(),
-    FieldFormalParameter(:final type, :final parameters) =>
-      parameters == null ? type?.toSource() : _functionFormalType(formal),
-    SuperFormalParameter(:final type, :final parameters) =>
-      parameters == null ? type?.toSource() : _functionFormalType(formal),
-    FunctionTypedFormalParameter() => _functionFormalType(formal),
-  };
+  final explicit = _formalTypeCode(formal);
   if (explicit != null) return (code: explicit, hasExplicitType: true);
 
   final field =
@@ -601,49 +595,76 @@ Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
   );
 }
 
-String _functionFormalType(NormalFormalParameter parameter) {
-  final (returnType, typeParameters, parameters, nullable) =
-      switch (parameter) {
+/// The authored type spelling of [formal], or null when it has none.
+String? _formalTypeCode(NormalFormalParameter formal) => switch (formal) {
+      SimpleFormalParameter(:final type) => type?.toSource(),
+      FieldFormalParameter(:final type, parameters: null) => type?.toSource(),
+      SuperFormalParameter(:final type, parameters: null) => type?.toSource(),
+      FieldFormalParameter() ||
+      SuperFormalParameter() ||
+      FunctionTypedFormalParameter() =>
+        _functionFormalType(formal),
+    };
+
+/// Renders an old-style function-typed formal as a function type. Parameter
+/// modifiers, metadata and defaults are declaration-only and are dropped.
+String _functionFormalType(NormalFormalParameter formal) {
+  final (
+    TypeAnnotation? returnType,
+    TypeParameterList? typeParameters,
+    FormalParameterList parameters,
+    Token? question,
+  ) = switch (formal) {
     FunctionTypedFormalParameter(
       :final returnType,
       :final typeParameters,
       :final parameters,
       :final question,
     ) =>
-      (
-        returnType?.toSource() ?? 'dynamic',
-        typeParameters?.toSource() ?? '',
-        parameters.toSource(),
-        question != null,
-      ),
+      (returnType, typeParameters, parameters, question),
     FieldFormalParameter(
       :final type,
       :final typeParameters,
       :final parameters!,
       :final question,
     ) =>
-      (
-        type?.toSource() ?? 'dynamic',
-        typeParameters?.toSource() ?? '',
-        parameters.toSource(),
-        question != null,
-      ),
+      (type, typeParameters, parameters, question),
     SuperFormalParameter(
       :final type,
       :final typeParameters,
       :final parameters!,
       :final question,
     ) =>
-      (
-        type?.toSource() ?? 'dynamic',
-        typeParameters?.toSource() ?? '',
-        parameters.toSource(),
-        question != null,
-      ),
+      (type, typeParameters, parameters, question),
     _ => throw StateError('Expected a function-typed parameter.'),
   };
-  final source = '$returnType Function$typeParameters$parameters';
-  return nullable ? '($source)?' : source;
+  final requiredPositional = <String>[];
+  final optionalPositional = <String>[];
+  final named = <String>[];
+  for (final parameter in parameters.parameters) {
+    final normal = switch (parameter) {
+      DefaultFormalParameter(:final parameter) => parameter,
+      NormalFormalParameter() => parameter,
+    };
+    final type = _formalTypeCode(normal) ?? 'dynamic';
+    final name = normal.name?.lexeme;
+    final source = name == null ? type : '$type $name';
+    if (parameter.isNamed) {
+      named.add('${parameter.isRequiredNamed ? 'required ' : ''}$source');
+    } else if (parameter.isOptionalPositional) {
+      optionalPositional.add(source);
+    } else {
+      requiredPositional.add(source);
+    }
+  }
+  final arguments = [
+    ...requiredPositional,
+    if (optionalPositional.isNotEmpty) '[${optionalPositional.join(', ')}]',
+    if (named.isNotEmpty) '{${named.join(', ')}}',
+  ].join(', ');
+  final source = '${returnType?.toSource() ?? 'dynamic'} Function'
+      '${typeParameters?.toSource() ?? ''}($arguments)';
+  return question == null ? source : '$source?';
 }
 
 Element? _buildContextParameter(MethodElement buildMethod) {

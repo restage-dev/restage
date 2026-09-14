@@ -133,9 +133,18 @@ final class OwningLibraryNamespace {
   String? _typeCode(
     DartType type,
     Set<TypeParameterElement> localTypeParameters,
-    List<_VisibleTypeAlias> aliases,
+    List<_VisibleTypeAlias> allAliases,
     Set<_ActiveTypeAlias> activeAliases,
   ) {
+    // A function type's own type parameters hide same-named library names.
+    final shadowed = {
+      for (final parameter in localTypeParameters) parameter.name,
+    };
+    final aliases = shadowed.isEmpty
+        ? allAliases
+        : allAliases
+            .where((alias) => !shadowed.contains(alias.name.split('.').first))
+            .toList(growable: false);
     final alias = type.alias;
     if (alias != null) {
       final code = _attachedAliasCode(
@@ -228,7 +237,10 @@ final class OwningLibraryNamespace {
   ) {
     final element = type.element;
     if (element == null) return null;
-    final name = _visibleElementName(element);
+    final name = _visibleElementName(
+      element,
+      shadowed: {for (final parameter in localTypeParameters) parameter.name},
+    );
     if (name == null) return null;
     final arguments = _typeArguments(
       typeArguments,
@@ -325,7 +337,7 @@ final class OwningLibraryNamespace {
     final source = '$returnType Function$generics$parameters';
     return switch (type.nullabilitySuffix) {
       NullabilitySuffix.none => source,
-      NullabilitySuffix.question => '($source)?',
+      NullabilitySuffix.question => '$source?',
       NullabilitySuffix.star => null,
     };
   }
@@ -403,11 +415,17 @@ final class OwningLibraryNamespace {
     return suffix == null ? null : '(${values.join(', ')})$suffix';
   }
 
-  String? _visibleElementName(Element element) {
+  // [shadowed] names an enclosing function type's own type parameters, which
+  // hide any library-level name they collide with.
+  String? _visibleElementName(
+    Element element, {
+    Set<String?> shadowed = const {},
+  }) {
     final name = element.name;
     if (name == null || name.isEmpty) return null;
     final unprefixed = library.firstFragment.scope.lookup(name).getter;
-    if (_sameElement(unprefixed, element) &&
+    if (!shadowed.contains(name) &&
+        _sameElement(unprefixed, element) &&
         _hasNonDeferredRoute(null, name, element)) {
       return name;
     }
@@ -417,6 +435,7 @@ final class OwningLibraryNamespace {
     for (final prefix in prefixes) {
       final prefixName = prefix.name;
       if (prefixName == null || prefixName.isEmpty) continue;
+      if (shadowed.contains(prefixName)) continue;
       if (_sameElement(prefix.scope.lookup(name).getter, element) &&
           _hasNonDeferredRoute(prefix, name, element)) {
         return '$prefixName.$name';

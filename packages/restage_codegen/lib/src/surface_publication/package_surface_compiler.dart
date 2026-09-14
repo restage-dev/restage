@@ -589,7 +589,11 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
       );
     }
     final generatedPart = formatGeneratedDart(
-      '${_partOfHeader(partPath: partPath, libraryPath: source.libraryPath)}'
+      '${_partOfHeader(
+        partPath: partPath,
+        libraryPath: source.libraryPath,
+        library: library,
+      )}'
       '\n\n$reference\n',
     );
     return CanonicalFlowArtifactCompilationResult(
@@ -1105,6 +1109,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         partFragments,
         path: partPath,
         source: source,
+        library: rendered.declaration.library,
         fragment: _emitNeutralReference(
           refName: refName,
           descriptor: descriptor,
@@ -1326,6 +1331,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _PendingCompatibilityScreenPart(
         partPath: partPath,
         source: source,
+        library: contract.screen.library,
         descriptor: descriptor,
         id: source.effectiveId,
         artifactPath: artifact.rendered.flowArtifactPath,
@@ -1473,6 +1479,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
             partFragments,
             path: partPath,
             source: source,
+            library: precompiled.declaration.library!,
             fragment: _withoutPartHeader(generatedPart),
           );
         }
@@ -1581,6 +1588,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       _PendingFlowPart(
         partPath: flowPartPath,
         source: source,
+        library: library,
         refName: refName,
         resultName: resultName,
         decoderName: decoderName,
@@ -1756,6 +1764,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       partFragments,
       path: pending.partPath,
       source: pending.source,
+      library: contract.input.screen.library,
       fragment: '${_withoutPartHeader(
         contract.emitReferenceDart(
           measurementPublicationDraftDigest:
@@ -1790,6 +1799,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       partFragments,
       path: pending.partPath,
       source: pending.source,
+      library: pending.library,
       fragment: reference,
     );
   }
@@ -1812,6 +1822,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       partFragments,
       path: pending.partPath,
       source: pending.source,
+      library: pending.library,
       fragment: reference,
     );
   }
@@ -3924,12 +3935,14 @@ void _addPartFragment(
   Map<String, _PartAccumulator> fragments, {
   required String path,
   required RestageSourceDeclaration source,
+  required LibraryElement library,
   required String? fragment,
 }) {
   if (fragment == null || fragment.trim().isEmpty) return;
   final header = _partOfHeader(
     partPath: path,
     libraryPath: source.libraryPath,
+    library: library,
   );
   final accumulator = fragments[path];
   if (accumulator == null) {
@@ -4113,28 +4126,34 @@ String? _sdkPrefixFor(
 }
 
 String _withoutPartHeader(String source) {
-  final trimmed = source.trim();
-  if (!trimmed.startsWith('part of ')) return trimmed;
-  final lineEnd = trimmed.indexOf('\n');
-  if (lineEnd == -1) return '';
-  return trimmed.substring(lineEnd + 1).trim();
+  var trimmed = source.trim();
+  while (trimmed.startsWith('// @dart=') || trimmed.startsWith('part of ')) {
+    final lineEnd = trimmed.indexOf('\n');
+    if (lineEnd == -1) return '';
+    trimmed = trimmed.substring(lineEnd + 1).trim();
+  }
+  return trimmed;
 }
 
 String _classIdentity(ClassElement element) =>
     '${element.library.identifier}#${element.name ?? '<unnamed>'}';
 
-/// The `part of` directive a generated part at [partPath] must declare to
-/// reach the authored library at [libraryPath].
-///
-/// The URI is resolved relative to the part's own directory, so it follows
-/// the part wherever the placement plan put it.
+/// The header a generated part at [partPath] must declare to reach the
+/// authored library at [libraryPath]: the library's `// @dart=` override, if
+/// any, since a part must match it, then the `part of` directive with a URI
+/// relative to the part's own directory.
 String _partOfHeader({
   required String partPath,
   required String libraryPath,
-}) =>
-    'part of ${_dartSingleString(
-      p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
-    )};';
+  required LibraryElement library,
+}) {
+  final override = library.languageVersion.override;
+  final version =
+      override == null ? '' : '// @dart=${override.major}.${override.minor}\n';
+  return '${version}part of ${_dartSingleString(
+    p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
+  )};';
+}
 
 // Both name derivations live in generated_handle_names.dart so the screen and
 // flow frontends spell one rule. These aliases keep the call sites unchanged.
@@ -4331,6 +4350,7 @@ final class _PendingCompatibilityScreenPart {
   const _PendingCompatibilityScreenPart({
     required this.partPath,
     required this.source,
+    required this.library,
     required this.descriptor,
     required this.id,
     required this.artifactPath,
@@ -4341,6 +4361,7 @@ final class _PendingCompatibilityScreenPart {
 
   final String partPath;
   final RestageSourceDeclaration source;
+  final LibraryElement library;
   final String descriptor;
   final String id;
   final String artifactPath;
@@ -4353,6 +4374,7 @@ final class _PendingFlowPart {
   const _PendingFlowPart({
     required this.partPath,
     required this.source,
+    required this.library,
     required this.refName,
     required this.resultName,
     required this.decoderName,
@@ -4365,6 +4387,7 @@ final class _PendingFlowPart {
 
   final String partPath;
   final RestageSourceDeclaration source;
+  final LibraryElement library;
   final String refName;
   final String resultName;
   final String decoderName;
