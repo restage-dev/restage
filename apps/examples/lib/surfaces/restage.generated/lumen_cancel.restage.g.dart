@@ -29,7 +29,7 @@ final _lumenCancelReasonScreenProvenance =
   slug: "lumen_cancel_reason",
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 6,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -43,9 +43,9 @@ final _lumenCancelReasonScreenProvenance =
         logicalPath:
             "assets/survey/screens/measurement/7986973e7d641fcd/lumen_cancel_reason.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 30878,
+        byteLength: 31033,
         sha256:
-            "sha256:7a7d5df305add7fea8fdc1554111f1c5fb89adacca8d6f1d5ee3c901c2223d59",
+            "sha256:1afb457035f5ab2169fd4830497d5a23502500a90bc616e8a23fc93447dd1ee0",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -53,9 +53,41 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:ba2b3ab80e821b04679e7380005b5cdfa02a95a79c3fcd000ccd9a7278cc4a6a",
+            "sha256:4626263e7b23cd51848dee63e2f8e2e459654c7a54e86787c17de7cad3e2512f",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'Row': buildRow,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Icon': buildIcon,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      },
+    }, mirrored: {
+      'MaterialIcons': {
+        0xf57a: IconData(0xf57a,
+            fontFamily: 'MaterialIcons', matchTextDirection: true),
+      },
+    }),
   ),
 );
 
@@ -64,7 +96,7 @@ final lumenCancelReasonScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
-      "eb8c889023cd169ac28287abfd0736c3a8bd0750820127737b37864c2ba7aa19",
+      "068d8f9073a7895ad3e34c92f10ac9f841f69b05e1d72d2104dde913ecc7ec28",
 );
 
 LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
@@ -135,7 +167,7 @@ final _lumenCancelThanksScreenProvenance =
   slug: "lumen_cancel_thanks",
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 6,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -159,9 +191,35 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:918866905df35d9c948c3caad3799db66257b26be19fb8b5916a8fcc35b230e3",
+            "sha256:5c74693663b86d14f2a0feac4cada505bb953e20c389d42bda7ead1e937c98d5",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Icon': buildIcon,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xf738: IconData(0xf738, fontFamily: 'MaterialIcons'),
+      },
+    }),
   ),
 );
 
@@ -170,7 +228,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      "2e0b6a390d37b9a54ba039ef6edf77a853f08a98a3e69fa804f8a8c19e07c931",
+      "47e8e690662135eafef454babef0922e40d3850ec580f3f5690d5bc417d8cba0",
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(

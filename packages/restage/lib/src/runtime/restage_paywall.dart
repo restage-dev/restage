@@ -6,10 +6,6 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
 import 'package:flutter/material.dart' show ColorScheme, TextTheme, Theme;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart' show internal;
-import 'package:restage_core/library_registration.dart' as restage_core;
-import 'package:restage_cupertino/library_registration.dart'
-    as restage_cupertino;
-import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
@@ -45,6 +41,7 @@ import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
 import 'library_runtime_registry.dart';
+import 'restage_widget_libraries.dart';
 import 'context_data.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
@@ -1901,19 +1898,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   Runtime _createBlobRuntime() {
-    final runtime = Runtime()
-      ..update(
-        const LibraryName(<String>['restage', 'core']),
-        restage_core.buildCoreWidgetLibrary(),
-      )
-      ..update(
-        const LibraryName(<String>['restage', 'material']),
-        restage_material.buildMaterialWidgetLibrary(),
-      )
-      ..update(
-        const LibraryName(<String>['restage', 'cupertino']),
-        restage_cupertino.buildCupertinoWidgetLibrary(),
-      );
+    final runtime = Runtime();
+    InstalledWidgetLibraries.current.installInto(
+      runtime,
+      coreName: const LibraryName(<String>['restage', 'core']),
+      materialName: const LibraryName(<String>['restage', 'material']),
+      cupertinoName: const LibraryName(<String>['restage', 'cupertino']),
+    );
     LibraryRuntimeRegistry.applyTo(runtime);
     installMeasurementRfwPresentationLibrary(runtime);
     return runtime;
@@ -2054,6 +2045,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final failure = RestagePaywallError(
       code: RestageErrorCodes.renderError,
       message: error.toString(),
+      cause: error,
     );
     setState(() {
       _pendingBlobStage = null;

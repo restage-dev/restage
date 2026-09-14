@@ -122,7 +122,10 @@ void main() {
     expect(source, contains('Function.apply(s0.Probe.new'));
     expect(source, contains('if (_restagePresenceLabel.supplied)'));
     expect(source, contains('#label:'));
-    expect(source, isNot(contains("source.v<String>(<Object>['label']) ??")));
+    expect(
+      source,
+      isNot(contains("source.v<String>(const <Object>['label']) ??")),
+    );
   });
 
   test('generated factory allocates deterministic unique presence locals', () {

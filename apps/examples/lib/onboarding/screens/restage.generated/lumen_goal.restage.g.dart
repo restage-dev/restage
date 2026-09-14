@@ -4,7 +4,7 @@ const lumenGoalScreenRef = NeutralFlowScreenRef(
   id: 'lumen_goal',
   artifactPath: 'lumen_goal.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use lumenGoalScreenRef')

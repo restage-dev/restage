@@ -1,10 +1,13 @@
+// Source expectations join Dart tokens without inserting whitespace.
+// ignore_for_file: missing_whitespace_between_adjacent_strings
+
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 String _radiusCircularSource(String property) => <String>[
-      'Radius.circular(source.v<double>(<Object>[',
+      'Radius.circular(source.v<double>(const <Object>[',
       "'$property']) ?? 0.0)",
     ].join();
 
@@ -57,11 +60,11 @@ void main() {
       expect(source, contains('return Divider('));
       expect(
         source,
-        contains("source.v<double>(<Object>['height']) ?? 16.0"),
+        contains("source.v<double>(const <Object>['height']) ?? 16.0"),
       );
       expect(
         source,
-        contains("source.v<double>(<Object>['thickness']) ?? 1.0"),
+        contains("source.v<double>(const <Object>['thickness']) ?? 1.0"),
       );
       // Brand-token defaults pass through as null today (Flutter's
       // own theme resolution provides the runtime value).
@@ -159,11 +162,11 @@ void main() {
 
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
-      expect(source, contains("source.v<bool>(<Object>['flag'])"));
-      expect(source, contains("source.v<int>(<Object>['count'])"));
-      expect(source, contains("source.v<double>(<Object>['ratio'])"));
-      expect(source, contains("source.v<double>(<Object>['size'])"));
-      expect(source, contains("source.v<String>(<Object>['label'])"));
+      expect(source, contains("source.v<bool>(const <Object>['flag'])"));
+      expect(source, contains("source.v<int>(const <Object>['count'])"));
+      expect(source, contains("source.v<double>(const <Object>['ratio'])"));
+      expect(source, contains("source.v<double>(const <Object>['size'])"));
+      expect(source, contains("source.v<String>(const <Object>['label'])"));
       expect(
         source,
         contains("ArgumentDecoders.color(source, <Object>['tint'])"),
@@ -266,7 +269,7 @@ void main() {
       final source = emitFactoryFunction(entry);
 
       expect(source, isNotNull);
-      expect(source, contains("source.v<String>(<Object>['label'])"));
+      expect(source, contains("source.v<String>(const <Object>['label'])"));
       expect(source, isNot(contains('analyticsId:')));
       expect(source, isNot(contains("['analyticsId']")));
     });
@@ -415,11 +418,13 @@ void main() {
       expect(source, contains('return Center('));
       expect(
         source,
-        contains("child: source.optionalChild(<Object>['child'])"),
+        contains("child: source.optionalChild(const <Object>['child'])"),
       );
       expect(
         source,
-        contains("widthFactor: source.v<double>(<Object>['widthFactor'])"),
+        contains(
+          "widthFactor: source.v<double>(const <Object>['widthFactor'])",
+        ),
       );
     });
 
@@ -454,7 +459,7 @@ void main() {
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
       expect(source, contains('return Padding('));
-      expect(source, contains("child: source.child(<Object>['child'])"));
+      expect(source, contains("child: source.child(const <Object>['child'])"));
     });
 
     test('emits source.childList for a list child slot', () {
@@ -480,7 +485,7 @@ void main() {
       expect(source, contains('return ListWrapper('));
       expect(
         source,
-        contains("children: source.childList(<Object>['children'])"),
+        contains("children: source.childList(const <Object>['children'])"),
       );
     });
 
@@ -519,13 +524,13 @@ void main() {
       expect(
         flat,
         contains(
-          "actions: source.isList(<Object>['actions']) "
-          "? source.childList(<Object>['actions']) : null",
+          "actions: source.isList(const <Object>['actions']) "
+          "? source.childList(const <Object>['actions']) : null",
         ),
       );
       expect(
         flat,
-        contains("children: source.childList(<Object>['children'])"),
+        contains("children: source.childList(const <Object>['children'])"),
       );
     });
 
@@ -553,7 +558,7 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("actions: source.childList(<Object>['actions'])"),
+        contains("actions: source.childList(const <Object>['actions'])"),
       );
       expect(source, isNot(contains('isList')));
     });
@@ -592,12 +597,15 @@ void main() {
       );
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
-      expect(source, contains("body: source.optionalChild(<Object>['body'])"));
+      expect(
+        source,
+        contains("body: source.optionalChild(const <Object>['body'])"),
+      );
       expect(
         source,
         contains(
           'appBar: RestageDecoders.optionalPreferredSize('
-          "source.optionalChild(<Object>['appBar']))",
+          "source.optionalChild(const <Object>['appBar']))",
         ),
       );
     });
@@ -638,11 +646,15 @@ void main() {
       expect(
         source,
         contains(
-          "navigationBar: source.optionalChild(<Object>['navigationBar'])",
+          'navigationBar: source.optionalChild(const '
+          "<Object>['navigationBar'])",
         ),
       );
       // child is the last named arg.
-      expect(source, contains("child: source.child(<Object>['child']),\n"));
+      expect(
+        source,
+        contains("child: source.child(const <Object>['child']),\n"),
+      );
     });
 
     test(
@@ -698,7 +710,7 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("onPressed: source.voidHandler(<Object>['onPressed'])"),
+        contains("onPressed: source.voidHandler(const <Object>['onPressed'])"),
       );
     });
 
@@ -724,7 +736,7 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("onTap: source.voidHandler(<Object>['onTap'])"),
+        contains("onTap: source.voidHandler(const <Object>['onTap'])"),
       );
     });
 
@@ -750,7 +762,7 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("onEnd: source.voidHandler(<Object>['onEnd'])"),
+        contains("onEnd: source.voidHandler(const <Object>['onEnd'])"),
       );
     });
 
@@ -778,7 +790,7 @@ void main() {
           emitFactoryFunction(entry),
           contains(
             'onArbitraryCustomAction: '
-            "source.voidHandler(<Object>['onArbitraryCustomAction'])",
+            "source.voidHandler(const <Object>['onArbitraryCustomAction'])",
           ),
         );
       },
@@ -816,11 +828,10 @@ void main() {
         expect(source, isNotNull);
         expect(
           source,
-          contains('source.handler<ValueChanged<bool>>'),
+          contains('RestageDecoders.valueChanged<bool>'),
         );
         expect(source, isNot(contains('HandlerTrigger')));
-        expect(source, contains('(bool value)'));
-        expect(source, contains("trigger(<String, Object?>{'value': value})"));
+        expect(source, isNot(contains('trigger(<String, Object?>')));
       },
     );
 
@@ -853,11 +864,10 @@ void main() {
         expect(source, isNotNull);
         expect(
           source,
-          contains('source.handler<ValueChanged<String>>'),
+          contains('RestageDecoders.valueChanged<String>'),
         );
         expect(source, contains("<Object>['onSubmitted']"));
-        expect(source, contains('(String value)'));
-        expect(source, contains("trigger(<String, Object?>{'value': value})"));
+        expect(source, isNot(contains('trigger(<String, Object?>')));
       },
     );
 
@@ -897,7 +907,7 @@ void main() {
         // appended via `??`.
         expect(
           source,
-          contains('source.handler<ValueChanged<DateTime>>'),
+          contains('RestageDecoders.valueChanged<DateTime>'),
         );
         expect(source, contains('?? (DateTime _) {}'));
         // The required-scalar throw fallback must not be emitted for a
@@ -943,7 +953,7 @@ void main() {
         );
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
-        expect(source, contains('source.handler<ValueChanged<bool?>>'));
+        expect(source, contains('RestageDecoders.valueChanged<bool?>'));
         expect(source, contains('?? (bool? _) {}'));
       },
     );
@@ -979,10 +989,9 @@ void main() {
         expect(source, isNotNull);
         expect(
           source,
-          contains('source.handler<ValueChanged<List<String>>>'),
+          contains('RestageDecoders.valueChanged<List<String>>'),
         );
-        expect(source, contains('(List<String> value)'));
-        expect(source, contains("trigger(<String, Object?>{'value': value})"));
+        expect(source, isNot(contains('trigger(<String, Object?>')));
       },
     );
 
@@ -1011,9 +1020,8 @@ void main() {
         expect(source, isNotNull);
         expect(
           source,
-          contains('source.handler<ValueChanged<List<String?>>>'),
+          contains('RestageDecoders.valueChanged<List<String?>>'),
         );
-        expect(source, contains('(List<String?> value)'));
       },
     );
 
@@ -1048,7 +1056,7 @@ void main() {
         expect(source, isNotNull);
         expect(
           source,
-          contains('source.handler<ValueChanged<List<String>>>'),
+          contains('RestageDecoders.valueChanged<List<String>>'),
         );
         expect(source, contains('?? (List<String> _) {}'));
         expect(
@@ -1130,14 +1138,15 @@ void main() {
         expect(
           source,
           contains(
-            "final disabled = source.v<bool>(<Object>['disabled']) ?? false;",
+            'final disabled = source.v<bool>(const '
+            "<Object>['disabled']) ?? false;",
           ),
         );
         expect(
           source,
           contains(
             'onPressed: disabled ? null : '
-            "source.voidHandler(<Object>['onPressed'])",
+            "source.voidHandler(const <Object>['onPressed'])",
           ),
         );
         // The synthetic disabled never appears as a ctor arg.
@@ -1174,7 +1183,7 @@ void main() {
         expect(
           source,
           contains(
-            'onDateTimeChanged: source.handler<ValueChanged<DateTime>>(',
+            'onDateTimeChanged: RestageDecoders.valueChanged<DateTime>(',
           ),
         );
         expect(source, contains("<Object>['onDateTimeChanged']"));
@@ -1210,7 +1219,7 @@ void main() {
         expect(source, isNotNull);
         expect(
           source,
-          contains('onChanged: source.handler<ValueChanged<bool>>('),
+          contains('onChanged: RestageDecoders.valueChanged<bool>('),
         );
       },
     );
@@ -1315,7 +1324,7 @@ void main() {
       },
     );
 
-    test('emits Icon with positional IconData wrap (iconData synthetic)', () {
+    test('emits Icon with a positional icon lookup (iconData synthetic)', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
         name: 'IconLike',
@@ -1354,13 +1363,167 @@ void main() {
       expect(
         source,
         contains(
-          "IconData(source.v<int>(<Object>['iconCodepoint']) ?? "
+          'resolveInstalledIcon(source.v<int>(const '
+          "<Object>['iconCodepoint']) ?? "
           "(throw ArgumentError('IconLike.iconCodepoint is required.')), "
           "fontFamily: 'MaterialIcons')",
         ),
       );
+      // No `IconData` construction — that is what retains the whole font.
+      expect(source, isNot(contains('IconData(')));
       // No `iconCodepoint:` named arg in the emitted source.
       expect(source, isNot(contains('iconCodepoint: ')));
+      // An entry declaring no mirroring sibling emits the lookup it emitted
+      // before, which already resolves the non-mirroring glyph.
+      expect(source, isNot(contains('matchTextDirection')));
+    });
+
+    test('an iconFontFamily sibling supplies the lookup font family', () {
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'IconLike',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.decoration,
+        description: '',
+        flutterType: 'package:flutter/widgets.dart#Icon',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconCodepoint',
+            type: PropertyType.integer,
+            description: '',
+            required: true,
+            synthetic: 'iconData',
+            positional: true,
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconFontFamily',
+            type: PropertyType.string,
+            description: '',
+            synthetic: 'iconFontFamily',
+          ),
+        ],
+      );
+      final source = emitFactoryFunction(entry);
+      expect(source, isNotNull);
+      // The wire family drives the lookup, falling back to the Material
+      // font for a blob that names none.
+      expect(
+        source,
+        contains(
+          'resolveInstalledIcon(source.v<int>(const '
+          "<Object>['iconCodepoint']) ?? "
+          "(throw ArgumentError('IconLike.iconCodepoint is required.')), "
+          "fontFamily: source.v<String>(const <Object>['iconFontFamily']) ?? "
+          "'MaterialIcons')",
+        ),
+      );
+      // Flutter's `Icon` has no `iconFontFamily` parameter — the family is
+      // consumed by the lookup, never emitted as a ctor arg.
+      expect(source, isNot(contains('iconFontFamily: ')));
+      expect(source, isNot(contains('matchTextDirection')));
+    });
+
+    test('an iconMatchTextDirection sibling supplies the lookup mirroring', () {
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'IconLike',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.decoration,
+        description: '',
+        flutterType: 'package:flutter/widgets.dart#Icon',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconCodepoint',
+            type: PropertyType.integer,
+            description: '',
+            required: true,
+            synthetic: 'iconData',
+            positional: true,
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconFontFamily',
+            type: PropertyType.string,
+            description: '',
+            synthetic: 'iconFontFamily',
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconMatchTextDirection',
+            type: PropertyType.boolean,
+            description: '',
+            synthetic: 'iconMatchTextDirection',
+          ),
+        ],
+      );
+      final source = emitFactoryFunction(entry);
+      expect(source, isNotNull);
+      // A family and a code point name two glyphs where a pair shares one, so
+      // the lookup reads the mirroring too, defaulting to the plain glyph for
+      // a blob that omits it.
+      expect(
+        source,
+        contains(
+          'resolveInstalledIcon(source.v<int>(const '
+          "<Object>['iconCodepoint']) ?? "
+          "(throw ArgumentError('IconLike.iconCodepoint is required.')), "
+          "fontFamily: source.v<String>(const <Object>['iconFontFamily']) ?? "
+          "'MaterialIcons', matchTextDirection: "
+          "source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false)",
+        ),
+      );
+      // Flutter's `Icon` has no `iconMatchTextDirection` parameter — the
+      // mirroring is consumed by the lookup, never emitted as a ctor arg.
+      expect(source, isNot(contains('iconMatchTextDirection: ')));
+    });
+
+    test('an iconMatchTextDirection sibling is emittable on its own', () {
+      // A synthetic strategy the emitter cannot lower drops the whole widget
+      // from mechanical emission, so the entry has to survive the gate.
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'IconLike',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.decoration,
+        description: '',
+        flutterType: 'package:flutter/widgets.dart#Icon',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconCodepoint',
+            type: PropertyType.integer,
+            description: '',
+            required: true,
+            synthetic: 'iconData',
+            positional: true,
+          ),
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'iconMatchTextDirection',
+            type: PropertyType.boolean,
+            description: '',
+            synthetic: 'iconMatchTextDirection',
+          ),
+        ],
+      );
+
+      expect(
+        kSupportedSyntheticStrategies,
+        contains('iconMatchTextDirection'),
+      );
+      expect(
+        emitFactoryFunction(entry),
+        contains(
+          "fontFamily: 'MaterialIcons', matchTextDirection: "
+          "source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false)",
+        ),
+      );
     });
 
     test(
@@ -1390,10 +1553,12 @@ void main() {
         expect(
           source,
           contains(
-            "IconData(source.v<int>(<Object>['iconCodepoint']) ?? 0, "
-            "fontFamily: 'MaterialIcons')",
+            'resolveInstalledIcon(source.v<int>(const '
+            "<Object>['iconCodepoint']) "
+            "?? 0, fontFamily: 'MaterialIcons')",
           ),
         );
+        expect(source, isNot(contains('IconData(')));
         expect(source, isNot(contains('throw ArgumentError')));
       },
     );
@@ -1434,7 +1599,7 @@ void main() {
         expect(
           source,
           contains(
-            "source.v<String>(<Object>['url']) ?? "
+            "source.v<String>(const <Object>['url']) ?? "
             '(throw ArgumentError(',
           ),
         );
@@ -1478,9 +1643,9 @@ void main() {
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
         final positionalIndex =
-            source!.indexOf("source.v<String>(<Object>['src']) ??");
-        final namedIndex =
-            source.indexOf("extent: source.v<double>(<Object>['extent'])");
+            source!.indexOf("source.v<String>(const <Object>['src']) ??");
+        final namedIndex = source
+            .indexOf("extent: source.v<double>(const <Object>['extent'])");
         expect(positionalIndex, greaterThanOrEqualTo(0));
         expect(namedIndex, greaterThan(positionalIndex));
       },
@@ -1492,8 +1657,8 @@ void main() {
       () {
         // `Icon.iconCodepoint` is supported when paired with
         // `positional: true` (covered by the positive
-        // "Icon with positional IconData wrap" test). Without
-        // `positional: true`, the wrap would try to slot into a
+        // "Icon with a positional icon lookup" test). Without
+        // `positional: true`, the lookup would try to slot into a
         // non-existent `iconCodepoint:` named parameter — reject.
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
@@ -1762,7 +1927,7 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("title: source.optionalChild(<Object>['title'])"),
+        contains("title: source.optionalChild(const <Object>['title'])"),
       );
     });
 
@@ -1806,7 +1971,7 @@ void main() {
           source,
           stringContainsInOrder([
             'borderRadius: BorderRadius.circular(',
-            "source.v<double>(<Object>['borderRadius']) ?? 0.0)",
+            "source.v<double>(const <Object>['borderRadius']) ?? 0.0)",
           ]),
         );
       },
@@ -1851,7 +2016,7 @@ void main() {
           source,
           stringContainsInOrder([
             'borderRadius: BorderRadius.circular(',
-            "source.v<double>(<Object>['borderRadius']) ?? 4.0)",
+            "source.v<double>(const <Object>['borderRadius']) ?? 4.0)",
           ]),
         );
         // Defensive: no double-`??` chain.
@@ -1956,10 +2121,10 @@ void main() {
           source,
           stringContainsInOrder([
             'borderRadius: (',
-            "source.v<double>(<Object>['borderRadiusTopLeft'])",
-            "source.v<double>(<Object>['borderRadiusTopRight'])",
-            "source.v<double>(<Object>['borderRadiusBottomLeft'])",
-            "source.v<double>(<Object>['borderRadiusBottomRight'])",
+            "source.v<double>(const <Object>['borderRadiusTopLeft'])",
+            "source.v<double>(const <Object>['borderRadiusTopRight'])",
+            "source.v<double>(const <Object>['borderRadiusBottomLeft'])",
+            "source.v<double>(const <Object>['borderRadiusBottomRight'])",
             ') != null',
             'BorderRadius.only(',
             "topLeft: ${_radiusCircularSource('borderRadiusTopLeft')}",
@@ -2193,7 +2358,7 @@ void main() {
         source,
         contains(
           'appBar: RestageDecoders.optionalPreferredSize('
-          "source.optionalChild(<Object>['appBar']))",
+          "source.optionalChild(const <Object>['appBar']))",
         ),
       );
     });
@@ -2234,7 +2399,7 @@ void main() {
           curated,
           contains(
             'appBar: RestageDecoders.preferredSize('
-            "source.child(<Object>['appBar']))",
+            "source.child(const <Object>['appBar']))",
           ),
         );
         expect(curated, isNot(contains('source.optionalChild')));
@@ -2244,10 +2409,13 @@ void main() {
           custom,
           contains(
             'appBar: RestageDecoders.optionalPreferredSize('
-            "source.optionalChild(<Object>['appBar']))",
+            "source.optionalChild(const <Object>['appBar']))",
           ),
         );
-        expect(custom, isNot(contains("source.child(<Object>['appBar'])")));
+        expect(
+          custom,
+          isNot(contains("source.child(const <Object>['appBar'])")),
+        );
       },
     );
 
@@ -2281,7 +2449,7 @@ void main() {
         ),
       );
       expect(source, contains('return Image.network('));
-      expect(source, contains("source.v<String>(<Object>['url'])"));
+      expect(source, contains("source.v<String>(const <Object>['url'])"));
     });
 
     test('emits EdgeInsets.fromLTRB literal for 4-element list defaults', () {
@@ -2367,7 +2535,7 @@ void main() {
       );
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
-      expect(source, contains("source.v<String>(<Object>['label'])"));
+      expect(source, contains("source.v<String>(const <Object>['label'])"));
       expect(source, isNot(contains('?? ')));
     });
 
@@ -2590,7 +2758,7 @@ void main() {
           matches(
             RegExp(
               r'style:\s*TextStyle\(\s*'
-              r"fontSize:\s*source\.v<double>\(<Object>\['fontSize'\]\)"
+              r"fontSize:\s*source\.v<double>\(const <Object>\['fontSize'\]\)"
               r' \?\? 14\.0,\s*'
               r"color:\s*ArgumentDecoders\.color\(source, <Object>\['color'\]\)"
               r'\s*\)',
@@ -2773,7 +2941,7 @@ void main() {
         // A literal binding takes no decoder call / null guard for the slot.
         expect(
           source,
-          isNot(contains("source.v<double>(<Object>['borderRadius']")),
+          isNot(contains("source.v<double>(const <Object>['borderRadius']")),
         );
       });
 
@@ -3732,7 +3900,7 @@ void main() {
             source,
             stringContainsInOrder([
               'borderRadius: ',
-              "source.v<double>(<Object>['borderRadius']) == null",
+              "source.v<double>(const <Object>['borderRadius']) == null",
               '? null',
               ': BorderRadius.circular(',
             ]),
@@ -3863,11 +4031,15 @@ void main() {
           expect(source, contains('style: TextStyle('));
           expect(
             source,
-            contains("inherit: source.v<bool>(<Object>['inherit']) ?? true"),
+            contains(
+              "inherit: source.v<bool>(const <Object>['inherit']) ?? true",
+            ),
           );
           expect(
             source,
-            contains("package: source.v<String>(<Object>['fontPackage'])"),
+            contains(
+              "package: source.v<String>(const <Object>['fontPackage'])",
+            ),
           );
           expect(source, isNot(contains('color:')));
         },

@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart'
     show WidgetsBinding, WidgetsBindingObserver;
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_core/restage_core.dart'
+    show InstalledIconTable, RestageIconTable;
 
 import '../analytics/analytics_identity.dart';
 import '../analytics/root_analytics_context.dart';
@@ -47,6 +49,9 @@ import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
+import 'builtin_icon_table.dart';
+import 'restage_widget_libraries.dart';
+import 'restage_widget_registration.dart';
 import 'first_paint_lease_guard.dart';
 import 'restage_identity.dart';
 import 'restage_paywall.dart';
@@ -183,7 +188,105 @@ abstract final class Restage {
   /// [governedMeasurementTransport] installs an explicit alternate transport
   /// instead. With neither option, governed Measurement and privacy calls fail
   /// closed and legacy analytics identity remains unaffected.
+  /// With no explicit catalog selection, installs core and the complete widget
+  /// and icon families selected by [includeMaterial] and [includeCupertino].
+  /// Both default to true. False omits a complete family contribution; explicit
+  /// and generated-required entries remain available, including the shared
+  /// Material Icon builder that can render Cupertino icons.
+  ///
+  /// Pass generated `kRestageWidgetRegistration` as [registerWidgets] to forward
+  /// the same options. It runs once after shared configuration and before catalog
+  /// bootstrap. The generated registration adds built-in widget and icon entries,
+  /// preserving existing entries on collisions. Custom library registration
+  /// retains its existing replacement behavior for the same namespace.
+  /// Registration errors propagate after configuration has taken effect.
+  /// Regenerate older outputs to obtain this registration object. A separate
+  /// no-argument full registration stays inclusive and cannot be narrowed here.
+  ///
+  /// Without [registerWidgets], existing selections, including explicitly empty
+  /// selections, are preserved independently for widgets and icons. Use
+  /// [configureWithInstalledCatalog] for configuration without catalog bootstrap.
   static void configure({
+    String? apiKey,
+    String? baseUrl,
+    bool analyticsEnabled = true,
+    bool measurementEnabled = true,
+    bool includeMaterial = true,
+    bool includeCupertino = true,
+    RestageWidgetRegistration? registerWidgets,
+    RestageEnvironment environment = RestageEnvironment.production,
+    void Function(SurfaceResolutionReport report)? onSurfaceResolution,
+    VariantResolver? resolver,
+    FlowResolver? flowResolver,
+    SurfaceScreenResolver? surfaceScreenResolver,
+    Locale? locale,
+    Future<RestageIdentity?> Function()? identity,
+    Set<SurfaceRefreshTrigger> liveRefresh = const {},
+    Map<String, Set<SurfaceRefreshTrigger>> liveRefreshOverrides = const {},
+    SurfaceUpdateChannel? updateChannel,
+    Uri? liveRefreshEdgeUrl,
+    bool governedMeasurementTransportEnabled = false,
+    RestageGovernedMeasurementTransport? governedMeasurementTransport,
+  }) {
+    configureWithInstalledCatalog(
+      apiKey: apiKey,
+      baseUrl: baseUrl,
+      analyticsEnabled: analyticsEnabled,
+      measurementEnabled: measurementEnabled,
+      environment: environment,
+      onSurfaceResolution: onSurfaceResolution,
+      resolver: resolver,
+      flowResolver: flowResolver,
+      surfaceScreenResolver: surfaceScreenResolver,
+      locale: locale,
+      identity: identity,
+      liveRefresh: liveRefresh,
+      liveRefreshOverrides: liveRefreshOverrides,
+      updateChannel: updateChannel,
+      liveRefreshEdgeUrl: liveRefreshEdgeUrl,
+      governedMeasurementTransportEnabled: governedMeasurementTransportEnabled,
+      governedMeasurementTransport: governedMeasurementTransport,
+    );
+    registerWidgets?.call(
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
+    );
+    if (!InstalledWidgetLibraries.hasSelection) {
+      final builtIn = RestageWidgetLibraries.builtIn(
+        includeMaterial: includeMaterial,
+        includeCupertino: includeCupertino,
+      );
+      if (identical(
+          InstalledWidgetLibraries.current, RestageWidgetLibraries.none)) {
+        InstalledWidgetLibraries.install(builtIn);
+      } else {
+        InstalledWidgetLibraries.add(builtIn);
+      }
+    }
+    if (!InstalledIconTable.hasSelection) {
+      final builtIn = builtInIconTable(
+        includeMaterial: includeMaterial,
+        includeCupertino: includeCupertino,
+      );
+      if (identical(InstalledIconTable.current, RestageIconTable.none)) {
+        InstalledIconTable.install(builtIn);
+      } else {
+        InstalledIconTable.add(builtIn);
+      }
+    }
+  }
+
+  /// Configures Restage using only the catalog the app explicitly installs.
+  ///
+  /// Call generated `registerRestageWidgets()` before this method when using
+  /// `catalog: derived`. Generated surface references can also add vocabulary
+  /// later, before mounting. An empty selection remains empty. This entrypoint
+  /// has no reference to the full built-in widget or icon catalogs, allowing
+  /// unused catalog entries to be removed from release builds.
+  ///
+  /// All delivery, analytics, Measurement and refresh arguments have the same
+  /// meaning as in [configure].
+  static void configureWithInstalledCatalog({
     String? apiKey,
     String? baseUrl,
     bool analyticsEnabled = true,

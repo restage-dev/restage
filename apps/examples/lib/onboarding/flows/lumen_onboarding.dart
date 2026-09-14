@@ -21,7 +21,7 @@ part 'restage.generated/lumen_onboarding.restage.g.dart';
 /// forward transition per screen, so a personalization answer tailors the
 /// experience rather than forking the graph (the faithful pattern — real
 /// onboardings capture answers for tailoring, not an immediate path fork).
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class LumenOnboardingFlow extends RestageFlow {
   /// Host action that requests the daily-reminder permission and reports the
   /// grant. The flow advances to the recap only on a granted result.

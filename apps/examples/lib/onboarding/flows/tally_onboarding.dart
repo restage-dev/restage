@@ -25,7 +25,7 @@ part 'restage.generated/tally_onboarding.restage.g.dart';
 ///
 /// This is the authorable counterpart to the linear meditation onboarding: same
 /// runtime, but the answer forks the path rather than just tailoring copy.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class TallyOnboardingFlow extends RestageFlow {
   const TallyOnboardingFlow();
 

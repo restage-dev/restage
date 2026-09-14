@@ -5,11 +5,16 @@
 /// hands the result to `Runtime.update(LibraryName(['restage', 'material']),
 /// library)`. Re-registering with a fresh build replaces the prior library
 /// — useful for hot-reload in the editor.
+///
+/// The per-widget builders are exported as well, so a caller can install
+/// a subset of the namespace instead of the whole map.
 library;
 
 import 'package:rfw/rfw.dart';
 
 import 'src/registration.g.dart';
+
+export 'src/registration.g.dart';
 
 /// Builds a [LocalWidgetLibrary] for the `restage.material` namespace.
 ///

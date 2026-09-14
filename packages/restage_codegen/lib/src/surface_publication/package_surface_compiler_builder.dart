@@ -9,6 +9,7 @@ import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/analytics_id_control.dart';
+import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
 import 'package:restage_codegen/src/durable_state.dart';
@@ -38,6 +39,7 @@ import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
@@ -137,6 +139,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final issues = <Issue>[];
   final buildNoticeKeys = <String>{};
   final appFactoryNotices = _AppFactoryNoticeCensus();
+  // Loaded at most once per build step, and only when something needs it.
+  Future<Catalog>? mergedCatalogLoad;
+  Future<Catalog> mergedCatalog() =>
+      mergedCatalogLoad ??= loadMergedCatalog(buildStep);
   // One selection, shared with the roster below: this compiler and the roster
   // cannot disagree about which libraries can declare a surface, and the
   // package's sources are read once instead of twice.
@@ -248,6 +254,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             blob: screen.blob,
             capabilitySidecar: capabilitySidecar,
             flowArtifactPath: '${screen.input.id}.rfw',
+            vocabulary: screen.vocabulary,
             rfwText: utf8.encode(screen.text),
             rfwCatalogOccurrenceSetsByOutputRole:
                 _rfwCatalogOccurrenceSetsForSourceOutputRoles(
@@ -283,6 +290,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             mountConstructorProblem: screen.input.build.mountConstructorProblem,
             plan: plan,
             bundleEntryMetadata: bundleEntryMetadata,
+            vocabulary: screen.vocabulary,
           ),
         );
         issues.addAll(contract.issues);
@@ -373,6 +381,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           blob: blob,
           capabilitySidecar: sidecarBytes,
           flowArtifactPath: '${source.effectiveId}.rfw',
+          packageWidgetNames:
+              legacyCompilation.screens.single.vocabulary.widgetNames,
           rfwText: text,
           rfwCatalogOccurrenceSetsByOutputRole:
               _rfwCatalogOccurrenceSetsForSourceOutputRoles(
@@ -434,6 +444,12 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             declaration: declaration,
             facts: facts,
             flowArtifactPath: p.posix.basename(facts.adapter.blob.path),
+            packageWidgetNames: _paywallWidgetNames(
+              facts,
+              await mergedCatalog(),
+              location: '${assetId.path}#${paywall.className}',
+              issues: issues,
+            ),
           ),
         );
       } on Object catch (error) {
@@ -452,6 +468,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   await _compilePaywalls(
     buildStep,
     jobs: paywallJobs,
+    mergedCatalog: mergedCatalog,
     retainSource: (source) => source.isCanonical,
     rendered: rendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
@@ -489,6 +506,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         version: source.version,
         minClient: sidecar.manifest.builtInFloor,
         blob: artifact.blob,
+        vocabulary: artifact.vocabulary,
         canonicalPaywallId:
             source.kind == RestageRosterSourceKind.paywall && source.isCanonical
                 ? source.effectiveId
@@ -604,7 +622,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     appFactoryNotices.emit(buildNoticeKeys);
     return _invalidCompilation(issues);
   }
-  final catalog = await loadMergedCatalog(buildStep);
+  final catalog = await mergedCatalog();
   final discoveries = await _discoverMeasurementSources(
     buildStep,
     screens: measurementScreenInputs,
@@ -723,6 +741,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   await _compilePaywalls(
     buildStep,
     jobs: paywallJobs,
+    mergedCatalog: mergedCatalog,
     rendered: finalRendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     measurementRoutePlans: emissionPlans,
@@ -1017,6 +1036,7 @@ TrackedPackageSurfaceCompilation _validCompilation(
       borrowedArtifacts: bundle.borrowedManifestFiles,
       ownedOutputs: ownedOutputs,
       artifactLibraryPaths: bundle.artifactLibraryPaths,
+      surfaceWidgetNames: bundle.surfaceWidgetNames,
     ),
     measurementCompilerOutput: measurementCompilerOutput,
     analyticsIdControlOutput: analyticsIdControlOutput,
@@ -1840,6 +1860,7 @@ Future<void> _appendResolvedScreens(
         blob: screen.blob,
         capabilitySidecar: sidecar,
         flowArtifactPath: '${screen.input.id}.rfw',
+        vocabulary: screen.vocabulary,
         rfwText: utf8.encode(screen.text),
         rfwCatalogOccurrenceSetsByOutputRole:
             _rfwCatalogOccurrenceSetsForSourceOutputRoles(
@@ -1864,6 +1885,7 @@ Future<void> _appendResolvedScreens(
           constructorParams: screen.input.build.constructorParams,
           mountConstructorProblem: screen.input.build.mountConstructorProblem,
           plan: placement,
+          vocabulary: screen.vocabulary,
           bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
             blobSha256: CapabilitySidecar.hashBlob(screen.blob),
             blobByteLength: screen.blob.length,
@@ -1929,6 +1951,7 @@ List<ResolvedClassFlowScreen> _resolvedClassFlowScreens(
         version: source.version,
         minClient: sidecar.manifest.builtInFloor,
         blob: artifact.blob,
+        vocabulary: artifact.vocabulary,
         canonicalPaywallId: source.kind == RestageRosterSourceKind.paywall
             ? source.effectiveId
             : null,
@@ -2306,6 +2329,7 @@ Map<String, ScreenArtifact>? _screenArtifactsForNormalizedFlow(
 Future<void> _compilePaywalls(
   BuildStep buildStep, {
   required List<_PaywallCompilationJob> jobs,
+  required Future<Catalog> Function() mergedCatalog,
   bool Function(PaywallSourceFound source)? retainSource,
   required List<CompiledSurfaceArtifact> rendered,
   required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
@@ -2480,10 +2504,17 @@ Future<void> _compilePaywalls(
         flowDocumentPath: 'assets/paywalls/$id.flow.json',
         files: files,
       );
+      final mountVocabulary = _deliveredPaywallVocabulary(
+        id,
+        compiledById,
+        location: entry.value.assetId.path,
+        issues: issues,
+      );
       rendered.add(
         CompiledSurfaceArtifact.fromPaywallAdapter(
           declaration: entry.value.declaration,
           facts: facts,
+          mountVocabulary: mountVocabulary,
           nativeMountInput: source.outputs
                   .any((output) => output.role == 'paywall-descriptor')
               ? ResolvedWidgetMountInput(
@@ -2501,6 +2532,12 @@ Future<void> _compilePaywalls(
                 )
               : null,
           flowArtifactPath: 'paywall_$id.rfw',
+          packageWidgetNames: _paywallWidgetNames(
+            facts,
+            await mergedCatalog(),
+            location: entry.value.assetId.path,
+            issues: issues,
+          ),
           rfwText: compiled.standaloneText == null
               ? null
               : utf8.encode(compiled.standaloneText!),
@@ -2524,6 +2561,46 @@ Future<void> _compilePaywalls(
       );
     }
   }
+}
+
+/// The catalog entries every blob in one paywall's artifact family names,
+/// read off those blobs so a translation lowering is named too.
+List<String> _paywallWidgetNames(
+  PaywallArtifactFacts facts,
+  Catalog catalog, {
+  required String location,
+  required List<Issue> issues,
+}) {
+  final names = <String>{};
+  for (final screen in <PaywallScreenArtifactFacts>[
+    if (facts.standalone case final standalone?) standalone,
+    facts.adapter,
+    ...facts.flowScreens.values,
+  ]) {
+    final fmt.RemoteWidgetLibrary library;
+    try {
+      library = fmt.decodeLibraryBlob(screen.blob.bytes);
+    } on Object catch (error) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Compiled paywall artifact "${screen.blob.path}" could not '
+              'be read back to name the widgets it renders: $error',
+          location: location,
+        ),
+      );
+      continue;
+    }
+    final derivation = deriveCapabilityManifest(library, catalog);
+    if (derivation.issues.isNotEmpty) {
+      issues.addAll(derivation.issues);
+      continue;
+    }
+    names.addAll(
+      referencesOfCatalogEntries(derivation.referencedWidgets).widgetNames,
+    );
+  }
+  return names.toList()..sort();
 }
 
 Map<String, RestageSourceDeclaration> _sourcesByDeclarationIdentity(
@@ -2682,6 +2759,49 @@ final class _FlowCompilationJob {
   final AssetId assetId;
   final LibraryElement library;
   final List<NormalizedFlowSource> flows;
+}
+
+/// The catalog widgets and icons rendering paywall [id] draws — its own forms
+/// plus every paywall its lowered navigation reaches.
+///
+/// A carriage failure between two screens of one delivered surface is recorded
+/// against [location] and folds to the empty set; the caller's build already
+/// fails on a non-empty [issues].
+SurfaceVocabularyReferences _deliveredPaywallVocabulary(
+  String id,
+  Map<String, _CompiledPaywall> compiledById, {
+  required String location,
+  required List<Issue> issues,
+}) {
+  final union = VocabularyUnionBuilder();
+  final pending = <String>[id];
+  final seen = <String>{id};
+  while (pending.isNotEmpty) {
+    final next = pending.removeLast();
+    final compiled = compiledById[next];
+    if (compiled == null) continue;
+    try {
+      union.add(compiled.artifacts.vocabulary, next);
+    } on IconCarriageFailure catch (failure) {
+      final other = union.ownerOf(failure);
+      final origin = other == null ? '' : ' The other one comes from $other.';
+      issues.add(
+        Issue(
+          code: failure is IconCodePointCollision
+              ? IssueCode.collidingIconCodePoints
+              : IssueCode.unreconstructableIconData,
+          message: 'Paywall $id reaches paywall $next, but '
+              '${failure.reason}.$origin',
+          location: location,
+        ),
+      );
+      return SurfaceVocabularyReferences.empty;
+    }
+    for (final pushed in compiled.artifacts.navigationPushedIds) {
+      if (seen.add(pushed)) pending.add(pushed);
+    }
+  }
+  return union.union;
 }
 
 final class _CompiledPaywall {

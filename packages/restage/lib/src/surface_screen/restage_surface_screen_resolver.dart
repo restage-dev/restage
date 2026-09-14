@@ -14,8 +14,7 @@ import '../resolver/surface_delivery_observations.dart'
 import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
-import '../runtime/builtin_catalog_capabilities.dart';
-import '../runtime/library_runtime_registry.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import 'asset_surface_screen_resolver.dart';
 import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
@@ -139,11 +138,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
           if (held != null && held.lease.isCurrent) {
             final verdict = BlobRenderCapabilityGate.evaluate(
               required: held.screen.capabilities,
-              installed: InstalledCapability(
-                builtInCatalogVersion:
-                    RestageBuiltInCatalogCapabilities.currentVersion,
-                installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-              ),
+              installed: currentInstalledCapability(),
             );
             if (verdict is! BlobRenderRejected) {
               try {
@@ -216,10 +211,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
     }
     final capabilityVerdict = BlobRenderCapabilityGate.evaluate(
       required: provenance.capabilities,
-      installed: InstalledCapability(
-        builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-        installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-      ),
+      installed: currentInstalledCapability(),
     );
     if (capabilityVerdict is BlobRenderRejected) {
       throw SurfaceScreenUnavailableError(

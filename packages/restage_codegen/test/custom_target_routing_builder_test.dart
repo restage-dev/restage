@@ -127,7 +127,27 @@ void main() {
     );
     expect(disabled.catalogDart, isNot(contains('RoutedCard')));
     expect(disabled.factoryDart, isNot(contains('RoutedCard')));
-    expect(disabled.factoryDart, contains('void registerRestageWidgets() {}'));
+    // A package with no widget of its own still installs the built-in catalog
+    // and the vocabulary its own surfaces render.
+    expect(
+      disabled.factoryDart,
+      contains(
+        '  void call({\n'
+        '    bool includeMaterial = true,\n'
+        '    bool includeCupertino = true,\n'
+        '  }) {\n'
+        '    InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(\n'
+        '      includeMaterial: includeMaterial,\n'
+        '      includeCupertino: includeCupertino,\n'
+        '    ));\n'
+        '    InstalledIconTable.add(builtInIconTable(\n'
+        '      includeMaterial: includeMaterial,\n'
+        '      includeCupertino: includeCupertino,\n'
+        '    ));\n'
+        '    kRestageAppVocabulary.addToInstalled(explicitSelection: true);\n'
+        '  }',
+      ),
+    );
     expect(
       disabled.factoryDart,
       contains(
@@ -136,7 +156,7 @@ void main() {
       ),
     );
     expect(
-      RegExp(r'void registerRestageWidgets\(\) \{')
+      RegExp(r'void registerRestageWidgets\(\{')
           .allMatches(disabled.factoryDart)
           .length,
       1,

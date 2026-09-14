@@ -252,13 +252,66 @@ void main() {
               contains("import 'package:flutter/material.dart';"),
               contains("import 'package:rfw/rfw.dart' hide Switch;"),
               contains(
-                "'Divider': _buildDivider,",
+                "'Divider': buildDivider,",
               ),
               contains(
-                'Widget _buildDivider(BuildContext context, DataSource source)',
+                'Widget buildDivider(BuildContext context, DataSource source)',
               ),
               contains('return Divider('),
-              contains("source.v<double>(<Object>['thickness']) ?? 1.0"),
+              contains("source.v<double>(const <Object>['thickness']) ?? 1.0"),
+            ),
+          ),
+        },
+      );
+    });
+
+    test(
+        'emits each builder as a documented public function the const map '
+        'references', () async {
+      // The per-widget builders are part of each catalog package's public
+      // API, so a host can install a subset instead of the whole map.
+      const catalogJson = '''
+{
+  "schemaVersion": 5,
+  "generatedAt": "2026-05-09T00:00:00Z",
+  "libraries": {
+    "restage.core": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "Placeholder",
+      "library": "restage.core",
+      "category": "layout",
+      "description": "Draws a box representing where other widgets will go.",
+      "flutterType": "package:flutter/widgets.dart#Placeholder",
+      "childrenSlot": "none",
+      "properties": [],
+      "stability": "volatile"
+    }
+  ],
+  "structuredTypes": [],
+  "unions": [],
+  "designTokens": []
+}
+''';
+
+      await testBuilder(
+        factoryFunctionBuilder(BuilderOptions.empty),
+        {'restage_core|lib/src/widget_catalog/catalog.json': catalogJson},
+        rootPackage: 'restage_core',
+        outputs: {
+          'restage_core|lib/src/registration.g.dart': decodedMatches(
+            allOf(
+              contains(
+                "/// Builds the catalog's `Placeholder` widget from [source].",
+              ),
+              contains(
+                'Widget buildPlaceholder(BuildContext context, '
+                'DataSource source) {',
+              ),
+              isNot(contains('Widget _buildPlaceholder(')),
+              contains("'Placeholder': buildPlaceholder,"),
             ),
           ),
         },
@@ -328,9 +381,9 @@ void main() {
               contains(
                 "import 'package:restage_material/src/widgets/synthetic_frame.dart';",
               ),
-              contains("'SyntheticFrame': _buildSyntheticFrame,"),
+              contains("'SyntheticFrame': buildSyntheticFrame,"),
               contains(
-                'Widget _buildSyntheticFrame(BuildContext context, '
+                'Widget buildSyntheticFrame(BuildContext context, '
                 'DataSource source)',
               ),
               contains('return SyntheticFrame('),
@@ -399,7 +452,7 @@ void main() {
                   "import 'package:restage_core/src/widgets/gizmo.dart';",
                 ),
               ),
-              contains("'Gizmo': _buildGizmo,"),
+              contains("'Gizmo': buildGizmo,"),
             ),
           ),
         },

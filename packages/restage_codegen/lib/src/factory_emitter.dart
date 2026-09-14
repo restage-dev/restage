@@ -66,11 +66,17 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///     metadata determines whether `<Call>` is a constructor or static factory.
 ///     Properties consumed by a recipe are excluded from the direct named-args
 ///     list.
-///   * `synthetic: 'iconData'` on an integer property wraps the
-///     codepoint as `IconData(value, fontFamily: 'MaterialIcons')`
-///     and emits positionally — must be paired with `positional: true`
-///     so the wrapped value slots into Flutter's positional `icon`
-///     arg.
+///   * `synthetic: 'iconData'` on an integer property resolves the
+///     codepoint through the app's installed icon table as
+///     `resolveInstalledIcon(value, fontFamily: <family>)` and
+///     emits positionally — must be paired with `positional: true` so
+///     the resolved value slots into Flutter's positional `icon` arg.
+///     `<family>` is the entry's `synthetic: 'iconFontFamily'` string
+///     property when it declares one, defaulting to `'MaterialIcons'`,
+///     and the Material literal when it declares none. An entry that
+///     also declares a `synthetic: 'iconMatchTextDirection'` boolean
+///     property adds `matchTextDirection: <value>` to the lookup,
+///     which selects the mirroring glyph of a code point naming two.
 ///   * `synthetic: 'borderRadiusCircular'` on a real property wraps
 ///     the decoded scalar as `BorderRadius.circular(<value>)` so the
 ///     same flat slot drives both direct ctor args
@@ -106,12 +112,16 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///     binding, requiredness, nullability, constructor defaults, and widget
 ///     downcasts remain constructor-derived; the curated built-in slot policy
 ///     stays unchanged.
+///
+/// Pass [publicName] for a built-in catalog library: the function is emitted
+/// under its exported name and carries a dartdoc line.
 String? emitFactoryFunction(
   WidgetEntry entry, {
   NativeCatalogIndex? nativeIndex,
   CustomReconstruction? custom,
   Map<String, String> aliases = const {},
   bool customChildProperties = false,
+  bool publicName = false,
 }) {
   if (!_isMechanicallyEmittable(
     entry,
@@ -129,7 +139,13 @@ String? emitFactoryFunction(
   final customAliases = aliases.isNotEmpty
       ? aliases
       : (custom?.aliases ?? const <String, String>{});
-  final functionName = functionNameFor(entry);
+  final functionName =
+      publicName ? publicFunctionNameFor(entry) : functionNameFor(entry);
+  // Built-in catalog builders are part of a package's public API and so
+  // carry a dartdoc line; app-local factories stay private.
+  final signatureDoc = publicName
+      ? "/// Builds the catalog's `${entry.name}` widget from [source].\n"
+      : '';
   final ctor = _ctorExpressionFor(entry, aliases: customAliases);
   final canonicalChild = _canonicalChildPropertyOf(entry);
   final gatingProp = _gatingPropertyOf(entry);
@@ -230,7 +246,7 @@ String? emitFactoryFunction(
     }
     final value = _positionalEmit(
       p,
-      entry.name,
+      entry,
       index: nativeIndex,
       aliases: customAliases,
       presence: presence,
@@ -411,7 +427,7 @@ String? emitFactoryFunction(
   final gatingDeclaration = gatingProp == null
       ? null
       : '  final ${gatingProp.name} = '
-          'source.v<bool>(${_sourcePath(gatingProp.name)}) ?? false;';
+          'source.v<bool>(const ${_sourcePath(gatingProp.name)}) ?? false;';
   final preambleLines = <String>[
     if (gatingDeclaration != null) gatingDeclaration,
     ...presencePlans.values.map((plan) => plan.declaration),
@@ -429,14 +445,14 @@ String? emitFactoryFunction(
       customAliases,
     );
     return '''
-Widget $functionName(BuildContext context, DataSource source) {
+${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
 $preamble  return $invocation;
 }
 ''';
   }
 
   return '''
-Widget $functionName(BuildContext context, DataSource source) {
+${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
 $preamble  return $ctor(
 ${argLines.join('\n')}
   );
@@ -577,33 +593,39 @@ String _presenceAwareCanonicalChildrenValue(
   );
 }
 
-/// Emits the positional value for [prop] without a `name:` prefix.
-/// `iconData` synthetic wraps the int codepoint into an `IconData`
-/// constant; everything else falls through to the same scalar
-/// decoder used for named args.
+/// Emits the positional value for [prop] on [entry] without a `name:`
+/// prefix. `iconData` synthetic looks the int codepoint up in the app's
+/// installed icon table, under the font family its sibling
+/// `iconFontFamily` property carries and the mirroring its sibling
+/// `iconMatchTextDirection` property carries; everything else falls through
+/// to the same scalar decoder used for named args.
+///
+/// Constructing an `IconData` from the wire value instead is what forces
+/// an app to retain the whole icon font.
 ///
 /// For `required: true` codepoints, the inner expression mirrors
 /// [_decodeExpression]'s throw-on-missing contract so a malformed blob
-/// fails loudly rather than rendering a zero-codepoint icon the user
-/// can't tell is broken. Non-required codepoints retain the `?? 0`
-/// fallback (zero is a valid `IconData` argument and the surrounding
-/// Icon paints a Material default at that codepoint).
+/// fails loudly. Non-required codepoints retain the `?? 0` fallback.
 String _positionalEmit(
   PropertyEntry prop,
-  String widgetName, {
+  WidgetEntry entry, {
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
   RfwConstructorPresenceFactoryPlan? presence,
   bool customChildProperties = false,
 }) {
+  final widgetName = entry.name;
   if (prop.synthetic == _iconDataSynthetic) {
     final path = presence?.valuePathExpression ?? _sourcePath(prop.name);
-    final read = 'source.v<int>($path)';
+    final read = 'source.v<int>(${_directSourcePath(prop.name, path)})';
     final fallback = prop.required
         ? '(throw ArgumentError('
             '${_dartStringLiteral('$widgetName.${prop.name} is required.')}))'
         : '0';
-    return "IconData($read ?? $fallback, fontFamily: 'MaterialIcons')";
+    final family = _iconFontFamilyExpression(entry);
+    final mirroring = _iconMatchTextDirectionArgument(entry);
+    return 'resolveInstalledIcon($read ?? $fallback, '
+        'fontFamily: $family$mirroring)';
   }
   return _decodeExpression(
     prop,
@@ -614,6 +636,32 @@ String _positionalEmit(
     applyDefault: presence == null,
     customChildProperties: customChildProperties,
   );
+}
+
+/// The `fontFamily:` argument an icon lookup on [entry] reads.
+///
+/// An entry with no `iconFontFamily` sibling emits the Material family
+/// literal, so a catalog that never carried the family is unchanged.
+String _iconFontFamilyExpression(WidgetEntry entry) {
+  final family = entry.properties.firstWhereOrNull(
+    (p) => p.synthetic == _iconFontFamilySynthetic,
+  );
+  final literal = _dartStringLiteral(_defaultIconFontFamily);
+  if (family == null) return literal;
+  return 'source.v<String>(const ${_sourcePath(family.name)}) ?? $literal';
+}
+
+/// The `, matchTextDirection: …` argument an icon lookup on [entry] adds, or
+/// the empty string when [entry] declares no mirroring sibling.
+///
+/// Omitting the argument leaves the lookup on its non-mirroring default.
+String _iconMatchTextDirectionArgument(WidgetEntry entry) {
+  final mirroring = entry.properties.firstWhereOrNull(
+    (p) => p.synthetic == _iconMatchTextDirectionSynthetic,
+  );
+  if (mirroring == null) return '';
+  final read = 'source.v<bool>(const ${_sourcePath(mirroring.name)}) ?? false';
+  return ', matchTextDirection: $read';
 }
 
 String _nativeRecipeEmit(
@@ -1227,7 +1275,7 @@ String _borderRadiusEmitWithCorners(
   }
 
   String read(PropertyEntry prop) =>
-      'source.v<double>(${_sourcePath(prop.name)})';
+      'source.v<double>(const ${_sourcePath(prop.name)})';
 
   final presence = corners.values.map(read).join(' ?? ');
   final onlyArgs = <String>[];
@@ -1245,9 +1293,22 @@ String _borderRadiusEmitWithCorners(
   return '($presence) != null ? $only : ($uniformExpression)';
 }
 
-/// Strategy identifier for `PropertyEntry.synthetic`: wrap the
-/// integer codepoint as `IconData(value, fontFamily: 'MaterialIcons')`.
+/// Strategy identifier for `PropertyEntry.synthetic`: resolve the
+/// integer codepoint through the app's installed icon table.
 const String _iconDataSynthetic = 'iconData';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: the icon font family
+/// the sibling [_iconDataSynthetic] codepoint is looked up in. Read by that
+/// property's emission; never a ctor arg of its own.
+const String _iconFontFamilySynthetic = 'iconFontFamily';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: whether the sibling
+/// [_iconDataSynthetic] codepoint means its mirroring glyph. Read by that
+/// property's emission; never a ctor arg of its own.
+const String _iconMatchTextDirectionSynthetic = 'iconMatchTextDirection';
+
+/// The font family an icon codepoint belongs to when the wire names none.
+const String _defaultIconFontFamily = 'MaterialIcons';
 
 /// Structured types whose validity Flutter enforces with a debug-only assert
 /// **from the render object rather than the constructor** — so a value
@@ -1329,6 +1390,8 @@ const List<({String property, String corner})> _kBorderRadiusCorners = [
 /// set.)
 const Set<String> kSupportedSyntheticStrategies = {
   _iconDataSynthetic,
+  _iconFontFamilySynthetic,
+  _iconMatchTextDirectionSynthetic,
   _gateOnPressedSynthetic,
   _imageFilterBlurSynthetic,
   _borderRadiusCircularSynthetic,
@@ -1348,6 +1411,14 @@ const Set<String> kSupportedSyntheticStrategies = {
 /// a dot through.
 String functionNameFor(WidgetEntry entry) =>
     '_build${entry.name.replaceAll('.', '')}';
+
+/// Returns the exported function identifier for [entry]'s factory closure.
+///
+/// Built from the catalog `name` field with dots stripped (`'Center'` →
+/// `buildCenter`, `'CardFilled'` → `buildCardFilled`). Used only for the
+/// built-in catalog libraries, whose builders are part of their public API.
+String publicFunctionNameFor(WidgetEntry entry) =>
+    'build${entry.name.replaceAll('.', '')}';
 
 /// Whether the factory can mechanically emit EVERY aspect of [entry] (all
 /// properties, slots, events, synthetics, decompositions) against the current
@@ -1697,7 +1768,7 @@ String? _preferredSizeHeightPathFor(PropertyEntry prop, WidgetEntry entry) {
   final height = entry.properties.firstWhereOrNull(
     (p) => p.synthetic == _preferredSizeHeightSynthetic,
   );
-  return height == null ? null : _sourcePath(height.name);
+  return height == null ? null : 'const ${_sourcePath(height.name)}';
 }
 
 /// True when [prop]'s `synthetic` strategy is one the mechanical
@@ -1713,12 +1784,33 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
             (p) => p.type == PropertyType.event && p.name == 'onPressed',
           );
     case _iconDataSynthetic:
-      // The synthetic wraps the int codepoint as
-      // `IconData(value, fontFamily: 'MaterialIcons')`. The wrapped
-      // value slots into Flutter's `Icon(IconData icon, ...)`
-      // positional first arg, so the property must also be marked
-      // positional in the catalog.
+      // The synthetic resolves the int codepoint through the installed
+      // icon table. The resolved value slots into Flutter's
+      // `Icon(IconData icon, ...)` positional first arg, so the property
+      // must also be marked positional in the catalog.
       return prop.type == PropertyType.integer && prop.positional;
+    case _iconFontFamilySynthetic:
+      // The synthetic names the font the sibling codepoint resolves in, so
+      // it only means anything beside one. Read by that property's emission
+      // rather than emitted as a ctor arg, so it is never positional.
+      return prop.type == PropertyType.string &&
+          !prop.positional &&
+          entry.properties.any(
+            (p) =>
+                p.synthetic == _iconDataSynthetic &&
+                p.type == PropertyType.integer,
+          );
+    case _iconMatchTextDirectionSynthetic:
+      // The synthetic picks between the two glyphs a codepoint can name, so
+      // it only means anything beside one. Read by that property's emission
+      // rather than emitted as a ctor arg, so it is never positional.
+      return prop.type == PropertyType.boolean &&
+          !prop.positional &&
+          entry.properties.any(
+            (p) =>
+                p.synthetic == _iconDataSynthetic &&
+                p.type == PropertyType.integer,
+          );
     case _imageFilterBlurSynthetic:
       // The synthetic pairs `blurSigmaX` + `blurSigmaY` into an
       // `ImageFilter.blur(...)` value. Per-prop gate: typed `real`
@@ -1941,6 +2033,7 @@ String _decodeExpression(
   String? preferredSizeHeightPath,
 }) {
   final path = pathExpression ?? _sourcePath(prop.name);
+  final directPath = _directSourcePath(prop.name, path);
   final decoded = _decoderCallFor(
     prop,
     path,
@@ -1956,7 +2049,7 @@ String _decodeExpression(
   if (prop.type == PropertyType.widgetList &&
       prop.constructorNullable &&
       prop.constructorDefault == null) {
-    return 'source.isList($path) ? $decoded : null';
+    return 'source.isList($directPath) ? $decoded : null';
   }
   // Literal `defaultValue` takes precedence. Otherwise a `required`
   // scalar without a default emits a throw so a malformed blob fails
@@ -1973,7 +2066,7 @@ String _decodeExpression(
       applyDefault ? _defaultExpressionFor(prop, aliases: aliases) : null;
   if (defaultExpr != null) {
     if (prop.type == PropertyType.widgetList) {
-      return 'source.isList($path) ? $decoded : $defaultExpr';
+      return 'source.isList($directPath) ? $decoded : $defaultExpr';
     }
     return '$decoded ?? $defaultExpr';
   }
@@ -3027,14 +3120,18 @@ String _decoderCallFor(
   bool customChildProperties = false,
   String? preferredSizeHeightPath,
 }) {
+  // Only the flat property path is known to be a literal here. Structured
+  // paths can contain runtime indices or spreads and must remain mutable.
+  // Extensible ArgumentDecoders also retain their existing mutable inputs.
+  final directPath = _directSourcePath(prop.name, path);
   final preferredSizeHeightHint = preferredSizeHeightPath == null
       ? null
       : 'source.v<double>($preferredSizeHeightPath)';
   switch (prop.type) {
     case PropertyType.boolean:
-      return 'source.v<bool>($path)';
+      return 'source.v<bool>($directPath)';
     case PropertyType.integer:
-      return 'source.v<int>($path)';
+      return 'source.v<int>($directPath)';
     case PropertyType.real:
     case PropertyType.length:
       // `source.v<double>` is a strict type check: an `int` on the wire reads
@@ -3044,9 +3141,9 @@ String _decoderCallFor(
       // value, far too late to recover a number that was dropped here.
       return tolerantNumbers
           ? 'RestageDecoders.number(source, $path)'
-          : 'source.v<double>($path)';
+          : 'source.v<double>($directPath)';
     case PropertyType.string:
-      return 'source.v<String>($path)';
+      return 'source.v<String>($directPath)';
     case PropertyType.stringList:
       // Fail-safe: a present-but-degenerate list (a non-string element on a
       // corrupt / tamper wire) DROPS the bad element rather than throwing,
@@ -3131,8 +3228,8 @@ String _decoderCallFor(
       final nullableDecoder =
           customChildProperties ? prop.constructorNullable : !prop.required;
       final base = nullableDecoder
-          ? 'source.optionalChild($path)'
-          : 'source.child($path)';
+          ? 'source.optionalChild($directPath)'
+          : 'source.child($directPath)';
       if (prop.widgetType == null) return base;
       if (prop.widgetType == kPreferredSizeWidgetType) {
         // A built slot value never implements the interface, so the
@@ -3147,7 +3244,7 @@ String _decoderCallFor(
           ? '$base as ${prop.widgetType}?'
           : '$base as ${prop.widgetType}';
     case PropertyType.widgetList:
-      return 'source.childList($path)';
+      return 'source.childList($directPath)';
     case PropertyType.enumValue:
       final t = _enumDartTypeName(prop);
       if (t == null) {
@@ -3170,14 +3267,12 @@ String _decoderCallFor(
       if (signature == null) {
         // Void-callback events (`VoidCallback?`): the rfw shortcut
         // wraps the trigger directly.
-        return 'source.voidHandler($path)';
+        return 'source.voidHandler($directPath)';
       }
       // The eligibility gate already proved this serialized signature against
       // the same shared contract used by analyzer-side callback admission.
       final argType = RfwCallbackSignature.parse(signature)!.valueType;
-      return 'source.handler<$signature>($path, '
-          '(trigger) => ($argType value) => '
-          "trigger(<String, Object?>{'value': value}))";
+      return 'RestageDecoders.valueChanged<$argType>(source, $directPath)';
     case PropertyType.structured:
       // A structured value slot with a registered runtime decoder (a
       // `structuredRef` resolving to a structured type named in
@@ -3402,3 +3497,9 @@ String _nullableFlutterType(PropertyType type) {
       );
   }
 }
+
+// Direct RFW reads never mutate their path. A flat, literal property path can
+// therefore be canonicalized without changing custom decoder inputs or paths
+// assembled from runtime indices and spreads.
+String _directSourcePath(String propertyName, String path) =>
+    path == _sourcePath(propertyName) ? 'const $path' : path;

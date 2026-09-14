@@ -50,6 +50,26 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
       ),
     ],
   ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'Padding': buildPadding,
+        'Row': buildRow,
+        'SafeArea': buildSafeArea,
+        'SizedBox': buildSizedBox,
+        'Text': buildText,
+        'TextRich': buildTextRich,
+      },
+      material: {
+        'AppBar': buildAppBar,
+        'InkWell': buildInkWell,
+        'Scaffold': buildScaffold,
+      },
+    ),
+  ),
 );
 
 final starterChecklistRef = SurfaceScreenRef<

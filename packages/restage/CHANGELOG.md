@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+`Restage.configure` includes the complete built-in widget and icon catalogs by
+default. Its independent `includeMaterial` and `includeCupertino` options can
+omit a complete family while preserving app-required entries. Both default to
+true. Regenerate with `dart run build_runner build` after upgrading, then pass
+`kRestageWidgetRegistration` to `registerWidgets` to apply the same choices to
+generated registration. The standalone `registerRestageWidgets()` function
+retains its inclusive defaults.
+
+To derive a smaller selection from the app's Dart and authored surfaces, set
+`catalog: derived` on the `restage_codegen:user_factories` builder in `build.yaml`.
+Call the generated registration before `Restage.configureWithInstalledCatalog`
+when handling registration separately. Measure matched release builds of the app
+to determine the saving; APK growth and estimated download growth are different
+quantities.
+
+Release builds no longer need `--no-tree-shake-icons`. Don't pass it: it puts the
+whole icon font back into an app that would otherwise have derived its icons. An
+opted-down build generates an icon table of compile-time constants, so Flutter's
+icon tree-shaking works as usual.
+
+A generated paywall mount installs the widgets and icons its surface draws, as
+generated screen and flow mounts already did, so it renders in an app that never
+calls `registerRestageWidgets()`.
+
+`RestageWidgetLibraries.builtIn()` and `builtInIconTable()` return the complete
+built-in catalogs by default. Both accept `includeMaterial` and
+`includeCupertino` for an explicit family selection.
+
+`RestageIconTable.fromFamilies` takes named `families:` and `mirrored:`
+parameters. The two maps have the same type and were adjacent, so a positional
+call could swap them silently.
+
+Icons carry their font family and text-direction mirroring end to end, so a
+Cupertino icon renders as itself and a mirrored icon flips in a right-to-left
+layout.
+
 Generated flow mounts retain the original graph and Flutter screen constructors.
 Active delivery gates against that compiled contract without requiring runtime
 bundles; unavailable initial delivery runs the complete original closure through

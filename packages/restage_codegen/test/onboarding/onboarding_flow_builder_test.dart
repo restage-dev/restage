@@ -683,6 +683,61 @@ void main() {
       );
     });
 
+    test('the flow reference names the child flows it enters', () async {
+      final sources = _graphFlowSources(_profileChildFlowJson());
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+
+      expect(result.succeeded, isTrue);
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+        ),
+      );
+      expect(generated, contains('subFlows: [profileChildFlow]'));
+
+      // A flow that enters nothing names no list at all, so every reference
+      // generated before sub-flow vocabulary stays byte-identical.
+      final plainSources = _firstRunSources();
+      final plainReaderWriter = await _readerWriterWith(plainSources);
+      final plain = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
+        plainSources,
+        rootPackage: 'apps_examples',
+        readerWriter: plainReaderWriter,
+        flattenOutput: true,
+      );
+
+      expect(plain.succeeded, isTrue);
+      expect(
+        plain.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+          ),
+        ),
+        isNot(contains('subFlows')),
+      );
+    });
+
     test('typed EventFlow terminal output must match the end literal',
         () async {
       final cases = <String, String>{
@@ -2695,14 +2750,21 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
   return readerWriter;
 }
 
+/// Compiles the generated result class and decoder standalone and proves the
+/// decoder accepts the canonical result and rejects every other shape.
+///
+/// The two are lifted out of their part rather than compiled with it: the rest
+/// of the generated file names SDK types that reach `dart:ui`, which the Dart
+/// VM does not offer. Nothing else is substituted, so the decoder that runs is
+/// the emitted one, and the reference is checked to name it.
 Future<void> _assertGeneratedResultDecoderRuns(String generated) async {
+  expect(generated, contains('decodeResult: _decodeFirstRunFlowResult'));
   final dir = Directory('.dart_tool/onboarding_flow_builder_test')
     ..createSync(recursive: true);
   final script = File('${dir.path}/generated_decoder_check.dart');
-  final source = generatedFlowResultSource(
+  final source = generatedDeclarationsNamed(
     generated,
-    decoderName: '_decodeFirstRunFlowResult',
-    resultName: 'FirstRunResult',
+    const {'FirstRunResult', '_decodeFirstRunFlowResult'},
   );
   script.writeAsStringSync('''
 $source

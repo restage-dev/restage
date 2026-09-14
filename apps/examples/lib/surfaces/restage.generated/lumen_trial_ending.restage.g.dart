@@ -27,7 +27,7 @@ final _lumenTrialEndingScreenProvenance =
   slug: "lumen_trial_ending",
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 6,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -51,9 +51,37 @@ final _lumenTrialEndingScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:a6f75d42ec2658e8e8827da8e51ac709143f6368f85b0a8404f7d5d5c9f3127e",
+            "sha256:d8bca2f7ed873b9aa3b510a66ac41238cf2822fd9e7be585279674f0f1145fed",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'Row': buildRow,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Icon': buildIcon,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+        0xf0027: IconData(0xf0027, fontFamily: 'MaterialIcons'),
+      },
+    }),
   ),
 );
 
@@ -62,7 +90,7 @@ final lumenTrialEndingScreenRef = SurfaceScreenRef<
   provenance: _lumenTrialEndingScreenProvenance,
   eventContract: _lumenTrialEndingScreenEvents,
   measurementPublicationDraftDigest:
-      "df311c58a74580be10ce9ef02cb3294d53a7187f143190fada21fda2d5877651",
+      "8a8ec0f86bd778d3d875009e0ace637a71fcbf0118ddfd0691e4d382099e6935",
 );
 
 LumenTrialEndingScreenEvent _decodeValidatedLumenTrialEndingScreenEvent(

@@ -66,8 +66,8 @@ const Set<String> _rootOnlyEntries = <String>{'MaterialApp', 'Scaffold'};
 ///    scalars and required `iconData` synthetics (the catalog-level
 ///    `required: true` enforcement). Cases here: `Checkbox.value` and
 ///    `Switch.value` (bool), and `Icon.iconCodepoint` (int synthetic
-///    that wraps as `IconData`). Codepoint 0xe87d is `visibility` from
-///    the Material icon font — any valid codepoint works for the smoke.
+///    that resolves through the installed icon table). Codepoint 0xe87d
+///    is one entry of `_smokeIcons` — any installed codepoint works.
 /// 3. Most non-button widgets fall through to the generic empty-args
 ///    fragment (`<EntryName>()`).
 const Map<String, String> _curatedMinimalRfwSource = <String, String>{
@@ -343,8 +343,21 @@ void _expectRendered(WidgetEntry entry) {
   }
 }
 
+/// The one icon the synthesised fragments name, installed the way an app
+/// installs the icons its surfaces render.
+const core.RestageIconTable _smokeIcons = core.RestageIconTable.fromFamilies(
+  families: <String, Map<int, IconData>>{
+    core.RestageIconTable.materialIconsFamily: <int, IconData>{
+      0xe87d: Icons.commute_sharp,
+    },
+  },
+);
+
 void main() {
   group('restage_material rendering smoke', () {
+    setUp(() => core.InstalledIconTable.install(_smokeIcons));
+    tearDown(core.InstalledIconTable.reset);
+
     testWidgets('every catalog widget renders into the tree', (tester) async {
       final allEntries = kRegistry.widgets;
       expect(allEntries, isNotEmpty,

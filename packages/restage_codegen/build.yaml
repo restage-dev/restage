@@ -47,6 +47,9 @@ builders:
     runs_before:
       - 'restage_codegen:outputs'
       - 'restage_codegen:generated_dart'
+      # The app aggregate folds the compiled surfaces' catalog entries out of
+      # this builder's package-wide record, so it must be written first.
+      - 'restage_codegen:user_factories'
 
   # The single owner of per-library generated Dart. One builder declares and
   # writes the whole `<stem>.restage.g.dart` family, so a library declaring a
@@ -249,6 +252,11 @@ builders:
     auto_apply: dependents
     build_to: source
     runs_before: []
+  # The `catalog` option chooses what the generated registerRestageWidgets()
+  # installs. `full` enables complete built-in families by default; generated
+  # helper arguments can select Material/Cupertino. `derived` installs only
+  # what this package draws in its own Dart plus what its compiled surfaces
+  # render. Any other value fails the build.
   user_factories:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userFactoryBuilder']

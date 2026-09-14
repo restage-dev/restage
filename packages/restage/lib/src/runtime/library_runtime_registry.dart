@@ -133,6 +133,9 @@ abstract final class LibraryRuntimeRegistry {
     _generation += 1;
   }
 
+  /// Whether any custom library is registered at all.
+  static bool get hasRegistrations => _entries.isNotEmpty;
+
   /// Whether a custom library with [namespace] is registered.
   static bool isRegistered(String namespace) => _entries.containsKey(namespace);
 

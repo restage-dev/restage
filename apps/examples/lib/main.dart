@@ -30,6 +30,9 @@ import 'surfaces/starter_host_data_demo.dart';
 import 'widgets/minimal_custom_widget_demo.dart';
 
 void main() {
+  // Generated surfaces install what they draw as they mount. This one line
+  // adds the rest of the app's vocabulary, so an over-the-air update may use
+  // a widget no surface draws today — and so `RestagePaywall(id:)` renders.
   registerRestageWidgets();
   // This example ships its demo paywalls as bundled `.rfw` assets, so it pins
   // `AssetVariantResolver` as the default. If you omit `resolver:` and pass a

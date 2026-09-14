@@ -26,6 +26,7 @@ import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/lowering_targets.dart';
 import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
@@ -40,6 +41,7 @@ import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/single_select_recognition.dart';
 import 'package:restage_codegen/src/structured_value_emitter.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/toggle_buttons_recognition.dart';
@@ -133,6 +135,20 @@ const Set<String> _kAsymmetricBorderRadiusCtors = {
 /// (see `StructuredValueEmitter`). The splice keys off this prefix.
 const String _kBorderRadiusCornerSentinel = '__rfw_border_radius_corners(';
 
+/// The `synthetic` strategy of the codepoint property an icon slot carries.
+const String _kIconDataSynthetic = 'iconData';
+
+/// The `synthetic` strategy of the font-family property that travels beside
+/// a codepoint.
+const String _kIconFontFamilySynthetic = 'iconFontFamily';
+
+/// The `synthetic` strategy of the mirroring property that travels beside a
+/// codepoint, selecting the glyph that flips in a right-to-left locale.
+const String _kIconMatchTextDirectionSynthetic = 'iconMatchTextDirection';
+
+/// The icon font family a codepoint belongs to when the wire names none.
+const String _kDefaultIconFontFamily = 'MaterialIcons';
+
 /// Corner name (as the sentinel emits) → the per-corner catalog property name.
 /// Mirrors the reconstruction side's `borderRadius<Corner>` convention; the
 /// recognition stays widget-agnostic (it emits the bare corner name).
@@ -159,9 +175,11 @@ final class TranslationResult {
     Map<String, Map<String, String>> widgetDefinitionStates = const {},
     Map<String, String> rootWidgetState = const {},
     Set<String> referencedCustomLibraries = const {},
+    Iterable<IconDataReference> iconReferences = const [],
     Iterable<fmt.RfwCatalogConstructorProvenance> rfwCatalogConstructorOrigins =
         const [],
   })  : issues = List.unmodifiable(issues),
+        iconReferences = List.unmodifiable(iconReferences),
         widgetDefinitions = Map.unmodifiable(widgetDefinitions),
         widgetDefinitionStates = Map.unmodifiable(widgetDefinitionStates),
         rootWidgetState = Map.unmodifiable(rootWidgetState),
@@ -205,6 +223,11 @@ final class TranslationResult {
   /// imports each so the reference resolves at runtime. Empty when the surface
   /// references only built-in and inlined widgets.
   final Set<String> referencedCustomLibraries;
+
+  /// The compile-time icons this translation resolved, ordered by font family
+  /// and then code point, each carrying every `IconData` field so generated
+  /// code rebuilds the value exactly.
+  final List<IconDataReference> iconReferences;
 
   /// Typed catalog origins for RFW calls emitted during this translation.
   final List<fmt.RfwCatalogConstructorProvenance> rfwCatalogConstructorOrigins;
@@ -525,6 +548,10 @@ final class ExpressionTranslator {
   // current translate() call — the emitter imports each. Null outside a call.
   Set<String>? _currentReferencedCustomLibraries;
 
+  // The icons resolved in the current translate() call, so the generated
+  // surface reference can rebuild them. Null outside a call.
+  IconReferenceCollector? _currentIconReferences;
+
   // Typed catalog selections for RFW constructors emitted during one
   // translation. The aggregate compiler reuses these selections to bind the
   // parsed calls without resolving their names again.
@@ -568,6 +595,15 @@ final class ExpressionTranslator {
   // Whether the current translation intentionally suppresses its output
   // artifact without failing the build.
   bool _currentTranslationSuppressed = false;
+
+  // The font family the icon at the codepoint slot being translated belongs
+  // to, when it is not the Material default. Set by `_resolveIconCodepoint`
+  // and taken by the enclosing constructor emission.
+  String? _resolvedIconFontFamily;
+
+  // Whether that same icon mirrors under a right-to-left directionality, which
+  // is what tells the two glyphs of a shared codepoint apart.
+  bool _resolvedIconMatchTextDirection = false;
 
   /// Table-driven dispatcher. A registered recipe short-circuits the
   /// hand-authored per-type dispatch; an unregistered call falls through.
@@ -727,6 +763,7 @@ final class ExpressionTranslator {
     final rootWidgetState = <String, String>{};
     final definitionOwners = <String, String>{};
     final referencedCustomLibraries = <String>{};
+    final iconReferences = IconReferenceCollector();
     final rfwCatalogConstructorOrigins =
         <String, fmt.RfwCatalogConstructorProvenance>{};
     final customWidgetInlineClaims = <_CustomWidgetEmissionIdentity>{};
@@ -737,6 +774,7 @@ final class ExpressionTranslator {
     _currentWidgetDefinitionStates = widgetDefinitionStates;
     _currentDefinitionOwners = definitionOwners;
     _currentReferencedCustomLibraries = referencedCustomLibraries;
+    _currentIconReferences = iconReferences;
     _currentRfwCatalogConstructorOrigins = rfwCatalogConstructorOrigins;
     _currentCustomWidgetInlineClaims = customWidgetInlineClaims;
     _currentCustomWidgetReferences = customWidgetReferences;
@@ -832,6 +870,7 @@ final class ExpressionTranslator {
       _currentWidgetDefinitionStates = null;
       _currentDefinitionOwners = null;
       _currentReferencedCustomLibraries = null;
+      _currentIconReferences = null;
       _currentRfwCatalogConstructorOrigins = null;
       _currentCustomWidgetInlineClaims = null;
       _currentCustomWidgetReferences = null;
@@ -858,6 +897,7 @@ final class ExpressionTranslator {
         widgetDefinitionStates: widgetDefinitionStates,
         rootWidgetState: rootWidgetState,
         referencedCustomLibraries: referencedCustomLibraries,
+        iconReferences: iconReferences.references,
         rfwCatalogConstructorOrigins:
             rfwCatalogConstructorOrigins.values.toList()
               ..sort(
@@ -2941,11 +2981,45 @@ final class ExpressionTranslator {
   ) {
     final element = expr.identifier.element;
     if (element is PropertyAccessorElement) {
-      final codepoint = element.variable
-          .computeConstantValue()
-          ?.getField('codePoint')
-          ?.toIntValue();
-      if (codepoint != null) return '$codepoint';
+      final icon = element.variable.computeConstantValue();
+      final codepoint = icon?.getField('codePoint')?.toIntValue();
+      if (codepoint != null) {
+        final family = icon?.getField('fontFamily')?.toStringValue();
+        final package = icon?.getField('fontPackage')?.toStringValue();
+        // The Material font is the wire default, so a Material icon travels
+        // as a bare codepoint with no family alongside it.
+        final isDefaultFont =
+            family == _kDefaultIconFontFamily && package == null;
+        if (family != null && !isDefaultFont) _resolvedIconFontFamily = family;
+        // Not mirroring is the wire default, so only a mirroring icon fills
+        // the slot.
+        _resolvedIconMatchTextDirection =
+            icon?.getField('matchTextDirection')?.toBoolValue() ?? false;
+        // Recorded field for field, so the generated reference rebuilds the
+        // exact icon rather than a value synthesised from its code point.
+        if (icon != null && isIconDataValue(icon)) {
+          try {
+            // Rebuilt before the null check so a refusal is diagnosed even
+            // when nothing is collecting this call's icons.
+            final reference = iconDataReference(icon);
+            _currentIconReferences?.add(reference);
+          } on IconCarriageFailure catch (failure) {
+            issues.add(
+              Issue(
+                code: failure is IconCodePointCollision
+                    ? IssueCode.collidingIconCodePoints
+                    : IssueCode.unreconstructableIconData,
+                message: 'This surface renders '
+                    '${expr.prefix.name}.${expr.identifier.name}, but '
+                    '${failure.reason}.',
+                location: _locationOf(expr),
+              ),
+            );
+            return '';
+          }
+        }
+        return '$codepoint';
+      }
     }
     issues.add(
       Issue(
@@ -3700,8 +3774,8 @@ final class ExpressionTranslator {
     InstanceCreationExpression expr,
     List<Issue> issues,
   ) {
-    final typeName = _instanceCreationTypeName(expr);
-    final constructorName = _instanceCreationMemberName(expr);
+    final typeName = instanceCreationTypeName(expr);
+    final constructorName = instanceCreationMemberName(expr);
     if (typeName != 'Text' || constructorName != 'rich') return null;
 
     final cls = _classOfInstanceCreation(expr);
@@ -3723,11 +3797,7 @@ final class ExpressionTranslator {
     List<Issue> issues,
   ) {
     final target = expr.target;
-    if (target is! SimpleIdentifier ||
-        target.name != 'Text' ||
-        expr.methodName.name != 'rich') {
-      return null;
-    }
+    if (target is! SimpleIdentifier || !isTextRichInvocation(expr)) return null;
 
     final cls = _classOfMethodInvocation(expr) ??
         (target.element is ClassElement
@@ -3860,9 +3930,7 @@ final class ExpressionTranslator {
           catalog.widgets.firstWhereOrNull((w) => w.flutterType == flutterType);
       if (resolved != null) return resolved;
     }
-    return catalog.widgets.firstWhereOrNull((w) => w.name == 'Text.rich') ??
-        catalog.widgets
-            .firstWhereOrNull((w) => w.flutterType.endsWith('#Text.rich'));
+    return kTextRichLowering.resolve(catalog).firstOrNull;
   }
 
   String? _textSpanMap(
@@ -3953,8 +4021,8 @@ final class ExpressionTranslator {
     List<Issue> issues,
   ) {
     if (expr is InstanceCreationExpression) {
-      if (_instanceCreationTypeName(expr) != 'TextSpan' ||
-          _instanceCreationMemberName(expr) != null) {
+      if (instanceCreationTypeName(expr) != 'TextSpan' ||
+          instanceCreationMemberName(expr) != null) {
         _addTextSpanExpectedIssue(expr, issues);
         return null;
       }
@@ -5010,7 +5078,8 @@ final class ExpressionTranslator {
     required String underlayDsl,
     required List<Issue> issues,
   }) {
-    final sheetEntry = findWidgetsByName(catalog, 'RestageModalSheet')
+    final sheetEntries = kModalSheetLowering.resolve(catalog);
+    final sheetEntry = sheetEntries
         .firstWhereOrNull((entry) => entry.library == WidgetLibrary.material);
     if (sheetEntry == null) {
       issues.add(
@@ -5058,7 +5127,7 @@ final class ExpressionTranslator {
         emitted.add('${_rfwMapKey(property.name)}: $value');
       }
     }
-    return 'RestageModalSheet(${emitted.join(', ')})';
+    return '${sheetEntry.name}(${emitted.join(', ')})';
   }
 
   Map<String, String>? _modalSheetSlotValues(
@@ -5184,8 +5253,8 @@ final class ExpressionTranslator {
   ) {
     final expr = _stripParens(source);
     if (expr is! InstanceCreationExpression ||
-        _instanceCreationTypeName(expr) != 'AnimationStyle' ||
-        _instanceCreationMemberName(expr) != null ||
+        instanceCreationTypeName(expr) != 'AnimationStyle' ||
+        instanceCreationMemberName(expr) != null ||
         !_flutterOrUnresolved(_classOfInstanceCreation(expr))) {
       issues.add(
         _modalSheetUnsupportedIssue(
@@ -5330,7 +5399,7 @@ final class ExpressionTranslator {
     if (!libraryIsFlutter(widgetClass)) return null;
     // The alias target must be present in the merged catalog; without it (a
     // catalog lacking restage.material) this is not aliasable here.
-    final pager = findWidgetsByName(catalog, 'RestagePager').firstOrNull;
+    final pager = kPagerLowering.resolve(catalog).firstOrNull;
     if (pager == null) return null;
 
     final loc = _locationOf(anchor);
@@ -5451,7 +5520,7 @@ final class ExpressionTranslator {
     }
 
     _recordRfwCatalogConstructorOrigin(pager);
-    return 'RestagePager(${emitted.join(', ')})';
+    return '${pager.name}(${emitted.join(', ')})';
   }
 
   /// Recognises an inline literal `package:flutter` `PageController(...)` for
@@ -5512,8 +5581,7 @@ final class ExpressionTranslator {
     // Strict identity: only the real `package:flutter` DraggableScrollableSheet
     // aliases; a custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
-    final sheet =
-        findWidgetsByName(catalog, 'RestageDraggableSheet').firstOrNull;
+    final sheet = kDraggableSheetLowering.resolve(catalog).firstOrNull;
     if (sheet == null) return null;
 
     final loc = _locationOf(anchor);
@@ -5667,7 +5735,7 @@ final class ExpressionTranslator {
     }
 
     _recordRfwCatalogConstructorOrigin(sheet);
-    return 'RestageDraggableSheet(${emitted.join(', ')})';
+    return '${sheet.name}(${emitted.join(', ')})';
   }
 
   /// Lowers a vanilla-Flutter `RadioGroup(...)` / `DropdownButton(...)` to the
@@ -5699,9 +5767,8 @@ final class ExpressionTranslator {
     // custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
     final isRadio = widgetName == 'RadioGroup';
-    final targetName =
-        isRadio ? 'RestageRadioGroupString' : 'RestageDropdownString';
-    final target = findWidgetsByName(catalog, targetName).firstOrNull;
+    final lowering = isRadio ? kRadioGroupLowering : kDropdownLowering;
+    final target = lowering.resolve(catalog).firstOrNull;
     if (target == null) return null;
 
     final loc = _locationOf(anchor);
@@ -5860,8 +5927,7 @@ final class ExpressionTranslator {
     // Strict identity: only the real `package:flutter` widget aliases; a
     // custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
-    final target =
-        findWidgetsByName(catalog, 'RestageToggleButtons').firstOrNull;
+    final target = kToggleButtonsLowering.resolve(catalog).firstOrNull;
     if (target == null) return null;
 
     final loc = _locationOf(anchor);
@@ -5968,8 +6034,7 @@ final class ExpressionTranslator {
     // Strict identity: only the real `package:flutter` widget aliases; a
     // custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
-    final target =
-        findWidgetsByName(catalog, 'RestageSegmentedButtonString').firstOrNull;
+    final target = kSegmentedButtonLowering.resolve(catalog).firstOrNull;
     if (target == null) return null;
 
     final loc = _locationOf(anchor);
@@ -6601,6 +6666,8 @@ final class ExpressionTranslator {
       final positionalProp = positionalProps[i];
       final propName = positionalProp.name;
       final before = issues.length;
+      final isIconSlot = positionalProp.synthetic == _kIconDataSynthetic;
+      if (isIconSlot) _resetResolvedIcon();
       final value = _translateSlotValue(
         positionals[i],
         positionalProp.type,
@@ -6613,6 +6680,12 @@ final class ExpressionTranslator {
         '${_rfwMapKey(propName)}: '
         '${RfwConstructorPresenceEncoder.encode(positionalProp, value)}',
       );
+      if (isIconSlot) {
+        final family = _iconFontFamilyEmission(entry);
+        if (family != null) emitted.add(family);
+        final mirroring = _iconMatchTextDirectionEmission(entry);
+        if (mirroring != null) emitted.add(mirroring);
+      }
     }
 
     // Named args map by name; runtime widget keys are not serialized.
@@ -6647,6 +6720,8 @@ final class ExpressionTranslator {
         continue;
       }
       final before = issues.length;
+      final isIconSlot = prop.synthetic == _kIconDataSynthetic;
+      if (isIconSlot) _resetResolvedIcon();
       final value = _translateSlotValue(
         a.expression,
         prop.type,
@@ -6670,6 +6745,12 @@ final class ExpressionTranslator {
         '${_rfwMapKey(name)}: '
         '${RfwConstructorPresenceEncoder.encode(prop, value)}',
       );
+      if (isIconSlot) {
+        final family = _iconFontFamilyEmission(entry);
+        if (family != null) emitted.add(family);
+        final mirroring = _iconMatchTextDirectionEmission(entry);
+        if (mirroring != null) emitted.add(mirroring);
+      }
     }
 
     // A `PreferredSizeWidget` slot cannot report a size of its own once it
@@ -6693,6 +6774,40 @@ final class ExpressionTranslator {
     }
 
     return '${entry.name}(${emitted.join(', ')})';
+  }
+
+  /// Forgets what the last icon slot resolved to, before the next one runs.
+  void _resetResolvedIcon() {
+    _resolvedIconFontFamily = null;
+    _resolvedIconMatchTextDirection = false;
+  }
+
+  /// The `iconFontFamily` emission for the codepoint slot just translated on
+  /// [entry], or `null` when the icon is a Material one (the wire default) or
+  /// [entry] carries no family slot to put it in.
+  String? _iconFontFamilyEmission(WidgetEntry entry) {
+    final family = _resolvedIconFontFamily;
+    _resolvedIconFontFamily = null;
+    if (family == null) return null;
+    final slot = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == _kIconFontFamilySynthetic,
+    );
+    if (slot == null) return null;
+    return '${_rfwMapKey(slot.name)}: ${_stringLiteral(family)}';
+  }
+
+  /// The `iconMatchTextDirection` emission for the codepoint slot just
+  /// translated on [entry], or `null` when the icon does not mirror (the wire
+  /// default) or [entry] carries no mirroring slot to put it in.
+  String? _iconMatchTextDirectionEmission(WidgetEntry entry) {
+    final mirrors = _resolvedIconMatchTextDirection;
+    _resolvedIconMatchTextDirection = false;
+    if (!mirrors) return null;
+    final slot = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == _kIconMatchTextDirectionSynthetic,
+    );
+    if (slot == null) return null;
+    return '${_rfwMapKey(slot.name)}: true';
   }
 
   /// The height emission for [entry]'s `PreferredSizeWidget` slot, read
@@ -9460,8 +9575,8 @@ final class ExpressionTranslator {
     final String className;
     final String? ctorName;
     if (stripped is InstanceCreationExpression) {
-      className = _instanceCreationTypeName(stripped);
-      ctorName = _instanceCreationMemberName(stripped);
+      className = instanceCreationTypeName(stripped);
+      ctorName = instanceCreationMemberName(stripped);
     } else if (stripped is MethodInvocation) {
       final target = stripped.target;
       if (target is! SimpleIdentifier) return false;
@@ -10364,12 +10479,12 @@ final class ExpressionTranslator {
     if (expr is InstanceCreationExpression) {
       if (variant is! ConstructorVariant) return null;
       final actualType = _dartTypeRefOfInstanceCreation(expr);
-      final fallbackTypeName = _instanceCreationTypeName(expr);
+      final fallbackTypeName = instanceCreationTypeName(expr);
       if (!_matchesDartType(receiver, actualType, fallbackTypeName)) {
         return null;
       }
       if (!_matchesMember(
-        _instanceCreationMemberName(expr),
+        instanceCreationMemberName(expr),
         expectedMember,
       )) {
         return null;
@@ -10559,22 +10674,6 @@ final class ExpressionTranslator {
       libraryUri: cls.library.identifier,
       symbolName: className,
     );
-  }
-
-  String _instanceCreationTypeName(InstanceCreationExpression expr) {
-    final prefix = expr.constructorName.type.importPrefix?.name.lexeme;
-    if (prefix != null && expr.constructorName.name == null) {
-      return prefix;
-    }
-    return expr.constructorName.type.name.lexeme;
-  }
-
-  String? _instanceCreationMemberName(InstanceCreationExpression expr) {
-    final prefix = expr.constructorName.type.importPrefix?.name.lexeme;
-    if (prefix != null && expr.constructorName.name == null) {
-      return expr.constructorName.type.name.lexeme;
-    }
-    return expr.constructorName.name?.name;
   }
 
   String? _staticTargetName(Expression? target) {

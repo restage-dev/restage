@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage_example/user_factories.g.dart';
 
 /// End-to-end proof that the Fluent Pro paywall, authored with a
 /// `Navigator.push` from its "VIEW ALL PLANS" control to the second
@@ -72,6 +73,7 @@ void main() {
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),
     );
+    registerRestageWidgets();
   });
 
   // Mounts the paywall and lets the asynchronous bundled-flow load complete

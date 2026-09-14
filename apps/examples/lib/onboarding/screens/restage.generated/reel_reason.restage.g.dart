@@ -4,7 +4,7 @@ const reelReasonScreenRef = NeutralFlowScreenRef(
   id: 'reel_reason',
   artifactPath: 'reel_reason.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use reelReasonScreenRef')

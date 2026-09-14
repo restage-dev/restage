@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'user_factories.g.dart';
+
 /// Dev-only entrypoint that renders a paywall via **Restage-hosted delivery** —
 /// fetched through `RestageVariantResolver`, exactly as a production app would.
 ///
@@ -40,6 +42,9 @@ const _fakeBaseUrl = 'https://fake-surfaces.local';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // A string-identified paywall mounts nothing generated, so the app
+  // installs its own vocabulary.
+  registerRestageWidgets();
 
   if (_baseUrl.isEmpty) {
     // Self-contained mode: serve the bundled paywall through an in-app fake

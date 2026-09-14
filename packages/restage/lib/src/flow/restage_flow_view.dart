@@ -190,8 +190,6 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     _ => MaterialApp.createMaterialHeroController(),
   };
 
-  late final FlowScreenLibraries _libraries;
-
   /// Runtime + data slot per screen visit, kept while the visit is reachable or
   /// its route is still on the nested navigator.
   final Map<int, _MountedScreen> _screens = <int, _MountedScreen>{};
@@ -215,7 +213,6 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
   void initState() {
     super.initState();
     _refreshWidgetContext();
-    _libraries = FlowScreenLibraries();
     widget.controller.addListener(_controllerChanged);
     _syncFromController();
   }
@@ -285,7 +282,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     if (!_screens.containsKey(entryId)) {
       final screen = _MountedScreen(
         entryId: entryId,
-        runtime: library == null ? null : _libraries.runtimeFor(library),
+        runtime: library == null ? null : flowScreenRuntime(library),
         nativeScreen: nativeScreen,
         onEvent: (name, args) =>
             _handleScreenEvent(controller, entryId, name, args),

@@ -23,29 +23,256 @@ import 'package:restage_example/widgets/streak_badge.dart' as s9;
 import 'package:restage_example/widgets/tier_board.dart' as s10;
 import 'package:restage/restage.dart';
 
+/// The built-in widgets and icons this package names in its
+/// own Dart, plus the catalog entries its compiled surfaces
+/// render, so a delivered surface can render them.
+///
+/// The scan covers this package's own `lib/` and not the
+/// packages it depends on. An icon reached through a variable,
+/// a function return, or an app-defined wrapper rather than
+/// named by a compile-time constant is not seen.
+const SurfaceVocabulary kRestageAppVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Align': buildAlign,
+      'AspectRatio': buildAspectRatio,
+      'Center': buildCenter,
+      'ClipRect': buildClipRect,
+      'ColoredBox': buildColoredBox,
+      'Column': buildColumn,
+      'ConstrainedBox': buildConstrainedBox,
+      'Container': buildContainer,
+      'DecoratedBox': buildDecoratedBox,
+      'Expanded': buildExpanded,
+      'FittedBox': buildFittedBox,
+      'Flexible': buildFlexible,
+      'GestureDetector': buildGestureDetector,
+      'IntrinsicHeight': buildIntrinsicHeight,
+      'ListView': buildListView,
+      'Offstage': buildOffstage,
+      'Padding': buildPadding,
+      'Positioned': buildPositioned,
+      'Row': buildRow,
+      'SafeArea': buildSafeArea,
+      'SingleChildScrollView': buildSingleChildScrollView,
+      'SizedBox': buildSizedBox,
+      'Spacer': buildSpacer,
+      'Stack': buildStack,
+      'Text': buildText,
+      'TextRich': buildTextRich,
+      'TransformRotate': buildTransformRotate,
+    },
+    material: {
+      'AppBar': buildAppBar,
+      'Card': buildCard,
+      'CircularProgressIndicator': buildCircularProgressIndicator,
+      'Divider': buildDivider,
+      'ElevatedButton': buildElevatedButton,
+      'FilledButton': buildFilledButton,
+      'Icon': buildIcon,
+      'IconButton': buildIconButton,
+      'InkWell': buildInkWell,
+      'ListTile': buildListTile,
+      'MaterialApp': buildMaterialApp,
+      'RestageDraggableSheet': buildRestageDraggableSheet,
+      'RestageModalSheet': buildRestageModalSheet,
+      'RestageToggleButtons': buildRestageToggleButtons,
+      'Scaffold': buildScaffold,
+      'TextButton': buildTextButton,
+      'TextButtonIcon': buildTextButtonIcon,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xe037: IconData(0xe037, fontFamily: 'MaterialIcons'),
+      0xe064: IconData(0xe064, fontFamily: 'MaterialIcons'),
+      0xe0b7: IconData(0xe0b7, fontFamily: 'MaterialIcons'),
+      0xe0c9: IconData(0xe0c9, fontFamily: 'MaterialIcons'),
+      0xe15a: IconData(0xe15a, fontFamily: 'MaterialIcons'),
+      0xe163: IconData(0xe163, fontFamily: 'MaterialIcons'),
+      0xe1d5: IconData(0xe1d5, fontFamily: 'MaterialIcons'),
+      0xe246: IconData(0xe246, fontFamily: 'MaterialIcons'),
+      0xe28d: IconData(0xe28d, fontFamily: 'MaterialIcons'),
+      0xe2ff: IconData(0xe2ff, fontFamily: 'MaterialIcons'),
+      0xe322: IconData(0xe322, fontFamily: 'MaterialIcons'),
+      0xe38d: IconData(0xe38d, fontFamily: 'MaterialIcons'),
+      0xe394: IconData(0xe394, fontFamily: 'MaterialIcons'),
+      0xe395: IconData(0xe395, fontFamily: 'MaterialIcons'),
+      0xe396: IconData(0xe396, fontFamily: 'MaterialIcons'),
+      0xe399: IconData(0xe399, fontFamily: 'MaterialIcons'),
+      0xe39b: IconData(0xe39b, fontFamily: 'MaterialIcons'),
+      0xe39e: IconData(0xe39e, fontFamily: 'MaterialIcons'),
+      0xe3a0: IconData(0xe3a0, fontFamily: 'MaterialIcons'),
+      0xe3ab: IconData(0xe3ab, fontFamily: 'MaterialIcons'),
+      0xe3c8: IconData(0xe3c8, fontFamily: 'MaterialIcons'),
+      0xe478: IconData(0xe478, fontFamily: 'MaterialIcons'),
+      0xe532: IconData(0xe532, fontFamily: 'MaterialIcons'),
+      0xe567: IconData(0xe567, fontFamily: 'MaterialIcons'),
+      0xe56f: IconData(0xe56f, fontFamily: 'MaterialIcons'),
+      0xe59a: IconData(0xe59a, fontFamily: 'MaterialIcons'),
+      0xe675: IconData(0xe675, fontFamily: 'MaterialIcons'),
+      0xe69a: IconData(0xe69a, fontFamily: 'MaterialIcons'),
+      0xe6db: IconData(0xe6db, fontFamily: 'MaterialIcons'),
+      0xee29: IconData(0xee29, fontFamily: 'MaterialIcons'),
+      0xee71: IconData(0xee71, fontFamily: 'MaterialIcons'),
+      0xeea9: IconData(0xeea9, fontFamily: 'MaterialIcons'),
+      0xeedd: IconData(0xeedd, fontFamily: 'MaterialIcons'),
+      0xef27: IconData(0xef27, fontFamily: 'MaterialIcons'),
+      0xef4a: IconData(0xef4a, fontFamily: 'MaterialIcons'),
+      0xef60: IconData(0xef60, fontFamily: 'MaterialIcons'),
+      0xef9f: IconData(0xef9f, fontFamily: 'MaterialIcons'),
+      0xefdb: IconData(0xefdb, fontFamily: 'MaterialIcons'),
+      0xf03f: IconData(0xf03f, fontFamily: 'MaterialIcons'),
+      0xf0d0: IconData(0xf0d0, fontFamily: 'MaterialIcons'),
+      0xf0ed: IconData(0xf0ed, fontFamily: 'MaterialIcons'),
+      0xf157: IconData(0xf157, fontFamily: 'MaterialIcons'),
+      0xf162: IconData(0xf162, fontFamily: 'MaterialIcons'),
+      0xf16f: IconData(0xf16f, fontFamily: 'MaterialIcons'),
+      0xf193: IconData(0xf193, fontFamily: 'MaterialIcons'),
+      0xf196: IconData(0xf196, fontFamily: 'MaterialIcons'),
+      0xf1ae: IconData(0xf1ae, fontFamily: 'MaterialIcons'),
+      0xf216: IconData(0xf216, fontFamily: 'MaterialIcons'),
+      0xf235: IconData(0xf235, fontFamily: 'MaterialIcons'),
+      0xf2ea: IconData(0xf2ea, fontFamily: 'MaterialIcons'),
+      0xf336: IconData(0xf336, fontFamily: 'MaterialIcons'),
+      0xf352: IconData(0xf352, fontFamily: 'MaterialIcons'),
+      0xf3bb: IconData(0xf3bb, fontFamily: 'MaterialIcons'),
+      0xf42b: IconData(0xf42b, fontFamily: 'MaterialIcons'),
+      0xf47d: IconData(0xf47d, fontFamily: 'MaterialIcons'),
+      0xf47e: IconData(0xf47e, fontFamily: 'MaterialIcons'),
+      0xf4bc: IconData(0xf4bc, fontFamily: 'MaterialIcons'),
+      0xf4bd: IconData(0xf4bd, fontFamily: 'MaterialIcons'),
+      0xf520: IconData(0xf520, fontFamily: 'MaterialIcons'),
+      0xf580: IconData(0xf580, fontFamily: 'MaterialIcons'),
+      0xf596: IconData(0xf596, fontFamily: 'MaterialIcons'),
+      0xf59e: IconData(0xf59e, fontFamily: 'MaterialIcons'),
+      0xf5ca: IconData(0xf5ca, fontFamily: 'MaterialIcons'),
+      0xf5d1: IconData(0xf5d1, fontFamily: 'MaterialIcons'),
+      0xf5fe: IconData(0xf5fe, fontFamily: 'MaterialIcons'),
+      0xf614: IconData(0xf614, fontFamily: 'MaterialIcons'),
+      0xf634: IconData(0xf634, fontFamily: 'MaterialIcons'),
+      0xf635: IconData(0xf635, fontFamily: 'MaterialIcons'),
+      0xf636: IconData(0xf636, fontFamily: 'MaterialIcons'),
+      0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      0xf6b8: IconData(0xf6b8, fontFamily: 'MaterialIcons'),
+      0xf6fb: IconData(0xf6fb, fontFamily: 'MaterialIcons'),
+      0xf724: IconData(0xf724, fontFamily: 'MaterialIcons'),
+      0xf738: IconData(0xf738, fontFamily: 'MaterialIcons'),
+      0xf768: IconData(0xf768, fontFamily: 'MaterialIcons'),
+      0xf76d: IconData(0xf76d, fontFamily: 'MaterialIcons'),
+      0xf7bd: IconData(0xf7bd, fontFamily: 'MaterialIcons'),
+      0xf820: IconData(0xf820, fontFamily: 'MaterialIcons'),
+      0xf847: IconData(0xf847, fontFamily: 'MaterialIcons'),
+      0xf888: IconData(0xf888, fontFamily: 'MaterialIcons'),
+      0xf889: IconData(0xf889, fontFamily: 'MaterialIcons'),
+      0xf8f8: IconData(0xf8f8, fontFamily: 'MaterialIcons'),
+      0xf0023: IconData(0xf0023, fontFamily: 'MaterialIcons'),
+      0xf0026: IconData(0xf0026, fontFamily: 'MaterialIcons'),
+      0xf0027: IconData(0xf0027, fontFamily: 'MaterialIcons'),
+      0xf0040: IconData(0xf0040, fontFamily: 'MaterialIcons'),
+      0xf009a: IconData(0xf009a, fontFamily: 'MaterialIcons'),
+      0xf00c9: IconData(0xf00c9, fontFamily: 'MaterialIcons'),
+      0xf0128: IconData(0xf0128, fontFamily: 'MaterialIcons'),
+      0xf0144: IconData(0xf0144, fontFamily: 'MaterialIcons'),
+      0xf016b: IconData(0xf016b, fontFamily: 'MaterialIcons'),
+      0xf021d: IconData(0xf021d, fontFamily: 'MaterialIcons'),
+      0xf026e: IconData(0xf026e, fontFamily: 'MaterialIcons'),
+      0xf027e: IconData(0xf027e, fontFamily: 'MaterialIcons'),
+      0xf02e0: IconData(0xf02e0, fontFamily: 'MaterialIcons'),
+      0xf0377: IconData(0xf0377, fontFamily: 'MaterialIcons'),
+      0xf03b5: IconData(0xf03b5, fontFamily: 'MaterialIcons'),
+      0xf03c0: IconData(0xf03c0, fontFamily: 'MaterialIcons'),
+      0xf06a1: IconData(0xf06a1, fontFamily: 'MaterialIcons'),
+    },
+  }, mirrored: {
+    'MaterialIcons': {
+      0xe094: IconData(0xe094,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xe15f: IconData(0xe15f,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xe384: IconData(0xe384,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf570: IconData(0xf570,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf572: IconData(0xf572,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf57a: IconData(0xf57a,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf63a: IconData(0xf63a,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf63b: IconData(0xf63b,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0034: IconData(0xf0034,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0174: IconData(0xf0174,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0252: IconData(0xf0252,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+      0xf0254: IconData(0xf0254,
+          fontFamily: 'MaterialIcons', matchTextDirection: true),
+    },
+  }),
+);
+
+/// Pass to Restage.configure(registerWidgets: ...) to register
+/// this package with the configured family options.
+const RestageWidgetRegistration kRestageWidgetRegistration =
+    _RestageWidgetRegistration();
+
 /// Registers every emittable @RestageWidget-annotated class
 /// in this package with Restage. Call once at the app's
 /// startup, before any `RestagePaywall` mounts. Idempotent
 /// after `Restage.debugReset`, so test setUps may call it
 /// again between cases.
-void registerRestageWidgets() {
-  Restage.registerWidgetLibrary(
-    WidgetLibrary.custom('restage_example.widgets'),
-    capabilityVersion: 3,
-    widgets: const <RestageWidgetFactory>[
-      RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
-      RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
-      RestageWidgetFactory(name: 'PlanBoard', builder: _buildPlanBoard),
-      RestageWidgetFactory(name: 'PricingCard', builder: _buildPricingCard),
-      RestageWidgetFactory(name: 'PricingTable', builder: _buildPricingTable),
-      RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
-      RestageWidgetFactory(name: 'PulseBadge', builder: _buildPulseBadge),
-      RestageWidgetFactory(name: 'SectionHeader', builder: _buildSectionHeader),
-      RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
-      RestageWidgetFactory(name: 'StreakBadge', builder: _buildStreakBadge),
-      RestageWidgetFactory(name: 'TierBoard', builder: _buildTierBoard),
-    ],
+///
+/// Includes both complete built-in families by default.
+/// Family options omit full contributions, keeping app requirements.
+void registerRestageWidgets({
+  bool includeMaterial = true,
+  bool includeCupertino = true,
+}) {
+  kRestageWidgetRegistration(
+    includeMaterial: includeMaterial,
+    includeCupertino: includeCupertino,
   );
+}
+
+final class _RestageWidgetRegistration implements RestageWidgetRegistration {
+  const _RestageWidgetRegistration();
+
+  @override
+  void call({
+    bool includeMaterial = true,
+    bool includeCupertino = true,
+  }) {
+    InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
+    ));
+    InstalledIconTable.add(builtInIconTable(
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
+    ));
+    kRestageAppVocabulary.addToInstalled(explicitSelection: true);
+    Restage.registerWidgetLibrary(
+      WidgetLibrary.custom('restage_example.widgets'),
+      capabilityVersion: 3,
+      widgets: const <RestageWidgetFactory>[
+        RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
+        RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
+        RestageWidgetFactory(name: 'PlanBoard', builder: _buildPlanBoard),
+        RestageWidgetFactory(name: 'PricingCard', builder: _buildPricingCard),
+        RestageWidgetFactory(name: 'PricingTable', builder: _buildPricingTable),
+        RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
+        RestageWidgetFactory(name: 'PulseBadge', builder: _buildPulseBadge),
+        RestageWidgetFactory(
+            name: 'SectionHeader', builder: _buildSectionHeader),
+        RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
+        RestageWidgetFactory(name: 'StreakBadge', builder: _buildStreakBadge),
+        RestageWidgetFactory(name: 'TierBoard', builder: _buildTierBoard),
+      ],
+    );
+  }
 }
 
 @Deprecated('Use registerRestageWidgets; removed in 3.0')
@@ -53,14 +280,14 @@ void registerRestageCustomerWidgets() => registerRestageWidgets();
 
 Widget _buildAcmeBorder(BuildContext context, DataSource source) {
   return s0.AcmeBorder(
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
     color: ArgumentDecoders.color(source, <Object>['color']),
   );
 }
 
 Widget _buildAcmeStack(BuildContext context, DataSource source) {
   return s1.AcmeStack(
-    children: source.childList(<Object>['children']),
+    children: source.childList(const <Object>['children']),
   );
 }
 
@@ -199,7 +426,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
 
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
   return s6.PromoBadge(
-    label: source.v<String>(<Object>['label']) ??
+    label: source.v<String>(const <Object>['label']) ??
         (throw ArgumentError('PromoBadge.label is required.')),
     color: ArgumentDecoders.color(source, <Object>['color']),
   );
@@ -207,9 +434,9 @@ Widget _buildPromoBadge(BuildContext context, DataSource source) {
 
 Widget _buildPulseBadge(BuildContext context, DataSource source) {
   return s7.PulseBadge(
-    label: source.v<String>(<Object>['label']) ??
+    label: source.v<String>(const <Object>['label']) ??
         (throw ArgumentError('PulseBadge.label is required.')),
-    count: source.v<int>(<Object>['count']) ??
+    count: source.v<int>(const <Object>['count']) ??
         (throw ArgumentError('PulseBadge.count is required.')),
   );
 }
@@ -253,18 +480,18 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
 
 Widget _buildStatBadge(BuildContext context, DataSource source) {
   return s2.StatBadge(
-    label: source.v<String>(<Object>['label']) ??
+    label: source.v<String>(const <Object>['label']) ??
         (throw ArgumentError('StatBadge.label is required.')),
-    value: source.v<String>(<Object>['value']) ??
+    value: source.v<String>(const <Object>['value']) ??
         (throw ArgumentError('StatBadge.value is required.')),
   );
 }
 
 Widget _buildStreakBadge(BuildContext context, DataSource source) {
   return s9.StreakBadge(
-    label: source.v<String>(<Object>['label']) ??
+    label: source.v<String>(const <Object>['label']) ??
         (throw ArgumentError('StreakBadge.label is required.')),
-    count: source.v<int>(<Object>['count']) ??
+    count: source.v<int>(const <Object>['count']) ??
         (throw ArgumentError('StreakBadge.count is required.')),
   );
 }

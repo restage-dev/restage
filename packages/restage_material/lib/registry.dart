@@ -2116,6 +2116,22 @@ final Catalog kRegistry = Catalog(
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
+          wireId: WireId('p0489'),
+          name: 'iconFontFamily',
+          type: PropertyType.string,
+          description:
+              'Icon font family the codepoint belongs to, e.g. CupertinoIcons. Defaults to the Material icon font when absent.',
+          synthetic: 'iconFontFamily',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0490'),
+          name: 'iconMatchTextDirection',
+          type: PropertyType.boolean,
+          description:
+              'Selects the mirroring variant of a codepoint that has one — the glyph that flips in a right-to-left locale. Defaults to false.',
+          synthetic: 'iconMatchTextDirection',
+        ),
+        PropertyEntry(
           wireId: WireId('p0433'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -2123,6 +2139,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 6,
     ),
     WidgetEntry(
       wireId: WireId('w0021'),
@@ -2412,7 +2429,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.action,
       description:
-          'A modal bottom sheet that slides up over a scrim and can be dismissed by dragging it down or tapping the scrim — expressed as a purely declarative surface.',
+          'A modal bottom sheet that slides up over a scrim and can be dismissed by dragging it down or tapping the scrim.',
       flutterType:
           'package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet',
       childrenSlot: ChildrenSlot.single,
@@ -2787,7 +2804,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.input,
       description:
-          'A single-select radio group expressed as a purely declarative surface.',
+          'A single-select radio group with selection behavior compiled into your app.',
       flutterType:
           'package:restage_material/src/widgets/restage_radio_group.dart#RestageRadioGroup<String>',
       childrenSlot: ChildrenSlot.none,
@@ -2839,7 +2856,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.input,
       description:
-          'A single-select dropdown expressed as a purely declarative surface.',
+          'A single-select dropdown with menu behavior compiled into your app.',
       flutterType:
           'package:restage_material/src/widgets/restage_dropdown.dart#RestageDropdown<String>',
       childrenSlot: ChildrenSlot.none,
@@ -2891,7 +2908,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.input,
       description:
-          'A horizontal set of mutually-independent toggle buttons expressed as a purely declarative surface.',
+          'A horizontal set of independently selectable toggle buttons.',
       flutterType:
           'package:restage_material/src/widgets/restage_toggle_buttons.dart#RestageToggleButtons',
       childrenSlot: ChildrenSlot.list,
@@ -2940,7 +2957,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.input,
       description:
-          'A segmented button (single- or multi-select) expressed as a purely declarative surface.',
+          'A segmented button supporting single or multiple selections.',
       flutterType:
           'package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>',
       childrenSlot: ChildrenSlot.none,
@@ -3030,7 +3047,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.action,
       description:
-          'A persistent, resizable bottom sheet the user drags between a peek size and a fully-expanded size — expressed as a purely declarative surface. Unlike [RestageModalSheet] it never dismisses: it bottoms out at [minChildSize] and stays in the layout.',
+          'A persistent, resizable bottom sheet the user drags between a peek size and a fully-expanded size. Unlike [RestageModalSheet] it never dismisses: it bottoms out at [minChildSize] and stays in the layout.',
       flutterType:
           'package:restage_material/src/widgets/restage_draggable_sheet.dart#RestageDraggableSheet',
       childrenSlot: ChildrenSlot.single,
@@ -6356,4 +6373,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.material` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kMaterialCatalogContentVersion = 4;
+const int kMaterialCatalogContentVersion = 6;

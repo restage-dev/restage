@@ -12,6 +12,7 @@ import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -697,6 +698,127 @@ final foreignGeneratedRef = Object();
       );
     });
 
+    test('a flow reference carries the union over the screens it contains',
+        () async {
+      final scenario = await _loadScenario();
+      final result = compilePackageSurfacePublications(
+        _withScreenVocabularies(scenario.input),
+      );
+
+      expect(result.issues, isEmpty);
+      // general_flow contains `welcome` and the embedded `paywall_premium`,
+      // so the reference names a widget from each.
+      final union = _packed(
+        _referenceBody(_authoringPart(result), 'const generalFlowRef ='),
+      );
+      expect(union, contains("'Text':buildText"));
+      expect(union, contains("'Chip':buildChip"));
+
+      // Take the widget away from the embedded paywall and the same flow
+      // stops naming it: the reference tracks the screens it contains rather
+      // than the package or the catalog.
+      final narrowed = compilePackageSurfacePublications(
+        _withScreenVocabularies(scenario.input, premiumWidgetNames: const []),
+      );
+
+      expect(narrowed.issues, isEmpty);
+      final withoutPremium = _packed(
+        _referenceBody(_authoringPart(narrowed), 'const generalFlowRef ='),
+      );
+      expect(withoutPremium, contains("'Text':buildText"));
+      expect(withoutPremium, isNot(contains('buildChip')));
+    });
+
+    test('a flow reference rebuilds the icons its screens render', () async {
+      final scenario = await _loadScenario();
+      final result = compilePackageSurfacePublications(
+        _withScreenVocabularies(
+          scenario.input,
+          welcomeIcons: const [
+            IconDataReference(
+              codePoint: 0xe156,
+              fontFamily: 'MaterialIcons',
+              matchTextDirection: true,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.issues, isEmpty);
+      expect(
+        _packed(
+          _referenceBody(_authoringPart(result), 'const generalFlowRef ='),
+        ),
+        contains(
+          "0xe156:IconData(0xe156,fontFamily:'MaterialIcons',"
+          'matchTextDirection:true',
+        ),
+      );
+    });
+
+    test('a screen reference names the widgets and icons that screen draws',
+        () async {
+      final scenario = await _loadScenario();
+      final result = compilePackageSurfacePublications(
+        _withStandaloneVocabulary(
+          scenario.input,
+          SurfaceVocabularyReferences(
+            widgetNames: const ['restage.core:Text'],
+            icons: const [
+              IconDataReference(
+                codePoint: 0xe156,
+                fontFamily: 'MaterialIcons',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(result.issues, isEmpty);
+      const provenance = 'final _announcementProvenance =';
+      final reference = _packed(
+        _referenceBody(_authoringPart(result), provenance),
+      );
+      expect(reference, contains("'Text':buildText"));
+      expect(
+        reference,
+        contains(
+          "RestageIconTable.fromFamilies(families:{'MaterialIcons':"
+          '{0xe156:IconData(0xe156,',
+        ),
+      );
+      expect(reference, contains("fontFamily:'MaterialIcons'"));
+
+      // A screen naming nothing installable still emits no argument: a
+      // custom-library widget reaches the runtime through the app's own
+      // generated factories.
+      final custom = compilePackageSurfacePublications(
+        _withStandaloneVocabulary(
+          scenario.input,
+          SurfaceVocabularyReferences(widgetNames: const ['app.custom:Badge']),
+        ),
+      );
+
+      expect(custom.issues, isEmpty);
+      expect(
+        _referenceBody(_authoringPart(custom), provenance),
+        isNot(contains('vocabulary:')),
+      );
+    });
+
+    test('records every catalog entry its compiled surfaces render', () async {
+      final scenario = await _loadScenario();
+      final result = compilePackageSurfacePublications(
+        _withScreenVocabularies(scenario.input),
+      );
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.bundle!.surfaceWidgetNames,
+        containsAll(<String>['restage.core:Text', 'restage.material:Chip']),
+      );
+    });
+
     test('resolves child flow closure by surface and id, never slug alone',
         () async {
       final scenario = await _loadScenario();
@@ -776,12 +898,14 @@ final foreignGeneratedRef = Object();
               version: 1,
               minClient: 1,
               declarationIdentity: 'package:fixture/general.dart#child',
+              referenceName: 'generalChildRef',
             ),
             messageIdentity: const NormalizedChildFlowReference(
               identity: messageIdentity,
               version: 1,
               minClient: 1,
               declarationIdentity: 'package:fixture/message.dart#child',
+              referenceName: 'messageChildRef',
             ),
           },
         ),
@@ -825,6 +949,186 @@ final foreignGeneratedRef = Object();
       expect(
         result.compilation!.generatedPart,
         isNot(contains(jsonEncode(utf8.decode(messageChild)))),
+      );
+    });
+
+    test('a flow reference names the references of the flows it enters',
+        () async {
+      final scenario = await _loadScenario();
+      final baseFlow = scenario.input.flows.singleWhere(
+        (flow) => flow.id == 'general_flow',
+      );
+      final source = scenario.input.roster.declarations.singleWhere(
+        (candidate) =>
+            candidate.kind == RestageRosterSourceKind.flow &&
+            candidate.effectiveId == baseFlow.id,
+      );
+      const childIdentity = NormalizedFlowIdentity(
+        surface: Surface.general,
+        id: 'child',
+      );
+      final childDocument = FlowDocumentCodec.encodeCanonicalJson(
+        const FlowDocument(
+          flow: 'child',
+          version: 1,
+          schemaVersion: 1,
+          minClient: 1,
+          initial: 'child_done',
+          screenArtifacts: {},
+          states: {'child_done': EndFlowState(result: {})},
+        ),
+      );
+      final parent = NormalizedFlowSource(
+        id: baseFlow.id,
+        hasExplicitId: true,
+        version: 1,
+        minClient: 1,
+        surface: Surface.general,
+        delivery: FlowDeliveryMode.typed,
+        declaration: baseFlow.declaration,
+        isCanonical: true,
+        graph: NormalizedFlowGraph(
+          flow: baseFlow.id,
+          version: 1,
+          minClient: 1,
+          delivery: FlowDeliveryMode.typed,
+          initial: 'child_state',
+          states: {
+            'child_state': SubFlowState(
+              flow: 'child',
+              version: 1,
+              schemaVersion: 1,
+              minClient: 1,
+              contentHash: FlowContentHash.compute(const []),
+              input: const {},
+              onComplete: const [],
+              defaultBranch: const FlowBranchTarget(target: 'done'),
+            ),
+            'done': const EndFlowState(result: {}),
+          },
+          flowState: const {},
+          outbound: const FlowOutboundDeclarations(),
+          actions: const {},
+          screens: const {},
+          childFlows: {
+            childIdentity: const NormalizedChildFlowReference(
+              identity: childIdentity,
+              version: 1,
+              minClient: 1,
+              declarationIdentity: 'package:fixture/general.dart#child',
+              referenceName: 'childFlowRef',
+            ),
+          },
+        ),
+      );
+
+      final entering = compileCanonicalFlowArtifact(
+        flow: parent,
+        source: source,
+        screenArtifacts: const {},
+        childFlowDocuments: {childIdentity: childDocument},
+      );
+
+      expect(entering.issues, isEmpty);
+      expect(
+        entering.compilation!.generatedPart,
+        contains('subFlows: [childFlowRef]'),
+      );
+
+      // A flow that enters nothing names no list at all, so every reference
+      // generated before sub-flow vocabulary stays byte-identical.
+      final plain = compilePackageSurfacePublications(scenario.input);
+
+      expect(plain.issues, isEmpty);
+      expect(
+        _referenceBody(_authoringPart(plain), 'const generalFlowRef ='),
+        isNot(contains('subFlows')),
+      );
+    });
+
+    test('refuses a child flow whose reference cannot be named', () async {
+      // Dropping it would deliver the parent with the child's widgets missing
+      // and nothing said about it.
+      final scenario = await _loadScenario();
+      final baseFlow = scenario.input.flows.singleWhere(
+        (flow) => flow.id == 'general_flow',
+      );
+      final source = scenario.input.roster.declarations.singleWhere(
+        (candidate) =>
+            candidate.kind == RestageRosterSourceKind.flow &&
+            candidate.effectiveId == baseFlow.id,
+      );
+      const childIdentity = NormalizedFlowIdentity(
+        surface: Surface.general,
+        id: 'child',
+      );
+      final childDocument = FlowDocumentCodec.encodeCanonicalJson(
+        const FlowDocument(
+          flow: 'child',
+          version: 1,
+          schemaVersion: 1,
+          minClient: 1,
+          initial: 'child_done',
+          screenArtifacts: {},
+          states: {'child_done': EndFlowState(result: {})},
+        ),
+      );
+      final parent = NormalizedFlowSource(
+        id: baseFlow.id,
+        hasExplicitId: true,
+        version: 1,
+        minClient: 1,
+        surface: Surface.general,
+        delivery: FlowDeliveryMode.typed,
+        declaration: baseFlow.declaration,
+        isCanonical: true,
+        graph: NormalizedFlowGraph(
+          flow: baseFlow.id,
+          version: 1,
+          minClient: 1,
+          delivery: FlowDeliveryMode.typed,
+          initial: 'child_state',
+          states: {
+            'child_state': SubFlowState(
+              flow: 'child',
+              version: 1,
+              schemaVersion: 1,
+              minClient: 1,
+              contentHash: FlowContentHash.compute(const []),
+              input: const {},
+              onComplete: const [],
+              defaultBranch: const FlowBranchTarget(target: 'done'),
+            ),
+            'done': const EndFlowState(result: {}),
+          },
+          flowState: const {},
+          outbound: const FlowOutboundDeclarations(),
+          actions: const {},
+          screens: const {},
+          childFlows: {
+            childIdentity: const NormalizedChildFlowReference(
+              identity: childIdentity,
+              version: 1,
+              minClient: 1,
+              declarationIdentity: 'package:fixture/general.dart#child',
+            ),
+          },
+        ),
+      );
+
+      final result = compileCanonicalFlowArtifact(
+        flow: parent,
+        source: source,
+        screenArtifacts: const {},
+        childFlowDocuments: {childIdentity: childDocument},
+      );
+
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        allOf([
+          contains('enters the flow "child"'),
+          contains('cannot be named'),
+        ]),
       );
     });
 
@@ -1549,6 +1853,105 @@ CompiledSurfaceArtifact _artifact(
     paywallFacts: paywallFacts,
     rfwText: utf8.encode('remote widget $id'),
   );
+}
+
+/// The scenario input with a vocabulary on each flow screen: `welcome` names
+/// a core widget, the embedded `paywall_premium` the widgets in
+/// [premiumWidgetNames].
+PackageSurfaceCompilationInput _withScreenVocabularies(
+  PackageSurfaceCompilationInput input, {
+  List<IconDataReference> welcomeIcons = const [],
+  List<String> premiumWidgetNames = const ['restage.material:Chip'],
+}) =>
+    PackageSurfaceCompilationInput(
+      roster: input.roster,
+      flows: input.flows,
+      renderedSources: [
+        for (final artifact in input.renderedSources)
+          switch (artifact.flowArtifactPath) {
+            'welcome.rfw' => _revocabularize(
+                artifact,
+                SurfaceVocabularyReferences(
+                  widgetNames: const ['restage.core:Text'],
+                  icons: welcomeIcons,
+                ),
+              ),
+            'premium.rfw' => _revocabularize(
+                artifact,
+                SurfaceVocabularyReferences(widgetNames: premiumWidgetNames),
+              ),
+            _ => artifact,
+          },
+      ],
+      standaloneScreens: input.standaloneScreens,
+    );
+
+/// [input] with [vocabulary] on its one standalone screen contract.
+PackageSurfaceCompilationInput _withStandaloneVocabulary(
+  PackageSurfaceCompilationInput input,
+  SurfaceVocabularyReferences vocabulary,
+) {
+  final resolved = input.standaloneScreens.single.input;
+  final inspection = inspectStandaloneScreenContract(
+    ResolvedStandaloneScreenContractInput(
+      assetId: resolved.assetId,
+      screen: resolved.screen,
+      surface: resolved.surface,
+      slug: resolved.slug,
+      contractVersion: resolved.contractVersion,
+      capabilities: resolved.capabilities,
+      rootParams: resolved.rootParams,
+      constructorParams: resolved.constructorParams,
+      mountConstructorProblem: resolved.mountConstructorProblem,
+      plan: resolved.plan,
+      bundleEntryMetadata: resolved.bundleEntryMetadata,
+      vocabulary: vocabulary,
+    ),
+  );
+  expect(inspection.issues, isEmpty);
+  return PackageSurfaceCompilationInput(
+    roster: input.roster,
+    flows: input.flows,
+    renderedSources: input.renderedSources,
+    standaloneScreens: [inspection.contract!],
+  );
+}
+
+CompiledSurfaceArtifact _revocabularize(
+  CompiledSurfaceArtifact artifact,
+  SurfaceVocabularyReferences vocabulary,
+) =>
+    CompiledSurfaceArtifact(
+      declaration: artifact.declaration,
+      blob: artifact.blob,
+      capabilitySidecar: artifact.capabilitySidecar,
+      flowArtifactPath: artifact.flowArtifactPath,
+      flowScreenId: artifact.flowScreenId,
+      paywallFacts: artifact.paywallFacts,
+      vocabulary: vocabulary,
+      rfwText: artifact.rfwText,
+      navigationPlan: artifact.navigationPlan,
+      rfwCatalogOccurrenceSetsByOutputRole:
+          artifact.rfwCatalogOccurrenceSetsByOutputRole,
+    );
+
+/// [source] with its whitespace removed, so an assertion about an emitted
+/// expression survives the formatter's line breaks.
+String _packed(String source) => source.replaceAll(RegExp(r'\s+'), '');
+
+/// The generated part for the scenario's authoring library.
+String _authoringPart(PackageSurfaceCompilationResult result) {
+  const path = 'lib/restage.generated/authoring.restage.g.dart';
+  return result.bundle!.generatedParts[path]!;
+}
+
+/// The one reference declaration in [generated] that starts with [marker].
+String _referenceBody(String generated, String marker) {
+  final start = generated.indexOf(marker);
+  expect(start, isNot(-1), reason: generated);
+  final end = generated.indexOf('\n);', start);
+  expect(end, isNot(-1), reason: generated);
+  return generated.substring(start, end);
 }
 
 CompiledSurfaceArtifact _artifactWithBlob(

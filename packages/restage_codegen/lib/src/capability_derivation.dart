@@ -2,7 +2,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart' show findWidgetsByName;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show CapabilityManifest, LibraryRequirement;
+    show CapabilityManifest, LibraryRequirement, WidgetVocabulary;
 // Only the parsed-model node types are needed here; `WidgetLibrary` is the
 // catalog namespace type from `rfw_catalog_schema`, not RFW's runtime
 // widget-library type that this sublibrary also exports.
@@ -25,13 +25,22 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 @immutable
 final class CapabilityDerivationResult {
   /// Creates a result. A non-null [manifest] always pairs with empty [issues].
-  const CapabilityDerivationResult({this.manifest, this.issues = const []});
+  const CapabilityDerivationResult({
+    this.manifest,
+    this.issues = const [],
+    this.referencedWidgets = const [],
+  });
 
   /// The derived manifest, or `null` when derivation failed (see [issues]).
   final CapabilityManifest? manifest;
 
   /// Diagnostics raised during derivation; empty on success.
   final List<Issue> issues;
+
+  /// The catalog widgets the surface references, deduplicated and ordered by
+  /// `'<library namespace>:<name>'` ascending. Empty on failure — a result
+  /// that could not be stamped names nothing.
+  final List<WidgetEntry> referencedWidgets;
 }
 
 /// Derives the [CapabilityManifest] a parsed [surface] requires, from the
@@ -141,7 +150,24 @@ CapabilityDerivationResult deriveCapabilityManifest(
       builtInFloor: builtInFloor,
       requiredLibraries: requiredLibraries,
     ),
+    referencedWidgets: _canonicalReferences(referenced),
   );
+}
+
+/// [referenced] deduplicated by qualified name and sorted by it, so the
+/// referenced set is independent of the order the surface named them in.
+List<WidgetEntry> _canonicalReferences(List<WidgetEntry> referenced) {
+  final byQualifiedName = <String, WidgetEntry>{};
+  for (final entry in referenced) {
+    byQualifiedName.putIfAbsent(
+      WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
+      () => entry,
+    );
+  }
+  final names = byQualifiedName.keys.toList()..sort();
+  return List<WidgetEntry>.unmodifiable([
+    for (final name in names) byQualifiedName[name]!,
+  ]);
 }
 
 bool _isBuiltIn(WidgetLibrary library) =>

@@ -90,6 +90,23 @@ it as real Flutter widgets:
 RestagePaywall(id: 'pro_upgrade')
 ```
 
+There is no startup call to make. The build generates a mount for each surface,
+and generated screen, flow and paywall mounts each install the widgets and icons
+their surface draws as they render.
+
+Mounting by id is the exception: no generated mount stands behind it, so an
+app whose surfaces are all `RestagePaywall(id: ...)` calls the generated
+`registerRestageWidgets()` once at startup. That call installs every built-in
+widget and icon your own Dart names, which is also what gives an over-the-air
+update room to use one your surfaces don't draw today.
+
+```dart
+void main() {
+  registerRestageWidgets();
+  runApp(const MyApp());
+}
+```
+
 Change the widget, rebuild, and the surface updates. Push it with
 `restage surface push pro_upgrade`, then make that revision live with
 `restage surface publish pro_upgrade`, and installed apps pick it up over the
@@ -188,16 +205,86 @@ partway.
 See [doc/live_refresh.md](doc/live_refresh.md) for opt-in in-place updates to
 surfaces that are already on screen.
 
-## Build
+## App size
 
-Apps that depend on `restage` must build with `--no-tree-shake-icons`, because
-RFW builds `IconData` from runtime values:
+Choose complete Material and Cupertino catalog coverage at app startup. Both
+options default to `true`:
 
-```sh
-flutter build ios --no-tree-shake-icons
-flutter build appbundle --no-tree-shake-icons
-flutter build web --wasm --no-tree-shake-icons
+```dart
+Restage.configure(
+  includeMaterial: true,
+  includeCupertino: false,
+  registerWidgets: kRestageWidgetRegistration,
+  // Your existing delivery and analytics settings.
+);
 ```
+
+Regenerate `user_factories.g.dart` to obtain `kRestageWidgetRegistration`, then
+pass it here instead of separately calling `registerRestageWidgets()` with its
+inclusive defaults. It receives both choices and adds the app's generated
+vocabulary and custom widgets. With no code generation, omit `registerWidgets`.
+
+These options choose complete catalog contributions. A `false` value preserves
+widgets and icons your generated surfaces or explicit registrations require,
+including the shared Icon builder used for Cupertino glyphs. Use constant values
+and rebuild the app when changing coverage. Runtime-dependent values can retain
+both implementations in the compiled app. Font assets also depend on the app's
+package dependencies.
+
+A delivered surface renders with widgets compiled into your app, so what the
+app can render decides what it costs. By default `Restage.configure()` installs
+the whole built-in catalog and both icon tables, even without code generation,
+so a surface you deliver later can use anything the catalog can express. An
+explicitly installed selection is preserved, including an empty selection, when
+no registration callback is supplied.
+
+The added size depends on the widgets, fonts and plugins your app already uses.
+Compare matched release builds with the same minification and obfuscation
+settings. Raw APK growth and an app store's compressed download estimate are
+different measurements.
+
+If app size is a live constraint, opt down to the widgets your own code draws by
+setting the `catalog` option in `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          catalog: derived
+```
+
+Call the generated registration helper before the installed-catalog entrypoint:
+
+```dart
+registerRestageWidgets();
+Restage.configureWithInstalledCatalog(/* your existing configuration */);
+```
+
+This configuration entrypoint has no reference to the full catalog, so unused
+factories and icons can be removed from the release build. Ordinary
+`Restage.configure()` with its default options retains the full-default path
+even when a selected vocabulary has already been installed.
+
+Derived registration keeps the existing package dependencies. Removing an entire
+font asset also requires removing its asset dependency; unused Cupertino
+registrations alone do not remove the bundled Cupertino font.
+
+The build collects the catalog widgets your code draws and the ones your
+surfaces use, and generates the registration from that set. To make a widget
+available over the air before your app draws it, draw it once in a `@Screen` you
+never mount.
+
+Release builds need no flags, and don't pass `--no-tree-shake-icons`. Opting
+down also generates an icon table of compile-time constants, which lets Flutter's
+icon tree-shaking work as usual.
+
+Every code generation run reports which catalog selection the build uses and how
+to change it. `--verbose` adds historical reference estimates for omitted widget
+groups; measure your own release builds to determine their actual cost. See
+[App size](https://docs.page/restage-dev/restage/delivery/app-size) for the
+measurement methods and the catalog choices in full.
 
 ## Telemetry and data
 

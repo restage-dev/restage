@@ -79,8 +79,6 @@ final class RestageScreenView<R> extends StatefulWidget {
 }
 
 class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
-  late final FlowScreenLibraries _libraries;
-
   Runtime? _runtime;
   DynamicContent? _data;
   ContextPublisher? _contextPublisher;
@@ -97,7 +95,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
   void initState() {
     super.initState();
     _refreshContext();
-    _libraries = FlowScreenLibraries();
     widget.controller.addListener(_controllerChanged);
     _sync();
   }
@@ -152,7 +149,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     if (entryId == _entryId && _runtime != null) return;
     _disposeRuntime();
     _entryId = entryId;
-    _runtime = _libraries.runtimeFor(library);
+    _runtime = flowScreenRuntime(library);
     _data = DynamicContent();
     _contextPublisher = ContextPublisher(_data!);
     _populateData();
