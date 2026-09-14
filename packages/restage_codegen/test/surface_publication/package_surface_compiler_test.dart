@@ -801,6 +801,7 @@ final foreignGeneratedRef = Object();
       expect(
         result.compilation!.generatedTopLevelSymbols,
         equals({
+          'GeneralFlowSurface',
           'generalFlowRef',
           '_decodeGeneralFlowResult',
           'GeneralFlowResult',
@@ -816,6 +817,14 @@ final foreignGeneratedRef = Object();
       expect(
         (document.states['child_state']! as SubFlowState).contentHash,
         isNot(FlowContentHash.compute(messageChild)),
+      );
+      expect(
+        result.compilation!.generatedPart,
+        contains(jsonEncode(utf8.decode(generalChild))),
+      );
+      expect(
+        result.compilation!.generatedPart,
+        isNot(contains(jsonEncode(utf8.decode(messageChild)))),
       );
     });
 

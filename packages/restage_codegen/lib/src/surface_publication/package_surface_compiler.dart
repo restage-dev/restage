@@ -28,6 +28,7 @@ import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
+import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart';
@@ -54,6 +55,7 @@ final class CompiledSurfaceArtifact {
     required this.flowArtifactPath,
     this.flowScreenId,
     this.paywallFacts,
+    this.nativeMountInput,
     Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByOutputRole = const {},
     List<int>? rfwText,
@@ -73,6 +75,7 @@ final class CompiledSurfaceArtifact {
     required ClassElement declaration,
     required PaywallArtifactFacts facts,
     required String flowArtifactPath,
+    ResolvedWidgetMountInput? nativeMountInput,
     List<int>? rfwText,
     List<int>? navigationPlan,
     Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
@@ -85,6 +88,7 @@ final class CompiledSurfaceArtifact {
         flowArtifactPath: flowArtifactPath,
         flowScreenId: facts.adapter.id,
         paywallFacts: facts,
+        nativeMountInput: nativeMountInput,
         rfwText: rfwText,
         navigationPlan: navigationPlan,
         rfwCatalogOccurrenceSetsByOutputRole:
@@ -112,6 +116,8 @@ final class CompiledSurfaceArtifact {
 
   /// Complete specialized paywall family when this artifact is an adapter.
   final PaywallArtifactFacts? paywallFacts;
+
+  final ResolvedWidgetMountInput? nativeMountInput;
 
   /// Frozen RFW catalog occurrences keyed by their roster-owned output role.
   ///
@@ -388,13 +394,18 @@ final class PackageSurfaceCompilationResult {
   PackageSurfaceCompilationResult({
     required this.bundle,
     required List<Issue> issues,
-  }) : issues = List.unmodifiable(issues);
+    List<String> mountOmissions = const [],
+  })  : issues = List.unmodifiable(issues),
+        mountOmissions = List.unmodifiable(mountOmissions);
 
   /// Non-null only when every output family and manifest closure validated.
   final PackageSurfaceCompilationBundle? bundle;
 
   /// Deterministic diagnostics suitable for the aggregate build owner.
   final List<Issue> issues;
+
+  /// Optional convenience mounts that could not be emitted.
+  final List<String> mountOmissions;
 
   bool get isValid => bundle != null && issues.isEmpty;
 }
@@ -566,6 +577,17 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
             decoderName: decoderName,
             seedName: seedName,
             graph: effectiveGraph,
+            document: document,
+            descendants: {
+              for (final entry in childFlowDocuments.entries)
+                if (entry.key.surface == flow.surface)
+                  entry.key.id:
+                      FlowDocumentCodec.decodeJson(utf8.decode(entry.value)),
+            },
+            nativeScreens: {
+              for (final screen in effectiveGraph.screens.values)
+                screen.id: screen.element,
+            },
             flow: flow,
             sdkPrefix: sdkPrefix,
             source: source,
@@ -824,6 +846,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   PackageSurfaceCompilationInput input,
 ) {
   final issues = <Issue>[...input.roster.issues];
+  final mountOmissions = <String>[];
   if (issues.isNotEmpty) {
     return _invalidResult(issues);
   }
@@ -1065,6 +1088,31 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           );
           if (source.isCanonical) aggregateOwnedOutputPaths.add(path);
         }
+      }
+    }
+
+    if (rendered.nativeMountInput case final mountInput?) {
+      final mount = emitPaywallMount(mountInput, id: source.effectiveId);
+      if (mount.source case final fragment?) {
+        _claimGeneratedSymbol(
+          claimedSymbols,
+          source: source,
+          library: rendered.declaration.library,
+          symbol: generatedSurfaceName(
+            rendered.declaration.name!,
+            fallback: 'SurfaceScreen',
+          ),
+          issues: issues,
+        );
+        _addPartFragment(
+          partFragments,
+          path: mountInput.generatedPartPath,
+          source: source,
+          library: rendered.declaration.library,
+          fragment: fragment,
+        );
+      } else if (mount.omissionMessage case final message?) {
+        mountOmissions.add(message);
       }
     }
 
@@ -1594,6 +1642,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         decoderName: decoderName,
         seedName: seedName,
         graph: emittedGraph,
+        document: emittedDocument,
         flow: flow,
         sdkPrefix: sdkPrefix,
         measurementPublicationKey: _measurementSelectorForAssembly(
@@ -1803,6 +1852,32 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       fragment: reference,
     );
   }
+  final descendantsBySurface = <Surface, Map<String, FlowDocument>>{};
+  for (final pending in pendingFlowParts) {
+    (descendantsBySurface[pending.flow.surface] ??= {})[pending.document.flow] =
+        pending.document;
+  }
+  for (final child in input.precompiledFlows) {
+    final descendants = descendantsBySurface[
+        sourcesByIdentity[child.declarationIdentity]?.surface];
+    if (descendants == null) continue;
+    final document =
+        FlowDocumentCodec.decodeJson(utf8.decode(child.flowDocumentBytes));
+    descendants[document.flow] = document;
+  }
+  final nativeScreensBySurface = {
+    for (final surface in descendantsBySurface.keys)
+      surface: {
+        for (final rendered in input.renderedSources)
+          if (sourcesByIdentity[rendered.declarationIdentity]
+              case final screenSource?)
+            if (screenSource.surface == null ||
+                screenSource.surface == surface ||
+                screenSource.kind == RestageRosterSourceKind.paywall)
+              rendered.flowScreenId ?? screenSource.effectiveId:
+                  rendered.declaration,
+      },
+  };
   for (final pending in pendingFlowParts) {
     final reference = _emitFlowReference(
       refName: pending.refName,
@@ -1810,6 +1885,13 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       decoderName: pending.decoderName,
       seedName: pending.seedName,
       graph: pending.graph,
+      document: pending.document,
+      descendants: descendantsBySurface[pending.flow.surface]!,
+      nativeScreens: {
+        ...nativeScreensBySurface[pending.flow.surface]!,
+        for (final screen in pending.graph.screens.values)
+          screen.id: screen.element,
+      },
       flow: pending.flow,
       sdkPrefix: pending.sdkPrefix,
       source: pending.source,
@@ -1847,6 +1929,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           measurementPresentationMaterializations,
     ),
     issues: const [],
+    mountOmissions: mountOmissions,
   );
 }
 
@@ -2698,12 +2781,27 @@ String? _emitFlowReference({
   required String decoderName,
   required String seedName,
   required NormalizedFlowGraph graph,
+  required FlowDocument document,
   required NormalizedFlowSource flow,
   required String sdkPrefix,
   required RestageSourceDeclaration source,
   required List<Issue> issues,
+  Map<String, FlowDocument> descendants = const {},
+  Map<String, ClassElement> nativeScreens = const {},
   String? measurementPublicationDraftDigest,
 }) {
+  final compiled = emitCompiledFlow(
+    document: document,
+    descendants: descendants,
+    screens: nativeScreens,
+    library: flow.declaration.library!,
+    refName: refName,
+    mountName:
+        generatedSurfaceName(flow.declaration.name!, fallback: 'SurfaceFlow'),
+    resultType: flow.delivery == FlowDeliveryMode.general
+        ? 'Map<String, Object?>'
+        : resultName,
+  );
   final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
@@ -2723,10 +2821,11 @@ const $refName = ${referenceConstructor('Map<String, Object?>')}(
   surface: ${sdkPrefix}Surface.${flow.surface.name},
   deliveryMode: ${sdkPrefix}FlowDeliveryMode.${flow.delivery.name},
   decodeResult: $decoderName,
-$carrierArgument);
+${compiled.argument}$carrierArgument);
 
 Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
 ${_emitSeedClass(seedName, graph.flowState, sdkPrefix)}
+${compiled.mount}
 $support''';
   }
 
@@ -2758,12 +2857,13 @@ const $refName = ${referenceConstructor(resultName)}(
   surface: ${sdkPrefix}Surface.${flow.surface.name},
   deliveryMode: ${sdkPrefix}FlowDeliveryMode.${flow.delivery.name},
   decodeResult: $decoderName,
-$carrierArgument);
+${compiled.argument}$carrierArgument);
 
 $decoder
 
 $result
 ${_emitSeedClass(seedName, graph.flowState, sdkPrefix)}
+${compiled.mount}
 $support''';
 }
 
@@ -2780,6 +2880,7 @@ Set<String> _canonicalFlowGeneratedTopLevelSymbols({
     resultName.length - 'Result'.length,
   );
   return {
+    generatedSurfaceName(flow.declaration.name!, fallback: 'SurfaceFlow'),
     refName,
     decoderName,
     if (flow.delivery == FlowDeliveryMode.typed) resultName,
@@ -4380,6 +4481,7 @@ final class _PendingFlowPart {
     required this.decoderName,
     required this.seedName,
     required this.graph,
+    required this.document,
     required this.flow,
     required this.sdkPrefix,
     required this.measurementPublicationKey,
@@ -4393,6 +4495,7 @@ final class _PendingFlowPart {
   final String decoderName;
   final String seedName;
   final NormalizedFlowGraph graph;
+  final FlowDocument document;
   final NormalizedFlowSource flow;
   final String sdkPrefix;
   final String measurementPublicationKey;

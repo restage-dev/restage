@@ -16,6 +16,7 @@ import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
+import 'package:restage_codegen/src/surface_publication/surface_mount_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Materializes deterministic per-library bundles, optional inspection
@@ -39,6 +40,10 @@ final class RestageOutputsBuilder implements Builder {
       plan,
       builderKey: 'restage_codegen:outputs',
     );
+
+    if (buildStep.inputId.path == r'$package$' && !plan.bundledRuntime) {
+      await warnAboutUnbundledSurfaceMounts(buildStep);
+    }
 
     final bundle = await readRestageCompilerHandoff(buildStep);
     if (bundle == null) {
@@ -222,6 +227,22 @@ final class RestageOutputsBuilder implements Builder {
         ).encodeJson(),
       );
     }
+    final surfaceCount = manifest.publications.length;
+    // Normal delivery configuration is informational. Warnings are reserved
+    // for direct mounts without a generated asset or explicit fallback.
+    log.info(
+      plan.bundledRuntime
+          ? '[restage] bundled_runtime: true — $surfaceCount '
+              'surface${surfaceCount == 1 ? '' : 's'}; '
+              'bundles generated under assets/restage/bundles/. '
+              'Declare the generated bundle paths in pubspec.yaml to include '
+              'offline content and flow contracts in the app.'
+          : '[restage] bundled_runtime: false — no runtime bundles generated '
+              'in assets. Generated surface mounts retain authored Flutter '
+              'fallbacks and flow contracts. ID-based paywalls and older flow '
+              'references still need bundled assets or explicit '
+              'unavailable UI.',
+    );
   }
 
   /// Every manifest-closure entry plus the library's canonical `.rfwtxt`

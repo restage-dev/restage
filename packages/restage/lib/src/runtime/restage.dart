@@ -71,6 +71,7 @@ abstract final class Restage {
 
   static void Function(SurfaceResolutionReport report)? _onSurfaceResolution;
   static String? _apiKey;
+  static String? _reportedDeliveryConfiguration;
   static String? _baseUrl;
   static RestageEnvironment _environment = RestageEnvironment.production;
   static VariantResolver _defaultResolver = const AssetVariantResolver();
@@ -110,6 +111,12 @@ abstract final class Restage {
   static ({String apiKey, RestageEnvironment environment})? _analyticsAuthority;
 
   /// Configure the SDK at app startup.
+  ///
+  /// With no [apiKey], or an empty or whitespace-only key, default resolvers
+  /// use bundled artifacts and hosted clients, analytics, metering, and governed
+  /// Measurement remain inactive. Reconfiguring without a key clears any prior
+  /// hosted configuration. Explicit resolver overrides and local settings still
+  /// apply. Generated typed screens can fall back to their authored widget.
   ///
   /// Pass [resolver] to choose the paywall delivery source. When omitted, the
   /// default is a [RestageVariantResolver] wired to [baseUrl] for Restage-hosted
@@ -177,7 +184,7 @@ abstract final class Restage {
   /// instead. With neither option, governed Measurement and privacy calls fail
   /// closed and legacy analytics identity remains unaffected.
   static void configure({
-    required String apiKey,
+    String? apiKey,
     String? baseUrl,
     bool analyticsEnabled = true,
     bool measurementEnabled = true,
@@ -202,6 +209,11 @@ abstract final class Restage {
         'governedMeasurementTransport, not both.',
       );
     }
+    apiKey = apiKey?.trim();
+    if (apiKey == null || apiKey.isEmpty) {
+      apiKey = null;
+      baseUrl = null;
+    }
     _configurationGeneration += 1;
     _measurementEnabled = measurementEnabled;
     _onSurfaceResolution = onSurfaceResolution;
@@ -211,7 +223,9 @@ abstract final class Restage {
     // origin or credential. Test clients can be reinstalled after configure.
     _rpcClient = null;
     _installIttAssignmentTransport();
-    if (governedMeasurementTransport != null) {
+    if (apiKey == null) {
+      GovernedMeasurementPortRegistry.install(null);
+    } else if (governedMeasurementTransport != null) {
       GovernedMeasurementPortRegistry.install(governedMeasurementTransport);
     } else if (governedMeasurementTransportEnabled) {
       final client = _requireRpcClient();
@@ -223,19 +237,23 @@ abstract final class Restage {
     }
     _environment = environment;
     _defaultResolver = resolver ??
-        RestageVariantResolver(
-          apiKey: apiKey,
-          environment: environment,
-          baseUrl: baseUrl,
-        );
+        (apiKey == null
+            ? const AssetVariantResolver()
+            : RestageVariantResolver(
+                apiKey: apiKey,
+                environment: environment,
+                baseUrl: baseUrl,
+              ));
     _defaultFlowResolver = flowResolver ?? const AssetFlowResolver();
     _defaultSurfaceScreenResolver = surfaceScreenResolver ??
-        RestageScreenResolver(
-          apiKey: apiKey,
-          environment: environment,
-          baseUrl: baseUrl,
-          rpcClientProvider: _requireRpcClient,
-        );
+        (apiKey == null
+            ? const AssetSurfaceScreenResolver()
+            : RestageScreenResolver(
+                apiKey: apiKey,
+                environment: environment,
+                baseUrl: baseUrl,
+                rpcClientProvider: _requireRpcClient,
+              ));
     _liveRefresh = Set.unmodifiable(liveRefresh);
     _liveRefreshOverrides = Map.unmodifiable({
       for (final entry in liveRefreshOverrides.entries)
@@ -276,6 +294,11 @@ abstract final class Restage {
       _emitSurfaceDeliveryRateLimited,
     );
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
+    _reportDeliveryConfiguration(
+      hasResolverOverride: resolver != null ||
+          flowResolver != null ||
+          surfaceScreenResolver != null,
+    );
     if (_analyticsAuthority != null) {
       // Defer the best-effort identity warm-up to keep configuration synchronous.
       scheduleMicrotask(() async {
@@ -285,6 +308,30 @@ abstract final class Restage {
         } on Object catch (_) {}
       });
     }
+  }
+
+  static void _reportDeliveryConfiguration(
+      {required bool hasResolverOverride}) {
+    if (!kDebugMode) return;
+    final String description;
+    if (hasResolverOverride) {
+      description = 'custom delivery resolvers configured';
+    } else if (_apiKey == null) {
+      description = 'bundled artifacts — no credential configured';
+    } else if (_baseUrl == null || _baseUrl!.isEmpty) {
+      description = 'bundled artifacts — no hosted origin configured';
+    } else {
+      final uri = Uri.tryParse(_baseUrl!);
+      final origin = uri != null &&
+              (uri.scheme == 'http' || uri.scheme == 'https') &&
+              uri.host.isNotEmpty
+          ? uri.origin
+          : 'configured origin';
+      description = 'hosted delivery — $origin';
+    }
+    if (_reportedDeliveryConfiguration == description) return;
+    _reportedDeliveryConfiguration = description;
+    debugPrint('[restage] $description');
   }
 
   /// Resolves the effective live-refresh trigger set for [surfaceSlug].
@@ -316,13 +363,13 @@ abstract final class Restage {
   /// [baseUrl], or when [enabled] is false, the transport is disabled (no
   /// endpoint) and `track`/`identify`/`reset` are inert.
   static void _configureAnalytics({
-    required String apiKey,
+    required String? apiKey,
     String? baseUrl,
     Locale? locale,
     bool enabled = true,
     required RestageEnvironment environment,
   }) {
-    if (!enabled || baseUrl == null || baseUrl.isEmpty) {
+    if (!enabled || apiKey == null || baseUrl == null || baseUrl.isEmpty) {
       if (_analyticsAuthority != null) {
         _retireAnalyticsAuthority();
       }
@@ -567,8 +614,8 @@ abstract final class Restage {
   /// Resolver used when a `RestagePaywall` is constructed without an explicit
   /// `resolver:` parameter.
   ///
-  /// Without [configure], this is [AssetVariantResolver]. After [configure]
-  /// without a resolver override, this is [RestageVariantResolver], which
+  /// Without a configured credential, this is [AssetVariantResolver]. After
+  /// [configure] with a key and no override, this is [RestageVariantResolver], which
   /// fetches Restage-hosted paywalls from the configured `baseUrl` (and falls
   /// back to a bundled asset when the fetch is unavailable).
   static VariantResolver get defaultResolver => _defaultResolver;
@@ -582,8 +629,8 @@ abstract final class Restage {
 
   /// Resolver used when [RestageScreen] has no explicit resolver.
   ///
-  /// Without [configure], this is [AssetSurfaceScreenResolver]. After
-  /// configuration without an override, it validates hosted delivery against
+  /// Without a configured credential, this is [AssetSurfaceScreenResolver].
+  /// With a key and no override, it validates hosted delivery against
   /// the generated standalone-screen manifest before rendering.
   static SurfaceScreenResolver get defaultSurfaceScreenResolver =>
       _defaultSurfaceScreenResolver;
@@ -702,6 +749,7 @@ abstract final class Restage {
     _configureMeasurementHost(enabled: false, privacyReset: false);
     _onSurfaceResolution = null;
     _apiKey = null;
+    _reportedDeliveryConfiguration = null;
     _baseUrl = null;
     _environment = RestageEnvironment.production;
     _defaultResolver = const AssetVariantResolver();

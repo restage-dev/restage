@@ -2699,16 +2699,16 @@ Future<void> _assertGeneratedResultDecoderRuns(String generated) async {
   final dir = Directory('.dart_tool/onboarding_flow_builder_test')
     ..createSync(recursive: true);
   final script = File('${dir.path}/generated_decoder_check.dart');
-  final source = generated.replaceFirst("part of '../first_run.dart';", '''
-import 'package:restage/src/flow/flow_descriptors.dart';
-import 'package:restage_shared/restage_shared.dart'
-    show FlowDeliveryMode, Surface;
-''');
+  final source = generatedFlowResultSource(
+    generated,
+    decoderName: '_decodeFirstRunFlowResult',
+    resultName: 'FirstRunResult',
+  );
   script.writeAsStringSync('''
 $source
 
 void main() {
-  final decoded = firstRunFlowRef.decodeResult({'completed': true});
+  final decoded = _decodeFirstRunFlowResult({'completed': true});
   if (!decoded.completed) {
     throw StateError('canonical result did not decode');
   }
@@ -2719,7 +2719,7 @@ void main() {
 
 void _rejects(Map<String, Object?> result) {
   try {
-    firstRunFlowRef.decodeResult(result);
+    _decodeFirstRunFlowResult(result);
   } on FormatException {
     return;
   }

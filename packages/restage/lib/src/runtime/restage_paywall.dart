@@ -114,6 +114,7 @@ class RestagePaywall extends StatefulWidget {
     this.cacheLastRender = false,
     this.loadingBuilder,
     this.errorBuilder,
+    this.fallbackBuilder,
     this.locale,
     this.liveRefresh,
 
@@ -158,6 +159,11 @@ class RestagePaywall extends StatefulWidget {
   final Widget Function(BuildContext context, RestagePaywallError error)?
       errorBuilder;
 
+  /// Compiled authored widget used if initial delivery is unavailable.
+  /// Generated paywall mounts supply the original constructor here. Events
+  /// retain the paywall dispatcher; no hosted attribution is invented.
+  final WidgetBuilder? fallbackBuilder;
+
   /// Locale to use when resolving and rendering the paywall.
   final Locale? locale;
 
@@ -181,6 +187,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   SurfaceDeliveryObservationCell? _observationCell;
   int _loadEpoch = 0;
   RestagePaywallError? _error;
+  bool _useAuthoredFallback = false;
   DateTime? _mountedAt;
   bool _viewedFired = false;
   final Expando<bool> _viewedPresentations =
@@ -668,13 +675,18 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (!mounted || epoch != _loadEpoch) return;
     if (await _tryFallbackToCache(stopwatch, epoch)) return;
     if (!mounted || epoch != _loadEpoch) return;
-    setState(() => _error = error);
+    setState(() => _setInitialError(error));
     _fireEvent(PaywallLoadFailed(
       paywallId: widget.id,
       errorCode: error.code,
       message: error.message,
       retryable: error.retryable,
     ));
+  }
+
+  void _setInitialError(RestagePaywallError error) {
+    _error = error;
+    _useAuthoredFallback = widget.fallbackBuilder != null && !_viewedFired;
   }
 
   void _reportUnexpectedLoadFailure(Object error, StackTrace stackTrace) {
@@ -1789,7 +1801,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowTransaction = null;
       _flowEpoch = null;
       _initialFlowIsStaged = false;
-      _error = err;
+      _setInitialError(err);
     });
     _disposeFlowControllerAfterDetach(controller);
     _fireEvent(PaywallLoadFailed(
@@ -2045,7 +2057,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     );
     setState(() {
       _pendingBlobStage = null;
-      _error = failure;
+      _setInitialError(failure);
     });
     _disposeBlobStageAfterDetach(stage);
     _fireEvent(PaywallLoadFailed(
@@ -2276,6 +2288,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
+      if (_useAuthoredFallback && widget.fallbackBuilder != null) {
+        return _buildAuthoredFallback(_error!);
+      }
       final builder = widget.errorBuilder;
       return builder == null
           ? const SizedBox.shrink()
@@ -2306,6 +2321,40 @@ class _RestagePaywallState extends State<RestagePaywall> {
             child: _buildHostedFlowLayer(pending, staged: true),
           ),
       ],
+    );
+  }
+
+  Widget _buildAuthoredFallback(RestagePaywallError error) {
+    bool isCurrent() =>
+        mounted && _useAuthoredFallback && identical(_error, error);
+    return RestageContextSnapshotScope(
+      snapshot: _context,
+      child: RestagePaywallEventTargetScope(
+        owner: this,
+        content: error,
+        isCurrent: isCurrent,
+        child: RestagePaywallEventDispatcher(
+          onEvent: (name, args) {
+            if (isCurrent()) _handleRfwEvent(name, args);
+          },
+          child: RuntimeErrorBoundary(
+            onFirstBuildSuccess: () {
+              if (!isCurrent() || _viewedFired) return;
+              _viewedFired = true;
+              _fireEvent(PaywallViewed(paywallId: widget.id));
+            },
+            onError: (exception, stack) {
+              if (!isCurrent()) return;
+              _reportUnexpectedLoadFailure(exception, stack);
+            },
+            errorReplacement: (context, exception, stack) =>
+                widget.errorBuilder
+                    ?.call(context, _unexpectedLoadError(exception, stack)) ??
+                const SizedBox.shrink(),
+            child: Builder(builder: widget.fallbackBuilder!),
+          ),
+        ),
+      ),
     );
   }
 

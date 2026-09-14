@@ -116,6 +116,15 @@ final RestageTokenSet _widgetOrSurfaceTokens = RestageTokenSet._([
 final RestageTokenSet _measurementConfigurationTokens =
     RestageTokenSet._(['configure']);
 
+final RestageTokenSet _surfaceMountTokens = RestageTokenSet._([
+  'RestagePaywall',
+  'RestageScreen',
+  'RestageSurfaceScreen',
+  'RestageFlowGraph',
+  'RestageSurfaceFlow',
+  'RestageOnboarding',
+]);
+
 /// The libraries an app-widget walk must resolve.
 Future<List<AssetId>> selectRestageWidgetCandidates(
   BuildStep buildStep, {
@@ -145,6 +154,16 @@ Future<List<AssetId>> selectRestageMeasurementConfigurationCandidates(
     _selectPackageWide(
       buildStep,
       tokens: _measurementConfigurationTokens,
+      resolvable: isAuthoredDartLibraryAsset,
+    );
+
+/// Libraries that may use direct surface mounts, including part owners.
+Future<List<AssetId>> selectRestageSurfaceMountCandidates(
+  BuildStep buildStep,
+) =>
+    _selectPackageWide(
+      buildStep,
+      tokens: _surfaceMountTokens,
       resolvable: isAuthoredDartLibraryAsset,
     );
 

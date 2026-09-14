@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show MaterialApp, SizedBox;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,6 +21,7 @@ import 'package:restage/src/runtime/library_runtime_registry.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
+import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../support/supported_policy_revisions_body.dart';
@@ -32,6 +34,47 @@ const int _supportedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  for (final bundled in [true, false]) {
+    testWidgets(
+        'generated paywall hosted flow needs bundled baseline: $bundled',
+        (tester) async {
+      Restage.debugReset();
+      SharedPreferences.setMockInitialValues({});
+      addTearDown(Restage.debugReset);
+      final local = _reservedCommerceEventScreen('Bundled original');
+      final hosted = _reservedCommerceEventScreen('Hosted offer');
+      final bundle = _PaywallAssetBundle();
+      if (bundled) {
+        bundle.writeFlow('native_offer',
+            _flowDocument(flow: 'native_offer', screenBytes: local));
+        bundle.writeScreen('paywall_native_offer.rfw', local);
+      }
+      final events = <RestageEvent>[];
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: 'rs_pk_dev_fallback',
+        environment: RestageEnvironment.production,
+        baseUrl: 'https://surfaces.example.com',
+        httpClient: _server(
+            _paywallFlowEnvelope(screenBytes: hosted, slug: 'native_offer'),
+            onRequest: requests.add),
+        assetFallback: AssetVariantResolver(bundle: bundle),
+      );
+      await tester.pumpWidget(MaterialApp(
+          home: NativeOfferSurface(resolver: resolver, onEvent: events.add)));
+      await tester.pumpAndSettle();
+      final hostedCount = find.text('Hosted offer').evaluate().length;
+      final originalCount = find.text('Offer original').evaluate().length;
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(requests, hasLength(1));
+      expect(hostedCount, bundled ? 1 : 0);
+      expect(originalCount, bundled ? 0 : 1);
+      expect(events.whereType<PaywallLoadFailed>().map((e) => e.errorCode),
+          bundled ? isEmpty : contains('delivery_unavailable'));
+    });
+  }
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_abc123';
   final blob = Uint8List.fromList([10, 20, 30, 255]);

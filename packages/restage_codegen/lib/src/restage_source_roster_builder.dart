@@ -470,6 +470,14 @@ Future<bool> _collectCanonicalDeclarations({
       );
     }
 
+    final includePaywallMount = kind == RestageRosterSourceKind.paywall &&
+        (await _neutralPartIssues(
+          buildStep: buildStep,
+          assetId: assetId,
+          sourceTexts: sourceTexts,
+          plan: plan,
+        ))
+            .isEmpty;
     final id = metadata.id ?? _fileStem(assetId.path);
     declarations.add(
       RestageSourceDeclaration.frozen(
@@ -492,6 +500,7 @@ Future<bool> _collectCanonicalDeclarations({
           libraryIdentity: library.identifier,
           libraryPath: assetId.path,
           plan: plan,
+          includePaywallMount: includePaywallMount,
         ),
         surface: metadata.surface,
         version: metadata.version,
@@ -738,18 +747,21 @@ List<RestageOutputClaim> _canonicalOutputClaims({
   required String libraryIdentity,
   required String libraryPath,
   required RestageOutputPlacementPlan plan,
+  bool includePaywallMount = false,
 }) {
   final surfaceKey = surface?.wireName ?? 'neutral';
   // Screens and flows in one library share one generated part. The claim is
   // deliberately identical across kinds so the ownership key, not the
   // filename, is what makes the shared claim legal.
-  final part = kind == RestageRosterSourceKind.paywall
+  final part = kind == RestageRosterSourceKind.paywall && !includePaywallMount
       ? null
       : RestageOutputClaim(
           path: neutralPartPath(plan, libraryPath),
           role: kind == RestageRosterSourceKind.flow
               ? 'flow-descriptor'
-              : 'screen-descriptor',
+              : kind == RestageRosterSourceKind.paywall
+                  ? 'paywall-descriptor'
+                  : 'screen-descriptor',
           builder: _canonicalGeneratedDartOwner,
           ownershipKey: 'canonical-library:$libraryIdentity',
         );

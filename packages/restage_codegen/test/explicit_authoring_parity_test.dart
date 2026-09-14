@@ -93,6 +93,15 @@ void main() {
 
         final oldDescriptors = _descriptorArtifacts(oldOutputs);
         final newDescriptors = _descriptorArtifacts(newOutputs);
+        if (scenario == 'paywall') {
+          // Canonical paywalls now also emit a Dart mount. Its addition must
+          // leave every pre-existing descriptor and wire artifact identical.
+          final mount = newDescriptors.remove(
+            'lib/paywalls/restage.generated/premium.restage.g.dart',
+          );
+          expect(mount, contains('class PremiumPaywallSurface'));
+          expect(mount, contains('fallbackBuilder:'));
+        }
         expect(newDescriptors.keys, orderedEquals(oldDescriptors.keys));
         for (final path in oldDescriptors.keys) {
           final oldIdentity = _stableDescriptorIdentity(oldDescriptors[path]!);

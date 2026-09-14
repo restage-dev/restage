@@ -509,6 +509,7 @@ ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
     ResolvedFlow(
       document: flow.document,
       screenBlobs: flow.screenBlobs,
+      compiled: flow.compiled,
       contentHash: flow.contentHash,
       cacheHit: true,
     ),
@@ -697,6 +698,16 @@ final class _FlowExperimentClosureLoader {
         'Resolved flow "${document.flow}" failed validation: '
         '${issues.join('; ')}.',
       );
+    }
+    if (resolved.compiled case final compiled?) {
+      compiled.validateNativeClosure();
+      if (FlowContentHash.compute(
+              FlowDocumentCodec.encodeCanonicalJson(compiled.document)) !=
+          actualHash) {
+        throw const FormatException(
+            'Compiled baseline does not match its contract.');
+      }
+      return;
     }
     if (resolved.screenBlobs.length != document.screenArtifacts.length) {
       throw FormatException(

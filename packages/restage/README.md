@@ -35,6 +35,14 @@ New behavior is a release.
 One runtime renders every surface: paywalls, onboarding, in-app messages,
 surveys, and whole screens.
 
+> Upcoming SDK/codegen release: `@Paywall()` and `@FlowGraph(...)` gain generated
+> `<Name>Surface` mounts with authored Flutter fallbacks. Flow references retain
+> their original contract in Dart, so these mounts can run without `.rsbundle`
+> assets. Published 2.0.0 paywall and active-flow examples below still need their
+> bundled artifacts. Generated standalone screen mounts already retain their
+> original widget. Hosted paywalls with Navigator navigation still need their
+> bundled graph baseline, including when mounted through a generated widget.
+
 ## Why Restage
 
 - **Your widgets, your theme.** The build compiles the code you wrote, and
