@@ -9,6 +9,9 @@ const _reportRequestFields = {
   'storeProductId',
   'storeTransactionId',
   'appAnonymousToken',
+  'paywallId',
+  'paywallVariantSlug',
+  'paywallPublishedVersion',
 };
 
 /// Store evidence submitted for verification.
@@ -23,6 +26,9 @@ final class CommerceReportRequest {
     required String appAnonymousToken,
     String? intentId,
     String? storeTransactionId,
+    String? paywallId,
+    String? paywallVariantSlug,
+    int? paywallPublishedVersion,
   }) {
     requireCommerceUuidV4(reportId, 'reportId', lowercase: false);
     if (!commerceStoreValues.contains(store)) {
@@ -37,6 +43,15 @@ final class CommerceReportRequest {
     );
     if (intentId != null) requireCommerceUuidV4(intentId, 'intentId');
     _requireOptionalString(storeTransactionId, 'storeTransactionId');
+    if (store == commerceAppStoreValue && storeTransactionId == null) {
+      throw ArgumentError.value(
+        storeTransactionId,
+        'storeTransactionId',
+        'app_store requires a non-empty transaction identifier',
+      );
+    }
+    _requireOptionalString(paywallId, 'paywallId');
+    _requireOptionalString(paywallVariantSlug, 'paywallVariantSlug');
     return CommerceReportRequest._(
       reportId: reportId,
       intentId: intentId,
@@ -45,6 +60,9 @@ final class CommerceReportRequest {
       storeProductId: storeProductId,
       storeTransactionId: storeTransactionId,
       appAnonymousToken: appAnonymousToken,
+      paywallId: paywallId,
+      paywallVariantSlug: paywallVariantSlug,
+      paywallPublishedVersion: paywallPublishedVersion,
     );
   }
 
@@ -56,6 +74,9 @@ final class CommerceReportRequest {
     required this.storeProductId,
     required this.storeTransactionId,
     required this.appAnonymousToken,
+    required this.paywallId,
+    required this.paywallVariantSlug,
+    required this.paywallPublishedVersion,
   });
 
   /// Parses the report sent by an application.
@@ -82,6 +103,12 @@ final class CommerceReportRequest {
         'appAnonymousToken',
         lowercase: false,
       ),
+      paywallId: optionalCommerceString(json, 'paywallId'),
+      paywallVariantSlug: optionalCommerceString(json, 'paywallVariantSlug'),
+      paywallPublishedVersion: optionalCommerceInt(
+        json,
+        'paywallPublishedVersion',
+      ),
     );
   }
 
@@ -106,6 +133,15 @@ final class CommerceReportRequest {
   /// Anonymous application identity used for purchaser state.
   final String appAnonymousToken;
 
+  /// Legacy paywall identifier associated with the purchase, when available.
+  final String? paywallId;
+
+  /// Legacy paywall variant associated with the purchase, when available.
+  final String? paywallVariantSlug;
+
+  /// Published legacy paywall version associated with the purchase.
+  final int? paywallPublishedVersion;
+
   /// Converts this request to its wire representation.
   Map<String, dynamic> toJson() => {
         'reportId': reportId,
@@ -116,6 +152,11 @@ final class CommerceReportRequest {
         if (storeTransactionId != null)
           'storeTransactionId': storeTransactionId,
         'appAnonymousToken': appAnonymousToken,
+        if (paywallId != null) 'paywallId': paywallId,
+        if (paywallVariantSlug != null)
+          'paywallVariantSlug': paywallVariantSlug,
+        if (paywallPublishedVersion != null)
+          'paywallPublishedVersion': paywallPublishedVersion,
       };
 
   @override
@@ -128,7 +169,10 @@ final class CommerceReportRequest {
           other.storeVerificationData == storeVerificationData &&
           other.storeProductId == storeProductId &&
           other.storeTransactionId == storeTransactionId &&
-          other.appAnonymousToken == appAnonymousToken;
+          other.appAnonymousToken == appAnonymousToken &&
+          other.paywallId == paywallId &&
+          other.paywallVariantSlug == paywallVariantSlug &&
+          other.paywallPublishedVersion == paywallPublishedVersion;
 
   @override
   int get hashCode => Object.hash(
@@ -139,6 +183,9 @@ final class CommerceReportRequest {
         storeProductId,
         storeTransactionId,
         appAnonymousToken,
+        paywallId,
+        paywallVariantSlug,
+        paywallPublishedVersion,
       );
 }
 

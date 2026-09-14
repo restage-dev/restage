@@ -1,5 +1,7 @@
 /// Store values accepted by commerce requests.
-const commerceStoreValues = {'app_store', 'play_store'};
+const commerceAppStoreValue = 'app_store';
+const commercePlayStoreValue = 'play_store';
+const commerceStoreValues = {commerceAppStoreValue, commercePlayStoreValue};
 final _commerceOfferIdPattern = RegExp(r'^[a-z][a-z0-9._-]{0,127}$');
 
 /// Rejects fields outside a request's wire shape.

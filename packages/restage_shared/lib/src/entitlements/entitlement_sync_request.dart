@@ -48,10 +48,9 @@ final class CommercePurchaserStateRequest {
         'appAnonymousToken',
         lowercase: false,
       ),
-      knownStoreTransactionIds: requiredCommerceStringList(
-        json,
-        'knownStoreTransactionIds',
-      ),
+      knownStoreTransactionIds: json.containsKey('knownStoreTransactionIds')
+          ? requiredCommerceStringList(json, 'knownStoreTransactionIds')
+          : const [],
     );
   }
 
