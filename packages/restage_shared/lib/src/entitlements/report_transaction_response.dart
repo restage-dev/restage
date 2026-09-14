@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
-import 'package:restage_shared/src/entitlements/entitlement_summary.dart';
+import 'package:restage_shared/src/entitlements/commerce_wire.dart';
+import 'package:restage_shared/src/entitlements/entitlement_sync_response.dart';
 
 /// How a report's subscription-level attribution affected accepted state.
 enum AttributionDisposition {
@@ -247,228 +248,73 @@ final class GoogleAcceptedStoreEvidence extends AcceptedStoreEvidence {
       );
 }
 
-/// Explicit durable acceptance returned by a transaction report.
+/// The result of processing store evidence.
 @immutable
-final class ReportTransactionResponse {
-  /// Creates a transaction-report response.
-  ReportTransactionResponse({
-    required this.accepted,
-    required this.reportId,
-    required this.evidence,
-    required this.attributionDisposition,
-    List<EntitlementSummary> entitlements = const [],
-    this.purchaseIntentDisposition,
-    this.recoveredAppAnonymousToken,
-  }) : entitlements = List.unmodifiable(entitlements) {
-    _validatePurchaseIntentRecovery(
-      purchaseIntentDisposition,
-      recoveredAppAnonymousToken,
+final class CommerceReportResponse {
+  /// Creates a report response.
+  factory CommerceReportResponse({
+    required String outcome,
+    required CommercePurchaserStateResponse purchaserState,
+  }) {
+    if (!_reportOutcomes.contains(outcome)) {
+      throw ArgumentError.value(outcome, 'outcome', 'Unsupported outcome');
+    }
+    return CommerceReportResponse._(
+      outcome: outcome,
+      purchaserState: purchaserState,
     );
   }
 
-  /// Parses a transaction-report response.
-  factory ReportTransactionResponse.fromJson(Map<String, dynamic> json) {
-    final accepted = json['accepted'];
-    if (accepted is! bool) {
+  const CommerceReportResponse._({
+    required this.outcome,
+    required this.purchaserState,
+  });
+
+  /// Parses a response while allowing future additive fields.
+  factory CommerceReportResponse.fromJson(Map<String, dynamic> json) {
+    final rawState = json['purchaserState'];
+    if (rawState is! Map) {
       throw ArgumentError.value(
-        accepted,
-        'accepted',
-        'Expected a bool',
-      );
-    }
-    final rawReportId = json['reportId'];
-    if (rawReportId != null && rawReportId is! String) {
-      throw ArgumentError.value(
-        rawReportId,
-        'reportId',
-        'Expected a string or null',
-      );
-    }
-    final rawEvidence = json['evidence'];
-    if (rawEvidence is! Map) {
-      throw ArgumentError.value(
-        rawEvidence,
-        'evidence',
+        rawState,
+        'purchaserState',
         'Expected an object',
       );
     }
-    final rawEntitlements = json['entitlements'];
-    if (rawEntitlements is! List) {
-      throw ArgumentError.value(
-        rawEntitlements,
-        'entitlements',
-        'Expected a list',
-      );
-    }
-    final entitlements = <EntitlementSummary>[];
-    for (final entry in rawEntitlements) {
-      if (entry is! Map) {
-        throw ArgumentError.value(
-          entry,
-          'entitlements',
-          'Expected each entry to be an object',
-        );
-      }
-      entitlements.add(
-        EntitlementSummary.fromJson(entry.cast<String, dynamic>()),
-      );
-    }
-    final rawPurchaseIntentDisposition = json['purchaseIntentDisposition'];
-    final purchaseIntentDisposition = rawPurchaseIntentDisposition == null
-        ? null
-        : PurchaseIntentDisposition.fromJson(rawPurchaseIntentDisposition);
-    final rawRecoveredAppAnonymousToken = json['recoveredAppAnonymousToken'];
-    if (rawRecoveredAppAnonymousToken != null &&
-        rawRecoveredAppAnonymousToken is! String) {
-      throw ArgumentError.value(
-        rawRecoveredAppAnonymousToken,
-        'recoveredAppAnonymousToken',
-        'Expected a canonical-form UUIDv4 or null',
-      );
-    }
-    final recoveredAppAnonymousToken = rawRecoveredAppAnonymousToken as String?;
-    return ReportTransactionResponse(
-      accepted: accepted,
-      reportId: rawReportId as String?,
-      evidence: AcceptedStoreEvidence.fromJson(
-        rawEvidence.cast<String, dynamic>(),
+    return CommerceReportResponse._(
+      outcome: normalizeCommerceResponseCode(
+        requiredCommerceString(json, 'outcome'),
+        _reportOutcomes,
       ),
-      attributionDisposition: AttributionDisposition.fromJson(
-        json['attributionDisposition'],
+      purchaserState: CommercePurchaserStateResponse.fromJson(
+        rawState.cast<String, dynamic>(),
       ),
-      purchaseIntentDisposition: purchaseIntentDisposition,
-      recoveredAppAnonymousToken: recoveredAppAnonymousToken,
-      entitlements: entitlements,
     );
   }
 
-  /// Whether the accepted-state transaction committed.
-  final bool accepted;
+  /// Verification result.
+  final String outcome;
 
-  /// Echoed client correlation ID, or null for a legacy request.
-  final String? reportId;
+  /// Authoritative purchaser state after processing the report.
+  final CommercePurchaserStateResponse purchaserState;
 
-  /// Non-secret evidence binding the accepted state to the store report.
-  final AcceptedStoreEvidence evidence;
-
-  /// Actual subscription-level attribution outcome.
-  final AttributionDisposition attributionDisposition;
-
-  /// Authoritative entitlement summaries, which may be empty on acceptance.
-  final List<EntitlementSummary> entitlements;
-
-  /// Purchase-intent association outcome, when evaluated for this report.
-  final PurchaseIntentDisposition? purchaseIntentDisposition;
-
-  /// Authenticated anonymous install token recovered from an associated
-  /// purchase intent.
-  final String? recoveredAppAnonymousToken;
-
-  /// Converts this response to JSON.
+  /// Converts this response to its wire representation.
   Map<String, dynamic> toJson() => {
-        'accepted': accepted,
-        'reportId': reportId,
-        'evidence': evidence.toJson(),
-        'attributionDisposition': attributionDisposition.name,
-        'entitlements': [
-          for (final entitlement in entitlements) entitlement.toJson(),
-        ],
-        if (purchaseIntentDisposition != null)
-          'purchaseIntentDisposition': purchaseIntentDisposition!.name,
-        if (recoveredAppAnonymousToken != null)
-          'recoveredAppAnonymousToken': recoveredAppAnonymousToken,
+        'outcome': outcome,
+        'purchaserState': purchaserState.toJson(),
       };
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    if (other is! ReportTransactionResponse ||
-        other.accepted != accepted ||
-        other.reportId != reportId ||
-        other.evidence != evidence ||
-        other.attributionDisposition != attributionDisposition ||
-        other.purchaseIntentDisposition != purchaseIntentDisposition ||
-        other.recoveredAppAnonymousToken != recoveredAppAnonymousToken ||
-        other.entitlements.length != entitlements.length) {
-      return false;
-    }
-    for (var i = 0; i < entitlements.length; i += 1) {
-      if (other.entitlements[i] != entitlements[i]) return false;
-    }
-    return true;
-  }
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommerceReportResponse &&
+          other.outcome == outcome &&
+          other.purchaserState == purchaserState;
 
   @override
-  int get hashCode => Object.hash(
-        accepted,
-        reportId,
-        evidence,
-        attributionDisposition,
-        Object.hashAll(entitlements),
-        purchaseIntentDisposition,
-        recoveredAppAnonymousToken,
-      );
+  int get hashCode => Object.hash(outcome, purchaserState);
 }
 
-void _validatePurchaseIntentRecovery(
-  PurchaseIntentDisposition? disposition,
-  String? recoveredToken,
-) {
-  switch (disposition) {
-    case PurchaseIntentDisposition.associated:
-    case PurchaseIntentDisposition.alreadyAssociated:
-      if (recoveredToken == null || !_isCanonicalFormUuidV4(recoveredToken)) {
-        throw ArgumentError.value(
-          recoveredToken,
-          'recoveredAppAnonymousToken',
-          'Associated purchase intents require a canonical-form UUIDv4',
-        );
-      }
-      return;
-    case PurchaseIntentDisposition.notProvided:
-    case PurchaseIntentDisposition.unmatched:
-      if (recoveredToken != null) {
-        throw ArgumentError.value(
-          recoveredToken,
-          'recoveredAppAnonymousToken',
-          'This purchase-intent disposition does not permit a recovered token',
-        );
-      }
-      return;
-    case null:
-      if (recoveredToken != null) {
-        throw ArgumentError.value(
-          recoveredToken,
-          'recoveredAppAnonymousToken',
-          'A recovered token requires a purchase-intent disposition',
-        );
-      }
-      return;
-  }
-}
-
-bool _isCanonicalFormUuidV4(String value) {
-  if (value.length != 36) return false;
-  for (var index = 0; index < value.length; index += 1) {
-    final codeUnit = value.codeUnitAt(index);
-    if (index == 8 || index == 13 || index == 18 || index == 23) {
-      if (codeUnit != 0x2d) return false;
-      continue;
-    }
-    final isHex = (codeUnit >= 0x30 && codeUnit <= 0x39) ||
-        (codeUnit >= 0x61 && codeUnit <= 0x66) ||
-        (codeUnit >= 0x41 && codeUnit <= 0x46);
-    if (!isHex) return false;
-  }
-  if (value.codeUnitAt(14) != 0x34) return false;
-  final variant = value.codeUnitAt(19);
-  return variant == 0x38 ||
-      variant == 0x39 ||
-      variant == 0x61 ||
-      variant == 0x62 ||
-      variant == 0x41 ||
-      variant == 0x42;
-}
+const _reportOutcomes = {'verified', 'pending', 'rejected'};
 
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];

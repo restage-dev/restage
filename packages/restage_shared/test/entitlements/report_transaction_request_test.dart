@@ -1,115 +1,58 @@
-import 'package:restage_shared/src/entitlements/entitlements.dart';
+import 'package:restage_shared/commerce.dart';
 import 'package:test/test.dart';
 
+const _reportId = '550e8400-e29b-41d4-a716-446655440002';
+const _intentId = '550e8400-e29b-41d4-a716-446655440000';
+const _token = '550e8400-e29b-41d4-a716-446655440001';
+
 void main() {
-  group('ReportTransactionRequest', () {
-    test('JSON round-trips all fields', () {
-      const request = ReportTransactionRequest(
-        reportId: '550e8400-e29b-41d4-a716-446655440000',
-        purchaseIntentId: '11111111-2222-4333-8444-555555555555',
-        store: 'appStore',
-        storeVerificationData: 'long-base64-blob',
-        storeProductId: 'com.example.app.pro_monthly',
-        storeTransactionId: '2000000123456789',
-        appAnonymousToken: 'a-uuid-v4',
-        paywallId: 'pw_abc',
-        paywallVariantSlug: 'control',
-        paywallPublishedVersion: 7,
-      );
-
-      expect(ReportTransactionRequest.fromJson(request.toJson()), request);
-    });
-
-    test('JSON round-trips nullable correlation and attribution fields', () {
-      const request = ReportTransactionRequest(
-        store: 'playStore',
+  group('CommerceReportRequest', () {
+    test('round-trips provider evidence and optional intent identity', () {
+      final request = CommerceReportRequest(
+        reportId: _reportId,
+        intentId: _intentId,
+        store: 'play_store',
         storeVerificationData: 'purchase-token',
-        storeProductId: 'pro_monthly',
-        storeTransactionId: 'GPA.1234-5678',
+        storeProductId: 'pro.monthly.us',
+        storeTransactionId: 'GPA.1234-5678..0',
+        appAnonymousToken: _token,
       );
 
-      final json = request.toJson();
-
-      expect(json, isNot(contains('paywallId')));
-      expect(json, isNot(contains('reportId')));
-      expect(json, isNot(contains('purchaseIntentId')));
-      expect(ReportTransactionRequest.fromJson(json), request);
+      expect(CommerceReportRequest.fromJson(request.toJson()), request);
     });
 
-    test('playStore permits an absent storeTransactionId and omits it', () {
-      final request = ReportTransactionRequest.fromJson(const {
-        'store': 'playStore',
-        'storeVerificationData': 'purchase-token',
-        'storeProductId': 'pro_monthly',
-      });
-
-      expect(request.storeTransactionId, isNull);
-      expect(request.toJson(), isNot(contains('storeTransactionId')));
+    test('requires a report identity and snake-case store value', () {
       expect(
-        ReportTransactionRequest.fromJson(request.toJson()),
-        request,
-      );
-    });
-
-    test('playStore rejects an empty storeTransactionId', () {
-      expect(
-        () => ReportTransactionRequest.fromJson(const {
-          'store': 'playStore',
-          'storeVerificationData': 'purchase-token',
-          'storeProductId': 'pro_monthly',
-          'storeTransactionId': '',
+        () => CommerceReportRequest.fromJson(const <String, dynamic>{
+          'store': 'app_store',
+          'storeVerificationData': 'signed-jws',
+          'storeProductId': 'pro.monthly.us',
+          'appAnonymousToken': _token,
         }),
         throwsArgumentError,
       );
-    });
-
-    test('appStore rejects an absent storeTransactionId', () {
       expect(
-        () => ReportTransactionRequest.fromJson(const {
+        () => CommerceReportRequest.fromJson(const <String, dynamic>{
+          'reportId': _reportId,
           'store': 'appStore',
-          'storeVerificationData': 'signed-transaction-info',
-          'storeProductId': 'pro_monthly',
+          'storeVerificationData': 'signed-jws',
+          'storeProductId': 'pro.monthly.us',
+          'appAnonymousToken': _token,
         }),
         throwsArgumentError,
       );
     });
 
-    test('rejects a non-UUID-v4 reportId', () {
-      expect(
-        () => ReportTransactionRequest.fromJson(const {
-          'reportId': 'not-a-uuid',
-          'store': 'playStore',
-          'storeVerificationData': 'purchase-token',
-          'storeProductId': 'pro_monthly',
-          'storeTransactionId': 'GPA.1234-5678',
-        }),
-        throwsArgumentError,
+    test('preserves canonical-form report identity casing', () {
+      final request = CommerceReportRequest(
+        reportId: '550E8400-E29B-41D4-A716-446655440002',
+        store: 'app_store',
+        storeVerificationData: 'signed-jws',
+        storeProductId: 'pro.monthly.us',
+        appAnonymousToken: _token,
       );
-    });
 
-    test('rejects a non-UUID-v4 purchaseIntentId', () {
-      expect(
-        () => ReportTransactionRequest.fromJson(const {
-          'purchaseIntentId': 'AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE',
-          'store': 'playStore',
-          'storeVerificationData': 'purchase-token',
-          'storeProductId': 'pro_monthly',
-          'storeTransactionId': 'GPA.1234-5678',
-        }),
-        throwsArgumentError,
-      );
-    });
-
-    test('rejects unknown store values', () {
-      expect(
-        () => ReportTransactionRequest.fromJson(const {
-          'store': 'amazonStore',
-          'storeVerificationData': 'blob',
-          'storeProductId': 'pro_monthly',
-          'storeTransactionId': 'tx_1',
-        }),
-        throwsArgumentError,
-      );
+      expect(CommerceReportRequest.fromJson(request.toJson()), request);
     });
   });
 }

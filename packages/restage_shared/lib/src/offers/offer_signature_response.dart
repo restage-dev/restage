@@ -71,6 +71,15 @@ final class OfferSignatureResponse {
   /// The base64-encoded binary signature.
   final String signatureBase64;
 
+  /// Converts this signature to its wire representation.
+  Map<String, dynamic> toJson() => {
+        'scheme': scheme.name,
+        'keyIdentifier': keyIdentifier,
+        'nonce': nonce,
+        'timestamp': timestampMs,
+        'signature': signatureBase64,
+      };
+
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||

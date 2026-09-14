@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:restage_shared/commerce.dart' as commerce;
 import 'package:test/test.dart';
 
 void main() {
@@ -13,6 +14,14 @@ void main() {
         reason: '$export must not be part of the default surface',
       );
     }
+  });
+
+  test('commerce barrel exposes the wire contract', () {
+    final request = commerce.CommercePurchaserStateRequest(
+      appAnonymousToken: '550e8400-e29b-41d4-a716-446655440001',
+    );
+
+    expect(request.knownStoreTransactionIds, isEmpty);
   });
 }
 
