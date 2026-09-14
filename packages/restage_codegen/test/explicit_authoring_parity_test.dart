@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/error/error.dart';
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
@@ -36,8 +38,8 @@ void main() {
         _expectSuccessful(oldResult, '$scenario old authoring');
         _expectSuccessful(newResult, '$scenario new authoring');
 
-        final oldOutputs = await _outputs(oldResult);
-        final newOutputs = await _outputs(newResult);
+        final oldOutputs = _outputs(oldResult);
+        final newOutputs = _outputs(newResult);
 
         final oldCanonical = _canonicalArtifacts(oldOutputs);
         final newCanonical = _canonicalArtifacts(newOutputs);
@@ -106,30 +108,412 @@ void main() {
       });
     }
   });
+
+  group('Dart 3.13 primary constructors', () {
+    test('fixture resolver honors explicit language overrides', () async {
+      const source = 'class Point { final int x; const new(this.x); }';
+      final probes = await _languageProbes({
+        'at313': '// @dart=3.13\n$source',
+        'at35': '// @dart=3.5\n$source',
+      });
+
+      expect(probes['at313']!.overrideLanguage, '3.13.0');
+      expect(probes['at35']!.overrideLanguage, '3.5.0');
+      expect(
+        probes['at35']!.syntacticCodes,
+        anyElement(startsWith('experiment_not_enabled')),
+      );
+      expect(
+        probes['at313']!.syntacticCodes,
+        primaryConstructorsSupported ? isEmpty : isNotEmpty,
+      );
+    });
+
+    test('below-floor guarded inputs fail loudly on the shipping analyzer',
+        () async {
+      if (primaryConstructorsSupported) {
+        markTestSkipped('only applies below analyzer 13.1.0');
+        return;
+      }
+
+      for (final MapEntry(key: scenario, value: shape)
+          in _primaryConstructorScenarios.entries) {
+        final pair = await _compilePrimaryConstructorPair(scenario);
+        _expectSuccessful(pair.classic, '$scenario classic authoring');
+        final classicOutputs = _productOutputs(pair.classic);
+        _expectConcretePrimaryConstructorOutput(scenario, classicOutputs);
+
+        expect(
+          pair.primary.succeeded,
+          isFalse,
+          reason:
+              '$scenario primary authoring must fail below the parser floor',
+        );
+        final malformedDiagnostics = (_logs[pair.primary] ?? '')
+            .split('\n')
+            .where((line) => line.contains('[malformedSourceInput]'))
+            .toList();
+        expect(
+          malformedDiagnostics,
+          isNotEmpty,
+          reason: '$scenario primary authoring must fail loudly',
+        );
+        expect(
+          malformedDiagnostics,
+          everyElement(
+            allOf(
+              contains('[malformedSourceInput] ${shape.primarySource}@'),
+              contains("'primary-constructors' language feature"),
+            ),
+          ),
+          reason: '$scenario must fail only for its primary constructor',
+        );
+
+        final primaryOutputs = _productOutputs(pair.primary);
+        expect(
+          primaryOutputs.keys.where((path) => path.endsWith(shape.product)),
+          isEmpty,
+          reason: '$scenario must not emit its product below the floor',
+        );
+        if (scenario == 'flow') {
+          final classicScreens = _retainedFlowScreens(classicOutputs);
+          final primaryScreens = _retainedFlowScreens(primaryOutputs);
+          expect(classicScreens.keys, orderedEquals(_retainedFlowScreenPaths));
+          expect(
+            primaryScreens,
+            classicScreens,
+            reason: 'flow primary authoring changed a retained screen product',
+          );
+        }
+      }
+    });
+
+    test('above-floor guarded inputs preserve product artifacts', () async {
+      if (!primaryConstructorsSupported) {
+        markTestSkipped(
+          'requires analyzer 13.1.0 primary-constructor support',
+        );
+        return;
+      }
+
+      for (final scenario in _primaryConstructorScenarios.keys) {
+        final pair = await _compilePrimaryConstructorPair(scenario);
+        _expectPrimaryConstructorParity(scenario, pair);
+      }
+    });
+
+    test('configuration controls measurement', () async {
+      final disabled = await _compileScenario(
+        'primary_constructor/configuration/classic',
+        builders: _configurationBuilders,
+      );
+      _expectSuccessful(disabled, 'disabled configuration');
+      final disabledOutputs = _productOutputs(disabled);
+      _expectConcretePrimaryConstructorOutput('configuration', disabledOutputs);
+      expect(_measurementEntries(disabledOutputs), isEmpty);
+
+      final enabled = await _compileScenario(
+        'primary_constructor/configuration/enabled',
+        builders: _configurationBuilders,
+      );
+      _expectSuccessful(enabled, 'enabled configuration');
+      final enabledOutputs = _productOutputs(enabled);
+      _expectConcretePrimaryConstructorOutput('configuration', enabledOutputs);
+      expect(_measurementEntries(enabledOutputs), hasLength(1));
+      expect(
+        enabledOutputs[_measurementIndexPath],
+        isNot(disabledOutputs[_measurementIndexPath]),
+      );
+    });
+  });
 }
 
-Future<TestBuilderResult> _compileScenario(String scenario) async {
+const _catalogPath = 'lib/src/widget_catalog/catalog.json';
+const _measurementIndexPath = 'lib/generated/restage.measurement.index.json';
+// Each scenario's primary-constructor source and the product it must not
+// emit when that source is refused.
+const _primaryConstructorScenarios =
+    <String, ({String primarySource, String product})>{
+  'annotated_widget': (
+    primarySource: 'lib/notice_card.dart',
+    product: _catalogPath,
+  ),
+  'flow': (
+    primarySource: 'lib/onboarding/flows/welcome_flow.dart',
+    product: '.flow.json',
+  ),
+  'structured_colocated': (
+    primarySource: 'lib/notice_card.dart',
+    product: _catalogPath,
+  ),
+  'structured_imported': (
+    primarySource: 'lib/badge.dart',
+    product: _catalogPath,
+  ),
+  'configuration': (
+    primarySource: 'lib/config/bootstrap.dart',
+    product: '/measurement_configuration.restage.g.dart',
+  ),
+};
+const _retainedFlowScreenPaths = <String>[
+  'assets/onboarding/screens/profile.capability.json',
+  'assets/onboarding/screens/profile.rfw',
+  'assets/onboarding/screens/profile.rfwtxt',
+  'assets/onboarding/screens/welcome.capability.json',
+  'assets/onboarding/screens/welcome.rfw',
+  'assets/onboarding/screens/welcome.rfwtxt',
+];
+
+typedef _PrimaryConstructorPair = ({
+  TestBuilderResult classic,
+  TestBuilderResult primary,
+});
+
+typedef _LanguageProbe = ({
+  String? overrideLanguage,
+  List<String> syntacticCodes,
+});
+
+Future<_PrimaryConstructorPair> _compilePrimaryConstructorPair(
+  String scenario,
+) async {
+  final builders =
+      scenario == 'configuration' ? _configurationBuilders : _catalogBuilders;
+  return (
+    classic: await _compileScenario(
+      'primary_constructor/$scenario/classic',
+      builders: scenario == 'flow' ? null : builders,
+    ),
+    primary: await _compileScenario(
+      'primary_constructor/$scenario/primary',
+      builders: scenario == 'flow' ? null : builders,
+    ),
+  );
+}
+
+const _bundledOptions = BuilderOptions({'bundled_runtime': true});
+final _catalogBuilders = <Builder>[
+  userCatalogJsonBuilder(BuilderOptions.empty),
+];
+final _configurationBuilders = <Builder>[
+  restageSourceRosterBuilder(_bundledOptions),
+  userCatalogJsonBuilder(BuilderOptions.empty),
+  restagePackageSurfaceCompilerBuilder(_bundledOptions),
+  restageGeneratedDartBuilder(_bundledOptions),
+  restageOutputsBuilder(_bundledOptions),
+];
+
+void _expectPrimaryConstructorParity(
+  String scenario,
+  _PrimaryConstructorPair pair,
+) {
+  _expectSuccessful(pair.classic, '$scenario classic authoring');
+  _expectSuccessful(pair.primary, '$scenario primary authoring');
+  final classicOutputs = _productOutputs(pair.classic);
+  final primaryOutputs = _productOutputs(pair.primary);
+  _expectConcretePrimaryConstructorOutput(scenario, classicOutputs);
+  expect(primaryOutputs.keys, orderedEquals(classicOutputs.keys));
+  expect(
+    primaryOutputs,
+    classicOutputs,
+    reason: '$scenario primary authoring changed a product artifact',
+  );
+}
+
+void _expectConcretePrimaryConstructorOutput(
+  String scenario,
+  Map<String, String> outputs,
+) {
+  expect(outputs, isNotEmpty, reason: '$scenario emitted no product artifacts');
+  switch (scenario) {
+    case 'annotated_widget':
+      expect(_widgetPropertyNames(outputs, 'NoticeCard'), [
+        'a',
+        'onTap',
+        'style',
+        'analyticsId',
+      ]);
+    case 'flow':
+      final flowPath = outputs.keys.singleWhere(
+        (path) => path.endsWith('/welcome_flow.flow.json'),
+      );
+      final document = FlowDocumentCodec.decodeJson(
+        _textProduct(outputs, flowPath),
+      );
+      expect(document.initial, 'welcome');
+      expect(document.states.keys, ['done', 'profile', 'welcome']);
+      expect(document.screenArtifacts.keys, ['profile', 'welcome']);
+      expect(
+        outputs.keys.where((path) => path.endsWith('.g.dart')),
+        hasLength(3),
+      );
+    case 'structured_colocated' || 'structured_imported':
+      final catalog = _jsonProduct(outputs, _catalogPath);
+      final structured = catalog['structuredTypes']! as List<Object?>;
+      final badge = structured.cast<Map<String, dynamic>>().singleWhere(
+            (entry) => entry['name'] == 'Badge',
+          );
+      final fields = badge['fields']! as List<Object?>;
+      expect(
+        fields.cast<Map<String, dynamic>>().map((field) => field['name']),
+        ['label', 'count'],
+      );
+    case 'configuration':
+      expect(
+        outputs.keys.any(
+          (path) => path.endsWith('/measurement_configuration.rsbundle'),
+        ),
+        isTrue,
+      );
+      final descriptorPath = outputs.keys.singleWhere(
+        (path) => path.endsWith('/measurement_configuration.restage.g.dart'),
+      );
+      expect(
+        _textProduct(outputs, descriptorPath),
+        contains('MeasurementConfigurationScreenSurface'),
+      );
+    default:
+      fail('no concrete product assertion for $scenario');
+  }
+}
+
+List<Object?> _measurementEntries(Map<String, String> outputs) =>
+    _jsonProduct(outputs, _measurementIndexPath)['entries']! as List<Object?>;
+
+Iterable<Object?> _widgetPropertyNames(
+  Map<String, String> outputs,
+  String widgetName,
+) {
+  final catalog = _jsonProduct(outputs, _catalogPath);
+  final widgets = catalog['widgets']! as List<Object?>;
+  final widget = widgets.cast<Map<String, dynamic>>().singleWhere(
+        (entry) => entry['name'] == widgetName,
+      );
+  final properties = widget['properties']! as List<Object?>;
+  return properties.cast<Map<String, dynamic>>().map(
+        (property) => property['name'],
+      );
+}
+
+Map<String, dynamic> _jsonProduct(
+  Map<String, String> outputs,
+  String path,
+) =>
+    jsonDecode(_textProduct(outputs, path))! as Map<String, dynamic>;
+
+String _textProduct(Map<String, String> outputs, String path) {
+  final value = outputs[path];
+  if (value == null) throw StateError('Missing product artifact $path.');
+  return utf8.decode(base64Decode(value));
+}
+
+Map<String, String> _retainedFlowScreens(Map<String, String> outputs) => {
+      for (final entry in outputs.entries)
+        if (entry.key.startsWith('assets/onboarding/screens/'))
+          entry.key: entry.value,
+    };
+
+const _internalCompilerArtifacts = <String>{
+  'assets/restage/source-index.json',
+  'assets/restage/output-roster.json',
+  'lib/src/surface_publication/surface_publication.compiler.json',
+  'lib/src/measurement/restage.measurement.compiler.json',
+  'lib/src/measurement/restage.analytics-id.control.json',
+};
+
+Map<String, String> _productOutputs(TestBuilderResult result) =>
+    _encodedOutputs(
+      result,
+      (path) =>
+          !_internalCompilerArtifacts.contains(path) &&
+          (path == _catalogPath ||
+              path.startsWith('lib/generated/') ||
+              path.endsWith(kNeutralGeneratedPartSuffix) ||
+              path.startsWith('assets/')),
+    );
+
+Map<String, String> _encodedOutputs(
+  TestBuilderResult result,
+  bool Function(String path) where,
+) =>
+    {
+      for (final id in _sortedOutputs(result, where))
+        id.path: base64Encode(result.readerWriter.testing.readBytes(id)),
+    };
+
+List<AssetId> _sortedOutputs(
+  TestBuilderResult result,
+  bool Function(String path) where,
+) =>
+    result.readerWriter.testing.assets
+        .where((id) => id.package == 'apps_examples' && where(id.path))
+        .toList()
+      ..sort((left, right) => left.path.compareTo(right.path));
+
+Future<Map<String, _LanguageProbe>> _languageProbes(
+  Map<String, String> sources,
+) async {
+  final probes = <String, _LanguageProbe>{};
+  await resolveSources<void>(
+    {
+      for (final name in sources.keys)
+        'apps_examples|lib/$name.dart': sources[name]!,
+    },
+    (resolver) async {
+      for (final name in sources.keys) {
+        final library = await resolver.libraryFor(
+          AssetId('apps_examples', 'lib/$name.dart'),
+          allowSyntaxErrors: true,
+        );
+        final result =
+            await library.session.getResolvedLibraryByElement(library);
+        if (result is! ResolvedLibraryResult) {
+          throw StateError('Could not resolve the language control $name.');
+        }
+        probes[name] = (
+          overrideLanguage: library.languageVersion.override?.toString(),
+          syntacticCodes: [
+            for (final unit in result.units)
+              for (final diagnostic in unit.diagnostics)
+                if (diagnostic.diagnosticCode.type ==
+                    DiagnosticType.SYNTACTIC_ERROR)
+                  diagnostic.diagnosticCode.lowerCaseName,
+          ],
+        );
+      }
+    },
+    resolverFor: 'apps_examples|lib/${sources.keys.first}.dart',
+    rootPackage: 'apps_examples',
+  );
+  return probes;
+}
+
+Future<TestBuilderResult> _compileScenario(
+  String scenario, {
+  List<Builder>? builders,
+}) async {
   final sources = _loadScenario(scenario);
   final readerWriter = await _readerWriterWith(sources);
   final logs = <LogRecord>[];
   final result = await testBuilders(
-    [
-      restageCodegenBuilder(BuilderOptions.empty),
-      paywallFlowBuilder(BuilderOptions.empty),
-      onboardingScreenBuilder(BuilderOptions.empty),
-      onboardingFlowBuilder(BuilderOptions.empty),
-      messageScreenBuilder(BuilderOptions.empty),
-      messageFlowBuilder(BuilderOptions.empty),
-      surveyScreenBuilder(BuilderOptions.empty),
-      surveyFlowBuilder(BuilderOptions.empty),
-      // The one owner of per-library generated Dart. Without it the
-      // scenario emits no `.restage.g.dart` at all and every descriptor
-      // assertion below passes vacuously over an empty set.
-      // Produces the compiler handoff the generated-Dart builder reads;
-      // without it that builder silently emits nothing.
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      restageGeneratedDartBuilder(BuilderOptions.empty),
-    ],
+    builders ??
+        [
+          restageCodegenBuilder(BuilderOptions.empty),
+          paywallFlowBuilder(BuilderOptions.empty),
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          messageScreenBuilder(BuilderOptions.empty),
+          messageFlowBuilder(BuilderOptions.empty),
+          surveyScreenBuilder(BuilderOptions.empty),
+          surveyFlowBuilder(BuilderOptions.empty),
+          // The one owner of per-library generated Dart. Without it the
+          // scenario emits no `.restage.g.dart` at all and every descriptor
+          // assertion below passes vacuously over an empty set.
+          // Produces the compiler handoff the generated-Dart builder reads;
+          // without it that builder silently emits nothing.
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
+        ],
     sources,
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
@@ -182,27 +566,11 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
   return readerWriter;
 }
 
-Future<Map<String, String>> _outputs(TestBuilderResult result) async {
-  final ids = result.readerWriter.testing.assets
-      .where((id) => id.package == 'apps_examples')
-      .where((id) => Glob('assets/**').matches(id.path))
-      .toList();
-  final outputs = <String, String>{};
-  for (final id in ids
-    ..sort((left, right) => left.path.compareTo(right.path))) {
-    outputs[id.path] = base64Encode(result.readerWriter.testing.readBytes(id));
-  }
-
-  final generatedIds = result.readerWriter.testing.assets
-      .where((id) => id.package == 'apps_examples')
-      .where((id) => Glob('lib/**/*.g.dart').matches(id.path))
-      .toList();
-  for (final id in generatedIds
-    ..sort((left, right) => left.path.compareTo(right.path))) {
-    outputs[id.path] = result.readerWriter.testing.readString(id);
-  }
-  return outputs;
-}
+Map<String, String> _outputs(TestBuilderResult result) => {
+      ..._encodedOutputs(result, Glob('assets/**').matches),
+      for (final id in _sortedOutputs(result, Glob('lib/**/*.g.dart').matches))
+        id.path: result.readerWriter.testing.readString(id),
+    };
 
 Map<String, String> _canonicalArtifacts(Map<String, String> outputs) =>
     outputs.entries

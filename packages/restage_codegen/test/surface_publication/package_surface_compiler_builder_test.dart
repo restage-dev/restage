@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
@@ -193,6 +195,203 @@ const launch = FlowDefinition(
       ),
       contains('SurfaceFlowRef<LaunchResult>'),
     );
+  });
+
+  test('emits valid mount types for legacy callback formals', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/callbacks.restage.g.dart';
+
+@Screen(id: 'callbacks', surface: Surface.general)
+final class Callbacks extends StatelessWidget {
+  const Callbacks(
+    void callback(final int value),
+    void looseCallback(var value),
+    void nullableCallback(int value)?,
+    void annotatedCallback(@Deprecated('x') int value), {
+    super.key,
+  }) : callback = callback,
+       looseCallback = looseCallback,
+       nullableCallback = nullableCallback,
+       annotatedCallback = annotatedCallback;
+
+  final void Function(int) callback;
+  final void Function(dynamic) looseCallback;
+  final void Function(int)? nullableCallback;
+  final void Function(int) annotatedCallback;
+
+  @override
+  Widget build(BuildContext context) => const Text('Callbacks');
+}
+''';
+    final descriptor = await _generatedPart(screen, 'callbacks');
+    expect(descriptor, contains('void Function(int value) callback'));
+    expect(
+      descriptor,
+      contains('void Function(dynamic value) looseCallback'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(int value) _restageArgument0;'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(dynamic value) _restageArgument1;'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(int value)? _restageArgument2;'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(int value) _restageArgument3;'),
+    );
+    expect(descriptor, isNot(contains('Function(final')));
+    expect(descriptor, isNot(contains('Function(var')));
+    expect(descriptor, isNot(contains('@Deprecated')));
+  });
+
+  test('mirrors the library language override on the generated part', () async {
+    const screen = '''
+// @dart=3.6
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/pinned_language.restage.g.dart';
+
+@Screen(id: 'pinned_language', surface: Surface.general)
+final class PinnedLanguage extends StatelessWidget {
+  const PinnedLanguage({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Pinned language');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'pinned_language',
+    );
+    expect(descriptor, startsWith('// @dart=3.6\npart of '));
+  });
+
+  test('keeps qualified types outside a generic callback scope', () async {
+    const screen = '''
+import 'dart:typed_data';
+import 'dart:typed_data' as data;
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/captured_callback.restage.g.dart';
+
+@Screen(id: 'captured_callback', surface: Surface.general)
+final class CapturedCallback extends StatelessWidget {
+  const CapturedCallback(
+    void callback<Uint8List>(data.Uint8List value), {
+    super.key,
+  }) : callback = callback;
+
+  final void Function<Uint8List>(data.Uint8List) callback;
+
+  @override
+  Widget build(BuildContext context) => const Text('Captured callback');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'captured_callback',
+    );
+
+    expect(
+      descriptor,
+      contains(
+        'void Function<Uint8List>(data.Uint8List value) callback',
+      ),
+    );
+    expect(
+      descriptor,
+      contains(
+        'final void Function<Uint8List>(data.Uint8List value) '
+        '_restageArgument0;',
+      ),
+    );
+    expect(
+      descriptor,
+      isNot(contains('Function<Uint8List>(Uint8List)')),
+    );
+  });
+
+  test('qualifies a forwarded callback under a generic shadow', () async {
+    const screen = '''
+import 'dart:typed_data';
+import 'dart:typed_data' as data;
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/forwarded_callback.restage.g.dart';
+
+abstract class CallbackBase extends StatelessWidget {
+  const CallbackBase(this.callback, {super.key});
+  final void Function<Uint8List>(data.Uint8List)? callback;
+}
+
+@Screen(id: 'forwarded_callback', surface: Surface.general)
+final class ForwardedCallback extends CallbackBase {
+  const ForwardedCallback(super.callback, {super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Forwarded callback');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'forwarded_callback',
+    );
+
+    expect(
+      descriptor,
+      contains(
+        'final void Function<Uint8List>(data.Uint8List)? _restageArgument0;',
+      ),
+    );
+    expect(descriptor, isNot(contains('Function<Uint8List>(Uint8List)')));
+  });
+
+  test('keeps an explicit backed super callback type', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/inherited_callback.restage.g.dart';
+
+abstract class CallbackBase extends StatelessWidget {
+  const CallbackBase(this.callback, {super.key});
+  final void Function(int) callback;
+}
+
+@Screen(id: 'inherited_callback', surface: Surface.general)
+final class InheritedCallback extends CallbackBase {
+  const InheritedCallback(void super.callback(num value), {super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Inherited callback');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'inherited_callback',
+    );
+
+    expect(
+      descriptor,
+      contains('void Function(num value) callback'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(num value) _restageArgument0;'),
+    );
+    expect(descriptor, isNot(contains('void Function(int) callback')));
   });
 
   test('compiles callback-free static collection leaves with measurement',
@@ -2388,6 +2587,72 @@ final _alternateMeasurementPolicy =
     kMeasurementCollectionBudgetRevisionOption: 'budget.test-v2',
   }),
 );
+
+Future<String> _generatedPart(String source, String name) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  final result = await testBuilders(
+    [
+      restageSourceRosterBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      userCatalogJsonBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      restageGeneratedDartBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      restageOutputsBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+    ],
+    {'apps_examples|lib/$name.dart': source},
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+    flattenOutput: true,
+  );
+
+  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  final descriptor = readerWriter.testing.readString(
+    AssetId(
+      'apps_examples',
+      'lib/restage.generated/$name.restage.g.dart',
+    ),
+  );
+  expect(descriptor, isNotEmpty);
+  await _expectAnalyzesClean({
+    'apps_examples|lib/$name.dart': source,
+    'apps_examples|lib/restage.generated/$name.restage.g.dart': descriptor,
+  });
+  return descriptor;
+}
+
+Future<void> _expectAnalyzesClean(Map<String, String> sources) async {
+  final entry = sources.keys.first;
+  await resolveWorkspaceSources(
+    sources,
+    (resolver) async {
+      final library = await resolver.libraryFor(AssetId.parse(entry));
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
+      if (resolved is! ResolvedLibraryResult) {
+        throw StateError('$entry did not resolve.');
+      }
+      final errors = [
+        for (final unit in resolved.units)
+          for (final diagnostic in unit.diagnostics)
+            if (diagnostic.severity == Severity.error)
+              '${unit.path}: ${diagnostic.message}',
+      ];
+      expect(errors, isEmpty, reason: 'the generated part must analyze clean');
+    },
+    resolverFor: entry,
+    rootPackage: 'apps_examples',
+  );
+}
 
 Future<Map<String, List<TrackedPackageSurfaceCompilation>>> _runPolicyProbe(
   Map<String, List<MeasurementCompilerPolicyInput>> policies,

@@ -187,6 +187,29 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     }
   }
 
+  // A structured type declared outside the walked libraries resolved with
+  // `allowSyntaxErrors: true` too, so its own library needs the same gate.
+  final gatedLibraries = {
+    for (final source in sources) source.library.identifier,
+  };
+  for (final structured in structuredTypes) {
+    final uri = Uri.parse(structured.sourceType.split('#').first);
+    if (!gatedLibraries.add(uri.toString()) ||
+        uri.scheme != 'package' && uri.scheme != 'asset') {
+      continue;
+    }
+    final assetId = AssetId.resolve(uri);
+    if (assetId.package != buildStep.inputId.package) continue;
+    final library = await buildStep.resolver.libraryFor(
+      assetId,
+      allowSyntaxErrors: true,
+    );
+    final resolved = await library.session.getResolvedLibraryByElement(library);
+    if (resolved is ResolvedLibraryResult) {
+      issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
+    }
+  }
+
   // Flutter-enum importability (async — needs `widgets.dart` resolved): a
   // custom structured field whose FLUTTER enum type is NOT in
   // `package:flutter/widgets.dart`'s export namespace can't be named BARE in

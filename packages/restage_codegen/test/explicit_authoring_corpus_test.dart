@@ -4,23 +4,51 @@ import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'helpers.dart';
+
 const _root = 'test/fixtures/explicit_authoring';
+const _primaryConstructorRoot = 'primary_constructor';
 
 void main() {
   test('the authoring corpus is syntactically valid Dart', () {
     final files = _dartFiles(Directory(_root));
     expect(files, isNotEmpty);
 
+    final refusingScenarios = <String>{};
     for (final file in files) {
+      final relative = p.relative(file.path, from: _root);
       final parsed = parseString(
         content: file.readAsStringSync(),
         path: file.path,
         throwIfDiagnostics: false,
       );
+      final segments = p.split(relative);
+      // Only a `primary/` variant may carry primary-constructor syntax, and
+      // below the parser floor that is the only error it may carry.
+      final mayUsePrimaryConstructors =
+          segments.first == _primaryConstructorRoot &&
+              segments[2] == 'primary' &&
+              !primaryConstructorsSupported;
+      final unexpected = parsed.errors.where(
+        (diagnostic) =>
+            !mayUsePrimaryConstructors ||
+            !diagnostic.diagnosticCode.lowerCaseName
+                .startsWith('experiment_not_enabled'),
+      );
+      expect(unexpected, isEmpty, reason: 'Dart parse errors in $relative');
+      if (parsed.errors.isNotEmpty) refusingScenarios.add(segments[1]);
+    }
+
+    if (!primaryConstructorsSupported) {
+      final scenarios = Directory('$_root/$_primaryConstructorRoot')
+          .listSync()
+          .whereType<Directory>()
+          .map((directory) => p.basename(directory.path))
+          .toSet();
       expect(
-        parsed.errors,
-        isEmpty,
-        reason: 'Dart parse errors in ${p.relative(file.path)}',
+        refusingScenarios,
+        scenarios,
+        reason: 'every primary scenario must exercise a primary constructor',
       );
     }
   });
