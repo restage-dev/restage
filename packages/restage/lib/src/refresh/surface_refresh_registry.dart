@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:meta/meta.dart' show internal;
 
+import '../restage_rpc_client/restage_rpc_client.dart'
+    show SurfaceStamp, SurfaceStampRateLimited;
 import '../runtime/restage.dart';
 import 'surface_refresh_trigger.dart';
 import 'surface_update_channel.dart';
@@ -141,11 +143,11 @@ final class SurfaceRefreshRegistry {
           surfaceType: handle.surface.surfaceType,
           surfaceSlug: handle.surface.slug,
         );
-        // The active version still matches what is on screen. A null stamp
-        // (probe failed, or no service configured) or a null rendered version
-        // falls through to a full re-resolve, which stays correct.
-        // A fresh decision may be required even when the version matches.
-        if (stamp != null &&
+        // A rate-limited stamp keeps the current render. An unavailable stamp,
+        // no service, a null rendered version, or a stamp that requires a
+        // fresh decision falls through to a refresh.
+        if (stamp is SurfaceStampRateLimited) return;
+        if (stamp is SurfaceStamp &&
             !stamp.requiresResolution &&
             stamp.version == handle.renderedVersion?.call()) {
           return;

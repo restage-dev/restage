@@ -13,7 +13,7 @@ import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 const _surface = SurfaceRef(surfaceType: 'message', slug: 'welcome');
 
 RestageRpcClient _stampClient(
-  List<SurfaceStamp?> stamps, {
+  List<SurfaceStampFetchResult> stamps, {
   void Function()? onRequest,
 }) {
   var index = 0;
@@ -23,11 +23,19 @@ RestageRpcClient _stampClient(
     httpClient: MockClient((request) async {
       onRequest?.call();
       final stamp = stamps[index < stamps.length ? index++ : stamps.length - 1];
-      if (stamp == null) return http.Response('', 503);
+      if (stamp is SurfaceStampRateLimited) {
+        return http.Response(
+          'not json',
+          429,
+          headers: {'Retry-After': '${stamp.retryAfter.inSeconds}'},
+        );
+      }
+      if (stamp is SurfaceStampUnavailable) return http.Response('', 503);
+      final available = stamp as SurfaceStamp;
       return http.Response(
         jsonEncode(<String, Object?>{
-          'version': stamp.version,
-          if (stamp.watchChannel case final token?) 'watchChannel': token,
+          'version': available.version,
+          if (available.watchChannel case final token?) 'watchChannel': token,
         }),
         200,
       );
@@ -43,6 +51,85 @@ void main() {
   });
 
   tearDown(() => server.close());
+
+  testWidgets('waits for the throttled stamp delay before retrying',
+      (tester) async {
+    var stampRequests = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(
+        const [
+          SurfaceStampRateLimited(Duration(seconds: 7)),
+        ],
+        onRequest: () => stampRequests++,
+      ),
+      edgeUrl: Uri.parse('http://edge.example.com'),
+      reconnectBaseDelay: const Duration(seconds: 1),
+      random: const _FixedRandom(0.5),
+    );
+    final subscription = channel.watch(_surface).listen((_) {});
+
+    await tester.pump();
+    expect(stampRequests, 1);
+
+    await tester.pump(const Duration(milliseconds: 6999));
+    expect(stampRequests, 1);
+
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(stampRequests, 2);
+    await subscription.cancel();
+  });
+
+  testWidgets('keeps a longer reconnect backoff than the throttled delay',
+      (tester) async {
+    var stampRequests = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(
+        const [
+          SurfaceStampRateLimited(Duration(seconds: 1)),
+        ],
+        onRequest: () => stampRequests++,
+      ),
+      edgeUrl: Uri.parse('http://edge.example.com'),
+      reconnectBaseDelay: const Duration(seconds: 10),
+      random: const _FixedRandom(0.5),
+    );
+    final subscription = channel.watch(_surface).listen((_) {});
+
+    await tester.pump();
+    expect(stampRequests, 1);
+
+    await tester.pump(const Duration(milliseconds: 9999));
+    expect(stampRequests, 1);
+
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(stampRequests, 2);
+    await subscription.cancel();
+  });
+
+  testWidgets('cancelling a throttled stamp wait prevents its retry',
+      (tester) async {
+    var stampRequests = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(
+        const [
+          SurfaceStampRateLimited(Duration(seconds: 7)),
+        ],
+        onRequest: () => stampRequests++,
+      ),
+      edgeUrl: Uri.parse('http://edge.example.com'),
+      reconnectBaseDelay: const Duration(seconds: 1),
+      random: const _FixedRandom(0.5),
+    );
+    final subscription = channel.watch(_surface).listen((_) {});
+
+    await tester.pump();
+    expect(stampRequests, 1);
+
+    await subscription.cancel();
+    await tester.pump(const Duration(seconds: 7));
+
+    expect(stampRequests, 1);
+  });
 
   test('emits a surface update for a surface_update text frame', () async {
     final channel = RestageHostedUpdateChannel(
@@ -153,6 +240,21 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 10));
     await subscription.cancel();
   });
+}
+
+final class _FixedRandom implements Random {
+  const _FixedRandom(this.value);
+
+  final double value;
+
+  @override
+  bool nextBool() => false;
+
+  @override
+  double nextDouble() => value;
+
+  @override
+  int nextInt(int max) => 0;
 }
 
 final class _WebSocketTestServer {

@@ -100,9 +100,11 @@ final class _HostedWatch {
 
   Future<void> _run() async {
     var reconnectAttempt = 0;
+    Duration? retryAfter;
     while (!_stopped) {
       if (reconnectAttempt > 0) {
-        await _waitForBackoff(reconnectAttempt);
+        await _waitForBackoff(reconnectAttempt, retryAfter);
+        retryAfter = null;
         if (_stopped) return;
       }
 
@@ -112,7 +114,12 @@ final class _HostedWatch {
           surfaceSlug: surface.slug,
         );
         if (_stopped) return;
-        if (stamp == null) {
+        if (stamp is SurfaceStampRateLimited) {
+          retryAfter = stamp.retryAfter;
+          reconnectAttempt++;
+          continue;
+        }
+        if (stamp is! SurfaceStamp) {
           reconnectAttempt++;
           continue;
         }
@@ -174,11 +181,14 @@ final class _HostedWatch {
     }
   }
 
-  Future<void> _waitForBackoff(int attempt) {
+  Future<void> _waitForBackoff(int attempt, Duration? retryAfter) {
     if (_stopped) return Future<void>.value();
     final done = Completer<void>();
     _backoffDone = done;
-    _backoffTimer = Timer(_backoffDelay(attempt), () {
+    final backoff = _backoffDelay(attempt);
+    final delay =
+        retryAfter != null && retryAfter > backoff ? retryAfter : backoff;
+    _backoffTimer = Timer(delay, () {
       _backoffTimer = null;
       if (identical(_backoffDone, done)) _backoffDone = null;
       if (!done.isCompleted) done.complete();
