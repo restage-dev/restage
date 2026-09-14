@@ -48,7 +48,7 @@ your app. `genui` is the renderer. `rfw_catalog_schema` holds the annotations.
 dependencies:
   genui: ^0.10.1                # the renderer the generated catalog targets
   json_schema_builder: ^0.1.3   # the generated catalog's data schemas use this
-  rfw_catalog_schema: ^1.2.0    # the widget and data-field annotations
+  rfw_catalog_schema: ^2.0.0    # the widget and data-field annotations
   # Production-safe path only (step 8):
   # restage_a2ui: ^0.1.6
 
