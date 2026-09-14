@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// A horizontal set of mutually-independent toggle buttons expressed as a
-/// purely declarative surface.
+/// A horizontal set of independently selectable toggle buttons.
 ///
 /// Each entry in [children] is one toggle button's label; the parallel
 /// [isSelected] list gives each button's pressed state by index. Pressing a
 /// button fires [onPressed] with that button's index — the settled toggle
-/// event. A declarative composition supplies only the inert [children] /
-/// [isSelected] values and names the [onPressed] event; the press/highlight
-/// machinery lives inside Flutter's `ToggleButtons`, which this widget builds.
+/// event. The surface configures [children] and [isSelected], and binds
+/// [onPressed]. Press and highlight behavior lives inside Flutter's
+/// `ToggleButtons`, compiled into your app through this widget.
 ///
 /// **Cross-slot length reconciliation (the fail-safe).** Flutter's
 /// `ToggleButtons` asserts `children.length == isSelected.length`; the two

@@ -400,23 +400,18 @@ branching flow it counts the authored total across every path).
 > grant and decline (the decline is the funnel-drop signal). A host-action that
 > does not report a `granted` boolean is not treated as a permission request.
 
-## Compliance boundary
+## App Store compliance
 
-Restage's flow runtime is declarative-only. The controls and framing above are
-host Flutter widgets composed *around* the rendered screens; they do not change
-what the runtime interprets. The compliance claim is bounded and exact:
+What ships is data the app renders. Your widgets carry the logic — real Dart,
+compiled into your app. The surface composes and configures them over the air.
 
-- Composition of the primitives can't make **Restage's runtime** review-unsafe:
-  there is no server→executable-code mechanism to compose into existence. The
-  runtime interprets only inert data (the flow document's finite
-  comparator/reference vocabulary plus declarative render blobs) and invokes only
-  pre-declared host actions with inert, allowlisted arguments.
-- Composition also can't make the **app's own host code** review-safe: host
-  actions, registered custom widgets, and the surrounding app are the app's
-  own App Review responsibility. The primitives expose no new server→code path,
-  so they neither widen nor discharge that pre-existing responsibility.
+- The navigation controls and framing in this guide are Flutter widgets in
+  your app, composed around the rendered screens.
+- Flow documents describe screen transitions, data and declared action
+  bindings. The installed runtime validates their capability and action contracts.
+- Host-action handlers and custom widget implementations compile into your app.
+  New behavior is a release.
 
-> Restage's runtime is declarative-only and never executes server-shipped code;
-> that holds however you compose these primitives. Your host actions and
-> registered custom widgets are your own app-reviewed code; keep them within your
-> App Review obligations.
+Your host actions, registered custom widgets and surrounding app remain part
+of your App Review responsibility. Review the app and its delivered content
+against the applicable store policies.

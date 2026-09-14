@@ -440,9 +440,10 @@ same-name shape change would slip through.
 
 ## App Review
 
-A2UI emission is declarative data only: a catalog of widget schemas plus
-version metadata, with no server-shipped executable code. This package adds
-only a pre-render check over that data.
+The generated A2UI catalog describes widget schemas and version metadata.
+Widget implementations are Dart compiled into your app; A2UI documents compose
+and configure those registered components. This package checks component
+availability and version requirements before genui renders a document.
 
 ## Status
 

@@ -63,9 +63,12 @@ From one annotated source file:
   exact set of generated artifacts for each surface id. `restage surface
   publish` reads it.
 
-The wire artifacts contain only inert data: references and literal values,
-never executable code. The generated Dart and Widgetbook stories are normal
-build-time source that ships in your app release.
+What ships is data the app renders. Your widgets carry the logic — real Dart,
+compiled into your app. The surface composes and configures them over the air.
+New behavior is a release.
+
+Generated Dart bindings compile with your app. Generated Widgetbook stories
+are source for your component workbench.
 
 Under the hood, the generator transpiles the widget tree, decomposes structured
 Flutter types (`TextStyle`, `ButtonStyle`, `EdgeInsets`, `BoxDecoration`,

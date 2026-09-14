@@ -341,8 +341,8 @@ abstract final class PaywallFlowEvents {
 
 /// Descriptor for a host action that a flow may request.
 ///
-/// Actions are app-owned capabilities. A flow document may select an installed
-/// action by contract, but it does not define executable behavior.
+/// Actions are app-owned capabilities with handlers compiled into the app.
+/// A flow document selects an installed action through its declared contract.
 final class FlowActionRef<I, O> {
   /// Creates a host action reference.
   const FlowActionRef(this.id, {this.idempotent = false});

@@ -97,7 +97,11 @@ class FlowEntry extends StatelessWidget {
 
 ## Host actions
 
-Host actions are typed, app-owned capability boundaries. A flow can select among the action capabilities your installed app already shipped. It cannot define new executable behavior. Handlers receive typed args plus `FlowActionContext` and return typed results the runtime encodes back into the flow.
+Host actions are typed, app-owned capability boundaries. A flow selects among
+the actions your installed app provides. Their handlers are Dart compiled into
+your app; adding or changing a handler requires an app release. Handlers receive
+typed args plus `FlowActionContext` and return typed results the runtime encodes
+back into the flow.
 
 ## Data minimization
 
