@@ -24,6 +24,7 @@ void main() {
         'crypto',
         'dart_style',
         'glob',
+        'logging',
         'meta',
         'package_config',
         'path',
@@ -32,8 +33,8 @@ void main() {
         'rfw_catalog_compiler',
         'rfw_catalog_schema',
       },
-      reason: 'The committed measurement schema dependency is allowed; '
-          'restage_codegen must not gain further published dependencies.',
+      reason: 'Every package lib imports is declared, and restage_codegen '
+          'must not gain further published dependencies.',
     );
     expect(
       devDependencies,
