@@ -9,7 +9,7 @@ const firstRunFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeFirstRunFlowResult,
   measurementPublicationDraftDigest:
-      '9699a137306d1e540c15a6ec38fc2cd9d28e5c7511fd773e28df367e638bb4ec',
+      'bd4e7929a4e96fcb3dfb0776663787dc2c715368d6406c295c9de50a4830ea4f',
 );
 
 FirstRunResult _decodeFirstRunFlowResult(Map<String, Object?> result) {

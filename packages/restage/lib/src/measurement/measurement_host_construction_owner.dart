@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'measurement_sdk_runtime_session.dart';
 
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -56,6 +57,7 @@ final class MeasurementHostConstructionProfile {
     required this.remainingSessionBudget,
     required this.deliveryAdapterAvailable,
     required this.configurationFingerprint,
+    this.sdkRuntimeSessionAdmitted = false,
     this.maximumSessions = 16,
     List<MeasurementWorkerOwnedDeliveryHeader> headers = const [],
     this.debugTracing = false,
@@ -74,6 +76,9 @@ final class MeasurementHostConstructionProfile {
 
   /// Optional exact Measurement ingress endpoint.
   final String? endpoint;
+
+  /// Exact selected policy explicitly admits anonymous runtime metadata.
+  final bool sdkRuntimeSessionAdmitted;
 
   /// Whether the target has opted into automatic Measurement collection.
   final bool analyticsEnabled;
@@ -235,6 +240,11 @@ final class MeasurementHostConstructionOwner {
         _monotonicClock = monotonicClock ?? _StopwatchMonotonicClock(),
         _workerRuntimeStarter = workerRuntimeStarter;
 
+  final _sdkSession = MeasurementSdkRuntimeSession();
+
+  /// Rotate runtime attribution for roots opened after explicit SDK reset.
+  void resetSdkRuntimeSession() => _sdkSession.reset();
+
   final Future<void>? _startupBarrier;
   final MeasurementWorkerOwnedDeliveryCancellation _cancellation =
       MeasurementWorkerOwnedDeliveryCancellation();
@@ -315,9 +325,20 @@ final class MeasurementHostConstructionOwner {
     }
 
     try {
+      final nonce = _sdkSession.forTarget(
+          resolvedMount.publicationContextRef.surfaceIdentity.target);
       final sessionClock = _SessionMonotonicClock(_monotonicClock);
       final opened = await runtime.openSession(
         MeasurementWorkerSessionRegistration(
+          sdkRuntimeSessionNonce:
+              profile.sdkRuntimeSessionAdmitted ? nonce : null,
+          reportedSdkVersion: profile.sdkRuntimeSessionAdmitted
+              ? measurementReportedSdkVersion
+              : null,
+          orderedCaptureCanonicalBytesV1: routeTable.orderedCaptureV1 == null
+              ? null
+              : CanonicalJsonCodec.encode(
+                  routeTable.orderedCaptureV1!.toJson()),
           sessionId: _nextSessionId(),
           captureSessionNonce: captureSessionNonceSource(),
           experimentAssignmentCanonicalBytes: experimentAssignment == null
@@ -625,7 +646,23 @@ final class MeasurementHostConstructionSession
         _resolvedMount = resolvedMount,
         _routeTable = routeTable,
         _workerSession = workerSession,
-        _monotonicClock = monotonicClock;
+        _monotonicClock = monotonicClock {
+    final carriers = [
+      for (final route in routeTable.orderedCaptureV1?.routes ??
+          <MeasurementOrderedCaptureRouteV1>[]) ...[
+        if (route.lifecycle != null) route.lifecycle!.carrier,
+        if (route.answerCarrier != null) route.answerCarrier!,
+      ]
+    ];
+    if (carriers.isNotEmpty &&
+        bindPresentation(pointTokens: [
+              for (final carrier in carriers) carrier.split('.').last
+            ], routeCarriers: carriers) ==
+            null) {
+      throw StateError(
+          'Published callback carriers did not bind to the exact worker');
+    }
+  }
 
   final MeasurementHostConstructionOwner _owner;
   final MeasurementHostConstructionAdmission _admission;
@@ -639,6 +676,7 @@ final class MeasurementHostConstructionSession
 
   var _active = true;
   var _successfulFirstPaint = false;
+  var _rootLifecyclePresented = false;
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>? _teardownFuture;
   Future<void>? _discardFuture;
 
@@ -718,6 +756,56 @@ final class MeasurementHostConstructionSession
     route.edge.appendInteractionIdentity(route.identity);
   }
 
+  void recordAnswer(String questionId, Object? rawValue) {
+    if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
+    final published = _routeTable.orderedCaptureV1?.routes
+        .where((route) => route.declaredAnswerV1?.questionId == questionId)
+        .singleOrNull;
+    final value = published?.declaredAnswerV1?.capture(rawValue);
+    final route = _routesByCarrier[published?.answerCarrier];
+    if (value != null && route != null)
+      route.edge.appendAnswerIdentity(route.identity, value);
+  }
+
+  /// Resolves a real callback within this exact mounted publication.
+  void recordLifecycle(MeasurementOccurrenceChannelV1 channel,
+      {String? screenId}) {
+    if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId != null) recordLifecycle(channel);
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null &&
+        _rootLifecyclePresented) return;
+    final mapping = _routeTable.orderedCaptureV1?.routes
+        .map((route) => route.lifecycle)
+        .where(
+            (route) => route?.channel == channel && route?.screenId == screenId)
+        .singleOrNull;
+    if (mapping == null) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null) _rootLifecyclePresented = true;
+    recordDeclaredOccurrenceCarrier(mapping.carrier, channel);
+  }
+
+  /// Captures an actual lifecycle event through its published route carrier.
+  void recordDeclaredOccurrenceCarrier(
+      String rawCarrier, MeasurementOccurrenceChannelV1 channel) {
+    if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
+    final route = _routesByCarrier[rawCarrier];
+    if (route == null) return;
+    final value = switch (channel) {
+      MeasurementOccurrenceChannelV1.presentation =>
+        MeasurementWorkerAppendValue.presentation,
+      MeasurementOccurrenceChannelV1.completion =>
+        MeasurementWorkerAppendValue.completion,
+      MeasurementOccurrenceChannelV1.skip => MeasurementWorkerAppendValue.skip,
+      MeasurementOccurrenceChannelV1.dismiss =>
+        MeasurementWorkerAppendValue.dismiss,
+      _ => null,
+    };
+    if (value != null) route.edge.appendDeclaredIdentity(route.identity, value);
+  }
+
   @override
   void recordSuccessfulPresentation(
     MeasurementSuccessfulPresentationFact fact,
@@ -734,6 +822,7 @@ final class MeasurementHostConstructionSession
       );
     }
     _successfulFirstPaint = true;
+    recordLifecycle(MeasurementOccurrenceChannelV1.presentation);
   }
 
   /// Schedules one nonblocking worker checkpoint after backgrounding.

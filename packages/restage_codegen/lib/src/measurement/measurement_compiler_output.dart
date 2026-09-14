@@ -28,11 +28,11 @@ const String kRestageMeasurementOutputIndexFileName =
 
 /// The manifest privacy policy revision this compiler stamps.
 const String kMeasurementDefaultPrivacyPolicyRevisionId =
-    'restage.manifest-privacy.v1';
+    'restage.manifest-privacy.v2';
 
 /// The collection budget revision this compiler stamps.
 const String kMeasurementDefaultCollectionBudgetRevisionId =
-    'restage.collection-budget.v2';
+    'restage.collection-budget.v3';
 
 /// The Measurement client revision floor this compiler stamps.
 const int kMeasurementDefaultMinimumClient = 1;

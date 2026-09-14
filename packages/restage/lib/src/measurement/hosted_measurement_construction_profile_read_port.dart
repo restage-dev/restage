@@ -52,10 +52,10 @@ final class HostedMeasurementConstructionProfileReadPort
     );
     if (decision == null || client() != rpc) return _missing;
     if (!decision.matchesBinding(binding)) return _stale;
-    if (decision.collectionBudgetRevisionId.value !=
-            'restage.collection-budget.v2' ||
-        decision.privacyPolicyRevisionId.value !=
-            'restage.manifest-privacy.v1' ||
+    if (!const {'restage.collection-budget.v2', 'restage.collection-budget.v3'}
+            .contains(decision.collectionBudgetRevisionId.value) ||
+        !const {'restage.manifest-privacy.v1', 'restage.manifest-privacy.v2'}
+            .contains(decision.privacyPolicyRevisionId.value) ||
         decision.privacyClassificationRevisionId.value !=
             'restage.privacy-classification.v1') {
       return const MeasurementHostConstructionProfileReadRejected(
@@ -65,6 +65,10 @@ final class HostedMeasurementConstructionProfileReadPort
     return MeasurementHostConstructionProfileReadAccepted(
       MeasurementHostConstructionProfile(
         publicationContext: publicationContext,
+        sdkRuntimeSessionAdmitted: decision.privacyPolicyRevisionId.value ==
+                'restage.manifest-privacy.v2' &&
+            decision.collectionBudgetRevisionId.value ==
+                'restage.collection-budget.v3',
         endpoint:
             '${baseUrl.replaceFirst(RegExp(r'/+$'), '')}/sdk/v1/measurement',
         analyticsEnabled: true,

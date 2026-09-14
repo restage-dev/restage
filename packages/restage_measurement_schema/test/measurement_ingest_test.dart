@@ -10,6 +10,35 @@ import 'support/exact_publication_context_test_support.dart';
 
 void main() {
   group('MeasurementIngestRequestV1', () {
+    test(
+        'runtime metadata survives wire and changes authenticated retry identity',
+        () {
+      final frame = _validatedFrame();
+      final plain = MeasurementIngestRequestV1.fromFactFrame(frame);
+      final request = MeasurementIngestRequestV1.fromFactFrame(frame,
+          sdkRuntimeSessionNonce: 'a' * 64, reportedSdkVersion: '2.0.0');
+      final read =
+          MeasurementIngestRequestV1.fromBase64(request.canonicalRequestBase64);
+      expect(read.sdkRuntimeSessionNonce, 'a' * 64);
+      expect(read.reportedSdkVersion, '2.0.0');
+      expect(read.requestSha256, isNot(plain.requestSha256));
+      expect(read.factFrameSha256, plain.factFrameSha256);
+      expect(plain.sdkRuntimeSessionNonce, isNull);
+      expect(plain.reportedSdkVersion, isNull);
+      for (final nonce in ['', 'a' * 63, 'A' * 64]) {
+        expect(
+            () => MeasurementIngestRequestV1.fromFactFrame(frame,
+                sdkRuntimeSessionNonce: nonce),
+            throwsA(isA<MeasurementIngestCodecException>()));
+      }
+      for (final version in ['', 'v' * 65, '2.0\nspoof']) {
+        expect(
+            () => MeasurementIngestRequestV1.fromFactFrame(frame,
+                sdkRuntimeSessionNonce: 'a' * 64, reportedSdkVersion: version),
+            throwsA(isA<MeasurementIngestCodecException>()));
+      }
+    });
+
     test('encodes the exact authenticated request from one validated frame',
         () {
       final frame = _validatedFrame();

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 /// Version of the closed primitive/typed-data worker protocol.
 const int kMeasurementWorkerProtocolVersion = 1;
@@ -35,7 +36,12 @@ enum MeasurementWorkerAppendValue {
   presentation(1),
 
   /// One interaction was observed for an already precomputed point route.
-  interaction(2);
+  interaction(2),
+
+  /// Explicit published lifecycle occurrences.
+  completion(3),
+  skip(4),
+  dismiss(5);
 
   const MeasurementWorkerAppendValue(this.wireCode);
 
@@ -106,8 +112,11 @@ final class MeasurementWorkerAppendRecord {
     required this.routeIndex,
     required this.monotonicTimestampMicros,
     required this.value,
+    this.answerValueV1,
   }) {
-    if (routeIndex < 0 ||
+    if ((answerValueV1 != null &&
+            value != MeasurementWorkerAppendValue.interaction) ||
+        routeIndex < 0 ||
         monotonicTimestampMicros < 0 ||
         monotonicTimestampMicros > kMeasurementWorkerMaximumPortableInteger) {
       throw ArgumentError('Invalid compact measurement append record');
@@ -122,6 +131,7 @@ final class MeasurementWorkerAppendRecord {
 
   /// Closed observation value.
   final MeasurementWorkerAppendValue value;
+  final MeasurementAnswerValueV1? answerValueV1;
 }
 
 /// Fixed limits for one worker-owned capture session.
@@ -234,12 +244,18 @@ final class MeasurementWorkerSessionRegistration {
   MeasurementWorkerSessionRegistration({
     required this.sessionId,
     required this.captureSessionNonce,
+    this.sdkRuntimeSessionNonce,
+    this.reportedSdkVersion,
     required List<int> publicationContextCanonicalBytes,
     required List<MeasurementWorkerRouteIdentity> routes,
     required this.limits,
     required this.firstSequence,
+    List<int>? orderedCaptureCanonicalBytesV1,
     List<int>? experimentAssignmentCanonicalBytes,
-  })  : _experimentAssignmentCanonicalBytes =
+  })  : _orderedCaptureCanonicalBytesV1 = orderedCaptureCanonicalBytesV1 == null
+            ? null
+            : Uint8List.fromList(orderedCaptureCanonicalBytesV1),
+        _experimentAssignmentCanonicalBytes =
             experimentAssignmentCanonicalBytes == null
                 ? null
                 : Uint8List.fromList(experimentAssignmentCanonicalBytes),
@@ -247,7 +263,16 @@ final class MeasurementWorkerSessionRegistration {
           publicationContextCanonicalBytes,
         ),
         routes = List.unmodifiable(routes) {
-    if (!_isOpaqueIdentifier(sessionId) ||
+    if ((sdkRuntimeSessionNonce != null &&
+            !RegExp(r'^[0-9a-f]{64}$').hasMatch(sdkRuntimeSessionNonce!)) ||
+        (reportedSdkVersion != null &&
+            (sdkRuntimeSessionNonce == null ||
+                !RegExp(r'^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$')
+                    .hasMatch(reportedSdkVersion!))) ||
+        (_orderedCaptureCanonicalBytesV1 != null &&
+            (_orderedCaptureCanonicalBytesV1.isEmpty ||
+                _orderedCaptureCanonicalBytesV1.length > 512 * 1024)) ||
+        !_isOpaqueIdentifier(sessionId) ||
         !_isOpaqueIdentifier(captureSessionNonce) ||
         _publicationContextCanonicalBytes.isEmpty ||
         _publicationContextCanonicalBytes.length >
@@ -262,11 +287,21 @@ final class MeasurementWorkerSessionRegistration {
     }
   }
 
+  final Uint8List? _orderedCaptureCanonicalBytesV1;
+
+  /// Versioned publication admission for ordered occurrences.
+  Uint8List? get orderedCaptureCanonicalBytesV1 =>
+      _orderedCaptureCanonicalBytesV1 == null
+          ? null
+          : Uint8List.fromList(_orderedCaptureCanonicalBytesV1);
+
   /// Opaque capture-session coordinate.
   final String sessionId;
 
   /// Opaque retry nonce, not a subject identity.
   final String captureSessionNonce;
+  final String? sdkRuntimeSessionNonce;
+  final String? reportedSdkVersion;
 
   final Uint8List _publicationContextCanonicalBytes;
 
@@ -299,12 +334,26 @@ final class MeasurementWorkerSessionRegistration {
         limits.toWire(),
         firstSequence,
         experimentAssignmentCanonicalBytes,
+        orderedCaptureCanonicalBytesV1,
+        sdkRuntimeSessionNonce,
+        reportedSdkVersion,
       ];
 
   static MeasurementWorkerSessionRegistration fromWire(Object? value) {
-    final values = _requireList(value, expectedLength: 7);
+    final values = _requireList(value);
+    if (values.length != 7 && values.length != 8 && values.length != 10)
+      throw ArgumentError('Invalid worker registration length');
     final rawRoutes = _requireList(values[3]);
     return MeasurementWorkerSessionRegistration(
+      orderedCaptureCanonicalBytesV1: values.length >= 8 && values[7] != null
+          ? _requireBytes(values[7])
+          : null,
+      sdkRuntimeSessionNonce: values.length == 10 && values[8] != null
+          ? _requireString(values[8])
+          : null,
+      reportedSdkVersion: values.length == 10 && values[9] != null
+          ? _requireString(values[9])
+          : null,
       sessionId: _requireString(values[0]),
       captureSessionNonce: _requireString(values[1]),
       publicationContextCanonicalBytes: _requireBytes(values[2]),
@@ -834,6 +883,16 @@ abstract final class MeasurementWorkerProtocol {
         record.routeIndex,
         record.monotonicTimestampMicros,
         record.value.wireCode,
+        if (record.answerValueV1 != null)
+          switch (record.answerValueV1!) {
+            MeasurementCategoryAnswerV1(:final value) => ['category', value],
+            MeasurementIntegerAnswerV1(:final value) => ['integer', value],
+            MeasurementScaledAnswerV1(:final coefficient, :final scale) => [
+                'scaledDecimal',
+                coefficient,
+                scale
+              ],
+          },
       ];
 
   /// Builds one ordered checkpoint barrier.
@@ -1070,7 +1129,7 @@ abstract final class MeasurementWorkerProtocol {
   }
 
   static MeasurementWorkerAppendMessage _decodeAppend(List<Object?> values) {
-    if (values.length != 6) {
+    if (values.length != 6 && values.length != 7) {
       throw const MeasurementWorkerProtocolException('invalid_append_length');
     }
     final value = MeasurementWorkerAppendValue.fromWireCode(
@@ -1082,6 +1141,19 @@ abstract final class MeasurementWorkerProtocol {
     return MeasurementWorkerAppendMessage(
       sessionId: _requireString(values[2]),
       record: MeasurementWorkerAppendRecord(
+        answerValueV1: values.length == 6
+            ? null
+            : switch (values[6]) {
+                ['category', final String value] =>
+                  MeasurementCategoryAnswerV1(value),
+                ['integer', final String value] =>
+                  MeasurementIntegerAnswerV1(value),
+                ['scaledDecimal', final String coefficient, final int scale] =>
+                  MeasurementScaledAnswerV1(
+                      coefficient: coefficient, scale: scale),
+                _ => throw const MeasurementWorkerProtocolException(
+                    'invalid_answer_value'),
+              },
         routeIndex: _requireInt(values[3]),
         monotonicTimestampMicros: _requireInt(values[4]),
         value: value,

@@ -9,11 +9,11 @@ void main() {
       MeasurementCompilerPolicyInput.fromBuilderOptions(BuilderOptions.empty)
           .collectionBudgetRevisionId
           .value,
-      'restage.collection-budget.v2',
+      'restage.collection-budget.v3',
     );
     expect(
       kMeasurementDefaultPrivacyPolicyRevisionId,
-      'restage.manifest-privacy.v1',
+      'restage.manifest-privacy.v2',
     );
   });
   test('unset builder options stamp the shipped policy', () {

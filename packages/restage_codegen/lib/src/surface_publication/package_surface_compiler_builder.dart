@@ -44,6 +44,7 @@ import 'package:restage_shared/restage_shared.dart'
         CapabilityManifest,
         CapabilitySidecar,
         FlowContentHash,
+        FlowDocumentCodec,
         ScreenArtifact,
         Surface,
         SurfacePayloadKind,
@@ -613,6 +614,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   );
   final publicationInputs = _measurementPlanningInputs(
     provisionalBundle.manifest,
+    artifactBytes: provisionalBundle.manifestFiles,
+    flows: flows,
     roster: roster,
     discoveriesByDeclarationIdentity: discoveries,
     rfwCatalogOccurrenceSetsByArtifactPath:
@@ -1505,6 +1508,8 @@ const _measurementScreenBlobOutputRoles = <String>{
 
 List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   SurfacePublicationManifest manifest, {
+  required Map<String, List<int>> artifactBytes,
+  required List<NormalizedFlowSource> flows,
   required RestageSourceRoster roster,
   required Map<String, MeasurementSourceDiscoveryResult>
       discoveriesByDeclarationIdentity,
@@ -1581,6 +1586,22 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
     result.add(
       MeasurementPublicationPlanningInput(
         entry: entry,
+        measurementAnswers: flows
+                .where((flow) =>
+                    flow.id == entry.publication.slug &&
+                    flow.surface.wireName == entry.publication.surface.wireName)
+                .singleOrNull
+                ?.graph
+                ?.measurementAnswers ??
+            const {},
+        flowDocument: entry.publication.payloadKind == SurfacePayloadKind.flow
+            ? FlowDocumentCodec.decodeJson(utf8.decode(artifactBytes[entry
+                .artifacts
+                .singleWhere((artifact) =>
+                    artifact.role ==
+                    SurfacePublicationArtifactRole.flowDocument)
+                .path]!))
+            : null,
         sourceArtifacts: sourceArtifacts,
       ),
     );

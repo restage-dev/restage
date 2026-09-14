@@ -60,11 +60,12 @@ void main() {
       final paywallPublication = compilerOutput.publications.singleWhere(
         (publication) => publication.selector.slug == _paywallSlug,
       );
-      expect(screenPublication.routePlan.routes, hasLength(7));
+      expect(_authoredRoutes(screenPublication.routePlan.routes), hasLength(7));
       expect(screenPublication.routePlan.presentationRoutes, hasLength(11));
-      expect(paywallPublication.routePlan.routes, hasLength(1));
       expect(
-        screenPublication.routePlan.routes
+          _authoredRoutes(paywallPublication.routePlan.routes), hasLength(1));
+      expect(
+        _authoredRoutes(screenPublication.routePlan.routes)
             .map((route) => route.generatedReferenceId.value)
             .toSet(),
         hasLength(7),
@@ -116,7 +117,8 @@ void main() {
       expect(
         carriers,
         unorderedEquals(
-          screenPublication.routePlan.routes.map((route) => route.carrier),
+          _authoredRoutes(screenPublication.routePlan.routes)
+              .map((route) => route.carrier),
         ),
       );
       expect(compactPointTokens, hasLength(11));
@@ -543,4 +545,22 @@ final class _CompiledFixture {
 
   List<int> readBytes(String path) =>
       readerWriter.testing.readBytes(AssetId(_package, path));
+}
+
+// Physical compiler lifecycle routes are declared separately from authored
+// callbacks. Keep the existing event ownership/count assertions about those
+// callbacks and pin that the new lifecycle routes remain explicitly admitted.
+List<MeasurementPublicationDraftRouteV1> _authoredRoutes(
+    List<MeasurementPublicationDraftRouteV1> routes) {
+  final lifecycle = routes
+      .where((route) => route.orderedCaptureV1?.lifecycleChannel != null)
+      .toList();
+  expect(lifecycle, isNotEmpty);
+  for (final route in lifecycle) {
+    expect(route.orderedCaptureV1!.channels,
+        contains(route.orderedCaptureV1!.lifecycleChannel));
+  }
+  return routes
+      .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
+      .toList();
 }

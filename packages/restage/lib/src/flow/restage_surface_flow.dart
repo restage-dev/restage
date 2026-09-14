@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
+
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
@@ -179,6 +182,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   RootAnalyticsPresentation? _presentation;
   final Set<RestageFlowController<R>> _ownedControllers =
       <RestageFlowController<R>>{};
+  final Set<RestageFlowController<R>> _terminalMeasurementControllers = {};
   final Map<RestageFlowController<R>, MeasurementHostSessionController>
       _measurementSessions =
       <RestageFlowController<R>, MeasurementHostSessionController>{};
@@ -660,6 +664,27 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       onEvent: onEvent,
       onComplete: onComplete,
       onUnavailable: onUnavailable,
+      onMeasurementAnswer: (questionId, value) =>
+          _measurementSessions[controller]?.recordAnswer(questionId, value),
+      onMeasurementLifecycle: (channel, screenId) {
+        if (channel == MeasurementOccurrenceChannelV1.completion) {
+          _terminalMeasurementControllers.add(controller);
+        } else if (channel == MeasurementOccurrenceChannelV1.skip) {
+          // Suppress dismissal when this skip closes the host in its next
+          // frame. A skip that leaves the flow mounted is not a root terminal.
+          _terminalMeasurementControllers.add(controller);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!controller.isComplete) {
+              _terminalMeasurementControllers.remove(controller);
+            }
+          });
+          WidgetsBinding.instance.ensureVisualUpdate();
+        } else if (channel == MeasurementOccurrenceChannelV1.presentation) {
+          _terminalMeasurementControllers.remove(controller);
+        }
+        _measurementSessions[controller]
+            ?.recordLifecycle(channel, screenId: screenId);
+      },
       onRootResolved: (resolved) =>
           _openMeasurementSessionForResolvedRoot(controller, resolved),
       sanitizeAndRecordEvent: (rawValue) =>
@@ -940,6 +965,17 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 
   @override
   void dispose() {
+    final controller = _controller;
+    if (controller != null &&
+        identical(controller, _activeMeasurementController) &&
+        controller.hasRenderedContent &&
+        !controller.isUnavailable &&
+        !controller.isComplete &&
+        !_terminalMeasurementControllers.contains(controller)) {
+      _measurementSessions[controller]
+          ?.recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+    }
+    _terminalMeasurementControllers.clear();
     _unregisterRefreshHandle();
     _disposePending();
     _disposeController();

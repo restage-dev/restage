@@ -547,6 +547,12 @@ final setupSurvey = FlowDefinition(
   outbound: FlowOutboundPolicy(
     terminalResult: {'answer': answer},
     surveyAnswers: {'answer': answer},
+    measurementAnswers: {
+      'answer': FlowAnswerMeasurement.category(
+        outcomeKey: 'survey.setup.answer', propertyName: 'answer',
+        categoryLabels: {'guided': 'Guided setup', 'explore': 'Explore freely'},
+      ),
+    },
   ),
 );
 ''',
@@ -554,6 +560,10 @@ final setupSurvey = FlowDefinition(
 
       expect(result.issues, isEmpty, reason: result.issues.toString());
       final graph = result.flows.single.graph!;
+      expect(graph.measurementAnswers['answer']!.outcomeKey,
+          'survey.setup.answer');
+      expect(graph.measurementAnswers['answer']!.categoryLabels,
+          {'guided': 'Guided setup', 'explore': 'Explore freely'});
       expect(
         graph.flowState['answer']!.classification,
         FlowStateClassification.exportable,

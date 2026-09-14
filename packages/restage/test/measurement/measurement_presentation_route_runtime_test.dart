@@ -11,6 +11,35 @@ import 'package:rfw/formats.dart';
 import 'package:rfw/rfw.dart';
 
 void main() {
+  test('ordered capture retains explicit channels without assignment witnesses',
+      () {
+    final fixture = _fixture(ordered: true);
+    var micros = 10;
+    final session = _session(fixture,
+        bounds: MeasurementFactFrameBounds(
+            maximumCounterValue: 4,
+            maximumPresentedPoints: 2,
+            maximumInteractionCounters: 2,
+            maximumMissingnessEntries: 1),
+        monotonicMicrosSource: () => micros);
+    session.recordInteraction(fixture.interaction);
+    session.recordInteraction(fixture.interaction);
+    final pending = session.checkpoint().validatedIngestFrameV1;
+    expect(pending.orderedCaptureIncompleteV1, isFalse);
+    micros = 20;
+    session.recordDeclaredOccurrence(
+        fixture.interaction, MeasurementOccurrenceChannelV1.completion);
+    final finalFrame = session.teardown().validatedIngestFrameV1;
+    expect(
+        finalFrame.facts.single.timedOccurrencesV1!
+            .map((value) => value.ordinal),
+        [1, 2, 3, 4]);
+    expect(finalFrame.facts.single.timedOccurrencesV1!.last.channel,
+        MeasurementOccurrenceChannelV1.completion);
+    expect(finalFrame.frameElapsedMicros, 20);
+    expect(finalFrame.experimentAssignment, isNull);
+  });
+
   test('capture retains the opaque assignment through cumulative snapshots',
       () {
     final fixture = _fixture();
@@ -351,7 +380,7 @@ MeasurementRuntimePresentationRouteDeclaration _presentationRoute(int index) =>
       lineageId: PointLineageId('lineage.runtime.presentation.$index'),
     );
 
-_RouteFixture _fixture() {
+_RouteFixture _fixture({bool ordered = false}) {
   final mountedContext = MeasurementMountedArtifactContext(
     artifactGraphHash: CanonicalDigest('a' * 64),
     artifactId: ArtifactId('artifact.runtime'),
@@ -367,6 +396,15 @@ _RouteFixture _fixture() {
   );
   final table = MeasurementRuntimeRouteTable(
     mountedArtifactContext: mountedContext,
+    orderedCaptureV1: ordered
+        ? MeasurementOrderedCaptureV1(routes: [
+            MeasurementOrderedCaptureRouteV1(
+              occurrenceId: CanonicalDigest('c' * 64),
+              lineageId: PointLineageId('lineage.runtime.interaction'),
+              channels: MeasurementOccurrenceChannelV1.values,
+            )
+          ])
+        : null,
     routes: [
       MeasurementRuntimeRouteDeclaration(
         token: interactionToken,

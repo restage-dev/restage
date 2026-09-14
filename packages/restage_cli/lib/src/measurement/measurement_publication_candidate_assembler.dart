@@ -95,6 +95,7 @@ final class MeasurementPublicationCandidateAssembler {
         entry: entry,
         draft: indexed.draft,
         carriersByArtifact: carriersByArtifact,
+        artifactBytes: artifactBytes,
       );
 
       final selectedManifestBytes = Uint8List.fromList(
@@ -372,8 +373,16 @@ void _validateRouteClosure({
   required SurfacePublicationManifestEntry entry,
   required MeasurementPublicationDraftV1 draft,
   required Map<String, String> carriersByArtifact,
+  required Map<String, Uint8List> artifactBytes,
 }) {
-  final draftRoutes = {for (final route in draft.routes) route.carrier: route};
+  // Lifecycle and declared-answer routes belong to the typed host, not RFW
+  // event arguments. Every ordinary callback must still be physically present.
+  final draftRoutes = {
+    for (final route in draft.routes)
+      if (route.orderedCaptureV1?.lifecycleChannel == null &&
+          route.orderedCaptureV1?.declaredAnswerV1 == null)
+        route.carrier: route,
+  };
   if (draftRoutes.length != carriersByArtifact.length ||
       !draftRoutes.keys.toSet().containsAll(carriersByArtifact.keys) ||
       !carriersByArtifact.keys.toSet().containsAll(draftRoutes.keys)) {
@@ -395,10 +404,44 @@ void _validateRouteClosure({
     final expectedPath = measuredArtifact == null
         ? null
         : pathByArtifactId[measuredArtifact.artifactId.value];
+    final capture = route.orderedCaptureV1;
+    final hostRoute =
+        capture?.lifecycleChannel != null || capture?.declaredAnswerV1 != null;
     if (expectedPath == null ||
-        carriersByArtifact[route.carrier] != expectedPath) {
+        (!hostRoute && carriersByArtifact[route.carrier] != expectedPath)) {
       throw const FormatException(
         'a Measurement route carrier is attached to the wrong publication artifact',
+      );
+    }
+    if (!hostRoute) continue;
+    final artifact = entry.artifacts.singleWhere((a) => a.path == expectedPath);
+    final flow = entry.publication.payloadKind == SurfacePayloadKind.flow;
+    final rootRole = flow
+        ? SurfacePublicationArtifactRole.flowDocument
+        : SurfacePublicationArtifactRole.screenBlob;
+    final screen = capture?.screenId;
+    var correctOwner = artifact.role == rootRole;
+    if (capture?.declaredAnswerV1 != null) {
+      correctOwner =
+          flow &&
+          artifact.role == rootRole &&
+          capture?.lifecycleChannel == null;
+    } else if (screen != null) {
+      correctOwner = false;
+      if (flow && artifact.role == SurfacePublicationArtifactRole.screenBlob) {
+        final documentArtifact = entry.artifacts.singleWhere(
+          (a) => a.role == SurfacePublicationArtifactRole.flowDocument,
+        );
+        final document = FlowDocumentCodec.decodeJson(
+          utf8.decode(artifactBytes[documentArtifact.path]!),
+        );
+        final state = document.states[screen];
+        correctOwner = state is ScreenFlowState && state.screen == artifact.id;
+      }
+    }
+    if (!correctOwner) {
+      throw const FormatException(
+        'a declared Measurement host route is attached to the wrong publication artifact',
       );
     }
   }

@@ -183,6 +183,9 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   Directory projectRoot, {
   bool admittedRoute = true,
   bool mismatchEmittedCarrier = false,
+  MeasurementOrderedCaptureDeclarationV1? orderedCapture,
+  bool omitPhysicalCarrier = false,
+  bool routeOnSidecar = false,
   String? screenDraftHashOverride,
   GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
 }) async {
@@ -255,7 +258,7 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
     nodes: [
       MeasurementPublicationDraftNodeV1(
         codeIdentityId: CodeIdentityId('code.measured-button'),
-        artifactOccurrenceEdgeToken: screenEdge,
+        artifactOccurrenceEdgeToken: routeOnSidecar ? sidecarEdge : screenEdge,
       ),
     ],
     events: admittedRoute
@@ -282,7 +285,10 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
               generatedReferenceId: GeneratedReferenceId(
                 'reference.measured-button',
               ),
-              artifactOccurrenceEdgeToken: screenEdge,
+              artifactOccurrenceEdgeToken: routeOnSidecar
+                  ? sidecarEdge
+                  : screenEdge,
+              orderedCaptureV1: orderedCapture,
             ),
           ]
         : const [],
@@ -308,7 +314,7 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   );
 
   final Uint8List blob;
-  if (admittedRoute) {
+  if (admittedRoute && !omitPhysicalCarrier) {
     final expectedCarrier = routePlan.routes.single.carrier;
     final emittedCarrier = mismatchEmittedCarrier
         ? '${expectedCarrier.substring(0, expectedCarrier.length - 1)}'

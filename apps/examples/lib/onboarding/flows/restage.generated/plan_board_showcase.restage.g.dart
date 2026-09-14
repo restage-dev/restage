@@ -9,7 +9,7 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   measurementPublicationDraftDigest:
-      'a0f1f5c87a5c24bbea58690c49e85b8a54afbd7c657a0e247a4259e4c2d30e3e',
+      'cd02b7863cad4dec75aaea893697ab61c6c364ae4f05b07eb052c201c31639f7',
 );
 
 PlanBoardShowcaseResult _decodePlanBoardShowcaseFlowResult(

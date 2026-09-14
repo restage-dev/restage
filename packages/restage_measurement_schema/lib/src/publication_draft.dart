@@ -1,3 +1,4 @@
+import 'package:restage_measurement_schema/src/ordered_capture.dart';
 import 'dart:convert';
 
 import 'package:restage_measurement_schema/src/canonical.dart';
@@ -545,6 +546,7 @@ final class MeasurementPublicationDraftPresentationV1 extends CanonicalValue {
 final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
   /// Creates one route derivation seed.
   const MeasurementPublicationDraftRouteSeedV1({
+    this.orderedCaptureV1,
     required this.generatedReferenceId,
     required this.artifactOccurrenceEdgeToken,
   });
@@ -556,6 +558,7 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
     final reader = CanonicalObjectReader(
       json,
       allowedKeys: const {
+        'orderedCaptureV1',
         'artifactOccurrenceEdgeToken',
         'generatedReferenceId',
         'kind',
@@ -576,6 +579,10 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
     return _constructDraft(
       'measurementPublicationDraftRouteSeed',
       () => MeasurementPublicationDraftRouteSeedV1(
+        orderedCaptureV1: reader.optionalObject('orderedCaptureV1') == null
+            ? null
+            : MeasurementOrderedCaptureDeclarationV1.fromJson(
+                reader.object('orderedCaptureV1')),
         generatedReferenceId: GeneratedReferenceId(
           reader.string('generatedReferenceId'),
         ),
@@ -589,11 +596,16 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
   /// Generated source reference selected by the carrier.
   final GeneratedReferenceId generatedReferenceId;
 
+  /// Compiler-declared bounded ordered channels.
+  final MeasurementOrderedCaptureDeclarationV1? orderedCaptureV1;
+
   /// Exact mounted artifact occurrence encoded into the carrier.
   final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
 
   @override
   Map<String, Object?> toJson() => {
+        if (orderedCaptureV1 != null)
+          'orderedCaptureV1': orderedCaptureV1!.toJson(),
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
         'generatedReferenceId': generatedReferenceId.value,
         'kind': 'measurementPublicationDraftRouteSeed',
@@ -666,6 +678,7 @@ final class MeasurementPublicationDraftPresentationRouteSeedV1
 final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
   /// Creates one fully derived route and verifies every coupled value.
   MeasurementPublicationDraftRouteV1({
+    this.orderedCaptureV1,
     required this.generatedReferenceId,
     required this.artifactOccurrenceEdgeToken,
     required this.carrier,
@@ -689,6 +702,7 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
     final reader = CanonicalObjectReader(
       json,
       allowedKeys: const {
+        'orderedCaptureV1',
         'artifactOccurrenceEdgeToken',
         'carrier',
         'generatedReferenceId',
@@ -713,6 +727,10 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
     return _constructDraft(
       'measurementPublicationDraftRoute',
       () => MeasurementPublicationDraftRouteV1(
+        orderedCaptureV1: reader.optionalObject('orderedCaptureV1') == null
+            ? null
+            : MeasurementOrderedCaptureDeclarationV1.fromJson(
+                reader.object('orderedCaptureV1')),
         generatedReferenceId: GeneratedReferenceId(
           reader.string('generatedReferenceId'),
         ),
@@ -730,6 +748,9 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
   /// Generated reference selected by the carrier.
   final GeneratedReferenceId generatedReferenceId;
 
+  /// Compiler-declared bounded ordered channels.
+  final MeasurementOrderedCaptureDeclarationV1? orderedCaptureV1;
+
   /// Exact mounted edge encoded into [carrier].
   final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
 
@@ -741,6 +762,8 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
 
   @override
   Map<String, Object?> toJson() => {
+        if (orderedCaptureV1 != null)
+          'orderedCaptureV1': orderedCaptureV1!.toJson(),
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
         'carrier': carrier,
         'generatedReferenceId': generatedReferenceId.value,
@@ -1765,6 +1788,7 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
           routeSeeds: [
             for (final route in encodedRoutes)
               MeasurementPublicationDraftRouteSeedV1(
+                orderedCaptureV1: route.orderedCaptureV1,
                 generatedReferenceId: route.generatedReferenceId,
                 artifactOccurrenceEdgeToken: route.artifactOccurrenceEdgeToken,
               ),
@@ -2128,6 +2152,7 @@ MeasurementPublicationDraftRouteV1 _deriveRoute(
     generatedReferenceId: routeSeed.generatedReferenceId,
   );
   return MeasurementPublicationDraftRouteV1(
+    orderedCaptureV1: routeSeed.orderedCaptureV1,
     generatedReferenceId: routeSeed.generatedReferenceId,
     artifactOccurrenceEdgeToken: routeSeed.artifactOccurrenceEdgeToken,
     carrier: carrier.value,

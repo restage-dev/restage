@@ -45,7 +45,7 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 30878,
         sha256:
-            "sha256:61f93a84912c24769868758da2eda068d4efa575925cb6b6696fa58a9a41147b",
+            "sha256:7a7d5df305add7fea8fdc1554111f1c5fb89adacca8d6f1d5ee3c901c2223d59",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -53,7 +53,7 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:d7abc48cbfc14590e851d050775951956a46c2e0d83bacfbe890cb40a3e88d7e",
+            "sha256:ba2b3ab80e821b04679e7380005b5cdfa02a95a79c3fcd000ccd9a7278cc4a6a",
       ),
     ],
   ),
@@ -64,7 +64,7 @@ final lumenCancelReasonScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
-      "0822652e997bf2bbb2dc34e3b40da6c3ddb4806a7ece5a68a8a5cdf7bee98561",
+      "eb8c889023cd169ac28287abfd0736c3a8bd0750820127737b37864c2ba7aa19",
 );
 
 LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
@@ -151,7 +151,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 14841,
         sha256:
-            "sha256:29de7b441147fda8a729a9f9cdbffa7a29b8235b47a85a6e7e9afdd6fb742a8d",
+            "sha256:5814bceec07efdaa4eddc5204a3c7163b26cd864b5d2a96da4d4bd00166aa14a",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -159,7 +159,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:f0e33af6112daf8b190c55ff3c199a878d26a487bd17d526fa3bac4cbdbbcb55",
+            "sha256:918866905df35d9c948c3caad3799db66257b26be19fb8b5916a8fcc35b230e3",
       ),
     ],
   ),
@@ -170,7 +170,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      "f9573ad11fd4dd46bf3e2108f1e14a6199b68ba4ad3e418ff61a19a63c53457a",
+      "2e0b6a390d37b9a54ba039ef6edf77a853f08a98a3e69fa804f8a8c19e07c931",
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(

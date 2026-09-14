@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
+
 import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
@@ -31,7 +34,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onEvent,
     required this.onComplete,
     required this.onUnavailable,
-  });
+  })  : _onMeasurementLifecycle = null,
+        _onMeasurementAnswer = null;
 
   RestageFlowController._forHostMeasurement({
     required this.flow,
@@ -44,7 +48,12 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onUnavailable,
     required _FlowRootResolvedAdmission onRootResolved,
     required _FlowEventMeasurementSanitizer sanitizeAndRecordEvent,
-  })  : _onRootResolved = onRootResolved,
+    void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
+        onMeasurementLifecycle,
+    void Function(String questionId, Object? value)? onMeasurementAnswer,
+  })  : _onMeasurementAnswer = onMeasurementAnswer,
+        _onMeasurementLifecycle = onMeasurementLifecycle,
+        _onRootResolved = onRootResolved,
         _sanitizeAndRecordEvent = sanitizeAndRecordEvent;
 
   /// Flow descriptor being executed.
@@ -84,6 +93,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   _FlowRootResolvedAdmission? _onRootResolved;
   _FlowEventMeasurementSanitizer? _sanitizeAndRecordEvent;
+  final void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
+      _onMeasurementLifecycle;
+  final void Function(String questionId, Object? value)? _onMeasurementAnswer;
+  int? _measurementRenderedEntryId;
 
   static final Random _operationIdRandom = Random.secure();
   static const Object _missingOutboundValue = Object();
@@ -378,6 +391,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // [canSkip] single-sources the skip-destination predicate (its other guards
     // are already satisfied here).
     if (flowEventName == _skipEventName && canSkip) {
+      _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.skip,
+          screenId: current);
       _emitEvent(OnboardingSkipped(
         flowId: frame.flowId,
         flowVersion: frame.flowVersion,
@@ -575,7 +590,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
       );
       if (before != after) {
         reports.add(
-          _SurveyAnswerReport(questionId: questionId, questionIndex: index),
+          _SurveyAnswerReport(
+              questionId: questionId, questionIndex: index, value: after.value),
         );
       }
     }
@@ -588,11 +604,26 @@ final class RestageFlowController<R> extends ChangeNotifier {
   ) {
     for (final report in emission.reports) {
       if (!_canReportSurveyAnswers(transaction, emission)) return;
+      _emitMeasurementAnswer(transaction, report);
+      if (!_canReportSurveyAnswers(transaction, emission)) return;
       _emitEvent(SurveyQuestionResponded(
         questionId: report.questionId,
         questionIndex: report.questionIndex,
       ));
       if (!_canReportSurveyAnswers(transaction, emission)) return;
+    }
+  }
+
+  void _emitMeasurementAnswer(
+    _SurveyAnswerTransaction transaction,
+    _SurveyAnswerReport report,
+  ) {
+    if (!transaction.measurementReportedQuestions.add(report.questionId))
+      return;
+    try {
+      _onMeasurementAnswer?.call(report.questionId, report.value);
+    } on Object {
+      // Measurement does not interrupt the settled business transaction.
     }
   }
 
@@ -679,6 +710,14 @@ final class RestageFlowController<R> extends ChangeNotifier {
     ));
   }
 
+  void _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1 channel,
+      {String? screenId}) {
+    if (_frames.isEmpty || _frames.last.parent != null) return;
+    try {
+      _onMeasurementLifecycle?.call(channel, screenId);
+    } on Object {/* Capture remains observational. */}
+  }
+
   /// Acknowledges that the exact current screen entry built successfully.
   ///
   /// Package-internal render-commit handshake. Installing and decoding a screen
@@ -688,6 +727,16 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// repeated acknowledgement is a no-op.
   @internal
   void acknowledgeRenderedEntry(int entryId) {
+    if (!_isDisposed &&
+        !_isUnavailable &&
+        !_isComplete &&
+        _currentScreenEntryId == entryId &&
+        _frames.isNotEmpty &&
+        _measurementRenderedEntryId != entryId) {
+      _measurementRenderedEntryId = entryId;
+      _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.presentation,
+          screenId: currentScreenId);
+    }
     if (_isDisposed ||
         _isUnavailable ||
         _isComplete ||
@@ -1531,6 +1580,20 @@ final class RestageFlowController<R> extends ChangeNotifier {
       ));
       return;
     }
+    // Terminal callbacks may synchronously tear down the host session. Record
+    // its settled scalar answers while that exact session still owns the root;
+    // public survey events retain their existing transaction-finally ordering.
+    final survey = _activeSurveyTransaction;
+    if (survey != null &&
+        identical(survey.rootFrame, frame) &&
+        _isSurveyTransactionReadyToRun(survey)) {
+      for (final report in _snapshotChangedSurveyAnswers(survey)) {
+        _emitMeasurementAnswer(survey, report);
+      }
+    }
+    _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.completion,
+        screenId: frame.currentStateId);
+    _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.completion);
     _emitEvent(FlowCompleted(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
@@ -2287,6 +2350,9 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
   required void Function(FlowUnavailableError error) onUnavailable,
   required Future<void> Function(ResolvedFlow root) onRootResolved,
   required Object? Function(Object? rawValue) sanitizeAndRecordEvent,
+  void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
+      onMeasurementLifecycle,
+  void Function(String questionId, Object? value)? onMeasurementAnswer,
 }) {
   return RestageFlowController<R>._forHostMeasurement(
     flow: flow,
@@ -2299,6 +2365,8 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
     onUnavailable: onUnavailable,
     onRootResolved: onRootResolved,
     sanitizeAndRecordEvent: sanitizeAndRecordEvent,
+    onMeasurementLifecycle: onMeasurementLifecycle,
+    onMeasurementAnswer: onMeasurementAnswer,
   );
 }
 
@@ -2377,6 +2445,7 @@ final class _SurveyAnswerTransaction {
   final _FlowFrame rootFrame;
   final FlowDocument document;
   final Map<String, _SurveyAnswerValue> before;
+  final Set<String> measurementReportedQuestions = {};
   _SurveyTransactionStage stage = _SurveyTransactionStage.awaitingTrigger;
   _SurveyUnavailabilityOrigin unavailabilityOrigin =
       _SurveyUnavailabilityOrigin.none;
@@ -2418,10 +2487,12 @@ final class _SurveyAnswerReport {
   const _SurveyAnswerReport({
     required this.questionId,
     required this.questionIndex,
+    required this.value,
   });
 
   final String questionId;
   final int questionIndex;
+  final Object? value;
 }
 
 final class _SurveyAnswerValue {

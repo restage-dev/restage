@@ -453,6 +453,7 @@ abstract final class Restage {
   ///
   /// Inert until [configure] is given a `baseUrl`.
   static void reset() {
+    _measurementHostOwner?.resetSdkRuntimeSession();
     final identity = _analyticsIdentity;
     if (identity == null) return;
     // reset() advances the in-memory generation synchronously before its first
