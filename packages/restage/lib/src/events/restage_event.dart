@@ -1,7 +1,9 @@
 import 'package:meta/meta.dart';
+import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import 'event_enums.dart';
 
+part 'delivery_events.dart';
 part 'flow_events.dart';
 part 'interaction_events.dart';
 part 'presentation_events.dart';

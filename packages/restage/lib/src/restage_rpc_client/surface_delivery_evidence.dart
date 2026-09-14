@@ -29,21 +29,64 @@ typedef SurfaceDeliveryEvidenceEmitter = void Function({
   required String reason,
 });
 
+/// Reports one rate-limited surface delivery request.
+@internal
+typedef SurfaceDeliveryRateLimitedEvidenceEmitter = void Function({
+  required Surface surfaceType,
+  required String surfaceSlug,
+  required Duration retryAfter,
+});
+
 /// Process-global sink for delivery evidence.
 ///
 /// The same shape as the other process-global providers the delivery path
-/// already reaches through, and for the same reason: the analytics transport is
-/// owned by the runtime, and the RPC client must not import it.
+/// already reaches through. The runtime owns the sinks, while the RPC client
+/// remains independent of event delivery infrastructure.
 @internal
 abstract final class SurfaceDeliveryEvidence {
   static SurfaceDeliveryEvidenceEmitter? _emitter;
+  static SurfaceDeliveryRateLimitedEvidenceEmitter? _rateLimitedEmitter;
 
   /// Installs [emitter] as the process's evidence sink.
-  static void install(SurfaceDeliveryEvidenceEmitter emitter) =>
-      _emitter = emitter;
+  static void install(
+    SurfaceDeliveryEvidenceEmitter emitter, {
+    SurfaceDeliveryRateLimitedEvidenceEmitter? rateLimited,
+  }) {
+    _emitter = emitter;
+    _rateLimitedEmitter = rateLimited;
+  }
+
+  /// Installs only the rate-limit evidence sink.
+  static void installRateLimited(
+    SurfaceDeliveryRateLimitedEvidenceEmitter emitter,
+  ) {
+    _rateLimitedEmitter = emitter;
+  }
 
   /// Removes the installed sink.
-  static void clear() => _emitter = null;
+  static void clear() {
+    _emitter = null;
+    _rateLimitedEmitter = null;
+  }
+
+  /// Reports a rate-limited surface delivery request.
+  static void rateLimited({
+    required Surface surfaceType,
+    required String surfaceSlug,
+    required Duration retryAfter,
+  }) {
+    final emitter = _rateLimitedEmitter;
+    if (emitter == null) return;
+    try {
+      emitter(
+        surfaceType: surfaceType,
+        surfaceSlug: surfaceSlug,
+        retryAfter: retryAfter,
+      );
+    } on Object {
+      // Reporting must never break delivery fallback.
+    }
+  }
 
   /// Reports that a resolved delivery's artifact could not be obtained.
   ///

@@ -11,6 +11,7 @@ import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage/src/restage_rpc_client/surface_delivery_evidence.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -250,17 +251,20 @@ void main() {
         ),
       );
 
-      final serviceUnavailable = await _measurementClientWithResponse(
-        http.Response('', 503),
-      ).ingestMeasurement('cGF5bG9hZA');
-      expect(
-        serviceUnavailable,
-        isA<MeasurementIngestRpcUnavailable>().having(
-          (value) => value.reason,
-          'reason',
-          MeasurementIngestRpcUnavailableReason.serviceUnavailable,
-        ),
-      );
+      for (final status in <int>[429, 503]) {
+        final serviceUnavailable = await _measurementClientWithResponse(
+          http.Response('', status),
+        ).ingestMeasurement('cGF5bG9hZA');
+        expect(
+          serviceUnavailable,
+          isA<MeasurementIngestRpcUnavailable>().having(
+            (value) => value.reason,
+            'reason',
+            MeasurementIngestRpcUnavailableReason.serviceUnavailable,
+          ),
+          reason: 'status $status',
+        );
+      }
 
       for (final status in <int>[204, 418, 500, 502]) {
         final outcome = await _measurementClientWithResponse(
@@ -331,7 +335,274 @@ void main() {
     });
   });
 
+  group('RestageRpcClient.readMeasurementPublicationBindingExact', () {
+    test('maps 429 to exact-binding unavailable without fallback', () async {
+      final reference = _bindingReference('a');
+      late http.Request seen;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((request) async {
+          seen = request;
+          return http.Response('', 429);
+        }),
+      );
+
+      final outcome = await client.readMeasurementPublicationBindingExact(
+        reference,
+      );
+
+      expect(outcome, isA<MeasurementPublicationBindingReadRpcUnavailable>());
+      expect(seen.url.path, '/sdk/v1/measurement-publication-binding');
+      expect(seen.url.query, isEmpty);
+      expect(seen.body, contains('bindingReferenceCanonicalBase64'));
+    });
+  });
+
   group('RestageRpcClient.fetchSurface version omission', () {
+    test('reports a 429 without fetching its artifact', () async {
+      _delivery.artifactRequests.clear();
+      final evidence = <({
+        Surface surfaceType,
+        String surfaceSlug,
+        Duration retryAfter,
+      })>[];
+      SurfaceDeliveryEvidence.install(
+        ({
+          required surfaceType,
+          required surfaceSlug,
+          required version,
+          required reason,
+        }) {},
+        rateLimited: ({
+          required surfaceType,
+          required surfaceSlug,
+          required retryAfter,
+        }) {
+          evidence.add((
+            surfaceType: surfaceType,
+            surfaceSlug: surfaceSlug,
+            retryAfter: retryAfter,
+          ));
+        },
+      );
+      addTearDown(SurfaceDeliveryEvidence.clear);
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: _delivery.client(
+          (_) async => http.Response(
+            'not json',
+            429,
+            headers: {'Retry-After': '7'},
+          ),
+        ),
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'upgrade',
+        version: 1,
+      );
+
+      expect(result, isNull);
+      expect(evidence, hasLength(1));
+      expect(evidence.single.surfaceType, Surface.paywall);
+      expect(evidence.single.surfaceSlug, 'upgrade');
+      expect(evidence.single.retryAfter, const Duration(seconds: 7));
+      expect(_delivery.artifactRequests, isEmpty);
+    });
+
+    test('normalizes Retry-After delta-seconds on 429 responses', () async {
+      addTearDown(SurfaceDeliveryEvidence.clear);
+      final cases = <String?, Duration>{
+        null: const Duration(seconds: 1),
+        '': const Duration(seconds: 1),
+        '   ': const Duration(seconds: 1),
+        '-1': const Duration(seconds: 1),
+        '0': const Duration(seconds: 1),
+        '1.5': const Duration(seconds: 1),
+        'Wed, 21 Oct 2015 07:28:00 GMT': const Duration(seconds: 1),
+        ' 7 ': const Duration(seconds: 7),
+        '61': const Duration(seconds: 60),
+        '999999999999999999999999999999999999': const Duration(seconds: 60),
+      };
+
+      for (final entry in cases.entries) {
+        Duration? captured;
+        SurfaceDeliveryEvidence.install(
+          ({
+            required surfaceType,
+            required surfaceSlug,
+            required version,
+            required reason,
+          }) {},
+          rateLimited: ({
+            required surfaceType,
+            required surfaceSlug,
+            required retryAfter,
+          }) {
+            captured = retryAfter;
+          },
+        );
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient(
+            (_) async => http.Response(
+              '',
+              429,
+              headers: {
+                if (entry.key != null) 'Retry-After': entry.key!,
+              },
+            ),
+          ),
+        );
+
+        expect(
+          await client.fetchSurface(
+            surfaceType: 'survey',
+            surfaceSlug: 'feedback',
+          ),
+          isNull,
+        );
+        expect(captured, entry.value, reason: 'Retry-After: ${entry.key}');
+      }
+    });
+
+    test('evidence failures preserve the unavailable result', () async {
+      _delivery.artifactRequests.clear();
+      SurfaceDeliveryEvidence.install(
+        ({
+          required surfaceType,
+          required surfaceSlug,
+          required version,
+          required reason,
+        }) {},
+        rateLimited: ({
+          required surfaceType,
+          required surfaceSlug,
+          required retryAfter,
+        }) {
+          throw StateError('reporting failed');
+        },
+      );
+      addTearDown(SurfaceDeliveryEvidence.clear);
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: _delivery.client((_) async => http.Response('', 429)),
+      );
+
+      expect(
+        await client.fetchSurface(
+          surfaceType: 'general',
+          surfaceSlug: 'announcement',
+        ),
+        isNull,
+      );
+      expect(_delivery.artifactRequests, isEmpty);
+    });
+
+    test('does not classify other failures or unknown surfaces as throttles',
+        () async {
+      final evidence = <Duration>[];
+      SurfaceDeliveryEvidence.install(
+        ({
+          required surfaceType,
+          required surfaceSlug,
+          required version,
+          required reason,
+        }) {},
+        rateLimited: ({
+          required surfaceType,
+          required surfaceSlug,
+          required retryAfter,
+        }) {
+          evidence.add(retryAfter);
+        },
+      );
+      addTearDown(SurfaceDeliveryEvidence.clear);
+
+      for (final response in <http.Response>[
+        http.Response('{"error":"policy_unavailable"}', 503),
+        http.Response('{"error":"rate_limited"}', 503),
+        http.Response('not json', 200),
+        http.Response('[]', 200),
+      ]) {
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient((_) async => response),
+        );
+        expect(
+          await client.fetchSurface(
+            surfaceType: 'message',
+            surfaceSlug: 'welcome',
+          ),
+          isNull,
+        );
+      }
+      final unknownClient = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (_) async => http.Response('', 429, headers: {'Retry-After': '4'}),
+        ),
+      );
+      expect(
+        await unknownClient.fetchSurface(
+          surfaceType: 'future_surface',
+          surfaceSlug: 'welcome',
+        ),
+        isNull,
+      );
+      expect(evidence, isEmpty);
+    });
+
+    test('preserves refusal diagnostics and safely closes malformed failures',
+        () async {
+      _delivery.artifactRequests.clear();
+      final messages = <String?>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) => messages.add(message);
+      addTearDown(() => debugPrint = originalDebugPrint);
+
+      for (final response in <http.Response>[
+        http.Response(
+          jsonEncode({
+            'assignment': {'result': 'assignmentDisagrees'},
+          }),
+          409,
+        ),
+        http.Response('not json', 503),
+      ]) {
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: _delivery.client((_) async => response),
+        );
+
+        expect(
+          await client.fetchSurface(
+            surfaceType: 'paywall',
+            surfaceSlug: 'upgrade',
+          ),
+          isNull,
+        );
+      }
+
+      expect(
+        messages,
+        contains('[restage] surface delivery refused: assignmentDisagrees'),
+      );
+      expect(
+        messages,
+        contains('[restage] surface delivery failed with status 503'),
+      );
+      expect(_delivery.artifactRequests, isEmpty);
+    });
+
     test('the request never carries a retired negotiation member', () async {
       late Map<String, dynamic> sent;
       final client = RestageRpcClient(

@@ -269,6 +269,9 @@ abstract final class Restage {
       enabled: analyticsEnabled && measurementEnabled,
     );
     _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
+    SurfaceDeliveryEvidence.installRateLimited(
+      _emitSurfaceDeliveryRateLimited,
+    );
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
     if (_analyticsAuthority != null) {
       // Defer the best-effort identity warm-up to keep configuration synchronous.
@@ -543,6 +546,19 @@ abstract final class Restage {
     if (controller != null && controller.hasListener) {
       controller.add(event);
     }
+  }
+
+  static void _emitSurfaceDeliveryRateLimited({
+    required Surface surfaceType,
+    required String surfaceSlug,
+    required Duration retryAfter,
+  }) {
+    fireEvent(SurfaceDeliveryRateLimited(
+      surface: surfaceType,
+      surfaceId: surfaceSlug,
+      retryAfter: retryAfter,
+      firedAt: DateTime.now().toUtc(),
+    ));
   }
 
   /// Resolver used when a `RestagePaywall` is constructed without an explicit

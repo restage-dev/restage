@@ -16,6 +16,7 @@ import '../resolver/surface_delivery_observations.dart'
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
+import '../retry_after.dart';
 import '../secure_transport.dart';
 import 'surface_artifact_assembly.dart';
 import 'surface_delivery_evidence.dart';
@@ -115,8 +116,16 @@ final class SurfaceFetchResult {
   final SurfaceAssignmentDiagnostic? assignmentDiagnostic;
 }
 
+/// SDK-internal result of fetching a surface stamp.
+@internal
+sealed class SurfaceStampFetchResult {
+  /// Creates a surface-stamp result.
+  const SurfaceStampFetchResult();
+}
+
 /// The active-version stamp for a surface.
-final class SurfaceStamp {
+@internal
+final class SurfaceStamp extends SurfaceStampFetchResult {
   /// Creates a surface stamp.
   const SurfaceStamp({
     required this.version,
@@ -132,6 +141,23 @@ final class SurfaceStamp {
 
   /// Whether the service wants a fresh decision even at the same version.
   final bool requiresResolution;
+}
+
+/// A stamp request that did not return an available stamp.
+@internal
+final class SurfaceStampUnavailable extends SurfaceStampFetchResult {
+  /// Creates an unavailable stamp result.
+  const SurfaceStampUnavailable();
+}
+
+/// A stamp request throttled by the delivery service.
+@internal
+final class SurfaceStampRateLimited extends SurfaceStampFetchResult {
+  /// Creates a throttled stamp result.
+  const SurfaceStampRateLimited(this.retryAfter);
+
+  /// Minimum delay before another stamp request.
+  final Duration retryAfter;
 }
 
 /// Outcome of a strict standalone-screen delivery request.
@@ -622,8 +648,7 @@ class RestageRpcClient {
   /// Sends one canonical Measurement request through the SDK HTTP session.
   ///
   /// This call deliberately retains the named HTTP distinctions needed by the
-  /// internal measurement transport instead of using [_postJsonObject], whose
-  /// fail-closed contract collapses all non-success statuses.
+  /// internal measurement transport.
   @internal
   Future<MeasurementIngestRpcOutcome> ingestMeasurement(
     String canonicalRequestBase64,
@@ -662,6 +687,7 @@ class RestageRpcClient {
         return const MeasurementIngestRpcUnavailable(
           MeasurementIngestRpcUnavailableReason.forbidden,
         );
+      case 429:
       case 503:
         return const MeasurementIngestRpcUnavailable(
           MeasurementIngestRpcUnavailableReason.serviceUnavailable,
@@ -691,12 +717,11 @@ class RestageRpcClient {
           'sdkSupportedPolicyRevisions': carrier,
       },
     );
-    if (response == null ||
-        response.statusCode != 200 ||
-        response.json.length != 1) {
+    final json = response?.json;
+    if (response == null || response.statusCode != 200 || json?.length != 1) {
       return null;
     }
-    final encoded = response.json['decisionCanonicalBase64'];
+    final encoded = json!['decisionCanonicalBase64'];
     if (encoded is! String ||
         !_isCanonicalBase64UrlCarrier(encoded) ||
         encoded.length > 21846) {
@@ -729,6 +754,7 @@ class RestageRpcClient {
     );
     if (response == null || response.statusCode != 200) return null;
     final json = response.json;
+    if (json == null) return null;
     if (json.length != 2) return null;
     final handle = json['credentialHandle'];
     final expiry = json['expiresAtMicros'];
@@ -909,6 +935,7 @@ class RestageRpcClient {
         return const MeasurementPublicationBindingReadRpcUnsupportedFuture();
       case 401:
       case 403:
+      case 429:
       case 503:
         return const MeasurementPublicationBindingReadRpcUnavailable();
       default:
@@ -991,12 +1018,28 @@ class RestageRpcClient {
         if (heldAssignment != null) 'assignmentCanonicalBase64': heldAssignment,
       },
     );
-    final json = httpResult?.json;
-    if (json == null) return null;
-    if (httpResult!.statusCode < 200 || httpResult.statusCode >= 300) {
+    if (httpResult == null) return null;
+    if (httpResult.statusCode == 429) {
+      try {
+        SurfaceDeliveryEvidence.rateLimited(
+          surfaceType: Surface.fromWireName(surfaceType),
+          surfaceSlug: surfaceSlug,
+          retryAfter: retryAfterDelay(
+            _headerValue(httpResult.headers, 'retry-after'),
+          ),
+        );
+      } on FormatException {
+        return null;
+      }
+      return null;
+    }
+    if (httpResult.statusCode < 200 || httpResult.statusCode >= 300) {
       // A refusal says why. Reporting the cause is the whole point of the
-      // slot; the surface is still unavailable either way.
-      final refusal = surfaceAssignmentDiagnosticFrom(json['assignment']);
+      // slot; the surface is still unavailable either way. The response body
+      // remains optional so an invalid or empty error response fails closed.
+      final refusal = surfaceAssignmentDiagnosticFrom(
+        httpResult.json?['assignment'],
+      );
       debugPrint(
         refusal == null
             ? '[restage] surface delivery failed with '
@@ -1005,7 +1048,8 @@ class RestageRpcClient {
       );
       return null;
     }
-
+    final json = httpResult.json;
+    if (json == null) return null;
     if (_containsRetiredSurfaceResponseField(json)) {
       debugPrint('[restage] surface delivery contains an unsupported field');
       return null;
@@ -1242,6 +1286,17 @@ class RestageRpcClient {
       );
     }
 
+    if (response.statusCode == 429) {
+      SurfaceDeliveryEvidence.rateLimited(
+        surfaceType: request.surface,
+        surfaceSlug: request.slug,
+        retryAfter: retryAfterDelay(
+          _headerValue(response.headers, 'retry-after'),
+        ),
+      );
+      return const SurfaceScreenDeliveryTransportUnavailable();
+    }
+
     if (response.statusCode == 204 || response.statusCode == 404) {
       return const SurfaceScreenDeliveryAbsent();
     }
@@ -1369,17 +1424,39 @@ class RestageRpcClient {
   /// Fetches the active-version stamp for a surface without downloading its
   /// content envelope.
   ///
-  /// Returns `null` on any failure so callers can keep their current render.
-  Future<SurfaceStamp?> fetchSurfaceStamp({
+  /// Returns an available, unavailable, or rate-limited stamp result.
+  Future<SurfaceStampFetchResult> fetchSurfaceStamp({
     required String surfaceType,
     required String surfaceSlug,
   }) async {
-    final json = await _postJsonObject(
+    final httpResult = await _postJsonObjectAnyStatus(
       path: '/sdk/v1/surface-stamp',
       body: {'surfaceType': surfaceType, 'surfaceSlug': surfaceSlug},
     );
+    if (httpResult == null) return const SurfaceStampUnavailable();
+    if (httpResult.statusCode == 429) {
+      final Surface surface;
+      try {
+        surface = Surface.fromWireName(surfaceType);
+      } on FormatException {
+        return const SurfaceStampUnavailable();
+      }
+      final retryAfter = retryAfterDelay(
+        _headerValue(httpResult.headers, 'retry-after'),
+      );
+      SurfaceDeliveryEvidence.rateLimited(
+        surfaceType: surface,
+        surfaceSlug: surfaceSlug,
+        retryAfter: retryAfter,
+      );
+      return SurfaceStampRateLimited(retryAfter);
+    }
+    if (httpResult.statusCode < 200 || httpResult.statusCode >= 300) {
+      return const SurfaceStampUnavailable();
+    }
+    final json = httpResult.json;
     final version = json?['version'];
-    if (version is! int) return null;
+    if (version is! int) return const SurfaceStampUnavailable();
     // A malformed watchChannel degrades to a null field, never discards the
     // valid version stamp (a hard cast would throw and lose the whole stamp).
     final rawWatchChannel = json?['watchChannel'];
@@ -1398,45 +1475,15 @@ class RestageRpcClient {
   /// lifecycle and should not call this method.
   void close() => _client.close();
 
-  /// POSTs [body] as JSON to [path] with bearer auth and returns the decoded
-  /// JSON object, or `null` on any failure (network throw, non-2xx status, or a
-  /// body that is not a JSON object). The shared fail-closed transport for the
-  /// `/sdk/v1` endpoints.
-  Future<Map<String, dynamic>?> _postJsonObject({
-    required String path,
-    required Map<String, dynamic> body,
-  }) async =>
-      (await _postJsonObjectWithHeaders(path: path, body: body))?.json;
-
-  /// Like [_postJsonObject], while retaining response headers for the one
-  /// additive carrier that must remain attached to a hosted publication payload.
-  /// Posts [body] and returns the decoded object only on success.
-  Future<_JsonObjectHttpResponse?> _postJsonObjectWithHeaders({
-    required String path,
-    required Map<String, dynamic> body,
-  }) async {
-    final result = await _postJsonObjectAnyStatus(path: path, body: body);
-    if (result == null) return null;
-    if (result.statusCode < 200 || result.statusCode >= 300) {
-      debugPrint(
-        '[restage] request to $path failed with status ${result.statusCode}',
-      );
-      return null;
-    }
-    return result;
-  }
-
-  /// Posts [body] and returns the decoded object whatever the status.
-  ///
-  /// A refused delivery answers with the reason it refused, and that reason is
-  /// the only thing that says WHY a surface is unavailable.
+  /// Posts [body] and retains status and headers even when JSON is malformed.
   Future<_JsonObjectHttpResponse?> _postJsonObjectAnyStatus({
     required String path,
     required Map<String, dynamic> body,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
+    final http.Response response;
     try {
-      final response = await _client.post(
+      response = await _client.post(
         uri,
         headers: {
           'Authorization': 'Bearer $_apiKey',
@@ -1444,36 +1491,53 @@ class RestageRpcClient {
         },
         body: jsonEncode(body),
       );
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map) {
-        debugPrint('[restage] response from $path was not a JSON object');
-        return null;
-      }
-      return _JsonObjectHttpResponse(
-        json: decoded.cast<String, dynamic>(),
-        headers: response.headers,
-        statusCode: response.statusCode,
-      );
     } on Object {
       // Transport exceptions can include request details. Keep diagnostics
       // shape-only.
       debugPrint('[restage] request to $path failed before a response');
       return null;
     }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      debugPrint(
+        '[restage] request to $path failed with status ${response.statusCode}',
+      );
+    }
+    Map<String, dynamic>? json;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        json = Map<String, dynamic>.from(decoded);
+      } else {
+        debugPrint('[restage] response from $path was not a JSON object');
+      }
+    } on Object {
+      debugPrint('[restage] response from $path was not valid JSON');
+    }
+    return _JsonObjectHttpResponse(
+      statusCode: response.statusCode,
+      json: json,
+      headers: response.headers,
+    );
   }
 }
 
 final class _JsonObjectHttpResponse {
   const _JsonObjectHttpResponse({
+    required this.statusCode,
     required this.json,
     required this.headers,
-    required this.statusCode,
   });
 
   final int statusCode;
-
-  final Map<String, dynamic> json;
+  final Map<String, dynamic>? json;
   final Map<String, String> headers;
+}
+
+String? _headerValue(Map<String, String> headers, String name) {
+  for (final entry in headers.entries) {
+    if (entry.key.toLowerCase() == name) return entry.value;
+  }
+  return null;
 }
 
 const _measurementPublicationBindingHeaderV1 =

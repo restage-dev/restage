@@ -29,6 +29,7 @@ void main() {
         'flow_unavailable',
         'flow_custom_event',
         'surface_presented',
+        'surface_delivery_rate_limited',
       ];
       for (final name in tier1Names) {
         expect(isRegisteredAnalyticsEvent(name), isTrue, reason: name);
