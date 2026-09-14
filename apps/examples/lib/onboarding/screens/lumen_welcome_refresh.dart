@@ -349,15 +349,22 @@ class LumenWelcomeScreen extends StatelessWidget {
                   height: 58,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFFC39BFF), Color(0xFF8B7CF6)]),
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: dark
+                          ? const [Color(0xFF8B7CF6), Color(0xFFC39BFF)]
+                          : const [Color(0xFF6A55C4), Color(0xFF8B7CF6)],
+                    ),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text('Find my rhythm',
                         style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF14102A))),
+                            color: dark
+                                ? const Color(0xFF14102A)
+                                : const Color(0xFFFFFFFF))),
                   ),
                 ),
               ),
