@@ -27,7 +27,6 @@ void main() {
     Restage.debugReset();
     registerRestageWidgets();
     Restage.configure(
-      apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),
     );
   });

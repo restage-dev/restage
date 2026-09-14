@@ -128,7 +128,7 @@ void main() {
             'message',
             allOf(
               contains('No generated publication output index'),
-              contains('lib/generated/restage.outputs.json'),
+              contains('.restage/build/metadata/restage.outputs.json'),
             ),
           ),
         ),
@@ -162,7 +162,7 @@ void main() {
       await seedGeneratedPaywall(tempDir, slug: 'checkout');
       await _copyInto(
         tempDir,
-        from: 'lib/generated/restage.outputs.json',
+        from: '.restage/build/metadata/restage.outputs.json',
         to: 'tool/restage.outputs.json',
       );
 
@@ -174,7 +174,7 @@ void main() {
       for (final excluded in const ['.dart_tool', 'build', 'node_modules']) {
         await _copyInto(
           tempDir,
-          from: 'lib/generated/restage.outputs.json',
+          from: '.restage/build/metadata/restage.outputs.json',
           to: '$excluded/restage.outputs.json',
         );
       }
@@ -183,7 +183,7 @@ void main() {
 
       expect(
         loaded.outputIndex.publicationManifestPath,
-        'lib/generated/restage.publication.json',
+        '.restage/build/metadata/restage.publication.json',
       );
     });
 
@@ -192,7 +192,7 @@ void main() {
       () async {
         await seedGeneratedPaywall(tempDir, slug: 'checkout');
         final index = File(
-          p.join(tempDir.path, 'lib/generated/restage.outputs.json'),
+          p.join(tempDir.path, '.restage/build/metadata/restage.outputs.json'),
         );
         final hidden = File(
           p.join(tempDir.path, '.dart_tool/restage.outputs.json'),
@@ -217,7 +217,7 @@ void main() {
       await _copyInto(
         tempDir,
         from: 'restage_out/metadata/restage.outputs.json',
-        to: 'lib/generated/restage.outputs.json',
+        to: '.restage/build/metadata/restage.outputs.json',
       );
 
       await expectLater(load(), failsWith('Ambiguous generated output'));
@@ -329,7 +329,10 @@ void main() {
     test('rejects a missing publication manifest', () async {
       await seedGeneratedPaywall(tempDir);
       await File(
-        p.join(tempDir.path, 'lib/generated/restage.publication.json'),
+        p.join(
+          tempDir.path,
+          '.restage/build/metadata/restage.publication.json',
+        ),
       ).delete();
 
       await expectLater(load(), failsWith('points to a missing'));
@@ -418,7 +421,8 @@ void main() {
       'schemaVersion': 1,
       'package': fixturePackageName,
       'physicalRoot': '.',
-      'publicationManifestPath': 'lib/generated/restage.publication.json',
+      'publicationManifestPath':
+          '.restage/build/metadata/restage.publication.json',
       'generationFingerprint': 'sha256:${'0' * 64}',
       'entries': [
         for (final path in orderedPaths)
@@ -501,10 +505,13 @@ Future<void> _moveGeneratedMetadata(
   final destination = Directory(p.join(projectRoot.path, to));
   await destination.create(recursive: true);
   final manifest = File(
-    p.join(projectRoot.path, 'lib/generated/restage.publication.json'),
+    p.join(
+      projectRoot.path,
+      '.restage/build/metadata/restage.publication.json',
+    ),
   );
   final index = File(
-    p.join(projectRoot.path, 'lib/generated/restage.outputs.json'),
+    p.join(projectRoot.path, '.restage/build/metadata/restage.outputs.json'),
   );
   final document =
       jsonDecode(await index.readAsString()) as Map<String, Object?>;

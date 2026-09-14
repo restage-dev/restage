@@ -106,6 +106,17 @@ void main() {
       expect(declared.keys.toSet(), factories.keys.toSet());
     });
 
+    test('compiler and roster are root-only cache builders', () {
+      for (final name in [
+        'restage_source_roster',
+        'restage_package_surface_compiler',
+        'user_catalog_json'
+      ]) {
+        expect(_declaredBuilders[name]['build_to'], 'cache');
+        expect(_declaredBuilders[name]['auto_apply'], 'root_package');
+      }
+    });
+
     test('A2UI artifacts have one declared default generated path', () {
       // The declared family is the DEFAULT placement resolution. Both files
       // hang off the package step because a configured portable-output root
@@ -113,7 +124,7 @@ void main() {
       const expected = {
         r'$package$': [
           'lib/generated/restage_a2ui_catalog.g.dart',
-          'lib/generated/restage_a2ui_catalog.a2ui.json',
+          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
         ],
       };
       expect(declared['user_a2ui_catalog'], expected);
@@ -351,7 +362,10 @@ void main() {
     /// Builders whose input is a placeholder rather than the app's files.
     Set<String> packageWide({required String autoApply}) => {
           for (final entry in builders.entries)
-            if ((entry.value as YamlMap)['auto_apply'] == autoApply &&
+            if (((entry.value as YamlMap)['auto_apply'] == autoApply ||
+                    (autoApply == 'dependents' &&
+                        (entry.value as YamlMap)['auto_apply'] ==
+                            'root_package')) &&
                 primaryInput(entry.key.toString()).startsWith(r'$'))
               entry.key.toString(),
         };

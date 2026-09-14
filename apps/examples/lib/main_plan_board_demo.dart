@@ -39,7 +39,6 @@ void main() {
   // generated factory.
   registerRestageWidgets();
   Restage.configure(
-    apiKey: 'rs_pk_test',
     resolver: const AssetVariantResolver(),
   );
   runApp(const _PlanBoardDemoApp());

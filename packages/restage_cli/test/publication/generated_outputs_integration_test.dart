@@ -34,7 +34,13 @@ void main() {
           p.normalize(p.join(Directory.current.path, entry.value)),
         );
         final indexFile = File(
-          p.join(root.path, 'lib', 'generated', 'restage.outputs.json'),
+          p.join(
+            root.path,
+            '.restage',
+            'build',
+            'metadata',
+            restageOutputsFileName,
+          ),
         );
         if (!indexFile.existsSync()) {
           markTestSkipped(

@@ -14,7 +14,7 @@ const String restageOutputsFileName = 'restage.outputs.json';
 const String restagePublicationFileName = 'restage.publication.json';
 
 /// The default package-relative directory for generated portable metadata.
-const String defaultRestagePortableOutputRoot = 'lib/generated';
+const String defaultRestagePortableOutputRoot = '.restage/build';
 
 /// The directory segment holding portable metadata under a configured
 /// output root.
@@ -455,9 +455,10 @@ final class RestagePublicationOutputsLoader {
 
   Future<File> _configuredIndexFile(Directory root) async {
     final outputRoot = await _configuredOutputRoot(root);
-    final metadataRoot = outputRoot == null
-        ? defaultRestagePortableOutputRoot
-        : p.posix.join(outputRoot, restageOutputRootMetadataSegment);
+    final metadataRoot = p.posix.join(
+      outputRoot ?? defaultRestagePortableOutputRoot,
+      restageOutputRootMetadataSegment,
+    );
     return _resolvePackageFile(
       root,
       p.posix.join(metadataRoot, restageOutputsFileName),
@@ -530,7 +531,8 @@ final class RestagePublicationOutputsLoader {
           }
           if (entity is Directory) {
             if (depth < _maximumDiscoveryDepth &&
-                !_isExcludedDirectory(p.basename(entity.path))) {
+                (!_isExcludedDirectory(p.basename(entity.path)) ||
+                    _relativePath(root, entity) == '.restage/build')) {
               pending.add((directory: entity, depth: depth + 1));
             }
           } else if (entity is File &&

@@ -283,7 +283,7 @@ void main() {
       );
       for (final path in [
         kRestageSurfacePublicationCompilerBundlePath,
-        'lib/generated/restage.publication.json',
+        '.restage/build/metadata/restage.publication.json',
         _screenBundlePath,
         _paywallBundlePath,
       ]) {
@@ -343,10 +343,11 @@ Future<_CompiledFixture> _compileFixture({
       ),
     ),
     measurementIndexBytes: readerWriter.testing.readBytes(
-      AssetId(_package, 'lib/generated/restage.measurement.index.json'),
+      AssetId(
+          _package, '.restage/build/metadata/restage.measurement.index.json'),
     ),
     outputIndexBytes: readerWriter.testing.readBytes(
-      AssetId(_package, 'lib/generated/restage.outputs.json'),
+      AssetId(_package, '.restage/build/metadata/restage.outputs.json'),
     ),
   );
 }
@@ -424,9 +425,9 @@ Future<Directory> _materializeCliFixture(
   for (final path in [
     kRestageSurfacePublicationCompilerBundlePath,
     kRestageMeasurementCompilerOutputPath,
-    'lib/generated/restage.outputs.json',
-    'lib/generated/restage.publication.json',
-    'lib/generated/restage.measurement.index.json',
+    '.restage/build/metadata/restage.outputs.json',
+    '.restage/build/metadata/restage.publication.json',
+    '.restage/build/metadata/restage.measurement.index.json',
     ...outputIndex.entries.map((entry) => entry.bundle).toSet(),
   ]) {
     final target = File(p.join(root.path, path));

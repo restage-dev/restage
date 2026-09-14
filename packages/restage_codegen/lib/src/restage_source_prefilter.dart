@@ -125,6 +125,11 @@ final RestageTokenSet _surfaceMountTokens = RestageTokenSet._([
   'RestageOnboarding',
 ]);
 
+final RestageTokenSet _surfaceCandidateTokens = RestageTokenSet._([
+  ..._surfaceTokenNames,
+  ..._surfaceMountTokens.names,
+]);
+
 /// The libraries an app-widget walk must resolve.
 Future<List<AssetId>> selectRestageWidgetCandidates(
   BuildStep buildStep, {
@@ -143,7 +148,7 @@ Future<List<AssetId>> selectRestageWidgetCandidates(
 Future<List<AssetId>> selectRestageSurfaceCandidates(BuildStep buildStep) =>
     _selectPackageWide(
       buildStep,
-      tokens: restageSurfaceSourceTokens,
+      tokens: _surfaceCandidateTokens,
       resolvable: isAuthoredDartLibraryAsset,
     );
 

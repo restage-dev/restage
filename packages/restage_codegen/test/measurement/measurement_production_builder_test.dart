@@ -945,7 +945,7 @@ void main() {
       final measurementIndexBytes = readerWriter.testing.readBytes(
         AssetId(
           'apps_examples',
-          'lib/generated/restage.measurement.index.json',
+          '.restage/build/metadata/restage.measurement.index.json',
         ),
       );
       expect(

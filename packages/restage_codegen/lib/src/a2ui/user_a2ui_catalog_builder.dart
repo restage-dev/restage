@@ -60,7 +60,7 @@ RestageOutputPlacementPlan _resolvePlan(BuilderOptions options) {
 /// **A2UI** catalog (the autonomous-codegen emit target), emitting
 /// `lib/generated/restage_a2ui_catalog.g.dart`
 /// (`buildRestageCatalogItems()`) plus the
-/// `lib/generated/restage_a2ui_catalog.a2ui.json` capability stamp.
+/// `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json` capability stamp.
 ///
 /// Both paths are the DEFAULT resolution of the shared output placement plan,
 /// which this builder resolves once from its own options. The Dart catalog is

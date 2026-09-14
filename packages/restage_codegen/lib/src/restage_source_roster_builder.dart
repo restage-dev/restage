@@ -33,6 +33,13 @@ const Map<String, RestageRosterSourceKind> _legacyAnnotationKinds = {
   'OnboardingFlow': RestageRosterSourceKind.flow,
 };
 
+const Map<String, String> _runtimeWidgetAuthoringAnnotations = {
+  'RestagePaywall': '@Paywall',
+  'RestageScreen': '@Screen',
+  'RestageFlowGraph': '@FlowGraph(surface: Surface.<category>)',
+  'RestageOnboarding': '@FlowGraph(surface: Surface.onboarding)',
+};
+
 final RegExp _screenSourcePath = RegExp(
   r'^lib/(onboarding|message|survey)/screens/([^/]+)\.dart$',
 );
@@ -88,9 +95,7 @@ final class RestageSourceRosterBuilder implements Builder {
         log.severe(issue.toLogString());
       }
     }
-    // Both ledgers are written into the consuming package's own tree, so a
-    // package that declares no Restage source and reports no problem with one
-    // is left alone rather than given two files recording nothing.
+    // An empty package does not need cached roster documents.
     if (roster.recordsNothing) return;
     // Otherwise always materialize the fixed package index and output ledger
     // before failing. The publication bundle has its own post-process invalid
@@ -237,6 +242,8 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
       // would duplicate every declaration and falsely collide its outputs.
       continue;
     }
+
+    issues.addAll(_runtimeWidgetAnnotationIssues(library, assetId));
 
     final checkedAdmissionKinds = <RestageRosterSourceKind>{};
     var checkedNeutralPart = await _collectCanonicalDeclarations(
@@ -391,6 +398,36 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
     roster: roster,
     plan: effectivePlan,
   );
+}
+
+List<Issue> _runtimeWidgetAnnotationIssues(
+  LibraryElement library,
+  AssetId assetId,
+) {
+  final issues = <Issue>[];
+  final declarations = <Element>[
+    ...library.classes,
+    ...library.topLevelVariables,
+  ];
+  for (final declaration in declarations) {
+    for (final annotation in declaration.metadata.annotations) {
+      if (!annotationHasOrigin(annotation, _restageOrigin)) continue;
+      final runtimeName = resolvedAnnotationClass(annotation)?.name;
+      final authoring = _runtimeWidgetAuthoringAnnotations[runtimeName];
+      if (runtimeName == null || authoring == null) continue;
+      final sourcePath = _elementSourcePath(declaration, assetId);
+      issues.add(
+        Issue(
+          code: IssueCode.runtimeWidgetUsedAsAnnotation,
+          message: '$runtimeName is a runtime mount widget and cannot be used '
+              'as source metadata. Use $authoring on '
+              '${declaration.name ?? 'this declaration'}.',
+          location: _elementSpan(declaration, sourcePath).location,
+        ),
+      );
+    }
+  }
+  return issues;
 }
 
 /// Collects this library's canonical declarations, returning whether it

@@ -40,9 +40,10 @@ List<int> _bundleBytes(TestReaderWriter readerWriter, String path) =>
     readerWriter.testing.readBytes(AssetId('apps_examples', path));
 
 void main() {
-  const alphaBundlePath = 'lib/features/restage.generated/alpha.rsbundle';
-  const betaBundlePath = 'lib/features/restage.generated/beta.rsbundle';
-  const renamedBundlePath = 'lib/journeys/restage.generated/alpha.rsbundle';
+  const alphaBundlePath = '.restage/build/bundles/lib/features/alpha.rsbundle';
+  const betaBundlePath = '.restage/build/bundles/lib/features/beta.rsbundle';
+  const renamedBundlePath =
+      '.restage/build/bundles/lib/journeys/alpha.rsbundle';
 
   test('cold build from empty state materializes the expected bundle',
       () async {
@@ -354,7 +355,8 @@ void main() {
 
     final indexJson = jsonDecode(
       readerWriter.testing.readString(
-        AssetId('apps_examples', 'lib/generated/restage.outputs.json'),
+        AssetId(
+            'apps_examples', '.restage/build/metadata/restage.outputs.json'),
       ),
     ) as Map<String, Object?>;
     final paths = [
@@ -456,7 +458,7 @@ void main() {
     final bundleBytes = readerWriter.testing.readBytes(
       AssetId(
         'apps_examples',
-        'lib/paywalls/restage.generated/fluent_pro.rsbundle',
+        '.restage/build/bundles/lib/paywalls/fluent_pro.rsbundle',
       ),
     );
     final bundle = RestageBundleCodec.decode(bundleBytes);
@@ -489,7 +491,8 @@ void main() {
     );
     final indexJson = jsonDecode(
       readerWriter.testing.readString(
-        AssetId('apps_examples', 'lib/generated/restage.outputs.json'),
+        AssetId(
+            'apps_examples', '.restage/build/metadata/restage.outputs.json'),
       ),
     ) as Map<String, Object?>;
     final indexedPaths = [
@@ -570,7 +573,7 @@ void main() {
       readerWriter.testing.exists(
         AssetId(
           'apps_examples',
-          'lib/features/restage.generated/known.rsbundle',
+          '.restage/build/bundles/lib/features/known.rsbundle',
         ),
       ),
       isTrue,
@@ -582,7 +585,7 @@ void main() {
       readerWriter.testing.readBytes(
         AssetId(
           'apps_examples',
-          'lib/features/restage.generated/known.rsbundle',
+          '.restage/build/bundles/lib/features/known.rsbundle',
         ),
       ),
     );

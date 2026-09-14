@@ -13,9 +13,9 @@ const _package = 'apps_examples';
 const _sourcePath = 'lib/features/ledger.dart';
 const _priorOutputPaths = <String>[
   'lib/features/restage.generated/ledger.restage.g.dart',
-  'lib/features/restage.generated/ledger.rsbundle',
-  'lib/generated/restage.publication.json',
-  'lib/generated/restage.outputs.json',
+  '.restage/build/bundles/lib/features/ledger.rsbundle',
+  '.restage/build/metadata/restage.publication.json',
+  '.restage/build/metadata/restage.outputs.json',
 ];
 const _policyOptions = BuilderOptions({
   kMeasurementMinimumClientOption: 1,
@@ -38,6 +38,8 @@ void main() {
           AssetId(_package, path),
         ),
     };
+    prior['.restage/build/widget_catalog/catalog.json'] =
+        '{"previous":"catalog"}'.codeUnits;
     final ledger = settled.readerWriter.testing.readString(
       AssetId(_package, kRestageMeasurementCompilerOutputPath),
     );

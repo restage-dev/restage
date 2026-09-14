@@ -58,7 +58,7 @@ void main() {
       ]);
       expect(result.succeeded, isFalse);
       expect(result.report, contains(_divergenceMessage));
-      expect(result.report, contains('output_root=-'));
+      expect(result.report, contains('output_root=.restage/build'));
       expect(result.report, contains('output_root=tool/restage'));
     });
 

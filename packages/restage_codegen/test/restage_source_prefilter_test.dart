@@ -73,6 +73,49 @@ class LegacyScreen {}
       expect(selected, ['lib/legacy.dart']);
     });
 
+    test('selects SDK runtime widgets used as source annotations', () async {
+      final selected = await _selectSurfaceLane({
+        'lib/runtime_annotation.dart': '''
+import 'package:restage/restage.dart' as rs;
+
+@rs.RestagePaywall(id: 'upgrade')
+class Upgrade {}
+''',
+        'lib/unrelated.dart': 'class Unrelated {}',
+      });
+
+      expect(selected, ['lib/runtime_annotation.dart']);
+    });
+
+    test('follows SDK runtime annotation aliases', () async {
+      final selected = await _selectSurfaceLane({
+        'lib/annotations.dart': '''
+import 'package:restage/restage.dart';
+
+const upgradeMount = RestagePaywall(id: 'upgrade');
+typedef RuntimePaywall = RestagePaywall;
+''',
+        'lib/const_alias.dart': '''
+import 'annotations.dart';
+
+@upgradeMount
+class ConstAliasUpgrade {}
+''',
+        'lib/typedef_alias.dart': '''
+import 'annotations.dart';
+
+@RuntimePaywall(id: 'upgrade')
+class TypedefAliasUpgrade {}
+''',
+      });
+
+      expect(selected, [
+        'lib/annotations.dart',
+        'lib/const_alias.dart',
+        'lib/typedef_alias.dart',
+      ]);
+    });
+
     test('matches the canonical const-instance spelling of an annotation',
         () async {
       final selected = await _select(

@@ -20,7 +20,7 @@ import '../helpers.dart';
 /// configured case asserts the emitted bytes against the default-placement
 /// bytes.
 const _defaultDartPath = 'lib/generated/restage_a2ui_catalog.g.dart';
-const _defaultJsonPath = 'lib/generated/restage_a2ui_catalog.a2ui.json';
+const _defaultJsonPath = '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json';
 
 const _customSource = '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

@@ -1,5 +1,6 @@
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
+import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:test/test.dart';
 
@@ -43,6 +44,7 @@ const _customSource = '''
 Future<({bool succeeded, List<String> logs})> _run({
   required Map<String, dynamic> compilerOptions,
   required Map<String, dynamic> a2uiOptions,
+  BuilderOptions? catalogOptions,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'restage_codegen',
@@ -54,6 +56,7 @@ Future<({bool succeeded, List<String> logs})> _run({
   final logs = <String>[];
   final result = await testBuilders(
     [
+      if (catalogOptions != null) UserCatalogJsonBuilder(catalogOptions),
       PackageSurfaceCompilerBuilder(BuilderOptions(compilerOptions)),
       UserA2uiCatalogBuilder(BuilderOptions(a2uiOptions)),
     ],
@@ -68,6 +71,25 @@ Future<({bool succeeded, List<String> logs})> _run({
 
 void main() {
   group('A2UI catalog builder — placement options divergence', () {
+    test('custom JSON retains defaults with bundled optional targets',
+        () async {
+      final result = await _run(
+        compilerOptions: const {'bundled_runtime': true},
+        a2uiOptions: const {'bundled_runtime': true},
+        catalogOptions: BuilderOptions.empty,
+      );
+      expect(result.succeeded, isTrue, reason: result.logs.join('\n'));
+    });
+
+    test('custom JSON agrees on configured output_root', () async {
+      final result = await _run(
+        compilerOptions: const {'output_root': 'tool/restage'},
+        a2uiOptions: const {'output_root': 'tool/restage'},
+        catalogOptions: BuilderOptions.empty,
+      );
+      expect(result.succeeded, isTrue, reason: result.logs.join('\n'));
+    });
+
     test('a surface-free package still diverges loudly on a conflicting key',
         () async {
       final result = await _run(
@@ -90,7 +112,7 @@ void main() {
       );
       // The report must name BOTH resolutions — a diagnostic that says only
       // "they disagree" leaves the developer to guess which key to change.
-      expect(report, contains('output_root=-'));
+      expect(report, contains('output_root=.restage/build'));
       expect(report, contains('output_root=tool/restage'));
       // The remedy must name the disagreeing builder keys and steer away
       // from global_options, never toward it: root global_options overrides

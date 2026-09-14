@@ -62,7 +62,8 @@ void main() {
   });
 
   for (final bundled in [false, true]) {
-    test('reports bundled_runtime: $bundled once per package', () async {
+    test('does not duplicate compiler success for bundled_runtime: $bundled',
+        () async {
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
       );
@@ -77,10 +78,12 @@ void main() {
         verbose: true,
       );
       expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-      final notices = messages
-          .where((message) => message.contains('[restage] bundled_runtime:'));
-      expect(notices, hasLength(1));
-      expect(notices.single, contains('bundled_runtime: $bundled'));
+      final notices = messages.where(
+        (message) =>
+            message.contains('[restage] bundled_runtime:') ||
+            message.contains('[restage] Compiled'),
+      );
+      expect(notices, isEmpty);
       expect(
         records.where((record) => record.level >= Level.WARNING),
         isEmpty,
@@ -88,22 +91,12 @@ void main() {
             'Routine bundle status must not train users to ignore warnings.',
       );
       if (bundled) {
-        expect(notices.single, contains('1 surface;'));
-        expect(notices.single, contains('assets/restage/bundles/'));
-        expect(notices.single, contains('pubspec.yaml'));
         expect(
           _exists(
             readerWriter,
             'assets/restage/bundles/lib/features/alpha.rsbundle',
           ),
           isTrue,
-        );
-      } else {
-        expect(notices.single, contains('no runtime bundles'));
-        expect(notices.single, contains('authored Flutter fallbacks'));
-        expect(
-          notices.single,
-          contains('fallbacks and flow contracts'),
         );
       }
     });
@@ -200,7 +193,8 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
     expect(warnings.single.message, contains("id: 'part_offer'"));
   });
 
-  test('source_output_layout: adjacent places the bundle beside the source',
+  test(
+      'source_output_layout: adjacent keeps portable bundles under the default root',
       () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -216,17 +210,18 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
 
     expect(
       _exists(readerWriter, 'lib/features/alpha.rsbundle'),
-      isTrue,
+      isFalse,
     );
     expect(
       _exists(
         readerWriter,
-        'lib/features/restage.generated/alpha.rsbundle',
+        '.restage/build/bundles/lib/features/alpha.rsbundle',
       ),
-      isFalse,
+      isTrue,
     );
     final bundle = RestageBundleCodec.decode(
-      _bytes(readerWriter, 'lib/features/alpha.rsbundle'),
+      _bytes(
+          readerWriter, '.restage/build/bundles/lib/features/alpha.rsbundle'),
     );
     expect(bundle.authoredLibraryPath, 'lib/features/alpha.dart');
   });
@@ -250,16 +245,16 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
     expect(
       _exists(
         readerWriter,
-        'lib/features/restage.generated/alpha.rsbundle',
+        '.restage/build/bundles/lib/features/alpha.rsbundle',
       ),
       isTrue,
     );
     expect(
-      _exists(readerWriter, 'lib/generated/restage.outputs.json'),
+      _exists(readerWriter, '.restage/build/metadata/restage.outputs.json'),
       isTrue,
     );
     expect(
-      _exists(readerWriter, 'lib/generated/restage.publication.json'),
+      _exists(readerWriter, '.restage/build/metadata/restage.publication.json'),
       isTrue,
     );
   });
@@ -360,7 +355,7 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
     expect(
       _exists(
         readerWriter,
-        'lib/features/restage.generated/alpha.restage.md',
+        '.restage/build/reports/lib/features/alpha.restage.md',
       ),
       isTrue,
     );

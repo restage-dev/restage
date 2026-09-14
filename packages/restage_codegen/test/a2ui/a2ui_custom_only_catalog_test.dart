@@ -107,11 +107,10 @@ void main() {
     final generatedPaths = result.outputs
         .where((asset) => asset.package == 'apps_examples')
         .map((asset) => asset.path)
-        .where((path) => path.startsWith('lib/generated/'))
         .toSet();
     expect(generatedPaths, {
       'lib/generated/restage_a2ui_catalog.g.dart',
-      'lib/generated/restage_a2ui_catalog.a2ui.json',
+      '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
     });
     expect(
       generatedPaths.where((path) => path.contains('stories')),
@@ -136,7 +135,7 @@ void main() {
       result.readerWriter.testing.readBytes(
         AssetId(
           'apps_examples',
-          'lib/generated/restage_a2ui_catalog.a2ui.json',
+          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
         ),
       ),
     );

@@ -72,3 +72,6 @@ assets/restage/output-roster.json
 # surfaces. Only those are tracked.
 *.rsbundle
 !assets/restage/bundles/**/*.rsbundle
+
+# Disposable Restage artifacts; identity state remains tracked.
+.restage/build/
