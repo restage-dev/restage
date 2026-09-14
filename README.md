@@ -63,9 +63,9 @@ restage surface publish welcome
 ```
 
 That's it. The [Quickstart](QUICKSTART.md) takes you from install to a
-published surface. [`apps/examples`](apps/examples) has four
-starters to copy: a paywall, an onboarding flow, a one-screen message, and a
-custom widget.
+published surface. [`apps/examples`](apps/examples) has five
+starters to copy: a paywall, an onboarding flow, a one-screen message, a
+custom widget, and a screen driven by host data.
 
 ## Author, push, and publish
 
@@ -102,19 +102,19 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
 - **It covers any part of the app.** A whole screen, a paywall, an onboarding
   flow, a survey, or one card inside your own `Scaffold`. One runtime renders
   all of them.
-- **It has a catalog of 116 widgets** across `restage_core`,
+- **It has a catalog of 119 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
   `@RestageWidget`.
-- **It ships only content.** An update changes what your app shows. It runs
-  no new code, so it cannot do anything your released app could not already
-  do.
+- **Your app owns the implementation.** What ships is data the app renders.
+  Your widgets carry the logic — real Dart, compiled into your app. The surface
+  composes and configures them over the air. New behavior is a release.
 - **It fails safe.** The build stops with an error when it cannot compile
   something. A surface never reaches a client that is too old to render it. If
   a fetch fails, the SDK renders your bundled copy.
-- **It includes monetization.** A pluggable billing gateway, purchase and
-  restore, promotional offers, and an entitlement stream. Keep an existing
-  RevenueCat purchase path through the optional adapter, or use your own
-  backend.
+- **It leaves the purchase to your app.** A paywall fires an event that
+  carries the plan the user chose. Your app handles that event in `onEvent`
+  and runs the purchase through the store library it already uses. The SDK
+  does not talk to the app stores.
 - **It does not lock you in.** Serve the artifacts from your own backend or
   CDN. The SDK runs fully offline.
 
@@ -136,17 +136,16 @@ and by whom. The hosted service is in private beta.
 
 ```yaml
 dependencies:
-  restage: ^1.0.0
-  restage_material: ^1.0.0
+  restage: ^2.0.0
+  restage_material: ^2.0.0
 
 dev_dependencies:
-  restage_codegen: ^1.0.0
+  restage_codegen: ^2.0.0
   build_runner: ">=2.4.0 <3.0.0"
 ```
 
-Pass `--no-tree-shake-icons` when you build a release that ships a Restage
-surface. The artifact builds icons from runtime values, and the release
-tree-shaker cannot see them. A debug `flutter run` does not need the flag.
+Release builds need no special flags. The build step records which widgets
+and icons your app uses, and Flutter's icon tree-shaking works as usual.
 
 The `restage` CLI is optional. It is not on pub.dev yet. Clone this repo and
 run `melos run cli:install` to compile it onto your PATH.
@@ -166,7 +165,7 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
-| [`restage_revenuecat`](packages/restage_revenuecat) | Optional billing gateway for apps that use RevenueCat. Not on pub.dev yet | BSD-3 |
+| [`restage_revenuecat`](packages/restage_revenuecat) | Placeholder for a RevenueCat adapter. No public API yet, and not on pub.dev | BSD-3 |
 | [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for genui A2UI payloads | BSD-3 |
 | [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
 | [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |
@@ -175,8 +174,8 @@ run `melos run cli:install` to compile it onto your PATH.
 ## License
 
 - **BSD-3-Clause** for everything that runs in your app: the SDK, the catalogs,
-  the catalog and measurement schemas, the CLI, the MCP server, the RevenueCat
-  adapter, the A2UI check, and the examples. Flutter uses the same license.
+  the catalog and measurement schemas, the CLI, the MCP server, the A2UI
+  check, and the examples. Flutter uses the same license.
 - **FSL-1.1-ALv2** for the build-time toolchain (`restage_codegen` and
   `rfw_catalog_compiler`). The source is available. All use is free, including
   use inside your own company. Each release converts to Apache-2.0 two years
