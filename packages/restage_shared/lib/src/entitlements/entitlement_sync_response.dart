@@ -1,74 +1,103 @@
-import 'package:restage_shared/src/entitlements/entitlement_summary.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_shared/src/entitlements/commerce_wire.dart';
+import 'package:restage_shared/src/entitlements/entitlement_summary.dart';
 
-/// Authoritative entitlement set returned by the server.
-///
-/// Unknown enum values in individual entitlements degrade gracefully via
-/// [EntitlementSummary.fromJson]; the SDK treats `'unknown'` status as
-/// not-entitled.
+const _purchaserStateStatuses = {'current', 'stale', 'unknown'};
+
+/// Authoritative purchaser state returned by the server.
 @immutable
-final class EntitlementSyncResponse {
-  /// Creates a sync response.
-  ///
-  /// [entitlements] is wrapped unmodifiable so the stored list cannot be
-  /// mutated after construction — the same guarantee
-  /// [EntitlementSyncResponse.fromJson] provides.
-  EntitlementSyncResponse({List<EntitlementSummary> entitlements = const []})
-      : entitlements = List.unmodifiable(entitlements);
+final class CommercePurchaserStateResponse {
+  /// Creates a purchaser-state response.
+  factory CommercePurchaserStateResponse({
+    required String status,
+    required List<EntitlementSummary> entitlements,
+    required DateTime retrievedAt,
+  }) {
+    if (!_purchaserStateStatuses.contains(status)) {
+      throw ArgumentError.value(status, 'status', 'Unsupported status');
+    }
+    return CommercePurchaserStateResponse._(
+      status: status,
+      entitlements: List.unmodifiable(entitlements),
+      retrievedAt: retrievedAt.toUtc(),
+    );
+  }
 
-  /// Parses a sync response from JSON.
-  factory EntitlementSyncResponse.fromJson(Map<String, dynamic> json) {
-    final raw = json['entitlements'];
-    final List<EntitlementSummary> entitlements;
-    if (raw == null) {
-      entitlements = const [];
-    } else if (raw is List) {
-      entitlements = <EntitlementSummary>[];
-      for (final entry in raw) {
-        if (entry is! Map) {
-          throw ArgumentError.value(
-            raw,
-            'entitlements',
-            'Expected each entry to be an object',
-          );
-        }
-        entitlements.add(
-          EntitlementSummary.fromJson(entry.cast<String, dynamic>()),
-        );
-      }
-    } else {
+  const CommercePurchaserStateResponse._({
+    required this.status,
+    required this.entitlements,
+    required this.retrievedAt,
+  });
+
+  /// Parses a response while allowing future additive fields.
+  factory CommercePurchaserStateResponse.fromJson(Map<String, dynamic> json) {
+    final rawEntitlements = json['entitlements'];
+    if (rawEntitlements is! List) {
       throw ArgumentError.value(
-        raw,
+        rawEntitlements,
         'entitlements',
         'Expected a list of entitlement objects',
       );
     }
-    return EntitlementSyncResponse(entitlements: entitlements);
+    final entitlements = <EntitlementSummary>[];
+    for (final entry in rawEntitlements) {
+      if (entry is! Map) {
+        throw ArgumentError.value(
+          entry,
+          'entitlements',
+          'Expected each entry to be an object',
+        );
+      }
+      entitlements
+          .add(EntitlementSummary.fromJson(entry.cast<String, dynamic>()));
+    }
+    return CommercePurchaserStateResponse._(
+      status: normalizeCommerceResponseCode(
+        requiredCommerceString(json, 'status'),
+        _purchaserStateStatuses,
+      ),
+      entitlements: List.unmodifiable(entitlements),
+      retrievedAt: requiredCommerceDateTime(json, 'retrievedAt'),
+    );
   }
 
-  /// Authoritative entitlement summaries from the server.
+  /// Freshness of the returned entitlement state.
+  final String status;
+
+  /// Entitlements derived by the server.
   final List<EntitlementSummary> entitlements;
 
-  /// Converts this response to JSON.
-  Map<String, dynamic> toJson() {
-    return {
-      'entitlements': [for (final e in entitlements) e.toJson()],
-    };
-  }
+  /// Time at which the server read the purchaser state.
+  final DateTime retrievedAt;
+
+  /// Converts this response to its wire representation.
+  Map<String, dynamic> toJson() => {
+        'status': status,
+        'entitlements': [
+          for (final entitlement in entitlements) entitlement.toJson(),
+        ],
+        'retrievedAt': retrievedAt.toIso8601String(),
+      };
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    if (other is! EntitlementSyncResponse) return false;
-    final a = other.entitlements;
-    final b = entitlements;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+    if (other is! CommercePurchaserStateResponse ||
+        other.status != status ||
+        other.retrievedAt != retrievedAt ||
+        other.entitlements.length != entitlements.length) {
+      return false;
+    }
+    for (var index = 0; index < entitlements.length; index += 1) {
+      if (other.entitlements[index] != entitlements[index]) return false;
     }
     return true;
   }
 
   @override
-  int get hashCode => Object.hashAll(entitlements);
+  int get hashCode => Object.hash(
+        status,
+        Object.hashAll(entitlements),
+        retrievedAt,
+      );
 }

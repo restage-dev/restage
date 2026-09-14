@@ -1,93 +1,93 @@
 import 'package:meta/meta.dart';
+import 'package:restage_shared/src/entitlements/commerce_wire.dart';
 
-/// Client-known transaction state sent to the server for reconciliation.
-///
-/// The server uses [knownStoreTransactionIds] to detect transactions the
-/// client has not yet reported, and returns the authoritative entitlement
-/// set so the client can converge on the server's view.
+const _purchaserStateRequestFields = {
+  'appAnonymousToken',
+  'knownStoreTransactionIds',
+};
+
+/// A request for the authoritative purchaser state.
 @immutable
-final class EntitlementSyncRequest {
-  /// Creates a sync request.
-  ///
-  /// [knownStoreTransactionIds] is wrapped unmodifiable so the stored list
-  /// cannot be mutated after construction — the same guarantee
-  /// [EntitlementSyncRequest.fromJson] provides.
-  EntitlementSyncRequest({
-    this.appAnonymousToken,
+final class CommercePurchaserStateRequest {
+  /// Creates a purchaser-state request.
+  factory CommercePurchaserStateRequest({
+    required String appAnonymousToken,
     List<String> knownStoreTransactionIds = const [],
-  }) : knownStoreTransactionIds = List.unmodifiable(knownStoreTransactionIds);
-
-  /// Parses a sync request from JSON.
-  factory EntitlementSyncRequest.fromJson(Map<String, dynamic> json) {
-    final raw = json['knownStoreTransactionIds'];
-    final List<String> ids;
-    if (raw == null) {
-      ids = const [];
-    } else if (raw is List) {
-      ids = <String>[];
-      for (final entry in raw) {
-        if (entry is! String || entry.isEmpty) {
-          throw ArgumentError.value(
-            raw,
-            'knownStoreTransactionIds',
-            'Expected a list of non-empty strings',
-          );
-        }
-        ids.add(entry);
+  }) {
+    requireCommerceUuidV4(
+      appAnonymousToken,
+      'appAnonymousToken',
+      lowercase: false,
+    );
+    for (final id in knownStoreTransactionIds) {
+      if (id.isEmpty) {
+        throw ArgumentError.value(
+          knownStoreTransactionIds,
+          'knownStoreTransactionIds',
+          'Expected non-empty transaction identifiers',
+        );
       }
-    } else {
-      throw ArgumentError.value(
-        raw,
-        'knownStoreTransactionIds',
-        'Expected a list of strings',
-      );
     }
-    return EntitlementSyncRequest(
-      appAnonymousToken: _optionalString(json, 'appAnonymousToken'),
-      knownStoreTransactionIds: ids,
+    return CommercePurchaserStateRequest._(
+      appAnonymousToken: appAnonymousToken,
+      knownStoreTransactionIds: List.unmodifiable(knownStoreTransactionIds),
     );
   }
 
-  /// Stable anonymous app-user token, when available.
-  final String? appAnonymousToken;
+  const CommercePurchaserStateRequest._({
+    required this.appAnonymousToken,
+    required this.knownStoreTransactionIds,
+  });
 
-  /// Store transaction identifiers the client already knows about.
+  /// Parses a purchaser-state request sent by an application.
+  factory CommercePurchaserStateRequest.fromJson(Map<String, dynamic> json) {
+    rejectUnknownCommerceFields(json, _purchaserStateRequestFields);
+    return CommercePurchaserStateRequest(
+      appAnonymousToken: requiredCommerceUuidV4(
+        json,
+        'appAnonymousToken',
+        lowercase: false,
+      ),
+      knownStoreTransactionIds: requiredCommerceStringList(
+        json,
+        'knownStoreTransactionIds',
+      ),
+    );
+  }
+
+  /// Anonymous application identity used for purchaser state.
+  final String appAnonymousToken;
+
+  /// Store transaction identifiers already known by the application.
   final List<String> knownStoreTransactionIds;
 
-  /// Converts this request to JSON.
-  Map<String, dynamic> toJson() {
-    return {
-      if (appAnonymousToken != null) 'appAnonymousToken': appAnonymousToken,
-      'knownStoreTransactionIds': knownStoreTransactionIds,
-    };
-  }
+  /// Converts this request to its wire representation.
+  Map<String, dynamic> toJson() => {
+        'appAnonymousToken': appAnonymousToken,
+        'knownStoreTransactionIds': knownStoreTransactionIds,
+      };
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    if (other is! EntitlementSyncRequest) return false;
-    if (other.appAnonymousToken != appAnonymousToken) return false;
-    final a = other.knownStoreTransactionIds;
-    final b = knownStoreTransactionIds;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+    if (other is! CommercePurchaserStateRequest ||
+        other.appAnonymousToken != appAnonymousToken ||
+        other.knownStoreTransactionIds.length !=
+            knownStoreTransactionIds.length) {
+      return false;
+    }
+    for (var index = 0; index < knownStoreTransactionIds.length; index += 1) {
+      if (other.knownStoreTransactionIds[index] !=
+          knownStoreTransactionIds[index]) {
+        return false;
+      }
     }
     return true;
   }
 
   @override
-  int get hashCode {
-    return Object.hash(
-      appAnonymousToken,
-      Object.hashAll(knownStoreTransactionIds),
-    );
-  }
-}
-
-String? _optionalString(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  if (value == null) return null;
-  if (value is String && value.isNotEmpty) return value;
-  throw ArgumentError.value(value, key, 'Expected a non-empty string or null');
+  int get hashCode => Object.hash(
+        appAnonymousToken,
+        Object.hashAll(knownStoreTransactionIds),
+      );
 }
