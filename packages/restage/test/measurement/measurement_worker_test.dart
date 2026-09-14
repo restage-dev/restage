@@ -3,12 +3,184 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/measurement/measurement_worker.dart';
+import 'package:restage/src/measurement/measurement_worker_delivery_protocol.dart';
 import 'package:restage/src/measurement/measurement_worker_unsupported.dart'
     as unsupported;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 void main() {
   group('MeasurementWorkerRuntime', () {
+    test('worker carries runtime session metadata into authenticated requests',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final registration = _registration(
+          sessionId: 'session.metadata',
+          sdkRuntimeSessionNonce: 'a' * 64,
+          reportedSdkVersion: '2.0.0');
+      final restored =
+          MeasurementWorkerSessionRegistration.fromWire(registration.toWire());
+      expect(restored.sdkRuntimeSessionNonce, 'a' * 64);
+      final session = await _open(runtime, restored);
+      _append(session, timestamp: 1);
+      final checkpoint = await session.checkpoint(frameElapsedMicros: 2);
+      final request = MeasurementIngestRequestV1.fromBase64(
+          checkpoint.batch!.canonicalRequestBase64);
+      expect(request.sdkRuntimeSessionNonce, 'a' * 64);
+      expect(request.reportedSdkVersion, '2.0.0');
+      expect(request.factFrame.captureSessionNonce, 'nonce.session.metadata');
+    });
+
+    test(
+        'ordered worker retains repeats, explicit lifecycle and sticky missing tail',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final config = MeasurementOrderedCaptureV1(routes: [
+        MeasurementOrderedCaptureRouteV1(
+          occurrenceId: CanonicalDigest(_occurrence(0)),
+          lineageId: PointLineageId('lineage.session.ordered.0'),
+          channels: MeasurementOccurrenceChannelV1.values,
+        )
+      ]);
+      final session = await _open(
+          runtime,
+          _registration(
+              sessionId: 'session.ordered',
+              orderedCaptureCanonicalBytesV1:
+                  CanonicalJsonCodec.encode(config.toJson())));
+      _append(session, timestamp: 10);
+      _append(session,
+          timestamp: 10, value: MeasurementWorkerAppendValue.interaction);
+      _append(session,
+          timestamp: 10, value: MeasurementWorkerAppendValue.interaction);
+      _append(session, timestamp: 12, value: MeasurementWorkerAppendValue.skip);
+      _append(session,
+          timestamp: 13, value: MeasurementWorkerAppendValue.completion);
+      _append(session,
+          timestamp: 14, value: MeasurementWorkerAppendValue.dismiss);
+      final first =
+          _frame((await session.checkpoint(frameElapsedMicros: 15)).batch!);
+      expect(first.orderedCaptureIncompleteV1, isFalse);
+      expect(
+          first.facts.single.timedOccurrencesV1!.map((value) => value.ordinal),
+          [1, 2, 3, 4, 5, 6]);
+      expect(
+          first.facts.single.timedOccurrencesV1!.map((value) => value.channel),
+          [
+            MeasurementOccurrenceChannelV1.presentation,
+            MeasurementOccurrenceChannelV1.interaction,
+            MeasurementOccurrenceChannelV1.interaction,
+            MeasurementOccurrenceChannelV1.skip,
+            MeasurementOccurrenceChannelV1.completion,
+            MeasurementOccurrenceChannelV1.dismiss
+          ]);
+      for (var i = 0; i < 70; i++) {
+        final acknowledged = runtime.appendAcknowledgements.first;
+        _append(session,
+            timestamp: 20 + i, value: MeasurementWorkerAppendValue.interaction);
+        await acknowledged;
+      }
+      final last =
+          _frame((await session.teardown(frameElapsedMicros: 100)).batch!);
+      expect(last.orderedCaptureIncompleteV1, isTrue);
+      expect(last.truncation.presentedPoints.truncated, isFalse);
+      expect(last.truncation.interactionCounters.truncated, isFalse);
+      expect(last.facts.single.timedOccurrencesV1,
+          hasLength(measurementMaximumTimedOccurrencesPerRoute));
+      expect(last.facts.single.interactionCount!.saturated, isTrue);
+    });
+
+    test(
+        'declared answers retain chosen values and reject out-of-domain app claims',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final declaration = MeasurementDeclaredAnswerV1.category(
+          questionId: 'reason',
+          outcomeKey: 'survey.reason',
+          propertyName: 'reason',
+          categoryLabels: {'cost': 'Too expensive', 'other': 'Other'});
+      final ownedRecord = MeasurementWorkerAppendRecord(
+          routeIndex: 0,
+          monotonicTimestampMicros: 10,
+          value: MeasurementWorkerAppendValue.interaction,
+          answerValueV1: declaration.capture('cost'));
+      final ownedMessage = MeasurementWorkerOwnedDeliveryProtocol.decodeInbound(
+              MeasurementWorkerOwnedDeliveryProtocol.append(
+                  sessionId: 'session.answers', record: ownedRecord))
+          as MeasurementWorkerOwnedDeliveryAppendMessage;
+      expect(ownedMessage.record.answerValueV1, ownedRecord.answerValueV1);
+      final config = MeasurementOrderedCaptureV1(routes: [
+        MeasurementOrderedCaptureRouteV1(
+            occurrenceId: CanonicalDigest(_occurrence(0)),
+            lineageId: PointLineageId('lineage.session.answers.0'),
+            channels: [
+              MeasurementOccurrenceChannelV1.presentation,
+              MeasurementOccurrenceChannelV1.interaction
+            ],
+            declaredAnswerV1: declaration,
+            answerCarrier: 'private-carrier')
+      ]);
+      final session = await _open(
+          runtime,
+          _registration(
+              sessionId: 'session.answers',
+              orderedCaptureCanonicalBytesV1: config.canonicalBytes));
+      session.append(MeasurementWorkerAppendRecord(
+          routeIndex: 0,
+          monotonicTimestampMicros: 10,
+          value: MeasurementWorkerAppendValue.interaction,
+          answerValueV1: declaration.capture('cost')));
+      final first =
+          _frame((await session.checkpoint(frameElapsedMicros: 11)).batch!);
+      expect(first.facts.single.timedOccurrencesV1!.last.answerValueV1,
+          MeasurementCategoryAnswerV1('cost'));
+      session.append(MeasurementWorkerAppendRecord(
+          routeIndex: 0,
+          monotonicTimestampMicros: 13,
+          value: MeasurementWorkerAppendValue.interaction,
+          answerValueV1: declaration.capture('other')));
+      final finalFrame =
+          _frame((await session.teardown(frameElapsedMicros: 14)).batch!);
+      expect(
+          finalFrame.facts.single.timedOccurrencesV1!
+              .where((value) => value.answerValueV1 != null)
+              .map((value) => value.answerValueV1),
+          [
+            MeasurementCategoryAnswerV1('cost'),
+            MeasurementCategoryAnswerV1('other')
+          ]);
+      expect(
+          finalFrame.facts.single.timedOccurrencesV1!
+              .map((value) => value.ordinal),
+          [1, 2, 3]);
+      final second = await _open(
+          runtime,
+          _registration(
+              sessionId: 'session.rejected',
+              orderedCaptureCanonicalBytesV1:
+                  MeasurementOrderedCaptureV1(routes: [
+                MeasurementOrderedCaptureRouteV1(
+                    occurrenceId: CanonicalDigest(_occurrence(0)),
+                    lineageId: PointLineageId('lineage.session.rejected.0'),
+                    channels: [
+                      MeasurementOccurrenceChannelV1.presentation,
+                      MeasurementOccurrenceChannelV1.interaction
+                    ],
+                    declaredAnswerV1: declaration,
+                    answerCarrier: 'private-carrier')
+              ]).canonicalBytes));
+      final rejected = runtime.appendAcknowledgements.first;
+      second.append(MeasurementWorkerAppendRecord(
+          routeIndex: 0,
+          monotonicTimestampMicros: 12,
+          value: MeasurementWorkerAppendValue.interaction,
+          answerValueV1: MeasurementCategoryAnswerV1('undeclared')));
+      expect((await rejected).outcome,
+          MeasurementWorkerAppendAcknowledgementOutcome.rejected);
+    });
+
     test('retains an opaque assignment through worker frames and retries',
         () async {
       final runtime = await _startRuntime();
@@ -700,6 +872,9 @@ MeasurementWorkerSessionRegistration _registration({
   int routeCount = 2,
   int occurrenceOffset = 0,
   List<int>? experimentAssignmentCanonicalBytes,
+  List<int>? orderedCaptureCanonicalBytesV1,
+  String? sdkRuntimeSessionNonce,
+  String? reportedSdkVersion,
 }) {
   final context = ExactMeasurementPublicationContextRefV1(
     bindingReference: _bindingReference,
@@ -718,6 +893,9 @@ MeasurementWorkerSessionRegistration _registration({
     measurementManifestHash: CanonicalDigest('b' * 64),
   );
   return MeasurementWorkerSessionRegistration(
+    sdkRuntimeSessionNonce: sdkRuntimeSessionNonce,
+    reportedSdkVersion: reportedSdkVersion,
+    orderedCaptureCanonicalBytesV1: orderedCaptureCanonicalBytesV1,
     sessionId: sessionId,
     captureSessionNonce: 'nonce.$sessionId',
     experimentAssignmentCanonicalBytes: experimentAssignmentCanonicalBytes,

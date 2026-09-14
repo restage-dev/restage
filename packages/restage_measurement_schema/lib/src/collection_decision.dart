@@ -23,8 +23,16 @@ final class MeasurementCollectionDecisionV1 {
     required this.privacyClassificationSemanticHash,
     required this.sessionAdmissionLimit,
   }) {
-    if (privacyPolicyRevisionId.value != 'restage.manifest-privacy.v1' ||
-        collectionBudgetRevisionId.value != 'restage.collection-budget.v2' ||
+    final admittedPolicyPair = switch ((
+      privacyPolicyRevisionId.value,
+      collectionBudgetRevisionId.value,
+    )) {
+      ('restage.manifest-privacy.v1', 'restage.collection-budget.v2') ||
+      ('restage.manifest-privacy.v2', 'restage.collection-budget.v3') =>
+        true,
+      _ => false,
+    };
+    if (!admittedPolicyPair ||
         privacyClassificationRevisionId.value !=
             'restage.privacy-classification.v1') {
       throw const CanonicalFormatException(

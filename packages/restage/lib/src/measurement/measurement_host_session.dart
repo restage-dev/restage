@@ -756,6 +756,84 @@ final class MeasurementHostSessionController
     }
   }
 
+  void recordAnswer(String questionId, Object? rawValue) {
+    final construction = _constructionSession;
+    if (construction != null) {
+      construction.recordAnswer(questionId, rawValue);
+      return;
+    }
+    final table = _routeTable;
+    final capture = _captureSession;
+    if (_debugState != MeasurementHostSessionDebugState.active ||
+        table == null ||
+        capture == null) return;
+    final published = table.orderedCaptureV1?.routes
+        .where((route) => route.declaredAnswerV1?.questionId == questionId)
+        .singleOrNull;
+    final value = published?.declaredAnswerV1?.capture(rawValue);
+    if (value == null || published?.answerCarrier == null) return;
+    final route = table.resolveOpaqueRoute(
+        context: table.mountedArtifactContext,
+        token: OpaqueMeasurementEventSlotToken(published!.answerCarrier!));
+    if (route != null) capture.recordAnswer(route, value);
+  }
+
+  bool _rootLifecyclePresented = false;
+
+  /// Resolves a real root or screen callback inside this session's publication.
+  void recordLifecycle(MeasurementOccurrenceChannelV1 channel,
+      {String? screenId}) {
+    final construction = _constructionSession;
+    if (construction != null) {
+      construction.recordLifecycle(channel, screenId: screenId);
+      return;
+    }
+    if (_debugState != MeasurementHostSessionDebugState.active) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId != null) recordLifecycle(channel);
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null &&
+        _rootLifecyclePresented) return;
+    final mapping = _routeTable?.orderedCaptureV1?.routes
+        .map((route) => route.lifecycle)
+        .where(
+            (route) => route?.channel == channel && route?.screenId == screenId)
+        .singleOrNull;
+    if (mapping == null) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null) _rootLifecyclePresented = true;
+    recordDeclaredOccurrenceCarrier(mapping.carrier, channel);
+  }
+
+  /// Records an actual lifecycle event with its exact published route carrier.
+  void recordDeclaredOccurrenceCarrier(
+      String rawCarrier, MeasurementOccurrenceChannelV1 channel) {
+    final construction = _constructionSession;
+    if (construction != null) {
+      construction.recordDeclaredOccurrenceCarrier(rawCarrier, channel);
+      return;
+    }
+    final table = _routeTable;
+    final capture = _captureSession;
+    if (_debugState != MeasurementHostSessionDebugState.active ||
+        table == null ||
+        capture == null) return;
+    try {
+      final route = table.resolveOpaqueRoute(
+          context: table.mountedArtifactContext,
+          token: OpaqueMeasurementEventSlotToken(rawCarrier));
+      if (route != null) {
+        if (channel == MeasurementOccurrenceChannelV1.presentation) {
+          capture.recordPresentation(route);
+        } else {
+          capture.recordDeclaredOccurrence(route, channel);
+        }
+      }
+    } on Object {
+      return;
+    }
+  }
+
   /// Emits and submits one nonterminal cumulative frame when active.
   Future<MeasurementIngestTransportOutcome?> checkpoint() async {
     final constructionSession = _constructionSession;

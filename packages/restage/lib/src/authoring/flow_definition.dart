@@ -435,6 +435,7 @@ final class FlowOutboundPolicy {
     this.terminalResult = const {},
     this.lifecycle = const {},
     this.surveyAnswers = const {},
+    this.measurementAnswers = const {},
     this.subflowResult = const {},
   });
 
@@ -447,6 +448,69 @@ final class FlowOutboundPolicy {
   /// Values included in survey answer payloads.
   final Map<String, FlowOutboundValue<dynamic>> surveyAnswers;
 
+  /// Explicit bounded measurement of selected questions in [surveyAnswers].
+  final Map<String, FlowAnswerMeasurement> measurementAnswers;
+
   /// Values forwarded from subflow completion payloads.
   final Map<String, FlowOutboundValue<dynamic>> subflowResult;
+}
+
+/// An explicit bounded answer source; the published binding selects its outcome.
+final class FlowAnswerMeasurement {
+  /// Declares the allowed category values and their immutable display labels.
+  const FlowAnswerMeasurement.category(
+      {required this.outcomeKey,
+      required this.propertyName,
+      required Map<String, String> this.categoryLabels})
+      : kind = 'category',
+        minimum = null,
+        maximum = null,
+        scale = null,
+        unit = null;
+
+  /// Declares inclusive canonical integer bounds.
+  const FlowAnswerMeasurement.integer(
+      {required this.outcomeKey,
+      required this.propertyName,
+      required String this.minimum,
+      required String this.maximum})
+      : kind = 'integer',
+        categoryLabels = null,
+        scale = null,
+        unit = null;
+
+  /// Declares exact decimal coefficient bounds, scale and unit.
+  const FlowAnswerMeasurement.scaledDecimal(
+      {required this.outcomeKey,
+      required this.propertyName,
+      required String this.minimum,
+      required String this.maximum,
+      required int this.scale,
+      required String this.unit})
+      : kind = 'scaledDecimal',
+        categoryLabels = null;
+
+  /// Stable target-neutral outcome definition key resolved when publishing.
+  final String outcomeKey;
+
+  /// The exact declared property to receive the selected answer.
+  final String propertyName;
+
+  /// Closed scalar declaration discriminator.
+  final String kind;
+
+  /// Allowed source category values and display labels.
+  final Map<String, String>? categoryLabels;
+
+  /// Inclusive lower canonical integer or decimal coefficient.
+  final String? minimum;
+
+  /// Inclusive upper canonical integer or decimal coefficient.
+  final String? maximum;
+
+  /// Number of decimal fractional digits; values are never rounded.
+  final int? scale;
+
+  /// Declared measurement unit for a scaled decimal answer.
+  final String? unit;
 }

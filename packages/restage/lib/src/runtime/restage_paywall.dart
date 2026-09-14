@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
+
 import 'package:flutter/material.dart' show ColorScheme, TextTheme, Theme;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart' show internal;
@@ -220,6 +223,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowMeasurementSessions =
       <RestageFlowController<void>, MeasurementHostSessionController>{};
   RestageFlowController<void>? _activeFlowMeasurementController;
+  final Set<RestageFlowController<void>> _terminalMeasurementControllers = {};
 
   VoidCallback? _initialFlowReadinessListener;
   bool _initialFlowIsStaged = false;
@@ -511,6 +515,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _fireDismissed(DismissReason reason) {
     if (_dismissedFired) return;
     _dismissedFired = true;
+    final owner = _activeFlowMeasurementController;
+    if (owner != null && !_terminalMeasurementControllers.contains(owner)) {
+      _flowMeasurementSessions[owner]
+          ?.recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+    }
+    _blobPresentation?.measurementSession
+        .recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
     _fireEvent(PaywallDismissed(
       paywallId: widget.id,
       reason: reason,
@@ -1507,6 +1518,25 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onEvent: onEvent,
       onComplete: onComplete,
       onUnavailable: onUnavailable,
+      onMeasurementLifecycle: (channel, screenId) {
+        if (channel == MeasurementOccurrenceChannelV1.completion) {
+          _terminalMeasurementControllers.add(controller);
+        } else if (channel == MeasurementOccurrenceChannelV1.skip) {
+          // Suppress dismissal when this skip closes the host in its next
+          // frame. A skip that leaves the flow mounted is not a root terminal.
+          _terminalMeasurementControllers.add(controller);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!controller.isComplete) {
+              _terminalMeasurementControllers.remove(controller);
+            }
+          });
+          WidgetsBinding.instance.ensureVisualUpdate();
+        } else if (channel == MeasurementOccurrenceChannelV1.presentation) {
+          _terminalMeasurementControllers.remove(controller);
+        }
+        _flowMeasurementSessions[controller]
+            ?.recordLifecycle(channel, screenId: screenId);
+      },
       onRootResolved: (_) =>
           _openMeasurementSessionForFlow(controller, payload),
       sanitizeAndRecordEvent: (rawValue) =>
@@ -1562,6 +1592,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _finalizeMeasurementSessionForFlow(
     RestageFlowController<void> controller,
   ) {
+    _terminalMeasurementControllers.remove(controller);
     final session = _flowMeasurementSessions.remove(controller);
     if (session != null) unawaited(session.teardown());
     if (identical(_activeFlowMeasurementController, controller)) {

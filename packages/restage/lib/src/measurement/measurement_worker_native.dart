@@ -1198,12 +1198,15 @@ final class _WorkerSession {
   _WorkerSession._({
     required this.sessionId,
     required this.captureSessionNonce,
+    required this.sdkRuntimeSessionNonce,
+    required this.reportedSdkVersion,
     required this.contextCanonicalBytes,
     required this.publishedContext,
     required this.routes,
     required this.limits,
     required this.nextSequence,
     required this.experimentAssignment,
+    required this.orderedCaptureV1,
   }) : _slots = List<_WorkerFactSlot>.generate(
           routes.length,
           (_) => _WorkerFactSlot(),
@@ -1253,9 +1256,23 @@ final class _WorkerSession {
         : MeasurementExperimentAssignmentV1.fromJson(
             decodeCanonicalObject(assignmentBytes),
           );
+    final orderedBytes = registration.orderedCaptureCanonicalBytesV1;
+    final ordered = orderedBytes == null
+        ? null
+        : MeasurementOrderedCaptureV1.fromJson(
+            decodeCanonicalObject(orderedBytes));
+    if (ordered != null &&
+        ordered.routes.any((route) => !routes.any((identity) =>
+            identity.occurrenceId == route.occurrenceId.hex &&
+            identity.lineageId == route.lineageId.value))) {
+      throw ArgumentError('Ordered capture names an unregistered worker route');
+    }
     return _WorkerSession._(
+      orderedCaptureV1: ordered,
       sessionId: registration.sessionId,
       captureSessionNonce: registration.captureSessionNonce,
+      sdkRuntimeSessionNonce: registration.sdkRuntimeSessionNonce,
+      reportedSdkVersion: registration.reportedSdkVersion,
       contextCanonicalBytes: contextBytes,
       publishedContext: context,
       routes: List.unmodifiable(routes),
@@ -1270,9 +1287,15 @@ final class _WorkerSession {
 
   final String sessionId;
   final String captureSessionNonce;
+  final String? sdkRuntimeSessionNonce;
+  final String? reportedSdkVersion;
   final Uint8List contextCanonicalBytes;
   final ExactMeasurementPublicationContextRefV1 publishedContext;
   final MeasurementExperimentAssignmentV1? experimentAssignment;
+  final MeasurementOrderedCaptureV1? orderedCaptureV1;
+  final Map<int, List<MeasurementTimedOccurrenceV1>> _timed = {};
+  int _orderedCount = 0;
+  bool _orderedIncomplete = false;
   final List<_WorkerRoute> routes;
   final MeasurementWorkerSessionLimits limits;
   final List<_WorkerFactSlot> _slots;
@@ -1289,9 +1312,15 @@ final class _WorkerSession {
     var total = _fixedOwnedByteCount +
         sessionId.length +
         captureSessionNonce.length +
+        (sdkRuntimeSessionNonce?.length ?? 0) +
+        (reportedSdkVersion?.length ?? 0) +
         contextCanonicalBytes.length +
         (experimentAssignment?.outcomeLinkCarrier.length ?? 0) +
-        (_slots.length * _slotOwnedByteCount);
+        (_slots.length * _slotOwnedByteCount) +
+        (orderedCaptureV1 == null
+            ? 0
+            : CanonicalJsonCodec.encode(orderedCaptureV1!.toJson()).length +
+                _orderedCount * 24);
     for (final route in routes) {
       total += route.structuralOwnedByteCount;
     }
@@ -1304,7 +1333,7 @@ final class _WorkerSession {
     if (record.routeIndex < 0 ||
         record.routeIndex >= _slots.length ||
         record.monotonicTimestampMicros < _lastTimestampMicros ||
-        (experimentAssignment != null &&
+        ((experimentAssignment != null || orderedCaptureV1 != null) &&
             record.monotonicTimestampMicros >
                 measurementIngestMaximumOutcomeWitnessMicros)) {
       return MeasurementWorkerAppendAcknowledgementOutcome.rejected;
@@ -1312,8 +1341,34 @@ final class _WorkerSession {
     _lastTimestampMicros = record.monotonicTimestampMicros;
     _beginNewSnapshotAfterCheckpoint();
     final slot = _slots[record.routeIndex];
+    final wasPresented = slot.presented;
+    final identity = routes[record.routeIndex];
+    final ordered = orderedCaptureV1?.routes
+        .where((route) =>
+            route.occurrenceId.hex == identity.occurrenceId &&
+            route.lineageId.value == identity.lineageId)
+        .firstOrNull;
+    if (record.answerValueV1 != null &&
+        !(ordered?.declaredAnswerV1?.admits(record.answerValueV1!) ?? false))
+      return MeasurementWorkerAppendAcknowledgementOutcome.rejected;
+    final channel = switch (record.value) {
+      MeasurementWorkerAppendValue.presentation =>
+        MeasurementOccurrenceChannelV1.presentation,
+      MeasurementWorkerAppendValue.interaction =>
+        MeasurementOccurrenceChannelV1.interaction,
+      MeasurementWorkerAppendValue.completion =>
+        MeasurementOccurrenceChannelV1.completion,
+      MeasurementWorkerAppendValue.skip => MeasurementOccurrenceChannelV1.skip,
+      MeasurementWorkerAppendValue.dismiss =>
+        MeasurementOccurrenceChannelV1.dismiss,
+    };
+    if (record.value != MeasurementWorkerAppendValue.presentation &&
+        record.value != MeasurementWorkerAppendValue.interaction &&
+        !(ordered?.channels.contains(channel) ?? false))
+      return MeasurementWorkerAppendAcknowledgementOutcome.rejected;
     if (!slot.presented) {
       if (_presentedPointCount == limits.maximumPresentedPoints) {
+        if (ordered != null) _orderedIncomplete = true;
         if (!slot.droppedAtPresentation) {
           slot.droppedAtPresentation = true;
           _droppedPresentedPointCount = _increment(_droppedPresentedPointCount);
@@ -1321,6 +1376,12 @@ final class _WorkerSession {
         return MeasurementWorkerAppendAcknowledgementOutcome.truncated;
       }
       slot.presented = true;
+      if (ordered != null)
+        _appendTimed(
+            record.routeIndex,
+            ordered,
+            MeasurementOccurrenceChannelV1.presentation,
+            record.monotonicTimestampMicros);
       if (experimentAssignment != null) {
         slot.presentationFirstOccurrenceMicros =
             record.monotonicTimestampMicros;
@@ -1336,6 +1397,13 @@ final class _WorkerSession {
         _interactionCounterCount += 1;
       }
     }
+    if (ordered != null &&
+        (wasPresented ||
+            record.value != MeasurementWorkerAppendValue.presentation)) {
+      _appendTimed(
+          record.routeIndex, ordered, channel, record.monotonicTimestampMicros,
+          answerValueV1: record.answerValueV1);
+    }
     if (record.value == MeasurementWorkerAppendValue.interaction &&
         slot.hasInteractionCounter) {
       if (experimentAssignment != null) {
@@ -1349,8 +1417,25 @@ final class _WorkerSession {
         : MeasurementWorkerAppendAcknowledgementOutcome.truncated;
   }
 
+  void _appendTimed(int index, MeasurementOrderedCaptureRouteV1 route,
+      MeasurementOccurrenceChannelV1 channel, int micros,
+      {MeasurementAnswerValueV1? answerValueV1}) {
+    if (_orderedIncomplete || !route.channels.contains(channel)) return;
+    final timed = _timed.putIfAbsent(index, () => []);
+    if (_orderedCount == measurementMaximumTimedOccurrencesPerRoot ||
+        timed.length == measurementMaximumTimedOccurrencesPerRoute) {
+      _orderedIncomplete = true;
+      return;
+    }
+    timed.add(MeasurementTimedOccurrenceV1(
+        ordinal: ++_orderedCount,
+        channel: channel,
+        elapsedMicros: micros,
+        answerValueV1: answerValueV1));
+  }
+
   bool admitFrameElapsed(int? elapsed, {required bool isFinal}) {
-    if (experimentAssignment == null) return true;
+    if (experimentAssignment == null && orderedCaptureV1 == null) return true;
     if (elapsed == null ||
         elapsed < 0 ||
         elapsed > measurementIngestMaximumOutcomeWitnessMicros ||
@@ -1373,7 +1458,18 @@ final class _WorkerSession {
       final slot = _slots[index];
       if (!slot.presented) continue;
       final route = routes[index];
-      facts.add(slot.toJson(route));
+      final fact = slot.toJson(route);
+      if (orderedCaptureV1?.routes.any((value) =>
+              value.occurrenceId.hex == route.occurrenceId &&
+              value.lineageId.value == route.lineageId) ??
+          false) {
+        fact['timedOccurrencesV1'] = [
+          for (final occurrence
+              in _timed[index] ?? <MeasurementTimedOccurrenceV1>[])
+            occurrence.toJson()
+        ];
+      }
+      facts.add(fact);
     }
     facts.sort(
       (left, right) => _factIdentity(left).compareTo(_factIdentity(right)),
@@ -1385,6 +1481,11 @@ final class _WorkerSession {
         'maximumMissingnessEntries': limits.maximumMissingnessEntries,
         'maximumPresentedPoints': limits.maximumPresentedPoints,
       },
+      if (orderedCaptureV1 != null)
+        'orderedCaptureV1': {
+          'schemaVersion': 1,
+          'incomplete': _orderedIncomplete
+        },
       'captureSessionNonce': captureSessionNonce,
       if (experimentAssignment != null)
         'experimentAssignment': experimentAssignment!.toJson(),
@@ -1512,7 +1613,11 @@ final class _WorkerPreparedBatch {
   }) {
     final frameBytes = session.buildCanonicalFrame(isFinal: isFinal);
     final frame = MeasurementFactFrameV1.fromCanonicalBytes(frameBytes);
-    final request = MeasurementIngestRequestV1.fromFactFrame(frame);
+    final request = MeasurementIngestRequestV1.fromFactFrame(
+      frame,
+      sdkRuntimeSessionNonce: session.sdkRuntimeSessionNonce,
+      reportedSdkVersion: session.reportedSdkVersion,
+    );
     final sequence = session.nextSequence;
     return _WorkerPreparedBatch._(
       batchId: '${session.sessionId}:$sequence',

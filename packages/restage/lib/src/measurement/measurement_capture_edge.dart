@@ -93,6 +93,18 @@ final class MeasurementCaptureEdge {
   MeasurementWorkerAppendOutcome appendInteractionToken(String compactToken) =>
       _appendToken(compactToken, MeasurementWorkerAppendValue.interaction);
 
+  /// Appends an explicitly declared lifecycle occurrence through a bound route.
+  MeasurementWorkerAppendOutcome appendDeclaredIdentity(
+    MeasurementPointIdentity identity,
+    MeasurementWorkerAppendValue value,
+  ) {
+    if (!_available || !_pointIdentityTable.accepts(identity))
+      return MeasurementWorkerAppendOutcome.invalid;
+    if (value == MeasurementWorkerAppendValue.interaction)
+      return MeasurementWorkerAppendOutcome.invalid;
+    return _appendAcceptedIdentity(identity, value);
+  }
+
   /// Appends one action observation selected before host composition.
   MeasurementWorkerAppendOutcome appendInteractionIdentity(
     MeasurementPointIdentity identity,
@@ -138,13 +150,26 @@ final class MeasurementCaptureEdge {
     }
   }
 
+  MeasurementWorkerAppendOutcome appendAnswerIdentity(
+      MeasurementPointIdentity identity, MeasurementAnswerValueV1 answer) {
+    if (!_available ||
+        !_pointIdentityTable.accepts(identity) ||
+        identity.capabilityKind != MeasurementCapabilityKind.sourceInteraction)
+      return MeasurementWorkerAppendOutcome.invalid;
+    return _appendAcceptedIdentity(
+        identity, MeasurementWorkerAppendValue.interaction,
+        answerValueV1: answer);
+  }
+
   MeasurementWorkerAppendOutcome _appendAcceptedIdentity(
     MeasurementPointIdentity identity,
-    MeasurementWorkerAppendValue value,
-  ) {
+    MeasurementWorkerAppendValue value, {
+    MeasurementAnswerValueV1? answerValueV1,
+  }) {
     try {
       final outcome = _workerSession.append(
         MeasurementWorkerAppendRecord(
+          answerValueV1: answerValueV1,
           routeIndex: identity.routeIndex,
           monotonicTimestampMicros: _monotonicClock.readMicros(),
           value: value,

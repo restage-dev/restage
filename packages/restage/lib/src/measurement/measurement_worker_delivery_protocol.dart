@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'measurement_outbox_protocol.dart';
 import 'measurement_worker_protocol.dart';
@@ -873,6 +874,16 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
         record.routeIndex,
         record.monotonicTimestampMicros,
         record.value.wireCode,
+        if (record.answerValueV1 != null)
+          switch (record.answerValueV1!) {
+            MeasurementCategoryAnswerV1(:final value) => ['category', value],
+            MeasurementIntegerAnswerV1(:final value) => ['integer', value],
+            MeasurementScaledAnswerV1(:final coefficient, :final scale) => [
+                'scaledDecimal',
+                coefficient,
+                scale
+              ],
+          },
       ];
 
   static List<Object?> checkpoint({
@@ -1106,10 +1117,26 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static MeasurementWorkerOwnedDeliveryAppendMessage _decodeAppend(
     List<Object?> values,
   ) {
-    _requireLength(values, 6);
+    if (values.length != 6 && values.length != 7)
+      throw const MeasurementWorkerOwnedDeliveryProtocolException(
+          'invalid_append_length');
     return MeasurementWorkerOwnedDeliveryAppendMessage(
       sessionId: _requireString(values[2]),
       record: MeasurementWorkerAppendRecord(
+        answerValueV1: values.length == 6
+            ? null
+            : switch (values[6]) {
+                ['category', final String value] =>
+                  MeasurementCategoryAnswerV1(value),
+                ['integer', final String value] =>
+                  MeasurementIntegerAnswerV1(value),
+                ['scaledDecimal', final String coefficient, final int scale] =>
+                  MeasurementScaledAnswerV1(
+                      coefficient: coefficient, scale: scale),
+                _ =>
+                  throw const MeasurementWorkerOwnedDeliveryProtocolException(
+                      'invalid_answer_value'),
+              },
         routeIndex: _requireInt(values[3]),
         monotonicTimestampMicros: _requireInt(values[4]),
         value: _requireAppendValue(_requireInt(values[5])),

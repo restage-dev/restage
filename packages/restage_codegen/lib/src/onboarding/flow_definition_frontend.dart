@@ -18,6 +18,7 @@ import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/src/declared_answers.dart';
 
 const String kRestageSdkLibraryOrigin = 'package:restage';
 const String kRestageSharedLibraryOrigin = 'package:restage_shared';
@@ -145,11 +146,13 @@ final class NormalizedFlowGraph {
     required Map<String, FlowState> states,
     required Map<String, FlowStateDeclaration> flowState,
     required this.outbound,
+    Map<String, MeasurementDeclaredAnswerV1> measurementAnswers = const {},
     required Map<String, FlowActionContract> actions,
     required Map<String, NormalizedScreenReference> screens,
     Map<NormalizedFlowIdentity, NormalizedChildFlowReference> childFlows =
         const {},
-  })  : states = Map.unmodifiable(states),
+  })  : measurementAnswers = Map.unmodifiable(measurementAnswers),
+        states = Map.unmodifiable(states),
         flowState = Map.unmodifiable(flowState),
         actions = Map.unmodifiable(actions),
         screens = Map.unmodifiable(screens),
@@ -163,6 +166,7 @@ final class NormalizedFlowGraph {
   final Map<String, FlowState> states;
   final Map<String, FlowStateDeclaration> flowState;
   final FlowOutboundDeclarations outbound;
+  final Map<String, MeasurementDeclaredAnswerV1> measurementAnswers;
   final Map<String, FlowActionContract> actions;
   final Map<String, NormalizedScreenReference> screens;
 
@@ -734,6 +738,7 @@ final class _FlowDefinitionGraphParser {
       states: _states,
       flowState: _flowState,
       outbound: _outbound,
+      measurementAnswers: _measurementAnswers,
       actions: _actions,
       screens: _screens,
       childFlows: _childFlows,
@@ -744,6 +749,7 @@ final class _FlowDefinitionGraphParser {
   }
 
   FlowOutboundDeclarations _outbound = const FlowOutboundDeclarations();
+  final Map<String, MeasurementDeclaredAnswerV1> _measurementAnswers = {};
 
   void _validateGraph(NormalizedFlowGraph graph) {
     final artifacts = <String, ScreenArtifact>{
@@ -838,6 +844,8 @@ final class _FlowDefinitionGraphParser {
       values,
     );
     if (survey == null) return false;
+    if (!_parseMeasurementAnswers(
+        _named(expression, 'measurementAnswers'), survey)) return false;
     final subflow = await _outboundPayload(
       _named(expression, 'subflowResult'),
       values,
@@ -850,6 +858,87 @@ final class _FlowDefinitionGraphParser {
       subFlowResult: subflow,
     );
     return true;
+  }
+
+  bool _parseMeasurementAnswers(
+      Expression? expression, FlowOutboundPayloadDeclaration survey) {
+    if (expression == null) return true;
+    if (expression is! SetOrMapLiteral || !expression.isMap) {
+      _issue(IssueCode.buildMethodTooComplex,
+          'measurementAnswers must be a literal question map.');
+      return false;
+    }
+    try {
+      for (final entry in expression.elements) {
+        if (entry is! MapLiteralEntry)
+          throw ArgumentError(
+              'Answer declarations cannot use spreads or control flow');
+        final question = _stringExpression(entry.key);
+        final creation = entry.value;
+        if (question == null ||
+            !survey.fields.containsKey(question) ||
+            creation is! InstanceCreationExpression ||
+            !_isRestageCreation(creation, 'FlowAnswerMeasurement')) {
+          throw ArgumentError(
+              'Measured questions must select an existing surveyAnswers key and FlowAnswerMeasurement');
+        }
+        String text(String name) =>
+            _stringExpression(_named(creation, name)) ??
+            (throw ArgumentError('$name must be a literal string'));
+        final json = <String, Object?>{
+          'questionId': question,
+          'outcomeKey': text('outcomeKey'),
+          'propertyName': text('propertyName'),
+          'kind': creation.constructorName.name?.name
+        };
+        if (json['kind'] == 'category') {
+          final labels = _named(creation, 'categoryLabels');
+          if (labels is! SetOrMapLiteral || !labels.isMap)
+            throw ArgumentError('Category labels must be a literal map');
+          final map = <String, String>{};
+          for (final label in labels.elements) {
+            if (label is! MapLiteralEntry)
+              throw ArgumentError(
+                  'Category labels cannot use spreads or control flow');
+            final key = _stringExpression(label.key);
+            final value = _stringExpression(label.value);
+            if (key == null || value == null || map.containsKey(key))
+              throw ArgumentError(
+                  'Categories need distinct literal values and labels');
+            map[key] = value;
+          }
+          json['categoryLabels'] = map;
+        } else {
+          json['minimum'] = text('minimum');
+          json['maximum'] = text('maximum');
+          if (json['kind'] == 'scaledDecimal') {
+            final scale = _named(creation, 'scale');
+            if (scale is! IntegerLiteral)
+              throw ArgumentError('Answer scale must be a literal integer');
+            json['scale'] = scale.value;
+            json['unit'] = text('unit');
+          }
+        }
+        if (_measurementAnswers.containsKey(question))
+          throw ArgumentError('Measured question declared twice');
+        final declaration = MeasurementDeclaredAnswerV1.fromJson(json);
+        final sourceType = survey.fields[question]!.type;
+        if ((declaration.kind == MeasurementAnswerKindV1.category &&
+                sourceType != FlowDataType.string) ||
+            (declaration.kind != MeasurementAnswerKindV1.category &&
+                sourceType != FlowDataType.string &&
+                sourceType != FlowDataType.int)) {
+          throw ArgumentError(
+              'Declared answer kind does not match its typed state source');
+        }
+        _measurementAnswers[question] = declaration;
+      }
+      return true;
+    } on Object catch (error) {
+      _issue(IssueCode.buildMethodTooComplex,
+          'Invalid declared measurement answer: $error');
+      return false;
+    }
   }
 
   Future<FlowOutboundPayloadDeclaration?> _outboundPayload(

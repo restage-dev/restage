@@ -9,7 +9,7 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalNoticeFlowResult,
   measurementPublicationDraftDigest:
-      '56bb7adcdb4e41b62713459c4f37d0e9dcced94bc9e24a2e2de09fb7ffd3d9c2',
+      '2e357c109193f3e99b83f4f5c00829999fbe12cc70476e4797ec8b45c4aa7de8',
 );
 
 MinimalNoticeResult _decodeMinimalNoticeFlowResult(

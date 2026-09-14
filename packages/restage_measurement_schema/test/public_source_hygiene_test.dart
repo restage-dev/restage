@@ -16,6 +16,7 @@ void main() {
         'package:restage_measurement_schema/src/publication_draft.dart',
       },
       'lib/src/publication_draft.dart': {
+        'package:restage_measurement_schema/src/ordered_capture.dart',
         'dart:convert',
         'package:restage_measurement_schema/src/canonical.dart',
         'package:restage_measurement_schema/src/identifiers.dart',
