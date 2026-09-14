@@ -1,4 +1,5 @@
 import 'package:restage_shared/commerce.dart';
+import 'package:restage_shared/src/entitlements/report_transaction_response.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -36,6 +37,35 @@ void main() {
       );
 
       expect(response.outcome, 'unknown');
+    });
+  });
+
+  group('AcceptedStoreEvidence', () {
+    test('round-trips the shared snake-case store vocabulary', () {
+      const apple = AppleAcceptedStoreEvidence(
+        submittedTransactionId: 'submitted',
+        acceptedTransactionId: 'accepted',
+        originalTransactionId: 'original',
+      );
+      const google = GoogleAcceptedStoreEvidence(
+        submittedOrderId: 'GPA.1..0',
+        acceptedOrderId: 'GPA.1..1',
+        orderLineageId: 'GPA.1',
+        acceptedPurchaseTokenDigest:
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
+
+      expect(apple.toJson()['store'], 'app_store');
+      expect(google.toJson()['store'], 'play_store');
+      expect(AcceptedStoreEvidence.fromJson(apple.toJson()), apple);
+      expect(AcceptedStoreEvidence.fromJson(google.toJson()), google);
+      expect(
+        () => AcceptedStoreEvidence.fromJson({
+          ...apple.toJson(),
+          'store': 'appStore',
+        }),
+        throwsArgumentError,
+      );
     });
   });
 }

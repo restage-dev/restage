@@ -16,6 +16,9 @@ void main() {
         storeProductId: 'pro.monthly.us',
         storeTransactionId: 'GPA.1234-5678..0',
         appAnonymousToken: _token,
+        paywallId: 'launch-paywall',
+        paywallVariantSlug: 'treatment',
+        paywallPublishedVersion: 7,
       );
 
       expect(CommerceReportRequest.fromJson(request.toJson()), request);
@@ -43,12 +46,26 @@ void main() {
       );
     });
 
+    test('requires an App Store transaction identity', () {
+      expect(
+        () => CommerceReportRequest.fromJson(const <String, dynamic>{
+          'reportId': _reportId,
+          'store': 'app_store',
+          'storeVerificationData': 'signed-jws',
+          'storeProductId': 'pro.monthly.us',
+          'appAnonymousToken': _token,
+        }),
+        throwsArgumentError,
+      );
+    });
+
     test('preserves canonical-form report identity casing', () {
       final request = CommerceReportRequest(
         reportId: '550E8400-E29B-41D4-A716-446655440002',
         store: 'app_store',
         storeVerificationData: 'signed-jws',
         storeProductId: 'pro.monthly.us',
+        storeTransactionId: 'tx-1',
         appAnonymousToken: _token,
       );
 

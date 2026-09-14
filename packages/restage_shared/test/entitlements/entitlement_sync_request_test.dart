@@ -18,7 +18,7 @@ void main() {
       );
     });
 
-    test('requires the application token and transaction list', () {
+    test('requires the application token and defaults an omitted list', () {
       expect(
         () => CommercePurchaserStateRequest.fromJson(const <String, dynamic>{
           'knownStoreTransactionIds': <String>[],
@@ -26,10 +26,10 @@ void main() {
         throwsArgumentError,
       );
       expect(
-        () => CommercePurchaserStateRequest.fromJson(const <String, dynamic>{
+        CommercePurchaserStateRequest.fromJson(const <String, dynamic>{
           'appAnonymousToken': _token,
-        }),
-        throwsArgumentError,
+        }).knownStoreTransactionIds,
+        isEmpty,
       );
     });
   });

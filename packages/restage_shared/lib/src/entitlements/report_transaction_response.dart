@@ -72,8 +72,8 @@ sealed class AcceptedStoreEvidence {
   /// Parses store-specific accepted evidence.
   factory AcceptedStoreEvidence.fromJson(Map<String, dynamic> json) {
     return switch (_requiredString(json, 'store')) {
-      'appStore' => AppleAcceptedStoreEvidence.fromJson(json),
-      'playStore' => GoogleAcceptedStoreEvidence.fromJson(json),
+      commerceAppStoreValue => AppleAcceptedStoreEvidence.fromJson(json),
+      commercePlayStoreValue => GoogleAcceptedStoreEvidence.fromJson(json),
       final value => throw ArgumentError.value(
           value,
           'store',
@@ -112,7 +112,7 @@ final class AppleAcceptedStoreEvidence extends AcceptedStoreEvidence {
   }
 
   @override
-  String get store => 'appStore';
+  String get store => commerceAppStoreValue;
 
   /// Transaction ID submitted by the SDK and proven in signed history.
   final String submittedTransactionId;
@@ -191,7 +191,7 @@ final class GoogleAcceptedStoreEvidence extends AcceptedStoreEvidence {
   }
 
   @override
-  String get store => 'playStore';
+  String get store => commercePlayStoreValue;
 
   /// Non-secret Play order ID submitted as the plugin purchase ID.
   final String? submittedOrderId;
