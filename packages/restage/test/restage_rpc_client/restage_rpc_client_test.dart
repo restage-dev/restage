@@ -7,6 +7,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
+import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -15,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage/src/restage_rpc_client/surface_artifact_assembly.dart';
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 /// The delivery this file's stub server speaks for. It both describes surfaces
 /// and answers for their content, so no test here can accidentally stub half a
@@ -28,6 +32,89 @@ Map<String, Object?> _blobDelivery(List<int> blob) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('surface request analytics identity', () {
+    setUp(() {
+      SurfaceAnalyticsIdentityProvider.clear();
+      SurfaceAssignmentKeyProvider.clear();
+      SurfaceCanonicalCarrierProvider.clear();
+      SurfaceMeteringKeyProvider.clear();
+    });
+    tearDown(() {
+      SurfaceAnalyticsIdentityProvider.clear();
+      SurfaceAssignmentKeyProvider.clear();
+      SurfaceCanonicalCarrierProvider.clear();
+      SurfaceMeteringKeyProvider.clear();
+    });
+
+    for (final change in [
+      'unchanged',
+      'disabled',
+      'replaced',
+      'lease changed'
+    ]) {
+      test('sends the identifier only while its authority is current: $change',
+          () async {
+        const identifier = '12345678-1234-4234-8234-123456789abc';
+        SurfaceAnalyticsIdentityProvider.install(() async => identifier);
+        SurfaceCanonicalCarrierProvider.installHeldAssignment(() {
+          switch (change) {
+            case 'disabled':
+              SurfaceAnalyticsIdentityProvider.clear();
+            case 'replaced':
+              SurfaceAnalyticsIdentityProvider.install(() async => identifier);
+            case 'lease changed':
+              SurfaceAssignmentKeyProvider.current = () => 'assignment-b';
+          }
+          return null;
+        });
+        final bodies = <Map<String, dynamic>>[];
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient((request) async {
+            bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return http.Response('', 204);
+          }),
+        );
+        addTearDown(client.close);
+
+        await client.fetchSurface(
+            surfaceType: 'message', surfaceSlug: 'welcome');
+
+        expect(bodies, hasLength(1));
+        if (change == 'unchanged') {
+          expect(bodies.single['analyticsAnonymousId'], identifier);
+        } else {
+          expect(bodies.single, isNot(contains('analyticsAnonymousId')));
+        }
+      });
+    }
+
+    test('an explicit version carries no identifier', () async {
+      const identifier = '12345678-1234-4234-8234-123456789abc';
+      SurfaceAnalyticsIdentityProvider.install(() async => identifier);
+      final bodies = <Map<String, dynamic>>[];
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('', 204);
+        }),
+      );
+      addTearDown(client.close);
+
+      await client.fetchSurface(
+          surfaceType: 'message', surfaceSlug: 'welcome', version: 7);
+      await client.fetchSurface(surfaceType: 'message', surfaceSlug: 'welcome');
+
+      expect(bodies, hasLength(2));
+      expect(bodies.first['version'], 7);
+      expect(bodies.first, isNot(contains('analyticsAnonymousId')));
+      expect(bodies.last['analyticsAnonymousId'], identifier);
+    });
+  });
 
   group('RestageRpcClient construction', () {
     test('rejects empty baseUrl', () {
@@ -261,7 +348,8 @@ void main() {
         surfaceSlug: 'first_run',
       );
 
-      expect(sent, {'surfaceType': 'onboarding', 'surfaceSlug': 'first_run'});
+      expect(withoutSupportedPolicyRevisions(sent),
+          {'surfaceType': 'onboarding', 'surfaceSlug': 'first_run'});
     });
 
     test(
@@ -304,7 +392,7 @@ void main() {
           for (final key in keys) 'Bearer $key',
         ]);
         for (final request in requests) {
-          expect(jsonDecode(request.body), {
+          expect(withoutSupportedPolicyRevisions(jsonDecode(request.body)), {
             'surfaceType': 'paywall',
             'surfaceSlug': 'shared',
           });
@@ -497,7 +585,7 @@ void main() {
         version: 1,
       );
 
-      expect(jsonDecode(seen.body), {
+      expect(withoutSupportedPolicyRevisions(jsonDecode(seen.body)), {
         'surfaceType': 'onboarding',
         'surfaceSlug': 'first_run',
         'version': 1,
@@ -527,7 +615,7 @@ void main() {
         version: null,
       );
 
-      expect(jsonDecode(seen.body), {
+      expect(withoutSupportedPolicyRevisions(jsonDecode(seen.body)), {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
       });
@@ -560,12 +648,12 @@ void main() {
         surfaceSlug: 'pro_upgrade',
       );
 
-      expect(seenBodies.first, {
+      expect(withoutSupportedPolicyRevisions(seenBodies.first), {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
         'assignmentKey': 'anon-123',
       });
-      expect(seenBodies.last, {
+      expect(withoutSupportedPolicyRevisions(seenBodies.last), {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
       });

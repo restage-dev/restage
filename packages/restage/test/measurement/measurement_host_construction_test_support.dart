@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
+import 'package:restage/src/measurement/bundled_measurement_target_profile_loader.dart';
 import 'package:restage/src/measurement/measurement_host_construction_owner.dart';
 import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/measurement/measurement_outbox_protocol.dart';
@@ -105,8 +107,11 @@ final class AdmittedConstructionOwnerHostTestHarness {
   /// Installs one admitted new-only owner with one deterministic worker port.
   static AdmittedConstructionOwnerHostTestHarness install({
     required ExactMeasurementPublicationContextRefV1 publicationContext,
-    required MeasurementPublicationBindingReadPort? Function()
+    MeasurementPublicationBindingReadPort? Function()?
         hostedBindingReadPortLookup,
+    Future<BundledMeasurementTargetProfileLoadResult> Function()?
+        bundledTargetProfileLoader,
+    bool presentationMetadataAdmitted = false,
     int remainingSessionBudget = 16,
   }) {
     final worker = DeterministicMeasurementDeliveryWorker();
@@ -119,6 +124,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
           analyticsEnabled: true,
           policyStatus: MeasurementHostConstructionPolicyStatus.supported,
           measurementClassAdmitted: true,
+          presentationMetadataAdmitted: presentationMetadataAdmitted,
           remainingSessionBudget: remainingSessionBudget,
           deliveryAdapterAvailable: true,
           configurationFingerprint: 'root-host-deterministic-worker.v1',
@@ -138,6 +144,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
         constructionOwner: owner,
         nonceBytesSource: () => List<int>.filled(32, ++nonce),
         hostedBindingReadPortLookup: hostedBindingReadPortLookup,
+        bundledTargetProfileLoader: bundledTargetProfileLoader,
         lifecycleRegistrar: lifecycle,
       ),
     );
@@ -207,7 +214,15 @@ final class DeterministicMeasurementDeliveryWorker
     implements MeasurementWorkerOwnedDeliveryRuntimeState {
   final Map<String, _DeterministicDeliverySession> _sessions =
       <String, _DeterministicDeliverySession>{};
+  final registrations = <MeasurementWorkerSessionRegistration>[];
   final appendRecords = <MeasurementWorkerAppendRecord>[];
+  final terminalDiagnostics = <MeasurementPresentationDiagnosticV1>[];
+
+  /// What this worker was asked to deliver, in order.
+  final deliveries = <MeasurementWorkerDeliveryKind>[];
+
+  /// The most recently opened session, live or finalized.
+  MeasurementWorkerOwnedDeliverySessionState? lastSession;
   var _available = true;
   var _maximumSessions = 0;
   var starts = 0;
@@ -249,6 +264,7 @@ final class DeterministicMeasurementDeliveryWorker
   Future<MeasurementWorkerOwnedDeliveryOpenSessionResult> openSession(
     MeasurementWorkerSessionRegistration registration,
   ) {
+    registrations.add(registration);
     if (!_available) {
       return Future<MeasurementWorkerOwnedDeliveryOpenSessionResult>.value(
         MeasurementWorkerOwnedDeliveryOpenSessionResult.of(
@@ -268,6 +284,7 @@ final class DeterministicMeasurementDeliveryWorker
     }
     final state = _DeterministicDeliverySession(this, registration.sessionId);
     _sessions[registration.sessionId] = state;
+    lastSession = state;
     return Future<MeasurementWorkerOwnedDeliveryOpenSessionResult>.value(
       MeasurementWorkerOwnedDeliveryOpenSessionResult.opened(
         session: MeasurementWorkerOwnedDeliverySession.internal(
@@ -336,9 +353,11 @@ final class DeterministicMeasurementDeliveryWorker
       );
     }
     checkpointCalls += 1;
+    deliveries.add(MeasurementWorkerDeliveryKind.frame);
     if (isFinal) {
       finalizationCalls += 1;
       session._available = false;
+      session._finalized = true;
       _sessions.remove(session.sessionId);
     }
     return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
@@ -374,6 +393,9 @@ final class DeterministicMeasurementDeliveryWorker
   }
 }
 
+/// What one worker delivery carried.
+enum MeasurementWorkerDeliveryKind { frame, diagnostic }
+
 final class _DeterministicDeliverySession
     implements MeasurementWorkerOwnedDeliverySessionState {
   _DeterministicDeliverySession(this._worker, this.sessionId);
@@ -381,6 +403,8 @@ final class _DeterministicDeliverySession
   final DeterministicMeasurementDeliveryWorker _worker;
   final String sessionId;
   var _available = true;
+  var _finalized = false;
+  var _postFinalizeDiagnosticReported = false;
 
   @override
   MeasurementWorkerAppendOutcome append(MeasurementWorkerAppendRecord record) =>
@@ -395,6 +419,34 @@ final class _DeterministicDeliverySession
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
           {int? frameElapsedMicros}) =>
       _worker._checkpoint(this, isFinal: true);
+
+  @override
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult>
+      reportTerminalDiagnostic(Uint8List canonicalSummaryBytes) async {
+    // Mirrors the worker: an active session reports, a finalized one reports
+    // exactly once more, and anything else is refused without recording.
+    final afterFinalize = _finalized && !_postFinalizeDiagnosticReported;
+    if (!_available && !afterFinalize) {
+      return MeasurementWorkerOwnedDeliveryCheckpointResult(
+        outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.finalized,
+        workerOwnedByteCount: _worker.workerOwnedByteCount,
+        sequence: null,
+        isFinal: null,
+      );
+    }
+    if (afterFinalize) _postFinalizeDiagnosticReported = true;
+    _worker.deliveries.add(MeasurementWorkerDeliveryKind.diagnostic);
+    _worker.terminalDiagnostics.add(
+        MeasurementPresentationDiagnosticV1.fromCanonicalBytes(
+            canonicalSummaryBytes));
+    if (!afterFinalize) await _worker._discard(this);
+    return MeasurementWorkerOwnedDeliveryCheckpointResult(
+      outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.delivered,
+      workerOwnedByteCount: _worker.workerOwnedByteCount,
+      sequence: 1,
+      isFinal: true,
+    );
+  }
 
   @override
   Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard() =>

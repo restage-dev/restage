@@ -14,6 +14,7 @@ import 'measurement_worker_delivery.dart';
 import 'measurement_outbox_protocol.dart';
 import 'measurement_worker_protocol.dart';
 import 'presentation_commit.dart';
+import 'presentation_attempt_summary.dart';
 
 /// Test-only deterministic delivery seam below the exact construction owner.
 ///
@@ -58,6 +59,7 @@ final class MeasurementHostConstructionProfile {
     required this.deliveryAdapterAvailable,
     required this.configurationFingerprint,
     this.sdkRuntimeSessionAdmitted = false,
+    this.presentationMetadataAdmitted = false,
     this.maximumSessions = 16,
     List<MeasurementWorkerOwnedDeliveryHeader> headers = const [],
     this.debugTracing = false,
@@ -79,6 +81,9 @@ final class MeasurementHostConstructionProfile {
 
   /// Exact selected policy explicitly admits anonymous runtime metadata.
   final bool sdkRuntimeSessionAdmitted;
+
+  /// Exact selected policy admits presentation observations and routing receipts.
+  final bool presentationMetadataAdmitted;
 
   /// Whether the target has opted into automatic Measurement collection.
   final bool analyticsEnabled;
@@ -300,6 +305,8 @@ final class MeasurementHostConstructionOwner {
     required MeasurementCaptureAdmission capabilityAdmission,
     required String Function() captureSessionNonceSource,
     MeasurementExperimentAssignmentV1? experimentAssignment,
+    MeasurementPresentationContextV1? presentationContext,
+    String? routingSelectionReceipt,
   }) async {
     if (_closed) return null;
 
@@ -330,6 +337,14 @@ final class MeasurementHostConstructionOwner {
       final sessionClock = _SessionMonotonicClock(_monotonicClock);
       final opened = await runtime.openSession(
         MeasurementWorkerSessionRegistration(
+          presentationContextCanonicalBytes:
+              profile.presentationMetadataAdmitted &&
+                      presentationContext != null
+                  ? presentationContext.canonicalBytes
+                  : null,
+          routingSelectionReceipt: profile.presentationMetadataAdmitted
+              ? routingSelectionReceipt
+              : null,
           sdkRuntimeSessionNonce:
               profile.sdkRuntimeSessionAdmitted ? nonce : null,
           reportedSdkVersion: profile.sdkRuntimeSessionAdmitted
@@ -378,6 +393,7 @@ final class MeasurementHostConstructionOwner {
         return null;
       }
       final session = MeasurementHostConstructionSession._(
+        presentationMetadataAdmitted: profile.presentationMetadataAdmitted,
         owner: this,
         admission: admission,
         resolvedMount: resolvedMount,
@@ -529,6 +545,7 @@ final class MeasurementHostConstructionOwner {
     for (final session in List<MeasurementHostConstructionSession>.of(
       _sessions,
     )) {
+      session._presentationAttemptObserver.recordCaptureIncomplete();
       session._closeCaptureEdge();
     }
   }
@@ -635,13 +652,15 @@ final class MeasurementHostConstructionSession
         MeasurementPresentationCaptureSink,
         MeasurementRfwPresentationCaptureBinder {
   MeasurementHostConstructionSession._({
+    required bool presentationMetadataAdmitted,
     required MeasurementHostConstructionOwner owner,
     required MeasurementHostConstructionAdmission admission,
     required MeasurementPublicationBindingRuntimeResolvedMount resolvedMount,
     required MeasurementRuntimeRouteTable routeTable,
     required MeasurementWorkerOwnedDeliverySession workerSession,
     required MeasurementCaptureMonotonicClock monotonicClock,
-  })  : _owner = owner,
+  })  : _presentationMetadataAdmitted = presentationMetadataAdmitted,
+        _owner = owner,
         _admission = admission,
         _resolvedMount = resolvedMount,
         _routeTable = routeTable,
@@ -664,6 +683,7 @@ final class MeasurementHostConstructionSession
     }
   }
 
+  final bool _presentationMetadataAdmitted;
   final MeasurementHostConstructionOwner _owner;
   final MeasurementHostConstructionAdmission _admission;
   final MeasurementPublicationBindingRuntimeResolvedMount _resolvedMount;
@@ -675,10 +695,23 @@ final class MeasurementHostConstructionSession
   final Set<MeasurementCaptureEdge> _captureEdges = <MeasurementCaptureEdge>{};
 
   var _active = true;
+  final _presentationAttemptObserver = MeasurementPresentationAttemptObserver();
+
+  /// The observer shared with the root presentation route.
+  @internal
+  MeasurementPresentationAttemptObserver get presentationAttemptObserver =>
+      _presentationAttemptObserver;
+
+  /// The observed outcome of this presentation attempt.
+  @internal
+  MeasurementPresentationDiagnosticV1 get presentationAttemptSummary =>
+      _presentationAttemptObserver.summarise();
+
   var _successfulFirstPaint = false;
   var _rootLifecyclePresented = false;
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>? _teardownFuture;
   Future<void>? _discardFuture;
+  Future<void>? _abortFuture;
 
   /// The immutable admission shared with restricted credential issuance.
   @visibleForTesting
@@ -691,6 +724,7 @@ final class MeasurementHostConstructionSession
   }) {
     if (pointTokens.length > kMaximumMeasurementRuntimeRouteCount ||
         routeCarriers.length > kMaximumMeasurementRuntimeRouteCount) {
+      _presentationAttemptObserver.recordCaptureIncomplete();
       throw ArgumentError.value(
         pointTokens.length,
         'pointTokens',
@@ -753,6 +787,7 @@ final class MeasurementHostConstructionSession
     if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
     final route = _routesByCarrier[rawCarrier];
     if (route == null) return;
+    _presentationAttemptObserver.recordStepObserved();
     route.edge.appendInteractionIdentity(route.identity);
   }
 
@@ -763,8 +798,10 @@ final class MeasurementHostConstructionSession
         .singleOrNull;
     final value = published?.declaredAnswerV1?.capture(rawValue);
     final route = _routesByCarrier[published?.answerCarrier];
-    if (value != null && route != null)
+    if (value != null && route != null) {
+      _presentationAttemptObserver.recordStepObserved();
       route.edge.appendAnswerIdentity(route.identity, value);
+    }
   }
 
   /// Resolves a real callback within this exact mounted publication.
@@ -803,7 +840,10 @@ final class MeasurementHostConstructionSession
         MeasurementWorkerAppendValue.dismiss,
       _ => null,
     };
-    if (value != null) route.edge.appendDeclaredIdentity(route.identity, value);
+    if (value != null) {
+      _presentationAttemptObserver.recordStepObserved();
+      route.edge.appendDeclaredIdentity(route.identity, value);
+    }
   }
 
   @override
@@ -856,19 +896,26 @@ final class MeasurementHostConstructionSession
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>
       _teardownActive() async {
     if (!_active) {
-      await _discardFuture;
+      // An abort already in flight still holds the session; wait for its release.
+      await (_abortFuture ?? _discardFuture);
       return null;
     }
     _active = false;
     _closeCaptureEdge();
     try {
       if (!_successfulFirstPaint) {
+        await _reportTerminalDiagnostic();
         await _discardUncommitted();
         return null;
       }
       final result = await _workerSession.teardown(
           frameElapsedMicros: _monotonicClock.readMicros());
       _owner._observeDeliveryResult(result);
+      // Only after the committed frame is delivered, and never in its place.
+      if (presentationAttemptSummary.rootPresentationReports ==
+          MeasurementRootPresentationReportsV1.many) {
+        await _reportTerminalDiagnostic();
+      }
       return result;
     } finally {
       _owner._release(this);
@@ -880,7 +927,21 @@ final class MeasurementHostConstructionSession
     if (!_active || _successfulFirstPaint) return;
     _active = false;
     _closeCaptureEdge();
-    unawaited(_discardUncommitted().whenComplete(() => _owner._release(this)));
+    final aborting = _reportTerminalDiagnostic()
+        .then((_) => _discardUncommitted())
+        .whenComplete(() => _owner._release(this));
+    _abortFuture = aborting;
+    unawaited(aborting);
+  }
+
+  Future<void> _reportTerminalDiagnostic() async {
+    if (!_presentationMetadataAdmitted) return;
+    try {
+      await _workerSession
+          .reportTerminalDiagnostic(presentationAttemptSummary.canonicalBytes);
+    } on Object {
+      // Reporting failure never prevents uncommitted capture cleanup.
+    }
   }
 
   Future<void> _discardUncommitted() {

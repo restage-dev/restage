@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:restage_measurement_schema/src/canonical.dart';
 import 'package:restage_measurement_schema/src/identifiers.dart';
 import 'package:restage_measurement_schema/src/manifest.dart';
+import 'package:restage_measurement_schema/src/policy_revision.dart' as policy;
 import 'package:restage_measurement_schema/src/publication_binding.dart';
 import 'package:restage_measurement_schema/src/target.dart';
 
@@ -23,18 +24,19 @@ final class MeasurementCollectionDecisionV1 {
     required this.privacyClassificationSemanticHash,
     required this.sessionAdmissionLimit,
   }) {
-    final admittedPolicyPair = switch ((
-      privacyPolicyRevisionId.value,
-      collectionBudgetRevisionId.value,
-    )) {
-      ('restage.manifest-privacy.v1', 'restage.collection-budget.v2') ||
-      ('restage.manifest-privacy.v2', 'restage.collection-budget.v3') =>
-        true,
-      _ => false,
-    };
-    if (!admittedPolicyPair ||
+    final admittedPolicy = policy.policyRevisionAtOrAbove(
+          privacyPolicyRevisionId.value,
+          policy.manifestPrivacyPolicyFamily,
+          policy.collectionPrivacyPolicyFloor,
+        ) &&
+        policy.policyRevisionAtOrAbove(
+          collectionBudgetRevisionId.value,
+          policy.collectionBudgetFamily,
+          policy.collectionBudgetPolicyFloor,
+        );
+    if (!admittedPolicy ||
         privacyClassificationRevisionId.value !=
-            'restage.privacy-classification.v1') {
+            policy.privacyClassificationRevisionId) {
       throw const CanonicalFormatException(
         'Unsupported collection policy revision',
       );

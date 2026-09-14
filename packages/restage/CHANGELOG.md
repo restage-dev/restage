@@ -9,6 +9,28 @@ the anonymous identifier used for surface assignment and for Measurement. The
 debug-only `debugAnalyticsHttpClient` and `debugFlushAnalytics` statics are
 removed with the egress they served.
 
+Hosted surface requests now describe the device more fully so the service can
+choose a published version of a surface for it. The request API level moves to
+3, adding device region (for example, `se`) and device class (`phone`) alongside
+platform (`ios`) and app build ordinal (`412`). Every request carries the
+platform; it carries each of the other three whenever the device can supply it
+and omits any it cannot, so an app whose build number is not a plain number
+still describes its platform, region and device class. These facts are sent
+regardless of the analytics and measurement flags. With analytics off, a hosted
+request carries no analytics identifier and no assignment credential; the
+metering token is separate and unaffected.
+
+`Restage.configure` takes an `onSurfaceResolution` callback, and every mounted
+surface now reports through it: paywalls, hosted flows and typed screens, on
+each tier of delivery. The report is a `SurfaceResolutionReport` naming the
+surface and a `SurfaceResolutionSource` of `fresh`, `holdLastGood` or
+`bundled`, and both types are exported. A callback that throws can never fail a
+resolution.
+
+The published `data.device.countryCode` is now the device region as a
+two-letter code. A locale whose region is not a two-letter code, such as `419`,
+omits the key rather than publishing the raw subtag.
+
 ## 2.0.0
 
 The published device data carries the ambient view padding alongside the safe

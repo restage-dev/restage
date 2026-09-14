@@ -149,6 +149,8 @@ final class _RenderMeasurementPresentationPaintBoundary extends RenderProxyBox {
     }
 
     final firstPaintAcknowledged = _takeFirstPaintAcknowledgement();
+    // A genuine root paint counts whether or not the route can still commit.
+    if (firstPaintAcknowledged) _routeHandle._recordGenuineRootPresentation();
     if (!canCommit) return;
     if (!firstPaintAcknowledged) {
       _routeHandle._rejectFailedPaint();

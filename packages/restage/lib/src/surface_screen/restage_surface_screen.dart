@@ -18,6 +18,12 @@ import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show
+        SurfaceDeliveryObservationCell,
+        readSurfaceDeliveryObservations,
+        requestingViewShortestLogicalSide,
+        withSurfaceDeliveryObservations;
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
@@ -91,6 +97,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   _ScreenStage? _stage;
   SurfaceScreenUnavailableError? _unavailableError;
+  SurfaceDeliveryObservationCell? _observationCell;
   var _resolutionEpoch = 0;
   var _dependenciesReady = false;
   ContextSnapshot? _context;
@@ -131,15 +138,30 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void dispose() {
     _resolutionEpoch += 1;
     _disposeStage();
+    _observationCell = null;
     super.dispose();
   }
 
+  SurfaceDeliveryObservationCell _presentationObservations() =>
+      _observationCell ??= SurfaceDeliveryObservationCell(
+        () => readSurfaceDeliveryObservations(
+          shortestLogicalSide:
+              mounted ? requestingViewShortestLogicalSide(context) : null,
+        ),
+      );
+
   void _restart() {
+    _observationCell = null;
     final epoch = ++_resolutionEpoch;
     _disposeStage();
     setState(() => _unavailableError = null);
-    unawaited(_resolve(epoch));
+    unawaited(_resolveInScope(epoch));
   }
+
+  Future<void> _resolveInScope(int epoch) => withSurfaceDeliveryObservations(
+        cell: _presentationObservations(),
+        resolve: () => _resolve(epoch),
+      );
 
   Future<void> _resolve(int epoch) async {
     final screen = widget.screen;
@@ -201,6 +223,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       stage.attachMeasurementSession(
         await MeasurementHostSessionController.openForResolvedArtifact(
           resolved,
+          presentationObservations: _observationCell?.read,
         ),
       );
     } on Object {

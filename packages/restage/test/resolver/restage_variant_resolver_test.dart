@@ -22,6 +22,7 @@ import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 /// The resolver's capability ceiling — the installed built-in catalog version.
 const int _supportedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
@@ -174,7 +175,7 @@ void main() {
       // One fetch, no upload, no retry: the signal buys the service nothing.
       expect(requests, hasLength(1));
       expect(
-        jsonDecode(requests.single.body),
+        withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)),
         {'surfaceType': 'paywall', 'surfaceSlug': 'pro_upgrade'},
       );
       expect(variant.bytes, blob);

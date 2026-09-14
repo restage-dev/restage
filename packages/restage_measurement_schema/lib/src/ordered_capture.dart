@@ -17,6 +17,60 @@ enum MeasurementOccurrenceChannelV1 {
   dismiss,
 }
 
+/// Closed published kinds of point an ordered capture route can describe.
+enum MeasurementBreakdownPointKindV1 {
+  pageIndex,
+  question,
+  namedInteraction,
+}
+
+/// Published description of one exact ordered capture point.
+final class MeasurementBreakdownPointV1 extends CanonicalValue {
+  MeasurementBreakdownPointV1({
+    required this.kindV1,
+    required this.reference,
+    required this.label,
+    this.authoredOrder,
+  }) {
+    if (reference.isEmpty ||
+        reference.length > 128 ||
+        label.isEmpty ||
+        label.length > 128 ||
+        (authoredOrder != null &&
+            (authoredOrder! < 0 ||
+                authoredOrder! > kMaximumPortableJsonInteger))) {
+      throw ArgumentError('Breakdown point exceeds its portable bounds');
+    }
+  }
+
+  factory MeasurementBreakdownPointV1.fromJson(Map<String, Object?> json) {
+    final reader = CanonicalObjectReader(json,
+        allowedKeys: const {'authoredOrder', 'kindV1', 'label', 'reference'},
+        requiredKeys: const {'kindV1', 'label', 'reference'},
+        path: 'measurementBreakdownPointV1');
+    return MeasurementBreakdownPointV1(
+      authoredOrder: reader.optionalInteger('authoredOrder'),
+      kindV1: MeasurementBreakdownPointKindV1.values
+          .byName(reader.string('kindV1')),
+      label: reader.string('label'),
+      reference: reader.string('reference'),
+    );
+  }
+
+  final MeasurementBreakdownPointKindV1 kindV1;
+  final String reference;
+  final String label;
+  final int? authoredOrder;
+
+  @override
+  Map<String, Object?> toJson() => {
+        if (authoredOrder != null) 'authoredOrder': authoredOrder,
+        'kindV1': kindV1.name,
+        'label': label,
+        'reference': reference,
+      };
+}
+
 /// One same-clock occurrence, ordered across every point in a capture session.
 final class MeasurementTimedOccurrenceV1 extends CanonicalValue {
   MeasurementTimedOccurrenceV1({
@@ -79,6 +133,7 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue {
     this.lifecycle,
     this.declaredAnswerV1,
     this.answerCarrier,
+    this.breakdownPointV1,
   }) : channels = List.unmodifiable(channels) {
     if ((declaredAnswerV1 != null &&
             (answerCarrier == null ||
@@ -103,11 +158,16 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue {
           'channels',
           'lifecycle',
           'declaredAnswerV1',
-          'answerCarrier'
+          'answerCarrier',
+          'breakdownPointV1'
         },
         requiredKeys: const {'occurrenceId', 'lineageId', 'channels'},
         path: 'measurementOrderedCaptureRouteV1');
     return MeasurementOrderedCaptureRouteV1(
+      breakdownPointV1: reader.optionalObject('breakdownPointV1') == null
+          ? null
+          : MeasurementBreakdownPointV1.fromJson(
+              reader.object('breakdownPointV1')),
       declaredAnswerV1: reader.optionalObject('declaredAnswerV1') == null
           ? null
           : MeasurementDeclaredAnswerV1.fromJson(
@@ -129,6 +189,7 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue {
 
   final MeasurementDeclaredAnswerV1? declaredAnswerV1;
   final String? answerCarrier;
+  final MeasurementBreakdownPointV1? breakdownPointV1;
   final MeasurementLifecycleCaptureRouteV1? lifecycle;
   final CanonicalDigest occurrenceId;
   final PointLineageId lineageId;
@@ -137,13 +198,15 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue {
 
   @override
   Map<String, Object?> toJson() => {
+        if (answerCarrier != null) 'answerCarrier': answerCarrier,
+        if (breakdownPointV1 != null)
+          'breakdownPointV1': breakdownPointV1!.toJson(),
+        'channels': [for (final channel in channels) channel.name]..sort(),
         if (declaredAnswerV1 != null)
           'declaredAnswerV1': declaredAnswerV1!.toJson(),
-        if (answerCarrier != null) 'answerCarrier': answerCarrier,
         if (lifecycle != null) 'lifecycle': lifecycle!.toJson(),
-        'occurrenceId': occurrenceId.hex,
         'lineageId': lineageId.value,
-        'channels': [for (final channel in channels) channel.name]..sort(),
+        'occurrenceId': occurrenceId.hex,
       };
 }
 

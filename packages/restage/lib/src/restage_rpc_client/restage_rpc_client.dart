@@ -6,8 +6,15 @@ import 'package:http/http.dart' as http;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../measurement/measurement_sdk_runtime_session.dart'
+    show measurementReportedSdkVersion;
+import '../resolver/surface_assignment_built_ins.dart'
+    show assignmentSdkApiLevel;
 import '../resolver/surface_canonical_carrier_provider.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show currentSurfaceDeliveryObservationCell, normalizeDeliveryPlatform;
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
 import 'surface_artifact_assembly.dart';
@@ -73,6 +80,8 @@ final class SurfaceFetchResult {
     required this.artifact,
     this.publicationBindingReference,
     this.canonicalExperimentAssignment,
+    this.routingSelectionReceipt,
+    this.routingSelectionProvenance,
     this.assignmentDiagnostic,
   });
 
@@ -93,6 +102,12 @@ final class SurfaceFetchResult {
   /// to matching measurement events; it observes nothing about the app.
   final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
 
+  /// Opaque selection receipt echoed unchanged.
+  final String? routingSelectionReceipt;
+
+  /// Inert selection metadata supplied with this delivery.
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
+
   /// Why this delivery carried no assignment, when the service said why.
   ///
   /// Never set beside an assignment: a serve either commits one or explains
@@ -103,13 +118,20 @@ final class SurfaceFetchResult {
 /// The active-version stamp for a surface.
 final class SurfaceStamp {
   /// Creates a surface stamp.
-  const SurfaceStamp({required this.version, this.watchChannel});
+  const SurfaceStamp({
+    required this.version,
+    this.watchChannel,
+    this.requiresResolution = false,
+  });
 
   /// The surface's current active published version.
   final int version;
 
   /// An opaque realtime-channel token, when one is available.
   final String? watchChannel;
+
+  /// Whether the service wants a fresh decision even at the same version.
+  final bool requiresResolution;
 }
 
 /// Outcome of a strict standalone-screen delivery request.
@@ -130,6 +152,8 @@ final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
     this.response, {
     this.publicationBindingReference,
     this.canonicalExperimentAssignment,
+    this.routingSelectionReceipt,
+    this.routingSelectionProvenance,
     this.assignmentDiagnostic,
   });
 
@@ -138,6 +162,12 @@ final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
 
   /// Assignment accepted for this exact delivered publication.
   final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+
+  /// Opaque selection receipt echoed unchanged.
+  final String? routingSelectionReceipt;
+
+  /// Inert selection metadata supplied with this delivery.
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
 
   /// Closed explanation when the service admitted no assignment.
   final SurfaceAssignmentDiagnostic? assignmentDiagnostic;
@@ -656,7 +686,9 @@ class RestageRpcClient {
       path: '/sdk/v1/measurement-collection-decision',
       body: {
         'bindingReferenceCanonicalBase64':
-            base64UrlEncode(reference.canonicalBytes).replaceAll('=', '')
+            base64UrlEncode(reference.canonicalBytes).replaceAll('=', ''),
+        if (supportedPolicyRevisionsCarrier() case final carrier?)
+          'sdkSupportedPolicyRevisions': carrier,
       },
     );
     if (response == null ||
@@ -908,10 +940,18 @@ class RestageRpcClient {
     final lease = await SurfaceAssignmentKeyProvider.captureLease();
     assignmentKey ??= lease.assignmentKey;
     final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
+    final analyticsGeneration = SurfaceAnalyticsIdentityProvider.generation;
+    final analyticsAnonymousId =
+        await SurfaceAnalyticsIdentityProvider.anonymousId();
     // Both carriers are forwarded verbatim and only when they satisfy the
     // wire grammar, so a malformed one is never sent as if it were readable.
+    final observationCell = SurfaceCanonicalCarrierProvider.hasBuiltIns
+        ? currentSurfaceDeliveryObservationCell()
+        : null;
     final builtIns = _carrierOrNull(
-      await SurfaceCanonicalCarrierProvider.builtIns(),
+      observationCell != null
+          ? (await observationCell.read()).canonicalBuiltInsBase64()
+          : await SurfaceCanonicalCarrierProvider.builtIns(),
     );
     final heldAssignment = _carrierOrNull(
       await SurfaceCanonicalCarrierProvider.heldAssignment(
@@ -939,6 +979,14 @@ class RestageRpcClient {
         if (version != null) 'version': version,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
         if (meteringKey != null) 'meteringKey': meteringKey,
+        if (supportedPolicyRevisionsCarrier() case final carrier?)
+          'sdkSupportedPolicyRevisions': carrier,
+        // An explicit version asks for that version, so no decision reads it.
+        if (version == null &&
+            analyticsAnonymousId != null &&
+            lease.isCurrent &&
+            SurfaceAnalyticsIdentityProvider.generation == analyticsGeneration)
+          'analyticsAnonymousId': analyticsAnonymousId,
         if (builtIns != null) 'sdkBuiltInsCanonicalBase64': builtIns,
         if (heldAssignment != null) 'assignmentCanonicalBase64': heldAssignment,
       },
@@ -974,6 +1022,13 @@ class RestageRpcClient {
 
     // Decoded before the artifact request: an assignment this build cannot
     // read refuses the delivery rather than spending a fetch on it.
+    final routingSelectionProvenance =
+        SurfaceRoutingSelectionProvenanceV1.normalize(
+      json['routingSelectionProvenance'],
+    );
+    final rawReceipt = json['routingSelectionReceipt'];
+    final routingSelectionReceipt =
+        rawReceipt is String && rawReceipt.length <= 4096 ? rawReceipt : null;
     final rawAssignment = json['assignment'];
     final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
     final CanonicalSurfaceExperimentAssignmentV1? assignment;
@@ -1003,6 +1058,8 @@ class RestageRpcClient {
         httpResult.headers,
       ),
       canonicalExperimentAssignment: assignment,
+      routingSelectionReceipt: routingSelectionReceipt,
+      routingSelectionProvenance: routingSelectionProvenance,
       assignmentDiagnostic: diagnostic,
     );
   }
@@ -1205,6 +1262,8 @@ class RestageRpcClient {
       );
     }
 
+    final String? routingSelectionReceipt;
+    final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
     final SurfaceScreenDeliveryDescriptor described;
     final CanonicalSurfaceExperimentAssignmentV1? assignment;
     final SurfaceAssignmentDiagnostic? diagnostic;
@@ -1214,6 +1273,13 @@ class RestageRpcClient {
         throw const FormatException('Expected a screen delivery object.');
       }
       final descriptor = Map<String, dynamic>.of(decoded);
+      routingSelectionProvenance =
+          SurfaceRoutingSelectionProvenanceV1.normalize(
+        descriptor.remove('routingSelectionProvenance'),
+      );
+      final rawReceipt = descriptor.remove('routingSelectionReceipt');
+      routingSelectionReceipt =
+          rawReceipt is String && rawReceipt.length <= 4096 ? rawReceipt : null;
       final rawAssignment = descriptor.remove('assignment');
       diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
       assignment = rawAssignment == null || diagnostic != null
@@ -1292,6 +1358,8 @@ class RestageRpcClient {
     return SurfaceScreenDeliveryAvailable(
       delivery,
       canonicalExperimentAssignment: assignment,
+      routingSelectionReceipt: routingSelectionReceipt,
+      routingSelectionProvenance: routingSelectionProvenance,
       assignmentDiagnostic: diagnostic,
       publicationBindingReference:
           _measurementPublicationBindingReferenceFromHeaders(response.headers),
@@ -1315,9 +1383,12 @@ class RestageRpcClient {
     // A malformed watchChannel degrades to a null field, never discards the
     // valid version stamp (a hard cast would throw and lose the whole stamp).
     final rawWatchChannel = json?['watchChannel'];
+    final rawRequiresResolution = json?['requiresResolution'];
     return SurfaceStamp(
       version: version,
       watchChannel: rawWatchChannel is String ? rawWatchChannel : null,
+      requiresResolution:
+          rawRequiresResolution is bool && rawRequiresResolution,
     );
   }
 
@@ -1698,4 +1769,23 @@ final class _ArtifactIdentity {
 
   @override
   int get hashCode => Object.hash(payloadFormatVersion, contentHash);
+}
+
+/// The policy revisions this SDK accepts, encoded for delivery requests.
+@internal
+String? supportedPolicyRevisionsCarrier() {
+  final platform = normalizeDeliveryPlatform(
+    isWeb: kIsWeb,
+    targetPlatform: defaultTargetPlatform,
+  );
+  if (platform == null) return null;
+  return base64UrlEncode(
+    SdkSupportedPolicyRevisionsV1(
+      sdkVersion: measurementReportedSdkVersion,
+      assignmentApiLevel: assignmentSdkApiLevel,
+      platform: platform,
+      privacyPolicyFloor: collectionPrivacyPolicyFloor,
+      collectionBudgetFloor: collectionBudgetPolicyFloor,
+    ).canonicalBytes,
+  ).replaceAll('=', '');
 }

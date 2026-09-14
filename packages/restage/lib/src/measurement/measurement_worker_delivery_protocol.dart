@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -561,6 +562,9 @@ abstract interface class MeasurementWorkerOwnedDeliverySessionState {
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
       {int? frameElapsedMicros});
 
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult>
+      reportTerminalDiagnostic(Uint8List canonicalSummaryBytes);
+
   Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard();
 }
 
@@ -593,6 +597,11 @@ final class MeasurementWorkerOwnedDeliverySession {
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
           {int? frameElapsedMicros}) =>
       _state.teardown(frameElapsedMicros: frameElapsedMicros);
+
+  /// Reports only the terminal summary and closes capture.
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult>
+      reportTerminalDiagnostic(Uint8List canonicalSummaryBytes) =>
+          _state.reportTerminalDiagnostic(canonicalSummaryBytes);
 
   /// Removes an uncommitted session without preparing a fact frame.
   Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard() =>
@@ -670,6 +679,21 @@ final class MeasurementWorkerOwnedDeliveryCheckpointMessage
   final String sessionId;
   final bool isFinal;
   final int? frameElapsedMicros;
+}
+
+final class MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage
+    extends MeasurementWorkerOwnedDeliveryInboundMessage {
+  MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage({
+    required this.requestId,
+    required this.sessionId,
+    required Uint8List canonicalSummaryBytes,
+  }) : _canonicalSummaryBytes = _requireSummaryBytes(canonicalSummaryBytes);
+
+  final int requestId;
+  final String sessionId;
+  final Uint8List _canonicalSummaryBytes;
+  Uint8List get canonicalSummaryBytes =>
+      Uint8List.fromList(_canonicalSummaryBytes);
 }
 
 final class MeasurementWorkerOwnedDeliveryDiscardMessage
@@ -843,6 +867,7 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static const int _shutdown = 5;
   static const int _discard = 6;
   static const int _activate = 7;
+  static const int _terminalDiagnostic = 8;
 
   static const int _ready = 101;
   static const int _opened = 102;
@@ -899,6 +924,19 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
         sessionId,
         isFinal,
         frameElapsedMicros
+      ];
+
+  static List<Object?> terminalDiagnostic({
+    required int requestId,
+    required String sessionId,
+    required Uint8List canonicalSummaryBytes,
+  }) =>
+      [
+        _terminalDiagnostic,
+        _version,
+        requestId,
+        sessionId,
+        _requireSummaryBytes(canonicalSummaryBytes)
       ];
 
   static List<Object?> discard({
@@ -1035,6 +1073,12 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
           sessionId: _requireString(values[3]),
           isFinal: _requireBool(values[4]),
           frameElapsedMicros: values[5] == null ? null : _requireInt(values[5]),
+        ),
+      _terminalDiagnostic =>
+        MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage(
+          requestId: _requirePositiveRequestId(values, expectedLength: 5),
+          sessionId: _requireString(values[3]),
+          canonicalSummaryBytes: _requireSummaryBytes(values[4]),
         ),
       _discard => MeasurementWorkerOwnedDeliveryDiscardMessage(
           requestId: _requirePositiveRequestId(values, expectedLength: 4),
@@ -1345,4 +1389,12 @@ MeasurementOutboxPurgeReason _requirePurgeReason(int index) {
     );
   }
   return MeasurementOutboxPurgeReason.values[index];
+}
+
+Uint8List _requireSummaryBytes(Object? value) {
+  if (value is! Uint8List || value.isEmpty || value.length > 8192) {
+    throw const MeasurementWorkerOwnedDeliveryProtocolException(
+        'invalid_summary_bytes');
+  }
+  return Uint8List.fromList(value);
 }

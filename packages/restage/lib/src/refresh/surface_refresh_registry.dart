@@ -144,7 +144,10 @@ final class SurfaceRefreshRegistry {
         // The active version still matches what is on screen. A null stamp
         // (probe failed, or no service configured) or a null rendered version
         // falls through to a full re-resolve, which stays correct.
-        if (stamp != null && stamp.version == handle.renderedVersion?.call()) {
+        // A fresh decision may be required even when the version matches.
+        if (stamp != null &&
+            !stamp.requiresResolution &&
+            stamp.version == handle.renderedVersion?.call()) {
           return;
         }
       }

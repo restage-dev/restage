@@ -17,7 +17,60 @@ void main() {
 
       expect(stamp?.version, 7);
       expect(stamp?.watchChannel, isNull);
+      expect(stamp?.requiresResolution, isFalse);
     });
+
+    test('reads a request for a fresh decision', () async {
+      final client = _clientReturning({
+        'version': 7,
+        'requiresResolution': true,
+      });
+
+      final stamp = await client.fetchSurfaceStamp(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(stamp?.version, 7);
+      expect(stamp?.requiresResolution, isTrue);
+    });
+
+    for (final value in <Object?>['true', 1, null]) {
+      test('keeps the version with requiresResolution set to $value', () async {
+        final client = _clientReturning({
+          'version': 7,
+          'requiresResolution': value,
+        });
+
+        final stamp = await client.fetchSurfaceStamp(
+          surfaceType: 'paywall',
+          surfaceSlug: 'pro_upgrade',
+        );
+
+        expect(stamp?.version, 7);
+        expect(stamp?.requiresResolution, isFalse);
+      });
+    }
+
+    for (final channel in <Object?>['tok', 123, null]) {
+      test('preserves watch channel parsing with a fresh decision: $channel',
+          () async {
+        final client = _clientReturning({
+          'version': 7,
+          'watchChannel': channel,
+          'requiresResolution': true,
+        });
+
+        final stamp = await client.fetchSurfaceStamp(
+          surfaceType: 'paywall',
+          surfaceSlug: 'pro_upgrade',
+        );
+
+        expect(stamp?.version, 7);
+        expect(stamp?.watchChannel, channel is String ? channel : isNull);
+        expect(stamp?.requiresResolution, isTrue);
+      });
+    }
 
     test('tolerates a watch channel', () async {
       final client = _clientReturning({

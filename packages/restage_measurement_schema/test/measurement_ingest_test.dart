@@ -10,6 +10,33 @@ import 'support/exact_publication_context_test_support.dart';
 
 void main() {
   group('MeasurementIngestRequestV1', () {
+    test('existing request round-trips and rejects the diagnostic kind', () {
+      final request =
+          MeasurementIngestRequestV1.fromFactFrame(_validatedFrame());
+      final document = decodeCanonicalObject(request.canonicalBytes);
+      final read = MeasurementIngestRequestV1.fromBase64(
+        _base64Url(CanonicalJsonCodec.encode(document)),
+      );
+      expect(read.canonicalBytes, orderedEquals(request.canonicalBytes));
+      expect(
+          () => MeasurementIngestRequestV1.fromBase64(
+                _base64Url(CanonicalJsonCodec.encode({
+                  ...document,
+                  'kind':
+                      'authenticatedMeasurementPresentationDiagnosticRequest',
+                })),
+              ),
+          throwsA(isA<MeasurementIngestCodecException>()));
+      expect(
+          () => MeasurementIngestRequestV1.fromBase64(
+                _base64Url(CanonicalJsonCodec.encode({
+                  ...document,
+                  'diagnosticCanonicalBase64': 'e30',
+                })),
+              ),
+          throwsA(isA<MeasurementIngestCodecException>()));
+    });
+
     test(
         'runtime metadata survives wire and changes authenticated retry identity',
         () {
@@ -117,6 +144,103 @@ void main() {
   });
 
   group('MeasurementIngestReceiptV1', () {
+    test('a receipt carries a diagnostic digest instead of a fact digest', () {
+      final digest = 'a' * 64;
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 0,
+        captureSessionNonce: 'capture.diagnostic',
+        diagnosticSha256: digest,
+        isFinal: true,
+        persistedAtMicros: 4100000,
+        publicationBindingReference: _bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: 'b' * 64,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: 1,
+      );
+
+      expect(receipt.factFrameSha256, isNull);
+      expect(receipt.diagnosticSha256, digest);
+      final decoded = MeasurementIngestReceiptV1.fromCanonicalBytes(
+        receipt.canonicalBytes,
+      );
+      expect(decoded.canonicalBytes, orderedEquals(receipt.canonicalBytes));
+    });
+
+    test('a receipt with neither digest is refused', () {
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 1,
+        captureSessionNonce: 'capture.receipt',
+        factFrameSha256: 'a' * 64,
+        isFinal: true,
+        persistedAtMicros: 4100000,
+        publicationBindingReference: _bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: 'b' * 64,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: 1,
+      );
+      final document = decodeCanonicalObject(receipt.canonicalBytes)
+        ..remove('factFrameSha256');
+
+      expect(
+        () => MeasurementIngestReceiptV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode(document),
+        ),
+        throwsA(isA<MeasurementIngestCodecException>()),
+      );
+    });
+
+    test('a receipt with both digests is refused', () {
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 1,
+        captureSessionNonce: 'capture.receipt',
+        factFrameSha256: 'a' * 64,
+        isFinal: true,
+        persistedAtMicros: 4100000,
+        publicationBindingReference: _bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: 'b' * 64,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: 1,
+      );
+      final document = decodeCanonicalObject(receipt.canonicalBytes)
+        ..['diagnosticSha256'] = 'c' * 64;
+
+      expect(
+        () => MeasurementIngestReceiptV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode(document),
+        ),
+        throwsA(isA<MeasurementIngestCodecException>()),
+      );
+    });
+
+    test('an existing fact-only receipt still decodes', () {
+      final request = MeasurementIngestRequestV1.fromFactFrame(
+        _validatedFrame(),
+      );
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 1,
+        captureSessionNonce: request.factFrame.captureSessionNonce,
+        factFrameSha256: request.factFrameSha256,
+        isFinal: request.factFrame.isFinal,
+        persistedAtMicros: 4100000,
+        publicationBindingReference:
+            request.factFrame.publishedContext.bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: request.requestSha256,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: request.factFrame.sequence,
+      );
+      final decoded = MeasurementIngestReceiptV1.fromCanonicalBytes(
+        receipt.canonicalBytes,
+      );
+
+      expect(decoded.canonicalBytes, orderedEquals(receipt.canonicalBytes));
+      expect(decoded.factFrameSha256, request.factFrameSha256);
+      expect(decoded.diagnosticSha256, isNull);
+    });
+
     test('encodes and strictly round-trips the accepted request proof', () {
       final request = MeasurementIngestRequestV1.fromFactFrame(
         _validatedFrame(),

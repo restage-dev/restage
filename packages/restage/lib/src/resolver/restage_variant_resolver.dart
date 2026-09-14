@@ -9,6 +9,7 @@ import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         CanonicalSurfaceExperimentAssignmentV1,
+        SurfaceRoutingSelectionProvenanceV1,
         BlobRenderCapabilityGate,
         BlobRenderRejected,
         BlobSurfacePayload,
@@ -39,6 +40,8 @@ import 'flow_paywall_active_arm.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
 import 'surface_assignment_key_provider.dart';
+import 'surface_resolution_report.dart';
+import 'report_surface_resolution.dart';
 import 'variant_resolver.dart';
 
 /// Resolves paywalls from Restage-hosted delivery.
@@ -148,7 +151,11 @@ final class RestageVariantResolver
     if (fresh is _FreshBlob) {
       _requireCurrent(fresh.cacheEntry.assignmentLease);
       _cache[id] = fresh.cacheEntry;
-      return fresh.cacheEntry.variant;
+      return reportSurfaceResolution<ResolvedVariant>(
+        id,
+        fresh.cacheEntry.variant,
+        SurfaceResolutionSource.fresh,
+      );
     }
 
     // Tier 2 — hold-last-good (blob-only on the public path). Re-run the
@@ -158,16 +165,22 @@ final class RestageVariantResolver
     if (cached is _CachedBlob &&
         _cacheLeaseIsCurrent(id, cached) &&
         _cacheStillRenderable(cached)) {
-      return _asCacheHit(cached.variant);
+      return reportSurfaceResolution<ResolvedVariant>(
+        id,
+        _asCacheHit(cached.variant),
+        SurfaceResolutionSource.holdLastGood,
+      );
     }
 
     // Tier 3 — the dev's bundled asset (app-bundle-trusted, durable floor).
     try {
-      return await _assetFallback.resolve(
+      final variant = await _assetFallback.resolve(
         id,
         placementId: placementId,
         locale: locale,
       );
+      return reportSurfaceResolution<ResolvedVariant>(
+          id, variant, SurfaceResolutionSource.bundled);
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Surface the hosted-unavailable
       // error (more informative than the bundled-asset-not-found): the
@@ -175,6 +188,19 @@ final class RestageVariantResolver
       // version was rejected for a capability gap, name it.
       throw _unavailable(id, _capabilityGapOf(fresh));
     }
+  }
+
+  T _reportPayloadResolution<T extends ResolvedPaywallPayload>(
+    String surface,
+    T payload,
+    SurfaceResolutionSource source,
+  ) {
+    final leaf = switch (payload) {
+      BlobPaywallPayload(:final variant) => variant,
+      FlowPaywallPayload(:final flow) => flow,
+    };
+    reportSurfaceResolution(surface, leaf, source);
+    return payload;
   }
 
   // Internal flow-capable seam (the [FlowCapableVariantResolver] override) — not
@@ -271,10 +297,14 @@ final class RestageVariantResolver
       if (!deferFreshPublication) {
         _cache[id] = fresh.cacheEntry;
       }
-      return fresh.payload(
-        hostedPublication: deferFreshPublication
-            ? _provisionalPublication(id, fresh.cacheEntry)
-            : null,
+      return _reportPayloadResolution(
+        id,
+        fresh.payload(
+          hostedPublication: deferFreshPublication
+              ? _provisionalPublication(id, fresh.cacheEntry)
+              : null,
+        ),
+        SurfaceResolutionSource.fresh,
       );
     }
 
@@ -304,6 +334,8 @@ final class RestageVariantResolver
         activeVersion: fresh.version,
         publicationBindingReference: fresh.publicationBindingReference,
         canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
+        routingSelectionReceipt: fresh.routingSelectionReceipt,
+        routingSelectionProvenance: fresh.routingSelectionProvenance,
       );
       if (arm is FlowPaywallActiveAccepted) {
         _requireCurrent(fresh.assignmentLease);
@@ -312,17 +344,23 @@ final class RestageVariantResolver
           version: fresh.version,
           publicationBindingReference: fresh.publicationBindingReference,
           canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
+          routingSelectionReceipt: fresh.routingSelectionReceipt,
+          routingSelectionProvenance: fresh.routingSelectionProvenance,
           assignmentLease: fresh.assignmentLease,
         );
         if (!deferFreshPublication) {
           _cache[id] = cacheEntry;
         }
-        return stampFlowPayloadForDelivery(
-          arm.payload,
-          fresh.assignmentLease,
-          hostedPublication: deferFreshPublication
-              ? _provisionalPublication(id, cacheEntry)
-              : null,
+        return _reportPayloadResolution(
+          id,
+          stampFlowPayloadForDelivery(
+            arm.payload,
+            fresh.assignmentLease,
+            hostedPublication: deferFreshPublication
+                ? _provisionalPublication(id, cacheEntry)
+                : null,
+          ),
+          SurfaceResolutionSource.fresh,
         );
       }
     }
@@ -330,25 +368,45 @@ final class RestageVariantResolver
     // Tier 2 — hold-last-good (shape-aware): a cached blob re-floored, or a
     // cached active flow re-gated against the CURRENT bundled contract + registry.
     final regated = _revalidateCache(id, bundled);
-    if (regated != null) return regated;
+    if (regated != null) {
+      return _reportPayloadResolution(
+        id,
+        regated,
+        SurfaceResolutionSource.holdLastGood,
+      );
+    }
 
     // Tier 3 — the client's own bundled flow (already loaded), else the bundled
     // asset fallback (a blob or bundled flow; custom host resolvers stay
     // blob-only).
-    if (bundled != null) return bundled;
+    if (bundled != null) {
+      return _reportPayloadResolution(
+        id,
+        bundled,
+        SurfaceResolutionSource.bundled,
+      );
+    }
     try {
       final fallback = _assetFallback;
       if (fallback is FlowCapableVariantResolver) {
         final payload = await (fallback as FlowCapableVariantResolver)
             .resolvePayload(id, placementId: placementId, locale: locale);
-        return withoutAssignmentLeaseForDelivery(payload);
+        return _reportPayloadResolution(
+          id,
+          withoutAssignmentLeaseForDelivery(payload),
+          SurfaceResolutionSource.bundled,
+        );
       }
       final variant = await fallback.resolve(
         id,
         placementId: placementId,
         locale: locale,
       );
-      return BlobPaywallPayload(variant);
+      return _reportPayloadResolution(
+        id,
+        BlobPaywallPayload(variant),
+        SurfaceResolutionSource.bundled,
+      );
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Keep the public hosted resolver's
       // existing unavailable error shape; name the capability gap when the
@@ -457,6 +515,8 @@ final class RestageVariantResolver
         ),
         result.publicationBindingReference,
         canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       );
       return _FreshBlob(
         _CachedBlob(
@@ -477,6 +537,8 @@ final class RestageVariantResolver
         document.version,
         result.publicationBindingReference,
         result.canonicalExperimentAssignment,
+        result.routingSelectionReceipt,
+        result.routingSelectionProvenance,
         assignmentLease,
       );
     }
@@ -536,6 +598,8 @@ final class RestageVariantResolver
         activeVersion: cached.version,
         publicationBindingReference: cached.publicationBindingReference,
         canonicalExperimentAssignment: cached.canonicalExperimentAssignment,
+        routingSelectionReceipt: cached.routingSelectionReceipt,
+        routingSelectionProvenance: cached.routingSelectionProvenance,
         cacheHit: true,
       );
       if (arm is FlowPaywallActiveAccepted) {
@@ -581,6 +645,8 @@ final class RestageVariantResolver
         measurementPublicationBindingReferenceFor(variant),
         canonicalExperimentAssignment:
             measurementExperimentAssignmentFor(variant),
+        routingSelectionReceipt: routingSelectionReceiptFor(variant),
+        routingSelectionProvenance: routingSelectionProvenanceFor(variant),
       );
 
   RestagePaywallError _unavailable(
@@ -678,12 +744,16 @@ final class _RestagePaywallExperimentPresentation
               paywallPublishedVersion: fresh.paywallPublishedVersion,
             );
             _provisional = provisional;
-            return FlowPaywallPayload.experiment(
-              acceptedCandidate: prefetched,
-              paywallId: paywallId,
-              paywallPublishedVersion: fresh.paywallPublishedVersion,
-              resolvedFromActiveArm: true,
-              experimentAuthority: this,
+            return owner._reportPayloadResolution(
+              paywallId,
+              FlowPaywallPayload.experiment(
+                acceptedCandidate: prefetched,
+                paywallId: paywallId,
+                paywallPublishedVersion: fresh.paywallPublishedVersion,
+                resolvedFromActiveArm: true,
+                experimentAuthority: this,
+              ),
+              SurfaceResolutionSource.fresh,
             );
           }
           if (prefetched is FlowCandidatePrefetchRejected &&
@@ -697,12 +767,16 @@ final class _RestagePaywallExperimentPresentation
           if (held.matches(snapshot) &&
               revalidate(FlowMountRevalidationBoundary.fallback)) {
             final accepted = held.accepted.asCacheHit();
-            return FlowPaywallPayload.experiment(
-              acceptedCandidate: accepted,
-              paywallId: paywallId,
-              paywallPublishedVersion: held.paywallPublishedVersion,
-              resolvedFromActiveArm: true,
-              experimentAuthority: this,
+            return owner._reportPayloadResolution(
+              paywallId,
+              FlowPaywallPayload.experiment(
+                acceptedCandidate: accepted,
+                paywallId: paywallId,
+                paywallPublishedVersion: held.paywallPublishedVersion,
+                resolvedFromActiveArm: true,
+                experimentAuthority: this,
+              ),
+              SurfaceResolutionSource.holdLastGood,
             );
           }
           owner._experimentFlowCache.remove(paywallId);
@@ -711,11 +785,15 @@ final class _RestagePaywallExperimentPresentation
         if (!revalidate(FlowMountRevalidationBoundary.fallback)) {
           throw const StaleSurfaceAssignmentResolution();
         }
-        return FlowPaywallPayload.experimentBaseline(
-          flow: snapshot.baselineRoot,
-          pinnedFlowResolver: snapshot.baselineResolver,
-          paywallId: paywallId,
-          experimentAuthority: this,
+        return owner._reportPayloadResolution(
+          paywallId,
+          FlowPaywallPayload.experimentBaseline(
+            flow: snapshot.baselineRoot,
+            pinnedFlowResolver: snapshot.baselineResolver,
+            paywallId: paywallId,
+            experimentAuthority: this,
+          ),
+          SurfaceResolutionSource.bundled,
         );
       } on StaleSurfaceAssignmentResolution {
         if (_disposed || !presentationGuard()) rethrow;
@@ -724,10 +802,14 @@ final class _RestagePaywallExperimentPresentation
 
     if (!presentationGuard()) throw const StaleSurfaceAssignmentResolution();
     disposePresentation();
-    return FlowPaywallPayload.experimentBaseline(
-      flow: baseline.root,
-      pinnedFlowResolver: baseline,
-      paywallId: paywallId,
+    return owner._reportPayloadResolution(
+      paywallId,
+      FlowPaywallPayload.experimentBaseline(
+        flow: baseline.root,
+        pinnedFlowResolver: baseline,
+        paywallId: paywallId,
+      ),
+      SurfaceResolutionSource.bundled,
     );
   }
 
@@ -780,6 +862,8 @@ final class _RestagePaywallExperimentPresentation
         ),
         result.publicationBindingReference,
         canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -867,6 +951,8 @@ final class _RestagePaywallExperimentPresentation
         ),
         result.publicationBindingReference,
         canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -1069,6 +1155,8 @@ final class _FreshFlow extends _FreshOutcome {
     this.version,
     this.publicationBindingReference,
     this.canonicalExperimentAssignment,
+    this.routingSelectionReceipt,
+    this.routingSelectionProvenance,
     this.assignmentLease,
   );
 
@@ -1076,6 +1164,8 @@ final class _FreshFlow extends _FreshOutcome {
   final int version;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
   final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+  final String? routingSelectionReceipt;
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
   final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
@@ -1117,6 +1207,8 @@ final class _CachedFlow extends _CachedPayload {
     required this.version,
     required this.publicationBindingReference,
     required this.canonicalExperimentAssignment,
+    required this.routingSelectionReceipt,
+    required this.routingSelectionProvenance,
     required super.assignmentLease,
   });
 
@@ -1128,6 +1220,8 @@ final class _CachedFlow extends _CachedPayload {
   final int version;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
   final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+  final String? routingSelectionReceipt;
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
 }
 
 /// Adds the exact assignment/publication transaction to a flow payload.

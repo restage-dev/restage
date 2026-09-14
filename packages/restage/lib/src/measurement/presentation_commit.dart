@@ -1,8 +1,10 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import '../runtime/first_paint_lease_guard.dart';
+import 'presentation_attempt_summary.dart';
 
 part 'presentation_commit_hook.dart';
 
@@ -67,8 +69,10 @@ final class MeasurementPresentationRouteHandle {
     required PublishedSurfaceRevisionV1 publishedSurfaceRevision,
     required MeasurementPresentationCaptureSink captureSink,
     required void Function()? onUncommittedAbort,
+    required MeasurementPresentationAttemptObserver? observer,
   })  : _captureSink = captureSink,
         _onUncommittedAbort = onUncommittedAbort,
+        _observer = observer,
         _fact = MeasurementSuccessfulPresentationFact._(
           MeasurementMountedPublishedContext(publishedSurfaceRevision),
         );
@@ -78,13 +82,16 @@ final class MeasurementPresentationRouteHandle {
     required PublishedSurfaceRevisionV1 publishedSurfaceRevision,
     required MeasurementPresentationCaptureSink captureSink,
     void Function()? onUncommittedAbort,
+    MeasurementPresentationAttemptObserver? observer,
   }) =>
       MeasurementPresentationRouteHandle._(
         publishedSurfaceRevision: publishedSurfaceRevision,
         captureSink: captureSink,
         onUncommittedAbort: onUncommittedAbort,
+        observer: observer,
       );
 
+  final MeasurementPresentationAttemptObserver? _observer;
   final MeasurementPresentationCaptureSink _captureSink;
   final void Function()? _onUncommittedAbort;
   final MeasurementSuccessfulPresentationFact _fact;
@@ -102,14 +109,24 @@ final class MeasurementPresentationRouteHandle {
   bool get _canCommitAfterSuccessfulPaint =>
       _state == _MeasurementPresentationRouteState.active;
 
-  void _abortForUnmount() =>
-      _invalidate(_MeasurementPresentationRouteState.aborted);
+  /// Invalidates this handle because the host abandoned the presentation.
+  void abandon() => _invalidate(_MeasurementPresentationRouteState.aborted);
+
+  void _abortForUnmount() => abandon();
+
+  /// Drives the failed-paint transition for a test.
+  @visibleForTesting
+  void rejectFailedPaintForTest() => _rejectFailedPaint();
 
   void _rejectFailedPaint() {
     if (!_canCommitAfterSuccessfulPaint) return;
     _state = _MeasurementPresentationRouteState.paintFailed;
+    _observer?.recordFinish(MeasurementPresentationFinishReasonV1.paintFailed);
     _notifyUncommittedAbort();
   }
+
+  /// Counts one genuine root paint report, whatever the route can still do.
+  void _recordGenuineRootPresentation() => _observer?.recordRootPresentation();
 
   void _recordSuccessfulFirstPaint() {
     if (!_canCommitAfterSuccessfulPaint) return;
@@ -118,11 +135,15 @@ final class MeasurementPresentationRouteHandle {
       _captureSink.recordSuccessfulPresentation(_fact);
     } on Object {
       _state = _MeasurementPresentationRouteState.captureRejected;
+      _observer?.recordCaptureIncomplete();
+      _observer
+          ?.recordFinish(MeasurementPresentationFinishReasonV1.captureRejected);
       _notifyUncommittedAbort();
       return;
     }
     if (_state == _MeasurementPresentationRouteState.delivering) {
       _state = _MeasurementPresentationRouteState.committed;
+      _observer?.recordFinish(MeasurementPresentationFinishReasonV1.committed);
     }
   }
 
@@ -132,6 +153,14 @@ final class MeasurementPresentationRouteHandle {
       return;
     }
     _state = state;
+    final reason = switch (state) {
+      _MeasurementPresentationRouteState.aborted =>
+        MeasurementPresentationFinishReasonV1.abandoned,
+      _MeasurementPresentationRouteState.superseded =>
+        MeasurementPresentationFinishReasonV1.superseded,
+      _ => null,
+    };
+    if (reason != null) _observer?.recordFinish(reason);
     _notifyUncommittedAbort();
   }
 

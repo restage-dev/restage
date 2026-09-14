@@ -252,9 +252,15 @@ final class MeasurementWorkerSessionRegistration {
     required this.firstSequence,
     List<int>? orderedCaptureCanonicalBytesV1,
     List<int>? experimentAssignmentCanonicalBytes,
+    List<int>? presentationContextCanonicalBytes,
+    this.routingSelectionReceipt,
   })  : _orderedCaptureCanonicalBytesV1 = orderedCaptureCanonicalBytesV1 == null
             ? null
             : Uint8List.fromList(orderedCaptureCanonicalBytesV1),
+        _presentationContextCanonicalBytes =
+            presentationContextCanonicalBytes == null
+                ? null
+                : Uint8List.fromList(presentationContextCanonicalBytes),
         _experimentAssignmentCanonicalBytes =
             experimentAssignmentCanonicalBytes == null
                 ? null
@@ -281,6 +287,12 @@ final class MeasurementWorkerSessionRegistration {
         (_experimentAssignmentCanonicalBytes != null &&
             (_experimentAssignmentCanonicalBytes.isEmpty ||
                 _experimentAssignmentCanonicalBytes.length > 8192)) ||
+        (_presentationContextCanonicalBytes != null &&
+            (_presentationContextCanonicalBytes.isEmpty ||
+                _presentationContextCanonicalBytes.length > 8192)) ||
+        (routingSelectionReceipt != null &&
+            (routingSelectionReceipt!.isEmpty ||
+                routingSelectionReceipt!.length > 4096)) ||
         firstSequence <= 0 ||
         firstSequence > kMeasurementWorkerMaximumPortableInteger) {
       throw ArgumentError('Invalid measurement worker session registration');
@@ -308,6 +320,17 @@ final class MeasurementWorkerSessionRegistration {
   /// Exact publication context bytes, defensively copied for callers.
   Uint8List get publicationContextCanonicalBytes =>
       Uint8List.fromList(_publicationContextCanonicalBytes);
+
+  final Uint8List? _presentationContextCanonicalBytes;
+
+  /// Presentation context bytes, defensively copied for worker transfer.
+  Uint8List? get presentationContextCanonicalBytes {
+    final bytes = _presentationContextCanonicalBytes;
+    return bytes == null ? null : Uint8List.fromList(bytes);
+  }
+
+  /// Opaque routing receipt supplied with the delivery.
+  final String? routingSelectionReceipt;
 
   final Uint8List? _experimentAssignmentCanonicalBytes;
 
@@ -337,21 +360,33 @@ final class MeasurementWorkerSessionRegistration {
         orderedCaptureCanonicalBytesV1,
         sdkRuntimeSessionNonce,
         reportedSdkVersion,
+        presentationContextCanonicalBytes,
+        routingSelectionReceipt,
       ];
 
   static MeasurementWorkerSessionRegistration fromWire(Object? value) {
     final values = _requireList(value);
-    if (values.length != 7 && values.length != 8 && values.length != 10)
+    if (values.length != 7 &&
+        values.length != 8 &&
+        values.length != 10 &&
+        values.length != 12)
       throw ArgumentError('Invalid worker registration length');
     final rawRoutes = _requireList(values[3]);
     return MeasurementWorkerSessionRegistration(
+      presentationContextCanonicalBytes:
+          values.length >= 12 && values[10] != null
+              ? _requireBytes(values[10])
+              : null,
+      routingSelectionReceipt: values.length >= 12 && values[11] != null
+          ? _requireString(values[11])
+          : null,
       orderedCaptureCanonicalBytesV1: values.length >= 8 && values[7] != null
           ? _requireBytes(values[7])
           : null,
-      sdkRuntimeSessionNonce: values.length == 10 && values[8] != null
+      sdkRuntimeSessionNonce: values.length >= 10 && values[8] != null
           ? _requireString(values[8])
           : null,
-      reportedSdkVersion: values.length == 10 && values[9] != null
+      reportedSdkVersion: values.length >= 10 && values[9] != null
           ? _requireString(values[9])
           : null,
       sessionId: _requireString(values[0]),
