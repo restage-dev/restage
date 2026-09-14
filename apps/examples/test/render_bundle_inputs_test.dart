@@ -43,7 +43,10 @@ void main() {
     );
 
     final bootstrap = File('web/flutter_bootstrap.js').readAsStringSync();
-    expect(bootstrap, contains("renderer: 'skwasm'"));
+    // An explicit renderer excludes the compatible fallback build on browsers
+    // where Flutter disables Skwasm (including Firefox and WebKit).
+    expect(RegExp(r'\brenderer\s*:').hasMatch(bootstrap), isFalse);
+    expect(bootstrap, contains("canvasKitBaseUrl: 'canvaskit/'"));
     expect(
       bootstrap,
       contains("fontFallbackBaseUrl: 'assets/fonts/fallback/'"),
