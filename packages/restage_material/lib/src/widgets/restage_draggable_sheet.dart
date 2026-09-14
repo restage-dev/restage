@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 /// A persistent, resizable bottom sheet the user drags between a peek size
-/// and a fully-expanded size — expressed as a purely declarative surface.
+/// and a fully-expanded size.
 /// Unlike [RestageModalSheet] it never dismisses: it bottoms out at
 /// [minChildSize] and stays in the layout.
 ///
@@ -11,10 +11,9 @@ import 'package:flutter/widgets.dart';
 /// [maxChildSize] (a controller-driven expand, e.g. from a "see plans" button
 /// whose `onTap` sets the bound state field); flip it back to `false` to
 /// animate to [initialChildSize] (the peek). The drag / snap / fling physics
-/// and the scroll-coordination all live inside this compiled widget (Flutter's
-/// `DraggableScrollableSheet`); a declarative composition supplies only the
-/// inert detents, the [expanded] flag, and the [child] — never gesture or
-/// animation code.
+/// and scroll coordination live inside this widget, compiled into your app
+/// using Flutter's `DraggableScrollableSheet`. The surface configures the
+/// detents, [expanded] flag and [child].
 ///
 /// It is an ordinary widget in the tree: no route, and it does not participate
 /// in the host app's `Navigator` (the [RestagePager] posture). It draws nothing

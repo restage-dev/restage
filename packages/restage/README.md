@@ -26,8 +26,11 @@ real Flutter widgets in your app, using your theme.
 
 This package is the runtime SDK. It renders what the build produced as real
 Flutter widgets in your widget tree, through
-[Remote Flutter Widgets](https://pub.dev/packages/rfw). Nothing it loads over
-the air is executable.
+[Remote Flutter Widgets](https://pub.dev/packages/rfw).
+
+What ships is data the app renders. Your widgets carry the logic — real Dart,
+compiled into your app. The surface composes and configures them over the air.
+New behavior is a release.
 
 One runtime renders every surface: paywalls, onboarding, in-app messages,
 surveys, and whole screens.
@@ -38,8 +41,8 @@ surveys, and whole screens.
   `Theme.of(context)` resolves when the surface renders.
 - **Any part of the app.** A whole screen, a paywall, an onboarding flow, or
   one card inside your own `Scaffold`.
-- **It ships only content.** An update changes what your app shows. It runs no
-  new code.
+- **Compatible updates.** Publish layouts, content and configuration using
+  your app's installed widgets.
 - **It fails safe.** A surface never reaches a client too old to render it, and
   a failed fetch renders your bundled copy.
 

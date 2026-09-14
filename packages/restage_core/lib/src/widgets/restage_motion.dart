@@ -17,9 +17,8 @@ import 'restage_spring.dart';
 ///
 /// This is a manual-adoption widget: a developer writes it directly in place of
 /// an imperative `AnimationController` entrance. The animation controller lives
-/// entirely inside this compiled widget; a paywall blob carries only the
-/// declarative values (the preset, the optional overrides, the from-state, the
-/// delay) and the child — never animation code.
+/// inside this widget, compiled into your app. The surface configures the
+/// preset, optional overrides, from-state, delay and child.
 ///
 /// For a simple opacity fade with no spring physics, see `RestageFadeIn`.
 class RestageMotion extends StatefulWidget {

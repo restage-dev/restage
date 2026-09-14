@@ -15,10 +15,13 @@ to `lib/src/widget_catalog/catalog.json`), an RFW `LocalWidgetBuilder`
 registration map (`lib/src/registration.g.dart`), and a set of compiled-in
 catalog widgets it ships as real classes:
 
-- **Interactive composites** that own gesture/animation logic RFW can't express
-  declaratively: `RestageModalSheet`, `RestageDraggableSheet`, `RestagePager`,
+- **Interactive composites** with gesture and animation logic compiled into
+  your app: `RestageModalSheet`, `RestageDraggableSheet`, `RestagePager`,
   `RestageDropdown`, `RestageRadioGroup`, `RestageSegmentedButton`,
   `RestageToggleButtons`.
+
+Surfaces configure these widgets through their declared properties and receive
+their events.
 
 Standard Material widgets are mapped through the catalog.
 The catalog is surface-general: the same widgets compose any server-driven UI
