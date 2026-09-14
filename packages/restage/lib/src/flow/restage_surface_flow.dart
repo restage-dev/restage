@@ -31,6 +31,7 @@ import '../refresh/surface_update_channel.dart';
 import '../runtime/context_data.dart';
 import '../runtime/first_paint_lease_guard.dart';
 import '../runtime/restage.dart';
+import 'compiled_flow.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_mount.dart';
@@ -84,11 +85,12 @@ enum _FlowUnavailablePolicyKind { fallback, hide }
 /// Loads a generated [SurfaceFlowRef], resolves its pinned artifacts, runs
 /// typed app-owned actions when declared, and calls [onComplete] only after the
 /// terminal result has been filtered and decoded.
-final class RestageFlowGraph<R> extends StatefulWidget {
+class RestageFlowGraph<R> extends StatefulWidget {
   /// Creates a flow surface.
   const RestageFlowGraph({
     super.key,
     required this.flow,
+    this.screenBuilders = const {},
     this.initialState,
     required this.unavailable,
     this.actions,
@@ -105,6 +107,11 @@ final class RestageFlowGraph<R> extends StatefulWidget {
 
   /// Generated flow descriptor to load.
   final SurfaceFlowRef<R> flow;
+
+  /// App-owned native constructors captured when the flow starts.
+  /// Rebuilding with new builders does not restart a running flow. Remount
+  /// with a new key to apply a new set, as with [initialState].
+  final Map<String, CompiledFlowScreenBuilder> screenBuilders;
 
   /// Optional host-supplied initial flow-state values.
   ///
@@ -661,6 +668,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     required void Function(R result) onComplete,
     required void Function(FlowUnavailableError error) onUnavailable,
   }) {
+    final boundFlow = widget.screenBuilders.isEmpty
+        ? widget.flow
+        : widget.flow.withScreenBuilders(widget.screenBuilders);
     final configuredResolver = widget.resolver ?? Restage.defaultFlowResolver;
     final FlowResolver resolver;
     final experimentFactory = configuredResolver is FlowExperimentMountFactory
@@ -671,12 +681,12 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       resolver = experimentFactory!.createUnassignedFallbackResolver();
     } else if (experimentFactory?.experimentMountsEnabled ?? false) {
       final seedSource = FlowMountRuntimeSeedSource(
-        flow: widget.flow,
+        flow: boundFlow,
         actions: widget.actions,
         installedSignalNames: widget.installedSignalNames,
       );
       resolver = experimentFactory!.createExperimentPresentation(
-        flow: widget.flow,
+        flow: boundFlow,
         captureSeed: seedSource.capture,
       );
     } else {
@@ -684,7 +694,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     }
     late final RestageFlowController<R> controller;
     controller = createHostMeasurementFlowController<R>(
-      flow: widget.flow,
+      flow: boundFlow,
       resolver: resolver,
       initialState: widget.initialState,
       actions: widget.actions,

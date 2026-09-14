@@ -62,75 +62,108 @@ final class ResolvedScreenBundleEntryMetadata {
   final String? sidecarPath;
 }
 
-/// Analyzer-resolved inputs for one independently published `@Screen`.
-///
-/// The package aggregate builder owns roster admission and artifact assembly.
-/// This seam deliberately retains the resolved [screen] identity so event
-/// discovery never falls back to Dart names or generated descriptors.
+/// Resolved authored-widget constructor shared by generated surface mounts.
 @immutable
-final class ResolvedStandaloneScreenContractInput {
-  /// Creates a contract-emission input for one categorized screen.
-  const ResolvedStandaloneScreenContractInput({
+class ResolvedWidgetMountInput {
+  /// Creates the resolved constructor input.
+  const ResolvedWidgetMountInput({
     required this.assetId,
     required this.screen,
-    required this.surface,
-    required this.slug,
-    required this.contractVersion,
-    required this.capabilities,
     required this.rootParams,
     List<RootContextParam>? constructorParams,
     this.mountConstructorProblem,
     this.plan,
-    this.bundleEntryMetadata,
+    this.partPath,
   }) : constructorParams = constructorParams ?? rootParams;
 
-  /// Owning library asset, retained only for diagnostics and generated part
-  /// placement. It is never emitted into a standalone reference.
+  /// Owning library asset used for diagnostics and part placement.
   final AssetId assetId;
 
-  /// Resolved annotated screen class identity.
+  /// Analyzer identity of the authored widget.
   final ClassElement screen;
 
-  /// Canonical category of this independently published screen.
+  /// Resolved render-data constructor parameters in declaration order.
+  final List<RootContextParam> rootParams;
+
+  /// Every unnamed-constructor formal in declaration order.
+  final List<RootContextParam> constructorParams;
+
+  /// Why the original constructor cannot be preserved, when unsupported.
+  final String? mountConstructorProblem;
+
+  /// Placement authority, or null for the default layout.
+  final RestageOutputPlacementPlan? plan;
+
+  /// Roster-owned generated part path, when supplied by the aggregate owner.
+  final String? partPath;
+
+  /// The owning library’s single generated Dart part.
+  String get generatedPartPath =>
+      partPath ??
+      (plan ?? RestageOutputPlacementPlan.defaults)
+          .forLibrary(assetId.path)
+          .neutralPartPath;
+
+  /// Compact source location used by diagnostics.
+  String get location => '${assetId.path}#${screen.name ?? '<unnamed>'}';
+}
+
+/// Analyzer-resolved inputs for one independently published `@Screen`.
+@immutable
+final class ResolvedStandaloneScreenContractInput
+    extends ResolvedWidgetMountInput {
+  /// Creates a contract-emission input for a categorized screen.
+  const ResolvedStandaloneScreenContractInput({
+    required super.assetId,
+    required super.screen,
+    required this.surface,
+    required this.slug,
+    required this.contractVersion,
+    required this.capabilities,
+    required super.rootParams,
+    super.constructorParams,
+    super.mountConstructorProblem,
+    super.plan,
+    this.bundleEntryMetadata,
+  });
+
+  /// Canonical product category.
   final Surface surface;
 
   /// Canonical publication slug.
   final String slug;
 
-  /// Positive app-pinned standalone contract version.
+  /// Positive app-pinned contract version.
   final int contractVersion;
 
-  /// Placement authority for this library's generated part, or `null` for
-  /// the default layout.
-  final RestageOutputPlacementPlan? plan;
-
-  /// This screen's exact compiled blob/sidecar bundle-entry hashes and
-  /// lengths, or `null` when the caller has none to offer.
-  ///
-  /// Required only when [plan] resolves `bundled_runtime: true` — see
-  /// [_emitReferenceDart], which fails loudly rather than silently omitting
-  /// the bundle locator a bundled-runtime package must always carry.
-  final ResolvedScreenBundleEntryMetadata? bundleEntryMetadata;
-
-  /// The package-relative path of this library's one generated Dart part.
-  String get generatedPartPath => (plan ?? RestageOutputPlacementPlan.defaults)
-      .forLibrary(assetId.path)
-      .neutralPartPath;
-
-  /// Render capabilities pinned into the generated reference and fingerprint.
+  /// Capabilities pinned into the generated reference.
   final CapabilityManifest capabilities;
 
-  /// Resolved unnamed-constructor parameters in declaration order.
-  final List<RootContextParam> rootParams;
+  /// Exact compiled blob and sidecar metadata when bundling is enabled.
+  final ResolvedScreenBundleEntryMetadata? bundleEntryMetadata;
+}
 
-  /// Every resolved unnamed-constructor formal in declaration order.
-  final List<RootContextParam> constructorParams;
-
-  /// Why the selected constructor cannot preserve its key value in a mount.
-  final String? mountConstructorProblem;
-
-  /// Compact source location used by diagnostics.
-  String get location => '${assetId.path}#${screen.name ?? '<unnamed>'}';
+/// Emits a typed paywall mount using the same constructor contract as screens.
+({String? source, String? omissionMessage}) emitPaywallMount(
+  ResolvedWidgetMountInput input, {
+  required String id,
+}) {
+  final result = _resolveScreenMount(
+    input,
+    reservedGeneratedSymbols: const {},
+    paywall: true,
+  );
+  final mount = result.mount;
+  if (mount == null) return (source: null, omissionMessage: result.message);
+  final buffer = StringBuffer();
+  _emitScreenMount(
+    buffer,
+    screenName: input.screen.name!,
+    mount: mount,
+    eventType: '${mount.sdk}RestageEvent',
+    paywallId: id,
+  );
+  return (source: buffer.toString(), omissionMessage: null);
 }
 
 /// Successful or rejected inspection of one standalone-screen contract.
@@ -739,8 +772,9 @@ void _reportGeneratedSymbolCollisions(
   _ResolvedScreenMount? mount,
   String? message,
 }) _resolveScreenMount(
-  ResolvedStandaloneScreenContractInput input, {
+  ResolvedWidgetMountInput input, {
   required Set<String> reservedGeneratedSymbols,
+  bool paywall = false,
 }) {
   final screen = input.screen;
   final screenName = screen.name!;
@@ -756,6 +790,7 @@ void _reportGeneratedSymbolCollisions(
 
   final constructorResult = _resolveMountConstructorContract(
     input,
+    paywall: paywall,
     reservedNames: {
       ...sourceNames,
       ...reservedGeneratedSymbols,
@@ -780,12 +815,19 @@ void _reportGeneratedSymbolCollisions(
 
   final sdk = namespace.prefixForOrigin(
     _restageSdkOrigin,
-    const {
-      'RestageScreen',
-      'SurfaceScreenUnavailablePolicy',
-      'SurfaceScreenResolver',
-      'SurfaceScreenUnavailableError',
-    },
+    paywall
+        ? const {
+            'RestagePaywall',
+            'VariantResolver',
+            'RestageEvent',
+            'RestagePaywallError',
+          }
+        : const {
+            'RestageScreen',
+            'SurfaceScreenUnavailablePolicy',
+            'SurfaceScreenResolver',
+            'SurfaceScreenUnavailableError',
+          },
   );
   if (sdk == null) {
     return (
@@ -832,8 +874,9 @@ void _reportGeneratedSymbolCollisions(
   _ResolvedMountConstructorContract? constructor,
   String? reason,
 }) _resolveMountConstructorContract(
-  ResolvedStandaloneScreenContractInput input, {
+  ResolvedWidgetMountInput input, {
   required Set<String> reservedNames,
+  bool paywall = false,
 }) {
   final screen = input.screen;
   if (screen.typeParameters.isNotEmpty) {
@@ -885,10 +928,11 @@ void _reportGeneratedSymbolCollisions(
     return (constructor: null, reason: problem);
   }
 
-  const controls = {
+  final controls = {
     'onEvent',
     'resolver',
     'onUnavailable',
+    if (paywall) 'errorBuilder',
     'loadingBuilder',
   };
   final captureNames = <String>{
@@ -1184,7 +1228,7 @@ String _emitReferenceDart(
   if (mount != null) {
     _emitScreenMount(
       buffer,
-      contract: contract,
+      screenName: contract.screen.name!,
       mount: mount,
       eventType: referenceEventType,
     );
@@ -1195,11 +1239,13 @@ String _emitReferenceDart(
 
 void _emitScreenMount(
   StringBuffer buffer, {
-  required ResolvedStandaloneScreenContract contract,
+  required String screenName,
   required _ResolvedScreenMount mount,
   required String eventType,
+  String? paywallId,
 }) {
-  final screenName = contract.screen.name!;
+  final paywall = paywallId != null;
+  final unavailableControl = paywall ? 'errorBuilder' : 'onUnavailable';
   final mountName = generatedSurfaceName(
     screenName,
     fallback: 'SurfaceScreen',
@@ -1251,7 +1297,7 @@ void _emitScreenMount(
       ..writeln('    this.onEvent,')
       ..writeln('    this.resolver,')
       ..writeln(
-        '    this.onUnavailable,',
+        '    this.$unavailableControl,',
       )
       ..writeln('    this.loadingBuilder,')
       ..writeln('    ]');
@@ -1266,7 +1312,7 @@ void _emitScreenMount(
     buffer
       ..writeln('    this.onEvent,')
       ..writeln('    this.resolver,')
-      ..writeln('    this.onUnavailable,')
+      ..writeln('    this.$unavailableControl,')
       ..writeln('    this.loadingBuilder,')
       ..writeln('    }');
   }
@@ -1302,11 +1348,17 @@ void _emitScreenMount(
     ..writeln()
     ..writeln('  final ${flutter}ValueChanged<$eventType>? onEvent;')
     ..writeln()
-    ..writeln('  final ${sdk}SurfaceScreenResolver? resolver;')
+    ..writeln(
+      '  final $sdk${paywall ? 'VariantResolver' : 'SurfaceScreenResolver'}'
+      '? resolver;',
+    )
     ..writeln()
     ..writeln(
-      '  final ${flutter}ValueChanged<${sdk}SurfaceScreenUnavailableError>? '
-      'onUnavailable;',
+      paywall
+          ? '  final ${flutter}Widget Function(${flutter}BuildContext, '
+              '${sdk}RestagePaywallError)? errorBuilder;'
+          : '  final ${flutter}ValueChanged<'
+              '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
     )
     ..writeln()
     ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;')
@@ -1329,8 +1381,16 @@ void _emitScreenMount(
     }
   }
   buffer
-    ..writeln('    return ${sdk}RestageScreen<$eventType>(')
-    ..writeln('      screen: $refName,');
+    ..writeln(
+      paywall
+          ? '    return ${sdk}RestagePaywall('
+          : '    return ${sdk}RestageScreen<$eventType>(',
+    )
+    ..writeln(
+      paywall
+          ? '      id: ${_dartString(paywallId)},'
+          : '      screen: $refName,',
+    );
   final hostParameters =
       constructor.values.where((parameter) => parameter.root.isHostData);
   if (hostParameters.isNotEmpty) {
@@ -1346,9 +1406,13 @@ void _emitScreenMount(
   }
   buffer
     ..writeln(
-      '      unavailable: ${sdk}SurfaceScreenUnavailablePolicy.fallback(',
+      paywall
+          ? '      fallbackBuilder: (context) => $screenName('
+          : '      unavailable: ${sdk}SurfaceScreenUnavailablePolicy.fallback(',
     )
-    ..writeln('        builder: (context, error) => $screenName(');
+    ..write(
+      paywall ? '' : '        builder: (context, error) => $screenName(\n',
+    );
   for (final (parameter, source) in fallbackArguments) {
     buffer.writeln(
       parameter.kind == RootContextParamKind.named
@@ -1358,10 +1422,10 @@ void _emitScreenMount(
   }
   buffer
     ..writeln('        ),')
-    ..writeln('      ),')
+    ..write(paywall ? '' : '      ),\n')
     ..writeln('      onEvent: onEvent,')
     ..writeln('      resolver: resolver,')
-    ..writeln('      onUnavailable: onUnavailable,')
+    ..writeln('      $unavailableControl: $unavailableControl,')
     ..writeln('      loadingBuilder: loadingBuilder,')
     ..writeln('    );')
     ..writeln('  }')
@@ -1543,7 +1607,7 @@ String _eventClassName(String screenStem, String? fieldName) =>
     '$screenStem${_pascalIdentifier(fieldName ?? '', fallback: 'Event')}Event';
 
 Set<String> _owningLibrarySourceNames(
-  ResolvedStandaloneScreenContractInput input,
+  ResolvedWidgetMountInput input,
   OwningLibraryNamespace namespace,
 ) {
   final library = input.screen.library;
@@ -1589,7 +1653,7 @@ Iterable<Element> _topLevelElements(LibraryElement library) sync* {
 /// hatch exact: another `.g.dart` sibling, or a generated-looking file from a
 /// different package/path, remains a real collision.
 AssetId? _declaredGeneratedPart(
-  ResolvedStandaloneScreenContractInput input,
+  ResolvedWidgetMountInput input,
 ) {
   if (!input.assetId.path.endsWith('.dart')) return null;
   final expected = AssetId(

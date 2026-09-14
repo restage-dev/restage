@@ -31,6 +31,7 @@ import '../resolver/surface_resolution_report.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'bundled_flow_loader.dart';
+import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_artifact_metadata.dart';
 import 'flow_experiment_mount.dart';
@@ -66,8 +67,8 @@ SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
 /// served from the server's currently-active version, contract-gated against
 /// the client's bundled document and fail-closed through a hold-last-good →
 /// bundled → typed-error ladder. The default (`active: false`) leaves the exact
-/// path byte-unchanged. The active arm needs the bundled flow asset present (the
-/// build emits it) — with no bundled contract it fails closed.
+/// path intact. The active arm uses the generated Dart contract when present;
+/// older references still require the bundled graph and screen artifacts.
 final class ServerFlowResolver
     implements
         FlowResolver,
@@ -105,7 +106,7 @@ final class ServerFlowResolver
 
   /// The active-arm hold-last-good cache, keyed by (surface type, flow id), not
   /// version: it holds the last gate-accepted active document for a flow,
-  /// re-gated against the current bundled contract on every hit so a
+  /// re-gated against the current client contract on every hit so a
   /// stale-but-incompatible active is never served. Separate from [_cache] so
   /// contract-version (the exact key) never collides with resolved-active-
   /// version.
@@ -272,12 +273,9 @@ final class ServerFlowResolver
 
     final activeCacheKey = _activeCacheKey(flow);
 
-    // Load the client's bundled contract: it is BOTH the render gate's `client`
-    // argument AND the Tier-3 fallback. If it is not loadable (no bundled asset
-    // / hash mismatch) there is no contract to gate against, so the active
-    // document can never be accepted — the ladder fails closed rather than
-    // performing an ungated accept.
-    final bundled = await _loadBundledContract(flow);
+    // The generated Dart graph supplies the original contract without requiring
+    // screen assets. Older references retain the bundled baseline path.
+    final bundled = await _loadClientBaseline(flow);
 
     if (bundled != null) {
       // Tier 1 — fresh active fetch + contract gate. A fetch failure or a
@@ -329,7 +327,7 @@ final class ServerFlowResolver
       // the requested version, so the controller's retained version pin passes).
       return reportSurfaceResolution(
         flow.id,
-        _bundledResolvedFlow(bundled),
+        bundled,
         SurfaceResolutionSource.bundled,
       );
     }
@@ -426,17 +424,17 @@ final class ServerFlowResolver
     }
   }
 
-  /// Loads the client's bundled flow document + screen blobs from its surface
-  /// directory by convention (`assets/<surface>/flows/<id>.flow.json`).
-  /// Embedded paywall-owned screens still load from the paywall screen
-  /// directory. Returns null when no bundled asset is present or it fails to
-  /// load — the "no contract ⇒ fail closed" signal for the active arm.
-  Future<BundledFlowArtifacts?> _loadBundledContract<R>(
-    OnboardingFlowRef<R> flow,
-  ) async {
+  /// Selects the compiler-retained original, or the legacy bundled baseline.
+  Future<ResolvedFlow?> _loadClientBaseline<R>(OnboardingFlowRef<R> flow,
+      {CompiledFlow? compiledClosure}) async {
+    final compiled =
+        flow.compiled ?? compiledClosure?.find(flow.id, flow.version);
+    if (compiled != null && compiled.hasCompleteScreenBuilders) {
+      return _own(compiled.resolve(), requiredLibraries: const []);
+    }
     try {
       final surface = flow.surfaceType.wireName;
-      return await loadBundledFlowArtifacts(
+      final bundled = await loadBundledFlowArtifacts(
         bundle: _effectiveBundle,
         flowJsonPath: 'assets/$surface/flows/${flow.id}.flow.json',
         screenAssetPathPrefix: 'assets/$surface/screens',
@@ -451,6 +449,7 @@ final class ServerFlowResolver
         buildError: (reason, message, [cause]) =>
             _error(flow, reason, message, cause),
       );
+      return _bundledResolvedFlow(bundled);
     } on FlowUnavailableError catch (error) {
       debugPrint(
         '[restage] rejected bundled ${flow.surfaceType.wireName} flow baseline '
@@ -556,7 +555,7 @@ final class ServerFlowResolver
   /// candidate active document, returning false (→ ladder) on any rejection
   /// rather than throwing. Used both for a fresh active fetch and to re-affirm a
   /// held-last-good document against the current registry/installed capability
-  /// (the caller re-runs the render gate against the current bundled contract).
+  /// (the caller re-runs the render gate against the current client contract).
   bool _passesRetainedChecks<R>(
     OnboardingFlowRef<R> flow,
     FlowDocument document,
@@ -792,7 +791,7 @@ final class _ServerFlowExperimentPresentation
     required this.owner,
     required this.flow,
     required this.captureSeed,
-  }) : _baselineResolver = _BundledExperimentResolver(owner);
+  }) : _baselineResolver = _BundledExperimentResolver(owner, flow.compiled);
 
   final ServerFlowResolver owner;
   final OnboardingFlowRef<Object?> flow;
@@ -974,13 +973,15 @@ final class _ServerFlowExperimentPresentation
 
 final class _BundledExperimentResolver
     implements FlowResolver, FlowExperimentArtifactMetadataProvider {
-  const _BundledExperimentResolver(this.owner);
+  const _BundledExperimentResolver(this.owner, [this.compiledClosure]);
 
   final ServerFlowResolver owner;
+  final CompiledFlow? compiledClosure;
 
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
-    final bundled = await owner._loadBundledContract(flow);
+    final bundled =
+        await owner._loadClientBaseline(flow, compiledClosure: compiledClosure);
     if (bundled == null) {
       throw FlowUnavailableError(
         flowId: flow.id,
@@ -989,7 +990,7 @@ final class _BundledExperimentResolver
         message: 'Bundled baseline flow "${flow.id}" is unavailable.',
       );
     }
-    return owner._bundledResolvedFlow(bundled);
+    return bundled;
   }
 
   @override

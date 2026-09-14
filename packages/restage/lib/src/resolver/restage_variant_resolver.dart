@@ -1250,13 +1250,13 @@ ResolvedPaywallPayload withoutAssignmentLeaseForDelivery(
       FlowPaywallPayload() => payload.copyForDelivery(assignmentLease: null),
     };
 
-/// Environment hint passed to `Restage.configure` and [RestageVariantResolver].
+/// Local environment hint passed to `Restage.configure` and resolvers.
+/// Hosted authorization and metering use the environment bound to the API key;
+/// this hint and the key's readable environment label do not select it.
 enum RestageEnvironment {
-  /// Sandbox environment — paired with `rs_pk_test_…` API keys. Test
-  /// delivery stays isolated from production; events are not metered.
+  /// Sandbox hint, commonly used with `rs_pk_dev_…` keys.
   sandbox,
 
-  /// Production environment — paired with `rs_pk_live_…` API keys. Events are
-  /// metered for billing.
+  /// Production hint, commonly used with `rs_pk_prod_…` keys.
   production,
 }

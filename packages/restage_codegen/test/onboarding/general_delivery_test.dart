@@ -350,25 +350,23 @@ final class $className extends StatelessWidget {
 }
 ''';
 
-/// Compiles the generated general descriptor standalone and proves its
-/// `decodeResult` is the identity — an arbitrary map (including keys a typed
+/// Executes the generated general decoder and proves it is the identity — an
+/// arbitrary map (including keys a typed
 /// decoder would reject) round-trips unchanged.
 Future<void> _assertIdentityDecoderRuns(String generated) async {
   final dir = Directory('.dart_tool/general_delivery_test')
     ..createSync(recursive: true);
   final script = File('${dir.path}/general_identity_check.dart');
-  final source = generated.replaceFirst(
-    "part of '../general_first_run.dart';",
-    "import 'package:restage/src/flow/flow_descriptors.dart';\n"
-        "import 'package:restage_shared/restage_shared.dart' "
-        'show FlowDeliveryMode, Surface;',
+  final source = generatedFlowResultSource(
+    generated,
+    decoderName: '_decodeGeneralFirstRunFlowResult',
   );
   script.writeAsStringSync('''
 $source
 
 void main() {
   const input = <String, Object?>{'completed': true, 'anything': 42};
-  final decoded = generalFirstRunFlowRef.decodeResult(input);
+  final decoded = _decodeGeneralFirstRunFlowResult(input);
   if (!identical(decoded, input) && decoded.length != input.length) {
     throw StateError('identity decode altered the map: \$decoded');
   }

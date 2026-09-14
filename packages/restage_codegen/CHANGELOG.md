@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+`@FlowGraph` generates a `<Name>Surface` mount and retains the canonical graph
+and native screen constructors in Dart. Screens requiring app-owned arguments
+receive explicit builder parameters. Both declarative and class-authored flows
+use the existing flow runtime and typed result decoder.
+
+`@Paywall()` libraries declaring their generated part now receive a typed
+`<ClassName>Surface` widget. It preserves constructor arguments and renders the
+original widget when initial delivery is unavailable.
+
+Generation warns at direct paywall, screen, and flow mounts when runtime
+bundling is disabled and no compiled original or explicit fallback UI is
+available. Generated typed mounts stay quiet. Routine bundle configuration
+is informational and available with `--verbose`.
+
 ## 2.0.0
 
 A condition in a screen may negate (`!`), combine with `&&` and `||`, and

@@ -1165,6 +1165,82 @@ const secondJourney = FlowDefinition(
     );
   });
 
+  test(
+      'compiled flow fixture retains original constructors '
+      'and exact child graphs', () async {
+    final fixture = Directory('../restage/test/fixtures/compiled_surfaces');
+    final source = File('${fixture.path}/native_flow.dart').readAsStringSync();
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      {'apps_examples|lib/native_flow.dart': source},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final generated = utf8.decode(
+      bundle.ownedOutputs['lib/restage.generated/native_flow.restage.g.dart']!,
+    );
+    await _expectAnalyzesClean({
+      'apps_examples|lib/native_flow.dart': source,
+      'apps_examples|lib/restage.generated/native_flow.restage.g.dart':
+          generated,
+    });
+    final output =
+        File('${fixture.path}/restage.generated/native_flow.restage.g.dart');
+    if (Platform.environment['UPDATE_COMPILED_SURFACE_FIXTURE'] == '1') {
+      output.writeAsStringSync(generated);
+    }
+    expect(generated, output.readAsStringSync());
+    expect(generated, contains('class NativeWelcomeFlowSurface'));
+    expect(generated, contains('NativeWelcome.new'));
+    expect(generated, contains('NativeOffer.new'));
+  });
+
+  test('generates a typed paywall mount with its authored constructor',
+      () async {
+    const source = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall(id: 'upgrade_offer')
+final class UpgradeOffer extends StatelessWidget {
+  const UpgradeOffer(this.title, {super.key, this.subtitle = 'Try it'});
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Text(title);
+}
+''';
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const {'apps_examples|lib/offer.dart': source},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final generated = utf8.decode(
+      bundle.ownedOutputs['lib/restage.generated/offer.restage.g.dart']!,
+    );
+    expect(generated, contains('class UpgradeOfferSurface'));
+    expect(generated, contains('id: "upgrade_offer"'));
+    expect(generated, contains('fallbackBuilder: (context) => UpgradeOffer('));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/offer.dart': source,
+      'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,
+    });
+  });
+
   test('compiles colocated explicit paywalls without a generated part',
       () async {
     const paywalls = '''
@@ -2237,9 +2313,16 @@ final class FlatParent extends RestageFlow {
     );
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const <String, String>{
+      <String, String>{
         'apps_examples|lib/ui/shared_entry.dart': screen,
         'apps_examples|lib/z_children/flat_leaf.dart': child,
+        'apps_examples|lib/z_children/other_leaf.dart': child
+            .replaceAll(
+              'Surface.general',
+              'Surface.onboarding, version: 9',
+            )
+            .replaceAll(
+                'flat_leaf.restage.g.dart', 'other_leaf.restage.g.dart'),
         'apps_examples|lib/a_parents/flat_parent.dart': parent,
       },
       rootPackage: 'apps_examples',
@@ -2259,6 +2342,31 @@ final class FlatParent extends RestageFlow {
     final childState = parentDocument.states['child']! as SubFlowState;
     expect(childState.flow, 'flat_leaf');
     expect(childState.contentHash, FlowContentHash.compute(childBytes));
+    final generated = utf8.decode(
+      bundle.ownedOutputs[
+          'lib/a_parents/restage.generated/flat_parent.restage.g.dart']!,
+    );
+    final compiledDocuments = RegExp(r'documentJson:\s*("(?:\\.|[^"\\])*")')
+        .allMatches(generated)
+        .map(
+          (match) => FlowDocumentCodec.decodeJson(
+            jsonDecode(match.group(1)!) as String,
+          ),
+        )
+        .toList();
+    final compiledChild = compiledDocuments.singleWhere(
+      (document) => document.flow == 'flat_leaf',
+    );
+    final compiledParent = compiledDocuments.singleWhere(
+      (document) => document.flow == 'flat_parent',
+    );
+    expect(compiledChild.version, 1);
+    expect(
+      (compiledParent.states['child']! as SubFlowState).contentHash,
+      FlowContentHash.compute(
+        FlowDocumentCodec.encodeCanonicalJson(compiledChild),
+      ),
+    );
   });
 
   test(

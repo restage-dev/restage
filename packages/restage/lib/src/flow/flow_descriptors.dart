@@ -5,6 +5,7 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../surface_screen/surface_screen_runtime_provenance.dart';
+import 'compiled_flow.dart';
 
 /// Base type for valid flow transition targets.
 sealed class FlowTargetRef {
@@ -254,6 +255,7 @@ final class SurfaceFlowRef<R> {
     required this.surface,
     required this.decodeResult,
     this.deliveryMode = FlowDeliveryMode.typed,
+    this.compiled,
   }) : _measurementPublicationDraftDigest = null;
 
   /// Creates a compiler-generated flow reference with its exact bundled
@@ -266,7 +268,36 @@ final class SurfaceFlowRef<R> {
     required this.decodeResult,
     required this.deliveryMode,
     required String measurementPublicationDraftDigest,
+    this.compiled,
   }) : _measurementPublicationDraftDigest = measurementPublicationDraftDigest;
+
+  /// Original compiler-emitted graph and Flutter constructors.
+  final CompiledFlow? compiled;
+
+  /// Binds constructors that need arguments supplied by the app.
+  SurfaceFlowRef<R> withScreenBuilders(
+      Map<String, CompiledFlowScreenBuilder> builders) {
+    final bound = compiled?.withScreenBuilders(builders);
+    final digest = _measurementPublicationDraftDigest;
+    return digest == null
+        ? SurfaceFlowRef<R>(
+            id: id,
+            version: version,
+            minClient: minClient,
+            surface: surface,
+            decodeResult: decodeResult,
+            deliveryMode: deliveryMode,
+            compiled: bound)
+        : SurfaceFlowRef<R>.generatedWithMeasurementPublicationDraftDigest(
+            id: id,
+            version: version,
+            minClient: minClient,
+            surface: surface,
+            decodeResult: decodeResult,
+            deliveryMode: deliveryMode,
+            measurementPublicationDraftDigest: digest,
+            compiled: bound);
+  }
 
   /// Stable flow identifier.
   final String id;

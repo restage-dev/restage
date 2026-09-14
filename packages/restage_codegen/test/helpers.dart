@@ -1499,6 +1499,33 @@ Set<String> variantBytes(Map<String, List<int>> artifacts, String base) => {
         base64Encode(artifacts[key]!),
     };
 
+/// Extracts emitted result code for execution in a plain Dart process.
+/// Mounts and references retain Flutter constructors; decoder behavior does not
+/// require a Flutter engine.
+String generatedFlowResultSource(
+  String generated, {
+  required String decoderName,
+  String? resultName,
+}) {
+  final declarations = parseString(content: generated).unit.declarations;
+  final decoder = declarations.whereType<FunctionDeclaration>().singleWhere(
+        (declaration) => declaration.name.lexeme == decoderName,
+      );
+  final result = resultName == null
+      ? ''
+      : declarations
+          .whereType<ClassDeclaration>()
+          .singleWhere(
+            (declaration) =>
+                (declaration.namePart as NameWithTypeParameters)
+                    .typeName
+                    .lexeme ==
+                resultName,
+          )
+          .toSource();
+  return '${decoder.toSource()}\n$result';
+}
+
 /// Collapses runs of whitespace so a wrapped generated declaration still
 /// matches the type it declares.
 String collapsedWhitespace(String source) =>

@@ -13,8 +13,9 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../flow/flow_test_support.dart'
-    show registerThrowingWidget, throwingResolvedFlow;
+    show registerThrowingWidget, throwingResolvedFlow, throwingScreenBlob;
 import '../support/hosted_artifact_delivery.dart';
 
 /// A delivered baseline paywall is at or below the installed built-in catalog
@@ -361,6 +362,55 @@ void main() {
     Restage.debugReset();
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
+
+  for (final firstScreenFails in [true, false]) {
+    testWidgets(
+        'generated paywall uses its original only before a flow is viewed: '
+        'first screen fails = $firstScreenFails', (tester) async {
+      registerThrowingWidget();
+      final entry = firstScreenFails
+          ? throwingScreenBlob()
+          : _screenBlob({'See plans': 'restageNav0'});
+      final plans = throwingScreenBlob();
+      final bundle = _FlowAssetBundle()
+        ..writeFlow(
+          'native_offer',
+          _navFlowDocument(entryBytes: entry, plansBytes: plans)
+              .copyWith(flow: 'native_offer'),
+        )
+        ..writeScreen('paywall_pro_upgrade.rfw', entry)
+        ..writeScreen('paywall_pro_upgrade_plans.rfw', plans);
+      final events = <RestageEvent>[];
+      await tester.pumpWidget(MaterialApp(
+        home: NativeOfferSurface(
+          resolver: AssetVariantResolver(bundle: bundle),
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('Navigation unavailable'),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      if (!firstScreenFails) {
+        expect(events.whereType<PaywallViewed>(), hasLength(1));
+        await tester.tap(find.text('See plans'));
+        await tester.pumpAndSettle();
+      }
+      expect(
+        find.text('Offer original'),
+        firstScreenFails ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.text('Navigation unavailable'),
+        firstScreenFails ? findsNothing : findsOneWidget,
+      );
+      expect(events.whereType<PaywallViewed>(), hasLength(1));
+      expect(
+        events.whereType<PaywallLoadFailed>().map((event) => event.errorCode),
+        contains('render_error'),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+  }
 
   testWidgets('a flow-shaped paywall forwards context after controlled load',
       (tester) async {

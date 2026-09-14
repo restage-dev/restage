@@ -760,10 +760,18 @@ void main() {
         for (final output in outputRoster['outputs']! as List<Object?>)
           (output! as Map<String, Object?>)['path']! as String,
       ];
+      final partOutputs = (outputRoster['outputs']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .where(
+            (output) =>
+                output['path'] == 'lib/restage.generated/offers.restage.g.dart',
+          );
       expect(
-        outputPaths.where(
-          (path) => path == 'lib/restage.generated/offers.restage.g.dart',
-        ),
+        partOutputs.map((output) => output['role']),
+        unorderedEquals(['screen-descriptor', 'paywall-descriptor']),
+      );
+      expect(
+        partOutputs.map((output) => output['ownershipKey']).toSet(),
         hasLength(1),
       );
       expect(

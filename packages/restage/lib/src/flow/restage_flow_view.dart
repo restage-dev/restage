@@ -5,11 +5,14 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
+import '../authoring/event_dispatcher.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
-    show RestageFlowEventRegistration;
+    show RestageFlowEventRegistration, RestageFlowEventHandlerAssociation;
+import '../authoring/paywall_event_dispatch.dart';
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
+import 'compiled_flow.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
 import 'flow_transitions.dart';
@@ -251,7 +254,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     // disposes, so each runtime has no remaining listeners and disposes
     // cleanly. (DynamicContent is not disposable and is reclaimed by GC.)
     for (final screen in _screens.values) {
-      screen.runtime.dispose();
+      screen.runtime?.dispose();
     }
     _screens.clear();
     _entryIds = <int>[];
@@ -271,7 +274,8 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     final controller = widget.controller;
     final entryId = controller.currentScreenEntryId;
     final library = controller.currentLibrary;
-    if (entryId == null || library == null) {
+    final nativeScreen = controller.currentNativeScreen;
+    if (entryId == null || (library == null && nativeScreen == null)) {
       // No current screen. A flow that failed closed drops its screens;
       // otherwise this is a transient gap (e.g. crossing a sub-flow boundary)
       // and the prior screen is held.
@@ -281,7 +285,10 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     if (!_screens.containsKey(entryId)) {
       final screen = _MountedScreen(
         entryId: entryId,
-        runtime: _libraries.runtimeFor(library),
+        runtime: library == null ? null : _libraries.runtimeFor(library),
+        nativeScreen: nativeScreen,
+        onEvent: (name, args) =>
+            _handleScreenEvent(controller, entryId, name, args),
         data: DynamicContent(),
       );
       _screens[entryId] = screen;
@@ -347,7 +354,8 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
 
   /// Disposes a runtime after the current frame, once the rebuild has detached
   /// its `RemoteWidget` (so it has no remaining listeners).
-  void _disposeRuntimeAfterFrame(Runtime runtime) {
+  void _disposeRuntimeAfterFrame(Runtime? runtime) {
+    if (runtime == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       runtime.dispose();
     });
@@ -520,6 +528,19 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     );
   }
 
+  void _handleScreenEvent(RestageFlowController<R> controller, int entryId,
+      String name, Object? args) {
+    if (isReservedCommerceEventName(name)) return;
+    if (!identical(widget.controller, controller) ||
+        entryId != controller.currentScreenEntryId) {
+      return;
+    }
+    final normalized =
+        normalizeEventArgs(sanitizeAndRecordHostFlowEvent(controller, args));
+    if (widget.onScreenEvent?.call(name, normalized) ?? false) return;
+    controller.handleEvent(name, normalized);
+  }
+
   Widget _buildScreen(_MountedScreen screen) {
     // Capture the controller that owns this screen, so a stale event or render
     // failure routes to its owner (gated to the owner's current entry) and
@@ -538,23 +559,13 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RemoteWidget(
-        runtime: screen.runtime,
-        data: screen.data,
-        widget: kFlowScreenWidget,
-        onEvent: (name, args) {
-          if (isReservedCommerceEventName(name)) return;
-          // Inert unless this is the owning controller's current screen.
-          if (screen.entryId != controller.currentScreenEntryId) return;
-          final normalized = normalizeEventArgs(
-            sanitizeAndRecordHostFlowEvent(controller, args),
-          );
-          // The owner's interceptor runs first. If it consumes the event, the
-          // controller never sees it.
-          if (widget.onScreenEvent?.call(name, normalized) ?? false) return;
-          controller.handleEvent(name, normalized);
-        },
-      ),
+      child: screen.nativeScreen != null
+          ? Builder(builder: (_) => screen.nativeScreen!())
+          : RemoteWidget(
+              runtime: screen.runtime!,
+              data: screen.data,
+              widget: kFlowScreenWidget,
+              onEvent: screen.onEvent),
     );
 
     // The RFW content keeps a stable key so its element, and the screen state
@@ -565,11 +576,23 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       controller: controller,
       registration: screen,
       contentToken: screen.entryId,
-      associatedHandler: controller.handleEvent,
+      associatedHandler: screen.onEvent,
       isCurrent: () =>
           identical(widget.controller, controller) &&
           controller.currentScreenEntryId == screen.entryId,
-      child: content,
+      child: screen.nativeScreen == null
+          ? content
+          : RestagePaywallEventTargetScope(
+              owner: controller,
+              content: screen,
+              isCurrent: () =>
+                  identical(widget.controller, controller) &&
+                  controller.currentScreenEntryId == screen.entryId &&
+                  !controller.isComplete &&
+                  !controller.isUnavailable,
+              child: RestagePaywallEventDispatcher(
+                  onEvent: screen.onEvent, child: content),
+            ),
     );
 
     // Blocks the nested pop (and, on iOS, the leading-edge swipe) while the
@@ -587,7 +610,14 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
         final host = Navigator.maybeOf(context);
         if (host != null && host.canPop()) host.maybePop();
       },
-      child: registered,
+      child: RestageFlowEventHandlerAssociation(
+        controller: controller,
+        handler: controller.handleEvent,
+        isCurrent: () =>
+            identical(widget.controller, controller) &&
+            controller.currentScreenEntryId == screen.entryId,
+        child: registered,
+      ),
     );
   }
 }
@@ -651,11 +681,15 @@ class _MountedScreen {
   _MountedScreen({
     required this.entryId,
     required this.runtime,
+    required this.nativeScreen,
+    required this.onEvent,
     required this.data,
   });
 
   final int entryId;
-  final Runtime runtime;
+  final Runtime? runtime;
+  final CompiledFlowScreenBuilder? nativeScreen;
+  final void Function(String name, Object? args) onEvent;
   final DynamicContent data;
   late final ContextPublisher contextPublisher = ContextPublisher(data);
 

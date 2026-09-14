@@ -12,6 +12,7 @@ import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import '../measurement/measurement_event_sanitizer.dart';
+import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
@@ -168,6 +169,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// Decoded RFW library for the current screen.
   WidgetLibrary? get currentLibrary => _currentFrame?.currentLibrary;
 
+  /// Authored constructor for the current visit when native fallback was selected.
+  CompiledFlowScreenBuilder? get currentNativeScreen =>
+      _currentFrame?.currentNativeScreen;
+
   /// Monotonic id of the current screen *visit*; null when no screen is
   /// mounted — before the first screen loads, while crossing a sub-flow
   /// boundary, or after the flow fails closed. It stays set after the flow
@@ -294,9 +299,16 @@ final class RestageFlowController<R> extends ChangeNotifier {
           ? resolver as ActiveArmFlowResolver
           : null;
       final active = activeResolver?.activeArmEnabled ?? false;
-      final resolved = active
-          ? await activeResolver!.resolveActiveRoot(flow)
-          : await resolver.resolve(flow);
+      ResolvedFlow resolved;
+      try {
+        resolved = active
+            ? await activeResolver!.resolveActiveRoot(flow)
+            : await resolver.resolve(flow);
+      } on Object {
+        final compiled = flow.compiled;
+        if (compiled == null) rethrow;
+        resolved = compiled.resolve();
+      }
       if (_isDisposed) return;
       _validateResolved(resolved, active: active);
       // Anchor the surface mode ONCE from the root document. Every later cap /
@@ -774,6 +786,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final prior = frame.screenHistory.last;
     frame.currentStateId = prior.stateId;
     frame.currentLibrary = prior.library;
+    frame.currentNativeScreen = prior.nativeScreen;
     _currentScreenEntryId = prior.entryId;
     _notifyHostListeners();
   }
@@ -1221,6 +1234,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _emitFlowStarted(parentFrame);
     parentFrame.currentStateId = null;
     parentFrame.currentLibrary = null;
+    parentFrame.currentNativeScreen = null;
     _currentScreenEntryId = null;
     _notifyHostListeners();
 
@@ -1233,7 +1247,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
     );
 
     try {
-      final childResolved = await resolver.resolve(childRef);
+      final compiledParent = parentFrame.resolved.compiled;
+      final childResolved = compiledParent == null
+          ? await resolver.resolve(childRef)
+          : compiledParent.children[state.flow]!.resolve();
       if (!_isActiveFrame(parentFrame)) return;
       _validateSubFlowResolved(parentFrame, state, childResolved);
       final childActionBindings =
@@ -1464,10 +1481,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
         'Flow state "$stateId" is not a screen state.',
       );
     }
-    final library = _decodeScreenBlob(frame, state.screen);
+    final nativeScreen = resolved.compiled?.screens[state.screen];
+    final library =
+        nativeScreen == null ? _decodeScreenBlob(frame, state.screen) : null;
     final entryId = ++_screenEntrySequence;
     frame.currentStateId = stateId;
     frame.currentLibrary = library;
+    frame.currentNativeScreen = nativeScreen;
     _currentScreenEntryId = entryId;
     // Record this screen *visit* on the frame's back-stack. Forward navigation
     // pushes; back() pops. Decision/action states are never recorded (they sit
@@ -1476,6 +1496,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       entryId: entryId,
       stateId: stateId,
       library: library,
+      nativeScreen: nativeScreen,
     ));
     _evictScreenHistory(frame);
     _emitFlowStarted(frame);
@@ -2427,6 +2448,7 @@ final class _FlowFrame {
   Map<String, Object?> flowState;
   String? currentStateId;
   WidgetLibrary? currentLibrary;
+  CompiledFlowScreenBuilder? currentNativeScreen;
   bool hasStarted = false;
 
   /// The frame's screen back-stack: one entry per screen *visit*, in visit
@@ -2527,11 +2549,13 @@ final class _ScreenEntry {
     required this.entryId,
     required this.stateId,
     required this.library,
+    required this.nativeScreen,
   });
 
   final int entryId;
   final String stateId;
-  final WidgetLibrary library;
+  final WidgetLibrary? library;
+  final CompiledFlowScreenBuilder? nativeScreen;
 }
 
 final class _SubFlowParent {

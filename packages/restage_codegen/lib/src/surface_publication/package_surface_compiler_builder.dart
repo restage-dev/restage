@@ -855,6 +855,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     ),
   );
   issues.addAll(result.issues);
+  result.mountOmissions.forEach(log.warning);
   final bundle = result.bundle;
   if (issues.isNotEmpty || bundle == null) {
     return _invalidCompilation(
@@ -2437,6 +2438,22 @@ Future<void> _compilePaywalls(
         CompiledSurfaceArtifact.fromPaywallAdapter(
           declaration: entry.value.declaration,
           facts: facts,
+          nativeMountInput: source.outputs
+                  .any((output) => output.role == 'paywall-descriptor')
+              ? ResolvedWidgetMountInput(
+                  assetId: entry.value.assetId,
+                  screen: entry.value.declaration,
+                  rootParams: compiled.source.build.rootParams,
+                  constructorParams: compiled.source.build.constructorParams,
+                  mountConstructorProblem:
+                      compiled.source.build.mountConstructorProblem,
+                  partPath: source.outputs
+                      .firstWhere(
+                        (output) => output.role == 'paywall-descriptor',
+                      )
+                      .path,
+                )
+              : null,
           flowArtifactPath: 'paywall_$id.rfw',
           rfwText: compiled.standaloneText == null
               ? null

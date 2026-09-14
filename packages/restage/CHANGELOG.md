@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+Generated flow mounts retain the original graph and Flutter screen constructors.
+Active delivery gates against that compiled contract without requiring runtime
+bundles; unavailable initial delivery runs the complete original closure through
+the existing controller. Running flows fail closed without restarting or replaying
+actions.
+
+Generated paywall mounts can retain the authored Flutter widget as an initial
+delivery fallback. Authored paywall events keep the existing dispatcher and
+stale-callback guards.
+
+`Restage.configure` accepts an omitted, empty, or whitespace-only API key.
+Without a credential, default delivery uses bundled assets and hosted clients,
+analytics, metering, and governed Measurement remain inactive. Reconfiguration
+also clears a previous hosted setup; explicit resolvers and local settings
+still apply.
+
+`Restage.configure` reports the configured delivery mode in debug builds, once
+per mode or origin change. Hosted diagnostics print only the origin and never
+the API key, URL credentials, path, or query.
+
 The SDK no longer sends events to the Restage service. `Restage.events` is
 unchanged and remains the way an app feeds its own analytics, and the events it
 carries are unchanged. `analyticsEnabled` on `configure` still applies: it gates

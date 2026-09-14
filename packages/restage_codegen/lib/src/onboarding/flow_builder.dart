@@ -23,6 +23,7 @@ import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
+import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -595,6 +596,19 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
             lowered,
             effectiveSurface,
             measurementPublicationDraftDigest: sourceCarrierDraftDigest,
+            nativeScreens: {
+              for (final screen in resolvedScreenList)
+                screen.canonicalPaywallId == null
+                        ? screen.id
+                        : 'paywall_${screen.canonicalPaywallId}':
+                    screen.declaration,
+            },
+            descendants: {
+              for (final entry in childFlowDocuments.entries)
+                if (entry.key.surface == effectiveSurface)
+                  entry.key.id:
+                      FlowDocumentCodec.decodeJson(utf8.decode(entry.value)),
+            },
           ),
         ),
         generatedTopLevelSymbols: _flowGeneratedTopLevelSymbols(
@@ -4426,6 +4440,8 @@ String _emitFlowDescriptor(
   _LoweredFlow lowered,
   Surface surface, {
   String? measurementPublicationDraftDigest,
+  Map<String, ClassElement> nativeScreens = const {},
+  Map<String, FlowDocument> descendants = const {},
 }) {
   final baseName = _flowBaseName(flow.className);
   final descriptorClass = '${flow.className}Descriptor';
@@ -4433,6 +4449,20 @@ String _emitFlowDescriptor(
   // holder class below is the previous shape, kept as a deprecated alias for
   // one major so a source written against it still compiles.
   final refName = generatedHandleName(flow.className, fallback: 'surfaceFlow');
+  final compiled = flow.isCanonical
+      ? emitCompiledFlow(
+          document: lowered.document,
+          descendants: descendants,
+          screens: nativeScreens,
+          library: flow.element.library,
+          refName: refName,
+          mountName:
+              generatedSurfaceName(flow.className, fallback: 'SurfaceFlow'),
+          resultType: flow.delivery == FlowDeliveryMode.general
+              ? 'Map<String, Object?>'
+              : '${baseName}Result',
+        )
+      : (argument: '', mount: '');
   final decoderName = '_decode${flow.className}Result';
   final actionsClass = _actionsClassName(flow.className);
   final actionsInterface =
@@ -4477,7 +4507,7 @@ const $refName = ${referenceConstructor('Map<String, Object?>')}(
   surface: Surface.${surface.wireName},
   deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
   decodeResult: $decoderName,
-$carrierArgument);
+${compiled.argument}$carrierArgument);
 
 Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
 
@@ -4493,6 +4523,7 @@ $generalActionsBody
   @override
   Set<String> get installedSignalNames => $signalSet;
 }
+${compiled.mount}
 $seedClass''';
   }
   final resultClass = '${baseName}Result';
@@ -4507,7 +4538,7 @@ const $refName = ${referenceConstructor(resultClass)}(
   surface: Surface.${surface.wireName},
   deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
   decodeResult: $decoderName,
-$carrierArgument);
+${compiled.argument}$carrierArgument);
 
 ${_emitResultDecoder(decoderName, resultClass, result)}
 
@@ -4524,6 +4555,7 @@ final class $actionsClass$actionsInterface {
 ${_emitActionsConstructor(actionsClass, flow.actions)}
 ${_emitActionFields(flow.actions, flow.minClient, lowered.actionContracts)}
 }
+${compiled.mount}
 $seedClass''';
 }
 
@@ -4533,6 +4565,8 @@ Set<String> _flowGeneratedTopLevelSymbols(
 ) {
   final baseName = _flowBaseName(flow.className);
   return {
+    if (flow.isCanonical)
+      generatedSurfaceName(flow.className, fallback: 'SurfaceFlow'),
     generatedHandleName(flow.className, fallback: 'surfaceFlow'),
     '_decode${flow.className}Result',
     '${flow.className}Descriptor',
