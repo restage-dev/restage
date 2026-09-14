@@ -145,10 +145,13 @@ abstract final class Restage {
   /// published version of a surface for it, such as a version for one country
   /// or for tablets. Without that description it can only serve the default.
   /// Every request carries the platform (e.g. `ios`); it also carries the app
-  /// build ordinal (e.g. `412`), the device region (e.g. `se`) and the device
-  /// class (e.g. `phone`) whenever the device can supply them, and omits any it
-  /// cannot. These facts travel regardless of [analyticsEnabled] and
-  /// [measurementEnabled].
+  /// build ordinal (e.g. `412`), the device region (e.g. `se`), the device
+  /// class (e.g. `phone`), the device language (e.g. `sv`) and the
+  /// operating-system version (e.g. `17` on iOS, the API level `34` on
+  /// Android) whenever the device can supply them, and omits any it cannot. A
+  /// web build reads neither an app build ordinal nor an operating-system
+  /// version and sends the rest. These facts travel regardless of
+  /// [analyticsEnabled] and [measurementEnabled].
   ///
   /// With analytics disabled, hosted requests carry no analytics identifier and
   /// no assignment credential. The metering token that counts use of the hosted

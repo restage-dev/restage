@@ -21,6 +21,7 @@ import '../measurement/support/measurement_outbox_test_support.dart'
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../surface_screen/surface_screen_test_support.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 
 const _surface = 'pro_upgrade';
 const _selection = const <String, Object?>{
@@ -57,6 +58,7 @@ void main() {
             : null);
     await Restage.debugResetAndWait();
     SharedPreferences.setMockInitialValues({});
+    debugSetOsVersion(null);
     PackageInfo.setMockInitialValues(
         appName: 'Example',
         packageName: 'example.app',

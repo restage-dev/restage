@@ -37,6 +37,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     Restage.debugReset();
     _ResetPaintProbe.reset();
+    debugSetOsVersion(null);
     PackageInfo.setMockInitialValues(
         appName: 'Fence test',
         packageName: 'example.fence',

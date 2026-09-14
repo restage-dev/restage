@@ -38,6 +38,7 @@ void main() {
             : null);
     await Restage.debugResetAndWait();
     SharedPreferences.setMockInitialValues({});
+    debugSetOsVersion(null);
     PackageInfo.setMockInitialValues(
         appName: 'Example',
         packageName: 'example.app',

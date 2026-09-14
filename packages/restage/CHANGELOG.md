@@ -11,14 +11,26 @@ removed with the egress they served.
 
 Hosted surface requests now describe the device more fully so the service can
 choose a published version of a surface for it. The request API level moves to
-3, adding device region (for example, `se`) and device class (`phone`) alongside
-platform (`ios`) and app build ordinal (`412`). Every request carries the
-platform; it carries each of the other three whenever the device can supply it
-and omits any it cannot, so an app whose build number is not a plain number
-still describes its platform, region and device class. These facts are sent
-regardless of the analytics and measurement flags. With analytics off, a hosted
-request carries no analytics identifier and no assignment credential; the
-metering token is separate and unaffected.
+3, adding device region (for example, `se`), device class (`phone`), device
+language (`sv`) and operating-system version (`17` on iOS and macOS, the API
+level `34` on Android) alongside platform (`ios`) and app build ordinal (`412`).
+Every request carries the platform; it carries each of the other five whenever
+the device can supply it and omits any it cannot, so an app whose build number
+is not a plain number still describes its platform, region, class, language and
+operating-system version. A device whose language is not a two-letter code, and
+a browser or desktop build with no operating-system ordinal to report, omit
+those keys and send the rest. A web build now also omits the app build ordinal,
+which it previously sent, and sends its platform, region, device class and
+language; native platforms are unchanged. These facts are sent regardless of the analytics
+and measurement flags. With analytics off, a hosted request carries no
+analytics identifier and no assignment credential; the metering token is
+separate and unaffected.
+
+Reading the operating-system version uses `device_info_plus`. A project that
+resolves its 12.x or 13.x line needs Kotlin 2.2; a project on 11.x needs
+nothing new. It requests no runtime permission on any platform. Both it and the
+existing `package_info_plus` are now reached only from platform-selected files
+a web build does not compile, which is why a web build reports neither fact.
 
 `Restage.configure` takes an `onSurfaceResolution` callback, and every mounted
 surface now reports through it: paywalls, hosted flows and typed screens, on

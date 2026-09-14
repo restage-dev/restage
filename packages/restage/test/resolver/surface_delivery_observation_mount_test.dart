@@ -37,9 +37,11 @@ final _delivery = HostedArtifactFixture();
 String _carrier(String platform, {int build = 42}) =>
     SurfaceDeliveryObservations(
       presentationCountry: 'SE',
+      presentationLanguage: null,
       platform: platform,
       appBuildOrdinal: build,
       deviceClass: 'phone',
+      osVersion: null,
       sdkApiLevel: 2,
     ).canonicalBuiltInsBase64()!;
 
@@ -68,6 +70,9 @@ Future<void> _withPlatform(
 void main() {
   setUp(debugResetAppBuildOrdinal);
   tearDown(debugResetAppBuildOrdinal);
+  setUp(debugResetOsVersion);
+  tearDown(debugResetOsVersion);
+  setUp(() => debugSetOsVersion(null));
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     Restage.debugReset();
@@ -168,6 +173,7 @@ void main() {
   testWidgets('a paywall blob mount observes through its presentation cell',
       (tester) async {
     await _withPlatform(TargetPlatform.android, () async {
+      debugSetOsVersion(34);
       var ambientReads = 0;
       SurfaceDeliveryObservationCell? cell;
       SurfaceCanonicalCarrierProvider.installBuiltIns(() async {
@@ -214,6 +220,14 @@ void main() {
       expect(_requestBody(server.requests.single)['sdkBuiltInsCanonicalBase64'],
           isNot(_carrier('ambient')));
       expect(ambientReads, 0);
+      expect(cell!.valueIfRead!.osVersion, 34);
+      final document = jsonDecode(utf8.decode(base64Url.decode(
+        base64Url.normalize(
+          _requestBody(server.requests.single)['sdkBuiltInsCanonicalBase64']
+              as String,
+        ),
+      ))) as Map;
+      expect(document['osVersion'], 34);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   });

@@ -42,9 +42,11 @@ void main() {
   test('registration and a later request share one device reading', () async {
     final ambientCarrier = const SurfaceDeliveryObservations(
       presentationCountry: 'SE',
+      presentationLanguage: null,
       platform: 'ios',
       appBuildOrdinal: 42,
       deviceClass: 'phone',
+      osVersion: null,
       sdkApiLevel: 2,
     ).canonicalBuiltInsBase64()!;
     SurfaceCanonicalCarrierProvider.installBuiltIns(() async => ambientCarrier);
@@ -315,9 +317,11 @@ final class _Attempt {
     reads += 1;
     return const SurfaceDeliveryObservations(
       presentationCountry: 'SE',
+      presentationLanguage: null,
       platform: 'ios',
       appBuildOrdinal: 42,
       deviceClass: 'phone',
+      osVersion: null,
       sdkApiLevel: 3,
     );
   });

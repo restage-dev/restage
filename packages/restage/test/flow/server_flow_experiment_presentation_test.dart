@@ -45,6 +45,9 @@ final HostedArtifactFixture _delivery = HostedArtifactFixture();
 void main() {
   setUp(debugResetAppBuildOrdinal);
   tearDown(debugResetAppBuildOrdinal);
+  setUp(debugResetOsVersion);
+  tearDown(debugResetOsVersion);
+  setUp(() => debugSetOsVersion(null));
   setUp(Restage.debugReset);
 
   testWidgets(
