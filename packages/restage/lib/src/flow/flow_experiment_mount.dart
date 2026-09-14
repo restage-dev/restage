@@ -9,6 +9,7 @@ import 'package:rfw/rfw.dart' show decodeLibraryBlob;
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/restage.dart';
 import 'flow_descriptors.dart';
@@ -153,6 +154,7 @@ final class FlowMountLeaseSeed {
       installedCapability: InstalledCapability(
         builtInCatalogVersion: builtInCatalogVersion,
         installedLibraries: List<InstalledLibrary>.of(installedLibraries),
+        vocabulary: installedWidgetVocabulary(),
       ),
       actionBindings: _fingerprintActionBindings(actionBindings),
       installedSignals: installedSignals.toList()..sort(),

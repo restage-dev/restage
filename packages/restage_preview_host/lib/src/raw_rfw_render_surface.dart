@@ -1,10 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_core/library_registration.dart' as restage_core;
-import 'package:restage_cupertino/library_registration.dart'
-    as restage_cupertino;
-import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
 import 'protocol.dart';
@@ -12,6 +8,10 @@ import 'geometry_registry.dart';
 import 'marker_library.dart';
 
 /// Raw RFW render core with built-ins and caller-supplied widget registrations.
+///
+/// The widget libraries are installed into this surface's own runtime. Every
+/// built-in icon is added to the process-wide icon table, which never changes
+/// the meaning of an entry the embedding application already installed.
 class RawRfwRenderSurface extends StatefulWidget {
   RawRfwRenderSurface({
     required this.epoch,
@@ -154,19 +154,17 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     required bool clearExisting,
   }) {
     if (clearExisting) _runtime.clearLibraries();
-    _runtime
-      ..update(
-        const LibraryName(<String>['restage', 'core']),
-        restage_core.buildCoreWidgetLibrary(),
-      )
-      ..update(
-        const LibraryName(<String>['restage', 'material']),
-        restage_material.buildMaterialWidgetLibrary(),
-      )
-      ..update(
-        const LibraryName(<String>['restage', 'cupertino']),
-        restage_cupertino.buildCupertinoWidgetLibrary(),
-      );
+    // A preview renders arbitrary authored content, so it carries every
+    // built-in icon. Adding leaves an already-installed entry's meaning alone.
+    InstalledIconTable.add(builtInIconTable());
+    // A preview renders arbitrary authored content, so this runtime carries the
+    // whole built-in catalog rather than an app's narrowed vocabulary.
+    RestageWidgetLibraries.builtIn().installInto(
+      _runtime,
+      coreName: const LibraryName(<String>['restage', 'core']),
+      materialName: const LibraryName(<String>['restage', 'material']),
+      cupertinoName: const LibraryName(<String>['restage', 'cupertino']),
+    );
     final geometryRegistry = widget.geometryRegistry;
     if (geometryRegistry != null) {
       _runtime.update(

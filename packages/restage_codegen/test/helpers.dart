@@ -1499,34 +1499,44 @@ Set<String> variantBytes(Map<String, List<int>> artifacts, String base) => {
         base64Encode(artifacts[key]!),
     };
 
-/// Extracts emitted result code for execution in a plain Dart process.
-/// Mounts and references retain Flutter constructors; decoder behavior does not
-/// require a Flutter engine.
-String generatedFlowResultSource(
-  String generated, {
-  required String decoderName,
-  String? resultName,
-}) {
-  final declarations = parseString(content: generated).unit.declarations;
-  final decoder = declarations.whereType<FunctionDeclaration>().singleWhere(
-        (declaration) => declaration.name.lexeme == decoderName,
-      );
-  final result = resultName == null
-      ? ''
-      : declarations
-          .whereType<ClassDeclaration>()
-          .singleWhere(
-            (declaration) =>
-                (declaration.namePart as NameWithTypeParameters)
-                    .typeName
-                    .lexeme ==
-                resultName,
-          )
-          .toSource();
-  return '${decoder.toSource()}\n$result';
-}
-
 /// Collapses runs of whitespace so a wrapped generated declaration still
 /// matches the type it declares.
 String collapsedWhitespace(String source) =>
     source.replaceAll(RegExp(r'\s+'), ' ');
+
+/// The source of the top-level declarations in [generated] named by [names].
+///
+/// Lets a check compile and run the generated declarations that stand on their
+/// own, without the SDK identities the rest of their file names. Throws when a
+/// name is missing, so a check cannot quietly compile less than it means to.
+String generatedDeclarationsNamed(String generated, Set<String> names) {
+  final unit = parseString(content: generated, throwIfDiagnostics: false).unit;
+  final found = <String, String>{};
+  for (final declaration in unit.declarations) {
+    for (final name in _declaredNames(declaration)) {
+      if (names.contains(name)) {
+        found[name] = generated.substring(declaration.offset, declaration.end);
+      }
+    }
+  }
+  final missing = names.where((name) => !found.containsKey(name)).toList();
+  if (missing.isNotEmpty) {
+    throw StateError('The generated source declares no ${missing.join(', ')}.');
+  }
+  return [for (final name in names) found[name]!].join('\n\n');
+}
+
+Iterable<String> _declaredNames(CompilationUnitMember declaration) sync* {
+  switch (declaration) {
+    case ClassDeclaration():
+      yield declaration.namePart.typeName.lexeme;
+    case FunctionDeclaration():
+      yield declaration.name.lexeme;
+    case TopLevelVariableDeclaration():
+      for (final variable in declaration.variables.variables) {
+        yield variable.name.lexeme;
+      }
+    default:
+      return;
+  }
+}

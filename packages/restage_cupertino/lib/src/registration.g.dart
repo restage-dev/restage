@@ -14,191 +14,197 @@ import 'package:rfw/rfw.dart' hide Switch;
 /// keyed by widget name.
 const Map<String, LocalWidgetBuilder> kCupertinoLibraryFactories =
     <String, LocalWidgetBuilder>{
-  'CupertinoActivityIndicator': _buildCupertinoActivityIndicator,
-  'CupertinoButton': _buildCupertinoButton,
-  'CupertinoButtonFilled': _buildCupertinoButtonFilled,
-  'CupertinoListSection': _buildCupertinoListSection,
-  'CupertinoListSectionInsetGrouped': _buildCupertinoListSectionInsetGrouped,
-  'CupertinoListTile': _buildCupertinoListTile,
-  'CupertinoNavigationBar': _buildCupertinoNavigationBar,
-  'CupertinoPageScaffold': _buildCupertinoPageScaffold,
-  'CupertinoSwitch': _buildCupertinoSwitch,
-  'CupertinoTextField': _buildCupertinoTextField,
-  'CupertinoSlider': _buildCupertinoSlider,
-  'CupertinoDatePicker': _buildCupertinoDatePicker,
-  'CupertinoTimerPicker': _buildCupertinoTimerPicker,
-  'CupertinoPicker': _buildCupertinoPicker,
-  'CupertinoSearchTextField': _buildCupertinoSearchTextField,
-  'CupertinoCheckbox': _buildCupertinoCheckbox,
+  'CupertinoActivityIndicator': buildCupertinoActivityIndicator,
+  'CupertinoButton': buildCupertinoButton,
+  'CupertinoButtonFilled': buildCupertinoButtonFilled,
+  'CupertinoListSection': buildCupertinoListSection,
+  'CupertinoListSectionInsetGrouped': buildCupertinoListSectionInsetGrouped,
+  'CupertinoListTile': buildCupertinoListTile,
+  'CupertinoNavigationBar': buildCupertinoNavigationBar,
+  'CupertinoPageScaffold': buildCupertinoPageScaffold,
+  'CupertinoSwitch': buildCupertinoSwitch,
+  'CupertinoTextField': buildCupertinoTextField,
+  'CupertinoSlider': buildCupertinoSlider,
+  'CupertinoDatePicker': buildCupertinoDatePicker,
+  'CupertinoTimerPicker': buildCupertinoTimerPicker,
+  'CupertinoPicker': buildCupertinoPicker,
+  'CupertinoSearchTextField': buildCupertinoSearchTextField,
+  'CupertinoCheckbox': buildCupertinoCheckbox,
 };
 
-Widget _buildCupertinoActivityIndicator(
+/// Builds the catalog's `CupertinoActivityIndicator` widget from [source].
+Widget buildCupertinoActivityIndicator(
     BuildContext context, DataSource source) {
   return CupertinoActivityIndicator(
     color: ArgumentDecoders.color(source, <Object>['color']),
-    animating: source.v<bool>(<Object>['animating']) ?? true,
-    radius: source.v<double>(<Object>['radius']) ?? 10.0,
+    animating: source.v<bool>(const <Object>['animating']) ?? true,
+    radius: source.v<double>(const <Object>['radius']) ?? 10.0,
   );
 }
 
-Widget _buildCupertinoButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `CupertinoButton` widget from [source].
+Widget buildCupertinoButton(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return CupertinoButton(
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    child: source.child(<Object>['child']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildCupertinoButtonFilled(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `CupertinoButtonFilled` widget from [source].
+Widget buildCupertinoButtonFilled(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return CupertinoButton.filled(
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    child: source.child(<Object>['child']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildCupertinoListSection(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoListSection` widget from [source].
+Widget buildCupertinoListSection(BuildContext context, DataSource source) {
   return CupertinoListSection(
-    header: source.optionalChild(<Object>['header']),
-    footer: source.optionalChild(<Object>['footer']),
+    header: source.optionalChild(const <Object>['header']),
+    footer: source.optionalChild(const <Object>['footer']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    children: source.isList(<Object>['children'])
-        ? source.childList(<Object>['children'])
+    children: source.isList(const <Object>['children'])
+        ? source.childList(const <Object>['children'])
         : null,
   );
 }
 
-Widget _buildCupertinoListSectionInsetGrouped(
+/// Builds the catalog's `CupertinoListSectionInsetGrouped` widget from [source].
+Widget buildCupertinoListSectionInsetGrouped(
     BuildContext context, DataSource source) {
   return CupertinoListSection.insetGrouped(
-    header: source.optionalChild(<Object>['header']),
-    footer: source.optionalChild(<Object>['footer']),
+    header: source.optionalChild(const <Object>['header']),
+    footer: source.optionalChild(const <Object>['footer']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
-    children: source.isList(<Object>['children'])
-        ? source.childList(<Object>['children'])
+    children: source.isList(const <Object>['children'])
+        ? source.childList(const <Object>['children'])
         : null,
   );
 }
 
-Widget _buildCupertinoListTile(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoListTile` widget from [source].
+Widget buildCupertinoListTile(BuildContext context, DataSource source) {
   return CupertinoListTile(
-    title: source.child(<Object>['title']),
-    subtitle: source.optionalChild(<Object>['subtitle']),
-    leading: source.optionalChild(<Object>['leading']),
-    trailing: source.optionalChild(<Object>['trailing']),
-    onTap: source.voidHandler(<Object>['onTap']),
+    title: source.child(const <Object>['title']),
+    subtitle: source.optionalChild(const <Object>['subtitle']),
+    leading: source.optionalChild(const <Object>['leading']),
+    trailing: source.optionalChild(const <Object>['trailing']),
+    onTap: source.voidHandler(const <Object>['onTap']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
   );
 }
 
-Widget _buildCupertinoNavigationBar(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoNavigationBar` widget from [source].
+Widget buildCupertinoNavigationBar(BuildContext context, DataSource source) {
   return CupertinoNavigationBar(
-    leading: source.optionalChild(<Object>['leading']),
+    leading: source.optionalChild(const <Object>['leading']),
     automaticallyImplyLeading:
-        source.v<bool>(<Object>['automaticallyImplyLeading']) ?? true,
+        source.v<bool>(const <Object>['automaticallyImplyLeading']) ?? true,
     automaticallyImplyMiddle:
-        source.v<bool>(<Object>['automaticallyImplyMiddle']) ?? true,
-    previousPageTitle: source.v<String>(<Object>['previousPageTitle']),
-    middle: source.optionalChild(<Object>['middle']),
-    trailing: source.optionalChild(<Object>['trailing']),
+        source.v<bool>(const <Object>['automaticallyImplyMiddle']) ?? true,
+    previousPageTitle: source.v<String>(const <Object>['previousPageTitle']),
+    middle: source.optionalChild(const <Object>['middle']),
+    trailing: source.optionalChild(const <Object>['trailing']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     automaticBackgroundVisibility:
-        source.v<bool>(<Object>['automaticBackgroundVisibility']) ?? true,
+        source.v<bool>(const <Object>['automaticBackgroundVisibility']) ?? true,
     enableBackgroundFilterBlur:
-        source.v<bool>(<Object>['enableBackgroundFilterBlur']) ?? true,
+        source.v<bool>(const <Object>['enableBackgroundFilterBlur']) ?? true,
     brightness: RestageDecoders.enumByName<Brightness>(
         Brightness.values, source, <Object>['brightness']),
   );
 }
 
-Widget _buildCupertinoPageScaffold(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoPageScaffold` widget from [source].
+Widget buildCupertinoPageScaffold(BuildContext context, DataSource source) {
   return CupertinoPageScaffold(
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildCupertinoSwitch(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoSwitch` widget from [source].
+Widget buildCupertinoSwitch(BuildContext context, DataSource source) {
   return CupertinoSwitch(
-    value: source.v<bool>(<Object>['value']) ??
+    value: source.v<bool>(const <Object>['value']) ??
         (throw ArgumentError('CupertinoSwitch.value is required.')),
-    onChanged: source.handler<ValueChanged<bool>>(<Object>[
-      'onChanged'
-    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
+    onChanged:
+        RestageDecoders.valueChanged<bool>(source, const <Object>['onChanged']),
     activeTrackColor:
         ArgumentDecoders.color(source, <Object>['activeTrackColor']),
   );
 }
 
-Widget _buildCupertinoTextField(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoTextField` widget from [source].
+Widget buildCupertinoTextField(BuildContext context, DataSource source) {
   return CupertinoTextField(
-    placeholder: source.v<String>(<Object>['placeholder']),
-    obscureText: source.v<bool>(<Object>['obscureText']) ?? false,
-    maxLines: source.v<int>(<Object>['maxLines']) ?? 1,
-    maxLength: source.v<int>(<Object>['maxLength']),
-    onChanged: source.handler<ValueChanged<String>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (String value) => trigger(<String, Object?>{'value': value})),
-    onSubmitted: source.handler<ValueChanged<String>>(
-        <Object>['onSubmitted'],
-        (trigger) =>
-            (String value) => trigger(<String, Object?>{'value': value})),
+    placeholder: source.v<String>(const <Object>['placeholder']),
+    obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
+    maxLines: source.v<int>(const <Object>['maxLines']) ?? 1,
+    maxLength: source.v<int>(const <Object>['maxLength']),
+    onChanged: RestageDecoders.valueChanged<String>(
+        source, const <Object>['onChanged']),
+    onSubmitted: RestageDecoders.valueChanged<String>(
+        source, const <Object>['onSubmitted']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
   );
 }
 
-Widget _buildCupertinoSlider(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoSlider` widget from [source].
+Widget buildCupertinoSlider(BuildContext context, DataSource source) {
   return CupertinoSlider(
-    value: source.v<double>(<Object>['value']) ??
+    value: source.v<double>(const <Object>['value']) ??
         (throw ArgumentError('CupertinoSlider.value is required.')),
-    onChanged: source.handler<ValueChanged<double>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (double value) => trigger(<String, Object?>{'value': value})),
-    min: source.v<double>(<Object>['min']) ?? 0.0,
-    max: source.v<double>(<Object>['max']) ?? 1.0,
-    divisions: source.v<int>(<Object>['divisions']),
+    onChanged: RestageDecoders.valueChanged<double>(
+        source, const <Object>['onChanged']),
+    min: source.v<double>(const <Object>['min']) ?? 0.0,
+    max: source.v<double>(const <Object>['max']) ?? 1.0,
+    divisions: source.v<int>(const <Object>['divisions']),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
   );
 }
 
-Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoDatePicker` widget from [source].
+Widget buildCupertinoDatePicker(BuildContext context, DataSource source) {
   return CupertinoDatePicker(
     mode: RestageDecoders.enumByName<CupertinoDatePickerMode>(
             CupertinoDatePickerMode.values, source, <Object>['mode']) ??
         CupertinoDatePickerMode.dateAndTime,
-    onDateTimeChanged: source.handler<ValueChanged<DateTime>>(
-            <Object>['onDateTimeChanged'],
-            (trigger) => (DateTime value) =>
-                trigger(<String, Object?>{'value': value})) ??
+    onDateTimeChanged: RestageDecoders.valueChanged<DateTime>(
+            source, const <Object>['onDateTimeChanged']) ??
         (DateTime _) {},
-    minimumYear: source.v<int>(<Object>['minimumYear']) ?? 1,
-    maximumYear: source.v<int>(<Object>['maximumYear']),
-    minuteInterval: source.v<int>(<Object>['minuteInterval']) ?? 1,
-    use24hFormat: source.v<bool>(<Object>['use24hFormat']) ?? false,
+    minimumYear: source.v<int>(const <Object>['minimumYear']) ?? 1,
+    maximumYear: source.v<int>(const <Object>['maximumYear']),
+    minuteInterval: source.v<int>(const <Object>['minuteInterval']) ?? 1,
+    use24hFormat: source.v<bool>(const <Object>['use24hFormat']) ?? false,
     dateOrder: RestageDecoders.enumByName<DatePickerDateOrder>(
         DatePickerDateOrder.values, source, <Object>['dateOrder']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    showDayOfWeek: source.v<bool>(<Object>['showDayOfWeek']) ?? false,
-    showTimeSeparator: source.v<bool>(<Object>['showTimeSeparator']) ?? false,
-    itemExtent: source.v<double>(<Object>['itemExtent']) ?? 32.0,
+    showDayOfWeek: source.v<bool>(const <Object>['showDayOfWeek']) ?? false,
+    showTimeSeparator:
+        source.v<bool>(const <Object>['showTimeSeparator']) ?? false,
+    itemExtent: source.v<double>(const <Object>['itemExtent']) ?? 32.0,
     changeReportingBehavior:
         RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
@@ -208,22 +214,21 @@ Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildCupertinoTimerPicker(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoTimerPicker` widget from [source].
+Widget buildCupertinoTimerPicker(BuildContext context, DataSource source) {
   return CupertinoTimerPicker(
     mode: RestageDecoders.enumByName<CupertinoTimerPickerMode>(
             CupertinoTimerPickerMode.values, source, <Object>['mode']) ??
         CupertinoTimerPickerMode.hms,
-    minuteInterval: source.v<int>(<Object>['minuteInterval']) ?? 1,
-    secondInterval: source.v<int>(<Object>['secondInterval']) ?? 1,
+    minuteInterval: source.v<int>(const <Object>['minuteInterval']) ?? 1,
+    secondInterval: source.v<int>(const <Object>['secondInterval']) ?? 1,
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    itemExtent: source.v<double>(<Object>['itemExtent']) ?? 32.0,
-    onTimerDurationChanged: source.handler<ValueChanged<Duration>>(
-            <Object>['onTimerDurationChanged'],
-            (trigger) => (Duration value) =>
-                trigger(<String, Object?>{'value': value})) ??
+    itemExtent: source.v<double>(const <Object>['itemExtent']) ?? 32.0,
+    onTimerDurationChanged: RestageDecoders.valueChanged<Duration>(
+            source, const <Object>['onTimerDurationChanged']) ??
         (Duration _) {},
     changeReportingBehavior:
         RestageDecoders.enumByName<ChangeReportingBehavior>(
@@ -234,59 +239,55 @@ Widget _buildCupertinoTimerPicker(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildCupertinoPicker(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoPicker` widget from [source].
+Widget buildCupertinoPicker(BuildContext context, DataSource source) {
   return CupertinoPicker(
-    diameterRatio: source.v<double>(<Object>['diameterRatio']) ?? 1.07,
+    diameterRatio: source.v<double>(const <Object>['diameterRatio']) ?? 1.07,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    offAxisFraction: source.v<double>(<Object>['offAxisFraction']) ?? 0.0,
-    useMagnifier: source.v<bool>(<Object>['useMagnifier']) ?? false,
-    magnification: source.v<double>(<Object>['magnification']) ?? 1.0,
-    squeeze: source.v<double>(<Object>['squeeze']) ?? 1.45,
+    offAxisFraction: source.v<double>(const <Object>['offAxisFraction']) ?? 0.0,
+    useMagnifier: source.v<bool>(const <Object>['useMagnifier']) ?? false,
+    magnification: source.v<double>(const <Object>['magnification']) ?? 1.0,
+    squeeze: source.v<double>(const <Object>['squeeze']) ?? 1.45,
     changeReportingBehavior:
         RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
                 source,
                 <Object>['changeReportingBehavior']) ??
             ChangeReportingBehavior.onScrollUpdate,
-    itemExtent: source.v<double>(<Object>['itemExtent']) ??
+    itemExtent: source.v<double>(const <Object>['itemExtent']) ??
         (throw ArgumentError('CupertinoPicker.itemExtent is required.')),
-    onSelectedItemChanged: source.handler<ValueChanged<int>>(
-        <Object>['onSelectedItemChanged'],
-        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
-    looping: source.v<bool>(<Object>['looping']) ?? false,
-    children: source.childList(<Object>['children']),
+    onSelectedItemChanged: RestageDecoders.valueChanged<int>(
+        source, const <Object>['onSelectedItemChanged']),
+    looping: source.v<bool>(const <Object>['looping']) ?? false,
+    children: source.childList(const <Object>['children']),
   );
 }
 
-Widget _buildCupertinoSearchTextField(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoSearchTextField` widget from [source].
+Widget buildCupertinoSearchTextField(BuildContext context, DataSource source) {
   return CupertinoSearchTextField(
-    onChanged: source.handler<ValueChanged<String>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (String value) => trigger(<String, Object?>{'value': value})),
-    onSubmitted: source.handler<ValueChanged<String>>(
-        <Object>['onSubmitted'],
-        (trigger) =>
-            (String value) => trigger(<String, Object?>{'value': value})),
-    placeholder: source.v<String>(<Object>['placeholder']),
+    onChanged: RestageDecoders.valueChanged<String>(
+        source, const <Object>['onChanged']),
+    onSubmitted: RestageDecoders.valueChanged<String>(
+        source, const <Object>['onSubmitted']),
+    placeholder: source.v<String>(const <Object>['placeholder']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    itemSize: source.v<double>(<Object>['itemSize']) ?? 20.0,
+    itemSize: source.v<double>(const <Object>['itemSize']) ?? 20.0,
   );
 }
 
-Widget _buildCupertinoCheckbox(BuildContext context, DataSource source) {
+/// Builds the catalog's `CupertinoCheckbox` widget from [source].
+Widget buildCupertinoCheckbox(BuildContext context, DataSource source) {
   return CupertinoCheckbox(
-    value: source.v<bool>(<Object>['value']) ??
+    value: source.v<bool>(const <Object>['value']) ??
         (throw ArgumentError('CupertinoCheckbox.value is required.')),
-    tristate: source.v<bool>(<Object>['tristate']) ?? false,
-    onChanged: source.handler<ValueChanged<bool?>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (bool? value) => trigger(<String, Object?>{'value': value})),
+    tristate: source.v<bool>(const <Object>['tristate']) ?? false,
+    onChanged: RestageDecoders.valueChanged<bool?>(
+        source, const <Object>['onChanged']),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
     checkColor: ArgumentDecoders.color(source, <Object>['checkColor']),
-    semanticLabel: source.v<String>(<Object>['semanticLabel']),
+    semanticLabel: source.v<String>(const <Object>['semanticLabel']),
   );
 }

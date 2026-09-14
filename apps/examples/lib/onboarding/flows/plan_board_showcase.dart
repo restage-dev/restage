@@ -8,7 +8,7 @@ part 'restage.generated/plan_board_showcase.restage.g.dart';
 ///
 /// The screen's `act` event completes the flow. Its `dismiss` event is handled
 /// by the host and does not transition the flow graph.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class PlanBoardShowcaseFlow extends RestageFlow {
   /// Const constructor.
   const PlanBoardShowcaseFlow();

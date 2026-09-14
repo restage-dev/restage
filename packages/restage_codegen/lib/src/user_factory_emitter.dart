@@ -5,12 +5,13 @@ import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Emits a `user_factories.g.dart` source string containing one
 /// `LocalWidgetBuilder` per emittable `@RestageWidget` class, plus a
-/// top-level `registerRestageWidgets()` helper the app calls
-/// once at startup. Output is `dart format`-clean.
+/// `kRestageWidgetRegistration` and `registerRestageWidgets()` startup helpers.
+/// Output is `dart format`-clean.
 ///
 /// Returns `null` when no entries are emittable so the builder can skip
 /// writing the output file rather than emit an empty registration helper.
@@ -29,6 +30,9 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// written. Direct permissive use of this lower-level function is confined to
 /// emitter tests and tooling that inspect historical or manually assembled
 /// non-emittable catalog shapes.
+///
+/// [installWholeCatalog] makes the generated registration install the whole
+/// built-in catalog and both icon tables by default.
 String? emitUserFactoriesDart(
   List<WidgetEntry> widgets, {
   void Function(WidgetEntry skipped)? onSkip,
@@ -39,6 +43,8 @@ String? emitUserFactoriesDart(
   Map<String, MapPlan> mapPlans = const {},
   Map<String, RecordPlan> recordPlans = const {},
   Map<String, int> stampedCapabilityVersions = const {},
+  SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
+  bool installWholeCatalog = false,
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = _referencedLibraryUris(
@@ -142,13 +148,21 @@ String? emitUserFactoriesDart(
   imports.importDirectivesFor(referencedUris).forEach(buf.writeln);
   buf
     ..writeln("import 'package:restage/restage.dart';")
-    ..writeln()
+    ..writeln();
+  _writeAppVocabulary(buf, appVocabulary);
+  _writeRegistrationConstant(buf);
+  buf
     ..writeln('/// Registers every emittable @RestageWidget-annotated class')
     ..writeln("/// in this package with Restage. Call once at the app's")
     ..writeln('/// startup, before any `RestagePaywall` mounts. Idempotent')
     ..writeln('/// after `Restage.debugReset`, so test setUps may call it')
-    ..writeln('/// again between cases.')
-    ..writeln('void registerRestageWidgets() {');
+    ..writeln('/// again between cases.');
+  _writeCatalogConfigurationDoc(buf, installWholeCatalog);
+  _writeRegistrationStart(buf);
+  _writeWholeCatalogInstall(buf, installWholeCatalog);
+  buf.writeln(
+    '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
+  );
   for (final library in orderedLibraries) {
     final entries = byLibrary[library]!;
     // A structured-admitting library carries its declared capabilityVersion so
@@ -172,7 +186,9 @@ String? emitUserFactoriesDart(
       ..writeln('    ],')
       ..writeln('  );');
   }
-  buf.writeln('}');
+  buf
+    ..writeln('  }')
+    ..writeln('}');
   _emitDeprecatedRegistrationAlias(buf);
   for (final (_, body) in emittable) {
     buf
@@ -183,16 +199,124 @@ String? emitUserFactoriesDart(
   return formatGeneratedDart(buf.toString());
 }
 
-/// Emits a valid no-op registration source that replaces a stale aggregate.
-String emitEmptyUserFactoriesDart() {
+/// Emits a registration source for a package with no emittable app widget.
+///
+/// It still carries [appVocabulary]: a package that defines no widget of its
+/// own still renders built-in widgets and icons on its surfaces.
+///
+/// [installWholeCatalog] makes the generated registration install the whole
+/// built-in catalog and both icon tables by default.
+String emitEmptyUserFactoriesDart({
+  SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
+  bool installWholeCatalog = false,
+}) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
   buf
     ..writeln()
-    ..writeln('/// Registers the currently enabled RFW widgets.')
-    ..writeln('void registerRestageWidgets() {}');
+    ..writeln("import 'package:restage/restage.dart';")
+    ..writeln();
+  _writeAppVocabulary(buf, appVocabulary);
+  _writeRegistrationConstant(buf);
+  buf.writeln('/// Registers the currently enabled RFW widgets.');
+  _writeCatalogConfigurationDoc(buf, installWholeCatalog);
+  _writeRegistrationStart(buf);
+  _writeWholeCatalogInstall(buf, installWholeCatalog);
+  buf
+    ..writeln(
+      '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
+    )
+    ..writeln('  }')
+    ..writeln('}');
   _emitDeprecatedRegistrationAlias(buf);
   return formatGeneratedDart(buf.toString());
+}
+
+/// Documents the matching configuration entrypoint on the registration helper.
+void _writeCatalogConfigurationDoc(StringBuffer buf, bool installWholeCatalog) {
+  if (!installWholeCatalog) {
+    buf
+      ..writeln('///')
+      ..writeln(
+        '/// Call Restage.configureWithInstalledCatalog() after registration',
+      )
+      ..writeln('/// to keep this selected vocabulary in a release build.')
+      ..writeln(
+        '/// Family options are accepted without adding full catalogs.',
+      );
+    return;
+  }
+  buf
+    ..writeln('///')
+    ..writeln('/// Includes both complete built-in families by default.')
+    ..writeln(
+      '/// Family options omit full contributions, keeping app requirements.',
+    );
+}
+
+void _writeRegistrationConstant(StringBuffer buf) {
+  buf
+    ..writeln('/// Pass to Restage.configure(registerWidgets: ...) to register')
+    ..writeln('/// this package with the configured family options.')
+    ..writeln('const RestageWidgetRegistration kRestageWidgetRegistration =')
+    ..writeln('    _RestageWidgetRegistration();')
+    ..writeln();
+}
+
+void _writeRegistrationStart(StringBuffer buf) {
+  buf
+    ..writeln('void registerRestageWidgets({')
+    ..writeln('  bool includeMaterial = true,')
+    ..writeln('  bool includeCupertino = true,')
+    ..writeln('}) {')
+    ..writeln('  kRestageWidgetRegistration(')
+    ..writeln('    includeMaterial: includeMaterial,')
+    ..writeln('    includeCupertino: includeCupertino,')
+    ..writeln('  );')
+    ..writeln('}')
+    ..writeln()
+    ..writeln('final class _RestageWidgetRegistration')
+    ..writeln('    implements RestageWidgetRegistration {')
+    ..writeln('  const _RestageWidgetRegistration();')
+    ..writeln()
+    ..writeln('  @override')
+    ..writeln('  void call({')
+    ..writeln('    bool includeMaterial = true,')
+    ..writeln('    bool includeCupertino = true,')
+    ..writeln('  }) {');
+}
+
+/// Adds selected full catalogs before app requirements.
+void _writeWholeCatalogInstall(StringBuffer buf, bool installWholeCatalog) {
+  if (!installWholeCatalog) return;
+  buf
+    ..writeln('  InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(')
+    ..writeln('    includeMaterial: includeMaterial,')
+    ..writeln('    includeCupertino: includeCupertino,')
+    ..writeln('  ));')
+    ..writeln('  InstalledIconTable.add(builtInIconTable(')
+    ..writeln('    includeMaterial: includeMaterial,')
+    ..writeln('    includeCupertino: includeCupertino,')
+    ..writeln('  ));');
+}
+
+/// Writes the whole-app vocabulary constant.
+void _writeAppVocabulary(
+  StringBuffer buf,
+  SurfaceVocabularyReferences appVocabulary,
+) {
+  final source = emitSurfaceVocabulary(appVocabulary);
+  buf
+    ..writeln('/// The built-in widgets and icons this package names in its')
+    ..writeln('/// own Dart, plus the catalog entries its compiled surfaces')
+    ..writeln('/// render, so a delivered surface can render them.')
+    ..writeln('///')
+    ..writeln("/// The scan covers this package's own `lib/` and not the")
+    ..writeln('/// packages it depends on. An icon reached through a variable,')
+    ..writeln('/// a function return, or an app-defined wrapper rather than')
+    ..writeln('/// named by a compile-time constant is not seen.')
+    ..writeln('const SurfaceVocabulary kRestageAppVocabulary = $source;')
+    ..writeln();
 }
 
 void _emitDeprecatedRegistrationAlias(StringBuffer buf) {

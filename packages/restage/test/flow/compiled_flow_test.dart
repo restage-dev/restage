@@ -222,6 +222,24 @@ void main() {
   });
 
   testWidgets(
+      'a resolver defect fails the flow instead of rendering its original',
+      (tester) async {
+    FlowUnavailableError? unavailable;
+    await tester.pumpWidget(MaterialApp(
+        home: NativeWelcomeFlowSurface(
+      resolver: _DefectiveFlowResolver(),
+      actions: NativeWelcomeFlowActions(permission: (_, __) => true),
+      onFlowUnavailable: (error) => unavailable = error,
+    )));
+    await tester.pumpAndSettle();
+    final originalVisible = find.text('Welcome original').evaluate().length;
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(originalVisible, 0);
+    expect(unavailable?.reason, 'resolve_failed');
+  });
+
+  testWidgets(
       'a running delivered flow fails closed without replaying its original',
       (tester) async {
     final original = nativeWelcomeFlowRef.compiled!;
@@ -295,4 +313,10 @@ ServerFlowResolver _server(
     httpClient: fixture.client((_) async =>
         http.Response(jsonEncode(fixture.describeEnvelope(envelope)), 200)),
   );
+}
+
+final class _DefectiveFlowResolver implements FlowResolver {
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async =>
+      throw StateError('resolver defect');
 }

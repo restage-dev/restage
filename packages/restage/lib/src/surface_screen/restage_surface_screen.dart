@@ -24,11 +24,10 @@ import '../resolver/surface_delivery_observations.dart'
         readSurfaceDeliveryObservations,
         requestingViewShortestLogicalSide,
         withSurfaceDeliveryObservations;
-import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
-import '../runtime/library_runtime_registry.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
@@ -93,8 +92,6 @@ final class RestageScreen<E> extends StatefulWidget {
 }
 
 class _RestageScreenState<E> extends State<RestageScreen<E>> {
-  late final FlowScreenLibraries _libraries;
-
   _ScreenStage? _stage;
   SurfaceScreenUnavailableError? _unavailableError;
   SurfaceDeliveryObservationCell? _observationCell;
@@ -111,7 +108,6 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void initState() {
     super.initState();
     _refreshContext();
-    _libraries = FlowScreenLibraries();
     _restart();
   }
 
@@ -151,6 +147,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       );
 
   void _restart() {
+    // Installing here is what makes a screen swapped into this position
+    // render with its own vocabulary.
+    widget.screen.provenance.vocabulary.addToInstalled();
     _observationCell = null;
     final epoch = ++_resolutionEpoch;
     _disposeStage();
@@ -243,10 +242,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
     final capabilityVerdict = BlobRenderCapabilityGate.evaluate(
       required: provenance.capabilities,
-      installed: InstalledCapability(
-        builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-        installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-      ),
+      installed: currentInstalledCapability(),
     );
     if (capabilityVerdict is BlobRenderRejected) {
       throw SurfaceScreenUnavailableError(
@@ -267,7 +263,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       );
     }
 
-    final runtime = _libraries.runtimeFor(library);
+    final runtime = flowScreenRuntime(library);
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: provenance.surface.wireName,
       surfaceId: provenance.slug,

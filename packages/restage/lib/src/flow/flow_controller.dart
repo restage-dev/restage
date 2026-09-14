@@ -12,6 +12,7 @@ import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import '../measurement/measurement_event_sanitizer.dart';
+import '../runtime/surface_vocabulary.dart';
 import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
@@ -26,6 +27,10 @@ typedef _FlowEventMeasurementSanitizer = Object? Function(Object? rawValue);
 /// filtering, and reports unavailable artifacts through the fail-closed path.
 final class RestageFlowController<R> extends ChangeNotifier {
   /// Creates a flow controller.
+  ///
+  /// Adds the widgets and icons of the flow and of the sub-flows it can enter
+  /// to the installed stores, so a host that composes the flow primitives
+  /// itself installs nothing by hand.
   RestageFlowController({
     required this.flow,
     required this.resolver,
@@ -36,7 +41,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onComplete,
     required this.onUnavailable,
   })  : _onMeasurementLifecycle = null,
-        _onMeasurementAnswer = null;
+        _onMeasurementAnswer = null {
+    _installFlowVocabularies();
+  }
 
   RestageFlowController._forHostMeasurement({
     required this.flow,
@@ -55,7 +62,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
   })  : _onMeasurementAnswer = onMeasurementAnswer,
         _onMeasurementLifecycle = onMeasurementLifecycle,
         _onRootResolved = onRootResolved,
-        _sanitizeAndRecordEvent = sanitizeAndRecordEvent;
+        _sanitizeAndRecordEvent = sanitizeAndRecordEvent {
+    _installFlowVocabularies();
+  }
 
   /// Flow descriptor being executed.
   final OnboardingFlowRef<R> flow;
@@ -139,6 +148,39 @@ final class RestageFlowController<R> extends ChangeNotifier {
   bool _isSignalInstalled(String name) =>
       installedSignalNames.contains(name) ||
       _registrySignalNames.contains(name);
+
+  /// This flow and, transitively, every sub-flow it can enter. A reference
+  /// reached more than once appears once.
+  late final List<SurfaceFlowRef<dynamic>> _flowClosure = _computeFlowClosure();
+
+  List<SurfaceFlowRef<dynamic>> _computeFlowClosure() {
+    final closure = <SurfaceFlowRef<dynamic>>[];
+    final seen = <String>{};
+    final pending = <SurfaceFlowRef<dynamic>>[flow];
+    while (pending.isNotEmpty) {
+      final ref = pending.removeLast();
+      if (!seen.add(ref.id)) continue;
+      closure.add(ref);
+      pending.addAll(ref.subFlows);
+    }
+    return closure;
+  }
+
+  /// Installs what this flow draws and what its sub-flows draw, so entering a
+  /// sub-flow renders the widgets and icons only that sub-flow names.
+  void _installFlowVocabularies() {
+    for (final ref in _flowClosure) {
+      ref.vocabulary.addToInstalled();
+    }
+  }
+
+  /// The generated reference for flow [flowId], when this flow carries one.
+  SurfaceFlowRef<dynamic>? _carriedFlowRef(String flowId) {
+    for (final ref in _flowClosure) {
+      if (ref.id == flowId) return ref;
+    }
+    return null;
+  }
 
   /// The SURFACE's delivery mode, established once from the ROOT document at
   /// [load]. The custom-event-name cap and the outbound-filter posture are
@@ -304,7 +346,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
         resolved = active
             ? await activeResolver!.resolveActiveRoot(flow)
             : await resolver.resolve(flow);
-      } on Object {
+      } on FlowUnavailableError {
+        // Only a delivery failure falls back to the authored original; a
+        // resolver defect must surface as a failure, not as an outage.
         final compiled = flow.compiled;
         if (compiled == null) rethrow;
         resolved = compiled.resolve();
@@ -1238,12 +1282,16 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _currentScreenEntryId = null;
     _notifyHostListeners();
 
+    // The synthesized reference says what the authored one says, so a reader
+    // of it sees the vocabulary the sub-flow's screens draw.
+    final carried = _carriedFlowRef(state.flow);
     final childRef = OnboardingFlowRef<Map<String, Object?>>(
       id: state.flow,
       version: state.version,
       minClient: state.minClient,
       surface: flow.surface,
       decodeResult: _decodeSubFlowResult,
+      vocabulary: carried?.vocabulary ?? SurfaceVocabulary.none,
     );
 
     try {

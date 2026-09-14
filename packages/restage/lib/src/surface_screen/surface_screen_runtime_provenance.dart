@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../runtime/surface_vocabulary.dart';
 import 'surface_screen_types.dart';
 
 /// One hash-bound bundle entry a screen runtime expects to find.
@@ -154,6 +155,7 @@ final class SurfaceScreenRuntimeProvenance {
     SurfaceScreenBundleLocator? bundle,
     SurfaceScreenHostDataSchema hostDataSchema =
         const SurfaceScreenHostDataSchema.empty(),
+    SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
   }) {
     if (contractVersion < 1) {
       throw ArgumentError.value(
@@ -183,6 +185,7 @@ final class SurfaceScreenRuntimeProvenance {
             SurfaceScreenHostDataContractHash.hash(hostDataSchema),
       ),
       bundle: bundle,
+      vocabulary: vocabulary,
     );
   }
 
@@ -199,6 +202,7 @@ final class SurfaceScreenRuntimeProvenance {
     required String eventSchemaJson,
     SurfaceScreenBundleLocator? bundle,
     String? hostDataSchemaJson,
+    SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
   }) =>
       SurfaceScreenRuntimeProvenance(
         surface: surface,
@@ -211,6 +215,7 @@ final class SurfaceScreenRuntimeProvenance {
             ? const SurfaceScreenHostDataSchema.empty()
             : SurfaceScreenHostDataSchemaV1Codec.decodeJson(hostDataSchemaJson),
         bundle: bundle,
+        vocabulary: vocabulary,
       );
 
   const SurfaceScreenRuntimeProvenance._({
@@ -224,6 +229,7 @@ final class SurfaceScreenRuntimeProvenance {
     required this.hostDataContractHash,
     required this.contractFingerprint,
     required this.bundle,
+    required this.vocabulary,
   });
 
   /// Source semantics every standalone screen has.
@@ -261,6 +267,12 @@ final class SurfaceScreenRuntimeProvenance {
 
   /// Where the optional packaged fallback lives, when one was generated.
   final SurfaceScreenBundleLocator? bundle;
+
+  /// The widgets and icons this screen draws.
+  ///
+  /// Each mount adds it to the installed stores before resolving or rendering,
+  /// so a screen swapped into a mounted position renders with its own.
+  final SurfaceVocabulary vocabulary;
 
   /// Fails closed unless [resolved] matches this generated contract exactly.
   void validateResolved(ResolvedSurfaceScreen resolved) {

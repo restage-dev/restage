@@ -30,6 +30,7 @@ import '../resolver/report_surface_resolution.dart';
 import '../resolver/surface_resolution_report.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
+import '../runtime/surface_vocabulary.dart';
 import 'bundled_flow_loader.dart';
 import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
@@ -42,11 +43,19 @@ import 'flow_resolver.dart';
 /// The reference uses the built-in catalog capability installed by this SDK as
 /// its client floor. The resolver still applies its authoritative document and
 /// per-artifact capability gates before returning a flow.
+///
+/// Pass [vocabulary] when the app knows what the hosted flow draws: the
+/// generated `SurfaceVocabulary` of the surface it serves. Passing none
+/// installs nothing, so an app serving content it cannot know ahead of time
+/// installs the whole catalog itself at startup with
+/// `InstalledWidgetLibraries.install(RestageWidgetLibraries.builtIn())` and
+/// `InstalledIconTable.install(builtInIconTable())`.
 SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
   required String id,
   required int version,
   required Surface surfaceType,
   required FlowResultDecoder<R> decodeResult,
+  SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
 }) {
   return SurfaceFlowRef<R>(
     id: id,
@@ -54,6 +63,7 @@ SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
     minClient: RestageBuiltInCatalogCapabilities.currentVersion,
     surface: surfaceType,
     decodeResult: decodeResult,
+    vocabulary: vocabulary,
   );
 }
 

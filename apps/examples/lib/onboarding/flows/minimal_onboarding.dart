@@ -18,7 +18,7 @@ part 'restage.generated/minimal_onboarding.restage.g.dart';
 ///   the matching ending screen, so the answer still drives the path.
 ///
 /// Same runtime as any flow; only the authoring (this DSL) changes per surface.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class MinimalOnboardingFlow extends RestageFlow {
   /// Const constructor.
   const MinimalOnboardingFlow();

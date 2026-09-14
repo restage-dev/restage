@@ -13,7 +13,7 @@ part 'restage.generated/crave_permission.restage.g.dart';
 /// conditional the flow runtime offers — advance-or-stay). The primer's
 /// "Not now" is a host-handled custom event (continue without the grant); the
 /// flow itself never proceeds on permission it did not get.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class CravePermissionFlow extends RestageFlow {
   /// Host action that requests the OS location permission and reports the grant.
   /// The flow advances to the confirmation only on a granted result.

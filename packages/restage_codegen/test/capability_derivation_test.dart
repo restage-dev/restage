@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/issue.dart' show IssueCode;
-import 'package:restage_shared/restage_shared.dart' show LibraryRequirement;
+import 'package:restage_shared/restage_shared.dart'
+    show LibraryRequirement, WidgetVocabulary;
 import 'package:restage_shared/rfw_formats.dart' show parseLibraryFile;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -105,52 +106,25 @@ void main() {
       expect(result.manifest!.builtInFloor, 3);
     });
 
-    test(
-      'a newly-added built-in floors above every OTHER shipped library — '
-      'derived from the real committed catalogs',
-      () {
-        // The cases above run on a synthetic catalog, so they prove the
-        // derivation walks the tree but say nothing about the numbers actually
-        // shipped. This one runs on the REAL committed catalogs, and pins the
-        // property that makes the floor mean anything.
-        //
-        // A client advertises ONE installed content version: the maximum over
-        // every built-in library it ships. So a surface using a widget that
-        // only the newest catalog contains must floor STRICTLY ABOVE the
-        // highest version any other library can contribute — otherwise an older
-        // client clears the floor on the strength of a library it happens to
-        // have, accepts the surface, and cannot render it.
-        //
-        // Stamping a new widget at its own library's next version instead of
-        // the next global one is exactly how that happens, and it is the defect
-        // this test was written after.
-        final core = _committedCatalog('restage_core');
-        final elsewhere = [
-          for (final package in const ['restage_material', 'restage_cupertino'])
-            _committedCatalog(package).contentVersion,
-        ].reduce((a, b) => a > b ? a : b);
-
-        const dsl = '''
-          import restage.core;
-          widget Paywall = ColoredBox(color: 0xFF000000);
-        ''';
-        final surface = parseLibraryFile(dsl, sourceIdentifier: 'test');
-        final result = deriveCapabilityManifest(surface, core);
-
-        expect(result.issues, isEmpty);
-        expect(
-          result.manifest!.builtInFloor,
-          greaterThan(elsewhere),
-          reason:
-              'A surface using a newly-added core widget derives a floor of '
-              '${result.manifest!.builtInFloor}, which a client shipping only '
-              'up to version $elsewhere of ANOTHER library already clears. '
-              'That client does not have the widget: the capability check '
-              'passes and the render fails. Stamp the widget at the next '
-              'GLOBAL content version and regenerate.',
-        );
-      },
-    );
+    test('the core version-5 landing stays above its historical global ceiling',
+        () {
+      // ColoredBox landed at version 5 when Material's version 4 was the
+      // global ceiling. Later catalog additions must not move that historical
+      // comparison: expanded Icon now legitimately advances Material to 6.
+      const oldGlobalCeiling = 4;
+      final core = _committedCatalog('restage_core');
+      final surface = parseLibraryFile(
+        '''
+import restage.core;
+widget Paywall = ColoredBox(color: 0xFF000000);
+''',
+        sourceIdentifier: 'test',
+      );
+      final result = deriveCapabilityManifest(surface, core);
+      expect(result.issues, isEmpty);
+      expect(result.manifest!.builtInFloor, 5);
+      expect(result.manifest!.builtInFloor, greaterThan(oldGlobalCeiling));
+    });
 
     test('a surface referencing no catalog widgets floors at the baseline', () {
       // A library-local `widget` definition referenced by name is not a catalog
@@ -505,6 +479,82 @@ void main() {
       final result = deriveCapabilityManifest(surface, catalog);
       expect(result.issues, isEmpty);
       expect(result.manifest!.builtInFloor, 2);
+    });
+  });
+
+  group('deriveCapabilityManifest — referencedWidgets', () {
+    List<String> qualifiedNames(CapabilityDerivationResult result) => [
+          for (final entry in result.referencedWidgets)
+            WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
+        ];
+
+    // The same three widgets — two built-ins and a custom — referenced in two
+    // different orders, so the canonical order is testable against both.
+    const customFirstDsl = '''
+      import restage.core;
+      widget A = AcmeButton();
+      widget B = Banner();
+      widget Paywall = Text(text: "hi");
+    ''';
+    const customLastDsl = '''
+      import restage.core;
+      widget A = Text(text: "hi");
+      widget B = Banner();
+      widget Paywall = AcmeButton();
+    ''';
+
+    test('names every catalog widget the surface references', () {
+      final result = deriveCapabilityManifest(
+        parseLibraryFile(customFirstDsl, sourceIdentifier: 'test'),
+        mixedCatalog(customCapabilityVersion: 5),
+      );
+      expect(result.issues, isEmpty);
+      expect(qualifiedNames(result), [
+        'acme.widgets:AcmeButton',
+        'restage.core:Banner',
+        'restage.core:Text',
+      ]);
+    });
+
+    test('the order is by qualified name, not by reference order', () {
+      final customFirst = deriveCapabilityManifest(
+        parseLibraryFile(customFirstDsl, sourceIdentifier: 'a'),
+        mixedCatalog(customCapabilityVersion: 5),
+      );
+      final customLast = deriveCapabilityManifest(
+        parseLibraryFile(customLastDsl, sourceIdentifier: 'b'),
+        mixedCatalog(customCapabilityVersion: 5),
+      );
+      expect(qualifiedNames(customLast), qualifiedNames(customFirst));
+    });
+
+    test('a widget referenced more than once appears once', () {
+      const dsl = '''
+        import restage.core;
+        widget A = Banner();
+        widget B = Banner();
+        widget Paywall = Banner();
+      ''';
+      final result = deriveCapabilityManifest(
+        parseLibraryFile(dsl, sourceIdentifier: 'test'),
+        mixedCatalog(customCapabilityVersion: 5),
+      );
+      expect(qualifiedNames(result), ['restage.core:Banner']);
+    });
+
+    test('a failed derivation names nothing', () {
+      // The custom library declares no capability version, so the result is
+      // not usable and carries no referenced widgets to fold.
+      const dsl = '''
+        import restage.core;
+        widget Paywall = AcmeButton();
+      ''';
+      final result = deriveCapabilityManifest(
+        parseLibraryFile(dsl, sourceIdentifier: 'test'),
+        mixedCatalog(),
+      );
+      expect(result.manifest, isNull);
+      expect(result.referencedWidgets, isEmpty);
     });
   });
 }

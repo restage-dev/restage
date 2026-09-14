@@ -19,6 +19,16 @@ final class NativeOfferSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const SurfaceVocabulary(
+      widgets: RestageWidgetLibraries.fromVocabulary(
+        core: {
+          'Text': buildText,
+        },
+        material: {
+          'TextButton': buildTextButton,
+        },
+      ),
+    ).addToInstalled();
     return RestagePaywall(
       id: "native_offer",
       fallbackBuilder: (context) => NativeOffer(),
@@ -48,6 +58,16 @@ const nativeClassFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '0fcfc16919b6c07a1a6842941055816b26b6c32787268317575fb6fea72b2f3c',
+  vocabulary: SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Text': buildText,
+      },
+      material: {
+        'TextButton': buildTextButton,
+      },
+    ),
+  ),
 );
 
 NativeClassResult _decodeNativeClassFlowResult(Map<String, Object?> result) {
@@ -107,6 +127,16 @@ const nativeNamedFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       '635a8cb1cc45e33ec9aa4eccf5b3096667610925de0c17d79a04bae18d0b0c28',
+  vocabulary: SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Text': buildText,
+      },
+      material: {
+        'TextButton': buildTextButton,
+      },
+    ),
+  ),
 );
 
 NativeNamedFlowResult _decodeNativeNamedFlowResult(
@@ -252,6 +282,17 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
   ),
   measurementPublicationDraftDigest:
       'b119dfd4390542a4ca04be562e221acdb3977726cb43f77d812d608cb438f67b',
+  vocabulary: SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Text': buildText,
+      },
+      material: {
+        'TextButton': buildTextButton,
+      },
+    ),
+  ),
+  subFlows: [nativeOfferFlowRef],
 );
 
 NativeWelcomeFlowResult _decodeNativeWelcomeFlowResult(

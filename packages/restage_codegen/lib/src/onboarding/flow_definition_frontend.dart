@@ -17,6 +17,7 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_measurement_schema/src/declared_answers.dart';
 
@@ -124,12 +125,17 @@ final class NormalizedChildFlowReference {
     required this.version,
     required this.minClient,
     required this.declarationIdentity,
+    this.referenceName = '',
   });
 
   final NormalizedFlowIdentity identity;
   final int version;
   final int minClient;
   final String declarationIdentity;
+
+  /// The Dart source naming this child's generated reference from the parent
+  /// flow's generated part. Empty when the parent cannot name it.
+  final String referenceName;
 }
 
 /// Normalized graph data shared by the later flow-document and publication
@@ -1528,7 +1534,11 @@ final class _FlowDefinitionGraphParser {
     // class named like a flow cannot fall through to generated-name guessing.
     final classElement = _typeLiteralElement(expression);
     if (classElement != null) {
-      return _childFlowFromDeclaration(classElement, requireClass: true);
+      return _childFlowFromDeclaration(
+        classElement,
+        expression,
+        requireClass: true,
+      );
     }
 
     final element = _referencedVariableElement(expression);
@@ -1544,6 +1554,17 @@ final class _FlowDefinitionGraphParser {
             version != null &&
             min != null &&
             childSurface != null) {
+          final atLibraryScope = element is TopLevelVariableElement ||
+              (element is FieldElement && element.isStatic);
+          if (!atLibraryScope) {
+            _issue(
+              IssueCode.unresolvedIdentifier,
+              'Flow $flow cannot name child flow $id from its generated '
+              'part. Declare the child reference as a top-level constant '
+              'and import it into ${assetId.path}.',
+            );
+            return null;
+          }
           return _recordChildFlow(
             _ChildFlow(
               identity: NormalizedFlowIdentity(
@@ -1553,6 +1574,7 @@ final class _FlowDefinitionGraphParser {
               version: version,
               minClient: min,
               declarationIdentity: _elementIdentity(element),
+              referenceName: expression.toSource(),
             ),
           );
         }
@@ -1563,7 +1585,7 @@ final class _FlowDefinitionGraphParser {
         );
         return null;
       }
-      return _childFlowFromDeclaration(element);
+      return _childFlowFromDeclaration(element, expression);
     }
     _issue(
         IssueCode.unresolvedIdentifier,
@@ -1591,7 +1613,8 @@ final class _FlowDefinitionGraphParser {
   }
 
   _ChildFlow? _childFlowFromDeclaration(
-    Element element, {
+    Element element,
+    Expression expression, {
     bool requireClass = false,
   }) {
     if (requireClass && element is! ClassElement) {
@@ -1646,14 +1669,128 @@ final class _FlowDefinitionGraphParser {
     final version = value?.getField('version')?.toIntValue() ?? 1;
     final min =
         value?.getField('minClient')?.toIntValue() ?? kBaselineCatalogVersion;
+    final referenceName = _generatedReferenceSource(element, expression, id);
+    if (referenceName == null) return null;
     return _recordChildFlow(
       _ChildFlow(
         identity: NormalizedFlowIdentity(surface: childSurface, id: id),
         version: version,
         minClient: min,
         declarationIdentity: _elementIdentity(element),
+        referenceName: referenceName,
       ),
     );
+  }
+
+  /// The Dart source naming the generated reference of the child flow that
+  /// [element] declares, reached under the same import prefix the author
+  /// spelled in [expression].
+  String? _generatedReferenceSource(
+    Element element,
+    Expression expression,
+    String childId,
+  ) {
+    final declarationName = element.name;
+    if (declarationName == null || declarationName.isEmpty) {
+      _issue(
+        IssueCode.unresolvedIdentifier,
+        'A child flow reference requires a named @FlowGraph declaration.',
+      );
+      return null;
+    }
+    final name = generatedHandleName(declarationName, fallback: 'surfaceFlow');
+    final source = expression.toSource();
+    final separator = source.lastIndexOf('.');
+    final qualifier = separator < 0 ? '' : source.substring(0, separator + 1);
+    final childLibrary = element.library;
+    if (childLibrary != null &&
+        !identical(childLibrary, library) &&
+        _importScopeHides(element, name, qualifier)) {
+      _issue(
+        IssueCode.unresolvedIdentifier,
+        'Flow $flow enters child flow $childId, but ${assetId.path} imports '
+        '${childLibrary.identifier} with a combinator that hides '
+        '$qualifier$name. Add '
+        "$name to that import's shown names.",
+      );
+      return null;
+    }
+    return '$qualifier$name';
+  }
+
+  /// Whether [qualifier] hides [name] for this exact [declaration].
+  /// Follow import/export routes when the generated handle does not exist yet.
+  bool _importScopeHides(Element declaration, String name, String qualifier) {
+    final childLibrary = declaration.library;
+    if (childLibrary == null) return false;
+    final expectedReference = childLibrary.exportNamespace.get2(name);
+    var routes = 0;
+    for (final import in library.firstFragment.libraryImports) {
+      final prefix = import.prefix?.name;
+      if ((prefix == null ? '' : '$prefix.') != qualifier) continue;
+      if (expectedReference != null &&
+          import.namespace.get2('$qualifier$name') == expectedReference) {
+        return false;
+      }
+      if (expectedReference == null &&
+          !_combinatorsExclude(import.combinators, name) &&
+          _exportsFutureReference(
+            import.importedLibrary,
+            childLibrary,
+            name,
+            <LibraryElement>{},
+          )) {
+        return false;
+      }
+      var exported =
+          import.importedLibrary?.exportNamespace.get2(declaration.name!);
+      if (exported is PropertyAccessorElement) exported = exported.variable;
+      if (exported != declaration) continue;
+      routes += 1;
+    }
+    return routes > 0;
+  }
+
+  /// Follows name-visible export edges to the exact declaring library.
+  bool _exportsFutureReference(
+    LibraryElement? route,
+    LibraryElement target,
+    String name,
+    Set<LibraryElement> visited,
+  ) {
+    if (route == null || !visited.add(route)) return false;
+    if (route == target) return true;
+    // An existing handle would shadow or conflict with the future child handle.
+    if (route.exportNamespace.get2(name) != null) return false;
+    for (final export in route.firstFragment.libraryExports) {
+      if (!_combinatorsExclude(export.combinators, name) &&
+          _exportsFutureReference(
+            export.exportedLibrary,
+            target,
+            name,
+            visited,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _combinatorsExclude(
+    Iterable<NamespaceCombinator> combinators,
+    String name,
+  ) {
+    for (final combinator in combinators) {
+      if (combinator is ShowElementCombinator &&
+          !combinator.shownNames.contains(name)) {
+        return true;
+      }
+      if (combinator is HideElementCombinator &&
+          combinator.hiddenNames.contains(name)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   _ChildFlow? _recordChildFlow(_ChildFlow child) {
@@ -1671,6 +1808,7 @@ final class _FlowDefinitionGraphParser {
       version: child.version,
       minClient: child.minClient,
       declarationIdentity: child.declarationIdentity,
+      referenceName: child.referenceName,
     );
     final previous = _childFlows[child.identity];
     if (previous != null &&
@@ -2264,12 +2402,14 @@ final class _ChildFlow {
     required this.version,
     required this.minClient,
     required this.declarationIdentity,
+    required this.referenceName,
   });
 
   final NormalizedFlowIdentity identity;
   final int version;
   final int minClient;
   final String declarationIdentity;
+  final String referenceName;
 }
 
 bool _isRestageCreation(

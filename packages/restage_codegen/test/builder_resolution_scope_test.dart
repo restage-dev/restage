@@ -4,6 +4,10 @@
 // the whole package. An artifact cannot show whether a walk resolved one file
 // or ten thousand — both emit the same nothing when nothing is annotated — so
 // these tests count `libraryFor` at the resolver.
+//
+// Four of the five stop at the annotation prefilter. The app aggregate is the
+// exception: it derives the whole package's render vocabulary, so it resolves
+// every authored library by design and has its own pin below.
 
 import 'package:build/build.dart';
 import 'package:restage_codegen/builder.dart';
@@ -16,12 +20,18 @@ import 'helpers.dart';
 /// Every builder `build.yaml` applies to a consumer automatically and that
 /// walks the package rather than a single input.
 Map<String, Builder> _defaultOnPackageWalkers() => {
+      ..._prefilteredPackageWalkers(),
+      'user_factories': userFactoryBuilder(BuilderOptions.empty),
+    };
+
+/// The default-on walkers whose walk stops at the annotation prefilter, so an
+/// unannotated package pays them nothing.
+Map<String, Builder> _prefilteredPackageWalkers() => {
       'restage_source_roster': restageSourceRosterBuilder(BuilderOptions.empty),
       'restage_package_surface_compiler':
           restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
       'user_catalog': userCatalogBuilder(BuilderOptions.empty),
       'user_catalog_json': userCatalogJsonBuilder(BuilderOptions.empty),
-      'user_factories': userFactoryBuilder(BuilderOptions.empty),
     };
 
 /// The two builders a consumer must opt into. They are not applied
@@ -137,13 +147,89 @@ void main() {
     });
 
     _walkerTests(
-      zero: _defaultOnPackageWalkers(),
+      zero: _prefilteredPackageWalkers(),
       positive: _defaultOnPackageWalkers(),
     );
     _walkerTests(
       zero: _optInPackageWalkers(),
       positive: _optInPackageWalkersForAnnotatedFixture(),
     );
+
+    // The app aggregate carries the whole package's render vocabulary — the
+    // built-in widgets and icons its own Dart names, wherever they are named —
+    // so it resolves every authored library rather than only the annotated
+    // ones. Pinned here because nothing in the emitted file distinguishes a
+    // full walk from a walk that stopped early with nothing to report.
+    test('user_factories resolves every authored library in the package',
+        () async {
+      final resolvers = CountingResolvers();
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      const sources = {
+        ..._unannotatedPackage,
+        // Not authored: a generated sibling the walk must leave alone.
+        'lib/models/order.g.dart': 'class OrderDto {}',
+        // Not under lib/: outside the walk entirely.
+        'tool/seed.dart': 'void main() {}',
+      };
+
+      final result = await testBuilder(
+        userFactoryBuilder(BuilderOptions.empty),
+        {
+          for (final source in sources.entries)
+            'apps_examples|${source.key}': source.value,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        resolvers: resolvers,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+
+      final resolved = {
+        for (final use in resolvers.usesIn('apps_examples'))
+          if (use.asset case final asset?) asset.path,
+      };
+      expect(
+        resolved,
+        containsAll(_unannotatedPackage.keys),
+        reason: 'resolved: $resolved',
+      );
+      expect(resolved, isNot(contains('tool/seed.dart')));
+      expect(resolved, isNot(contains('lib/models/order.g.dart')));
+    });
+
+    // Scanning a file must make it an input of the step, or a file the app
+    // later renders a built-in widget in would not re-trigger the walk.
+    test('user_factories registers every authored library as an input',
+        () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+
+      final result = await testBuilder(
+        userFactoryBuilder(BuilderOptions.empty),
+        {
+          for (final source in _unannotatedPackage.entries)
+            'apps_examples|${source.key}': source.value,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+
+      final tracked = readerWriter.testing.inputsTrackedFor(
+        primaryInput: AssetId('apps_examples', r'lib/$lib$'),
+      );
+      for (final path in _unannotatedPackage.keys) {
+        expect(tracked, contains(AssetId('apps_examples', path)));
+      }
+      // A new file has to invalidate the walk too.
+      expect(
+        tracked.map((asset) => asset.path),
+        contains(startsWith('glob.')),
+      );
+    });
 
     // G-5: the property the whole design rests on. Scanning a file must make
     // it an input of the step, or a token-free file that later gains an

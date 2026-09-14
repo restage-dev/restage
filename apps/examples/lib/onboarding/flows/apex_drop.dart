@@ -12,7 +12,7 @@ part 'restage.generated/apex_drop.restage.g.dart';
 /// a custom event (no graph transition); the host listens for it and closes the
 /// message. There is no separate "message" API — a message is just a flow that
 /// happens to have a single screen.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class ApexDropFlow extends RestageFlow {
   const ApexDropFlow();
 

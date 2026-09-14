@@ -19,7 +19,7 @@ import 'onboarding/flows/section_header_showcase.dart';
 /// native render fidelity a web smoke cannot see (status bar, theming, real
 /// pixels):
 ///
-///   flutter run -t lib/main_section_header_demo.dart --no-tree-shake-icons
+///   flutter run -t lib/main_section_header_demo.dart
 ///
 /// This closes the chain end to end for record-shaped properties:
 /// source → encode → wire → decode → pixels.

@@ -4,7 +4,7 @@ const reelKeptScreenRef = NeutralFlowScreenRef(
   id: 'reel_kept',
   artifactPath: 'reel_kept.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use reelKeptScreenRef')

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/minimal_paywall.restage.g.dart';
+
 /// The smallest real plan-select paywall — a copy-me starter.
 ///
 /// A `@Paywall` is just a `StatefulWidget` written in ordinary Flutter.

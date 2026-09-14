@@ -862,6 +862,331 @@ final messageParent = FlowDefinition(
       );
     });
 
+    group('child reference import routes', () {
+      void check(
+        String name,
+        String imports, {
+        String target = 'selected.AdvancedChild',
+        bool hidden = false,
+        bool sameLibrary = false,
+        bool variable = false,
+        bool generatedHandle = false,
+        Map<String, String> extraSources = const {},
+      }) {
+        test(name, () async {
+          final result = await _inspectChildReference(
+            imports: imports,
+            target: target,
+            sameLibrary: sameLibrary,
+            variable: variable,
+            generatedHandle: generatedHandle,
+            extraSources: extraSources,
+          );
+          if (hidden) {
+            expect(result.flows, isEmpty);
+            expect(
+              result.issues.where(
+                (issue) =>
+                    issue.code == IssueCode.unresolvedIdentifier &&
+                    issue.message.contains('hides ') &&
+                    issue.message.contains('advancedChildRef'),
+              ),
+              hasLength(1),
+              reason: result.issues.toString(),
+            );
+          } else {
+            expect(result.issues, isEmpty, reason: result.issues.toString());
+            final parent =
+                result.flows.singleWhere((flow) => flow.id == 'parent');
+            final child = parent.graph!.childFlows.values.single;
+            final qualifier = target.contains('.')
+                ? '${target.substring(0, target.lastIndexOf('.'))}.'
+                : '';
+            expect(child.referenceName, '${qualifier}advancedChildRef');
+            expect(child.identity.id, 'advanced_child');
+            expect(
+              child.declarationIdentity,
+              endsWith(variable ? '#advancedChild' : '#AdvancedChild'),
+            );
+            expect(
+              child.declarationIdentity,
+              contains(sameLibrary ? '/parent.dart#' : '/child.dart#'),
+            );
+          }
+        });
+      }
+
+      check(
+        'rejects a hidden prefix despite a second unrestricted prefix',
+        '''
+import 'child.dart' as selected show AdvancedChild;
+import 'child.dart' as other;
+''',
+        hidden: true,
+      );
+      check(
+        'rejects the single restricted prefix',
+        '''
+import 'child.dart' as selected show AdvancedChild;
+''',
+        hidden: true,
+      );
+      check(
+        'rejects a hidden bare route despite an unrestricted prefix',
+        '''
+import 'child.dart' show AdvancedChild;
+import 'child.dart' as other;
+''',
+        target: 'AdvancedChild',
+        hidden: true,
+      );
+      check(
+        'rejects an explicit hide on the emitted prefix',
+        '''
+import 'child.dart' as selected hide advancedChildRef;
+import 'child.dart' as other;
+''',
+        hidden: true,
+      );
+      check('keeps an unrestricted prefix', '''
+import 'child.dart' as selected;
+''');
+      check(
+        'keeps an unrestricted bare route',
+        '''
+import 'child.dart';
+''',
+        target: 'AdvancedChild',
+      );
+      check('keeps a prefix that shows the class and future handle', '''
+import 'child.dart' as selected show AdvancedChild, advancedChildRef;
+''');
+      check('keeps split class and future handle imports under one prefix', '''
+import 'child.dart' as selected show AdvancedChild;
+import 'child.dart' as selected show advancedChildRef;
+''');
+      check(
+        'keeps split bare imports',
+        '''
+import 'child.dart' show AdvancedChild;
+import 'child.dart' show advancedChildRef;
+''',
+        target: 'AdvancedChild',
+      );
+      check(
+        'keeps a same-library declaration',
+        '',
+        target: 'AdvancedChild',
+        sameLibrary: true,
+      );
+      check(
+        'keeps a re-export of the child declaration',
+        '''
+import 'barrel.dart' as selected;
+''',
+        extraSources: {'barrel.dart': "export 'child.dart';"},
+      );
+      check(
+        'keeps a resolved re-export of only the generated handle',
+        '''
+import 'child.dart' as selected show AdvancedChild;
+import 'barrel.dart' as selected;
+''',
+        generatedHandle: true,
+        extraSources: {
+          'barrel.dart': "export 'child.dart' show advancedChildRef;",
+        },
+      );
+      check(
+        'rejects a re-export that hides the resolved handle',
+        '''
+import 'barrel.dart' as selected;
+''',
+        generatedHandle: true,
+        hidden: true,
+        extraSources: {
+          'barrel.dart': "export 'child.dart' show AdvancedChild;",
+        },
+      );
+      for (final generatedHandle in [false, true]) {
+        check(
+          'unrelated same-name class cannot expose the handle '
+              '($generatedHandle)',
+          '''
+import 'child.dart' as selected show AdvancedChild;
+import 'unrelated.dart' as selected hide AdvancedChild;
+''',
+          hidden: true,
+          generatedHandle: generatedHandle,
+          extraSources: {
+            'unrelated.dart': '''
+class AdvancedChild {}
+const advancedChildRef = 'unrelated';
+''',
+          },
+        );
+      }
+      check(
+        'keeps a variable declaration through its resolved accessor',
+        '''
+import 'child.dart' as selected show advancedChild, advancedChildRef;
+''',
+        variable: true,
+        target: 'selected.advancedChild',
+      );
+      check(
+        'a variable declaration still checks its emitted prefix',
+        '''
+import 'child.dart' as selected show advancedChild;
+import 'child.dart' as other;
+''',
+        variable: true,
+        target: 'selected.advancedChild',
+        hidden: true,
+      );
+      for (final generatedHandle in [false, true]) {
+        group('export routes (${generatedHandle ? 'warm' : 'cold'})', () {
+          void checkExport(
+            String name, {
+            required Map<String, String> sources,
+            String imports = '''
+import 'child.dart' as selected show AdvancedChild;
+import 'barrel.dart' as selected;
+''',
+            bool hidden = false,
+          }) {
+            check(
+              name,
+              imports,
+              generatedHandle: generatedHandle,
+              hidden: hidden,
+              extraSources: sources,
+            );
+          }
+
+          checkExport(
+            'keeps a handle-only re-export',
+            sources: {
+              'barrel.dart': "export 'child.dart' show advancedChildRef;",
+            },
+          );
+          checkExport(
+            'rejects a class-only re-export',
+            imports: "import 'barrel.dart' as selected;",
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'child.dart' show AdvancedChild;",
+            },
+          );
+          checkExport(
+            'rejects an export hiding the handle',
+            imports: "import 'barrel.dart' as selected;",
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'child.dart' hide advancedChildRef;",
+            },
+          );
+          checkExport(
+            'keeps a nested route with every edge allowing the handle',
+            sources: {
+              'barrel.dart': "export 'inner.dart' show advancedChildRef;",
+              'inner.dart': '''
+export 'child.dart' show AdvancedChild, advancedChildRef hide AdvancedChild;
+''',
+            },
+          );
+          checkExport(
+            'rejects a nested inner edge hiding the handle',
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'inner.dart';",
+              'inner.dart': "export 'child.dart' show AdvancedChild;",
+            },
+          );
+          checkExport(
+            'rejects a nested outer edge hiding the handle',
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'inner.dart' hide advancedChildRef;",
+              'inner.dart': "export 'child.dart' show advancedChildRef;",
+            },
+          );
+          checkExport(
+            'rejects an import hiding an otherwise valid exported handle',
+            imports: '''
+import 'child.dart' as selected show AdvancedChild;
+import 'barrel.dart' as selected hide advancedChildRef;
+''',
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'child.dart' show advancedChildRef;",
+            },
+          );
+          checkExport(
+            'keeps a valid alternative after an export cycle',
+            sources: {
+              'barrel.dart': "export 'inner.dart';",
+              'inner.dart': '''
+export 'barrel.dart';
+export 'child.dart' show advancedChildRef;
+''',
+            },
+          );
+          checkExport(
+            'rejects a cycle with only a blocked child route',
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'inner.dart';",
+              'inner.dart': '''
+export 'barrel.dart';
+export 'child.dart' hide advancedChildRef;
+''',
+            },
+          );
+          checkExport(
+            'keeps an allowed edge after a blocked edge to the same library',
+            sources: {
+              'barrel.dart': '''
+export 'inner.dart' show AdvancedChild;
+export 'inner.dart' show advancedChildRef;
+''',
+              'inner.dart': "export 'child.dart';",
+            },
+          );
+          checkExport(
+            'rejects a barrel-local handle shadowing the child handle',
+            hidden: true,
+            sources: {
+              'barrel.dart': '''
+export 'child.dart';
+const advancedChildRef = 'unrelated';
+''',
+            },
+          );
+          checkExport(
+            'rejects an export route ending at an unrelated same-name child',
+            hidden: true,
+            sources: {
+              'barrel.dart': "export 'unrelated.dart' show advancedChildRef;",
+              'unrelated.dart': '''
+class AdvancedChild {}
+const advancedChildRef = 'unrelated';
+''',
+            },
+          );
+          checkExport(
+            'applies every show combinator on one export',
+            hidden: true,
+            sources: {
+              'barrel.dart': '''
+export 'child.dart' show AdvancedChild, advancedChildRef show AdvancedChild;
+''',
+            },
+          );
+        });
+      }
+    });
+
     test('accepts a resolved advanced FlowGraph class as a subflow target',
         () async {
       final result = await _inspect(
@@ -1386,4 +1711,74 @@ final class _ProbeBuilder implements Builder {
   Future<void> build(BuildStep buildStep) async {
     await onLibrary(await buildStep.inputLibrary, buildStep.inputId);
   }
+}
+
+Future<FlowFrontendResult> _inspectChildReference({
+  required String imports,
+  required String target,
+  bool sameLibrary = false,
+  bool variable = false,
+  bool generatedHandle = false,
+  Map<String, String> extraSources = const {},
+}) {
+  const classSource = '''
+@FlowGraph(id: 'advanced_child', surface: Surface.onboarding)
+final class AdvancedChild extends RestageFlow {
+  const AdvancedChild();
+  @override
+  FlowDef buildFlow() => flow(
+    initial: const OnboardingScreenRef(
+      id: 'advanced_screen', artifactPath: 'advanced_screen.rfw',
+      version: 1, minClient: 1,
+    ),
+    states: const [],
+  );
+}
+''';
+  const variableSource = '''
+@FlowGraph(id: 'advanced_child', surface: Surface.onboarding)
+final advancedChild = FlowDefinition(
+  start: AccountScreen,
+  transitions: [Transition.complete(AccountScreen.open)],
+);
+''';
+  const handleSource = '''
+void _decodeChild(Map<String, Object?> result) {}
+const advancedChildRef = SurfaceFlowRef<void>(
+  id: 'advanced_child', version: 1, minClient: 1,
+  surface: Surface.onboarding, decodeResult: _decodeChild,
+);
+''';
+  final child = variable ? variableSource : classSource;
+  return _inspect(
+    {
+      'lib/onboarding/screens/account.dart': _screenSource(
+        'AccountScreen',
+        "static const open = SurfaceEvent<void>('open');",
+      ),
+      if (!sameLibrary)
+        'lib/onboarding/flows/child.dart': '''
+import 'package:restage/restage.dart';
+import '../screens/account.dart';
+$child
+${generatedHandle ? handleSource : ''}
+''',
+      for (final entry in extraSources.entries)
+        'lib/onboarding/flows/${entry.key}': entry.value,
+      'lib/onboarding/flows/parent.dart': '''
+import 'package:restage/restage.dart';
+import '../screens/account.dart';
+$imports
+${sameLibrary ? child : ''}
+final done = Completion('done');
+final childStep = Subflow('child', flow: $target, onComplete: done);
+@FlowGraph(id: 'parent', surface: Surface.onboarding)
+final parent = FlowDefinition(
+  start: AccountScreen,
+  transitions: [Transition(AccountScreen.open, to: childStep)],
+);
+''',
+    },
+    preferredFlowPath: 'parent.dart',
+  );
 }

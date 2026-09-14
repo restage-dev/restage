@@ -2,6 +2,7 @@
 // Source: lib/onboarding/screens/lumen_welcome.dart
 
 import 'package:flutter/material.dart';
+
 /// Onboarding — the first screen of the meditation flow.
 ///
 /// The aurora ground, three concentric rings around a lit core, and the

@@ -5,6 +5,7 @@
 /// and the SDK runtime.
 library;
 
+export 'icon_table.dart';
 export 'library_registration.dart';
 export 'registry.dart';
 export 'src/widgets/restage_draggable_sheet.dart';

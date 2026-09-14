@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 import 'package:restage/restage.dart';
+import 'package:restage_example/user_factories.g.dart';
 
 /// Proof slice for the **screen-navigation lowering** — drives the load-bearing
 /// walk of a paywall whose `Navigator.push` to a second `@Paywall` screen
@@ -34,6 +35,7 @@ void main() {
         apiKey: 'rs_pk_example',
         resolver: const AssetVariantResolver(),
       );
+      registerRestageWidgets();
 
       await $.pumpWidgetAndSettle(
         MaterialApp(

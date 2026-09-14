@@ -23,38 +23,107 @@ import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as s6;
 import 'package:restage_widgetbook_example/widgets/status_panel.dart' as s7;
 import 'package:restage/restage.dart';
 
+/// The built-in widgets and icons this package names in its
+/// own Dart, plus the catalog entries its compiled surfaces
+/// render, so a delivered surface can render them.
+///
+/// The scan covers this package's own `lib/` and not the
+/// packages it depends on. An icon reached through a variable,
+/// a function return, or an app-defined wrapper rather than
+/// named by a compile-time constant is not seen.
+const SurfaceVocabulary kRestageAppVocabulary = SurfaceVocabulary(
+  widgets: RestageWidgetLibraries.fromVocabulary(
+    core: {
+      'Center': buildCenter,
+      'Column': buildColumn,
+      'Container': buildContainer,
+      'Row': buildRow,
+      'SizedBox': buildSizedBox,
+      'Text': buildText,
+      'TextRich': buildTextRich,
+    },
+    material: {
+      'Card': buildCard,
+      'ElevatedButton': buildElevatedButton,
+      'Icon': buildIcon,
+      'Switch': buildSwitch,
+      'TextButton': buildTextButton,
+    },
+  ),
+  icons: RestageIconTable.fromFamilies(families: {
+    'MaterialIcons': {
+      0xe159: IconData(0xe159, fontFamily: 'MaterialIcons'),
+    },
+  }),
+);
+
+/// Pass to Restage.configure(registerWidgets: ...) to register
+/// this package with the configured family options.
+const RestageWidgetRegistration kRestageWidgetRegistration =
+    _RestageWidgetRegistration();
+
 /// Registers every emittable @RestageWidget-annotated class
 /// in this package with Restage. Call once at the app's
 /// startup, before any `RestagePaywall` mounts. Idempotent
 /// after `Restage.debugReset`, so test setUps may call it
 /// again between cases.
-void registerRestageWidgets() {
-  Restage.registerWidgetLibrary(
-    WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-    capabilityVersion: 2,
-    widgets: const <RestageWidgetFactory>[
-      RestageWidgetFactory(
-          name: 'BareCatalogCard', builder: _buildBareCatalogCard),
-      RestageWidgetFactory(
-          name: 'CatalogShowcase', builder: _buildCatalogShowcase),
-      RestageWidgetFactory(
-          name: 'ConstructorFidelityCorpus',
-          builder: _buildConstructorFidelityCorpus),
-      RestageWidgetFactory(
-          name: 'ConstructorFidelityProof',
-          builder: _buildConstructorFidelityProof),
-      RestageWidgetFactory(
-          name: 'ConstructorPositionalCorpus',
-          builder: _buildConstructorPositionalCorpus),
-      RestageWidgetFactory(name: 'FeaturePanel', builder: _buildFeaturePanel),
-      RestageWidgetFactory(name: 'FeatureRow', builder: _buildFeatureRow),
-      RestageWidgetFactory(name: 'PriceBadge', builder: _buildPriceBadge),
-      RestageWidgetFactory(
-          name: 'RequiredNullableWidgetProof',
-          builder: _buildRequiredNullableWidgetProof),
-      RestageWidgetFactory(name: 'StatTile', builder: _buildStatTile),
-    ],
+///
+/// Includes both complete built-in families by default.
+/// Family options omit full contributions, keeping app requirements.
+void registerRestageWidgets({
+  bool includeMaterial = true,
+  bool includeCupertino = true,
+}) {
+  kRestageWidgetRegistration(
+    includeMaterial: includeMaterial,
+    includeCupertino: includeCupertino,
   );
+}
+
+final class _RestageWidgetRegistration implements RestageWidgetRegistration {
+  const _RestageWidgetRegistration();
+
+  @override
+  void call({
+    bool includeMaterial = true,
+    bool includeCupertino = true,
+  }) {
+    InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
+    ));
+    InstalledIconTable.add(builtInIconTable(
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
+    ));
+    kRestageAppVocabulary.addToInstalled(explicitSelection: true);
+    Restage.registerWidgetLibrary(
+      WidgetLibrary.custom('restage_widgetbook_example.widgets'),
+      capabilityVersion: 2,
+      widgets: const <RestageWidgetFactory>[
+        RestageWidgetFactory(
+            name: 'BareCatalogCard', builder: _buildBareCatalogCard),
+        RestageWidgetFactory(
+            name: 'CatalogShowcase', builder: _buildCatalogShowcase),
+        RestageWidgetFactory(
+            name: 'ConstructorFidelityCorpus',
+            builder: _buildConstructorFidelityCorpus),
+        RestageWidgetFactory(
+            name: 'ConstructorFidelityProof',
+            builder: _buildConstructorFidelityProof),
+        RestageWidgetFactory(
+            name: 'ConstructorPositionalCorpus',
+            builder: _buildConstructorPositionalCorpus),
+        RestageWidgetFactory(name: 'FeaturePanel', builder: _buildFeaturePanel),
+        RestageWidgetFactory(name: 'FeatureRow', builder: _buildFeatureRow),
+        RestageWidgetFactory(name: 'PriceBadge', builder: _buildPriceBadge),
+        RestageWidgetFactory(
+            name: 'RequiredNullableWidgetProof',
+            builder: _buildRequiredNullableWidgetProof),
+        RestageWidgetFactory(name: 'StatTile', builder: _buildStatTile),
+      ],
+    );
+  }
 }
 
 @Deprecated('Use registerRestageWidgets; removed in 3.0')
@@ -86,21 +155,19 @@ Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
     s7.CatalogShowcase.new,
     <Object?>[],
     <Symbol, Object?>{
-      #title: source.v<String>(<Object>['title']) ??
+      #title: source.v<String>(const <Object>['title']) ??
           (throw ArgumentError('CatalogShowcase.title is required.')),
       if (_restagePresenceEnabled.supplied)
         #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
       #status: RestageDecoders.enumByName<s7.CatalogShowcaseStatus>(
               s7.CatalogShowcaseStatus.values, source, <Object>['status']) ??
           (throw ArgumentError('CatalogShowcase.status is required.')),
-      #onChanged: source.handler<ValueChanged<bool>>(
-              <Object>['onChanged'],
-              (trigger) =>
-                  (bool value) => trigger(<String, Object?>{'value': value})) ??
+      #onChanged: RestageDecoders.valueChanged<bool>(
+              source, const <Object>['onChanged']) ??
           (bool _) {},
-      #hero: source.child(<Object>['hero']),
-      #details: source.childList(<Object>['details']),
-      #footer: source.optionalChild(<Object>['footer']),
+      #hero: source.child(const <Object>['hero']),
+      #details: source.childList(const <Object>['details']),
+      #footer: source.optionalChild(const <Object>['footer']),
       #data: source.isMap(<Object>['data'])
           ? s7.CatalogShowcaseData(
               note: source.v<String>(<Object>['data', 'note']) ??
@@ -153,12 +220,12 @@ Widget _buildConstructorFidelityCorpus(
     s1.ConstructorFidelityCorpus.new,
     <Object?>[],
     <Symbol, Object?>{
-      #value: source.v<String>(<Object>['value']) ??
+      #value: source.v<String>(const <Object>['value']) ??
           (throw ArgumentError('ConstructorFidelityCorpus.value is required.')),
-      #ordinaryLabel: source.v<String>(<Object>['ordinaryLabel']) ??
+      #ordinaryLabel: source.v<String>(const <Object>['ordinaryLabel']) ??
           (throw ArgumentError(
               'ConstructorFidelityCorpus.ordinaryLabel is required.')),
-      #requiredNamed: source.v<String>(<Object>['requiredNamed']) ??
+      #requiredNamed: source.v<String>(const <Object>['requiredNamed']) ??
           (throw ArgumentError(
               'ConstructorFidelityCorpus.requiredNamed is required.')),
       if (_restagePresenceNullableText.supplied)
@@ -200,16 +267,12 @@ Widget _buildConstructorFidelityCorpus(
                         (throw ArgumentError('ConstructorCorpusData.count is required.')))
                 : (throw ArgumentError('ConstructorFidelityCorpus.data is required.')))
             : (throw ArgumentError('ConstructorFidelityCorpus.data is required.')),
-      #resetProof: source.voidHandler(<Object>['resetProof']) ?? () {},
-      #whenEnabledChanges: source.handler<ValueChanged<bool>>(
-              <Object>['whenEnabledChanges'],
-              (trigger) =>
-                  (bool value) => trigger(<String, Object?>{'value': value})) ??
+      #resetProof: source.voidHandler(const <Object>['resetProof']) ?? () {},
+      #whenEnabledChanges: RestageDecoders.valueChanged<bool>(
+              source, const <Object>['whenEnabledChanges']) ??
           (bool _) {},
-      #reportCount: source.handler<ValueChanged<int>>(
-              <Object>['reportCount'],
-              (trigger) =>
-                  (int value) => trigger(<String, Object?>{'value': value})) ??
+      #reportCount: RestageDecoders.valueChanged<int>(
+              source, const <Object>['reportCount']) ??
           (int _) {},
     },
   ) as Widget;
@@ -228,7 +291,7 @@ Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
   return Function.apply(
     s2.ConstructorFidelityProof.new,
     <Object?>[
-      source.v<String>(<Object>['label']) ??
+      source.v<String>(const <Object>['label']) ??
           (throw ArgumentError('ConstructorFidelityProof.label is required.')),
     ],
     <Symbol, Object?>{
@@ -236,10 +299,8 @@ Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
         #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
       if (_restagePresenceOptionalText.supplied)
         #optionalText: source.v<String>(_restagePresenceOptionalText.valuePath),
-      #onChanged: source.handler<ValueChanged<bool>>(
-              <Object>['onChanged'],
-              (trigger) =>
-                  (bool value) => trigger(<String, Object?>{'value': value})) ??
+      #onChanged: RestageDecoders.valueChanged<bool>(
+              source, const <Object>['onChanged']) ??
           (bool _) {},
     },
   ) as Widget;
@@ -259,7 +320,7 @@ Widget _buildConstructorPositionalCorpus(
   return Function.apply(
     s1.ConstructorPositionalCorpus.new,
     <Object?>[
-      source.v<String>(<Object>['requiredLabel']) ??
+      source.v<String>(const <Object>['requiredLabel']) ??
           (throw ArgumentError(
               'ConstructorPositionalCorpus.requiredLabel is required.')),
       if (_restagePresenceLeading.supplied || _restagePresenceTrailing.supplied)
@@ -275,39 +336,39 @@ Widget _buildConstructorPositionalCorpus(
 
 Widget _buildFeaturePanel(BuildContext context, DataSource source) {
   return s3.FeaturePanel(
-    header: source.optionalChild(<Object>['header']),
-    children: source.childList(<Object>['children']),
+    header: source.optionalChild(const <Object>['header']),
+    children: source.childList(const <Object>['children']),
   );
 }
 
 Widget _buildFeatureRow(BuildContext context, DataSource source) {
   return s4.FeatureRow(
-    title: source.v<String>(<Object>['title']) ?? 'Unlimited projects',
-    subtitle:
-        source.v<String>(<Object>['subtitle']) ?? 'No caps on what you ship.',
+    title: source.v<String>(const <Object>['title']) ?? 'Unlimited projects',
+    subtitle: source.v<String>(const <Object>['subtitle']) ??
+        'No caps on what you ship.',
   );
 }
 
 Widget _buildPriceBadge(BuildContext context, DataSource source) {
   return s5.PriceBadge(
-    price: source.v<String>(<Object>['price']) ?? '\$9.99',
-    period: source.v<String>(<Object>['period']) ?? 'mo',
+    price: source.v<String>(const <Object>['price']) ?? '\$9.99',
+    period: source.v<String>(const <Object>['period']) ?? 'mo',
   );
 }
 
 Widget _buildRequiredNullableWidgetProof(
     BuildContext context, DataSource source) {
   return s1.RequiredNullableWidgetProof(
-    source.optionalChild(<Object>['positionalNullable']),
-    source.child(<Object>['positionalControl']),
-    namedNullable: source.optionalChild(<Object>['namedNullable']),
-    namedControl: source.child(<Object>['namedControl']),
+    source.optionalChild(const <Object>['positionalNullable']),
+    source.child(const <Object>['positionalControl']),
+    namedNullable: source.optionalChild(const <Object>['namedNullable']),
+    namedControl: source.child(const <Object>['namedControl']),
   );
 }
 
 Widget _buildStatTile(BuildContext context, DataSource source) {
   return s6.StatTile(
-    label: source.v<String>(<Object>['label']) ?? 'Active users',
-    value: source.v<String>(<Object>['value']) ?? '1,204',
+    label: source.v<String>(const <Object>['label']) ?? 'Active users',
+    value: source.v<String>(const <Object>['value']) ?? '1,204',
   );
 }

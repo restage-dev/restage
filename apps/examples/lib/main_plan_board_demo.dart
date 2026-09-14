@@ -19,7 +19,7 @@ import 'onboarding/flows/plan_board_showcase.dart';
 /// a real device to confirm the native render fidelity a web smoke cannot see
 /// (status bar, theming, real pixels):
 ///
-///   flutter run -t lib/main_plan_board_demo.dart --no-tree-shake-icons
+///   flutter run -t lib/main_plan_board_demo.dart
 ///
 /// This closes the chain end to end for map-shaped properties:
 /// source → encode → wire → decode → pixels.

@@ -293,6 +293,16 @@ void main() {
       );
     });
 
+    test('the surface compiler is ordered before the app aggregate', () {
+      // The app aggregate folds the compiled surfaces' catalog entries out of
+      // the compiler's package-wide record. Without the edge it reads an
+      // absent record and silently drops every lowered entry.
+      expect(
+        runsBefore['restage_package_surface_compiler'],
+        contains('restage_codegen:user_factories'),
+      );
+    });
+
     test('the Widgetbook story builder runs before Widgetbook generation', () {
       expect(
         runsBefore['widgetbook_stories'],

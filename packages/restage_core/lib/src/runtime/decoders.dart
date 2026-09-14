@@ -57,6 +57,17 @@ import 'package:rfw/rfw.dart';
 /// any custom library generated via `@RestageWidget` can call into a
 /// single canonical implementation.
 abstract final class RestageDecoders {
+  /// Decodes a typed value-change event through RFW's own handler machinery.
+  ///
+  /// The trigger preserves RFW event lists and argument merging, including an
+  /// explicit null value. Keeping the adapter here shares it across factories.
+  static void Function(T)? valueChanged<T>(
+          DataSource source, List<Object> path) =>
+      source.handler<void Function(T)>(path, _valueChanged<T>);
+
+  static void Function(T) _valueChanged<T>(HandlerTrigger trigger) =>
+      (T value) => trigger(<String, Object?>{'value': value});
+
   /// Decodes an enum member by its declared name.
   ///
   /// [EnumName.name] is the declared member name by construction, while

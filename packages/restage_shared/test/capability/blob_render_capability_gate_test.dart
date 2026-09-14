@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -94,6 +97,76 @@ void main() {
       expect(decoded, cap);
       expect(decoded.versionOf('acme.unversioned'), isNull);
       expect(decoded.versionOf('acme.widgets'), 2);
+    });
+
+    test('a capability reporting no vocabulary keeps its wire form', () {
+      final cap = InstalledCapability(
+        builtInCatalogVersion: 5,
+        installedLibraries: const [
+          InstalledLibrary(namespace: 'acme.widgets', version: 4),
+        ],
+      );
+
+      expect(cap.vocabulary, isNull);
+      expect(cap.toJson().containsKey('vocabulary'), isFalse);
+
+      const established = '{"builtInCatalogVersion":5,"installedLibraries":'
+          '[{"namespace":"acme.widgets","version":4}]}';
+      expect(jsonEncode(cap.toJson()), established);
+      expect(
+        cap.contentHash,
+        'sha256:${crypto.sha256.convert(utf8.encode(established))}',
+      );
+    });
+
+    test('round-trips through JSON with a reported vocabulary', () {
+      final cap = InstalledCapability(
+        builtInCatalogVersion: 5,
+        installedLibraries: const [
+          InstalledLibrary(namespace: 'acme.widgets', version: 4),
+        ],
+        vocabulary: WidgetVocabulary(
+          widgetNames: const {'material:Icon', 'core:Column'},
+          iconCodePoints: const {
+            'MaterialIcons': {0xe5d2, 0xe88a},
+          },
+        ),
+      );
+
+      final decoded = InstalledCapability.fromJson(
+        jsonDecode(jsonEncode(cap.toJson())) as Map<String, dynamic>,
+      );
+
+      expect(decoded, cap);
+      expect(decoded.vocabulary, cap.vocabulary);
+      expect(
+        decoded.vocabulary!.widgetNames,
+        {'core:Column', 'material:Icon'},
+      );
+      expect(cap.toJson().containsKey('vocabulary'), isTrue);
+      expect(
+        cap.contentHash,
+        isNot(
+          InstalledCapability(
+            builtInCatalogVersion: 5,
+            installedLibraries: const [
+              InstalledLibrary(namespace: 'acme.widgets', version: 4),
+            ],
+          ).contentHash,
+        ),
+      );
+    });
+
+    test('decodes a payload without a vocabulary key as no vocabulary', () {
+      final decoded = InstalledCapability.fromJson(const {
+        'builtInCatalogVersion': 5,
+        'installedLibraries': [
+          {'namespace': 'acme.widgets', 'version': 4},
+        ],
+      });
+
+      expect(decoded.vocabulary, isNull);
+      expect(decoded.versionOf('acme.widgets'), 4);
     });
   });
 

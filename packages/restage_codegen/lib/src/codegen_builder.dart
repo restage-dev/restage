@@ -25,6 +25,7 @@ import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -104,10 +105,13 @@ final class CompiledPaywallArtifacts {
     required List<int> adapterCapabilitySidecar,
     required List<int>? navigationPlan,
     required this.adapterRfwCatalogOccurrenceSet,
+    required this.vocabulary,
+    required Iterable<String> navigationPushedIds,
     required Iterable<AnalyticsIdDeclaration> standaloneAnalyticsIdDeclarations,
     required Iterable<AnalyticsIdDeclaration> adapterAnalyticsIdDeclarations,
     this.standaloneRfwCatalogOccurrenceSet,
-  })  : standaloneBlob =
+  })  : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+        standaloneBlob =
             standaloneBlob == null ? null : Uint8List.fromList(standaloneBlob),
         standaloneCapabilitySidecar = standaloneCapabilitySidecar == null
             ? null
@@ -130,6 +134,12 @@ final class CompiledPaywallArtifacts {
   final Uint8List adapterBlob;
   final Uint8List adapterCapabilitySidecar;
   final Uint8List? navigationPlan;
+
+  /// The catalog widgets and icon constants this paywall's own forms render.
+  final SurfaceVocabularyReferences vocabulary;
+
+  /// Paywall ids this paywall's lowered navigation pushes, in source order.
+  final List<String> navigationPushedIds;
 
   /// Frozen resolved RFW calls for the emitted flow-screen artifact.
   final fmt.ResolvedRfwCatalogOccurrenceSet adapterRfwCatalogOccurrenceSet;
@@ -369,6 +379,14 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         adapterBlob: adapterForm.blob,
         adapterCapabilitySidecar: adapterForm.capabilitySidecar,
         adapterRfwCatalogOccurrenceSet: adapterForm.rfwCatalogOccurrenceSet,
+        vocabulary: standaloneForm == null
+            ? adapterForm.vocabulary
+            : standaloneForm.vocabulary.union(adapterForm.vocabulary),
+        navigationPushedIds: [
+          for (final transition in standalone.navigation?.transitions ??
+              const <NavigationTransition>[])
+            transition.pushedId,
+        ],
         standaloneRfwCatalogOccurrenceSet:
             standaloneForm?.rfwCatalogOccurrenceSet,
         standaloneAnalyticsIdDeclarations:
@@ -498,6 +516,9 @@ _CompiledPaywallForm? _compilePaywallForm({
     blob: blob,
     capabilitySidecar: sidecar,
     rfwCatalogOccurrenceSet: occurrenceSet,
+    vocabulary: referencesOfCatalogEntries(derivation.referencedWidgets).union(
+      SurfaceVocabularyReferences(icons: translation.iconReferences),
+    ),
     analyticsIdDeclarations: lowering.declarations,
   );
 }
@@ -533,6 +554,7 @@ final class _CompiledPaywallForm {
     required this.blob,
     required this.capabilitySidecar,
     required this.rfwCatalogOccurrenceSet,
+    required this.vocabulary,
     required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
   }) : analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations);
 
@@ -540,6 +562,7 @@ final class _CompiledPaywallForm {
   final Uint8List blob;
   final List<int> capabilitySidecar;
   final fmt.ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
+  final SurfaceVocabularyReferences vocabulary;
   final List<AnalyticsIdDeclaration> analyticsIdDeclarations;
 }
 

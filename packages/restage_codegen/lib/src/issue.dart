@@ -62,6 +62,16 @@ enum IssueCode {
   /// Reference to an unknown class, value, or identifier.
   unresolvedIdentifier,
 
+  /// A resolved `IconData` the generated reference cannot rebuild faithfully:
+  /// it carries a field the rebuild does not know about, or it names no font
+  /// family, which the delivered icon table is keyed by.
+  unreconstructableIconData,
+
+  /// Two resolved `IconData` constants share one font family, code point and
+  /// mirroring but rebuild to different values. A delivered surface carries
+  /// nothing beyond those three, so the runtime cannot tell them apart.
+  collidingIconCodePoints,
+
   /// Method call not in the recognized helper / constructor support set.
   unrecognizedMethodCall,
 
@@ -580,6 +590,12 @@ enum IssueCode {
         IssueCode.analyzerResolutionFailed ||
         IssueCode.filenameMismatch ||
         IssueCode.unresolvedIdentifier ||
+        // An icon whose fields this build cannot rebuild faithfully; rebuilding
+        // it partly would change how it renders.
+        IssueCode.unreconstructableIconData ||
+        // Two icons the delivered surface cannot tell apart; installing either
+        // would silently change how the other one renders.
+        IssueCode.collidingIconCodePoints ||
         IssueCode.unrecognizedMethodCall ||
         IssueCode.constObjectFieldUnresolved ||
         IssueCode.integerLiteralOverflow ||

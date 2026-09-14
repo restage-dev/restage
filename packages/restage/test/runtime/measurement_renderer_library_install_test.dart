@@ -30,7 +30,7 @@ void main() {
   testWidgets('flow runtime renders MeasurementPresented without a scope', (
     tester,
   ) async {
-    final runtime = FlowScreenLibraries().runtimeFor(
+    final runtime = flowScreenRuntime(
       parseLibraryFile(_screenSource('flow child')),
     );
     addTearDown(runtime.dispose);

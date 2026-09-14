@@ -34,6 +34,7 @@ import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_a
 import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
@@ -55,6 +56,9 @@ final class CompiledSurfaceArtifact {
     required this.flowArtifactPath,
     this.flowScreenId,
     this.paywallFacts,
+    this.vocabulary = SurfaceVocabularyReferences.empty,
+    this.mountVocabulary = SurfaceVocabularyReferences.empty,
+    Iterable<String> packageWidgetNames = const [],
     this.nativeMountInput,
     Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByOutputRole = const {},
@@ -62,6 +66,9 @@ final class CompiledSurfaceArtifact {
     List<int>? navigationPlan,
   })  : _blob = Uint8List.fromList(blob),
         _capabilitySidecar = Uint8List.fromList(capabilitySidecar),
+        packageWidgetNames = List.unmodifiable(
+          packageWidgetNames.toSet().toList()..sort(),
+        ),
         rfwCatalogOccurrenceSetsByOutputRole = Map.unmodifiable(
           Map.of(rfwCatalogOccurrenceSetsByOutputRole),
         ),
@@ -75,6 +82,9 @@ final class CompiledSurfaceArtifact {
     required ClassElement declaration,
     required PaywallArtifactFacts facts,
     required String flowArtifactPath,
+    SurfaceVocabularyReferences mountVocabulary =
+        SurfaceVocabularyReferences.empty,
+    Iterable<String> packageWidgetNames = const [],
     ResolvedWidgetMountInput? nativeMountInput,
     List<int>? rfwText,
     List<int>? navigationPlan,
@@ -88,6 +98,8 @@ final class CompiledSurfaceArtifact {
         flowArtifactPath: flowArtifactPath,
         flowScreenId: facts.adapter.id,
         paywallFacts: facts,
+        mountVocabulary: mountVocabulary,
+        packageWidgetNames: packageWidgetNames,
         nativeMountInput: nativeMountInput,
         rfwText: rfwText,
         navigationPlan: navigationPlan,
@@ -116,6 +128,18 @@ final class CompiledSurfaceArtifact {
 
   /// Complete specialized paywall family when this artifact is an adapter.
   final PaywallArtifactFacts? paywallFacts;
+
+  /// The catalog widgets and icon constants this source renders, named so a
+  /// generated reference can install exactly them.
+  final SurfaceVocabularyReferences vocabulary;
+
+  /// The catalog widgets and icon constants a generated paywall mount installs
+  /// before it mounts, covering everything rendering the paywall draws.
+  final SurfaceVocabularyReferences mountVocabulary;
+
+  /// Catalog widgets read off this source's compiled blobs, folded into the
+  /// package-wide vocabulary only — never into a per-surface [vocabulary].
+  final List<String> packageWidgetNames;
 
   final ResolvedWidgetMountInput? nativeMountInput;
 
@@ -255,6 +279,7 @@ final class PackageSurfaceCompilationBundle {
     required Map<String, String> generatedParts,
     required Set<String> aggregateOwnedOutputPaths,
     required Map<String, String> artifactLibraryPaths,
+    Iterable<String> surfaceWidgetNames = const [],
     Iterable<MeasurementCompilerPublication> measurementPublications = const [],
     Iterable<MeasurementRfwPresentationArtifactMaterialization>
         measurementPresentationMaterializations = const [],
@@ -266,6 +291,9 @@ final class PackageSurfaceCompilationBundle {
           Map.of(artifactLibraryPaths),
         ),
         generatedParts = Map.unmodifiable(Map.of(generatedParts)),
+        surfaceWidgetNames = List.unmodifiable(
+          surfaceWidgetNames.toSet().toList()..sort(),
+        ),
         measurementPublications = List.unmodifiable(measurementPublications),
         measurementPresentationMaterializations = List.unmodifiable(
           measurementPresentationMaterializations,
@@ -276,6 +304,11 @@ final class PackageSurfaceCompilationBundle {
 
   /// Strict shared DTO used by publication and delivery consumers.
   final SurfacePublicationManifest manifest;
+
+  /// Namespaced catalog widget names every compiled surface renders, sorted
+  /// ascending. These are the entries the compiler selected, so they name a
+  /// widget a translation lowered to a catalog entry the source never wrote.
+  final List<String> surfaceWidgetNames;
 
   /// Canonical manifest bytes as UTF-8 text.
   final String manifestJson;
@@ -1092,7 +1125,11 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     }
 
     if (rendered.nativeMountInput case final mountInput?) {
-      final mount = emitPaywallMount(mountInput, id: source.effectiveId);
+      final mount = emitPaywallMount(
+        mountInput,
+        id: source.effectiveId,
+        vocabulary: rendered.mountVocabulary,
+      );
       if (mount.source case final fragment?) {
         _claimGeneratedSymbol(
           claimedSymbols,
@@ -1645,6 +1682,15 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         document: emittedDocument,
         flow: flow,
         sdkPrefix: sdkPrefix,
+        // A delivered flow resolves its screens by slug and never reads their
+        // generated references, so the flow reference carries the union.
+        vocabulary: _flowScreenVocabulary(
+          graph,
+          artifactsByIdentity,
+          issues: issues,
+          flowId: source.effectiveId,
+          location: source.span.location,
+        ),
         measurementPublicationKey: _measurementSelectorForAssembly(
           assembly.manifestInput,
         ).key,
@@ -1895,6 +1941,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       flow: pending.flow,
       sdkPrefix: pending.sdkPrefix,
       source: pending.source,
+      vocabulary: pending.vocabulary,
       measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[
           pending.measurementPublicationKey],
       issues: issues,
@@ -1924,6 +1971,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       generatedParts: generatedParts,
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
       artifactLibraryPaths: artifactLibraryPaths,
+      surfaceWidgetNames: _packageSurfaceWidgetNames(input),
       measurementPublications: measurementPublications,
       measurementPresentationMaterializations:
           measurementPresentationMaterializations,
@@ -2775,6 +2823,66 @@ $carrierArgument  );
 ''';
 }
 
+/// Every catalog widget the package's compiled surfaces render.
+///
+/// Read off the compiled artifacts rather than their Dart sources, so a
+/// widget the translation lowered to a different catalog entry than the
+/// Flutter type its source wrote is named here too.
+List<String> _packageSurfaceWidgetNames(PackageSurfaceCompilationInput input) {
+  final names = <String>{
+    for (final artifact in input.renderedSources)
+      ...artifact.vocabulary.widgetNames,
+    for (final artifact in input.renderedSources)
+      ...artifact.packageWidgetNames,
+    for (final screen in input.standaloneScreens)
+      ...screen.input.vocabulary.widgetNames,
+  }.toList()
+    ..sort();
+  return names;
+}
+
+/// The union of every screen vocabulary [graph] reaches, ordered so two runs
+/// over one input fold the same set.
+///
+/// Two screens can each be carriable and still disagree on what one icon
+/// renders. That records an issue against [location] and folds to the empty
+/// set; the caller's build already fails on a non-empty [issues].
+SurfaceVocabularyReferences _flowScreenVocabulary(
+  NormalizedFlowGraph graph,
+  Map<String, List<_ResolvedArtifact>> artifactsByIdentity, {
+  required List<Issue> issues,
+  required String flowId,
+  required String location,
+}) {
+  final identities = <String>{
+    for (final reference in graph.screens.values) reference.declarationIdentity,
+  }.toList()
+    ..sort();
+  final union = VocabularyUnionBuilder();
+  for (final identity in identities) {
+    for (final artifact
+        in artifactsByIdentity[identity] ?? const <_ResolvedArtifact>[]) {
+      try {
+        union.add(artifact.rendered.vocabulary, identity);
+      } on IconCarriageFailure catch (failure) {
+        final other = union.ownerOf(failure);
+        final origin = other == null ? '' : ' The other one comes from $other.';
+        _addIssue(
+          issues,
+          code: failure is IconCodePointCollision
+              ? IssueCode.collidingIconCodePoints
+              : IssueCode.unreconstructableIconData,
+          message: 'Flow $flowId reaches screen $identity, but '
+              '${failure.reason}.$origin',
+          location: location,
+        );
+        return SurfaceVocabularyReferences.empty;
+      }
+    }
+  }
+  return union.union;
+}
+
 String? _emitFlowReference({
   required String refName,
   required String resultName,
@@ -2786,6 +2894,7 @@ String? _emitFlowReference({
   required String sdkPrefix,
   required RestageSourceDeclaration source,
   required List<Issue> issues,
+  SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
   Map<String, FlowDocument> descendants = const {},
   Map<String, ClassElement> nativeScreens = const {},
   String? measurementPublicationDraftDigest,
@@ -2803,6 +2912,11 @@ String? _emitFlowReference({
         : resultName,
   );
   final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
+  var vocabularyArgument = '';
+  if (vocabulary.namesInstallable) {
+    vocabularyArgument = '  vocabulary: '
+        '${emitSurfaceVocabulary(vocabulary, sdkPrefix: sdkPrefix)},\n';
+  }
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
           ? '${sdkPrefix}SurfaceFlowRef<$resultType>'
@@ -2812,6 +2926,28 @@ String? _emitFlowReference({
       ? ''
       : '  measurementPublicationDraftDigest: '
           '${_dartSingleString(measurementPublicationDraftDigest)},\n';
+  // The argument is emitted only when this flow enters a child flow.
+  final childFlows = graph.childFlows.entries.toList()
+    ..sort((left, right) => left.key.key.compareTo(right.key.key));
+  final subFlowNames = <String>[];
+  for (final child in childFlows) {
+    final name = child.value.referenceName;
+    if (name.isEmpty) {
+      _addIssue(
+        issues,
+        code: IssueCode.unsupportedFlowRuntimeFeature,
+        message: 'Flow ${flow.id} enters the flow "${child.key.id}" on the '
+            '${child.key.surface.name} surface, but the generated reference '
+            'for that flow cannot be named from here, so the child flow '
+            'would be delivered without its own vocabulary.',
+        location: source.span.location,
+      );
+      return null;
+    }
+    subFlowNames.add(name);
+  }
+  final subFlowsArgument =
+      subFlowNames.isEmpty ? '' : '  subFlows: [${subFlowNames.join(', ')}],\n';
   if (flow.delivery == FlowDeliveryMode.general) {
     return '''
 const $refName = ${referenceConstructor('Map<String, Object?>')}(
@@ -2821,7 +2957,7 @@ const $refName = ${referenceConstructor('Map<String, Object?>')}(
   surface: ${sdkPrefix}Surface.${flow.surface.name},
   deliveryMode: ${sdkPrefix}FlowDeliveryMode.${flow.delivery.name},
   decodeResult: $decoderName,
-${compiled.argument}$carrierArgument);
+${compiled.argument}$carrierArgument$vocabularyArgument$subFlowsArgument);
 
 Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
 ${_emitSeedClass(seedName, graph.flowState, sdkPrefix)}
@@ -2857,7 +2993,7 @@ const $refName = ${referenceConstructor(resultName)}(
   surface: ${sdkPrefix}Surface.${flow.surface.name},
   deliveryMode: ${sdkPrefix}FlowDeliveryMode.${flow.delivery.name},
   decodeResult: $decoderName,
-${compiled.argument}$carrierArgument);
+${compiled.argument}$carrierArgument$vocabularyArgument$subFlowsArgument);
 
 $decoder
 
@@ -3171,18 +3307,8 @@ ResolvedStandaloneScreenContract? _refreshStandaloneContractBundleMetadata(
   final blob = blobs.single.bytes;
   final sidecar = sidecars.single.bytes;
   final inspection = inspectStandaloneScreenContract(
-    ResolvedStandaloneScreenContractInput(
-      assetId: contract.input.assetId,
-      screen: contract.screen,
-      surface: contract.surface,
-      slug: contract.slug,
-      contractVersion: contract.contractVersion,
-      capabilities: contract.capabilities,
-      rootParams: contract.input.rootParams,
-      constructorParams: contract.input.constructorParams,
-      mountConstructorProblem: contract.input.mountConstructorProblem,
-      plan: contract.input.plan,
-      bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
+    contract.input.withBundleEntryMetadata(
+      ResolvedScreenBundleEntryMetadata(
         blobSha256: CapabilitySidecar.hashBlob(blob),
         blobByteLength: blob.length,
         sidecarSha256: CapabilitySidecar.hashBlob(sidecar),
@@ -4484,6 +4610,7 @@ final class _PendingFlowPart {
     required this.document,
     required this.flow,
     required this.sdkPrefix,
+    required this.vocabulary,
     required this.measurementPublicationKey,
   });
 
@@ -4498,6 +4625,7 @@ final class _PendingFlowPart {
   final FlowDocument document;
   final NormalizedFlowSource flow;
   final String sdkPrefix;
+  final SurfaceVocabularyReferences vocabulary;
   final String measurementPublicationKey;
 }
 

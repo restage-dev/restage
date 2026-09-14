@@ -19,6 +19,7 @@ import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 const String _restageSdkOrigin = 'package:restage';
@@ -125,6 +126,7 @@ final class ResolvedStandaloneScreenContractInput
     super.mountConstructorProblem,
     super.plan,
     this.bundleEntryMetadata,
+    this.vocabulary = SurfaceVocabularyReferences.empty,
   });
 
   /// Canonical product category.
@@ -141,12 +143,39 @@ final class ResolvedStandaloneScreenContractInput
 
   /// Exact compiled blob and sidecar metadata when bundling is enabled.
   final ResolvedScreenBundleEntryMetadata? bundleEntryMetadata;
+
+  /// The catalog widgets and icon constants this screen renders, named so the
+  /// generated reference installs exactly them.
+  final SurfaceVocabularyReferences vocabulary;
+
+  /// This input with [bundleEntryMetadata] replaced.
+  ///
+  /// Everything else is carried over rather than restated, so a late refresh
+  /// of the bundle hashes cannot silently drop another resolved field.
+  ResolvedStandaloneScreenContractInput withBundleEntryMetadata(
+    ResolvedScreenBundleEntryMetadata bundleEntryMetadata,
+  ) =>
+      ResolvedStandaloneScreenContractInput(
+        assetId: assetId,
+        screen: screen,
+        surface: surface,
+        slug: slug,
+        contractVersion: contractVersion,
+        capabilities: capabilities,
+        rootParams: rootParams,
+        constructorParams: constructorParams,
+        mountConstructorProblem: mountConstructorProblem,
+        plan: plan,
+        bundleEntryMetadata: bundleEntryMetadata,
+        vocabulary: vocabulary,
+      );
 }
 
 /// Emits a typed paywall mount using the same constructor contract as screens.
 ({String? source, String? omissionMessage}) emitPaywallMount(
   ResolvedWidgetMountInput input, {
   required String id,
+  SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
 }) {
   final result = _resolveScreenMount(
     input,
@@ -162,6 +191,7 @@ final class ResolvedStandaloneScreenContractInput
     mount: mount,
     eventType: '${mount.sdk}RestageEvent',
     paywallId: id,
+    vocabulary: vocabulary,
   );
   return (source: buffer.toString(), omissionMessage: null);
 }
@@ -1177,6 +1207,17 @@ String _emitReferenceDart(
   if (bundleLocatorSource != null) {
     buffer.writeln('  bundle: $bundleLocatorSource,');
   }
+  // The provenance value is not const, so the vocabulary carries its own
+  // keyword; it is emitted only when it names something installable, so the
+  // source is always a constructor invocation.
+  if (contract.input.vocabulary.namesInstallable) {
+    buffer.writeln(
+      '  vocabulary: const ${emitSurfaceVocabulary(
+        contract.input.vocabulary,
+        sdkPrefix: sdk,
+      )},',
+    );
+  }
   buffer
     ..writeln(');')
     ..writeln()
@@ -1243,6 +1284,7 @@ void _emitScreenMount(
   required _ResolvedScreenMount mount,
   required String eventType,
   String? paywallId,
+  SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
 }) {
   final paywall = paywallId != null;
   final unavailableControl = paywall ? 'errorBuilder' : 'onUnavailable';
@@ -1367,6 +1409,14 @@ void _emitScreenMount(
     ..writeln(
       '  ${flutter}Widget build(${flutter}BuildContext context) {',
     );
+  // A screen mount installs through the vocabulary its reference carries. A
+  // paywall mount names no reference, so it installs here instead.
+  if (paywall && vocabulary.namesInstallable) {
+    buffer.writeln(
+      '    const ${emitSurfaceVocabulary(vocabulary, sdkPrefix: sdk)}'
+      '.addToInstalled();',
+    );
+  }
   final fallbackArguments = <(_ResolvedMountParameter, String)>[
     for (final parameter in parameters)
       if (parameter.fallbackArgumentSource case final source?)

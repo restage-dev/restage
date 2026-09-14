@@ -93,7 +93,7 @@ void main() {
       expect(
         source,
         contains(
-          "source.voidHandler(<Object>['onRetry']) ?? c0.retryDefault",
+          "source.voidHandler(const <Object>['onRetry']) ?? c0.retryDefault",
         ),
       );
       expect(source, isNot(contains('?? () {}')));
@@ -230,11 +230,11 @@ void main() {
         );
 
         expect(
-          generated,
+          generated.replaceAll(RegExp(r'\s+'), ' '),
           allOf(
             contains(
               'onDefault: '
-              "source.voidHandler(<Object>['onDefault'])",
+              "source.voidHandler(const <Object>['onDefault'])",
             ),
             contains('s0.defaultRetry'),
           ),
@@ -261,15 +261,15 @@ void main() {
           generated,
           contains(
             'onRetry: '
-            "source.voidHandler(<Object>['onRetry']) ?? () {}",
+            "source.voidHandler(const <Object>['onRetry']) ?? () {}",
           ),
           reason: '$widgetPath#CallbackNullabilityProbe.onRetry targets a '
               'required non-nullable VoidCallback.',
         );
         expect(
-          generated,
+          generated.replaceAll(RegExp(r'\s+'), ' '),
           allOf(
-            contains('onValue: source.handler<ValueChanged<int>>('),
+            contains('onValue: RestageDecoders.valueChanged<int>('),
             isNot(contains('?? (int _) {}')),
           ),
           reason: '$widgetPath#CallbackNullabilityProbe.onValue targets a '

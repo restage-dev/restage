@@ -36,7 +36,7 @@ part 'restage.generated/first_run.restage.g.dart';
 /// for the `skip` custom event to do the same when the user opts out. Keeping
 /// navigation in the host is the honest contract: the flow describes intent,
 /// the app acts on it.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class FirstRunFlow extends RestageFlow {
   /// Host action that shows the OS notification dialog and reports the grant.
   static const requestNotifications =

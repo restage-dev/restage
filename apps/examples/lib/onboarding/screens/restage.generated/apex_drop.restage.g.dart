@@ -4,7 +4,7 @@ const apexDropScreenRef = NeutralFlowScreenRef(
   id: 'apex_drop',
   artifactPath: 'apex_drop.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use apexDropScreenRef')

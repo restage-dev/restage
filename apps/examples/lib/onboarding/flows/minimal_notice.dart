@@ -12,7 +12,7 @@ part 'restage.generated/minimal_notice.restage.g.dart';
 /// event (no transition) the host listens for to close the surface. There is no
 /// separate "message"/"notice" API — any one-screen surface is just a flow with
 /// a single screen.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class MinimalNoticeFlow extends RestageFlow {
   /// Const constructor.
   const MinimalNoticeFlow();

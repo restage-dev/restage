@@ -19,7 +19,6 @@ import 'package:restage_shared/restage_shared.dart'
         FlowDocumentCodec,
         FlowDocumentValidation,
         FlowSurfacePayload,
-        InstalledCapability,
         LibraryRequirement,
         SurfaceDocument,
         Surface;
@@ -32,6 +31,7 @@ import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/paywall_error.dart';
 import 'asset_variant_resolver.dart';
@@ -442,10 +442,7 @@ final class RestageVariantResolver
     // The client contract (built-in catalog version + installed libraries) the
     // server resolves eligibility against; its content hash is byte-identical
     // to the server's, so a verdict is identity by construction.
-    final installed = InstalledCapability(
-      builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-      installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-    );
+    final installed = currentInstalledCapability();
     final assignmentLease = await SurfaceAssignmentKeyProvider.captureLease();
     _requireCurrent(assignmentLease);
 

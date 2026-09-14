@@ -49,6 +49,16 @@ final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
       ),
     ],
   ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Text': buildText,
+      },
+      material: {
+        'FilledButton': buildFilledButton,
+      },
+    ),
+  ),
 );
 
 final generalStatusRef = SurfaceScreenRef<
@@ -151,6 +161,16 @@ final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
       ),
     ],
   ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Text': buildText,
+      },
+      material: {
+        'FilledButton': buildFilledButton,
+      },
+    ),
+  ),
 );
 
 final messageNoticeRef = SurfaceScreenRef<
@@ -251,6 +271,16 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
             "sha256:e345388e9b0ff6e101b8c14f4eff40f0e26786347f9c1ee71aaaa01ab68f2f4d",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Text': buildText,
+      },
+      material: {
+        'FilledButton': buildFilledButton,
+      },
+    ),
   ),
 );
 

@@ -10,7 +10,7 @@ void main() {
     source,
     "import 'package:restage/restage.dart';\n\n"
         "part 'restage.generated/lumen_welcome.restage.g.dart';\n\n",
-    '',
+    '\n',
   );
   source = _replaceOnce(source, '@Screen()\n', '');
   source = _replaceOnce(

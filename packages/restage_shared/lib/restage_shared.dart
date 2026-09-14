@@ -26,6 +26,7 @@ export 'src/capability/blob_render_capability_gate.dart';
 export 'src/capability/capability_manifest.dart';
 export 'src/capability/capability_sidecar.dart';
 export 'src/capability/installed_capability.dart';
+export 'src/capability/widget_vocabulary.dart';
 export 'src/catalog/curve_vocabulary.dart';
 export 'src/catalog/formatted_text_props.dart';
 export 'src/catalog/inline_span_limits.dart';

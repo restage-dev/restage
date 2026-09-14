@@ -108,6 +108,33 @@ export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart';
 export 'src/runtime/restage_widget_factory.dart';
+export 'src/runtime/restage_widget_libraries.dart';
+export 'src/runtime/restage_widget_registration.dart';
+export 'src/runtime/surface_vocabulary.dart';
+// A surface vocabulary rebuilds each icon it carries as an IconData value, so
+// a file that imports this one can name the type without importing Flutter.
+export 'package:flutter/widgets.dart' show IconData;
+// The per-widget builders of the three built-in catalogs, so a surface
+// vocabulary can name exactly the widgets that surface draws. The
+// whole-catalog maps stay unexported: naming one retains every built-in
+// widget.
+export 'package:restage_core/library_registration.dart'
+    hide buildCoreWidgetLibrary, kCoreLibraryFactories;
+export 'package:restage_material/library_registration.dart'
+    hide buildMaterialWidgetLibrary, kMaterialLibraryFactories;
+export 'package:restage_cupertino/library_registration.dart'
+    hide buildCupertinoWidgetLibrary, kCupertinoLibraryFactories;
+// The icon table lives beside the catalog runtime the generated
+// factories call; re-exported so an app installs it from one import.
+export 'package:restage_core/restage_core.dart'
+    show
+        InstalledIconTable,
+        RestageIconTable,
+        RestageIconUnavailableError,
+        resolveInstalledIcon;
+// The whole-catalog icon table, for a surface that renders content whose
+// icons the app cannot know ahead of time.
+export 'src/runtime/builtin_icon_table.dart' show builtInIconTable;
 export 'src/runtime/restage_widget_library_registration.dart';
 export 'src/runtime/rfw_constructor_presence.dart';
 export 'src/measurement/bundled_measurement_publication_binding_read_port.dart'

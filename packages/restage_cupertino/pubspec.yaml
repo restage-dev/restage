@@ -20,6 +20,7 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.8
   restage_core:
     path: ../restage_core
   restage_shared:

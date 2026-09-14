@@ -219,7 +219,7 @@ ModalSheetTriggerOutcome recogniseModalSheetTrigger(Expression slotValue) {
     return const ModalSheetResultDropped(kModalSheetResultDroppedReason);
   }
 
-  final function = _modalSheetFunctionOf(call);
+  final function = modalSheetFunctionOf(call);
   if (function == null) {
     return const ModalSheetResultDropped(kModalSheetResultDroppedReason);
   }
@@ -261,7 +261,7 @@ Expression _unwrapParens(Expression expr) =>
     expr is ParenthesizedExpression ? _unwrapParens(expr.expression) : expr;
 
 int _countModalSheetCalls(AstNode node) =>
-    _countMatchingInvocations(node, (n) => _modalSheetFunctionOf(n) != null);
+    _countMatchingInvocations(node, (n) => modalSheetFunctionOf(n) != null);
 
 /// Counts the [MethodInvocation]s in [node]'s subtree that [matches] accepts.
 int _countMatchingInvocations(
@@ -286,7 +286,9 @@ class _MethodInvocationCounter extends RecursiveAstVisitor<void> {
   }
 }
 
-ModalSheetFunction? _modalSheetFunctionOf(MethodInvocation invocation) {
+/// The Flutter sheet function [invocation] calls, or `null` when it is not one
+/// — a custom look-alike, a call with a receiver, or another function.
+ModalSheetFunction? modalSheetFunctionOf(MethodInvocation invocation) {
   final byName = switch (invocation.methodName.name) {
     'showModalBottomSheet' => ModalSheetFunction.showModalBottomSheet,
     'showCupertinoSheet' => ModalSheetFunction.showCupertinoSheet,
