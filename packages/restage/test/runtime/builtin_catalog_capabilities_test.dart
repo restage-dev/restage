@@ -49,6 +49,10 @@ void main() {
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
+  test('expanded Icon raises the generated global ceiling to version 6', () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion, 6);
+  });
+
   test('currentVersion is at least the baseline content version', () {
     expect(
       RestageBuiltInCatalogCapabilities.currentVersion,

@@ -7,21 +7,23 @@ import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_experiment_mount.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage/src/runtime/first_paint_lease_guard.dart';
-import 'package:restage_shared/flow_experiment.dart'
-    show FlowExperimentClientContractV1;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'flow_test_support.dart';
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_abc123';
@@ -41,98 +43,12 @@ const _flowRef = OnboardingFlowRef<Map<String, Object?>>(
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  setUp(debugResetAppBuildOrdinal);
+  tearDown(debugResetAppBuildOrdinal);
+  setUp(debugResetOsVersion);
+  tearDown(debugResetOsVersion);
+  setUp(() => debugSetOsVersion(null));
   setUp(Restage.debugReset);
-
-  testWidgets(
-      'contract cache miss uploads the sealed bytes once and retries once',
-      (tester) async {
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Candidate', 'next');
-    final candidateEnvelope = _envelope(
-      _screenDocument(version: 2, screenBytes: candidateBytes),
-      {'welcome': candidateBytes},
-    );
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    final warm = _requestBody(server.requests[0]);
-    expect(warm['assignmentKey'], 'actor-a');
-    expect(warm['flowContractHash'], startsWith('sha256:'));
-    expect(warm.containsKey('flowContractBytes'), isFalse);
-
-    server.respondJson(0, {
-      ..._contentBody(candidateEnvelope),
-      'flowContractRequired': true,
-    });
-    await _waitFor(() => server.requests.length == 2);
-    final retry = _requestBody(server.requests[1]);
-    expect(retry['assignmentKey'], warm['assignmentKey']);
-    expect(retry['flowContractHash'], warm['flowContractHash']);
-    final uploaded = base64Url.decode(
-      base64Url.normalize(retry['flowContractBytes']! as String),
-    );
-    expect(
-      FlowExperimentClientContractV1.decode(uploaded).contentHash.value,
-      warm['flowContractHash'],
-    );
-
-    server.respondJson(1, _contentBody(candidateEnvelope));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Candidate'), findsOneWidget);
-    expect(server.requests, hasLength(2));
-  });
-
-  testWidgets('a repeated contract miss never creates a third request',
-      (tester) async {
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Candidate', 'next');
-    final candidateEnvelope = _envelope(
-      _screenDocument(version: 2, screenBytes: candidateBytes),
-      {'welcome': candidateBytes},
-    );
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    server.respondJson(0, {
-      ..._contentBody(candidateEnvelope),
-      'flowContractRequired': true,
-    });
-    await _waitFor(() => server.requests.length == 2);
-    server.respondJson(1, {
-      ..._contentBody(candidateEnvelope),
-      'flowContractRequired': true,
-    });
-    await tester.pumpAndSettle();
-
-    expect(find.text('Bundled'), findsOneWidget);
-    expect(find.text('Candidate'), findsNothing);
-    expect(server.requests, hasLength(2));
-  });
 
   testWidgets(
       'identity drift during metering lookup publishes no stale warm request',
@@ -200,84 +116,6 @@ void main() {
     expect(requestsBeforeMeteringCompleted, 0);
     expect(observed.requestBodies, hasLength(1));
     expect(observed.requestBodies.single['assignmentKey'], 'actor-1');
-    expect(observed.candidate, 1);
-  });
-
-  testWidgets(
-      'identity drift during retry metering lookup publishes no stale upload',
-      (tester) async {
-    var actorGeneration = 0;
-    SurfaceAssignmentKeyProvider.install(
-      key: () => 'actor-$actorGeneration',
-      identityGeneration: () => actorGeneration,
-    );
-    addTearDown(SurfaceMeteringKeyProvider.clear);
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Fresh retry candidate', 'next');
-    final candidateEnvelope = _envelope(
-      _screenDocument(version: 2, screenBytes: candidateBytes),
-      {'welcome': candidateBytes},
-    );
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    SharedPreferences.setMockInitialValues(const {
-      'restage.metering_token': 'd9428888-122b-4b0b-8b7f-3e23441121e8',
-    });
-    final preferences = await SharedPreferences.getInstance();
-    final meteringReady = Completer<SharedPreferences>();
-    var meteringLookups = 0;
-    SurfaceMeteringKeyProvider.install(
-      store: MeteringTokenStore(
-        prefsProvider: () {
-          meteringLookups += 1;
-          return meteringReady.future;
-        },
-      ),
-    );
-    server.respondJson(0, {
-      ..._contentBody(candidateEnvelope),
-      'flowContractRequired': true,
-    });
-    await _waitFor(() => meteringLookups == 1);
-    final requestsBeforeMeteringCompleted = server.requests.length;
-    actorGeneration = 1;
-    meteringReady.complete(preferences);
-    await _waitFor(() => server.requests.length >= 2);
-
-    final secondBody = _requestBody(server.requests[1]);
-    server.respondJson(1, _contentBody(candidateEnvelope));
-    if (secondBody['assignmentKey'] == 'actor-0') {
-      await _waitFor(() => server.requests.length == 3);
-      server.respondJson(2, _contentBody(candidateEnvelope));
-    }
-    await tester.pumpAndSettle();
-
-    final observed = (
-      requestBodies: server.requests.map(_requestBody).toList(),
-      candidate: find.text('Fresh retry candidate').evaluate().length,
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-
-    expect(requestsBeforeMeteringCompleted, 1);
-    expect(observed.requestBodies, hasLength(2));
-    expect(
-      observed.requestBodies.map((body) => body['assignmentKey']),
-      ['actor-0', 'actor-1'],
-    );
-    expect(observed.requestBodies[1].containsKey('flowContractBytes'), isFalse);
     expect(observed.candidate, 1);
   });
 
@@ -434,10 +272,11 @@ void main() {
 
     expect(observed.candidateBeforeChild, 0);
     expect(rootRequest.containsKey('version'), isFalse);
-    expect(childRequest, {
+    expect(withoutSupportedPolicyRevisions(childRequest), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
+      'assignmentKey': 'actor-a',
     });
     expect(
       observed.candidateAfterChild,
@@ -779,10 +618,11 @@ void main() {
     final beforeCacheProbe = server.requests.length;
     final cachedChild = await resolver.resolve<Object?>(childRef);
 
-    expect(childRequest, {
+    expect(withoutSupportedPolicyRevisions(childRequest), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
+      'assignmentKey': 'actor-a',
       'meteringKey': 'd9428888-122b-4b0b-8b7f-3e23441121e8',
     });
     expect(
@@ -852,128 +692,87 @@ void main() {
     expect(server.requests, hasLength(2));
   });
 
-  testWidgets('successful paint publishes the exact active artifact as HLG',
-      (tester) async {
-    final analyticsRequests = <http.Request>[];
-    _configureAnalytics(analyticsRequests);
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Painted candidate', 'next');
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    server.respondJson(
-      0,
-      _contentBody(_envelope(
-        _screenDocument(version: 2, screenBytes: candidateBytes),
-        {'welcome': candidateBytes},
-      )),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Painted candidate'), findsOneWidget);
-    final freshPresentations =
-        _canonicalEvents(await _capturedAnalytics(analyticsRequests));
-    expect(freshPresentations, hasLength(1));
-    final freshSession = freshPresentations.single['surfaceSessionId'];
-    analyticsRequests.clear();
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 2);
-    server.respondNotFound(1);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Painted candidate'), findsOneWidget);
-    expect(find.text('Bundled'), findsNothing);
-    expect(server.requests, hasLength(2));
-    final hlgPresentations =
-        _canonicalEvents(await _capturedAnalytics(analyticsRequests));
-    expect(hlgPresentations, hasLength(1));
-    expect(hlgPresentations.single['surface'], 'onboarding');
-    expect(hlgPresentations.single['surfaceId'], 'first_run');
-    expect(hlgPresentations.single['surfaceVersion'], '2');
-    expect(hlgPresentations.single['surfaceSessionId'], isNot(freshSession));
-  });
-
   testWidgets(
       'HLG is rejected when the exact assignment key changes without '
       'generation drift', (tester) async {
-    final analyticsRequests = <http.Request>[];
-    _configureAnalytics(analyticsRequests);
-    var assignmentKey = 'actor-a';
-    SurfaceAssignmentKeyProvider.install(
-      key: () => assignmentKey,
-      identityGeneration: () => 0,
-    );
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Actor A candidate', 'next');
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
+    final originalFlutterErrorHandler = FlutterError.onError;
+    _configureAnalytics();
+    try {
+      var assignmentKey = 'actor-a';
+      SurfaceAssignmentKeyProvider.install(
+        key: () => assignmentKey,
+        identityGeneration: () => 0,
+      );
+      final bundledBytes = screenBlob('Bundled', 'next');
+      final candidateBytes = screenBlob('Actor A candidate', 'next');
+      final server = _ControlledServer();
+      final resolver = ServerFlowResolver(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        active: true,
+        bundle: _bundleFor(
+          _screenDocument(screenBytes: bundledBytes),
+          bundledBytes,
+        ),
+        httpClient: server.client,
+      );
 
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    server.respondJson(
-      0,
-      _contentBody(_envelope(
-        _screenDocument(version: 2, screenBytes: candidateBytes),
-        {'welcome': candidateBytes},
-      )),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Actor A candidate'), findsOneWidget);
-    expect(
-      _canonicalEvents(await _capturedAnalytics(analyticsRequests)),
-      hasLength(1),
-    );
-    analyticsRequests.clear();
+      await tester.pumpWidget(_host(resolver));
+      await _waitFor(() => server.requests.length == 1);
+      final firstRequest = _requestBody(server.requests.first);
+      expect(firstRequest['assignmentKey'], 'actor-a');
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          firstRequest['sdkBuiltInsCanonicalBase64']! as String,
+        )))),
+        containsPair('appBuildOrdinal', 42),
+      );
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          firstRequest['sdkBuiltInsCanonicalBase64']! as String,
+        )))),
+        containsPair('platform', defaultTargetPlatform.name.toLowerCase()),
+      );
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          firstRequest['sdkBuiltInsCanonicalBase64']! as String,
+        )))),
+        containsPair('sdkApiLevel', 3),
+      );
+      server.respondJson(
+        0,
+        _contentBody(_envelope(
+          _screenDocument(version: 2, screenBytes: candidateBytes),
+          {'welcome': candidateBytes},
+        )),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Actor A candidate'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    assignmentKey = 'actor-b';
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 2);
-    server.respondNotFound(1);
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      assignmentKey = 'actor-b';
+      await tester.pumpWidget(_host(resolver));
+      await _waitFor(() => server.requests.length == 2);
+      server.respondNotFound(1);
+      await tester.pumpAndSettle();
 
-    final observed = (
-      assignmentKey: _requestBody(server.requests[1])['assignmentKey'],
-      bundled: find.text('Bundled').evaluate().length,
-      stale: find.text('Actor A candidate').evaluate().length,
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+      final observed = (
+        assignmentKey: _requestBody(server.requests[1])['assignmentKey'],
+        bundled: find.text('Bundled').evaluate().length,
+        stale: find.text('Actor A candidate').evaluate().length,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
 
-    expect(observed.assignmentKey, 'actor-b');
-    expect(observed.bundled, 1);
-    expect(observed.stale, 0);
-    final bundledPresentations =
-        _canonicalEvents(await _capturedAnalytics(analyticsRequests));
-    expect(bundledPresentations, hasLength(1));
-    expect(bundledPresentations.single['surface'], 'onboarding');
-    expect(bundledPresentations.single['surfaceId'], 'first_run');
-    expect(bundledPresentations.single['surfaceVersion'], '1');
-    expect(bundledPresentations.single['surfaceSessionId'], isNotNull);
+      expect(observed.assignmentKey, 'actor-b');
+      expect(observed.bundled, 1);
+      expect(observed.stale, 0);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      Restage.debugReset();
+      FlutterError.onError = originalFlutterErrorHandler;
+    }
   });
 
   testWidgets(
@@ -999,8 +798,6 @@ void main() {
 
     await tester.pumpWidget(_host(resolver));
     await _waitFor(() => server.requests.length == 1);
-    final firstHash =
-        _requestBody(server.requests[0])['flowContractHash']! as String;
     server.respondJson(
       0,
       _contentBody(_envelope(
@@ -1022,8 +819,6 @@ void main() {
       ));
     await tester.pumpWidget(_host(resolver));
     await _waitFor(() => server.requests.length == 2);
-    final secondHash =
-        _requestBody(server.requests[1])['flowContractHash']! as String;
     server.respondNotFound(1);
     await tester.pumpAndSettle();
 
@@ -1034,7 +829,6 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(secondHash, isNot(firstHash));
     expect(observed.bundled, 1);
     expect(observed.stale, 0);
   });
@@ -1245,6 +1039,50 @@ void main() {
     expect(observed.bundled, 1);
   });
 
+  testWidgets('an identity retry keeps the presentation device reading',
+      (tester) async {
+    var actorGeneration = 0;
+    var ambientReads = 0;
+    final cells = <SurfaceDeliveryObservationCell?>[];
+    SurfaceCanonicalCarrierProvider.installBuiltIns(() async {
+      ambientReads += 1;
+      return null;
+    });
+    addTearDown(SurfaceCanonicalCarrierProvider.clear);
+    SurfaceAssignmentKeyProvider.install(
+      key: () => 'actor-$actorGeneration',
+      identityGeneration: () => actorGeneration,
+    );
+    final bundledBytes = screenBlob('Bundled', 'next');
+    final requests = <http.Request>[];
+    final resolver = ServerFlowResolver(
+      baseUrl: _baseUrl,
+      apiKey: _apiKey,
+      active: true,
+      bundle: _bundleFor(
+        _screenDocument(screenBytes: bundledBytes),
+        bundledBytes,
+      ),
+      httpClient: _delivery.client((request) async {
+        requests.add(request);
+        cells.add(currentSurfaceDeliveryObservationCell());
+        // Drift the identity only after the request has read the device.
+        actorGeneration += 1;
+        return http.Response('', 404);
+      }),
+    );
+
+    await tester.pumpWidget(_host(resolver));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(requests.length, greaterThan(1));
+    expect(cells.first, isNotNull);
+    expect(cells, everyElement(same(cells.first)));
+    expect(ambientReads, 0);
+  });
+
   testWidgets('disposing an in-flight request cannot publish HLG',
       (tester) async {
     SurfaceAssignmentKeyProvider.current = () => 'actor-a';
@@ -1406,11 +1244,6 @@ void main() {
     final surveyIndex = server.requests.indexWhere(
       (request) => _requestBody(request)['surfaceType'] == 'survey',
     );
-    final messageHash =
-        _requestBody(server.requests[messageIndex])['flowContractHash'];
-    final surveyHash =
-        _requestBody(server.requests[surveyIndex])['flowContractHash'];
-
     server.respondJson(
       surveyIndex,
       _contentBody(_envelope(
@@ -1445,7 +1278,6 @@ void main() {
 
     expect(messageIndex, isNonNegative);
     expect(surveyIndex, isNonNegative);
-    expect(messageHash, isNot(surveyHash));
     expect(afterSurvey.survey, 1);
     expect(afterSurvey.message, 0);
     expect(observed.message, 1);
@@ -1502,63 +1334,6 @@ void main() {
     expect(freshKey, 'actor-1');
     expect(find.text('Fresh candidate'), findsOneWidget);
     expect(find.text('Stale candidate'), findsNothing);
-  });
-
-  testWidgets('generation drift during upload retry rejects both old responses',
-      (tester) async {
-    var actorGeneration = 0;
-    SurfaceAssignmentKeyProvider.install(
-      key: () => 'actor-$actorGeneration',
-      identityGeneration: () => actorGeneration,
-    );
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final staleBytes = screenBlob('Stale retry', 'next');
-    final freshBytes = screenBlob('Fresh retry', 'next');
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    final staleEnvelope = _envelope(
-      _screenDocument(version: 2, screenBytes: staleBytes),
-      {'welcome': staleBytes},
-    );
-    server.respondJson(0, {
-      ..._contentBody(staleEnvelope),
-      'flowContractRequired': true,
-    });
-    await _waitFor(() => server.requests.length == 2);
-
-    actorGeneration += 1;
-    server.respondJson(1, _contentBody(staleEnvelope));
-    await _waitFor(() => server.requests.length == 3);
-    final requestBodies = server.requests.map(_requestBody).toList();
-
-    server.respondJson(
-      2,
-      _contentBody(_envelope(
-        _screenDocument(version: 2, screenBytes: freshBytes),
-        {'welcome': freshBytes},
-      )),
-    );
-    await tester.pumpAndSettle();
-
-    expect(requestBodies[0]['assignmentKey'], 'actor-0');
-    expect(requestBodies[1]['assignmentKey'], 'actor-0');
-    expect(requestBodies[1].containsKey('flowContractBytes'), isTrue);
-    expect(requestBodies[2]['assignmentKey'], 'actor-1');
-    expect(requestBodies[2].containsKey('flowContractBytes'), isFalse);
-    expect(find.text('Fresh retry'), findsOneWidget);
-    expect(find.text('Stale retry'), findsNothing);
   });
 
   testWidgets(
@@ -1637,16 +1412,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(requestBodies[0]['assignmentKey'], 'actor-0');
-    expect(requestBodies[1], {
+    expect(withoutSupportedPolicyRevisions(requestBodies[1]), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
+      'assignmentKey': 'actor-0',
     });
     expect(requestBodies[2]['assignmentKey'], 'actor-1');
-    expect(_requestBody(server.requests[3]), {
+    expect(withoutSupportedPolicyRevisions(_requestBody(server.requests[3])), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
+      'assignmentKey': 'actor-1',
     });
     expect(find.text('Fresh root'), findsOneWidget);
     expect(find.text('Stale root'), findsNothing);
@@ -1866,33 +1643,19 @@ Map<String, Object?> _contentBody(Uint8List envelope) => {
 Map<String, Object?> _requestBody(http.Request request) =>
     jsonDecode(request.body) as Map<String, Object?>;
 
-void _configureAnalytics(List<http.Request> requests) {
-  Restage.debugAnalyticsHttpClient = _delivery.client((request) async {
-    requests.add(request);
-    return http.Response('', 200);
-  });
+void _configureAnalytics() {
+  PackageInfo.setMockInitialValues(
+    appName: 'Flow assignment',
+    packageName: 'com.example.flow_assignment',
+    version: '1.0.0',
+    buildNumber: '42',
+    buildSignature: '',
+  );
   Restage.configure(
     apiKey: 'rs_pk_test',
     baseUrl: 'http://127.0.0.1:1',
   );
 }
-
-Future<List<Map<String, Object?>>> _capturedAnalytics(
-  List<http.Request> requests,
-) async {
-  await Restage.debugFlushAnalytics();
-  return <Map<String, Object?>>[
-    for (final request in requests)
-      for (final event in (jsonDecode(request.body)
-          as Map<String, Object?>)['events']! as List)
-        (event! as Map).cast<String, Object?>(),
-  ];
-}
-
-List<Map<String, Object?>> _canonicalEvents(
-  List<Map<String, Object?>> events,
-) =>
-    events.where((event) => event['name'] == 'surface_presented').toList();
 
 AssetBundle _bundleFor(
   FlowDocument document,

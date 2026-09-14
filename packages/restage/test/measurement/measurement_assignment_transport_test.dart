@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/measurement/measurement_assignment_diagnostics.dart';
 import 'package:restage/src/measurement/measurement_assignment_transport.dart';
+import 'package:restage_shared/restage_shared.dart';
 
 void main() {
   group('MeasurementAssignmentTransport', () {
@@ -18,8 +19,8 @@ void main() {
         adapter,
       );
 
-      final first = await transport.deliver(request);
-      final retry = await transport.deliver(request);
+      final first = (await transport.deliver(request)).diagnostic;
+      final retry = (await transport.deliver(request)).diagnostic;
 
       expect(first, isA<MeasurementAssignmentDeliveryAssigned>());
       expect(retry, isA<MeasurementAssignmentDeliveryAssigned>());
@@ -30,38 +31,41 @@ void main() {
       );
     });
 
-    test('keeps outside-audience and ineligible distinct', () async {
+    test('an unconfirmed replay reaches the caller with no assignment',
+        () async {
       final request = _request();
 
-      final outside =
-          await MeasurementAssignmentTransport<_IttRequest, _IttResult>.adapter(
-        _RecordingAdapter(
-          () => const _IttResult.outsideAudience(),
-        ),
-      ).deliver(request);
-      final ineligible =
-          await MeasurementAssignmentTransport<_IttRequest, _IttResult>.adapter(
-        _RecordingAdapter(() => const _IttResult.ineligible()),
-      ).deliver(request);
+      for (final result in const <_IttResult>[
+        _IttResult.replayMiss(),
+        _IttResult.assignmentDisagrees(),
+      ]) {
+        final delivery = await MeasurementAssignmentTransport<_IttRequest,
+            _IttResult>.adapter(
+          _RecordingAdapter(() => result),
+        ).deliver(request);
 
-      expect(outside, isA<MeasurementAssignmentDeliveryOutsideAudience>());
-      expect(ineligible, isA<MeasurementAssignmentDeliveryIneligible>());
-      expect(outside, isNot(isA<MeasurementAssignmentDeliveryIneligible>()));
-      expect(
-        ineligible,
-        isNot(isA<MeasurementAssignmentDeliveryOutsideAudience>()),
-      );
+        expect(
+          delivery.diagnostic,
+          isA<MeasurementAssignmentDeliveryUnavailable>().having(
+            (value) => value.reason,
+            'reason',
+            MeasurementAssignmentUnavailableReason.replayUnconfirmed,
+          ),
+        );
+        expect(delivery.assignment, isNull);
+      }
     });
 
     test('preserves unresolved-population inference unavailability', () async {
-      final outcome =
-          await MeasurementAssignmentTransport<_IttRequest, _IttResult>.adapter(
+      final outcome = (await MeasurementAssignmentTransport<_IttRequest,
+              _IttResult>.adapter(
         _RecordingAdapter(
           () => const _IttResult.inferenceUnavailable(
             MeasurementInferenceUnavailableReason.eligiblePopulationUnresolved,
           ),
         ),
-      ).deliver(_request());
+      ).deliver(_request()))
+          .diagnostic;
 
       expect(
         outcome,
@@ -76,14 +80,15 @@ void main() {
 
     test('maps typed transport unavailability without a false assignment',
         () async {
-      final outcome =
-          await MeasurementAssignmentTransport<_IttRequest, _IttResult>.adapter(
+      final outcome = (await MeasurementAssignmentTransport<_IttRequest,
+              _IttResult>.adapter(
         _RecordingAdapter(
           () => const _IttResult.unavailable(
             MeasurementAssignmentUnavailableReason.policyUnavailable,
           ),
         ),
-      ).deliver(_request());
+      ).deliver(_request()))
+          .diagnostic;
 
       expect(
         outcome,
@@ -104,12 +109,14 @@ void main() {
       );
       final request = _request();
 
-      final disabled = await const MeasurementAssignmentTransport<_IttRequest,
-              _IttResult>.disabled()
-          .deliver(request);
-      final noAdapter = await const MeasurementAssignmentTransport<_IttRequest,
-              _IttResult>.noAdapter()
-          .deliver(request);
+      final disabled = (await const MeasurementAssignmentTransport<_IttRequest,
+                  _IttResult>.disabled()
+              .deliver(request))
+          .diagnostic;
+      final noAdapter = (await const MeasurementAssignmentTransport<_IttRequest,
+                  _IttResult>.noAdapter()
+              .deliver(request))
+          .diagnostic;
 
       expect(adapter.requests, isEmpty);
       expect(
@@ -131,10 +138,11 @@ void main() {
     });
 
     test('adapter exceptions become transport failure', () async {
-      final outcome =
-          await MeasurementAssignmentTransport<_IttRequest, _IttResult>.adapter(
+      final outcome = (await MeasurementAssignmentTransport<_IttRequest,
+              _IttResult>.adapter(
         _ThrowingAdapter(),
-      ).deliver(_request());
+      ).deliver(_request()))
+          .diagnostic;
 
       expect(
         outcome,
@@ -233,6 +241,10 @@ final class _RecordingAdapter
   @override
   MeasurementAssignmentDeliveryDiagnostic diagnosticFor(_IttResult result) =>
       result.diagnostic;
+
+  @override
+  CanonicalSurfaceExperimentAssignmentV1? assignmentFor(_IttResult result) =>
+      null;
 }
 
 final class _ThrowingAdapter
@@ -243,6 +255,10 @@ final class _ThrowingAdapter
 
   @override
   MeasurementAssignmentDeliveryDiagnostic diagnosticFor(_IttResult result) =>
+      throw StateError('unreachable');
+
+  @override
+  CanonicalSurfaceExperimentAssignmentV1? assignmentFor(_IttResult result) =>
       throw StateError('unreachable');
 }
 
@@ -259,9 +275,9 @@ sealed class _IttResult {
     MeasurementAssignmentCandidateDeliveryDiagnostic candidateDelivery,
   ) = _IttCommitted;
 
-  const factory _IttResult.outsideAudience() = _IttOutsideAudience;
+  const factory _IttResult.replayMiss() = _IttReplayMiss;
 
-  const factory _IttResult.ineligible() = _IttIneligible;
+  const factory _IttResult.assignmentDisagrees() = _IttAssignmentDisagrees;
 
   const factory _IttResult.unavailable(
     MeasurementAssignmentUnavailableReason reason,
@@ -286,20 +302,24 @@ final class _IttCommitted extends _IttResult {
       );
 }
 
-final class _IttOutsideAudience extends _IttResult {
-  const _IttOutsideAudience();
+final class _IttReplayMiss extends _IttResult {
+  const _IttReplayMiss();
 
   @override
   MeasurementAssignmentDeliveryDiagnostic get diagnostic =>
-      const MeasurementAssignmentDeliveryOutsideAudience();
+      const MeasurementAssignmentDeliveryUnavailable(
+        MeasurementAssignmentUnavailableReason.replayUnconfirmed,
+      );
 }
 
-final class _IttIneligible extends _IttResult {
-  const _IttIneligible();
+final class _IttAssignmentDisagrees extends _IttResult {
+  const _IttAssignmentDisagrees();
 
   @override
   MeasurementAssignmentDeliveryDiagnostic get diagnostic =>
-      const MeasurementAssignmentDeliveryIneligible();
+      const MeasurementAssignmentDeliveryUnavailable(
+        MeasurementAssignmentUnavailableReason.replayUnconfirmed,
+      );
 }
 
 final class _IttUnavailable extends _IttResult {

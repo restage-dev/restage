@@ -655,10 +655,10 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
     required List<ArtifactId> childArtifactIds,
     required List<MeasurementPointOccurrenceV1> points,
     required List<GeneratedPointReferenceV1> generatedReferences,
+    required List<GeneratedPresentationReferenceV1>
+        generatedPresentationReferences,
     required this.privacyPolicyRevisionId,
     required this.collectionBudgetRevisionId,
-    List<GeneratedPresentationReferenceV1> generatedPresentationReferences =
-        const [],
   })  : childArtifactIds = _sortedUniqueIds(
           childArtifactIds,
           label: 'child artifact IDs',
@@ -786,6 +786,7 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
         'childArtifactIds',
         'collectionBudgetRevisionId',
         'generatedReferences',
+        'generatedPresentationReferences',
         'kind',
         'manifestId',
         'points',
@@ -800,10 +801,9 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
       reader,
       expectedKind: 'localMeasurementManifest',
     );
-    final generatedPresentationReferences = reader.optionalList(
-          'generatedPresentationReferences',
-        ) ??
-        const <Object?>[];
+    final generatedPresentationReferences = reader.list(
+      'generatedPresentationReferences',
+    );
     if (generatedPresentationReferences.length >
         kMaximumGeneratedPresentationReferenceCount) {
       throw const CanonicalFormatException(
@@ -897,11 +897,10 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
         'generatedReferences': [
           for (final reference in generatedReferences) reference.toJson(),
         ],
-        if (generatedPresentationReferences.isNotEmpty)
-          'generatedPresentationReferences': [
-            for (final reference in generatedPresentationReferences)
-              reference.toJson(),
-          ],
+        'generatedPresentationReferences': [
+          for (final reference in generatedPresentationReferences)
+            reference.toJson(),
+        ],
         'kind': 'localMeasurementManifest',
         'manifestId': manifestId.value,
         'points': [for (final point in points) point.toJson()],

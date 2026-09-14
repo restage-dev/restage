@@ -6,10 +6,15 @@ import '../flow/flow_descriptors.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/restage_variant_resolver.dart' show RestageEnvironment;
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/report_surface_resolution.dart';
+import '../resolver/surface_resolution_report.dart';
+import '../resolver/surface_canonical_carrier_provider.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show currentSurfaceDeliveryObservationCell;
+import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
-import '../runtime/builtin_catalog_capabilities.dart';
-import '../runtime/library_runtime_registry.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import 'asset_surface_screen_resolver.dart';
 import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
@@ -45,8 +50,15 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
   @override
   Future<ResolvedSurfaceScreen> resolve<E>(SurfaceScreenRef<E> screen) async {
     final provenance = screen.provenance;
+    final observationCell = SurfaceCanonicalCarrierProvider.hasBuiltIns
+        ? currentSurfaceDeliveryObservationCell()
+        : null;
+    final supportedPolicyRevisions = supportedPolicyRevisionsCarrier();
     for (var attempt = 0; attempt != _maxIdentityAttempts; attempt += 1) {
       final lease = await SurfaceAssignmentKeyProvider.captureLease();
+      final analyticsGeneration = SurfaceAnalyticsIdentityProvider.generation;
+      final analyticsAnonymousId =
+          await SurfaceAnalyticsIdentityProvider.anonymousId();
       if (!lease.isCurrent) continue;
       final key = _ScreenCacheKey(
         surface: screen.surface,
@@ -55,16 +67,23 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         assignmentKey: lease.assignmentKey,
       );
       final cached = _cache[key];
-      if (cached != null) {
-        if (cached.lease.isCurrent) return cached.screen.withCacheHit();
-        _cache.remove(key);
-      }
+      if (cached != null && !cached.lease.isCurrent) _cache.remove(key);
 
       final client = _rpcClient();
       if (client == null) {
         return _resolveBundled(screen, provenance);
       }
       final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
+      final builtIns = observationCell != null
+          ? (await observationCell.read()).canonicalBuiltInsBase64()
+          : await SurfaceCanonicalCarrierProvider.builtIns();
+      final heldAssignment =
+          await SurfaceCanonicalCarrierProvider.heldAssignment(
+        surface: screen.surface.wireName,
+        slug: screen.slug,
+        contractVersion: screen.contractVersion,
+        assignmentKey: lease.assignmentKey,
+      );
       if (!lease.isCurrent) continue;
       final request = SurfaceScreenDeliveryRequest(
         surface: screen.surface,
@@ -72,6 +91,14 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         contractVersion: screen.contractVersion,
         assignmentKey: lease.assignmentKey,
         meteringKey: meteringKey,
+        analyticsAnonymousId: lease.isCurrent &&
+                SurfaceAnalyticsIdentityProvider.generation ==
+                    analyticsGeneration
+            ? analyticsAnonymousId
+            : null,
+        sdkSupportedPolicyRevisions: supportedPolicyRevisions,
+        sdkBuiltInsCanonicalBase64: builtIns,
+        assignmentCanonicalBase64: heldAssignment,
       );
       final result = await client.fetchSurfaceScreen(
         request,
@@ -82,16 +109,50 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         case SurfaceScreenDeliveryAvailable(
             :final response,
             :final publicationBindingReference,
+            :final canonicalExperimentAssignment,
+            :final routingSelectionReceipt,
+            :final routingSelectionProvenance,
           ):
+          await SurfaceCanonicalCarrierProvider.retain(
+            surface: screen.surface.wireName,
+            slug: screen.slug,
+            contractVersion: screen.contractVersion,
+            lease: lease,
+            assignment: canonicalExperimentAssignment,
+          );
+          if (!lease.isCurrent) continue;
           final resolved = _resolveHosted(
             response,
             provenance,
             publicationBindingReference,
+            canonicalExperimentAssignment,
+            routingSelectionReceipt,
+            routingSelectionProvenance,
           );
           _cache[key] = _CachedHostedScreen(screen: resolved, lease: lease);
-          return resolved;
+          return reportSurfaceResolution(
+              screen.slug, resolved, SurfaceResolutionSource.fresh);
         case SurfaceScreenDeliveryAbsent():
         case SurfaceScreenDeliveryTransportUnavailable():
+          final held = _cache[key];
+          if (held != null && held.lease.isCurrent) {
+            final verdict = BlobRenderCapabilityGate.evaluate(
+              required: held.screen.capabilities,
+              installed: currentInstalledCapability(),
+            );
+            if (verdict is! BlobRenderRejected) {
+              try {
+                provenance.validateResolved(held.screen);
+              } on SurfaceScreenUnavailableError {
+                return _resolveBundled(screen, provenance);
+              }
+              return reportSurfaceResolution(
+                screen.slug,
+                held.screen.withCacheHit(),
+                SurfaceResolutionSource.holdLastGood,
+              );
+            }
+          }
           return _resolveBundled(screen, provenance);
         case SurfaceScreenDeliveryInvalidResponse(:final reason):
           throw _invalidHostedResponse(reason);
@@ -117,6 +178,9 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
     SurfaceScreenDeliveryResponse response,
     SurfaceScreenRuntimeProvenance provenance,
     MeasurementPublicationBindingReferenceV1? publicationBindingReference,
+    CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment,
+    String? routingSelectionReceipt,
+    SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
   ) {
     final document = response.document;
     final payload = document.payload;
@@ -147,10 +211,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
     }
     final capabilityVerdict = BlobRenderCapabilityGate.evaluate(
       required: provenance.capabilities,
-      installed: InstalledCapability(
-        builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-        installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-      ),
+      installed: currentInstalledCapability(),
     );
     if (capabilityVerdict is BlobRenderRejected) {
       throw SurfaceScreenUnavailableError(
@@ -175,6 +236,9 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         cacheHit: false,
       ),
       publicationBindingReference,
+      canonicalExperimentAssignment: canonicalExperimentAssignment,
+      routingSelectionReceipt: routingSelectionReceipt,
+      routingSelectionProvenance: routingSelectionProvenance,
     );
   }
 
@@ -190,7 +254,8 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
       );
     }
     provenance.validateResolved(resolved);
-    return resolved;
+    return reportSurfaceResolution(
+        screen.slug, resolved, SurfaceResolutionSource.bundled);
   }
 
   SurfaceScreenUnavailableError _invalidHostedResponse(

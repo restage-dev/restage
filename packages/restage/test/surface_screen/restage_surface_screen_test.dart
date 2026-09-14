@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/analytics/analytics_identity.dart';
-import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' show DynamicContent, RemoteWidget;
 
@@ -319,56 +317,6 @@ widget OnboardingScreen = Throwing();
     await tester.pumpAndSettle();
 
     expect(find.text('fallback:renderFailure'), findsOneWidget);
-  });
-
-  testWidgets('stages root presentation on first paint using delivery revision',
-      (tester) async {
-    final fixture = stringScreenFixture(text: 'Hosted content');
-    final contexts = <RootAnalyticsEventContext>[];
-    var nextId = 0;
-    RootAnalyticsRuntime.install(
-      identity: AnalyticsIdentity(newId: () => 'id-${nextId++}'),
-      onSurfacePresented: contexts.add,
-    );
-
-    await tester.pumpWidget(
-      _host(
-        fixture: fixture,
-        resolver: FixedScreenResolver(
-          fixture.hosted(publishedRevision: 9),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(contexts, hasLength(1));
-    final context = contexts.single;
-    expect(context.surface, fixture.ref.surface.wireName);
-    expect(context.surfaceId, fixture.ref.slug);
-    expect(context.surfaceVersion, '9');
-    expect(context.sourceKind, SurfaceSourceKind.screen);
-    expect(context.payloadKind, SurfacePayloadKind.blob);
-  });
-
-  testWidgets('stages the generated contract version for bundled attribution',
-      (tester) async {
-    final fixture = stringScreenFixture(contractVersion: 3);
-    final contexts = <RootAnalyticsEventContext>[];
-    RootAnalyticsRuntime.install(
-      identity: AnalyticsIdentity(newId: () => 'id'),
-      onSurfacePresented: contexts.add,
-    );
-
-    await tester.pumpWidget(
-      _host(
-        fixture: fixture,
-        resolver: FixedScreenResolver(fixture.bundled()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(contexts, hasLength(1));
-    expect(contexts.single.surfaceVersion, '3');
   });
 }
 

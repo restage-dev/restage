@@ -207,7 +207,9 @@ final class MeasurementRuntimeRouteTable {
     List<MeasurementRuntimePresentationRouteDeclaration> presentationRoutes =
         const [],
     this.maximumRouteCount = kMaximumMeasurementRuntimeRouteCount,
+    MeasurementOrderedCaptureV1? orderedCaptureV1,
   }) : _owner = Object() {
+    _orderedCaptureV1 = orderedCaptureV1;
     _initializeDeclaredRoutes(routes, presentationRoutes);
   }
 
@@ -228,6 +230,7 @@ final class MeasurementRuntimeRouteTable {
       mountedArtifactContext: mountedArtifactContext,
       maximumRouteCount: maximumRouteCount,
     );
+    table._orderedCaptureV1 = binding.orderedCaptureV1;
     table._initializePublicationRoutes(binding);
     return table;
   }
@@ -242,6 +245,11 @@ final class MeasurementRuntimeRouteTable {
 
   /// Explicit state bound for this immutable resolver table.
   final int maximumRouteCount;
+
+  MeasurementOrderedCaptureV1? _orderedCaptureV1;
+
+  /// Exact ordered-capture admission transferred to the capture worker.
+  MeasurementOrderedCaptureV1? get orderedCaptureV1 => _orderedCaptureV1;
 
   final Object _owner;
   late final Map<OpaqueMeasurementEventSlotToken,
@@ -706,12 +714,15 @@ final class MeasurementRuntimeCaptureSession
     required ExactMeasurementPublicationContextRefV1 publicationContextRef,
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
   }) : this._(
           bounds: bounds,
           captureSessionNonce: captureSessionNonce,
           publicationContextRef: publicationContextRef,
           routeTable: routeTable,
           sequence: sequence,
+          experimentAssignment: experimentAssignment,
+          monotonicMicrosSource: null,
           successfulRootPresentation: false,
         );
 
@@ -727,12 +738,16 @@ final class MeasurementRuntimeCaptureSession
     required ExactMeasurementPublicationContextRefV1 publicationContextRef,
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+    int Function()? monotonicMicrosSource,
   }) : this._(
           bounds: bounds,
           captureSessionNonce: captureSessionNonce,
           publicationContextRef: publicationContextRef,
           routeTable: routeTable,
           sequence: sequence,
+          experimentAssignment: experimentAssignment,
+          monotonicMicrosSource: monotonicMicrosSource,
           successfulRootPresentation: true,
         );
 
@@ -743,7 +758,16 @@ final class MeasurementRuntimeCaptureSession
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
     required bool successfulRootPresentation,
-  })  : _routeTable = routeTable,
+    required this.experimentAssignment,
+    required int Function()? monotonicMicrosSource,
+  })  : _monotonicMicrosSource = monotonicMicrosSource,
+        _presentationWitnesses = experimentAssignment == null
+            ? null
+            : List<int?>.filled(routeTable._routeCount, null),
+        _interactionWitnesses = experimentAssignment == null
+            ? null
+            : List<int?>.filled(routeTable._routeCount, null),
+        _routeTable = routeTable,
         _nextSequence = sequence,
         _slotStates = Uint32List(routeTable._routeCount),
         _missingnessCounts = List<int>.filled(
@@ -752,6 +776,17 @@ final class MeasurementRuntimeCaptureSession
           growable: false,
         ) {
     _successfulRootPresentation = successfulRootPresentation;
+    for (final route in routeTable._orderedCaptureV1?.routes ??
+        <MeasurementOrderedCaptureRouteV1>[]) {
+      final index = routeTable._routes.indexWhere((candidate) =>
+          candidate.occurrenceId == route.occurrenceId &&
+          candidate.lineageId == route.lineageId);
+      if (index < 0)
+        throw ArgumentError(
+            'Ordered route is absent from the mounted route table');
+      _orderedRoutes[index] = route;
+      _timedOccurrences[index] = [];
+    }
     if (sequence <= 0 || sequence > kMaximumPortableJsonInteger) {
       throw ArgumentError.value(
         sequence,
@@ -784,9 +819,21 @@ final class MeasurementRuntimeCaptureSession
   /// unchanged.
   final ExactMeasurementPublicationContextRefV1 publicationContextRef;
 
+  /// Server-issued assignment retained unchanged for this capture session.
+  final MeasurementExperimentAssignmentV1? experimentAssignment;
+
   /// Sequence that the next emitted snapshot will carry.
   int get sequence => _nextSequence;
 
+  final Stopwatch _monotonicClock = Stopwatch()..start();
+  final int Function()? _monotonicMicrosSource;
+  List<int?>? _presentationWitnesses;
+  List<int?>? _interactionWitnesses;
+  final Map<int, MeasurementOrderedCaptureRouteV1> _orderedRoutes = {};
+  final Map<int, List<MeasurementTimedOccurrenceV1>> _timedOccurrences = {};
+  int _orderedCount = 0;
+  bool _orderedIncomplete = false;
+  int _lastElapsedMicros = -1;
   MeasurementRuntimeRouteTable? _routeTable;
   Uint32List? _slotStates;
   List<int>? _missingnessCounts;
@@ -825,16 +872,66 @@ final class MeasurementRuntimeCaptureSession
     return _record(route, true);
   }
 
+  MeasurementCaptureWriteDisposition recordAnswer(
+      MeasurementCaptureRouteHandle route, MeasurementAnswerValueV1 value) {
+    if (!(_orderedRoutes[route._index]?.declaredAnswerV1?.admits(value) ??
+        false))
+      throw ArgumentError('Answer is not admitted by published route');
+    return _record(route, true, answerValueV1: value);
+  }
+
   /// O(1) handle lookup and one bounded presentation update.
   MeasurementCaptureWriteDisposition recordPresentation(
     MeasurementCaptureRouteHandle route,
   ) =>
       _record(route, false);
 
+  /// Records a lifecycle channel explicitly admitted by this published route.
+  MeasurementCaptureWriteDisposition recordDeclaredOccurrence(
+    MeasurementCaptureRouteHandle route,
+    MeasurementOccurrenceChannelV1 channel,
+  ) {
+    if (channel == MeasurementOccurrenceChannelV1.presentation ||
+        channel == MeasurementOccurrenceChannelV1.interaction) {
+      throw ArgumentError(
+          'Use the presentation or interaction capture entrypoint');
+    }
+    if (_finalFrame != null)
+      return MeasurementCaptureWriteDisposition.finalized;
+    if (!identical(route._owner, _routeTable?._owner) ||
+        !(_orderedRoutes[route._index]?.channels.contains(channel) ?? false)) {
+      throw ArgumentError(
+          'Lifecycle channel is not admitted by the published route');
+    }
+    return _record(route, false, channel: channel);
+  }
+
+  void _appendTimed(
+      int index, MeasurementOccurrenceChannelV1 channel, int micros,
+      {MeasurementAnswerValueV1? answerValueV1}) {
+    final route = _orderedRoutes[index];
+    if (route == null ||
+        !route.channels.contains(channel) ||
+        _orderedIncomplete) return;
+    final occurrences = _timedOccurrences[index]!;
+    if (_orderedCount == measurementMaximumTimedOccurrencesPerRoot ||
+        occurrences.length == measurementMaximumTimedOccurrencesPerRoute) {
+      _orderedIncomplete = true;
+      return;
+    }
+    occurrences.add(MeasurementTimedOccurrenceV1(
+        ordinal: ++_orderedCount,
+        channel: channel,
+        elapsedMicros: micros,
+        answerValueV1: answerValueV1));
+  }
+
   MeasurementCaptureWriteDisposition _record(
     MeasurementCaptureRouteHandle route,
-    bool recordsInteraction,
-  ) {
+    bool recordsInteraction, {
+    MeasurementOccurrenceChannelV1? channel,
+    MeasurementAnswerValueV1? answerValueV1,
+  }) {
     if (_finalFrame != null) {
       return MeasurementCaptureWriteDisposition.finalized;
     }
@@ -852,10 +949,14 @@ final class MeasurementRuntimeCaptureSession
     }
     final index = route._index;
     final originalSlotState = slotStates[index];
+    final witness = experimentAssignment == null && _orderedRoutes.isEmpty
+        ? null
+        : _readElapsedMicros();
     var slotState = originalSlotState;
     _beginNewSnapshotAfterCheckpoint();
     if ((slotState & _measurementSlotPresentedFlag) == 0) {
       if (_presentedPointCount == bounds.maximumPresentedPoints) {
+        if (_orderedRoutes.containsKey(index)) _orderedIncomplete = true;
         if ((slotState & _measurementSlotDroppedAtPresentationFlag) == 0) {
           slotStates[index] =
               slotState | _measurementSlotDroppedAtPresentationFlag;
@@ -866,6 +967,11 @@ final class MeasurementRuntimeCaptureSession
         return MeasurementCaptureWriteDisposition.truncated;
       }
       slotState |= _measurementSlotPresentedFlag;
+      if (_presentationWitnesses != null)
+        _presentationWitnesses![index] = witness;
+      if (witness != null)
+        _appendTimed(
+            index, MeasurementOccurrenceChannelV1.presentation, witness);
       _presentedPointCount += 1;
       if (_interactionCounterCount == bounds.maximumInteractionCounters) {
         slotState |= _measurementSlotInteractionCounterTruncatedFlag;
@@ -877,8 +983,23 @@ final class MeasurementRuntimeCaptureSession
         _interactionCounterCount += 1;
       }
     }
+    if (witness != null &&
+        (recordsInteraction ||
+            channel != null ||
+            (originalSlotState & _measurementSlotPresentedFlag) != 0)) {
+      _appendTimed(
+          index,
+          channel ??
+              (recordsInteraction
+                  ? MeasurementOccurrenceChannelV1.interaction
+                  : MeasurementOccurrenceChannelV1.presentation),
+          witness,
+          answerValueV1: answerValueV1);
+    }
     if (recordsInteraction &&
         (slotState & _measurementSlotHasInteractionCounterFlag) != 0) {
+      if (_interactionWitnesses != null)
+        _interactionWitnesses![index] ??= witness;
       final interactionCount = slotState & _measurementSlotInteractionCountMask;
       if (interactionCount < bounds.maximumCounterValue) {
         final nextInteractionCount = interactionCount + 1;
@@ -893,6 +1014,19 @@ final class MeasurementRuntimeCaptureSession
     return (slotState & _measurementSlotHasInteractionCounterFlag) != 0
         ? MeasurementCaptureWriteDisposition.recorded
         : MeasurementCaptureWriteDisposition.truncated;
+  }
+
+  int _readElapsedMicros() {
+    final micros =
+        _monotonicMicrosSource?.call() ?? _monotonicClock.elapsedMicroseconds;
+    if (micros < 0 ||
+        micros < _lastElapsedMicros ||
+        micros > measurementIngestMaximumOutcomeWitnessMicros) {
+      throw StateError(
+          'Capture occurrence is outside the monotonic witness bounds');
+    }
+    _lastElapsedMicros = micros;
+    return micros;
   }
 
   /// Records bounded missingness outside the callback capture sub-entry.
@@ -944,6 +1078,17 @@ final class MeasurementRuntimeCaptureSession
     }
     _beginNewSnapshotAfterCheckpoint();
     _successfulRootPresentation = true;
+    for (final declaration in routeTable.orderedCaptureV1?.routes ??
+        <MeasurementOrderedCaptureRouteV1>[]) {
+      if (declaration.lifecycle?.channel !=
+              MeasurementOccurrenceChannelV1.presentation ||
+          declaration.lifecycle?.screenId != null) continue;
+      final route = routeTable.routes.singleWhere((route) =>
+          route.occurrenceId == declaration.occurrenceId &&
+          route.lineageId == declaration.lineageId);
+      if ((_slotStates![route.routeIndex] & _measurementSlotPresentedFlag) == 0)
+        recordPresentation(route);
+    }
   }
 
   /// Emits one nonterminal cumulative frame for retry by the owning host.
@@ -993,10 +1138,13 @@ final class MeasurementRuntimeCaptureSession
       final route = routeTable._routes[index];
       facts.add(
         _MeasurementSerializedFact(
+          timedOccurrencesV1: _timedOccurrences[index],
           occurrenceId: route.occurrenceId.hex,
           lineageId: route.lineageId.value,
           interactionState: _interactionStateForSlotState(slotState),
           interactionCount: _interactionCountJsonForSlotState(slotState),
+          presentationFirstOccurrenceMicros: _presentationWitnesses?[index],
+          interactionFirstOccurrenceMicros: _interactionWitnesses?[index],
         ),
       );
     }
@@ -1015,8 +1163,17 @@ final class MeasurementRuntimeCaptureSession
           'maximumMissingnessEntries': bounds.maximumMissingnessEntries,
           'maximumPresentedPoints': bounds.maximumPresentedPoints,
         },
+        if (_orderedRoutes.isNotEmpty)
+          'orderedCaptureV1': {
+            'schemaVersion': 1,
+            'incomplete': _orderedIncomplete
+          },
         'captureSessionNonce': captureSessionNonce._value,
+        if (experimentAssignment != null)
+          'experimentAssignment': experimentAssignment!.toJson(),
         'facts': [for (final fact in facts) fact.toJson()],
+        if (experimentAssignment != null || _orderedRoutes.isNotEmpty)
+          'frameElapsedMicros': _readElapsedMicros(),
         'finality': {'kind': isFinal ? 'final' : 'pending'},
         'kind': 'measurementFactFrame',
         'missingness': missingness,
@@ -1049,8 +1206,13 @@ final class MeasurementRuntimeCaptureSession
   }
 
   void _releaseMutableState() {
+    _orderedRoutes.clear();
+    _timedOccurrences.clear();
     _routeTable = null;
     _slotStates = null;
+    _presentationWitnesses = null;
+    _interactionWitnesses = null;
+    _monotonicClock.stop();
     _missingnessCounts = null;
   }
 
@@ -1100,22 +1262,37 @@ Map<String, Object?>? _interactionCountJsonForSlotState(int slotState) =>
 
 final class _MeasurementSerializedFact {
   const _MeasurementSerializedFact({
+    required this.timedOccurrencesV1,
     required this.occurrenceId,
     required this.lineageId,
     required this.interactionState,
     required this.interactionCount,
+    required this.presentationFirstOccurrenceMicros,
+    required this.interactionFirstOccurrenceMicros,
   });
 
+  final List<MeasurementTimedOccurrenceV1>? timedOccurrencesV1;
   final String occurrenceId;
   final String lineageId;
   final MeasurementFactInteractionState interactionState;
   final Map<String, Object?>? interactionCount;
+  final int? presentationFirstOccurrenceMicros;
+  final int? interactionFirstOccurrenceMicros;
 
   String get identity => '$occurrenceId\u0000$lineageId';
 
   Map<String, Object?> toJson() => {
+        if (timedOccurrencesV1 != null)
+          'timedOccurrencesV1': [
+            for (final occurrence in timedOccurrencesV1!) occurrence.toJson()
+          ],
         if (interactionCount != null) 'interactionCount': interactionCount,
         'interactionState': interactionState.wireName,
+        if (presentationFirstOccurrenceMicros != null)
+          'presentationFirstOccurrenceMicros':
+              presentationFirstOccurrenceMicros,
+        if (interactionFirstOccurrenceMicros != null)
+          'interactionFirstOccurrenceMicros': interactionFirstOccurrenceMicros,
         'lineageId': lineageId,
         'occurrenceId': occurrenceId,
       };

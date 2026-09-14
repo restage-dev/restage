@@ -4,7 +4,7 @@ const tallyWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'tally_welcome',
   artifactPath: 'tally_welcome.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use tallyWelcomeScreenRef')

@@ -36,6 +36,33 @@ class _CorruptResolver implements VariantResolver {
 void main() {
   setUp(() => Restage.debugReset());
 
+  testWidgets('authored fallback dispatches events and rejects stale callbacks',
+      (tester) async {
+    final events = <RestageEvent>[];
+    VoidCallback? callback;
+    await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+      id: 'offline',
+      resolver: _ThrowingResolver(),
+      onEvent: events.add,
+      fallbackBuilder: (context) {
+        callback = paywallEvent('continue', args: {'choice': 'original'});
+        return TextButton(
+            onPressed: callback, child: const Text('Original offer'));
+      },
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Original offer'), findsOneWidget);
+    expect(events.whereType<PaywallViewed>(), hasLength(1));
+    await tester.tap(find.text('Original offer'));
+    expect(events.whereType<PaywallCustomEvent>(), hasLength(1));
+    final stale = callback!;
+    await tester.pumpWidget(const SizedBox());
+    expect(stale, throwsAssertionError);
+    expect(events.whereType<PaywallCustomEvent>(), hasLength(1));
+    expect(events.whereType<PaywallDismissed>(), hasLength(1));
+  });
+
   testWidgets('renders SizedBox.shrink + emits PaywallLoadFailed by default',
       (tester) async {
     final received = <RestageEvent>[];

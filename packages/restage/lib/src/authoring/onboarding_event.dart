@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import '../analytics/render_event_privacy.dart';
+import 'event_dispatch_admission.dart';
 import '../flow/flow_descriptors.dart';
 import 'authoring_dispatch_access.dart';
 import 'authoring_refusal_diagnostic.dart';
@@ -81,7 +81,7 @@ VoidCallback _flowEvent<T, V extends T>(
 
   return () {
     if (dispatcher != null) {
-      RestageFlowRenderEventPrivacyRegistry.runWithControllerEventRefusal<void>(
+      RestageFlowEventDispatchRegistry.runWithControllerEventRefusal<void>(
         body: () => dispatcher(event.id, value),
         onRefused: () => onRefused(AuthoringRefusalKind.callbackRefused),
       );

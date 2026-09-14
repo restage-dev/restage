@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -23,10 +26,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const supportChannel = MethodChannel('plugins.flutter.io/path_provider');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  late Directory supportDirectory;
 
-  setUp(() {
+  setUp(() async {
+    supportDirectory =
+        await Directory.systemTemp.createTemp('restage-configure-');
+    messenger.setMockMethodCallHandler(
+        supportChannel,
+        (call) async => call.method == 'getApplicationSupportDirectory'
+            ? supportDirectory.path
+            : null);
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    Restage.debugReset();
+    await Restage.debugResetAndWait();
+  });
+  tearDown(() async {
+    try {
+      await Restage.debugResetAndWait();
+    } finally {
+      messenger.setMockMethodCallHandler(supportChannel, null);
+      await supportDirectory.delete(recursive: true);
+    }
   });
 
   test('configure sets apiKey and environment', () {
@@ -81,7 +103,7 @@ void main() {
       baseUrl: 'https://api.example.com',
       liveRefreshEdgeUrl: Uri.parse('https://edge.example.com'),
     );
-    _installNoopRpcClient();
+    _installRpcClient();
 
     expect(
       Restage.configuredUpdateChannel,
@@ -97,7 +119,7 @@ void main() {
       liveRefreshEdgeUrl: Uri.parse('https://edge.example.com'),
       updateChannel: channel,
     );
-    _installNoopRpcClient();
+    _installRpcClient();
 
     expect(Restage.configuredUpdateChannel, same(channel));
   });
@@ -166,9 +188,9 @@ void main() {
       apiKey: 'rs_pk_test',
       baseUrl: 'https://api.example.com',
     );
-    _installNoopRpcClient();
+    _installRpcClient();
 
-    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+    expect(await SurfaceAssignmentKeyProvider.resolve(), 'credential.facade');
   });
 
   test(
@@ -179,7 +201,7 @@ void main() {
       baseUrl: 'https://api.example.com',
       analyticsEnabled: false,
     );
-    _installNoopRpcClient();
+    _installRpcClient();
 
     expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
   });
@@ -195,8 +217,8 @@ void main() {
       apiKey: 'rs_pk_test',
       baseUrl: 'https://api.example.com',
     );
-    _installNoopRpcClient();
-    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+    _installRpcClient();
+    expect(await SurfaceAssignmentKeyProvider.resolve(), 'credential.facade');
 
     Restage.debugReset();
 
@@ -209,8 +231,8 @@ void main() {
       apiKey: 'rs_pk_test',
       baseUrl: 'https://api.example.com',
     );
-    _installNoopRpcClient();
-    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+    _installRpcClient();
+    expect(await SurfaceAssignmentKeyProvider.resolve(), 'credential.facade');
 
     Restage.configure(apiKey: 'rs_pk_test');
 
@@ -223,12 +245,17 @@ final class _FacadeUpdateChannel implements SurfaceUpdateChannel {
   Stream<SurfaceUpdate> watch(SurfaceRef surface) => const Stream.empty();
 }
 
-void _installNoopRpcClient() {
+void _installRpcClient() {
   Restage.debugRestageRpcClient = RestageRpcClient(
     baseUrl: 'https://api.example.com',
     apiKey: 'rs_pk_test',
     httpClient: MockClient(
-      (_) async => http.Response('', 404),
+      (request) async => request.url.path ==
+              '/sdk/v1/measurement-assignment-credential'
+          ? http.Response(
+              '{"credentialHandle":"credential.facade","expiresAtMicros":4102444800000000}',
+              200)
+          : http.Response('', 404),
     ),
   );
 }

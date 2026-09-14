@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'measurement_sdk_runtime_session.dart';
 
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -10,8 +11,10 @@ import 'measurement_publication_binding_runtime.dart';
 import 'measurement_rfw_presentation.dart';
 import 'measurement_runtime_capture.dart';
 import 'measurement_worker_delivery.dart';
+import 'measurement_outbox_protocol.dart';
 import 'measurement_worker_protocol.dart';
 import 'presentation_commit.dart';
+import 'presentation_attempt_summary.dart';
 
 /// Test-only deterministic delivery seam below the exact construction owner.
 ///
@@ -24,9 +27,7 @@ typedef MeasurementHostConstructionWorkerRuntimeStarter
 });
 
 /// Exact policy/profile state understood by the construction-plane host owner.
-///
-/// It deliberately remains a local, test-installed value. Nothing here adds a
-/// public configuration field or a production profile fetch path.
+
 @internal
 enum MeasurementHostConstructionPolicyStatus {
   /// The exact manifest privacy/capability policy is supported locally.
@@ -57,6 +58,8 @@ final class MeasurementHostConstructionProfile {
     required this.remainingSessionBudget,
     required this.deliveryAdapterAvailable,
     required this.configurationFingerprint,
+    this.sdkRuntimeSessionAdmitted = false,
+    this.presentationMetadataAdmitted = false,
     this.maximumSessions = 16,
     List<MeasurementWorkerOwnedDeliveryHeader> headers = const [],
     this.debugTracing = false,
@@ -75,6 +78,12 @@ final class MeasurementHostConstructionProfile {
 
   /// Optional exact Measurement ingress endpoint.
   final String? endpoint;
+
+  /// Exact selected policy explicitly admits anonymous runtime metadata.
+  final bool sdkRuntimeSessionAdmitted;
+
+  /// Exact selected policy admits presentation observations and routing receipts.
+  final bool presentationMetadataAdmitted;
 
   /// Whether the target has opted into automatic Measurement collection.
   final bool analyticsEnabled;
@@ -203,13 +212,24 @@ final class MeasurementHostConstructionAdmission {
       deliveryAdmission.isAdmitted;
 }
 
-/// One immutable construction-plane owner for all test-installed Source roots.
+/// One immutable construction owner for governed Source roots.
 ///
 /// It owns exactly one long-lived [MeasurementWorkerOwnedDeliveryRuntime].
 /// It never reads legacy analytics identity, installs a production registry,
 /// constructs a direct transport, or evaluates a current/latest publication.
 @internal
 final class MeasurementHostConstructionOwner {
+  /// Creates a governed host owner using the platform support path and worker.
+  MeasurementHostConstructionOwner.production({
+    required MeasurementHostConstructionProfileReadPort profileReadPort,
+    Future<void>? startupBarrier,
+  })  : _startupBarrier = startupBarrier,
+        _profileReadPort = profileReadPort,
+        _pathResolver = null,
+        _assignmentCredentialPort = null,
+        _monotonicClock = _StopwatchMonotonicClock(),
+        _workerRuntimeStarter = null;
+
   /// Creates the test-only construction owner used by a test new-only install.
   @visibleForTesting
   MeasurementHostConstructionOwner.forTesting({
@@ -218,14 +238,25 @@ final class MeasurementHostConstructionOwner {
     MeasurementHostAssignmentCredentialPort? assignmentCredentialPort,
     MeasurementCaptureMonotonicClock? monotonicClock,
     MeasurementHostConstructionWorkerRuntimeStarter? workerRuntimeStarter,
-  })  : _profileReadPort = profileReadPort,
+  })  : _startupBarrier = null,
+        _profileReadPort = profileReadPort,
         _pathResolver = pathResolver,
         _assignmentCredentialPort = assignmentCredentialPort,
         _monotonicClock = monotonicClock ?? _StopwatchMonotonicClock(),
         _workerRuntimeStarter = workerRuntimeStarter;
 
+  final _sdkSession = MeasurementSdkRuntimeSession();
+
+  /// Rotate runtime attribution for roots opened after explicit SDK reset.
+  void resetSdkRuntimeSession() => _sdkSession.reset();
+
+  final Future<void>? _startupBarrier;
+  final MeasurementWorkerOwnedDeliveryCancellation _cancellation =
+      MeasurementWorkerOwnedDeliveryCancellation();
+  Future<void>? _cancellationFuture;
+  Future<void>? _privacyPurgeCompletion;
   final MeasurementHostConstructionProfileReadPort _profileReadPort;
-  final MeasurementWorkerOwnedDeliveryPathResolver _pathResolver;
+  final MeasurementWorkerOwnedDeliveryPathResolver? _pathResolver;
   final MeasurementHostAssignmentCredentialPort? _assignmentCredentialPort;
   final MeasurementCaptureMonotonicClock _monotonicClock;
   final MeasurementHostConstructionWorkerRuntimeStarter? _workerRuntimeStarter;
@@ -273,6 +304,9 @@ final class MeasurementHostConstructionOwner {
     required MeasurementRuntimeRouteTable routeTable,
     required MeasurementCaptureAdmission capabilityAdmission,
     required String Function() captureSessionNonceSource,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+    MeasurementPresentationContextV1? presentationContext,
+    String? routingSelectionReceipt,
   }) async {
     if (_closed) return null;
 
@@ -298,10 +332,33 @@ final class MeasurementHostConstructionOwner {
     }
 
     try {
+      final nonce = _sdkSession.forTarget(
+          resolvedMount.publicationContextRef.surfaceIdentity.target);
+      final sessionClock = _SessionMonotonicClock(_monotonicClock);
       final opened = await runtime.openSession(
         MeasurementWorkerSessionRegistration(
+          presentationContextCanonicalBytes:
+              profile.presentationMetadataAdmitted &&
+                      presentationContext != null
+                  ? presentationContext.canonicalBytes
+                  : null,
+          routingSelectionReceipt: profile.presentationMetadataAdmitted
+              ? routingSelectionReceipt
+              : null,
+          sdkRuntimeSessionNonce:
+              profile.sdkRuntimeSessionAdmitted ? nonce : null,
+          reportedSdkVersion: profile.sdkRuntimeSessionAdmitted
+              ? measurementReportedSdkVersion
+              : null,
+          orderedCaptureCanonicalBytesV1: routeTable.orderedCaptureV1 == null
+              ? null
+              : CanonicalJsonCodec.encode(
+                  routeTable.orderedCaptureV1!.toJson()),
           sessionId: _nextSessionId(),
           captureSessionNonce: captureSessionNonceSource(),
+          experimentAssignmentCanonicalBytes: experimentAssignment == null
+              ? null
+              : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
           publicationContextCanonicalBytes:
               resolvedMount.publicationContextRef.canonicalBytes,
           routes: [
@@ -331,13 +388,18 @@ final class MeasurementHostConstructionOwner {
       }
 
       budgetReservation.consume();
+      if (_closed) {
+        await workerSession.discard();
+        return null;
+      }
       final session = MeasurementHostConstructionSession._(
+        presentationMetadataAdmitted: profile.presentationMetadataAdmitted,
         owner: this,
         admission: admission,
         resolvedMount: resolvedMount,
         routeTable: routeTable,
         workerSession: workerSession,
-        monotonicClock: _monotonicClock,
+        monotonicClock: sessionClock,
       );
       _sessions.add(session);
       return session;
@@ -446,16 +508,19 @@ final class MeasurementHostConstructionOwner {
     );
     MeasurementWorkerOwnedDeliveryRuntime? runtime;
     try {
+      await _startupBarrier;
+      if (_cancellation.isCancelled) return null;
       final starter = _workerRuntimeStarter;
       if (starter != null) {
         runtime = await starter(
           configuration: configuration,
-          pathResolver: _pathResolver,
+          pathResolver: _pathResolver!,
         );
       } else {
         runtime = (await MeasurementWorkerOwnedDeliveryRuntime.start(
           configuration: configuration,
           pathResolver: _pathResolver,
+          cancellation: _cancellation,
         ))
             .runtime;
       }
@@ -480,6 +545,7 @@ final class MeasurementHostConstructionOwner {
     for (final session in List<MeasurementHostConstructionSession>.of(
       _sessions,
     )) {
+      session._presentationAttemptObserver.recordCaptureIncomplete();
       session._closeCaptureEdge();
     }
   }
@@ -522,8 +588,42 @@ final class MeasurementHostConstructionOwner {
     return 'measurement-host.$_nextSessionOrdinal';
   }
 
+  /// Revokes capture immediately and acknowledges worker cancellation.
+  /// The configuration owner supplies the purge barrier shared by all retiring
+  /// generations, so a session teardown cannot bypass durable privacy cleanup.
+  Future<void> cancelCollection({Future<void>? purgeCompletion}) {
+    if (purgeCompletion != null) _privacyPurgeCompletion = purgeCompletion;
+    final existing = _cancellationFuture;
+    if (existing != null) return existing;
+    _closed = true;
+    _cancellation.cancel();
+    for (final session
+        in List<MeasurementHostConstructionSession>.of(_sessions)) {
+      session._active = false;
+      session._closeCaptureEdge();
+      _release(session);
+    }
+    return _cancellationFuture = _cancelActive();
+  }
+
+  Future<void> _cancelActive() async {
+    final runtimeFuture = _runtimeFuture;
+    final runtime =
+        _runtime ?? (runtimeFuture == null ? null : await runtimeFuture);
+    await _cancellation.completion;
+    if (_workerRuntimeStarter != null && runtime != null) {
+      await runtime.reset(MeasurementOutboxPurgeReason.privacyReset);
+    }
+    await _closeFuture;
+  }
+
   /// Finalizes all live sessions, then closes the one owned worker exactly once.
   Future<void> close() {
+    if (_cancellation.isCancelled) {
+      return _privacyPurgeCompletion ??
+          _cancellationFuture ??
+          Future<void>.value();
+    }
     final existing = _closeFuture;
     if (existing != null) return existing;
     _closed = true;
@@ -538,8 +638,9 @@ final class MeasurementHostConstructionOwner {
       for (final session in sessions) session.teardown(),
     ]);
     final runtimeFuture = _runtimeFuture;
-    final runtime = runtimeFuture == null ? _runtime : await runtimeFuture;
-    if (runtime == null) return;
+    final runtime =
+        _runtime ?? (runtimeFuture == null ? null : await runtimeFuture);
+    if (runtime == null || _cancellation.isCancelled) return;
     await runtime.shutdown();
   }
 }
@@ -551,19 +652,38 @@ final class MeasurementHostConstructionSession
         MeasurementPresentationCaptureSink,
         MeasurementRfwPresentationCaptureBinder {
   MeasurementHostConstructionSession._({
+    required bool presentationMetadataAdmitted,
     required MeasurementHostConstructionOwner owner,
     required MeasurementHostConstructionAdmission admission,
     required MeasurementPublicationBindingRuntimeResolvedMount resolvedMount,
     required MeasurementRuntimeRouteTable routeTable,
     required MeasurementWorkerOwnedDeliverySession workerSession,
     required MeasurementCaptureMonotonicClock monotonicClock,
-  })  : _owner = owner,
+  })  : _presentationMetadataAdmitted = presentationMetadataAdmitted,
+        _owner = owner,
         _admission = admission,
         _resolvedMount = resolvedMount,
         _routeTable = routeTable,
         _workerSession = workerSession,
-        _monotonicClock = monotonicClock;
+        _monotonicClock = monotonicClock {
+    final carriers = [
+      for (final route in routeTable.orderedCaptureV1?.routes ??
+          <MeasurementOrderedCaptureRouteV1>[]) ...[
+        if (route.lifecycle != null) route.lifecycle!.carrier,
+        if (route.answerCarrier != null) route.answerCarrier!,
+      ]
+    ];
+    if (carriers.isNotEmpty &&
+        bindPresentation(pointTokens: [
+              for (final carrier in carriers) carrier.split('.').last
+            ], routeCarriers: carriers) ==
+            null) {
+      throw StateError(
+          'Published callback carriers did not bind to the exact worker');
+    }
+  }
 
+  final bool _presentationMetadataAdmitted;
   final MeasurementHostConstructionOwner _owner;
   final MeasurementHostConstructionAdmission _admission;
   final MeasurementPublicationBindingRuntimeResolvedMount _resolvedMount;
@@ -575,9 +695,23 @@ final class MeasurementHostConstructionSession
   final Set<MeasurementCaptureEdge> _captureEdges = <MeasurementCaptureEdge>{};
 
   var _active = true;
+  final _presentationAttemptObserver = MeasurementPresentationAttemptObserver();
+
+  /// The observer shared with the root presentation route.
+  @internal
+  MeasurementPresentationAttemptObserver get presentationAttemptObserver =>
+      _presentationAttemptObserver;
+
+  /// The observed outcome of this presentation attempt.
+  @internal
+  MeasurementPresentationDiagnosticV1 get presentationAttemptSummary =>
+      _presentationAttemptObserver.summarise();
+
   var _successfulFirstPaint = false;
+  var _rootLifecyclePresented = false;
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>? _teardownFuture;
   Future<void>? _discardFuture;
+  Future<void>? _abortFuture;
 
   /// The immutable admission shared with restricted credential issuance.
   @visibleForTesting
@@ -590,6 +724,7 @@ final class MeasurementHostConstructionSession
   }) {
     if (pointTokens.length > kMaximumMeasurementRuntimeRouteCount ||
         routeCarriers.length > kMaximumMeasurementRuntimeRouteCount) {
+      _presentationAttemptObserver.recordCaptureIncomplete();
       throw ArgumentError.value(
         pointTokens.length,
         'pointTokens',
@@ -652,7 +787,63 @@ final class MeasurementHostConstructionSession
     if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
     final route = _routesByCarrier[rawCarrier];
     if (route == null) return;
+    _presentationAttemptObserver.recordStepObserved();
     route.edge.appendInteractionIdentity(route.identity);
+  }
+
+  void recordAnswer(String questionId, Object? rawValue) {
+    if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
+    final published = _routeTable.orderedCaptureV1?.routes
+        .where((route) => route.declaredAnswerV1?.questionId == questionId)
+        .singleOrNull;
+    final value = published?.declaredAnswerV1?.capture(rawValue);
+    final route = _routesByCarrier[published?.answerCarrier];
+    if (value != null && route != null) {
+      _presentationAttemptObserver.recordStepObserved();
+      route.edge.appendAnswerIdentity(route.identity, value);
+    }
+  }
+
+  /// Resolves a real callback within this exact mounted publication.
+  void recordLifecycle(MeasurementOccurrenceChannelV1 channel,
+      {String? screenId}) {
+    if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId != null) recordLifecycle(channel);
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null &&
+        _rootLifecyclePresented) return;
+    final mapping = _routeTable.orderedCaptureV1?.routes
+        .map((route) => route.lifecycle)
+        .where(
+            (route) => route?.channel == channel && route?.screenId == screenId)
+        .singleOrNull;
+    if (mapping == null) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null) _rootLifecyclePresented = true;
+    recordDeclaredOccurrenceCarrier(mapping.carrier, channel);
+  }
+
+  /// Captures an actual lifecycle event through its published route carrier.
+  void recordDeclaredOccurrenceCarrier(
+      String rawCarrier, MeasurementOccurrenceChannelV1 channel) {
+    if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
+    final route = _routesByCarrier[rawCarrier];
+    if (route == null) return;
+    final value = switch (channel) {
+      MeasurementOccurrenceChannelV1.presentation =>
+        MeasurementWorkerAppendValue.presentation,
+      MeasurementOccurrenceChannelV1.completion =>
+        MeasurementWorkerAppendValue.completion,
+      MeasurementOccurrenceChannelV1.skip => MeasurementWorkerAppendValue.skip,
+      MeasurementOccurrenceChannelV1.dismiss =>
+        MeasurementWorkerAppendValue.dismiss,
+      _ => null,
+    };
+    if (value != null) {
+      _presentationAttemptObserver.recordStepObserved();
+      route.edge.appendDeclaredIdentity(route.identity, value);
+    }
   }
 
   @override
@@ -671,6 +862,7 @@ final class MeasurementHostConstructionSession
       );
     }
     _successfulFirstPaint = true;
+    recordLifecycle(MeasurementOccurrenceChannelV1.presentation);
   }
 
   /// Schedules one nonblocking worker checkpoint after backgrounding.
@@ -680,13 +872,20 @@ final class MeasurementHostConstructionSession
         !_owner._admissionRemainsUsable(_admission)) {
       return null;
     }
-    final result = await _workerSession.checkpoint();
+    final result = await _workerSession.checkpoint(
+        frameElapsedMicros: _monotonicClock.readMicros());
     _owner._observeDeliveryResult(result);
     return result;
   }
 
   /// Finalizes after a successful paint, or discards an uncommitted session.
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?> teardown() {
+    if (_owner._cancellation.isCancelled) {
+      return (_owner._privacyPurgeCompletion ??
+              _owner._cancellationFuture ??
+              Future<void>.value())
+          .then((_) => null);
+    }
     final existing = _teardownFuture;
     if (existing != null) return existing;
     final future = _teardownActive();
@@ -697,18 +896,26 @@ final class MeasurementHostConstructionSession
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>
       _teardownActive() async {
     if (!_active) {
-      await _discardFuture;
+      // An abort already in flight still holds the session; wait for its release.
+      await (_abortFuture ?? _discardFuture);
       return null;
     }
     _active = false;
     _closeCaptureEdge();
     try {
       if (!_successfulFirstPaint) {
+        await _reportTerminalDiagnostic();
         await _discardUncommitted();
         return null;
       }
-      final result = await _workerSession.teardown();
+      final result = await _workerSession.teardown(
+          frameElapsedMicros: _monotonicClock.readMicros());
       _owner._observeDeliveryResult(result);
+      // Only after the committed frame is delivered, and never in its place.
+      if (presentationAttemptSummary.rootPresentationReports ==
+          MeasurementRootPresentationReportsV1.many) {
+        await _reportTerminalDiagnostic();
+      }
       return result;
     } finally {
       _owner._release(this);
@@ -720,7 +927,21 @@ final class MeasurementHostConstructionSession
     if (!_active || _successfulFirstPaint) return;
     _active = false;
     _closeCaptureEdge();
-    unawaited(_discardUncommitted().whenComplete(() => _owner._release(this)));
+    final aborting = _reportTerminalDiagnostic()
+        .then((_) => _discardUncommitted())
+        .whenComplete(() => _owner._release(this));
+    _abortFuture = aborting;
+    unawaited(aborting);
+  }
+
+  Future<void> _reportTerminalDiagnostic() async {
+    if (!_presentationMetadataAdmitted) return;
+    try {
+      await _workerSession
+          .reportTerminalDiagnostic(presentationAttemptSummary.canonicalBytes);
+    } on Object {
+      // Reporting failure never prevents uncommitted capture cleanup.
+    }
   }
 
   Future<void> _discardUncommitted() {
@@ -833,6 +1054,16 @@ final class _MeasurementHostConstructionBudgetReservation {
     _settled = true;
     _ledger.refundReservation();
   }
+}
+
+final class _SessionMonotonicClock implements MeasurementCaptureMonotonicClock {
+  _SessionMonotonicClock(this._source) : _origin = _source.readMicros();
+
+  final MeasurementCaptureMonotonicClock _source;
+  final int _origin;
+
+  @override
+  int readMicros() => _source.readMicros() - _origin;
 }
 
 final class _StopwatchMonotonicClock

@@ -29,6 +29,7 @@ import 'package:restage_codegen/src/screen_source_admission.dart';
 import 'package:restage_codegen/src/source_state.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilityManifest, CapabilitySidecar, Surface;
@@ -86,6 +87,7 @@ final class CompiledResolvedScreen {
     required this.capabilities,
     required this.rfwCatalogOccurrenceSet,
     required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
+    this.vocabulary = SurfaceVocabularyReferences.empty,
   })  : blob = Uint8List.fromList(blob),
         capabilitySidecar = Uint8List.fromList(capabilitySidecar),
         analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations);
@@ -95,6 +97,10 @@ final class CompiledResolvedScreen {
   final Uint8List blob;
   final Uint8List capabilitySidecar;
   final CapabilityManifest capabilities;
+
+  /// The catalog widgets and icon constants this screen renders, named so a
+  /// generated reference can install exactly them.
+  final SurfaceVocabularyReferences vocabulary;
 
   /// Frozen resolved RFW catalog calls shared by both compiler passes.
   final fmt.ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
@@ -374,6 +380,11 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           blob: blob,
           capabilitySidecar: sidecar,
           capabilities: derivation.manifest!,
+          vocabulary: referencesOfCatalogEntries(
+            derivation.referencedWidgets,
+          ).union(
+            SurfaceVocabularyReferences(icons: translation.iconReferences),
+          ),
           rfwCatalogOccurrenceSet: resolvedOccurrenceSet,
           analyticsIdDeclarations: lowering.declarations,
         ),

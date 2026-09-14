@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -9,11 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage_example/user_catalog.g.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/pulse_badge.dart';
 import 'package:restage_preview_harness/restage_preview_harness.dart';
 import 'package:restage_preview_host/restage_preview_host.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 import '_support/bundled_artifacts.dart';
 
@@ -91,7 +92,7 @@ Future<_MountedBundle> _mountBundle(
   final ticking = ValueNotifier<bool>(true);
   addTearDown(ticking.dispose);
   final manifest = RenderBundleManifest.fromCatalogJson(
-    File('lib/src/widget_catalog/catalog.json').readAsStringSync(),
+    encodeCatalog(kUserCatalog),
   );
   await tester.pumpWidget(
     ValueListenableBuilder<bool>(
@@ -160,7 +161,7 @@ void main() {
     expect(blob, hasLength(5640));
     expect(
       sha256.convert(blob).toString(),
-      'ff4abb0b106ff3156294e7d173cdfa8616a484e7b75bba9a5c7ed9bc2e3ebe2c',
+      'd60a3ccb5a07e11d15ebb3af55f29b1ebf8948462aac0604bfa4afea774ea163',
     );
     expect(
       decodeLibraryBlob(Uint8List.fromList(blob))

@@ -3,7 +3,8 @@
 
 _flutter.loader.load({
   config: {
-    renderer: 'skwasm',
+    // Let Flutter select Skwasm or the CanvasKit fallback for this browser.
+    canvasKitBaseUrl: 'canvaskit/',
     fontFallbackBaseUrl: 'assets/fonts/fallback/',
   },
 });

@@ -1,5 +1,104 @@
 # Changelog
 
+## Unreleased
+
+`Restage.configure` includes the complete built-in widget and icon catalogs by
+default. Its independent `includeMaterial` and `includeCupertino` options can
+omit a complete family while preserving app-required entries. Both default to
+true. Regenerate with `dart run build_runner build` after upgrading, then pass
+`kRestageWidgetRegistration` to `registerWidgets` to apply the same choices to
+generated registration. The standalone `registerRestageWidgets()` function
+retains its inclusive defaults.
+
+To derive a smaller selection from the app's Dart and authored surfaces, set
+`catalog: derived` on the `restage_codegen:user_factories` builder in `build.yaml`.
+Call the generated registration before `Restage.configureWithInstalledCatalog`
+when handling registration separately. Measure matched release builds of the app
+to determine the saving; APK growth and estimated download growth are different
+quantities.
+
+Release builds no longer need `--no-tree-shake-icons`. Don't pass it: it puts the
+whole icon font back into an app that would otherwise have derived its icons. An
+opted-down build generates an icon table of compile-time constants, so Flutter's
+icon tree-shaking works as usual.
+
+A generated paywall mount installs the widgets and icons its surface draws, as
+generated screen and flow mounts already did, so it renders in an app that never
+calls `registerRestageWidgets()`.
+
+`RestageWidgetLibraries.builtIn()` and `builtInIconTable()` return the complete
+built-in catalogs by default. Both accept `includeMaterial` and
+`includeCupertino` for an explicit family selection.
+
+`RestageIconTable.fromFamilies` takes named `families:` and `mirrored:`
+parameters. The two maps have the same type and were adjacent, so a positional
+call could swap them silently.
+
+Icons carry their font family and text-direction mirroring end to end, so a
+Cupertino icon renders as itself and a mirrored icon flips in a right-to-left
+layout.
+
+Generated flow mounts retain the original graph and Flutter screen constructors.
+Active delivery gates against that compiled contract without requiring runtime
+bundles; unavailable initial delivery runs the complete original closure through
+the existing controller. Running flows fail closed without restarting or replaying
+actions.
+
+Generated paywall mounts can retain the authored Flutter widget as an initial
+delivery fallback. Authored paywall events keep the existing dispatcher and
+stale-callback guards.
+
+`Restage.configure` accepts an omitted, empty, or whitespace-only API key.
+Without a credential, default delivery uses bundled assets and hosted clients,
+analytics, metering, and governed Measurement remain inactive. Reconfiguration
+also clears a previous hosted setup; explicit resolvers and local settings
+still apply.
+
+`Restage.configure` reports the configured delivery mode in debug builds, once
+per mode or origin change. Hosted diagnostics print only the origin and never
+the API key, URL credentials, path, or query.
+
+The SDK no longer sends events to the Restage service. `Restage.events` is
+unchanged and remains the way an app feeds its own analytics, and the events it
+carries are unchanged. `analyticsEnabled` on `configure` still applies: it gates
+the anonymous identifier used for surface assignment and for Measurement. The
+debug-only `debugAnalyticsHttpClient` and `debugFlushAnalytics` statics are
+removed with the egress they served.
+
+Hosted surface requests now describe the device more fully so the service can
+choose a published version of a surface for it. The request API level moves to
+3, adding device region (for example, `se`), device class (`phone`), device
+language (`sv`) and operating-system version (`17` on iOS and macOS, the API
+level `34` on Android) alongside platform (`ios`) and app build ordinal (`412`).
+Every request carries the platform; it carries each of the other five whenever
+the device can supply it and omits any it cannot, so an app whose build number
+is not a plain number still describes its platform, region, class, language and
+operating-system version. A device whose language is not a two-letter code, and
+a browser or desktop build with no operating-system ordinal to report, omit
+those keys and send the rest. A web build now also omits the app build ordinal,
+which it previously sent, and sends its platform, region, device class and
+language; native platforms are unchanged. These facts are sent regardless of the analytics
+and measurement flags. With analytics off, a hosted request carries no
+analytics identifier and no assignment credential; the metering token is
+separate and unaffected.
+
+Reading the operating-system version uses `device_info_plus`. A project that
+resolves its 12.x or 13.x line needs Kotlin 2.2; a project on 11.x needs
+nothing new. It requests no runtime permission on any platform. Both it and the
+existing `package_info_plus` are now reached only from platform-selected files
+a web build does not compile, which is why a web build reports neither fact.
+
+`Restage.configure` takes an `onSurfaceResolution` callback, and every mounted
+surface now reports through it: paywalls, hosted flows and typed screens, on
+each tier of delivery. The report is a `SurfaceResolutionReport` naming the
+surface and a `SurfaceResolutionSource` of `fresh`, `holdLastGood` or
+`bundled`, and both types are exported. A callback that throws can never fail a
+resolution.
+
+The published `data.device.countryCode` is now the device region as a
+two-letter code. A locale whose region is not a two-letter code, such as `419`,
+omits the key rather than publishing the raw subtag.
+
 ## 2.0.0
 
 The published device data carries the ambient view padding alongside the safe

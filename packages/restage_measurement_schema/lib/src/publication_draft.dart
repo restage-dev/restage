@@ -1,3 +1,4 @@
+import 'package:restage_measurement_schema/src/ordered_capture.dart';
 import 'dart:convert';
 
 import 'package:restage_measurement_schema/src/canonical.dart';
@@ -545,6 +546,7 @@ final class MeasurementPublicationDraftPresentationV1 extends CanonicalValue {
 final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
   /// Creates one route derivation seed.
   const MeasurementPublicationDraftRouteSeedV1({
+    this.orderedCaptureV1,
     required this.generatedReferenceId,
     required this.artifactOccurrenceEdgeToken,
   });
@@ -556,6 +558,7 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
     final reader = CanonicalObjectReader(
       json,
       allowedKeys: const {
+        'orderedCaptureV1',
         'artifactOccurrenceEdgeToken',
         'generatedReferenceId',
         'kind',
@@ -576,6 +579,10 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
     return _constructDraft(
       'measurementPublicationDraftRouteSeed',
       () => MeasurementPublicationDraftRouteSeedV1(
+        orderedCaptureV1: reader.optionalObject('orderedCaptureV1') == null
+            ? null
+            : MeasurementOrderedCaptureDeclarationV1.fromJson(
+                reader.object('orderedCaptureV1')),
         generatedReferenceId: GeneratedReferenceId(
           reader.string('generatedReferenceId'),
         ),
@@ -589,11 +596,16 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
   /// Generated source reference selected by the carrier.
   final GeneratedReferenceId generatedReferenceId;
 
+  /// Compiler-declared bounded ordered channels.
+  final MeasurementOrderedCaptureDeclarationV1? orderedCaptureV1;
+
   /// Exact mounted artifact occurrence encoded into the carrier.
   final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
 
   @override
   Map<String, Object?> toJson() => {
+        if (orderedCaptureV1 != null)
+          'orderedCaptureV1': orderedCaptureV1!.toJson(),
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
         'generatedReferenceId': generatedReferenceId.value,
         'kind': 'measurementPublicationDraftRouteSeed',
@@ -666,6 +678,7 @@ final class MeasurementPublicationDraftPresentationRouteSeedV1
 final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
   /// Creates one fully derived route and verifies every coupled value.
   MeasurementPublicationDraftRouteV1({
+    this.orderedCaptureV1,
     required this.generatedReferenceId,
     required this.artifactOccurrenceEdgeToken,
     required this.carrier,
@@ -689,6 +702,7 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
     final reader = CanonicalObjectReader(
       json,
       allowedKeys: const {
+        'orderedCaptureV1',
         'artifactOccurrenceEdgeToken',
         'carrier',
         'generatedReferenceId',
@@ -713,6 +727,10 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
     return _constructDraft(
       'measurementPublicationDraftRoute',
       () => MeasurementPublicationDraftRouteV1(
+        orderedCaptureV1: reader.optionalObject('orderedCaptureV1') == null
+            ? null
+            : MeasurementOrderedCaptureDeclarationV1.fromJson(
+                reader.object('orderedCaptureV1')),
         generatedReferenceId: GeneratedReferenceId(
           reader.string('generatedReferenceId'),
         ),
@@ -730,6 +748,9 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
   /// Generated reference selected by the carrier.
   final GeneratedReferenceId generatedReferenceId;
 
+  /// Compiler-declared bounded ordered channels.
+  final MeasurementOrderedCaptureDeclarationV1? orderedCaptureV1;
+
   /// Exact mounted edge encoded into [carrier].
   final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
 
@@ -741,6 +762,8 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
 
   @override
   Map<String, Object?> toJson() => {
+        if (orderedCaptureV1 != null)
+          'orderedCaptureV1': orderedCaptureV1!.toJson(),
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
         'carrier': carrier,
         'generatedReferenceId': generatedReferenceId.value,
@@ -1049,10 +1072,10 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     required List<MeasurementPublicationDraftNodeV1> nodes,
     required List<MeasurementPublicationDraftEventV1> events,
     required List<MeasurementPublicationDraftRouteSeedV1> routeSeeds,
+    required List<MeasurementPublicationDraftPresentationV1> presentations,
+    required List<MeasurementPublicationDraftPresentationRouteSeedV1>
+        presentationRouteSeeds,
     required List<MeasurementPublicationLineageIntentV1> lineageIntents,
-    List<MeasurementPublicationDraftPresentationV1> presentations = const [],
-    List<MeasurementPublicationDraftPresentationRouteSeedV1>
-        presentationRouteSeeds = const [],
   })  : artifacts = _sortedUniqueRouteArtifacts(artifacts),
         codeIdentityBindings = _sortedUniqueCodeIdentityBindings(
           codeIdentityBindings,
@@ -1131,6 +1154,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         'lineageIntents',
         'minimumMeasurementClient',
         'nodes',
+        'presentationRouteSeeds',
+        'presentations',
         'privacyPolicyRevisionId',
         'routeSeeds',
         'schemaVersion',
@@ -1147,10 +1172,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     final nodes = reader.list('nodes');
     final events = reader.list('events');
     final routeSeeds = reader.list('routeSeeds');
-    final presentations =
-        reader.optionalList('presentations') ?? const <Object?>[];
-    final presentationRouteSeeds =
-        reader.optionalList('presentationRouteSeeds') ?? const <Object?>[];
+    final presentations = reader.list('presentations');
+    final presentationRouteSeeds = reader.list('presentationRouteSeeds');
     final lineageIntents = reader.list('lineageIntents');
     _validateRawRoutePlanListBounds(
       artifacts: artifacts,
@@ -1311,15 +1334,13 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         ],
         'minimumMeasurementClient': minimumMeasurementClient,
         'nodes': [for (final node in nodes) node.toJson()],
-        if (presentations.isNotEmpty)
-          'presentations': [
-            for (final presentation in presentations) presentation.toJson(),
-          ],
+        'presentations': [
+          for (final presentation in presentations) presentation.toJson(),
+        ],
         'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
-        if (presentationRouteSeeds.isNotEmpty)
-          'presentationRouteSeeds': [
-            for (final routeSeed in presentationRouteSeeds) routeSeed.toJson(),
-          ],
+        'presentationRouteSeeds': [
+          for (final routeSeed in presentationRouteSeeds) routeSeed.toJson(),
+        ],
         'routeSeeds': [for (final routeSeed in routeSeeds) routeSeed.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,
         'surfaceId': surfaceId.value,
@@ -1660,6 +1681,8 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
         'lineageIntents',
         'minimumMeasurementClient',
         'nodes',
+        'presentations',
+        'presentationRoutes',
         'privacyPolicyRevisionId',
         'routes',
         'schemaVersion',
@@ -1676,10 +1699,8 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
     final nodes = reader.list('nodes');
     final events = reader.list('events');
     final routes = reader.list('routes');
-    final presentations =
-        reader.optionalList('presentations') ?? const <Object?>[];
-    final presentationRoutes =
-        reader.optionalList('presentationRoutes') ?? const <Object?>[];
+    final presentations = reader.list('presentations');
+    final presentationRoutes = reader.list('presentationRoutes');
     final lineageIntents = reader.list('lineageIntents');
     _validateRawDraftListBounds(
       artifacts: artifacts,
@@ -1767,6 +1788,7 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
           routeSeeds: [
             for (final route in encodedRoutes)
               MeasurementPublicationDraftRouteSeedV1(
+                orderedCaptureV1: route.orderedCaptureV1,
                 generatedReferenceId: route.generatedReferenceId,
                 artifactOccurrenceEdgeToken: route.artifactOccurrenceEdgeToken,
               ),
@@ -1899,14 +1921,12 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
         ],
         'minimumMeasurementClient': minimumMeasurementClient,
         'nodes': [for (final node in nodes) node.toJson()],
-        if (presentations.isNotEmpty)
-          'presentations': [
-            for (final presentation in presentations) presentation.toJson(),
-          ],
-        if (presentationRoutes.isNotEmpty)
-          'presentationRoutes': [
-            for (final route in presentationRoutes) route.toJson(),
-          ],
+        'presentations': [
+          for (final presentation in presentations) presentation.toJson(),
+        ],
+        'presentationRoutes': [
+          for (final route in presentationRoutes) route.toJson(),
+        ],
         'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
         'routes': [for (final route in routes) route.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,
@@ -2132,6 +2152,7 @@ MeasurementPublicationDraftRouteV1 _deriveRoute(
     generatedReferenceId: routeSeed.generatedReferenceId,
   );
   return MeasurementPublicationDraftRouteV1(
+    orderedCaptureV1: routeSeed.orderedCaptureV1,
     generatedReferenceId: routeSeed.generatedReferenceId,
     artifactOccurrenceEdgeToken: routeSeed.artifactOccurrenceEdgeToken,
     carrier: carrier.value,

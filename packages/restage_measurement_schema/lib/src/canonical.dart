@@ -183,6 +183,9 @@ enum CanonicalHashDomain {
   /// Exact organization/application/environment/runtime target.
   targetCoordinate('target-coordinate'),
 
+  /// One platform admission of a registered inference adapter for a target.
+  registeredInferenceAdapterAdmission('registered-inference-adapter-admission'),
+
   /// Stable surface identity.
   surfaceIdentity('surface-identity'),
 
@@ -305,6 +308,22 @@ enum CanonicalHashDomain {
 
   /// One complete route-neutral experiment activation command.
   experimentActivationCommand('experiment-activation-command'),
+
+  /// One immutable experiment-authoring draft revision.
+  experimentAuthoringDraft('experiment-authoring-draft'),
+
+  /// Exact dependency closure retained by an experiment-authoring draft.
+  experimentAuthoringDraftDependencyClosure(
+    'experiment-authoring-draft-dependency-closure',
+  ),
+
+  /// Exact fixed-horizon inputs retained before design registration.
+  nArmRatePlanningIntent('n-arm-rate-planning-intent'),
+
+  /// Exact allocation weights retained before design registration.
+  nArmRatePlanningAllocationAuthority(
+    'n-arm-rate-planning-allocation-authority',
+  ),
 
   /// One complete experiment activation head-state CAS preimage.
   experimentActivationHeadState('experiment-activation-head-state'),

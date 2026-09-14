@@ -21,7 +21,7 @@ void main() {
     );
   });
 
-  test('fake production envelope replays exact bytes, then ACKs before cleanup',
+  test('429 and 503 responses replay exact bytes, then ACK before cleanup',
       () async {
     final support = await _temporarySupportDirectory();
     addTearDown(() => support.delete(recursive: true));
@@ -41,9 +41,15 @@ void main() {
         }
         receivedBodies.add(received.takeBytes());
         receivedPaths.add(request.uri.path);
-        request.response.statusCode =
-            attempts++ == 0 ? HttpStatus.serviceUnavailable : HttpStatus.ok;
-        if (attempts == 2) {
+        request.response.statusCode = switch (attempts++) {
+          0 => HttpStatus.tooManyRequests,
+          1 => HttpStatus.serviceUnavailable,
+          _ => HttpStatus.ok,
+        };
+        if (attempts == 1) {
+          request.response.headers.set(HttpHeaders.retryAfterHeader, '60');
+        }
+        if (attempts == 3) {
           request.response
             ..headers.contentType = ContentType.json
             ..write(receipt);
@@ -81,18 +87,24 @@ void main() {
     clock.advance(const Duration(seconds: 1));
     expect(
       (await coordinator.uploadNext()).outcome,
+      MeasurementOutboxUploadOutcome.retryScheduled,
+    );
+    clock.advance(const Duration(seconds: 2));
+    expect(
+      (await coordinator.uploadNext()).outcome,
       MeasurementOutboxUploadOutcome.acknowledgedPendingCleanup,
     );
-    expect(receivedBodies, hasLength(2));
+    expect(receivedBodies, hasLength(3));
     expect(receivedBodies[0], orderedEquals(batch.exactRequestBytes));
     expect(receivedBodies[1], orderedEquals(batch.exactRequestBytes));
+    expect(receivedBodies[2], orderedEquals(batch.exactRequestBytes));
     expect(receivedPaths, everyElement('/sdk/v1/measurement'));
 
     final restarted = _store(support, clock: clock.call);
     final recovered = await restarted.open();
     expect(recovered.recovery.acknowledgedRecordsCleaned, 1);
     expect(await restarted.nextReady(), isNull);
-    expect(receivedBodies, hasLength(2));
+    expect(receivedBodies, hasLength(3));
   });
 
   test('native client classifies audited HTTP response classes', () async {

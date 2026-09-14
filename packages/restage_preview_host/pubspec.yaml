@@ -17,6 +17,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  device_preview: ^3.0.0
   flutter:
     sdk: flutter
   restage:

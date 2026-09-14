@@ -17,7 +17,7 @@ const _rfwOutputs = <String>[
 ];
 const _a2uiOutputs = <String>[
   'lib/generated/restage_a2ui_catalog.g.dart',
-  'lib/generated/restage_a2ui_catalog.a2ui.json',
+  '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
 ];
 const _widgetbookOutputs = <String>[
   'lib/widgets/restage.generated/target_probe.stories.dart',

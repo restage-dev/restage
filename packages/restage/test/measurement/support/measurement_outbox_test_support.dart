@@ -133,6 +133,7 @@ MeasurementIngestReceiptV1 receiptForRecord(
   MeasurementOutboxRecord record, {
   String? captureSessionNonce,
   String? factFrameSha256,
+  String? diagnosticSha256,
   bool? isFinal,
   MeasurementPublicationBindingReferenceV1? publicationBindingReference,
   String? requestSha256,
@@ -143,6 +144,7 @@ MeasurementIngestReceiptV1 receiptForRecord(
     acceptedObservationCount: 0,
     captureSessionNonce: captureSessionNonce ?? batch.captureSessionNonce,
     factFrameSha256: factFrameSha256 ?? batch.factFrameSha256,
+    diagnosticSha256: diagnosticSha256 ?? batch.diagnosticSha256,
     isFinal: isFinal ?? batch.isFinal,
     persistedAtMicros: 4100000,
     publicationBindingReference: publicationBindingReference ??

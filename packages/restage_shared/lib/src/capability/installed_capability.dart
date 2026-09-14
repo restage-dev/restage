@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
+import 'package:restage_shared/src/capability/widget_vocabulary.dart';
 
 /// One installed custom widget library and its declared capability version.
 @immutable
@@ -57,15 +58,18 @@ final class InstalledCapability {
   factory InstalledCapability({
     required int builtInCatalogVersion,
     required List<InstalledLibrary> installedLibraries,
+    WidgetVocabulary? vocabulary,
   }) =>
       InstalledCapability._(
         builtInCatalogVersion: builtInCatalogVersion,
         installedLibraries: installedLibraries,
+        vocabulary: vocabulary,
       );
 
   InstalledCapability._({
     required this.builtInCatalogVersion,
     required List<InstalledLibrary> installedLibraries,
+    required this.vocabulary,
   }) : installedLibraries = List.unmodifiable(
           List<InstalledLibrary>.of(installedLibraries)
             ..sort((a, b) => a.namespace.compareTo(b.namespace)),
@@ -91,9 +95,22 @@ final class InstalledCapability {
       throw FormatException('installedLibraries must be a list: $raw');
     }
 
+    final rawVocabulary = json['vocabulary'];
+    final WidgetVocabulary? vocabulary;
+    if (rawVocabulary == null) {
+      vocabulary = null;
+    } else if (rawVocabulary is Map) {
+      vocabulary = WidgetVocabulary.fromJson(
+        Map<String, dynamic>.from(rawVocabulary),
+      );
+    } else {
+      throw FormatException('vocabulary must be a map: $rawVocabulary');
+    }
+
     return InstalledCapability(
       builtInCatalogVersion: builtInCatalogVersion,
       installedLibraries: installedLibraries,
+      vocabulary: vocabulary,
     );
   }
 
@@ -102,6 +119,13 @@ final class InstalledCapability {
 
   /// Installed custom libraries, sorted by namespace.
   final List<InstalledLibrary> installedLibraries;
+
+  /// The exact widgets and icons this renderer can draw, when it reports them.
+  ///
+  /// `null` means the full built-in catalog at [builtInCatalogVersion] plus
+  /// every library in [installedLibraries], which is what a renderer that does
+  /// not report a vocabulary provides.
+  final WidgetVocabulary? vocabulary;
 
   /// Returns the installed version for [namespace], or `null` if the library
   /// is absent or unversioned.
@@ -113,10 +137,14 @@ final class InstalledCapability {
   }
 
   /// JSON wire form.
+  ///
+  /// The `vocabulary` key is absent when no vocabulary is reported, so a
+  /// renderer that does not report one keeps its established [contentHash].
   Map<String, dynamic> toJson() => {
         'builtInCatalogVersion': builtInCatalogVersion,
         'installedLibraries':
             installedLibraries.map((library) => library.toJson()).toList(),
+        if (vocabulary != null) 'vocabulary': vocabulary!.toJson(),
       };
 
   /// SHA-256 content hash for the canonical JSON wire form.
@@ -131,6 +159,7 @@ final class InstalledCapability {
     if (identical(this, other)) return true;
     if (other is! InstalledCapability) return false;
     if (other.builtInCatalogVersion != builtInCatalogVersion) return false;
+    if (other.vocabulary != vocabulary) return false;
     if (other.installedLibraries.length != installedLibraries.length) {
       return false;
     }
@@ -141,6 +170,9 @@ final class InstalledCapability {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(builtInCatalogVersion, Object.hashAll(installedLibraries));
+  int get hashCode => Object.hash(
+        builtInCatalogVersion,
+        Object.hashAll(installedLibraries),
+        vocabulary,
+      );
 }

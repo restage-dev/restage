@@ -20,6 +20,10 @@ const String kRestageMeasurementCompilerOutputPath =
 /// output. The aggregate compiler is the sole writer and only advances this
 /// source after a valid complete compilation.
 const String kRestageMeasurementCompilerLedgerSourcePath =
+    '.restage/measurement-state.json';
+
+/// Previous durable Measurement state location, read during migration.
+const String kLegacyRestageMeasurementCompilerLedgerSourcePath =
     'restage_measurement.compiler.json';
 
 /// Fixed package-wide tooling index for target-neutral Measurement drafts.
@@ -28,11 +32,11 @@ const String kRestageMeasurementOutputIndexFileName =
 
 /// The manifest privacy policy revision this compiler stamps.
 const String kMeasurementDefaultPrivacyPolicyRevisionId =
-    'restage.manifest-privacy.v1';
+    'restage.manifest-privacy.v2';
 
 /// The collection budget revision this compiler stamps.
 const String kMeasurementDefaultCollectionBudgetRevisionId =
-    'restage.collection-budget.v1';
+    'restage.collection-budget.v3';
 
 /// The Measurement client revision floor this compiler stamps.
 const int kMeasurementDefaultMinimumClient = 1;

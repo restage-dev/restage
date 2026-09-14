@@ -4,7 +4,7 @@ const tallyRecapInvestScreenRef = NeutralFlowScreenRef(
   id: 'tally_recap_invest',
   artifactPath: 'tally_recap_invest.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use tallyRecapInvestScreenRef')

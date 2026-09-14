@@ -33,6 +33,13 @@ const Map<String, RestageRosterSourceKind> _legacyAnnotationKinds = {
   'OnboardingFlow': RestageRosterSourceKind.flow,
 };
 
+const Map<String, String> _runtimeWidgetAuthoringAnnotations = {
+  'RestagePaywall': '@Paywall',
+  'RestageScreen': '@Screen',
+  'RestageFlowGraph': '@FlowGraph(surface: Surface.<category>)',
+  'RestageOnboarding': '@FlowGraph(surface: Surface.onboarding)',
+};
+
 final RegExp _screenSourcePath = RegExp(
   r'^lib/(onboarding|message|survey)/screens/([^/]+)\.dart$',
 );
@@ -88,9 +95,7 @@ final class RestageSourceRosterBuilder implements Builder {
         log.severe(issue.toLogString());
       }
     }
-    // Both ledgers are written into the consuming package's own tree, so a
-    // package that declares no Restage source and reports no problem with one
-    // is left alone rather than given two files recording nothing.
+    // An empty package does not need cached roster documents.
     if (roster.recordsNothing) return;
     // Otherwise always materialize the fixed package index and output ledger
     // before failing. The publication bundle has its own post-process invalid
@@ -237,6 +242,8 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
       // would duplicate every declaration and falsely collide its outputs.
       continue;
     }
+
+    issues.addAll(_runtimeWidgetAnnotationIssues(library, assetId));
 
     final checkedAdmissionKinds = <RestageRosterSourceKind>{};
     var checkedNeutralPart = await _collectCanonicalDeclarations(
@@ -393,6 +400,36 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
   );
 }
 
+List<Issue> _runtimeWidgetAnnotationIssues(
+  LibraryElement library,
+  AssetId assetId,
+) {
+  final issues = <Issue>[];
+  final declarations = <Element>[
+    ...library.classes,
+    ...library.topLevelVariables,
+  ];
+  for (final declaration in declarations) {
+    for (final annotation in declaration.metadata.annotations) {
+      if (!annotationHasOrigin(annotation, _restageOrigin)) continue;
+      final runtimeName = resolvedAnnotationClass(annotation)?.name;
+      final authoring = _runtimeWidgetAuthoringAnnotations[runtimeName];
+      if (runtimeName == null || authoring == null) continue;
+      final sourcePath = _elementSourcePath(declaration, assetId);
+      issues.add(
+        Issue(
+          code: IssueCode.runtimeWidgetUsedAsAnnotation,
+          message: '$runtimeName is a runtime mount widget and cannot be used '
+              'as source metadata. Use $authoring on '
+              '${declaration.name ?? 'this declaration'}.',
+          location: _elementSpan(declaration, sourcePath).location,
+        ),
+      );
+    }
+  }
+  return issues;
+}
+
 /// Collects this library's canonical declarations, returning whether it
 /// validated the library's generated `part` directive.
 Future<bool> _collectCanonicalDeclarations({
@@ -470,6 +507,14 @@ Future<bool> _collectCanonicalDeclarations({
       );
     }
 
+    final includePaywallMount = kind == RestageRosterSourceKind.paywall &&
+        (await _neutralPartIssues(
+          buildStep: buildStep,
+          assetId: assetId,
+          sourceTexts: sourceTexts,
+          plan: plan,
+        ))
+            .isEmpty;
     final id = metadata.id ?? _fileStem(assetId.path);
     declarations.add(
       RestageSourceDeclaration.frozen(
@@ -492,6 +537,7 @@ Future<bool> _collectCanonicalDeclarations({
           libraryIdentity: library.identifier,
           libraryPath: assetId.path,
           plan: plan,
+          includePaywallMount: includePaywallMount,
         ),
         surface: metadata.surface,
         version: metadata.version,
@@ -738,18 +784,21 @@ List<RestageOutputClaim> _canonicalOutputClaims({
   required String libraryIdentity,
   required String libraryPath,
   required RestageOutputPlacementPlan plan,
+  bool includePaywallMount = false,
 }) {
   final surfaceKey = surface?.wireName ?? 'neutral';
   // Screens and flows in one library share one generated part. The claim is
   // deliberately identical across kinds so the ownership key, not the
   // filename, is what makes the shared claim legal.
-  final part = kind == RestageRosterSourceKind.paywall
+  final part = kind == RestageRosterSourceKind.paywall && !includePaywallMount
       ? null
       : RestageOutputClaim(
           path: neutralPartPath(plan, libraryPath),
           role: kind == RestageRosterSourceKind.flow
               ? 'flow-descriptor'
-              : 'screen-descriptor',
+              : kind == RestageRosterSourceKind.paywall
+                  ? 'paywall-descriptor'
+                  : 'screen-descriptor',
           builder: _canonicalGeneratedDartOwner,
           ownershipKey: 'canonical-library:$libraryIdentity',
         );

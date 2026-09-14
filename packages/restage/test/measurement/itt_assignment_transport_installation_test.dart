@@ -7,10 +7,13 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_assignment_diagnostics.dart';
 import 'package:restage/src/measurement/measurement_assignment_transport.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart';
+
+import '../support/restage_runtime_test_support.dart';
 
 void main() {
-  setUp(Restage.debugReset);
-  tearDown(Restage.debugReset);
+  installRestageRuntimeTestSupport();
 
   group('ITT assignment transport installation', () {
     test(
@@ -23,7 +26,8 @@ void main() {
 
         expect(Restage.debugRestageRpcClient, isNotNull);
 
-        final diagnostic = await _transport().deliver(_invalidRequest());
+        final diagnostic =
+            (await _transport().deliver(_invalidRequest())).diagnostic;
 
         expect(
           diagnostic,
@@ -47,7 +51,7 @@ void main() {
             if (request.url.path == '/sdk/v1/measurement-assignment') {
               assignmentRequests.add(request);
               return http.Response(
-                '{"result":"assigned","candidateDelivery":"rendered"}',
+                '{"result":"assigned","candidateDelivery":"rendered","assignment":{"schemaVersion":1,"experimentId":"experiment.checkout","experimentRevisionId":"revision.checkout.1","experimentEpochId":"epoch.checkout.1","armId":"arm.treatment","outcomeLinkCarrier":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}',
                 200,
               );
             }
@@ -67,7 +71,7 @@ void main() {
         );
         Restage.debugRestageRpcClient = client;
 
-        final diagnostic = await _transport().deliver(request);
+        final diagnostic = (await _transport().deliver(request)).diagnostic;
 
         expect(assignmentRequests, hasLength(1));
         final seen = assignmentRequests.single;
@@ -98,7 +102,7 @@ void main() {
       MeasurementAssignmentTransportRegistry.debugInstall(stale);
 
       expect(
-        await _transport().deliver(_request()),
+        (await _transport().deliver(_request())).diagnostic,
         isA<MeasurementAssignmentDeliveryAssigned>(),
       );
       expect(stale.calls, 1);
@@ -108,7 +112,8 @@ void main() {
         baseUrl: 'https://itt-second.example.com',
       );
 
-      final diagnostic = await _transport().deliver(_invalidRequest());
+      final diagnostic =
+          (await _transport().deliver(_invalidRequest())).diagnostic;
 
       expect(stale.calls, 1);
       expect(
@@ -137,14 +142,14 @@ void main() {
         Restage.debugRestageRpcClient = client;
 
         expect(
-          await _transport().deliver(_request()),
+          (await _transport().deliver(_request())).diagnostic,
           isA<MeasurementAssignmentDeliveryAssigned>(),
         );
         expect(assignmentRequests, hasLength(1));
 
         Restage.configure(apiKey: 'rs_pk_itt_base_url_off');
 
-        final diagnostic = await _transport().deliver(_request());
+        final diagnostic = (await _transport().deliver(_request())).diagnostic;
 
         expect(assignmentRequests, hasLength(1));
         expect(
@@ -161,7 +166,8 @@ void main() {
     test(
       'unconfigured, base-url-off, and rejected authentication stay closed',
       () async {
-        final unconfigured = await _transport().deliver(_request());
+        final unconfigured =
+            (await _transport().deliver(_request())).diagnostic;
         expect(
           unconfigured,
           isA<MeasurementAssignmentDeliveryUnavailable>().having(
@@ -172,7 +178,7 @@ void main() {
         );
 
         Restage.configure(apiKey: 'rs_pk_itt_base_url_off');
-        final baseUrlOff = await _transport().deliver(_request());
+        final baseUrlOff = (await _transport().deliver(_request())).diagnostic;
         expect(
           baseUrlOff,
           isA<MeasurementAssignmentDeliveryUnavailable>().having(
@@ -197,7 +203,8 @@ void main() {
           }),
         );
 
-        final rejectedAuthentication = await _transport().deliver(_request());
+        final rejectedAuthentication =
+            (await _transport().deliver(_request())).diagnostic;
         expect(
           rejectedAuthentication,
           isA<MeasurementAssignmentDeliveryUnavailable>().having(
@@ -225,7 +232,7 @@ void main() {
 
         Restage.debugReset();
 
-        final diagnostic = await _transport().deliver(_request());
+        final diagnostic = (await _transport().deliver(_request())).diagnostic;
 
         expect(assignmentRequests, isEmpty);
         expect(
@@ -291,7 +298,7 @@ RestageRpcClient _assignmentClient({
         if (request.url.path == '/sdk/v1/measurement-assignment') {
           assignmentRequests.add(request);
           return http.Response(
-            '{"result":"assigned","candidateDelivery":"rendered"}',
+            '{"result":"assigned","candidateDelivery":"rendered","assignment":{"schemaVersion":1,"experimentId":"experiment.checkout","experimentRevisionId":"revision.checkout.1","experimentEpochId":"epoch.checkout.1","armId":"arm.treatment","outcomeLinkCarrier":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}',
             200,
           );
         }
@@ -318,8 +325,9 @@ final class _StaleAdapter
     IttAssignmentRpcRequest request,
   ) async {
     calls += 1;
-    return const IttAssignmentRpcAssigned(
+    return IttAssignmentRpcAssigned(
       IttAssignmentRpcCandidateDelivery.rendered,
+      _testAssignment(),
     );
   }
 
@@ -331,4 +339,19 @@ final class _StaleAdapter
         candidateDelivery:
             MeasurementAssignmentCandidateDeliveryDiagnostic.rendered,
       );
+
+  @override
+  CanonicalSurfaceExperimentAssignmentV1? assignmentFor(
+    IttAssignmentRpcOutcome result,
+  ) =>
+      result is IttAssignmentRpcAssigned ? result.assignment : null;
 }
+
+CanonicalSurfaceExperimentAssignmentV1 _testAssignment() =>
+    CanonicalSurfaceExperimentAssignmentV1(
+      experimentId: ExperimentPublicIdV1('experiment.checkout'),
+      experimentRevisionId: ExperimentPublicRevisionIdV1('revision.checkout.1'),
+      experimentEpochId: ExperimentPublicEpochIdV1('epoch.checkout.1'),
+      armId: ExperimentPublicArmIdV1('arm.treatment'),
+      outcomeLinkCarrier: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    );

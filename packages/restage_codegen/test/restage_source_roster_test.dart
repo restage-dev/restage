@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
+import 'package:logging/logging.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
@@ -734,8 +735,8 @@ void main() {
         containsAll(<String>[
           'assets/general/screens/first.rfw',
           'assets/general/screens/second.rfw',
-          'lib/generated/restage.publication.json',
-          'lib/generated/restage.outputs.json',
+          '.restage/build/metadata/restage.publication.json',
+          '.restage/build/metadata/restage.outputs.json',
         ]),
       );
     });
@@ -760,10 +761,18 @@ void main() {
         for (final output in outputRoster['outputs']! as List<Object?>)
           (output! as Map<String, Object?>)['path']! as String,
       ];
+      final partOutputs = (outputRoster['outputs']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .where(
+            (output) =>
+                output['path'] == 'lib/restage.generated/offers.restage.g.dart',
+          );
       expect(
-        outputPaths.where(
-          (path) => path == 'lib/restage.generated/offers.restage.g.dart',
-        ),
+        partOutputs.map((output) => output['role']),
+        unorderedEquals(['screen-descriptor', 'paywall-descriptor']),
+      );
+      expect(
+        partOutputs.map((output) => output['ownershipKey']).toSet(),
         hasLength(1),
       );
       expect(
@@ -798,8 +807,8 @@ void main() {
             'flow-screen',
         'assets/paywalls/premium.navplan.json': 'navigation-plan',
         'assets/paywalls/premium.flow.json': 'navigation-document',
-        'lib/generated/restage.publication.json': 'every-lowering',
-        'lib/generated/restage.outputs.json': 'every-lowering',
+        '.restage/build/metadata/restage.publication.json': 'every-lowering',
+        '.restage/build/metadata/restage.outputs.json': 'every-lowering',
       });
     });
 
@@ -971,6 +980,146 @@ void main() {
       );
     });
 
+    group('runtime widget annotation diagnostics', () {
+      final cases = <String, Map<String, String>>{
+        'direct': {
+          'lib/upgrade.dart': _runtimePaywallAnnotation('RestagePaywall'),
+        },
+        'prefixed': {
+          'lib/upgrade.dart': _runtimePaywallAnnotation(
+            'rs.RestagePaywall',
+            prefixed: true,
+          ),
+        },
+        'const alias': {
+          'lib/annotations.dart': '''
+import 'package:restage/restage.dart';
+
+const upgradeMount = RestagePaywall(id: 'upgrade');
+''',
+          'lib/upgrade.dart': _runtimePaywallAnnotation(
+            'upgradeMount',
+            localImport: "import 'annotations.dart';",
+            arguments: '',
+          ),
+        },
+        'typedef alias': {
+          'lib/annotations.dart': '''
+import 'package:restage/restage.dart';
+
+typedef RuntimePaywall = RestagePaywall;
+''',
+          'lib/upgrade.dart': _runtimePaywallAnnotation(
+            'RuntimePaywall',
+            localImport: "import 'annotations.dart';",
+          ),
+        },
+      };
+
+      for (final entry in cases.entries) {
+        test('rejects ${entry.key} use with a source-located remedy', () async {
+          final readerWriter = await readerWriterWithFilesystemSources(
+            rootPackage: 'apps_examples',
+          );
+          final logs = <LogRecord>[];
+          final result = await _runBuilder(
+            entry.value,
+            readerWriter,
+            onLog: logs.add,
+          );
+
+          expect(result.succeeded, isFalse);
+          final diagnostics = logs
+              .where((record) => record.level >= Level.SEVERE)
+              .map((record) => record.message)
+              .join('\n');
+          expect(diagnostics, contains('lib/upgrade.dart@'));
+          expect(diagnostics, contains('RestagePaywall'));
+          expect(diagnostics, contains('runtime mount widget'));
+          expect(diagnostics, contains('Use @Paywall'));
+        });
+      }
+
+      test('ignores a resolved local lookalike', () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final logs = <LogRecord>[];
+        final result = await _runBuilder(
+          {
+            'lib/local.dart': '''
+final class RestagePaywall {
+  const RestagePaywall({required this.id});
+  final String id;
+}
+
+@RestagePaywall(id: 'upgrade')
+class Upgrade {}
+''',
+          },
+          readerWriter,
+          onLog: logs.add,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(
+          logs.map((record) => record.message),
+          everyElement(isNot(contains('runtime mount widget'))),
+        );
+      });
+
+      test('leaves a valid @Paywall source unchanged', () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final logs = <LogRecord>[];
+        final result = await _runBuilder(
+          {'lib/offer.dart': _canonicalPaywallSource()},
+          readerWriter,
+          onLog: logs.add,
+        );
+
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(
+          logs.map((record) => record.message),
+          everyElement(isNot(contains('runtime mount widget'))),
+        );
+      });
+
+      for (final entry in const <String, String>{
+        'RestageScreen': '@Screen',
+        'RestageSurfaceScreen': '@Screen',
+        'RestageFlowGraph': '@FlowGraph(surface: Surface.<category>)',
+        'RestageSurfaceFlow': '@FlowGraph(surface: Surface.<category>)',
+        'RestageOnboarding': '@FlowGraph(surface: Surface.onboarding)',
+      }.entries) {
+        test('${entry.key} names its matching authoring annotation', () async {
+          final readerWriter = await readerWriterWithFilesystemSources(
+            rootPackage: 'apps_examples',
+          );
+          final logs = <LogRecord>[];
+          final result = await _runBuilder(
+            {
+              'lib/wrong.dart': '''
+import 'package:restage/restage.dart';
+
+@${entry.key}()
+class Wrong {}
+''',
+            },
+            readerWriter,
+            onLog: logs.add,
+          );
+
+          expect(result.succeeded, isFalse);
+          expect(
+            logs.map((record) => record.message).join('\n'),
+            contains('Use ${entry.value}'),
+          );
+        });
+      }
+    });
+
     test('rejects duplicate canonical publication identities', () async {
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
@@ -1097,8 +1246,9 @@ RestageSourceDeclaration _declaration({
 
 Future<TestBuilderResult> _runBuilder(
   Map<String, String> sources,
-  TestReaderWriter readerWriter,
-) {
+  TestReaderWriter readerWriter, {
+  void Function(LogRecord)? onLog,
+}) {
   return testBuilder(
     const RestageSourceRosterBuilder(BuilderOptions.empty),
     {
@@ -1108,8 +1258,28 @@ Future<TestBuilderResult> _runBuilder(
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
     flattenOutput: true,
+    onLog: onLog,
   );
 }
+
+String _runtimePaywallAnnotation(
+  String annotation, {
+  bool prefixed = false,
+  String? localImport,
+  String arguments = "(id: 'upgrade')",
+}) =>
+    '''
+import 'package:flutter/widgets.dart';
+${localImport ?? "import 'package:restage/restage.dart'${prefixed ? ' as rs' : ''};"}
+
+@$annotation$arguments
+class Upgrade extends StatelessWidget {
+  const Upgrade({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Upgrade');
+}
+''';
 
 String _rosterText(TestReaderWriter readerWriter) => readerWriter.testing
     .readString(AssetId('apps_examples', 'assets/restage/source-index.json'));

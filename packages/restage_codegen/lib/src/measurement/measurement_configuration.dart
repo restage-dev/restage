@@ -8,6 +8,7 @@ import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/syntax_diagnostics.dart';
 
 const String _restageConfigureSource =
     'package:restage/src/runtime/restage.dart';
@@ -89,6 +90,7 @@ Future<MeasurementConfigurationResult> resolveMeasurementConfiguration(
       );
       continue;
     }
+    issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
     for (final unit in resolved.units) {
       // Only the defining unit may set package-wide configuration.
       if (unit.libraryFragment != library.firstFragment) continue;

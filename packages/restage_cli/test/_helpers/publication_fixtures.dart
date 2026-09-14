@@ -47,7 +47,7 @@ enum GeneratedOutputLayout {
   /// The package-relative directory holding the portable metadata pair.
   String get metadataDirectory => switch (this) {
     outputRoot => p.posix.join(fixtureOutputRoot, 'metadata'),
-    _ => 'lib/generated',
+    _ => '.restage/build/metadata',
   };
 
   /// The package-relative output index path.
@@ -60,7 +60,7 @@ enum GeneratedOutputLayout {
 
   /// The physical root this placement records in the index.
   String get physicalRoot =>
-      this == outputRoot ? fixtureOutputRoot : restagePackageRootSentinel;
+      this == outputRoot ? fixtureOutputRoot : '.restage/build';
 
   /// The package-relative bundle path for [libraryPath].
   String bundlePathFor(String libraryPath) {
@@ -69,9 +69,8 @@ enum GeneratedOutputLayout {
     final stem = p.posix.basenameWithoutExtension(libraryPath);
     return switch (this) {
       generatedDirectory => p.posix.join(
-        directory,
-        'restage.generated',
-        '$stem.rsbundle',
+        '.restage/build/bundles',
+        '$withoutExtension.rsbundle',
       ),
       adjacent => p.posix.join(directory, '$stem.rsbundle'),
       outputRoot => p.posix.join(
@@ -183,6 +182,9 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   Directory projectRoot, {
   bool admittedRoute = true,
   bool mismatchEmittedCarrier = false,
+  MeasurementOrderedCaptureDeclarationV1? orderedCapture,
+  bool omitPhysicalCarrier = false,
+  bool routeOnSidecar = false,
   String? screenDraftHashOverride,
   GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
 }) async {
@@ -255,7 +257,7 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
     nodes: [
       MeasurementPublicationDraftNodeV1(
         codeIdentityId: CodeIdentityId('code.measured-button'),
-        artifactOccurrenceEdgeToken: screenEdge,
+        artifactOccurrenceEdgeToken: routeOnSidecar ? sidecarEdge : screenEdge,
       ),
     ],
     events: admittedRoute
@@ -282,10 +284,15 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
               generatedReferenceId: GeneratedReferenceId(
                 'reference.measured-button',
               ),
-              artifactOccurrenceEdgeToken: screenEdge,
+              artifactOccurrenceEdgeToken: routeOnSidecar
+                  ? sidecarEdge
+                  : screenEdge,
+              orderedCaptureV1: orderedCapture,
             ),
           ]
         : const [],
+    presentations: const [],
+    presentationRouteSeeds: const [],
     lineageIntents: admittedRoute
         ? [
             MeasurementPublicationLineageIntentV1(
@@ -306,7 +313,7 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   );
 
   final Uint8List blob;
-  if (admittedRoute) {
+  if (admittedRoute && !omitPhysicalCarrier) {
     final expectedCarrier = routePlan.routes.single.carrier;
     final emittedCarrier = mismatchEmittedCarrier
         ? '${expectedCarrier.substring(0, expectedCarrier.length - 1)}'
@@ -428,7 +435,7 @@ Future<void> writeMeasurementPublicationIndex(
 /// The extract of the example app's generated Measurement publication index
 /// that flow fixtures select their draft from.
 ///
-/// Refresh it from `apps/examples/lib/generated/restage.measurement.index.json`
+/// Refresh it from `apps/examples/.restage/build/metadata/restage.measurement.index.json`
 /// after `cd apps/examples && dart run build_runner build`.
 const String exampleMeasurementIndexFixturePath =
     'packages/restage_cli/test/_fixtures/restage.measurement.index.json';

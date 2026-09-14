@@ -5,11 +5,6 @@
 // To change this map: edit lib/registry_curation.dart, then
 // re-run build_runner (it regenerates the registry, the
 // catalog, and this file).
-//
-// ignore_for_file: non_const_argument_for_const_parameter
-// (icon factories build IconData from a runtime codepoint,
-// which newer analyzers flag because the codePoint is not
-// const).
 
 import 'package:flutter/material.dart';
 import 'package:restage_material/src/widgets/restage_draggable_sheet.dart';
@@ -26,59 +21,60 @@ import 'package:rfw/rfw.dart' hide Switch;
 /// keyed by widget name.
 const Map<String, LocalWidgetBuilder> kMaterialLibraryFactories =
     <String, LocalWidgetBuilder>{
-  'ActionChip': _buildActionChip,
-  'AppBar': _buildAppBar,
-  'Badge': _buildBadge,
-  'Card': _buildCard,
-  'CardFilled': _buildCardFilled,
-  'CardOutlined': _buildCardOutlined,
-  'Checkbox': _buildCheckbox,
-  'CheckboxListTile': _buildCheckboxListTile,
-  'Chip': _buildChip,
-  'ChoiceChip': _buildChoiceChip,
-  'CircularProgressIndicator': _buildCircularProgressIndicator,
-  'Divider': _buildDivider,
-  'ElevatedButton': _buildElevatedButton,
-  'ExpansionTile': _buildExpansionTile,
-  'FilledButton': _buildFilledButton,
-  'FilledButtonTonal': _buildFilledButtonTonal,
-  'FilterChip': _buildFilterChip,
-  'FloatingActionButton': _buildFloatingActionButton,
-  'Icon': _buildIcon,
-  'IconButton': _buildIconButton,
-  'InkWell': _buildInkWell,
-  'LinearProgressIndicator': _buildLinearProgressIndicator,
-  'ListTile': _buildListTile,
-  'MaterialApp': _buildMaterialApp,
-  'RestageModalSheet': _buildRestageModalSheet,
-  'RestagePager': _buildRestagePager,
-  'RestageRadioGroupString': _buildRestageRadioGroupString,
-  'RestageDropdownString': _buildRestageDropdownString,
-  'RestageToggleButtons': _buildRestageToggleButtons,
-  'RestageSegmentedButtonString': _buildRestageSegmentedButtonString,
-  'RestageDraggableSheet': _buildRestageDraggableSheet,
-  'OutlinedButton': _buildOutlinedButton,
-  'OutlinedButtonIcon': _buildOutlinedButtonIcon,
-  'Scaffold': _buildScaffold,
-  'Scrollbar': _buildScrollbar,
-  'Slider': _buildSlider,
-  'Switch': _buildSwitch,
-  'SwitchListTile': _buildSwitchListTile,
-  'TextButton': _buildTextButton,
-  'TextButtonIcon': _buildTextButtonIcon,
-  'PreferredSize': _buildPreferredSize,
-  'DefaultTabController': _buildDefaultTabController,
-  'TabBar': _buildTabBar,
-  'Tab': _buildTab,
-  'TextField': _buildTextField,
-  'Tooltip': _buildTooltip,
+  'ActionChip': buildActionChip,
+  'AppBar': buildAppBar,
+  'Badge': buildBadge,
+  'Card': buildCard,
+  'CardFilled': buildCardFilled,
+  'CardOutlined': buildCardOutlined,
+  'Checkbox': buildCheckbox,
+  'CheckboxListTile': buildCheckboxListTile,
+  'Chip': buildChip,
+  'ChoiceChip': buildChoiceChip,
+  'CircularProgressIndicator': buildCircularProgressIndicator,
+  'Divider': buildDivider,
+  'ElevatedButton': buildElevatedButton,
+  'ExpansionTile': buildExpansionTile,
+  'FilledButton': buildFilledButton,
+  'FilledButtonTonal': buildFilledButtonTonal,
+  'FilterChip': buildFilterChip,
+  'FloatingActionButton': buildFloatingActionButton,
+  'Icon': buildIcon,
+  'IconButton': buildIconButton,
+  'InkWell': buildInkWell,
+  'LinearProgressIndicator': buildLinearProgressIndicator,
+  'ListTile': buildListTile,
+  'MaterialApp': buildMaterialApp,
+  'RestageModalSheet': buildRestageModalSheet,
+  'RestagePager': buildRestagePager,
+  'RestageRadioGroupString': buildRestageRadioGroupString,
+  'RestageDropdownString': buildRestageDropdownString,
+  'RestageToggleButtons': buildRestageToggleButtons,
+  'RestageSegmentedButtonString': buildRestageSegmentedButtonString,
+  'RestageDraggableSheet': buildRestageDraggableSheet,
+  'OutlinedButton': buildOutlinedButton,
+  'OutlinedButtonIcon': buildOutlinedButtonIcon,
+  'Scaffold': buildScaffold,
+  'Scrollbar': buildScrollbar,
+  'Slider': buildSlider,
+  'Switch': buildSwitch,
+  'SwitchListTile': buildSwitchListTile,
+  'TextButton': buildTextButton,
+  'TextButtonIcon': buildTextButtonIcon,
+  'PreferredSize': buildPreferredSize,
+  'DefaultTabController': buildDefaultTabController,
+  'TabBar': buildTabBar,
+  'Tab': buildTab,
+  'TextField': buildTextField,
+  'Tooltip': buildTooltip,
 };
 
-Widget _buildActionChip(BuildContext context, DataSource source) {
+/// Builds the catalog's `ActionChip` widget from [source].
+Widget buildActionChip(BuildContext context, DataSource source) {
   return ActionChip(
-    avatar: source.optionalChild(<Object>['avatar']),
-    label: source.child(<Object>['label']),
-    onPressed: source.voidHandler(<Object>['onPressed']),
+    avatar: source.optionalChild(const <Object>['avatar']),
+    label: source.child(const <Object>['label']),
+    onPressed: source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
@@ -88,21 +84,22 @@ Widget _buildActionChip(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildAppBar(BuildContext context, DataSource source) {
+/// Builds the catalog's `AppBar` widget from [source].
+Widget buildAppBar(BuildContext context, DataSource source) {
   return AppBar(
-    leading: source.optionalChild(<Object>['leading']),
+    leading: source.optionalChild(const <Object>['leading']),
     automaticallyImplyLeading:
-        source.v<bool>(<Object>['automaticallyImplyLeading']) ?? true,
-    title: source.optionalChild(<Object>['title']),
-    actions: source.isList(<Object>['actions'])
-        ? source.childList(<Object>['actions'])
+        source.v<bool>(const <Object>['automaticallyImplyLeading']) ?? true,
+    title: source.optionalChild(const <Object>['title']),
+    actions: source.isList(const <Object>['actions'])
+        ? source.childList(const <Object>['actions'])
         : null,
     bottom: RestageDecoders.optionalPreferredSize(
-        source.optionalChild(<Object>['bottom']),
-        source.v<double>(<Object>['bottomHeight'])),
-    elevation: source.v<double>(<Object>['elevation']),
+        source.optionalChild(const <Object>['bottom']),
+        source.v<double>(const <Object>['bottomHeight'])),
+    elevation: source.v<double>(const <Object>['elevation']),
     scrolledUnderElevation:
-        source.v<double>(<Object>['scrolledUnderElevation']),
+        source.v<double>(const <Object>['scrolledUnderElevation']),
     shadowColor: ArgumentDecoders.color(source, <Object>['shadowColor']),
     surfaceTintColor:
         ArgumentDecoders.color(source, <Object>['surfaceTintColor']),
@@ -111,13 +108,13 @@ Widget _buildAppBar(BuildContext context, DataSource source) {
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     foregroundColor:
         ArgumentDecoders.color(source, <Object>['foregroundColor']),
-    primary: source.v<bool>(<Object>['primary']) ?? true,
-    centerTitle: source.v<bool>(<Object>['centerTitle']) ?? true,
-    titleSpacing: source.v<double>(<Object>['titleSpacing']),
-    toolbarHeight: source.v<double>(<Object>['toolbarHeight']),
-    leadingWidth: source.v<double>(<Object>['leadingWidth']),
+    primary: source.v<bool>(const <Object>['primary']) ?? true,
+    centerTitle: source.v<bool>(const <Object>['centerTitle']) ?? true,
+    titleSpacing: source.v<double>(const <Object>['titleSpacing']),
+    toolbarHeight: source.v<double>(const <Object>['toolbarHeight']),
+    leadingWidth: source.v<double>(const <Object>['leadingWidth']),
     forceMaterialTransparency:
-        source.v<bool>(<Object>['forceMaterialTransparency']) ?? false,
+        source.v<bool>(const <Object>['forceMaterialTransparency']) ?? false,
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     actionsPadding:
@@ -125,7 +122,8 @@ Widget _buildAppBar(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildBadge(BuildContext context, DataSource source) {
+/// Builds the catalog's `Badge` widget from [source].
+Widget buildBadge(BuildContext context, DataSource source) {
   return Badge(
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
@@ -133,81 +131,83 @@ Widget _buildBadge(BuildContext context, DataSource source) {
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
     offset: RestageDecoders.offset(source, <Object>['offset']),
-    label: source.optionalChild(<Object>['label']),
-    isLabelVisible: source.v<bool>(<Object>['isLabelVisible']) ?? true,
-    child: source.optionalChild(<Object>['child']),
+    label: source.optionalChild(const <Object>['label']),
+    isLabelVisible: source.v<bool>(const <Object>['isLabelVisible']) ?? true,
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildCard(BuildContext context, DataSource source) {
+/// Builds the catalog's `Card` widget from [source].
+Widget buildCard(BuildContext context, DataSource source) {
   return Card(
     color: ArgumentDecoders.color(source, <Object>['color']),
-    elevation: source.v<double>(<Object>['elevation']) ?? 1.0,
+    elevation: source.v<double>(const <Object>['elevation']) ?? 1.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    child: source.optionalChild(<Object>['child']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildCardFilled(BuildContext context, DataSource source) {
+/// Builds the catalog's `CardFilled` widget from [source].
+Widget buildCardFilled(BuildContext context, DataSource source) {
   return Card.filled(
     color: ArgumentDecoders.color(source, <Object>['color']),
-    elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
+    elevation: source.v<double>(const <Object>['elevation']) ?? 0.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    child: source.optionalChild(<Object>['child']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildCardOutlined(BuildContext context, DataSource source) {
+/// Builds the catalog's `CardOutlined` widget from [source].
+Widget buildCardOutlined(BuildContext context, DataSource source) {
   return Card.outlined(
     color: ArgumentDecoders.color(source, <Object>['color']),
-    elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
+    elevation: source.v<double>(const <Object>['elevation']) ?? 0.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    child: source.optionalChild(<Object>['child']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildCheckbox(BuildContext context, DataSource source) {
+/// Builds the catalog's `Checkbox` widget from [source].
+Widget buildCheckbox(BuildContext context, DataSource source) {
   return Checkbox(
-    value: source.v<bool>(<Object>['value']) ??
+    value: source.v<bool>(const <Object>['value']) ??
         (throw ArgumentError('Checkbox.value is required.')),
-    onChanged: source.handler<ValueChanged<bool?>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (bool? value) => trigger(<String, Object?>{'value': value})),
+    onChanged: RestageDecoders.valueChanged<bool?>(
+        source, const <Object>['onChanged']),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
   );
 }
 
-Widget _buildCheckboxListTile(BuildContext context, DataSource source) {
+/// Builds the catalog's `CheckboxListTile` widget from [source].
+Widget buildCheckboxListTile(BuildContext context, DataSource source) {
   return CheckboxListTile(
-    value: source.v<bool>(<Object>['value']) ??
+    value: source.v<bool>(const <Object>['value']) ??
         (throw ArgumentError('CheckboxListTile.value is required.')),
-    onChanged: source.handler<ValueChanged<bool?>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (bool? value) => trigger(<String, Object?>{'value': value})),
+    onChanged: RestageDecoders.valueChanged<bool?>(
+        source, const <Object>['onChanged']),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    title: source.optionalChild(<Object>['title']),
-    subtitle: source.optionalChild(<Object>['subtitle']),
-    secondary: source.optionalChild(<Object>['secondary']),
-    selected: source.v<bool>(<Object>['selected']) ?? false,
+    title: source.optionalChild(const <Object>['title']),
+    subtitle: source.optionalChild(const <Object>['subtitle']),
+    secondary: source.optionalChild(const <Object>['secondary']),
+    selected: source.v<bool>(const <Object>['selected']) ?? false,
   );
 }
 
-Widget _buildChip(BuildContext context, DataSource source) {
+/// Builds the catalog's `Chip` widget from [source].
+Widget buildChip(BuildContext context, DataSource source) {
   return Chip(
-    avatar: source.optionalChild(<Object>['avatar']),
-    label: source.child(<Object>['label']),
+    avatar: source.optionalChild(const <Object>['avatar']),
+    label: source.child(const <Object>['label']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
@@ -217,14 +217,14 @@ Widget _buildChip(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildChoiceChip(BuildContext context, DataSource source) {
+/// Builds the catalog's `ChoiceChip` widget from [source].
+Widget buildChoiceChip(BuildContext context, DataSource source) {
   return ChoiceChip(
-    avatar: source.optionalChild(<Object>['avatar']),
-    label: source.child(<Object>['label']),
-    onSelected: source.handler<ValueChanged<bool>>(<Object>[
-      'onSelected'
-    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
-    selected: source.v<bool>(<Object>['selected']) ??
+    avatar: source.optionalChild(const <Object>['avatar']),
+    label: source.child(const <Object>['label']),
+    onSelected: RestageDecoders.valueChanged<bool>(
+        source, const <Object>['onSelected']),
+    selected: source.v<bool>(const <Object>['selected']) ??
         (throw ArgumentError('ChoiceChip.selected is required.')),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
@@ -238,25 +238,27 @@ Widget _buildChoiceChip(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildCircularProgressIndicator(
-    BuildContext context, DataSource source) {
+/// Builds the catalog's `CircularProgressIndicator` widget from [source].
+Widget buildCircularProgressIndicator(BuildContext context, DataSource source) {
   return CircularProgressIndicator(
-    value: source.v<double>(<Object>['value']),
+    value: source.v<double>(const <Object>['value']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    strokeWidth: source.v<double>(<Object>['strokeWidth']) ?? 4.0,
+    strokeWidth: source.v<double>(const <Object>['strokeWidth']) ?? 4.0,
   );
 }
 
-Widget _buildDivider(BuildContext context, DataSource source) {
+/// Builds the catalog's `Divider` widget from [source].
+Widget buildDivider(BuildContext context, DataSource source) {
   return Divider(
-    height: source.v<double>(<Object>['height']) ?? 16.0,
-    thickness: source.v<double>(<Object>['thickness']) ?? 1.0,
+    height: source.v<double>(const <Object>['height']) ?? 16.0,
+    thickness: source.v<double>(const <Object>['thickness']) ?? 1.0,
     color: ArgumentDecoders.color(source, <Object>['color']),
   );
 }
 
-Widget _buildElevatedButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `ElevatedButton` widget from [source].
+Widget buildElevatedButton(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return ElevatedButton(
     style: ElevatedButton.styleFrom(
@@ -264,7 +266,7 @@ Widget _buildElevatedButton(BuildContext context, DataSource source) {
             ArgumentDecoders.color(source, <Object>['foregroundColor']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        elevation: source.v<double>(<Object>['elevation']) ?? 1.0,
+        elevation: source.v<double>(const <Object>['elevation']) ?? 1.0,
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
         padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
@@ -273,34 +275,37 @@ Widget _buildElevatedButton(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildExpansionTile(BuildContext context, DataSource source) {
+/// Builds the catalog's `ExpansionTile` widget from [source].
+Widget buildExpansionTile(BuildContext context, DataSource source) {
   return ExpansionTile(
-    leading: source.optionalChild(<Object>['leading']),
-    title: source.child(<Object>['title']),
-    subtitle: source.optionalChild(<Object>['subtitle']),
-    onExpansionChanged: source.handler<ValueChanged<bool>>(<Object>[
-      'onExpansionChanged'
-    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
-    trailing: source.optionalChild(<Object>['trailing']),
-    initiallyExpanded: source.v<bool>(<Object>['initiallyExpanded']) ?? false,
+    leading: source.optionalChild(const <Object>['leading']),
+    title: source.child(const <Object>['title']),
+    subtitle: source.optionalChild(const <Object>['subtitle']),
+    onExpansionChanged: RestageDecoders.valueChanged<bool>(
+        source, const <Object>['onExpansionChanged']),
+    trailing: source.optionalChild(const <Object>['trailing']),
+    initiallyExpanded:
+        source.v<bool>(const <Object>['initiallyExpanded']) ?? false,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     collapsedShape:
         RestageDecoders.shapeBorder(source, <Object>['collapsedShape']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    children: source.childList(<Object>['children']),
+    children: source.childList(const <Object>['children']),
   );
 }
 
-Widget _buildFilledButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `FilledButton` widget from [source].
+Widget buildFilledButton(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return FilledButton(
     style: FilledButton.styleFrom(
@@ -308,7 +313,7 @@ Widget _buildFilledButton(BuildContext context, DataSource source) {
             ArgumentDecoders.color(source, <Object>['foregroundColor']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
+        elevation: source.v<double>(const <Object>['elevation']) ?? 0.0,
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
         padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
@@ -317,16 +322,18 @@ Widget _buildFilledButton(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildFilledButtonTonal(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `FilledButtonTonal` widget from [source].
+Widget buildFilledButtonTonal(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return FilledButton.tonal(
     style: FilledButton.styleFrom(
@@ -342,22 +349,23 @@ Widget _buildFilledButtonTonal(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildFilterChip(BuildContext context, DataSource source) {
+/// Builds the catalog's `FilterChip` widget from [source].
+Widget buildFilterChip(BuildContext context, DataSource source) {
   return FilterChip(
-    avatar: source.optionalChild(<Object>['avatar']),
-    label: source.child(<Object>['label']),
-    selected: source.v<bool>(<Object>['selected']) ?? false,
-    onSelected: source.handler<ValueChanged<bool>>(<Object>[
-      'onSelected'
-    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
+    avatar: source.optionalChild(const <Object>['avatar']),
+    label: source.child(const <Object>['label']),
+    selected: source.v<bool>(const <Object>['selected']) ?? false,
+    onSelected: RestageDecoders.valueChanged<bool>(
+        source, const <Object>['onSelected']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
@@ -370,105 +378,117 @@ Widget _buildFilterChip(BuildContext context, DataSource source) {
   );
 }
 
-Widget _buildFloatingActionButton(BuildContext context, DataSource source) {
+/// Builds the catalog's `FloatingActionButton` widget from [source].
+Widget buildFloatingActionButton(BuildContext context, DataSource source) {
   return FloatingActionButton(
-    tooltip: source.v<String>(<Object>['tooltip']),
+    tooltip: source.v<String>(const <Object>['tooltip']),
     foregroundColor:
         ArgumentDecoders.color(source, <Object>['foregroundColor']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    elevation: source.v<double>(<Object>['elevation']),
-    onPressed: source.voidHandler(<Object>['onPressed']),
-    mini: source.v<bool>(<Object>['mini']) ?? false,
+    elevation: source.v<double>(const <Object>['elevation']),
+    onPressed: source.voidHandler(const <Object>['onPressed']),
+    mini: source.v<bool>(const <Object>['mini']) ?? false,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    child: source.optionalChild(<Object>['child']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildIcon(BuildContext context, DataSource source) {
+/// Builds the catalog's `Icon` widget from [source].
+Widget buildIcon(BuildContext context, DataSource source) {
   return Icon(
-    IconData(
-        source.v<int>(<Object>['iconCodepoint']) ??
+    resolveInstalledIcon(
+        source.v<int>(const <Object>['iconCodepoint']) ??
             (throw ArgumentError('Icon.iconCodepoint is required.')),
-        fontFamily: 'MaterialIcons'),
-    size: source.v<double>(<Object>['size']) ??
+        fontFamily: source.v<String>(const <Object>['iconFontFamily']) ??
+            'MaterialIcons',
+        matchTextDirection:
+            source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false),
+    size: source.v<double>(const <Object>['size']) ??
         resolveThemeBinding(context, path: 'iconTheme.size') as double?,
     color: ArgumentDecoders.color(source, <Object>['color']) ??
         resolveThemeBinding(context, path: 'iconTheme.color') as Color?,
   );
 }
 
-Widget _buildIconButton(BuildContext context, DataSource source) {
+/// Builds the catalog's `IconButton` widget from [source].
+Widget buildIconButton(BuildContext context, DataSource source) {
   return IconButton(
-    iconSize: source.v<double>(<Object>['iconSize']) ?? 24.0,
+    iconSize: source.v<double>(const <Object>['iconSize']) ?? 24.0,
     color: ArgumentDecoders.color(source, <Object>['color']),
-    onPressed: source.voidHandler(<Object>['onPressed']),
-    tooltip: source.v<String>(<Object>['tooltip']),
-    icon: source.child(<Object>['icon']),
+    onPressed: source.voidHandler(const <Object>['onPressed']),
+    tooltip: source.v<String>(const <Object>['tooltip']),
+    icon: source.child(const <Object>['icon']),
   );
 }
 
-Widget _buildInkWell(BuildContext context, DataSource source) {
+/// Builds the catalog's `InkWell` widget from [source].
+Widget buildInkWell(BuildContext context, DataSource source) {
   return InkWell(
-    onTap: source.voidHandler(<Object>['onTap']),
+    onTap: source.voidHandler(const <Object>['onTap']),
     customBorder: RestageDecoders.shapeBorder(source, <Object>['customBorder']),
-    child: source.optionalChild(<Object>['child']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildLinearProgressIndicator(BuildContext context, DataSource source) {
+/// Builds the catalog's `LinearProgressIndicator` widget from [source].
+Widget buildLinearProgressIndicator(BuildContext context, DataSource source) {
   return LinearProgressIndicator(
-    value: source.v<double>(<Object>['value']),
+    value: source.v<double>(const <Object>['value']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    minHeight: source.v<double>(<Object>['minHeight']),
+    minHeight: source.v<double>(const <Object>['minHeight']),
   );
 }
 
-Widget _buildListTile(BuildContext context, DataSource source) {
+/// Builds the catalog's `ListTile` widget from [source].
+Widget buildListTile(BuildContext context, DataSource source) {
   return ListTile(
-    leading: source.optionalChild(<Object>['leading']),
-    title: source.optionalChild(<Object>['title']),
-    subtitle: source.optionalChild(<Object>['subtitle']),
-    trailing: source.optionalChild(<Object>['trailing']),
+    leading: source.optionalChild(const <Object>['leading']),
+    title: source.optionalChild(const <Object>['title']),
+    subtitle: source.optionalChild(const <Object>['subtitle']),
+    trailing: source.optionalChild(const <Object>['trailing']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    onTap: source.voidHandler(<Object>['onTap']),
+    onTap: source.voidHandler(const <Object>['onTap']),
   );
 }
 
-Widget _buildMaterialApp(BuildContext context, DataSource source) {
+/// Builds the catalog's `MaterialApp` widget from [source].
+Widget buildMaterialApp(BuildContext context, DataSource source) {
   return MaterialApp(
-    home: source.optionalChild(<Object>['home']),
-    title: source.v<String>(<Object>['title']) ?? '',
+    home: source.optionalChild(const <Object>['home']),
+    title: source.v<String>(const <Object>['title']) ?? '',
   );
 }
 
-Widget _buildRestageModalSheet(BuildContext context, DataSource source) {
+/// Builds the catalog's `RestageModalSheet` widget from [source].
+Widget buildRestageModalSheet(BuildContext context, DataSource source) {
   return RestageModalSheet(
-    open: source.v<bool>(<Object>['open']) ??
+    open: source.v<bool>(const <Object>['open']) ??
         (throw ArgumentError('RestageModalSheet.open is required.')),
-    isDismissible: source.v<bool>(<Object>['isDismissible']) ?? true,
-    enableDrag: source.v<bool>(<Object>['enableDrag']) ?? true,
-    showDragHandle: source.v<bool>(<Object>['showDragHandle']),
+    isDismissible: source.v<bool>(const <Object>['isDismissible']) ?? true,
+    enableDrag: source.v<bool>(const <Object>['enableDrag']) ?? true,
+    showDragHandle: source.v<bool>(const <Object>['showDragHandle']),
     dragHandleColor:
         ArgumentDecoders.color(source, <Object>['dragHandleColor']),
-    isScrollControlled: source.v<bool>(<Object>['isScrollControlled']) ?? false,
-    scrollControlDisabledMaxHeightRatio:
-        source.v<double>(<Object>['scrollControlDisabledMaxHeightRatio']) ??
-            0.5625,
+    isScrollControlled:
+        source.v<bool>(const <Object>['isScrollControlled']) ?? false,
+    scrollControlDisabledMaxHeightRatio: source
+            .v<double>(const <Object>['scrollControlDisabledMaxHeightRatio']) ??
+        0.5625,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    elevation: source.v<double>(<Object>['elevation']),
+    elevation: source.v<double>(const <Object>['elevation']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    useSafeArea: source.v<bool>(<Object>['useSafeArea']) ?? false,
+    useSafeArea: source.v<bool>(const <Object>['useSafeArea']) ?? false,
     barrierColor: ArgumentDecoders.color(source, <Object>['barrierColor']),
-    barrierLabel: source.v<String>(<Object>['barrierLabel']),
+    barrierLabel: source.v<String>(const <Object>['barrierLabel']),
     anchorPoint: RestageDecoders.offset(source, <Object>['anchorPoint']),
     enterDuration: RestageDecoders.duration(source, <Object>['enterDuration']),
     exitDuration: RestageDecoders.duration(source, <Object>['exitDuration']),
@@ -479,98 +499,102 @@ Widget _buildRestageModalSheet(BuildContext context, DataSource source) {
             source,
             <Object>['presentation']) ??
         RestageSheetPresentation.adaptive,
-    underlay: source.optionalChild(<Object>['underlay']),
-    onSheetDismissed: source.voidHandler(<Object>['onSheetDismissed']),
-    child: source.child(<Object>['child']),
+    underlay: source.optionalChild(const <Object>['underlay']),
+    onSheetDismissed: source.voidHandler(const <Object>['onSheetDismissed']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildRestagePager(BuildContext context, DataSource source) {
+/// Builds the catalog's `RestagePager` widget from [source].
+Widget buildRestagePager(BuildContext context, DataSource source) {
   return RestagePager(
-    initialPage: source.v<int>(<Object>['initialPage']) ?? 0,
-    viewportFraction: source.v<double>(<Object>['viewportFraction']) ?? 1.0,
+    initialPage: source.v<int>(const <Object>['initialPage']) ?? 0,
+    viewportFraction:
+        source.v<double>(const <Object>['viewportFraction']) ?? 1.0,
     scrollDirection: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.horizontal,
-    pageSnapping: source.v<bool>(<Object>['pageSnapping']) ?? true,
-    onPageChanged: source.handler<ValueChanged<int>>(<Object>['onPageChanged'],
-        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
-    children: source.childList(<Object>['children']),
+    pageSnapping: source.v<bool>(const <Object>['pageSnapping']) ?? true,
+    onPageChanged: RestageDecoders.valueChanged<int>(
+        source, const <Object>['onPageChanged']),
+    children: source.childList(const <Object>['children']),
   );
 }
 
-Widget _buildRestageRadioGroupString(BuildContext context, DataSource source) {
+/// Builds the catalog's `RestageRadioGroupString` widget from [source].
+Widget buildRestageRadioGroupString(BuildContext context, DataSource source) {
   return RestageRadioGroup<String>(
     items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
         (throw ArgumentError('RestageRadioGroupString.items is required.')),
-    selected: source.v<String>(<Object>['selected']),
-    onChanged: source.handler<ValueChanged<String?>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (String? value) => trigger(<String, Object?>{'value': value})),
+    selected: source.v<String>(const <Object>['selected']),
+    onChanged: RestageDecoders.valueChanged<String?>(
+        source, const <Object>['onChanged']),
   );
 }
 
-Widget _buildRestageDropdownString(BuildContext context, DataSource source) {
+/// Builds the catalog's `RestageDropdownString` widget from [source].
+Widget buildRestageDropdownString(BuildContext context, DataSource source) {
   return RestageDropdown<String>(
     items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
         (throw ArgumentError('RestageDropdownString.items is required.')),
-    selected: source.v<String>(<Object>['selected']),
-    onChanged: source.handler<ValueChanged<String?>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (String? value) => trigger(<String, Object?>{'value': value})),
+    selected: source.v<String>(const <Object>['selected']),
+    onChanged: RestageDecoders.valueChanged<String?>(
+        source, const <Object>['onChanged']),
   );
 }
 
-Widget _buildRestageToggleButtons(BuildContext context, DataSource source) {
+/// Builds the catalog's `RestageToggleButtons` widget from [source].
+Widget buildRestageToggleButtons(BuildContext context, DataSource source) {
   return RestageToggleButtons(
     isSelected: RestageDecoders.booleanList(source, <Object>['isSelected']) ??
         (throw ArgumentError('RestageToggleButtons.isSelected is required.')),
-    onPressed: source.handler<ValueChanged<int>>(<Object>['onPressed'],
-        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
-    children: source.childList(<Object>['children']),
+    onPressed:
+        RestageDecoders.valueChanged<int>(source, const <Object>['onPressed']),
+    children: source.childList(const <Object>['children']),
   );
 }
 
-Widget _buildRestageSegmentedButtonString(
+/// Builds the catalog's `RestageSegmentedButtonString` widget from [source].
+Widget buildRestageSegmentedButtonString(
     BuildContext context, DataSource source) {
   return RestageSegmentedButton<String>(
     items: RestageDecoders.selectionOptionList(source, <Object>['items']) ??
         (throw ArgumentError(
             'RestageSegmentedButtonString.items is required.')),
     selected: RestageDecoders.stringList(source, <Object>['selected']),
-    onChanged: source.handler<ValueChanged<List<String>>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (List<String> value) => trigger(<String, Object?>{'value': value})),
+    onChanged: RestageDecoders.valueChanged<List<String>>(
+        source, const <Object>['onChanged']),
     multiSelectionEnabled:
-        source.v<bool>(<Object>['multiSelectionEnabled']) ?? false,
+        source.v<bool>(const <Object>['multiSelectionEnabled']) ?? false,
     emptySelectionAllowed:
-        source.v<bool>(<Object>['emptySelectionAllowed']) ?? false,
-    showSelectedIcon: source.v<bool>(<Object>['showSelectedIcon']) ?? true,
+        source.v<bool>(const <Object>['emptySelectionAllowed']) ?? false,
+    showSelectedIcon:
+        source.v<bool>(const <Object>['showSelectedIcon']) ?? true,
   );
 }
 
-Widget _buildRestageDraggableSheet(BuildContext context, DataSource source) {
+/// Builds the catalog's `RestageDraggableSheet` widget from [source].
+Widget buildRestageDraggableSheet(BuildContext context, DataSource source) {
   return RestageDraggableSheet(
-    initialChildSize: source.v<double>(<Object>['initialChildSize']) ?? 0.5,
-    minChildSize: source.v<double>(<Object>['minChildSize']) ?? 0.25,
-    maxChildSize: source.v<double>(<Object>['maxChildSize']) ?? 1.0,
-    expand: source.v<bool>(<Object>['expand']) ?? true,
-    snap: source.v<bool>(<Object>['snap']) ?? false,
+    initialChildSize:
+        source.v<double>(const <Object>['initialChildSize']) ?? 0.5,
+    minChildSize: source.v<double>(const <Object>['minChildSize']) ?? 0.25,
+    maxChildSize: source.v<double>(const <Object>['maxChildSize']) ?? 1.0,
+    expand: source.v<bool>(const <Object>['expand']) ?? true,
+    snap: source.v<bool>(const <Object>['snap']) ?? false,
     snapAnimationDuration:
         RestageDecoders.duration(source, <Object>['snapAnimationDuration']),
-    expanded: source.v<bool>(<Object>['expanded']) ?? false,
+    expanded: source.v<bool>(const <Object>['expanded']) ?? false,
     expandDuration:
         RestageDecoders.duration(source, <Object>['expandDuration']),
     expandCurve: RestageDecoders.curve(source, <Object>['expandCurve']),
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildOutlinedButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `OutlinedButton` widget from [source].
+Widget buildOutlinedButton(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return OutlinedButton(
     style: OutlinedButton.styleFrom(
@@ -584,15 +608,17 @@ Widget _buildOutlinedButton(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildOutlinedButtonIcon(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `OutlinedButtonIcon` widget from [source].
+Widget buildOutlinedButtonIcon(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return OutlinedButton.icon(
     style: OutlinedButton.styleFrom(
@@ -606,81 +632,85 @@ Widget _buildOutlinedButtonIcon(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    icon: source.child(<Object>['icon']),
-    label: source.child(<Object>['label']),
+    icon: source.child(const <Object>['icon']),
+    label: source.child(const <Object>['label']),
   );
 }
 
-Widget _buildScaffold(BuildContext context, DataSource source) {
+/// Builds the catalog's `Scaffold` widget from [source].
+Widget buildScaffold(BuildContext context, DataSource source) {
   return Scaffold(
     appBar: RestageDecoders.optionalPreferredSize(
-        source.optionalChild(<Object>['appBar']),
-        source.v<double>(<Object>['appBarHeight'])),
-    body: source.optionalChild(<Object>['body']),
+        source.optionalChild(const <Object>['appBar']),
+        source.v<double>(const <Object>['appBarHeight'])),
+    body: source.optionalChild(const <Object>['body']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
   );
 }
 
-Widget _buildScrollbar(BuildContext context, DataSource source) {
+/// Builds the catalog's `Scrollbar` widget from [source].
+Widget buildScrollbar(BuildContext context, DataSource source) {
   return Scrollbar(
-    thumbVisibility: source.v<bool>(<Object>['thumbVisibility']),
-    trackVisibility: source.v<bool>(<Object>['trackVisibility']),
-    thickness: source.v<double>(<Object>['thickness']),
-    interactive: source.v<bool>(<Object>['interactive']),
-    child: source.child(<Object>['child']),
+    thumbVisibility: source.v<bool>(const <Object>['thumbVisibility']),
+    trackVisibility: source.v<bool>(const <Object>['trackVisibility']),
+    thickness: source.v<double>(const <Object>['thickness']),
+    interactive: source.v<bool>(const <Object>['interactive']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildSlider(BuildContext context, DataSource source) {
+/// Builds the catalog's `Slider` widget from [source].
+Widget buildSlider(BuildContext context, DataSource source) {
   return Slider(
-    value: source.v<double>(<Object>['value']) ??
+    value: source.v<double>(const <Object>['value']) ??
         (throw ArgumentError('Slider.value is required.')),
-    secondaryTrackValue: source.v<double>(<Object>['secondaryTrackValue']),
-    onChanged: source.handler<ValueChanged<double>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (double value) => trigger(<String, Object?>{'value': value})),
-    min: source.v<double>(<Object>['min']) ?? 0.0,
-    max: source.v<double>(<Object>['max']) ?? 1.0,
-    divisions: source.v<int>(<Object>['divisions']),
-    label: source.v<String>(<Object>['label']),
+    secondaryTrackValue:
+        source.v<double>(const <Object>['secondaryTrackValue']),
+    onChanged: RestageDecoders.valueChanged<double>(
+        source, const <Object>['onChanged']),
+    min: source.v<double>(const <Object>['min']) ?? 0.0,
+    max: source.v<double>(const <Object>['max']) ?? 1.0,
+    divisions: source.v<int>(const <Object>['divisions']),
+    label: source.v<String>(const <Object>['label']),
   );
 }
 
-Widget _buildSwitch(BuildContext context, DataSource source) {
+/// Builds the catalog's `Switch` widget from [source].
+Widget buildSwitch(BuildContext context, DataSource source) {
   return Switch(
-    value: source.v<bool>(<Object>['value']) ??
+    value: source.v<bool>(const <Object>['value']) ??
         (throw ArgumentError('Switch.value is required.')),
-    onChanged: source.handler<ValueChanged<bool>>(<Object>[
-      'onChanged'
-    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
+    onChanged:
+        RestageDecoders.valueChanged<bool>(source, const <Object>['onChanged']),
     activeThumbColor:
         ArgumentDecoders.color(source, <Object>['activeThumbColor']),
   );
 }
 
-Widget _buildSwitchListTile(BuildContext context, DataSource source) {
+/// Builds the catalog's `SwitchListTile` widget from [source].
+Widget buildSwitchListTile(BuildContext context, DataSource source) {
   return SwitchListTile(
-    value: source.v<bool>(<Object>['value']) ??
+    value: source.v<bool>(const <Object>['value']) ??
         (throw ArgumentError('SwitchListTile.value is required.')),
-    onChanged: source.handler<ValueChanged<bool>>(<Object>[
-      'onChanged'
-    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
+    onChanged:
+        RestageDecoders.valueChanged<bool>(source, const <Object>['onChanged']),
     activeThumbColor:
         ArgumentDecoders.color(source, <Object>['activeThumbColor']),
-    title: source.optionalChild(<Object>['title']),
-    subtitle: source.optionalChild(<Object>['subtitle']),
-    secondary: source.optionalChild(<Object>['secondary']),
+    title: source.optionalChild(const <Object>['title']),
+    subtitle: source.optionalChild(const <Object>['subtitle']),
+    secondary: source.optionalChild(const <Object>['secondary']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
   );
 }
 
-Widget _buildTextButton(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `TextButton` widget from [source].
+Widget buildTextButton(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return TextButton(
     style: TextButton.styleFrom(
@@ -694,15 +724,17 @@ Widget _buildTextButton(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildTextButtonIcon(BuildContext context, DataSource source) {
-  final disabled = source.v<bool>(<Object>['disabled']) ?? false;
+/// Builds the catalog's `TextButtonIcon` widget from [source].
+Widget buildTextButtonIcon(BuildContext context, DataSource source) {
+  final disabled = source.v<bool>(const <Object>['disabled']) ?? false;
 
   return TextButton.icon(
     style: TextButton.styleFrom(
@@ -716,82 +748,84 @@ Widget _buildTextButtonIcon(BuildContext context, DataSource source) {
         side: RestageDecoders.borderSide(source, <Object>['side']),
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
-    onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
+    onPressed:
+        disabled ? null : source.voidHandler(const <Object>['onPressed']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    icon: source.child(<Object>['icon']),
-    label: source.child(<Object>['label']),
+    icon: source.child(const <Object>['icon']),
+    label: source.child(const <Object>['label']),
   );
 }
 
-Widget _buildPreferredSize(BuildContext context, DataSource source) {
+/// Builds the catalog's `PreferredSize` widget from [source].
+Widget buildPreferredSize(BuildContext context, DataSource source) {
   return PreferredSize(
     preferredSize: Size.fromHeight(
-        source.v<double>(<Object>['preferredSize']) ??
+        source.v<double>(const <Object>['preferredSize']) ??
             (throw ArgumentError('PreferredSize.preferredSize is required.'))),
-    child: source.child(<Object>['child']),
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildDefaultTabController(BuildContext context, DataSource source) {
+/// Builds the catalog's `DefaultTabController` widget from [source].
+Widget buildDefaultTabController(BuildContext context, DataSource source) {
   return DefaultTabController(
-    length: source.v<int>(<Object>['length']) ??
+    length: source.v<int>(const <Object>['length']) ??
         (throw ArgumentError('DefaultTabController.length is required.')),
-    initialIndex: source.v<int>(<Object>['initialIndex']) ?? 0,
-    child: source.child(<Object>['child']),
+    initialIndex: source.v<int>(const <Object>['initialIndex']) ?? 0,
+    child: source.child(const <Object>['child']),
   );
 }
 
-Widget _buildTabBar(BuildContext context, DataSource source) {
+/// Builds the catalog's `TabBar` widget from [source].
+Widget buildTabBar(BuildContext context, DataSource source) {
   return TabBar(
-    tabs: source.childList(<Object>['tabs']),
-    isScrollable: source.v<bool>(<Object>['isScrollable']) ?? false,
+    tabs: source.childList(const <Object>['tabs']),
+    isScrollable: source.v<bool>(const <Object>['isScrollable']) ?? false,
     indicatorColor: ArgumentDecoders.color(source, <Object>['indicatorColor']),
     labelColor: ArgumentDecoders.color(source, <Object>['labelColor']),
     unselectedLabelColor:
         ArgumentDecoders.color(source, <Object>['unselectedLabelColor']),
-    onTap: source.handler<ValueChanged<int>>(<Object>['onTap'],
-        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
+    onTap: RestageDecoders.valueChanged<int>(source, const <Object>['onTap']),
   );
 }
 
-Widget _buildTab(BuildContext context, DataSource source) {
+/// Builds the catalog's `Tab` widget from [source].
+Widget buildTab(BuildContext context, DataSource source) {
   return Tab(
-    text: source.v<String>(<Object>['text']),
-    icon: source.optionalChild(<Object>['icon']),
+    text: source.v<String>(const <Object>['text']),
+    icon: source.optionalChild(const <Object>['icon']),
     iconMargin: RestageDecoders.edgeInsets(source, <Object>['iconMargin']),
-    height: source.v<double>(<Object>['height']),
-    child: source.optionalChild(<Object>['child']),
+    height: source.v<double>(const <Object>['height']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 
-Widget _buildTextField(BuildContext context, DataSource source) {
+/// Builds the catalog's `TextField` widget from [source].
+Widget buildTextField(BuildContext context, DataSource source) {
   return TextField(
-    obscureText: source.v<bool>(<Object>['obscureText']) ?? false,
-    maxLines: source.v<int>(<Object>['maxLines']) ?? 1,
-    maxLength: source.v<int>(<Object>['maxLength']),
-    onChanged: source.handler<ValueChanged<String>>(
-        <Object>['onChanged'],
-        (trigger) =>
-            (String value) => trigger(<String, Object?>{'value': value})),
-    onSubmitted: source.handler<ValueChanged<String>>(
-        <Object>['onSubmitted'],
-        (trigger) =>
-            (String value) => trigger(<String, Object?>{'value': value})),
+    obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
+    maxLines: source.v<int>(const <Object>['maxLines']) ?? 1,
+    maxLength: source.v<int>(const <Object>['maxLength']),
+    onChanged: RestageDecoders.valueChanged<String>(
+        source, const <Object>['onChanged']),
+    onSubmitted: RestageDecoders.valueChanged<String>(
+        source, const <Object>['onSubmitted']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
   );
 }
 
-Widget _buildTooltip(BuildContext context, DataSource source) {
+/// Builds the catalog's `Tooltip` widget from [source].
+Widget buildTooltip(BuildContext context, DataSource source) {
   return Tooltip(
-    message: source.v<String>(<Object>['message']) ??
+    message: source.v<String>(const <Object>['message']) ??
         (throw ArgumentError('Tooltip.message is required.')),
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    preferBelow: source.v<bool>(<Object>['preferBelow']),
-    child: source.optionalChild(<Object>['child']),
+    preferBelow: source.v<bool>(const <Object>['preferBelow']),
+    child: source.optionalChild(const <Object>['child']),
   );
 }

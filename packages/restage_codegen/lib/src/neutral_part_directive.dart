@@ -24,6 +24,7 @@ const String kNeutralGeneratedPartSuffix = '.restage.g.dart';
 /// role names and are unaffected.
 const Set<String> kGeneratedPartRoles = <String>{
   'screen-descriptor',
+  'paywall-descriptor',
   'flow-descriptor',
   'descriptor',
 };

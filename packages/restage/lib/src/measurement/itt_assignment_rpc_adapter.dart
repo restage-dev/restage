@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_shared/restage_shared.dart';
 
 import 'measurement_assignment_diagnostics.dart';
 import 'measurement_assignment_transport.dart';
@@ -7,8 +8,8 @@ import 'measurement_assignment_transport.dart';
 /// Concrete SDK bridge for the callable authenticated assignment route.
 ///
 /// It transports only the immutable carrier, an opaque credential-vault
-/// locator, and typed audience input. The closed service response reduces to
-/// the existing diagnostics-only seam so it cannot become selection authority.
+/// locator, typed audience input, and the assignment this build already holds.
+/// The service replays against that assignment; the bridge never selects one.
 @internal
 final class IttAssignmentRpcAdapter
     implements
@@ -24,6 +25,12 @@ final class IttAssignmentRpcAdapter
     IttAssignmentRpcRequest request,
   ) =>
       _client.serveIttAssignment(request);
+
+  @override
+  CanonicalSurfaceExperimentAssignmentV1? assignmentFor(
+    IttAssignmentRpcOutcome result,
+  ) =>
+      result is IttAssignmentRpcAssigned ? result.assignment : null;
 
   @override
   MeasurementAssignmentDeliveryDiagnostic diagnosticFor(
@@ -45,10 +52,13 @@ final class IttAssignmentRpcAdapter
                 MeasurementAssignmentCandidateDeliveryDiagnostic.renderInFlight,
             },
           ),
-        IttAssignmentRpcOutsideAudience() =>
-          const MeasurementAssignmentDeliveryOutsideAudience(),
-        IttAssignmentRpcIneligible() =>
-          const MeasurementAssignmentDeliveryIneligible(),
+        IttAssignmentRpcReplayMiss() ||
+        IttAssignmentRpcAssignmentNotPresented() ||
+        IttAssignmentRpcAssignmentDisagrees() ||
+        IttAssignmentRpcNotDelivered() =>
+          const MeasurementAssignmentDeliveryUnavailable(
+            MeasurementAssignmentUnavailableReason.replayUnconfirmed,
+          ),
         IttAssignmentRpcAuthorityUnavailable() =>
           const MeasurementAssignmentDeliveryUnavailable(
             MeasurementAssignmentUnavailableReason.policyUnavailable,

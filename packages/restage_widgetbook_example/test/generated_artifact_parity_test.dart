@@ -7,11 +7,11 @@ import 'package:restage_shared/restage_shared.dart';
 
 void main() {
   test('one normal build owns every screen target artifact and registration', () async {
-    // Generated source stays on disk as ordinary files.
+    // Generated source and build metadata remain ordinary files on disk.
     const requiredSources = <String>[
       'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       'lib/generated/restage_a2ui_catalog.g.dart',
-      'lib/generated/restage_a2ui_catalog.a2ui.json',
+      '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart',
       'lib/components.g.dart',
@@ -38,7 +38,7 @@ void main() {
     final a2uiDocument =
         jsonDecode(
               await File(
-                'lib/generated/restage_a2ui_catalog.a2ui.json',
+                '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
               ).readAsString(),
             )
             as Map<String, Object?>;
@@ -238,16 +238,16 @@ void main() {
           '5396ace7194246c9fe74d7296b1b625d1ec0537d46679c12b9fab9ecc4abfffa',
       'lib/widgets/restage.generated/stat_tile.stories.g.dart':
           'bd04dc3cc60131c8136be332505be46b36875455d8f125c8ff5de57c258dbb72',
-      'lib/generated/restage_a2ui_catalog.a2ui.json':
-          'd87ed0601571f76401fce3d530a60eda52df2a70100945c8fafcd1abdeea77b4',
+      '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json':
+          '46e9db06a3046d931c9341f99031d996bb6fd54fe8813c3154007c2eb723f89b',
       'lib/generated/restage_a2ui_catalog.g.dart':
           '6a3270e027db5464686b77cc4f4afa9b68ee34c60fee641477cc7d89910aa46c',
-      'lib/src/widget_catalog/catalog.json':
+      '.restage/build/widget_catalog/catalog.json':
           '03a943575e512c595bba461e6cf6961f6e0039bdac8861718627916d64f48356',
       'lib/user_catalog.g.dart':
           '5f5514778ef5fc3c45e2df7617cb7706d5b87fe8ccbb0a29c652c73d12f631ad',
       'lib/user_factories.g.dart':
-          '48fc26111eee74d5edf80b1924435a7fada47e52b59ec27b50c614c4a5ddba7b',
+          'e3dd8ef27ffb8f625e52de48022b64566f1e1f06afd5e9eeb01b5afa6078efff',
     };
 
     for (final entry in expected.entries) {

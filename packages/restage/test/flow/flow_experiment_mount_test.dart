@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 // ignore: implementation_imports
 import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 // ignore: implementation_imports
 import 'package:restage/src/flow/flow_experiment_mount.dart';
 import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+import '../support/canonical_assignment_fixture.dart';
 
 void main() {
   group('FlowMountContractSnapshotBuilder', () {
@@ -379,6 +382,17 @@ void main() {
       );
       final candidateChild = _resolved(_document(flow: 'child'));
       final candidateRoot = _resolved(_parentDocument(child: candidateChild));
+      final assignment = canonicalAssignmentFixture();
+      attachMeasurementPublicationBindingReference(
+        candidateRoot,
+        null,
+        canonicalExperimentAssignment: assignment,
+      );
+      attachMeasurementPublicationBindingReference(
+        candidateChild,
+        null,
+        canonicalExperimentAssignment: assignment,
+      );
       final childCompleter = Completer<ResolvedFlow>();
       final resolver = _ControlledResolver({
         'child': childCompleter.future,
@@ -412,6 +426,22 @@ void main() {
         ),
       );
       expect(identical(pinnedChild, candidateChild), isTrue);
+      final held = accepted.asCacheHit();
+      expect(held.candidateRoot.cacheHit, isTrue);
+      expect(
+          measurementExperimentAssignmentFor(held.candidateRoot), assignment);
+      final heldChild = await held.resolver.resolve(
+        const OnboardingFlowRef<Map<String, Object?>>(
+          id: 'child',
+          version: 1,
+          minClient: 3,
+          surface: Surface.onboarding,
+          decodeResult: _decodeMap,
+        ),
+      );
+      expect(heldChild.cacheHit, isTrue);
+      expect(measurementExperimentAssignmentFor(heldChild), assignment);
+      expect(measurementExperimentAssignmentFor(baselineRoot), isNull);
       expect(resolver.calls, hasLength(callsBeforePinnedResolve));
     });
 
@@ -681,7 +711,7 @@ void main() {
     });
   });
 
-  test('canonical retry bytes and hash remain exact at every future boundary',
+  test('canonical bytes and hash remain exact at every future boundary',
       () async {
     final snapshot = await _sealedSnapshot();
     final sealedBytes = snapshot.canonicalBytes.toList();
@@ -689,12 +719,6 @@ void main() {
 
     for (final boundary in FlowMountRevalidationBoundary.values) {
       expect(snapshot.revalidate(boundary, snapshot.seed), isTrue);
-      final first = snapshot.bytesForRetry(boundary, snapshot.seed)!;
-      final second = snapshot.bytesForRetry(boundary, snapshot.seed)!;
-      expect(first, sealedBytes);
-      expect(second, sealedBytes);
-      expect(() => first[0] ^= 0xff, throwsUnsupportedError);
-      expect(() => second[0] = 0, throwsUnsupportedError);
       expect(snapshot.canonicalBytes, sealedBytes);
       expect(snapshot.contentHash, sealedHash);
       expect(snapshot.contentHash, snapshot.contract.contentHash);

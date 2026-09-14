@@ -22,6 +22,7 @@ export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
 export 'src/events/event_enums.dart';
 export 'src/events/restage_event.dart';
+export 'src/flow/compiled_flow.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
 export 'src/flow/flow_descriptors.dart';
 export 'src/flow/flow_experiment_artifact_metadata.dart'
@@ -101,10 +102,39 @@ export 'src/resolver/restage_variant_resolver.dart'
 export 'src/secure_transport.dart' show InsecureBaseUrlException;
 export 'src/resolver/resolved_variant.dart';
 export 'src/resolver/variant_resolver.dart';
+export 'src/resolver/surface_resolution_report.dart'
+    show SurfaceResolutionSource, SurfaceResolutionReport;
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart';
 export 'src/runtime/restage_widget_factory.dart';
+export 'src/runtime/restage_widget_libraries.dart';
+export 'src/runtime/restage_widget_registration.dart';
+export 'src/runtime/surface_vocabulary.dart';
+// A surface vocabulary rebuilds each icon it carries as an IconData value, so
+// a file that imports this one can name the type without importing Flutter.
+export 'package:flutter/widgets.dart' show IconData;
+// The per-widget builders of the three built-in catalogs, so a surface
+// vocabulary can name exactly the widgets that surface draws. The
+// whole-catalog maps stay unexported: naming one retains every built-in
+// widget.
+export 'package:restage_core/library_registration.dart'
+    hide buildCoreWidgetLibrary, kCoreLibraryFactories;
+export 'package:restage_material/library_registration.dart'
+    hide buildMaterialWidgetLibrary, kMaterialLibraryFactories;
+export 'package:restage_cupertino/library_registration.dart'
+    hide buildCupertinoWidgetLibrary, kCupertinoLibraryFactories;
+// The icon table lives beside the catalog runtime the generated
+// factories call; re-exported so an app installs it from one import.
+export 'package:restage_core/restage_core.dart'
+    show
+        InstalledIconTable,
+        RestageIconTable,
+        RestageIconUnavailableError,
+        resolveInstalledIcon;
+// The whole-catalog icon table, for a surface that renders content whose
+// icons the app cannot know ahead of time.
+export 'src/runtime/builtin_icon_table.dart' show builtInIconTable;
 export 'src/runtime/restage_widget_library_registration.dart';
 export 'src/runtime/rfw_constructor_presence.dart';
 export 'src/measurement/bundled_measurement_publication_binding_read_port.dart'
@@ -152,6 +182,8 @@ export 'package:restage_measurement_schema/restage_measurement_schema.dart'
         ExactArtifactGraphV1,
         GeneratedDartSymbol,
         GeneratedPointReferenceV1,
+        GeneratedPresentationReferenceId,
+        GeneratedPresentationReferenceV1,
         GeneratedReferenceId,
         GovernancePolicyRefV1,
         LineageOperation,
@@ -205,11 +237,16 @@ export 'package:restage_measurement_schema/restage_measurement_schema.dart'
         MeasurementPublicationDraftArtifactV1,
         MeasurementPublicationDraftEventV1,
         MeasurementPublicationDraftNodeV1,
+        MeasurementPublicationDraftPresentationRouteSeedV1,
+        MeasurementPublicationDraftPresentationRouteV1,
+        MeasurementPublicationDraftPresentationV1,
         MeasurementPublicationDraftRouteSeedV1,
         MeasurementPublicationDraftRouteV1,
         MeasurementPublicationDraftV1,
         MeasurementPublicationLineageIntentV1,
+        MeasurementPublicationMountedArtifactPresentationRoutesV1,
         MeasurementPublicationMountedArtifactRoutesV1,
+        MeasurementPublicationPresentationRouteV1,
         MeasurementPublicationRouteArtifactV1,
         MeasurementPublicationRoutePlanV1,
         MeasurementPublicationRouteV1,

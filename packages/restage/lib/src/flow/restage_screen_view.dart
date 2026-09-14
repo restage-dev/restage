@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration;
 import '../measurement/measurement_event_sanitizer.dart';
@@ -80,8 +79,6 @@ final class RestageScreenView<R> extends StatefulWidget {
 }
 
 class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
-  late final FlowScreenLibraries _libraries;
-
   Runtime? _runtime;
   DynamicContent? _data;
   ContextPublisher? _contextPublisher;
@@ -98,7 +95,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
   void initState() {
     super.initState();
     _refreshContext();
-    _libraries = FlowScreenLibraries();
     widget.controller.addListener(_controllerChanged);
     _sync();
   }
@@ -153,7 +149,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     if (entryId == _entryId && _runtime != null) return;
     _disposeRuntime();
     _entryId = entryId;
-    _runtime = _libraries.runtimeFor(library);
+    _runtime = flowScreenRuntime(library);
     _data = DynamicContent();
     _contextPublisher = ContextPublisher(_data!);
     _populateData();
@@ -193,7 +189,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     // to the owner gated to the owner's current entry.
     final controller = widget.controller;
     final entryId = _entryId!;
-    final contextPublisher = _contextPublisher!;
     final child = RuntimeErrorBoundary(
       key: ValueKey<int>(entryId),
       onFirstBuildSuccess: () {
@@ -206,25 +201,17 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RestagePrivacyAwareRemoteWidget(
+      child: RemoteWidget(
         runtime: runtime,
         data: data,
         widget: kFlowScreenWidget,
-        mayExposeNonEmptyHostContext: () =>
-            contextPublisher.mayExposeNonEmptyHostContext,
         onEvent: (name, args) {
-          RestageRenderEventPrivacy.run<void>(
-            mayExposeNonEmptyHostContext:
-                contextPublisher.mayExposeNonEmptyHostContext,
-            body: () {
-              // Inert unless this is the owning controller's current screen.
-              if (entryId != controller.currentScreenEntryId) return;
-              final sanitized = MeasurementEventSanitizer.sanitize(args);
-              controller.handleEvent(
-                name,
-                normalizeEventArgs(sanitized.businessValue),
-              );
-            },
+          // Inert unless this is the owning controller's current screen.
+          if (entryId != controller.currentScreenEntryId) return;
+          final sanitized = MeasurementEventSanitizer.sanitize(args);
+          controller.handleEvent(
+            name,
+            normalizeEventArgs(sanitized.businessValue),
           );
         },
       ),
@@ -239,8 +226,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
           identical(_data, data) &&
           _entryId == entryId &&
           controller.currentScreenEntryId == entryId,
-      mayExposeNonEmptyHostContext: () =>
-          contextPublisher.mayExposeNonEmptyHostContext,
       child: child,
     );
   }

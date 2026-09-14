@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+The generated registration installs the whole built-in catalog and both icon
+tables by default. Pass the generated `kRestageWidgetRegistration` object to
+`Restage.configure(registerWidgets: ...)` to forward its `includeMaterial` and
+`includeCupertino` options while preserving app-required entries. The standalone
+`registerRestageWidgets()` function retains its inclusive defaults.
+A `catalog` option on the `restage_codegen:user_factories` builder opts
+down: `catalog: derived` walks every library under `lib/`, collects the catalog
+widgets the app draws and the ones its authored surfaces use, and emits the
+registration from that union. For separate registration, call the generated
+helper before `Restage.configureWithInstalledCatalog` to avoid referencing the
+inclusive defaults. Any other `catalog` value fails the build.
+
+A generated paywall mount carries its surface vocabulary and installs it additively
+in `build()`, so it renders without an app-level registration call. The vocabulary
+covers the paywalls a lowered navigation graph can reach from that mount.
+
+Every build reports its catalog position and how to change it. With `--verbose`,
+an opted-down build also lists historical reference estimates for widget groups
+absent from the selected set. Actual additions depend on the app's other
+reachable code; compare matched release builds to measure them.
+
+The wire carries an icon's font family and its text-direction mirroring
+alongside its code point, so a Cupertino icon and a mirrored icon survive the
+round trip.
+
+`@FlowGraph` generates a `<Name>Surface` mount and retains the canonical graph
+and native screen constructors in Dart. Screens requiring app-owned arguments
+receive explicit builder parameters. Both declarative and class-authored flows
+use the existing flow runtime and typed result decoder.
+
+`@Paywall()` libraries declaring their generated part now receive a typed
+`<ClassName>Surface` widget. It preserves constructor arguments and renders the
+original widget when initial delivery is unavailable.
+
+Generation warns at direct paywall, screen, and flow mounts when runtime
+bundling is disabled and no compiled original or explicit fallback UI is
+available. Generated typed mounts stay quiet. Routine bundle configuration
+is informational and available with `--verbose`.
+
 ## 2.0.0
 
 A condition in a screen may negate (`!`), combine with `&&` and `||`, and

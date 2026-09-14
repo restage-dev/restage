@@ -29,7 +29,7 @@ final _lumenCancelReasonScreenProvenance =
   slug: "lumen_cancel_reason",
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 6,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -43,9 +43,9 @@ final _lumenCancelReasonScreenProvenance =
         logicalPath:
             "assets/survey/screens/measurement/7986973e7d641fcd/lumen_cancel_reason.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 30878,
+        byteLength: 31033,
         sha256:
-            "sha256:8366cd1cb2713e75cd8c022f5be906ec186eced354bc5458cc46a319e83ce115",
+            "sha256:1afb457035f5ab2169fd4830497d5a23502500a90bc616e8a23fc93447dd1ee0",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -53,9 +53,41 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:3ce4aba65d728c89653633437c6430a49987b1561086c772de02dd674c439848",
+            "sha256:4626263e7b23cd51848dee63e2f8e2e459654c7a54e86787c17de7cad3e2512f",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'Row': buildRow,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Icon': buildIcon,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      },
+    }, mirrored: {
+      'MaterialIcons': {
+        0xf57a: IconData(0xf57a,
+            fontFamily: 'MaterialIcons', matchTextDirection: true),
+      },
+    }),
   ),
 );
 
@@ -64,7 +96,7 @@ final lumenCancelReasonScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
-      "2b1a2d0058ddd8c0a90224a0470271938c621c6df13accb427d82e11564e2711",
+      "068d8f9073a7895ad3e34c92f10ac9f841f69b05e1d72d2104dde913ecc7ec28",
 );
 
 LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
@@ -135,7 +167,7 @@ final _lumenCancelThanksScreenProvenance =
   slug: "lumen_cancel_thanks",
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 6,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -151,7 +183,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 14841,
         sha256:
-            "sha256:d5350c4ed384691071e8fdeedae0187939952ddb541113ca3ac91918b381780b",
+            "sha256:5814bceec07efdaa4eddc5204a3c7163b26cd864b5d2a96da4d4bd00166aa14a",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -159,9 +191,35 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:48b8276329bb2348eb30be856df076caf36265e69260c08cb6a2c127b6579b3e",
+            "sha256:5c74693663b86d14f2a0feac4cada505bb953e20c389d42bda7ead1e937c98d5",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Icon': buildIcon,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xf738: IconData(0xf738, fontFamily: 'MaterialIcons'),
+      },
+    }),
   ),
 );
 
@@ -170,7 +228,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      "821b7adc7f2ac7b76b04d5354c687d2b39b73d9436890007fa699b6aa70bc75e",
+      "47e8e690662135eafef454babef0922e40d3850ec580f3f5690d5bc417d8cba0",
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(

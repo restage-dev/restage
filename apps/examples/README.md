@@ -133,7 +133,7 @@ lib/paywalls/<name>.dart  ──(dart run build_runner build)──▶  lib/payw
 
 The generated part carries the typed descriptor. The `.rsbundle` carries the
 exact delivery bytes the runtime decodes, so one surface is one addressable
-artifact. The manifest at `lib/generated/restage.publication.json` records the
+artifact. The manifest at `.restage/build/metadata/restage.publication.json` records the
 artifacts for each surface. Both are build outputs. The bundles are committed
 here so the gallery runs from a fresh clone; the manifest is not.
 
@@ -162,7 +162,7 @@ lib/onboarding/screens/<screen>.dart  ──▶  screens/restage.generated/<scre
 lib/onboarding/flows/<flow>.dart      ──▶  flows/restage.generated/<flow>.restage.g.dart
 ```
 
-The manifest at `lib/generated/restage.publication.json` records each flow and
+The manifest at `.restage/build/metadata/restage.publication.json` records each flow and
 the screen artifacts it uses.
 
 A message is the smallest flow (one screen, one terminal state), so it lives
@@ -220,3 +220,8 @@ alike:
   full `Theme.of(context).colorScheme.<role>` chain where you use it. Hoisting
   it into a local (`final scheme = Theme.of(context).colorScheme;`) is a form
   the compiler cannot follow.
+
+Identity state is tracked in `.restage/measurement-state.json` and
+`.restage/wire-ids.events.jsonl`. The app’s `additional_public_assets` entries
+admit these files to Build Runner so manual state edits invalidate its cache.
+Disposable portable artifacts are generated under `.restage/build/`.

@@ -60,6 +60,7 @@ part 'restage.generated/stride_first_run.restage.g.dart';
   surface: Surface.onboarding,
   version: 2,
   delivery: FlowDeliveryMode.general,
+  minClient: 6,
 )
 final class StrideFirstRunFlow extends RestageFlow {
   /// Host action that shows the OS notification dialog and reports the grant.

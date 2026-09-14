@@ -13,9 +13,11 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
+import 'package:restage_codegen/src/surface_publication/surface_mount_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Materializes deterministic per-library bundles, optional inspection
@@ -40,6 +42,10 @@ final class RestageOutputsBuilder implements Builder {
       builderKey: 'restage_codegen:outputs',
     );
 
+    if (buildStep.inputId.path == r'$package$' && !plan.bundledRuntime) {
+      await warnAboutUnbundledSurfaceMounts(buildStep);
+    }
+
     final bundle = await readRestageCompilerHandoff(buildStep);
     if (bundle == null) {
       await _restorePriorOutputs(buildStep);
@@ -62,6 +68,7 @@ final class RestageOutputsBuilder implements Builder {
         plan.outputIndexPath,
         plan.measurementOutputIndexPath,
         plan.analyticsIdMetadataPath,
+        plan.customCatalogPath,
       ];
     } else {
       final placement = plan.forLibrary(buildStep.inputId.path);
@@ -108,6 +115,26 @@ final class RestageOutputsBuilder implements Builder {
     BuildStep buildStep,
     RestageSurfacePublicationBundle bundle,
   ) async {
+    final customCatalog = AssetId(
+      buildStep.inputId.package,
+      'lib/src/widget_catalog/catalog.json',
+    );
+    if (await buildStep.canRead(customCatalog)) {
+      final bytes = await buildStep.readAsBytes(customCatalog);
+      final catalog = decodeCatalog(utf8.decode(bytes));
+      if (!catalog.libraries.keys.any((library) =>
+          WidgetLibrary.builtInByNamespace(library.namespace) != null)) {
+        await buildStep.writeAsBytes(
+          AssetId(buildStep.inputId.package, plan.customCatalogPath),
+          bytes,
+        );
+        await removeIdenticalLegacyOutput(
+          buildStep,
+          customCatalog.path,
+          bytes,
+        );
+      }
+    }
     final manifest = bundle.manifest;
     if (manifest == null) return;
     final AnalyticsIdControlOutputV1? analyticsIdControl;
@@ -222,6 +249,7 @@ final class RestageOutputsBuilder implements Builder {
         ).encodeJson(),
       );
     }
+    await cleanLegacyRestageOutputs(buildStep.inputId.package, plan);
   }
 
   /// Every manifest-closure entry plus the library's canonical `.rfwtxt`

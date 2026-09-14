@@ -16,7 +16,7 @@ void expectUnmeasuredScreenPublication({
 }) {
   final manifest = SurfacePublicationManifestV1Codec.decodeJson(
     readerWriter.testing.readString(
-      AssetId(packageName, 'lib/generated/restage.publication.json'),
+      AssetId(packageName, '.restage/build/metadata/restage.publication.json'),
     ),
   );
   expect(manifest.publications, hasLength(1));

@@ -5,9 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 // ignore: implementation_imports
 import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+import '../support/canonical_assignment_fixture.dart';
 
 void main() {
   const flowRef = OnboardingFlowRef<Map<String, Object?>>(
@@ -499,14 +502,25 @@ void main() {
     );
     final resolver = AssetFlowResolver(bundle: bundle);
 
-    expect((await resolver.resolve(flowRef)).cacheHit, isFalse);
-    expect((await resolver.resolve(flowRef)).cacheHit, isTrue);
+    final fresh = await resolver.resolve(flowRef);
+    final assignment = canonicalAssignmentFixture();
+    attachMeasurementPublicationBindingReference(
+      fresh,
+      null,
+      canonicalExperimentAssignment: assignment,
+    );
+    expect(fresh.cacheHit, isFalse);
+    final cached = await resolver.resolve(flowRef);
+    expect(cached.cacheHit, isTrue);
+    expect(measurementExperimentAssignmentFor(cached), assignment);
 
     bundle.writeFlowJson(
       flowRef,
       '${FlowDocumentCodec.encodePrettyJson(firstDocument)}\n',
     );
-    expect((await resolver.resolve(flowRef)).cacheHit, isFalse);
+    final changed = await resolver.resolve(flowRef);
+    expect(changed.cacheHit, isFalse);
+    expect(measurementExperimentAssignmentFor(changed), isNull);
     expect((await resolver.resolve(flowRef)).cacheHit, isTrue);
 
     bundle.writeFlow(flowRef, secondDocument);

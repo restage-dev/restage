@@ -9,6 +9,7 @@ import 'package:rfw/rfw.dart' show decodeLibraryBlob;
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/restage.dart';
 import 'flow_descriptors.dart';
@@ -153,6 +154,7 @@ final class FlowMountLeaseSeed {
       installedCapability: InstalledCapability(
         builtInCatalogVersion: builtInCatalogVersion,
         installedLibraries: List<InstalledLibrary>.of(installedLibraries),
+        vocabulary: installedWidgetVocabulary(),
       ),
       actionBindings: _fingerprintActionBindings(actionBindings),
       installedSignals: installedSignals.toList()..sort(),
@@ -301,7 +303,6 @@ final class FlowMountContractSnapshotBuilder {
 
 enum FlowMountRevalidationBoundary {
   request,
-  uploadRetry,
   candidatePrefetch,
   fallback,
   pendingPromotion,
@@ -340,14 +341,6 @@ final class FlowMountContractSnapshot {
     FlowMountLeaseSeed current,
   ) =>
       seed.sameIdentityAs(current);
-
-  Uint8List? bytesForRetry(
-    FlowMountRevalidationBoundary boundary,
-    FlowMountLeaseSeed current,
-  ) =>
-      revalidate(boundary, current)
-          ? Uint8List.fromList(_canonicalBytes).asUnmodifiableView()
-          : null;
 }
 
 enum FlowCandidatePrefetchRejection {
@@ -518,10 +511,14 @@ ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
     ResolvedFlow(
       document: flow.document,
       screenBlobs: flow.screenBlobs,
+      compiled: flow.compiled,
       contentHash: flow.contentHash,
       cacheHit: true,
     ),
     measurementPublicationBindingReferenceFor(flow),
+    canonicalExperimentAssignment: measurementExperimentAssignmentFor(flow),
+    routingSelectionReceipt: routingSelectionReceiptFor(flow),
+    routingSelectionProvenance: routingSelectionProvenanceFor(flow),
   );
 }
 
@@ -703,6 +700,16 @@ final class _FlowExperimentClosureLoader {
         'Resolved flow "${document.flow}" failed validation: '
         '${issues.join('; ')}.',
       );
+    }
+    if (resolved.compiled case final compiled?) {
+      compiled.validateNativeClosure();
+      if (FlowContentHash.compute(
+              FlowDocumentCodec.encodeCanonicalJson(compiled.document)) !=
+          actualHash) {
+        throw const FormatException(
+            'Compiled baseline does not match its contract.');
+      }
+      return;
     }
     if (resolved.screenBlobs.length != document.screenArtifacts.length) {
       throw FormatException(

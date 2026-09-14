@@ -18,7 +18,7 @@ part 'restage.generated/reel_cancel.restage.g.dart';
 /// (confirm the cancellation); the decline is host-owned, not a second graph
 /// transition. The terminal result is a data-minimization-filtered `retained`
 /// outcome the host collects.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class ReelCancelFlow extends RestageFlow {
   /// Host action that applies the retention discount and reports the redemption.
   /// The flow advances to the confirmation only on a redeemed result.

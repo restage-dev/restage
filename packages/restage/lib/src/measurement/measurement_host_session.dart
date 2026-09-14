@@ -21,6 +21,8 @@ import 'measurement_rfw_presentation.dart';
 import 'measurement_runtime_capture.dart';
 import 'presentation_commit.dart';
 import '../resolver/resolved_paywall_payload.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show SurfaceDeliveryObservations;
 import '../runtime/restage.dart';
 
 /// Test-visible lifecycle state for the SDK-internal host session.
@@ -53,13 +55,23 @@ abstract interface class MeasurementHostSessionLifecycleRegistrar {
   );
 }
 
-/// Dormant construction dependencies for one host-session controller.
+/// Construction dependencies for one host-session controller.
 ///
-/// Production composition does not install an instance. The
-/// regular constructor always uses a cryptographically secure nonce source;
-/// deterministic nonce injection is restricted to [forTesting].
+/// Production constructors use a cryptographically secure nonce source;
+/// deterministic nonce injection is restricted to test constructors.
 @internal
 final class MeasurementHostSessionConstructionAuthority {
+  /// Creates the production authority for one governed worker owner.
+  MeasurementHostSessionConstructionAuthority.production({
+    required MeasurementHostConstructionOwner constructionOwner,
+  })  : transport = const MeasurementIngestTransport.disabled(),
+        installedCapabilities = MeasurementCaptureInstalledCapabilities.current,
+        _nonceBytesSource = _secureNonceBytes,
+        _hostedBindingReadPortLookup = _lookupHostedBindingReadPort,
+        _bundledTargetProfileLoader = _loadBundledTargetProfile,
+        _lifecycleRegistrar = const _WidgetsBindingLifecycleRegistrar(),
+        _constructionOwner = constructionOwner;
+
   /// Creates dormant host-session construction dependencies.
   MeasurementHostSessionConstructionAuthority({
     required this.transport,
@@ -250,13 +262,17 @@ final class _DiscardingLifecycleRegistration
   void unregister() {}
 }
 
-/// Nullable construction-plane registry shared by future host owners.
-///
-/// Its production value is absent. Tests
-/// may temporarily install an authority and restore the exact prior value.
+/// Construction authority shared by host owners, with isolated test overrides.
 @internal
 abstract final class MeasurementHostSessionConstructionRegistry {
   static MeasurementHostSessionCutoverInstallation? _installation;
+  static MeasurementHostSessionConstructionAuthority? _productionAuthority;
+
+  /// Replaces the configured production authority without changing test overrides.
+  static void installProduction(
+      MeasurementHostSessionConstructionAuthority? authority) {
+    _productionAuthority = authority;
+  }
 
   static final MeasurementCutoverGeneration _focusedTestGeneration =
       MeasurementCutoverGeneration(
@@ -264,8 +280,12 @@ abstract final class MeasurementHostSessionConstructionRegistry {
     cutoverGeneration: 0,
   );
 
-  static MeasurementHostSessionConstructionAuthority? get _authority =>
-      _installation?._selectedAuthority;
+  static MeasurementHostSessionConstructionAuthority? get _authority {
+    final installation = _installation;
+    return installation == null
+        ? _productionAuthority
+        : installation._selectedAuthority;
+  }
 
   /// The currently installed test seam, if any.
   @visibleForTesting
@@ -406,8 +426,9 @@ final class MeasurementHostSessionController
   /// the generated-source resolver for one exact final publication locator. The
   /// nullable construction authority is checked before either lazy path.
   static Future<MeasurementHostSessionController> openForResolvedArtifact(
-    Object resolvedOrPayload,
-  ) async {
+    Object resolvedOrPayload, {
+    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+  }) async {
     if (!Restage.isMeasurementEnabled) {
       return MeasurementHostSessionController._disabled();
     }
@@ -420,9 +441,24 @@ final class MeasurementHostSessionController
         FlowPaywallPayload(:final flow) => flow,
         _ => resolvedOrPayload,
       };
+      final routingSelectionReceipt =
+          routingSelectionReceiptFor(provenanceOwner);
+      final canonicalAssignment = measurementExperimentAssignmentFor(
+        provenanceOwner,
+      );
+      final experimentAssignment = canonicalAssignment == null
+          ? null
+          : MeasurementExperimentAssignmentV1.fromJson({
+              'kind': 'measurementExperimentAssignment',
+              'outcomeLinkCarrier': canonicalAssignment.outcomeLinkCarrier,
+              'schemaVersion': kMeasurementSchemaVersion,
+            });
       final hostedReference = measurementPublicationBindingReferenceFor(
         provenanceOwner,
       );
+      if (canonicalAssignment != null && hostedReference == null) {
+        return MeasurementHostSessionController._disabled();
+      }
       if (hostedReference != null) {
         final hostedReadPort = authority._hostedBindingReadPortLookup();
         if (hostedReadPort == null) {
@@ -434,6 +470,9 @@ final class MeasurementHostSessionController
             bindingReadPort: hostedReadPort,
           ),
           authority,
+          experimentAssignment: experimentAssignment,
+          presentationObservations: presentationObservations,
+          routingSelectionReceipt: routingSelectionReceipt,
         );
       }
 
@@ -452,6 +491,8 @@ final class MeasurementHostSessionController
           bindingReadPort: bundledProfile.bindingReadPort,
         ),
         authority,
+        presentationObservations: presentationObservations,
+        routingSelectionReceipt: routingSelectionReceipt,
       );
     } on Object {
       return MeasurementHostSessionController._disabled();
@@ -460,8 +501,11 @@ final class MeasurementHostSessionController
 
   static Future<MeasurementHostSessionController> _openWithAuthority(
     MeasurementHostSessionOpenRequest request,
-    MeasurementHostSessionConstructionAuthority authority,
-  ) async {
+    MeasurementHostSessionConstructionAuthority authority, {
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+    String? routingSelectionReceipt,
+  }) async {
     try {
       final resolution = await request._resolveExact();
       final resolvedMount = resolution.resolvedMount;
@@ -492,10 +536,27 @@ final class MeasurementHostSessionController
 
       final constructionOwner = authority._constructionOwner;
       if (constructionOwner != null) {
+        SurfaceDeliveryObservations? observations;
+        try {
+          observations = await presentationObservations?.call();
+        } on Object {
+          observations = null;
+        }
+        final presentationContext = observations == null
+            ? null
+            : MeasurementPresentationContextV1(
+                presentationCountry: observations.presentationCountry,
+                platform: observations.platform,
+                appBuildOrdinal: observations.appBuildOrdinal,
+                deviceClass: observations.deviceClass,
+              );
         final constructionSession = await constructionOwner.openSession(
           resolvedMount: resolvedMount,
           routeTable: routeTable,
           capabilityAdmission: admission,
+          experimentAssignment: experimentAssignment,
+          presentationContext: presentationContext,
+          routingSelectionReceipt: routingSelectionReceipt,
           captureSessionNonceSource: () =>
               _encodeNonce(authority.takeNonceBytes()),
         );
@@ -507,6 +568,7 @@ final class MeasurementHostSessionController
           presentationRouteHandle: MeasurementPresentationRouteHandle.open(
             publishedSurfaceRevision: resolvedMount.publishedSurfaceRevision,
             captureSink: constructionSession,
+            observer: constructionSession.presentationAttemptObserver,
             onUncommittedAbort: constructionSession.abortBeforeSuccessfulPaint,
           ),
         );
@@ -531,6 +593,7 @@ final class MeasurementHostSessionController
           _encodeNonce(authority.takeNonceBytes()),
         ),
         publicationContextRef: resolvedMount.publicationContextRef,
+        experimentAssignment: experimentAssignment,
         routeTable: routeTable,
         sequence: 1,
       );
@@ -721,6 +784,84 @@ final class MeasurementHostSessionController
     }
   }
 
+  void recordAnswer(String questionId, Object? rawValue) {
+    final construction = _constructionSession;
+    if (construction != null) {
+      construction.recordAnswer(questionId, rawValue);
+      return;
+    }
+    final table = _routeTable;
+    final capture = _captureSession;
+    if (_debugState != MeasurementHostSessionDebugState.active ||
+        table == null ||
+        capture == null) return;
+    final published = table.orderedCaptureV1?.routes
+        .where((route) => route.declaredAnswerV1?.questionId == questionId)
+        .singleOrNull;
+    final value = published?.declaredAnswerV1?.capture(rawValue);
+    if (value == null || published?.answerCarrier == null) return;
+    final route = table.resolveOpaqueRoute(
+        context: table.mountedArtifactContext,
+        token: OpaqueMeasurementEventSlotToken(published!.answerCarrier!));
+    if (route != null) capture.recordAnswer(route, value);
+  }
+
+  bool _rootLifecyclePresented = false;
+
+  /// Resolves a real root or screen callback inside this session's publication.
+  void recordLifecycle(MeasurementOccurrenceChannelV1 channel,
+      {String? screenId}) {
+    final construction = _constructionSession;
+    if (construction != null) {
+      construction.recordLifecycle(channel, screenId: screenId);
+      return;
+    }
+    if (_debugState != MeasurementHostSessionDebugState.active) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId != null) recordLifecycle(channel);
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null &&
+        _rootLifecyclePresented) return;
+    final mapping = _routeTable?.orderedCaptureV1?.routes
+        .map((route) => route.lifecycle)
+        .where(
+            (route) => route?.channel == channel && route?.screenId == screenId)
+        .singleOrNull;
+    if (mapping == null) return;
+    if (channel == MeasurementOccurrenceChannelV1.presentation &&
+        screenId == null) _rootLifecyclePresented = true;
+    recordDeclaredOccurrenceCarrier(mapping.carrier, channel);
+  }
+
+  /// Records an actual lifecycle event with its exact published route carrier.
+  void recordDeclaredOccurrenceCarrier(
+      String rawCarrier, MeasurementOccurrenceChannelV1 channel) {
+    final construction = _constructionSession;
+    if (construction != null) {
+      construction.recordDeclaredOccurrenceCarrier(rawCarrier, channel);
+      return;
+    }
+    final table = _routeTable;
+    final capture = _captureSession;
+    if (_debugState != MeasurementHostSessionDebugState.active ||
+        table == null ||
+        capture == null) return;
+    try {
+      final route = table.resolveOpaqueRoute(
+          context: table.mountedArtifactContext,
+          token: OpaqueMeasurementEventSlotToken(rawCarrier));
+      if (route != null) {
+        if (channel == MeasurementOccurrenceChannelV1.presentation) {
+          capture.recordPresentation(route);
+        } else {
+          capture.recordDeclaredOccurrence(route, channel);
+        }
+      }
+    } on Object {
+      return;
+    }
+  }
+
   /// Emits and submits one nonterminal cumulative frame when active.
   Future<MeasurementIngestTransportOutcome?> checkpoint() async {
     final constructionSession = _constructionSession;
@@ -765,7 +906,7 @@ final class MeasurementHostSessionController
       // Finalization remains authoritative even if observer removal fails.
     }
     _lifecycleRegistration = null;
-    _presentationRouteHandle?.supersede();
+    _presentationRouteHandle?.abandon();
     final lifecycleCheckpoints = List<Future<void>>.of(
       _pendingLifecycleCheckpoints,
     );

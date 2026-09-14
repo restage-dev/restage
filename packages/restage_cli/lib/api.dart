@@ -28,6 +28,7 @@ export 'src/api/discovery_api.dart';
 export 'src/api/discovery_models.dart';
 export 'src/api/experiment_activation_api.dart';
 export 'src/api/experiment_activation_host_transport.dart';
+export 'src/api/experiment_api.dart';
 export 'src/api/measurement_wire.dart';
 export 'src/api/paywall_api.dart';
 export 'src/api/paywall_models.dart';

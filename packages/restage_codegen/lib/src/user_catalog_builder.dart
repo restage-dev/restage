@@ -59,7 +59,7 @@ final class UserCatalogBuilder implements Builder {
       emitUserCatalogDart(allocation.catalog),
     );
 
-    if (allocation.newEvents.isNotEmpty) {
+    if (allocation.newEvents.isNotEmpty || logContents != null) {
       await appendEventsToRootEventLog(
         package: buildStep.inputId.package,
         events: allocation.newEvents,

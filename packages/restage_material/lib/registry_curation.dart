@@ -768,12 +768,12 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   // `Icon`'s `IconData icon` argument is surfaced as an `int` codepoint —
   // the catalog's [PropertyType] enum does not yet model `IconData` as a
-  // first-class type. The runtime reconstructs `IconData(codepoint,
-  // fontFamily: 'MaterialIcons')`. Apps shipping rfw-rendered paywalls
-  // build with `--no-tree-shake-icons` because the icon font is
-  // referenced by codepoint at runtime, not by `Icons.foo` at compile
-  // time.
+  // first-class type. The runtime looks the codepoint up in the icon table
+  // the app installs, so an app carries only the icons it names.
   BuiltinWidgetCuration<Icon>(
+    // Font-family and mirroring selection change the rendering capability.
+    // The old global ceiling was 5 (core), so this change takes version 6.
+    sinceVersion: 6,
     category: WidgetCategory.decoration,
     excludeParams: [
       'icon',
@@ -804,12 +804,35 @@ const List<BuiltinWidgetCuration> kCuration = [
         type: PropertyType.integer,
         description: 'Material icon codepoint, e.g. 0xe145 for Icons.add.',
         required: true,
-        // Synthetic: the codepoint wraps as `IconData(value,
-        // fontFamily: 'MaterialIcons')` and is passed to Flutter's
-        // `Icon(IconData icon, ...)` positional arg, not as a named
-        // `iconCodepoint:` parameter (which doesn't exist).
+        // Synthetic: the codepoint resolves through the installed icon
+        // table and is passed to Flutter's `Icon(IconData icon, ...)`
+        // positional arg, never as a named `iconCodepoint:` parameter
+        // (which doesn't exist).
         synthetic: 'iconData',
         positional: true,
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'iconFontFamily',
+        type: PropertyType.string,
+        description: 'Icon font family the codepoint belongs to, e.g. '
+            'CupertinoIcons. Defaults to the Material icon font when absent.',
+        // Synthetic: read beside the codepoint by the installed icon table
+        // lookup, never passed to Flutter's `Icon` (which has no such
+        // parameter).
+        synthetic: 'iconFontFamily',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'iconMatchTextDirection',
+        type: PropertyType.boolean,
+        description: 'Selects the mirroring variant of a codepoint that has '
+            'one — the glyph that flips in a right-to-left locale. Defaults '
+            'to false.',
+        // Synthetic: read beside the codepoint by the installed icon table
+        // lookup, never passed to Flutter's `Icon` (which has no such
+        // parameter).
+        synthetic: 'iconMatchTextDirection',
       ),
     ],
   ),

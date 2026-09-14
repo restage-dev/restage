@@ -15,6 +15,7 @@ import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
@@ -465,7 +466,18 @@ void main() {
       );
 
       expect(output.valid, isTrue);
-      final routes = output.publications.single.routePlan.routes;
+      final allRoutes = output.publications.single.routePlan.routes;
+      final routes = allRoutes
+          .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
+          .toList();
+      expect(
+          allRoutes.where(
+              (route) => route.orderedCaptureV1?.lifecycleChannel != null),
+          hasLength(2));
+      expect(
+          routes.single.orderedCaptureV1?.channels
+              .map((channel) => channel.name),
+          unorderedEquals(['presentation', 'interaction']));
       expect(routes, hasLength(1));
       expect(routes.single.generatedReferenceId.value, isNotEmpty);
     },
@@ -521,9 +533,11 @@ void main() {
         orderedEquals(literal.measurementBytes),
       );
       expect(local.publicationBundle, literal.publicationBundle);
-      expect(local.output.publications.single.routePlan.routes, hasLength(1));
+      expect(_authoredRoutes(local.output.publications.single.routePlan.routes),
+          hasLength(1));
       expect(
         local.output.ledgerNodes
+            .where(_isAuthoredEventNode)
             .expand((node) => node.events)
             .map((event) => event.sourceEventIdentity.value),
         ['onPressed'],
@@ -575,9 +589,11 @@ void main() {
       );
 
       expect(output.valid, isTrue);
-      expect(output.publications.single.routePlan.routes, hasLength(1));
+      expect(_authoredRoutes(output.publications.single.routePlan.routes),
+          hasLength(1));
       expect(
         output.ledgerNodes
+            .where(_isAuthoredEventNode)
             .expand((node) => node.events)
             .map((event) => event.sourceEventIdentity.value),
         ['onPressed'],
@@ -630,9 +646,9 @@ void main() {
       );
       expect(output.valid, isTrue);
       final publication = output.publications.single;
-      expect(publication.routePlan.routes, hasLength(12));
+      expect(_authoredRoutes(publication.routePlan.routes), hasLength(12));
       expect(
-        publication.routePlan.routes
+        _authoredRoutes(publication.routePlan.routes)
             .map((route) => route.generatedReferenceId.value)
             .toSet(),
         hasLength(12),
@@ -692,7 +708,8 @@ void main() {
         expect(entry.value.toSet(), hasLength(entry.value.length));
       }
       final routesByCarrier = {
-        for (final route in publication.routePlan.routes) route.carrier: route,
+        for (final route in _authoredRoutes(publication.routePlan.routes))
+          route.carrier: route,
       };
       final reusedCarriers = carriersByEvent['localTwice']!;
       expect(reusedCarriers, hasLength(2));
@@ -727,7 +744,7 @@ void main() {
           .map((event) => event.generatedReferenceId.value)
           .toSet();
       expect(twoSlotReferences, hasLength(2));
-      final twoSlotCarriers = publication.routePlan.routes
+      final twoSlotCarriers = _authoredRoutes(publication.routePlan.routes)
           .where(
             (route) =>
                 twoSlotReferences.contains(route.generatedReferenceId.value),
@@ -787,10 +804,10 @@ void main() {
       expect(compilerOutput.valid, isTrue);
       expect(compilerOutput.publications, hasLength(1));
       final publication = compilerOutput.publications.single;
-      expect(publication.routePlan.routes, hasLength(7));
+      expect(_authoredRoutes(publication.routePlan.routes), hasLength(7));
       expect(publication.routePlan.presentationRoutes, hasLength(11));
       expect(
-        publication.routePlan.routes
+        _authoredRoutes(publication.routePlan.routes)
             .map((route) => route.generatedReferenceId.value)
             .toSet(),
         hasLength(7),
@@ -854,7 +871,8 @@ void main() {
       expect(
         carriers.toSet(),
         {
-          for (final route in publication.routePlan.routes) route.carrier,
+          for (final route in _authoredRoutes(publication.routePlan.routes))
+            route.carrier,
         },
       );
       for (final bytes in [
@@ -927,7 +945,7 @@ void main() {
       final measurementIndexBytes = readerWriter.testing.readBytes(
         AssetId(
           'apps_examples',
-          'lib/generated/restage.measurement.index.json',
+          '.restage/build/metadata/restage.measurement.index.json',
         ),
       );
       expect(
@@ -1241,16 +1259,21 @@ const offer = FlowDefinition(
       final flowPublication = measurement.publications.singleWhere(
         (publication) => publication.selector.slug == 'offer',
       );
-      expect(paywallPublication.routePlan.routes, hasLength(1));
-      expect(flowPublication.routePlan.routes, hasLength(1));
       expect(
-        paywallPublication.routePlan.routes.single.generatedReferenceId,
-        flowPublication.routePlan.routes.single.generatedReferenceId,
+          _authoredRoutes(paywallPublication.routePlan.routes), hasLength(1));
+      expect(_authoredRoutes(flowPublication.routePlan.routes), hasLength(1));
+      expect(
+        _authoredRoutes(paywallPublication.routePlan.routes)
+            .single
+            .generatedReferenceId,
+        _authoredRoutes(flowPublication.routePlan.routes)
+            .single
+            .generatedReferenceId,
         reason: 'one source event keeps one compiler-ledger reference',
       );
       expect(
-        paywallPublication.routePlan.routes.single.carrier,
-        isNot(flowPublication.routePlan.routes.single.carrier),
+        _authoredRoutes(paywallPublication.routePlan.routes).single.carrier,
+        isNot(_authoredRoutes(flowPublication.routePlan.routes).single.carrier),
         reason:
             'each publication artifact occurrence has its own complete carrier',
       );
@@ -1357,8 +1380,8 @@ const offer = FlowDefinition(
       expect(
         emittedCarriers,
         unorderedEquals([
-          paywallPublication.routePlan.routes.single.carrier,
-          flowPublication.routePlan.routes.single.carrier,
+          _authoredRoutes(paywallPublication.routePlan.routes).single.carrier,
+          _authoredRoutes(flowPublication.routePlan.routes).single.carrier,
         ]),
       );
     },
@@ -1520,7 +1543,7 @@ final class UnmeasuredParent extends RestageFlow {
       final childPublication = measurement.publications.singleWhere(
         (publication) => publication.selector.slug == 'measured_child',
       );
-      expect(childPublication.routePlan.routes, isNotEmpty);
+      expect(_authoredRoutes(childPublication.routePlan.routes), isNotEmpty);
       expect(
         measurement.publications
             .map((publication) => publication.selector.slug),
@@ -1719,15 +1742,19 @@ final class WelcomeFlow extends RestageFlow {
         (publication) =>
             publication.selector.sourceKind == SurfaceSourceKind.flowGraph,
       );
-      expect(screenPublication.routePlan.routes, hasLength(1));
-      expect(flowPublication.routePlan.routes, hasLength(1));
+      expect(_authoredRoutes(screenPublication.routePlan.routes), hasLength(1));
+      expect(_authoredRoutes(flowPublication.routePlan.routes), hasLength(1));
       expect(
-        screenPublication.routePlan.routes.single.generatedReferenceId,
-        flowPublication.routePlan.routes.single.generatedReferenceId,
+        _authoredRoutes(screenPublication.routePlan.routes)
+            .single
+            .generatedReferenceId,
+        _authoredRoutes(flowPublication.routePlan.routes)
+            .single
+            .generatedReferenceId,
       );
       expect(
-        screenPublication.routePlan.routes.single.carrier,
-        isNot(flowPublication.routePlan.routes.single.carrier),
+        _authoredRoutes(screenPublication.routePlan.routes).single.carrier,
+        isNot(_authoredRoutes(flowPublication.routePlan.routes).single.carrier),
       );
 
       final handoff = RestageSurfacePublicationBundle.fromJson(
@@ -1767,8 +1794,8 @@ final class WelcomeFlow extends RestageFlow {
       expect(
         emittedCarriers,
         unorderedEquals([
-          screenPublication.routePlan.routes.single.carrier,
-          flowPublication.routePlan.routes.single.carrier,
+          _authoredRoutes(screenPublication.routePlan.routes).single.carrier,
+          _authoredRoutes(flowPublication.routePlan.routes).single.carrier,
         ]),
       );
       final generatedParts = [
@@ -1800,6 +1827,59 @@ final class WelcomeFlow extends RestageFlow {
       );
     },
   );
+
+  test('normal compiled survey retains declared answer route metadata',
+      () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/answer_screen.restage.g.dart';
+@Screen(id: 'answer_screen', surface: Surface.survey)
+final class AnswerScreen extends StatelessWidget {
+  const AnswerScreen({super.key});
+  static const answer = SurfaceEvent<String>('answer');
+  @override
+  Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(answer, 'cost'), child: const Text('Cost'));
+}
+''';
+    const flow = '''
+import 'package:restage/restage.dart';
+import '../screens/answer_screen.dart';
+part 'restage.generated/answer_flow.restage.g.dart';
+const reason = FlowStateRef<String>('reason', classification: FlowStateClassification.exportable);
+@FlowGraph(id: 'answer_flow', surface: Surface.survey)
+final answerFlow = FlowDefinition(start: AnswerScreen, state: [reason], transitions: [Transition.complete(AnswerScreen.answer, capture: reason)], outbound: FlowOutboundPolicy(surveyAnswers: {'reason': reason}, measurementAnswers: {'reason': FlowAnswerMeasurement.category(outcomeKey: 'survey.reason', propertyName: 'reason', categoryLabels: {'cost': 'Too expensive', 'other': 'Other'})}));
+''';
+    final sources = <String, String>{
+      'apps_examples|lib/survey/screens/answer_screen.dart': screen,
+      'apps_examples|lib/survey/flows/answer_flow.dart': flow
+    };
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    for (final builder in [
+      onboardingScreenBuilder(BuilderOptions.empty),
+      onboardingFlowBuilder(BuilderOptions.empty),
+      const PackageSurfaceCompilerBuilder(_policyOptions)
+    ]) {
+      final result = await testBuilder(builder, sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true);
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    }
+    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+            AssetId('apps_examples', kRestageMeasurementCompilerOutputPath)));
+    final publication = output.publications.singleWhere((publication) =>
+        publication.selector.sourceKind == SurfaceSourceKind.flowGraph);
+    final answerRoute = publication.routePlan.routes.singleWhere(
+        (route) => route.orderedCaptureV1?.declaredAnswerV1 != null);
+    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.outcomeKey,
+        'survey.reason');
+    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.categoryLabels,
+        {'cost': 'Too expensive', 'other': 'Other'});
+    expect(answerRoute.carrier, isNotEmpty);
+  });
 
   test(
     'presentation-only legacy screen and flow carry finalized draft digests',
@@ -1899,7 +1979,11 @@ final class QuietFlow extends RestageFlow {
             publication.selector.sourceKind == SurfaceSourceKind.flowGraph,
       );
       for (final publication in [screenPublication, flowPublication]) {
-        expect(publication.routePlan.routes, isEmpty);
+        expect(publication.routePlan.routes, isNotEmpty);
+        expect(
+            publication.routePlan.routes.every(
+                (route) => route.orderedCaptureV1?.lifecycleChannel != null),
+            isTrue);
         expect(publication.routePlan.presentationRoutes, isNotEmpty);
       }
 
@@ -2045,7 +2129,10 @@ final class QuietFlow extends RestageFlow {
     const custom = 'package:apps_examples/features/measured.dart#InlineAction';
     final eventNodes = compiled.output.ledgerNodes
         .where(
-          (node) => node.active && node.events.any((event) => event.active),
+          (node) =>
+              node.active &&
+              _isAuthoredEventNode(node) &&
+              node.events.any((event) => event.active),
         )
         .toList();
     const listRoot = '$source|child:$column:$column.children';
@@ -2263,11 +2350,13 @@ final class QuietFlow extends RestageFlow {
 
       final firstReference = first.output.ledgerNodes
           .expand((node) => node.events)
-          .singleWhere((event) => event.active)
+          .singleWhere((event) =>
+              event.active && event.sourceEventIdentity.value == 'onPressed')
           .generatedReferenceId;
       final movedReference = moved.output.ledgerNodes
           .expand((node) => node.events)
-          .singleWhere((event) => event.active)
+          .singleWhere((event) =>
+              event.active && event.sourceEventIdentity.value == 'onPressed')
           .generatedReferenceId;
       expect(movedReference, firstReference);
       Set<String> sourceCodeIdentities(
@@ -3065,3 +3154,25 @@ Set<String> _allJsonKeys(Object? value) => switch (value) {
         },
       _ => const {},
     };
+
+// Physical compiler lifecycle routes are declared separately from authored
+// callbacks. Keep the existing event ownership/count assertions about those
+// callbacks and pin that the new lifecycle routes remain explicitly admitted.
+List<MeasurementPublicationDraftRouteV1> _authoredRoutes(
+    List<MeasurementPublicationDraftRouteV1> routes) {
+  final lifecycle = routes
+      .where((route) => route.orderedCaptureV1?.lifecycleChannel != null)
+      .toList();
+  expect(lifecycle, isNotEmpty);
+  for (final route in lifecycle) {
+    expect(route.orderedCaptureV1!.channels,
+        contains(route.orderedCaptureV1!.lifecycleChannel));
+  }
+  return routes
+      .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
+      .toList();
+}
+
+bool _isAuthoredEventNode(MeasurementCompilerLedgerNode node) =>
+    !node.structuralOccurrenceKey.startsWith('compiler-publication-host:') &&
+    !node.structuralOccurrenceKey.startsWith('compiler-publication-step:');

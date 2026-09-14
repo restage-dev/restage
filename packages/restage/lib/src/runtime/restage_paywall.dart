@@ -1,17 +1,16 @@
 import 'dart:async';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
+
 import 'package:flutter/material.dart' show ColorScheme, TextTheme, Theme;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart' show internal;
-import 'package:restage_core/library_registration.dart' as restage_core;
-import 'package:restage_cupertino/library_registration.dart'
-    as restage_cupertino;
-import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
+import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
 import '../authoring/paywall_event_dispatch.dart';
@@ -24,6 +23,12 @@ import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show
+        SurfaceDeliveryObservationCell,
+        readSurfaceDeliveryObservations,
+        requestingViewShortestLogicalSide,
+        withSurfaceDeliveryObservations;
 import '../measurement/measurement_rfw_presentation.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
@@ -36,6 +41,7 @@ import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
 import 'library_runtime_registry.dart';
+import 'restage_widget_libraries.dart';
 import 'context_data.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
@@ -105,6 +111,7 @@ class RestagePaywall extends StatefulWidget {
     this.cacheLastRender = false,
     this.loadingBuilder,
     this.errorBuilder,
+    this.fallbackBuilder,
     this.locale,
     this.liveRefresh,
 
@@ -149,6 +156,11 @@ class RestagePaywall extends StatefulWidget {
   final Widget Function(BuildContext context, RestagePaywallError error)?
       errorBuilder;
 
+  /// Compiled authored widget used if initial delivery is unavailable.
+  /// Generated paywall mounts supply the original constructor here. Events
+  /// retain the paywall dispatcher; no hosted attribution is invented.
+  final WidgetBuilder? fallbackBuilder;
+
   /// Locale to use when resolving and rendering the paywall.
   final Locale? locale;
 
@@ -169,8 +181,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   _BlobStage? _blobPresentation;
   _BlobStage? _pendingBlobStage;
+  SurfaceDeliveryObservationCell? _observationCell;
   int _loadEpoch = 0;
   RestagePaywallError? _error;
+  bool _useAuthoredFallback = false;
   DateTime? _mountedAt;
   bool _viewedFired = false;
   final Expando<bool> _viewedPresentations =
@@ -220,6 +234,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowMeasurementSessions =
       <RestageFlowController<void>, MeasurementHostSessionController>{};
   RestageFlowController<void>? _activeFlowMeasurementController;
+  final Set<RestageFlowController<void>> _terminalMeasurementControllers = {};
 
   VoidCallback? _initialFlowReadinessListener;
   bool _initialFlowIsStaged = false;
@@ -278,10 +293,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _fireDismissed(reason);
       },
       onFireEvent: (name, {Map<String, Object?>? args}) {
-        RestageRenderEventPrivacy.run<void>(
-          mayExposeNonEmptyHostContext: _presentedContextExposure,
-          body: () => _handleRfwEvent(name, args ?? const <String, Object?>{}),
-        );
+        _handleRfwEvent(name, args ?? const <String, Object?>{});
       },
     );
     _load();
@@ -514,6 +526,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _fireDismissed(DismissReason reason) {
     if (_dismissedFired) return;
     _dismissedFired = true;
+    final owner = _activeFlowMeasurementController;
+    if (owner != null && !_terminalMeasurementControllers.contains(owner)) {
+      _flowMeasurementSessions[owner]
+          ?.recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+    }
+    _blobPresentation?.measurementSession
+        .recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
     _fireEvent(PaywallDismissed(
       paywallId: widget.id,
       reason: reason,
@@ -522,6 +541,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
           : DateTime.now().difference(_mountedAt!),
     ));
   }
+
+  SurfaceDeliveryObservationCell _presentationObservations() =>
+      _observationCell ??= SurfaceDeliveryObservationCell(
+        () => readSurfaceDeliveryObservations(
+          shortestLogicalSide:
+              mounted ? requestingViewShortestLogicalSide(context) : null,
+        ),
+      );
 
   Future<void> _load({
     bool isRefresh = false,
@@ -537,7 +564,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final stopwatch = Stopwatch()..start();
     final resolver = widget.resolver ?? Restage.defaultResolver;
     try {
-      final payload = await _resolveStablePayload(resolver, epoch);
+      final payload = await withSurfaceDeliveryObservations(
+        cell: _presentationObservations(),
+        resolve: () => _resolveStablePayload(resolver, epoch),
+      );
       if (payload == null) return;
       // This check is intentionally the first work after the await. A newer
       // load supersedes this result, while an actor boundary re-enters the same
@@ -642,13 +672,18 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (!mounted || epoch != _loadEpoch) return;
     if (await _tryFallbackToCache(stopwatch, epoch)) return;
     if (!mounted || epoch != _loadEpoch) return;
-    setState(() => _error = error);
+    setState(() => _setInitialError(error));
     _fireEvent(PaywallLoadFailed(
       paywallId: widget.id,
       errorCode: error.code,
       message: error.message,
       retryable: error.retryable,
     ));
+  }
+
+  void _setInitialError(RestagePaywallError error) {
+    _error = error;
+    _useAuthoredFallback = widget.fallbackBuilder != null && !_viewedFired;
   }
 
   void _reportUnexpectedLoadFailure(Object error, StackTrace stackTrace) {
@@ -1510,6 +1545,25 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onEvent: onEvent,
       onComplete: onComplete,
       onUnavailable: onUnavailable,
+      onMeasurementLifecycle: (channel, screenId) {
+        if (channel == MeasurementOccurrenceChannelV1.completion) {
+          _terminalMeasurementControllers.add(controller);
+        } else if (channel == MeasurementOccurrenceChannelV1.skip) {
+          // Suppress dismissal when this skip closes the host in its next
+          // frame. A skip that leaves the flow mounted is not a root terminal.
+          _terminalMeasurementControllers.add(controller);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!controller.isComplete) {
+              _terminalMeasurementControllers.remove(controller);
+            }
+          });
+          WidgetsBinding.instance.ensureVisualUpdate();
+        } else if (channel == MeasurementOccurrenceChannelV1.presentation) {
+          _terminalMeasurementControllers.remove(controller);
+        }
+        _flowMeasurementSessions[controller]
+            ?.recordLifecycle(channel, screenId: screenId);
+      },
       onRootResolved: (_) =>
           _openMeasurementSessionForFlow(controller, payload),
       sanitizeAndRecordEvent: (rawValue) =>
@@ -1530,7 +1584,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowPaywallPayload payload,
   ) async {
     final session =
-        await MeasurementHostSessionController.openForResolvedArtifact(payload);
+        await MeasurementHostSessionController.openForResolvedArtifact(
+      payload,
+      presentationObservations: _observationCell?.read,
+    );
     if (!_measurementOwnedFlowControllers.contains(controller)) {
       unawaited(session.teardown());
       return;
@@ -1565,6 +1622,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _finalizeMeasurementSessionForFlow(
     RestageFlowController<void> controller,
   ) {
+    _terminalMeasurementControllers.remove(controller);
     final session = _flowMeasurementSessions.remove(controller);
     if (session != null) unawaited(session.teardown());
     if (identical(_activeFlowMeasurementController, controller)) {
@@ -1740,7 +1798,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowTransaction = null;
       _flowEpoch = null;
       _initialFlowIsStaged = false;
-      _error = err;
+      _setInitialError(err);
     });
     _disposeFlowControllerAfterDetach(controller);
     _fireEvent(PaywallLoadFailed(
@@ -1762,7 +1820,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required bool cacheHit,
   }) async {
     final measurementSession =
-        await MeasurementHostSessionController.openForResolvedArtifact(payload);
+        await MeasurementHostSessionController.openForResolvedArtifact(
+      payload,
+      presentationObservations: _observationCell?.read,
+    );
     if (!mounted || epoch != _loadEpoch) {
       unawaited(measurementSession.teardown());
       payload.abandonHostedLastGood();
@@ -1819,8 +1880,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       measurementSession: measurementSession,
     );
     final eventLease = RestageTargetEventDispatchLease(
-      mayExposeNonEmptyHostContext: false,
-      resolveLiveExposure: () => _blobStageLiveExposure(stage),
+      isCurrent: () => _isBlobEventStageCurrent(stage),
     );
     stage.eventHandler = (name, args) {
       eventLease.invoke(() => _handleBlobRfwEvent(stage, name, args));
@@ -1838,19 +1898,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   Runtime _createBlobRuntime() {
-    final runtime = RestageRenderRuntime()
-      ..update(
-        const LibraryName(<String>['restage', 'core']),
-        restage_core.buildCoreWidgetLibrary(),
-      )
-      ..update(
-        const LibraryName(<String>['restage', 'material']),
-        restage_material.buildMaterialWidgetLibrary(),
-      )
-      ..update(
-        const LibraryName(<String>['restage', 'cupertino']),
-        restage_cupertino.buildCupertinoWidgetLibrary(),
-      );
+    final runtime = Runtime();
+    InstalledWidgetLibraries.current.installInto(
+      runtime,
+      coreName: const LibraryName(<String>['restage', 'core']),
+      materialName: const LibraryName(<String>['restage', 'material']),
+      cupertinoName: const LibraryName(<String>['restage', 'cupertino']),
+    );
     LibraryRuntimeRegistry.applyTo(runtime);
     installMeasurementRfwPresentationLibrary(runtime);
     return runtime;
@@ -1902,24 +1956,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       !stage._disposed &&
       identical(_blobPresentation, stage) &&
       stage.transaction.isCommitted;
-
-  bool? _blobStageLiveExposure(_BlobStage stage) {
-    if (!_isBlobEventStageCurrent(stage)) return null;
-    return stage.contextPublisher.mayExposeNonEmptyHostContext;
-  }
-
-  /// Whether the presented content may currently carry non-empty host render
-  /// data. A blob reports its own published state; a flow renders under this
-  /// surface's snapshot, and an unresolved surface falls back to it too.
-  bool get _presentedContextExposure {
-    if (!_flowIsPresented) {
-      final stage = _blobPresentation;
-      if (stage != null) {
-        return stage.contextPublisher.mayExposeNonEmptyHostContext;
-      }
-    }
-    return _context?.value.isNotEmpty ?? false;
-  }
 
   /// Paint-time authority mutation. Keep this synchronous and callback-free.
   void _commitBlobStage(_BlobStage stage) {
@@ -2009,10 +2045,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final failure = RestagePaywallError(
       code: RestageErrorCodes.renderError,
       message: error.toString(),
+      cause: error,
     );
     setState(() {
       _pendingBlobStage = null;
-      _error = failure;
+      _setInitialError(failure);
     });
     _disposeBlobStageAfterDetach(stage);
     _fireEvent(PaywallLoadFailed(
@@ -2178,6 +2215,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _blobPresentation = null;
     _pendingBlobStage = null;
     _blobToDisposeAfterPromotion = null;
+    _observationCell = null;
     super.dispose();
   }
 
@@ -2242,6 +2280,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
+      if (_useAuthoredFallback && widget.fallbackBuilder != null) {
+        return _buildAuthoredFallback(_error!);
+      }
       final builder = widget.errorBuilder;
       return builder == null
           ? const SizedBox.shrink()
@@ -2272,6 +2313,40 @@ class _RestagePaywallState extends State<RestagePaywall> {
             child: _buildHostedFlowLayer(pending, staged: true),
           ),
       ],
+    );
+  }
+
+  Widget _buildAuthoredFallback(RestagePaywallError error) {
+    bool isCurrent() =>
+        mounted && _useAuthoredFallback && identical(_error, error);
+    return RestageContextSnapshotScope(
+      snapshot: _context,
+      child: RestagePaywallEventTargetScope(
+        owner: this,
+        content: error,
+        isCurrent: isCurrent,
+        child: RestagePaywallEventDispatcher(
+          onEvent: (name, args) {
+            if (isCurrent()) _handleRfwEvent(name, args);
+          },
+          child: RuntimeErrorBoundary(
+            onFirstBuildSuccess: () {
+              if (!isCurrent() || _viewedFired) return;
+              _viewedFired = true;
+              _fireEvent(PaywallViewed(paywallId: widget.id));
+            },
+            onError: (exception, stack) {
+              if (!isCurrent()) return;
+              _reportUnexpectedLoadFailure(exception, stack);
+            },
+            errorReplacement: (context, exception, stack) =>
+                widget.errorBuilder
+                    ?.call(context, _unexpectedLoadError(exception, stack)) ??
+                const SizedBox.shrink(),
+            child: Builder(builder: widget.fallbackBuilder!),
+          ),
+        ),
+      ),
     );
   }
 
@@ -2357,8 +2432,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
                   owner: this,
                   content: stage,
                   isCurrent: () => _isBlobEventStageCurrent(stage),
-                  mayExposeNonEmptyHostContext: () =>
-                      stage.contextPublisher.mayExposeNonEmptyHostContext,
                   child: RestagePaywallEventDispatcher(
                     onEvent: stage.eventHandler,
                     child: RuntimeErrorBoundary(
@@ -2385,15 +2458,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
                         // failure rejects the candidate.
                         FirstPaintLeaseScope(
                           transaction: stage.transaction,
-                          child: RestagePrivacyAwareRemoteWidget(
+                          child: RemoteWidget(
                             runtime: stage.runtime,
                             data: stage.data,
                             widget: const FullyQualifiedWidgetName(
                               _paywallLibrary,
                               'Paywall',
                             ),
-                            mayExposeNonEmptyHostContext: () => stage
-                                .contextPublisher.mayExposeNonEmptyHostContext,
                             onEvent: stage.eventHandler,
                           ),
                         ),

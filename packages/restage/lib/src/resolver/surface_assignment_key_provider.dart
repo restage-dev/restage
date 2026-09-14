@@ -6,9 +6,10 @@ import 'package:meta/meta.dart';
 /// requests.
 ///
 /// This is deliberately not exported from `restage.dart`: hosts do not supply
-/// the key. `Restage.configure` installs it from the SDK-owned analytics
-/// identity. Hosted resolvers capture it immediately before fetching active
-/// content; the accompanying lease rejects work when that identity changes.
+/// the key. `Restage.configure` installs the service-issued credential handle
+/// scoped to the SDK-owned local identity. Hosted resolvers capture it
+/// immediately before fetching active content; the accompanying lease rejects
+/// work when that identity changes.
 abstract final class SurfaceAssignmentKeyProvider {
   static FutureOr<String?> Function()? _current;
   static int Function()? _identityGeneration;
@@ -22,7 +23,7 @@ abstract final class SurfaceAssignmentKeyProvider {
   @internal
   static int get configurationGeneration => _configurationEpoch;
 
-  /// Current anonymous actor generation observed by the installed provider.
+  /// Current identity and credential-retention epoch of the installed provider.
   @internal
   static int get analyticsIdentityGeneration {
     final provider = _identityGeneration;
@@ -123,7 +124,7 @@ final class SurfaceAssignmentResolutionLease {
   /// The assignment key captured for the hosted request, when available.
   final String? assignmentKey;
 
-  /// Whether both provider configuration and anonymous identity are unchanged.
+  /// Whether provider configuration, identity, and credential retention are unchanged.
   bool get isCurrent => SurfaceAssignmentKeyProvider._isLeaseCurrent(this);
 }
 

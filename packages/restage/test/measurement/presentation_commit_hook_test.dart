@@ -1,6 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage/src/measurement/presentation_attempt_summary.dart';
 import 'package:restage/src/measurement/presentation_commit.dart';
 import 'package:restage/src/measurement/measurement_runtime_capture.dart';
 import 'package:restage/src/runtime/error_boundary.dart';
@@ -315,6 +316,74 @@ void main() {
     await tester.pump();
 
     expect(sink.facts, isEmpty);
+  });
+
+  testWidgets('two mounted roots on one handle report many presentations', (
+    tester,
+  ) async {
+    final sink = _RecordingSink();
+    final observer = MeasurementPresentationAttemptObserver();
+    final routeHandle = MeasurementPresentationRouteHandle.open(
+      publishedSurfaceRevision: _publishedRevision('two-roots'),
+      captureSink: sink,
+      observer: observer,
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Column(
+          children: [
+            MeasurementPresentationCommitHook(
+              routeHandle: routeHandle,
+              child: const SizedBox.square(dimension: 20),
+            ),
+            MeasurementPresentationCommitHook(
+              routeHandle: routeHandle,
+              child: const SizedBox.square(dimension: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(
+      observer.summarise().rootPresentationReports,
+      MeasurementRootPresentationReportsV1.many,
+    );
+    expect(sink.facts, hasLength(1));
+  });
+
+  testWidgets('a repainted single root still reports one presentation', (
+    tester,
+  ) async {
+    final sink = _RecordingSink();
+    final observer = MeasurementPresentationAttemptObserver();
+    final routeHandle = MeasurementPresentationRouteHandle.open(
+      publishedSurfaceRevision: _publishedRevision('repaint'),
+      captureSink: sink,
+      observer: observer,
+    );
+
+    await tester.pumpWidget(
+      _host(
+        routeHandle: routeHandle,
+        child: const SizedBox.square(dimension: 20),
+      ),
+    );
+    await tester.pumpWidget(
+      _host(
+        routeHandle: routeHandle,
+        child: const SizedBox.square(dimension: 30),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      observer.summarise().rootPresentationReports,
+      MeasurementRootPresentationReportsV1.one,
+    );
+    expect(sink.facts, hasLength(1));
   });
 }
 

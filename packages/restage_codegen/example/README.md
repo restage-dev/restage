@@ -60,8 +60,12 @@ dart run build_runner build
 `restage_codegen` runs as a `build_runner` builder (wired through `build.yaml`):
 it analyzes the annotated source, decomposes structured Flutter types (text
 styles, paddings, gradients, borders) against the widget catalog, and writes a
-small `.rfw` blob as generated output. Commit the generated output your app
-bundles: it carries only inert references and literal values.
+small `.rfw` artifact as generated output. Commit the generated output your
+app bundles.
+
+What ships is data the app renders. Your widgets carry the logic — real Dart,
+compiled into your app. The surface composes and configures them over the air.
+New behavior is a release.
 
 ## What it produces
 

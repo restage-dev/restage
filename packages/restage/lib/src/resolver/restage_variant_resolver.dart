@@ -8,6 +8,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        CanonicalSurfaceExperimentAssignmentV1,
+        SurfaceRoutingSelectionProvenanceV1,
         BlobRenderCapabilityGate,
         BlobRenderRejected,
         BlobSurfacePayload,
@@ -17,7 +19,6 @@ import 'package:restage_shared/restage_shared.dart'
         FlowDocumentCodec,
         FlowDocumentValidation,
         FlowSurfacePayload,
-        InstalledCapability,
         LibraryRequirement,
         SurfaceDocument,
         Surface;
@@ -30,6 +31,7 @@ import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/paywall_error.dart';
 import 'asset_variant_resolver.dart';
@@ -38,6 +40,8 @@ import 'flow_paywall_active_arm.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
 import 'surface_assignment_key_provider.dart';
+import 'surface_resolution_report.dart';
+import 'report_surface_resolution.dart';
 import 'variant_resolver.dart';
 
 /// Resolves paywalls from Restage-hosted delivery.
@@ -147,7 +151,11 @@ final class RestageVariantResolver
     if (fresh is _FreshBlob) {
       _requireCurrent(fresh.cacheEntry.assignmentLease);
       _cache[id] = fresh.cacheEntry;
-      return fresh.cacheEntry.variant;
+      return reportSurfaceResolution<ResolvedVariant>(
+        id,
+        fresh.cacheEntry.variant,
+        SurfaceResolutionSource.fresh,
+      );
     }
 
     // Tier 2 — hold-last-good (blob-only on the public path). Re-run the
@@ -157,16 +165,22 @@ final class RestageVariantResolver
     if (cached is _CachedBlob &&
         _cacheLeaseIsCurrent(id, cached) &&
         _cacheStillRenderable(cached)) {
-      return _asCacheHit(cached.variant);
+      return reportSurfaceResolution<ResolvedVariant>(
+        id,
+        _asCacheHit(cached.variant),
+        SurfaceResolutionSource.holdLastGood,
+      );
     }
 
     // Tier 3 — the dev's bundled asset (app-bundle-trusted, durable floor).
     try {
-      return await _assetFallback.resolve(
+      final variant = await _assetFallback.resolve(
         id,
         placementId: placementId,
         locale: locale,
       );
+      return reportSurfaceResolution<ResolvedVariant>(
+          id, variant, SurfaceResolutionSource.bundled);
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Surface the hosted-unavailable
       // error (more informative than the bundled-asset-not-found): the
@@ -174,6 +188,19 @@ final class RestageVariantResolver
       // version was rejected for a capability gap, name it.
       throw _unavailable(id, _capabilityGapOf(fresh));
     }
+  }
+
+  T _reportPayloadResolution<T extends ResolvedPaywallPayload>(
+    String surface,
+    T payload,
+    SurfaceResolutionSource source,
+  ) {
+    final leaf = switch (payload) {
+      BlobPaywallPayload(:final variant) => variant,
+      FlowPaywallPayload(:final flow) => flow,
+    };
+    reportSurfaceResolution(surface, leaf, source);
+    return payload;
   }
 
   // Internal flow-capable seam (the [FlowCapableVariantResolver] override) — not
@@ -270,10 +297,14 @@ final class RestageVariantResolver
       if (!deferFreshPublication) {
         _cache[id] = fresh.cacheEntry;
       }
-      return fresh.payload(
-        hostedPublication: deferFreshPublication
-            ? _provisionalPublication(id, fresh.cacheEntry)
-            : null,
+      return _reportPayloadResolution(
+        id,
+        fresh.payload(
+          hostedPublication: deferFreshPublication
+              ? _provisionalPublication(id, fresh.cacheEntry)
+              : null,
+        ),
+        SurfaceResolutionSource.fresh,
       );
     }
 
@@ -302,6 +333,9 @@ final class RestageVariantResolver
         paywallId: id,
         activeVersion: fresh.version,
         publicationBindingReference: fresh.publicationBindingReference,
+        canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
+        routingSelectionReceipt: fresh.routingSelectionReceipt,
+        routingSelectionProvenance: fresh.routingSelectionProvenance,
       );
       if (arm is FlowPaywallActiveAccepted) {
         _requireCurrent(fresh.assignmentLease);
@@ -309,17 +343,24 @@ final class RestageVariantResolver
           activePayload: fresh.activePayload,
           version: fresh.version,
           publicationBindingReference: fresh.publicationBindingReference,
+          canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
+          routingSelectionReceipt: fresh.routingSelectionReceipt,
+          routingSelectionProvenance: fresh.routingSelectionProvenance,
           assignmentLease: fresh.assignmentLease,
         );
         if (!deferFreshPublication) {
           _cache[id] = cacheEntry;
         }
-        return stampFlowPayloadForDelivery(
-          arm.payload,
-          fresh.assignmentLease,
-          hostedPublication: deferFreshPublication
-              ? _provisionalPublication(id, cacheEntry)
-              : null,
+        return _reportPayloadResolution(
+          id,
+          stampFlowPayloadForDelivery(
+            arm.payload,
+            fresh.assignmentLease,
+            hostedPublication: deferFreshPublication
+                ? _provisionalPublication(id, cacheEntry)
+                : null,
+          ),
+          SurfaceResolutionSource.fresh,
         );
       }
     }
@@ -327,25 +368,45 @@ final class RestageVariantResolver
     // Tier 2 — hold-last-good (shape-aware): a cached blob re-floored, or a
     // cached active flow re-gated against the CURRENT bundled contract + registry.
     final regated = _revalidateCache(id, bundled);
-    if (regated != null) return regated;
+    if (regated != null) {
+      return _reportPayloadResolution(
+        id,
+        regated,
+        SurfaceResolutionSource.holdLastGood,
+      );
+    }
 
     // Tier 3 — the client's own bundled flow (already loaded), else the bundled
     // asset fallback (a blob or bundled flow; custom host resolvers stay
     // blob-only).
-    if (bundled != null) return bundled;
+    if (bundled != null) {
+      return _reportPayloadResolution(
+        id,
+        bundled,
+        SurfaceResolutionSource.bundled,
+      );
+    }
     try {
       final fallback = _assetFallback;
       if (fallback is FlowCapableVariantResolver) {
         final payload = await (fallback as FlowCapableVariantResolver)
             .resolvePayload(id, placementId: placementId, locale: locale);
-        return withoutAssignmentLeaseForDelivery(payload);
+        return _reportPayloadResolution(
+          id,
+          withoutAssignmentLeaseForDelivery(payload),
+          SurfaceResolutionSource.bundled,
+        );
       }
       final variant = await fallback.resolve(
         id,
         placementId: placementId,
         locale: locale,
       );
-      return BlobPaywallPayload(variant);
+      return _reportPayloadResolution(
+        id,
+        BlobPaywallPayload(variant),
+        SurfaceResolutionSource.bundled,
+      );
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Keep the public hosted resolver's
       // existing unavailable error shape; name the capability gap when the
@@ -381,39 +442,19 @@ final class RestageVariantResolver
     // The client contract (built-in catalog version + installed libraries) the
     // server resolves eligibility against; its content hash is byte-identical
     // to the server's, so a verdict is identity by construction.
-    final installed = InstalledCapability(
-      builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-      installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-    );
+    final installed = currentInstalledCapability();
     final assignmentLease = await SurfaceAssignmentKeyProvider.captureLease();
     _requireCurrent(assignmentLease);
 
-    var result = await client.fetchSurface(
+    final result = await client.fetchSurface(
       surfaceType: Surface.paywall.wireName,
       surfaceSlug: id,
       assignmentKey: assignmentLease.assignmentKey,
-      contractHash: installed.contentHash,
       // version omitted → the delivery service's active-version arm.
     );
     _requireCurrent(assignmentLease);
     if (result == null) {
       return const _FreshRejected(); // transport failure
-    }
-    if (result.contractRequired) {
-      // Upload-on-miss: the server has no cached contract for this hash. Retry
-      // ONCE with the full contract attached. A second consecutive
-      // contractRequired is treated as a fetch failure — never loop.
-      result = await client.fetchSurface(
-        surfaceType: Surface.paywall.wireName,
-        surfaceSlug: id,
-        assignmentKey: assignmentLease.assignmentKey,
-        contractHash: installed.contentHash,
-        contract: installed,
-      );
-      _requireCurrent(assignmentLease);
-      if (result == null || result.contractRequired) {
-        return const _FreshRejected();
-      }
     }
 
     // Both artifact refusals land on the same rung they always have: a hosted
@@ -470,6 +511,9 @@ final class RestageVariantResolver
           paywallPublishedVersion: document.version,
         ),
         result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       );
       return _FreshBlob(
         _CachedBlob(
@@ -489,6 +533,9 @@ final class RestageVariantResolver
         payload,
         document.version,
         result.publicationBindingReference,
+        result.canonicalExperimentAssignment,
+        result.routingSelectionReceipt,
+        result.routingSelectionProvenance,
         assignmentLease,
       );
     }
@@ -547,6 +594,9 @@ final class RestageVariantResolver
         paywallId: id,
         activeVersion: cached.version,
         publicationBindingReference: cached.publicationBindingReference,
+        canonicalExperimentAssignment: cached.canonicalExperimentAssignment,
+        routingSelectionReceipt: cached.routingSelectionReceipt,
+        routingSelectionProvenance: cached.routingSelectionProvenance,
         cacheHit: true,
       );
       if (arm is FlowPaywallActiveAccepted) {
@@ -590,6 +640,10 @@ final class RestageVariantResolver
       attachMeasurementPublicationBindingReference(
         variant.copyWith(cacheHit: true),
         measurementPublicationBindingReferenceFor(variant),
+        canonicalExperimentAssignment:
+            measurementExperimentAssignmentFor(variant),
+        routingSelectionReceipt: routingSelectionReceiptFor(variant),
+        routingSelectionProvenance: routingSelectionProvenanceFor(variant),
       );
 
   RestagePaywallError _unavailable(
@@ -687,12 +741,16 @@ final class _RestagePaywallExperimentPresentation
               paywallPublishedVersion: fresh.paywallPublishedVersion,
             );
             _provisional = provisional;
-            return FlowPaywallPayload.experiment(
-              acceptedCandidate: prefetched,
-              paywallId: paywallId,
-              paywallPublishedVersion: fresh.paywallPublishedVersion,
-              resolvedFromActiveArm: true,
-              experimentAuthority: this,
+            return owner._reportPayloadResolution(
+              paywallId,
+              FlowPaywallPayload.experiment(
+                acceptedCandidate: prefetched,
+                paywallId: paywallId,
+                paywallPublishedVersion: fresh.paywallPublishedVersion,
+                resolvedFromActiveArm: true,
+                experimentAuthority: this,
+              ),
+              SurfaceResolutionSource.fresh,
             );
           }
           if (prefetched is FlowCandidatePrefetchRejected &&
@@ -706,12 +764,16 @@ final class _RestagePaywallExperimentPresentation
           if (held.matches(snapshot) &&
               revalidate(FlowMountRevalidationBoundary.fallback)) {
             final accepted = held.accepted.asCacheHit();
-            return FlowPaywallPayload.experiment(
-              acceptedCandidate: accepted,
-              paywallId: paywallId,
-              paywallPublishedVersion: held.paywallPublishedVersion,
-              resolvedFromActiveArm: true,
-              experimentAuthority: this,
+            return owner._reportPayloadResolution(
+              paywallId,
+              FlowPaywallPayload.experiment(
+                acceptedCandidate: accepted,
+                paywallId: paywallId,
+                paywallPublishedVersion: held.paywallPublishedVersion,
+                resolvedFromActiveArm: true,
+                experimentAuthority: this,
+              ),
+              SurfaceResolutionSource.holdLastGood,
             );
           }
           owner._experimentFlowCache.remove(paywallId);
@@ -720,11 +782,15 @@ final class _RestagePaywallExperimentPresentation
         if (!revalidate(FlowMountRevalidationBoundary.fallback)) {
           throw const StaleSurfaceAssignmentResolution();
         }
-        return FlowPaywallPayload.experimentBaseline(
-          flow: snapshot.baselineRoot,
-          pinnedFlowResolver: snapshot.baselineResolver,
-          paywallId: paywallId,
-          experimentAuthority: this,
+        return owner._reportPayloadResolution(
+          paywallId,
+          FlowPaywallPayload.experimentBaseline(
+            flow: snapshot.baselineRoot,
+            pinnedFlowResolver: snapshot.baselineResolver,
+            paywallId: paywallId,
+            experimentAuthority: this,
+          ),
+          SurfaceResolutionSource.bundled,
         );
       } on StaleSurfaceAssignmentResolution {
         if (_disposed || !presentationGuard()) rethrow;
@@ -733,10 +799,14 @@ final class _RestagePaywallExperimentPresentation
 
     if (!presentationGuard()) throw const StaleSurfaceAssignmentResolution();
     disposePresentation();
-    return FlowPaywallPayload.experimentBaseline(
-      flow: baseline.root,
-      pinnedFlowResolver: baseline,
-      paywallId: paywallId,
+    return owner._reportPayloadResolution(
+      paywallId,
+      FlowPaywallPayload.experimentBaseline(
+        flow: baseline.root,
+        pinnedFlowResolver: baseline,
+        paywallId: paywallId,
+      ),
+      SurfaceResolutionSource.bundled,
     );
   }
 
@@ -763,33 +833,12 @@ final class _RestagePaywallExperimentPresentation
     FlowMountContractSnapshot snapshot,
   ) async {
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
-    var result = await _fetchSurface(
+    final result = await _fetchSurface(
       snapshot: snapshot,
       boundary: FlowMountRevalidationBoundary.request,
-      flowContract: FlowContractFetchRequest.hashOnly(
-        snapshot.contentHash.value,
-      ),
     );
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
     if (result == null) return null;
-
-    if (result.flowContractRequired) {
-      final bytes = snapshot.bytesForRetry(
-        FlowMountRevalidationBoundary.uploadRetry,
-        _captureCurrentSeed(),
-      );
-      if (bytes == null) throw const StaleSurfaceAssignmentResolution();
-      result = await _fetchSurface(
-        snapshot: snapshot,
-        boundary: FlowMountRevalidationBoundary.uploadRetry,
-        flowContract: FlowContractFetchRequest.retry(
-          snapshot.contentHash.value,
-          bytes,
-        ),
-      );
-      _requireCurrent(snapshot, FlowMountRevalidationBoundary.uploadRetry);
-      if (result == null || result.flowContractRequired) return null;
-    }
 
     final decoded = _decodeHostedFlow(
       result,
@@ -809,6 +858,9 @@ final class _RestagePaywallExperimentPresentation
           cacheHit: false,
         ),
         result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -821,14 +873,12 @@ final class _RestagePaywallExperimentPresentation
   Future<SurfaceFetchResult?> _fetchSurface({
     required FlowMountContractSnapshot snapshot,
     required FlowMountRevalidationBoundary boundary,
-    required FlowContractFetchRequest flowContract,
   }) async {
     try {
       return await owner._client!.fetchSurface(
         surfaceType: Surface.paywall.wireName,
         surfaceSlug: paywallId,
         assignmentKey: snapshot.assignmentKey,
-        flowContract: flowContract,
         publicationGuard: () => _snapshotIsCurrent(snapshot, boundary),
       );
     } on SurfaceRequestPublicationRejected {
@@ -897,6 +947,9 @@ final class _RestagePaywallExperimentPresentation
           cacheHit: false,
         ),
         result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -1005,14 +1058,6 @@ final class _RestagePaywallExperimentPresentation
     abandonHostedLastGood();
   }
 
-  FlowMountLeaseSeed _captureCurrentSeed() {
-    try {
-      return captureSeed();
-    } on Object {
-      throw const StaleSurfaceAssignmentResolution();
-    }
-  }
-
   bool _snapshotIsCurrent(
     FlowMountContractSnapshot snapshot,
     FlowMountRevalidationBoundary boundary,
@@ -1106,12 +1151,18 @@ final class _FreshFlow extends _FreshOutcome {
     this.activePayload,
     this.version,
     this.publicationBindingReference,
+    this.canonicalExperimentAssignment,
+    this.routingSelectionReceipt,
+    this.routingSelectionProvenance,
     this.assignmentLease,
   );
 
   final FlowSurfacePayload activePayload;
   final int version;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+  final String? routingSelectionReceipt;
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
   final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
@@ -1152,6 +1203,9 @@ final class _CachedFlow extends _CachedPayload {
     required this.activePayload,
     required this.version,
     required this.publicationBindingReference,
+    required this.canonicalExperimentAssignment,
+    required this.routingSelectionReceipt,
+    required this.routingSelectionProvenance,
     required super.assignmentLease,
   });
 
@@ -1162,6 +1216,9 @@ final class _CachedFlow extends _CachedPayload {
   final FlowSurfacePayload activePayload;
   final int version;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+  final String? routingSelectionReceipt;
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
 }
 
 /// Adds the exact assignment/publication transaction to a flow payload.
@@ -1190,13 +1247,13 @@ ResolvedPaywallPayload withoutAssignmentLeaseForDelivery(
       FlowPaywallPayload() => payload.copyForDelivery(assignmentLease: null),
     };
 
-/// Environment hint passed to `Restage.configure` and [RestageVariantResolver].
+/// Local environment hint passed to `Restage.configure` and resolvers.
+/// Hosted authorization and metering use the environment bound to the API key;
+/// this hint and the key's readable environment label do not select it.
 enum RestageEnvironment {
-  /// Sandbox environment — paired with `rs_pk_test_…` API keys. Test
-  /// delivery stays isolated from production; events are not metered.
+  /// Sandbox hint, commonly used with `rs_pk_dev_…` keys.
   sandbox,
 
-  /// Production environment — paired with `rs_pk_live_…` API keys. Events are
-  /// metered for billing.
+  /// Production hint, commonly used with `rs_pk_prod_…` keys.
   production,
 }

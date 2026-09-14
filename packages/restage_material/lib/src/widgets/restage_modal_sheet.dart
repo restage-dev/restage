@@ -11,17 +11,15 @@ import 'package:flutter/material.dart';
 enum RestageSheetPresentation { adaptive, material, cupertino }
 
 /// A modal bottom sheet that slides up over a scrim and can be dismissed
-/// by dragging it down or tapping the scrim — expressed as a purely
-/// declarative surface.
+/// by dragging it down or tapping the scrim.
 ///
 /// Visibility is driven by [open]: flip it to `true` and the sheet slides
 /// in over a fading scrim; flip it to `false` (or let a drag / scrim-tap
 /// fire [onSheetDismissed], which the caller wires back to `open = false`)
 /// and it slides back out. The drag-to-dismiss gesture, the slide
-/// animation, and the scrim all live inside this compiled widget; a
-/// declarative composition supplies only the inert values (the open flag,
-/// the styling) and the [child], and names the [onSheetDismissed] event —
-/// never gesture or animation code.
+/// animation, and the scrim all live inside this widget, compiled into your
+/// app. The surface configures the open flag, styling and [child], and binds
+/// the [onSheetDismissed] event.
 ///
 /// Unlike Flutter's imperative `showModalBottomSheet`, this is an ordinary
 /// widget in the tree: it owns its own animation controller and renders

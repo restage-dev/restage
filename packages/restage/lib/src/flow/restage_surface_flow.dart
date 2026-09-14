@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
+
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 
-import '../analytics/render_event_privacy.dart';
+import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart';
 import '../events/restage_event.dart'
@@ -16,12 +19,19 @@ import '../events/restage_event.dart'
         RestageEvent;
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show
+        SurfaceDeliveryObservationCell,
+        readSurfaceDeliveryObservations,
+        requestingViewShortestLogicalSide,
+        withSurfaceDeliveryObservations;
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
 import '../runtime/context_data.dart';
 import '../runtime/first_paint_lease_guard.dart';
 import '../runtime/restage.dart';
+import 'compiled_flow.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_mount.dart';
@@ -75,11 +85,12 @@ enum _FlowUnavailablePolicyKind { fallback, hide }
 /// Loads a generated [SurfaceFlowRef], resolves its pinned artifacts, runs
 /// typed app-owned actions when declared, and calls [onComplete] only after the
 /// terminal result has been filtered and decoded.
-final class RestageFlowGraph<R> extends StatefulWidget {
+class RestageFlowGraph<R> extends StatefulWidget {
   /// Creates a flow surface.
   const RestageFlowGraph({
     super.key,
     required this.flow,
+    this.screenBuilders = const {},
     this.initialState,
     required this.unavailable,
     this.actions,
@@ -96,6 +107,11 @@ final class RestageFlowGraph<R> extends StatefulWidget {
 
   /// Generated flow descriptor to load.
   final SurfaceFlowRef<R> flow;
+
+  /// App-owned native constructors captured when the flow starts.
+  /// Rebuilding with new builders does not restart a running flow. Remount
+  /// with a new key to apply a new set, as with [initialState].
+  final Map<String, CompiledFlowScreenBuilder> screenBuilders;
 
   /// Optional host-supplied initial flow-state values.
   ///
@@ -174,11 +190,13 @@ final class RestageFlowGraph<R> extends StatefulWidget {
 class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   static const int _maxHostedIdentityAttempts = 3;
 
+  SurfaceDeliveryObservationCell? _observationCell;
   RestageFlowController<R>? _controller;
   FirstPaintLeaseTransaction? _transaction;
   RootAnalyticsPresentation? _presentation;
   final Set<RestageFlowController<R>> _ownedControllers =
       <RestageFlowController<R>>{};
+  final Set<RestageFlowController<R>> _terminalMeasurementControllers = {};
   final Map<RestageFlowController<R>, MeasurementHostSessionController>
       _measurementSessions =
       <RestageFlowController<R>, MeasurementHostSessionController>{};
@@ -375,7 +393,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     };
     _pendingReadinessListener = readinessListener;
     pending.addListener(readinessListener);
-    unawaited(pending.load());
+    unawaited(_loadPendingInScope(pending));
   }
 
   void _promotePending(RestageFlowController<R> pending) {
@@ -544,8 +562,29 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           ? second == null
           : second != null && setEquals(first, second);
 
+  SurfaceDeliveryObservationCell _presentationObservations() =>
+      _observationCell ??= SurfaceDeliveryObservationCell(
+        () => readSurfaceDeliveryObservations(
+          shortestLogicalSide:
+              mounted ? requestingViewShortestLogicalSide(context) : null,
+        ),
+      );
+
+  Future<void> _loadInScope(RestageFlowController<R> controller) =>
+      withSurfaceDeliveryObservations(
+        cell: _presentationObservations(),
+        resolve: controller.load,
+      );
+
+  Future<void> _loadPendingInScope(RestageFlowController<R> controller) async {
+    if (!mounted) return;
+    await _loadInScope(controller);
+  }
+
   void _start({bool identityRetry = false}) {
+    // An identity retry is the same presentation, so it keeps its device reading.
     if (!identityRetry) {
+      _observationCell = null;
       _rejectedHostedIdentityAttempts = 0;
       _forceUnassignedFallback = false;
     }
@@ -609,7 +648,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _controller = controller;
     _transaction = transaction;
     _presentation = presentation;
-    unawaited(controller.load());
+    unawaited(_loadInScope(controller));
   }
 
   bool _shouldConvertUnstableInitialHostedFailure(
@@ -629,6 +668,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     required void Function(R result) onComplete,
     required void Function(FlowUnavailableError error) onUnavailable,
   }) {
+    final boundFlow = widget.screenBuilders.isEmpty
+        ? widget.flow
+        : widget.flow.withScreenBuilders(widget.screenBuilders);
     final configuredResolver = widget.resolver ?? Restage.defaultFlowResolver;
     final FlowResolver resolver;
     final experimentFactory = configuredResolver is FlowExperimentMountFactory
@@ -639,12 +681,12 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       resolver = experimentFactory!.createUnassignedFallbackResolver();
     } else if (experimentFactory?.experimentMountsEnabled ?? false) {
       final seedSource = FlowMountRuntimeSeedSource(
-        flow: widget.flow,
+        flow: boundFlow,
         actions: widget.actions,
         installedSignalNames: widget.installedSignalNames,
       );
       resolver = experimentFactory!.createExperimentPresentation(
-        flow: widget.flow,
+        flow: boundFlow,
         captureSeed: seedSource.capture,
       );
     } else {
@@ -652,7 +694,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     }
     late final RestageFlowController<R> controller;
     controller = createHostMeasurementFlowController<R>(
-      flow: widget.flow,
+      flow: boundFlow,
       resolver: resolver,
       initialState: widget.initialState,
       actions: widget.actions,
@@ -660,6 +702,27 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       onEvent: onEvent,
       onComplete: onComplete,
       onUnavailable: onUnavailable,
+      onMeasurementAnswer: (questionId, value) =>
+          _measurementSessions[controller]?.recordAnswer(questionId, value),
+      onMeasurementLifecycle: (channel, screenId) {
+        if (channel == MeasurementOccurrenceChannelV1.completion) {
+          _terminalMeasurementControllers.add(controller);
+        } else if (channel == MeasurementOccurrenceChannelV1.skip) {
+          // Suppress dismissal when this skip closes the host in its next
+          // frame. A skip that leaves the flow mounted is not a root terminal.
+          _terminalMeasurementControllers.add(controller);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!controller.isComplete) {
+              _terminalMeasurementControllers.remove(controller);
+            }
+          });
+          WidgetsBinding.instance.ensureVisualUpdate();
+        } else if (channel == MeasurementOccurrenceChannelV1.presentation) {
+          _terminalMeasurementControllers.remove(controller);
+        }
+        _measurementSessions[controller]
+            ?.recordLifecycle(channel, screenId: screenId);
+      },
       onRootResolved: (resolved) =>
           _openMeasurementSessionForResolvedRoot(controller, resolved),
       sanitizeAndRecordEvent: (rawValue) =>
@@ -863,6 +926,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final session =
         await MeasurementHostSessionController.openForResolvedArtifact(
       resolvedOrPayload,
+      presentationObservations: _observationCell?.read,
     );
     if (!_ownedControllers.contains(controller)) {
       unawaited(session.teardown());
@@ -909,8 +973,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     if (!identical(_controller, controller)) return;
     final owner = currentSurfaceEventDispatcherOwner;
     if (owner == null) return;
-    final hasRegistration =
-        RestageFlowRenderEventPrivacyRegistry.hasRegistration(
+    final hasRegistration = RestageFlowEventDispatchRegistry.hasRegistration(
       controller: controller,
       owner: owner,
     );
@@ -941,9 +1004,21 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 
   @override
   void dispose() {
+    final controller = _controller;
+    if (controller != null &&
+        identical(controller, _activeMeasurementController) &&
+        controller.hasRenderedContent &&
+        !controller.isUnavailable &&
+        !controller.isComplete &&
+        !_terminalMeasurementControllers.contains(controller)) {
+      _measurementSessions[controller]
+          ?.recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+    }
+    _terminalMeasurementControllers.clear();
     _unregisterRefreshHandle();
     _disposePending();
     _disposeController();
+    _observationCell = null;
     super.dispose();
   }
 

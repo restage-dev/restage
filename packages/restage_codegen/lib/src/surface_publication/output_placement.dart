@@ -138,11 +138,12 @@ final class RestageOutputPlacementPlan {
       rejectHiddenSegments: true,
     );
     final outputRoot = _parseRoot(
-      config['output_root'],
-      optionName: 'output_root',
-      requireUnderLib: false,
-      rejectHiddenSegments: false,
-    );
+          config['output_root'],
+          optionName: 'output_root',
+          requireUnderLib: false,
+          rejectHiddenSegments: false,
+        ) ??
+        '.restage/build';
     return RestageOutputPlacementPlan._(
       sourceOutputLayout: layout,
       inspectionReport: inspectionReport,
@@ -153,7 +154,7 @@ final class RestageOutputPlacementPlan {
   }
 
   /// The plan an unconfigured package resolves: the default source layout
-  /// with no configured roots and no inspection report.
+  /// with portable artifacts under `.restage/build` and no inspection report.
   ///
   /// Shared by every caller that has no [BuilderOptions] of its own to
   /// resolve. A plan is immutable and depends on nothing outside its options,
@@ -175,14 +176,13 @@ final class RestageOutputPlacementPlan {
   /// Restage-owned generated Dart, or `null` if not configured.
   final String? dartOutputRoot;
 
-  /// The package-relative root for portable tooling output, or `null` if not
-  /// configured.
+  /// The package-relative root for portable tooling output.
+  /// Defaults to `.restage/build`.
   final String? outputRoot;
 
   /// The resolved physical root recorded by the generated output index.
   ///
-  /// This is [outputRoot] when configured, or `.` (the package root) for the
-  /// default in-tree placement.
+  /// This is the configured [outputRoot] or the default `.restage/build`.
   String get physicalRoot => outputRoot ?? '.';
 
   /// The package-wide physical output index path.
@@ -199,6 +199,10 @@ final class RestageOutputPlacementPlan {
   /// The package-wide current-label metadata path.
   String get analyticsIdMetadataPath =>
       _packageWidePath(kRestageAnalyticsIdMetadataFileName);
+
+  /// The generated custom widget catalog consumed by build tooling.
+  String get customCatalogPath =>
+      p.posix.join(outputRoot!, 'widget_catalog', 'catalog.json');
 
   /// The package-wide producer-facing A2UI catalog document path.
   String get a2uiCatalogPath => _packageWidePath(_kA2uiCatalogFileName);
@@ -240,6 +244,7 @@ final class RestageOutputPlacementPlan {
       publicationManifestPath,
       measurementOutputIndexPath,
       analyticsIdMetadataPath,
+      customCatalogPath,
     ];
     return extensions;
   }

@@ -5,7 +5,7 @@ import '../screens/starter_bare_surface.dart';
 part 'restage.generated/bare_surface.restage.g.dart';
 
 /// The smallest flow-backed surface: one screen and no terminal result.
-@FlowGraph(surface: Surface.onboarding)
+@FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class BareSurfaceFlow extends RestageFlow {
   /// Const constructor.
   const BareSurfaceFlow();

@@ -39,16 +39,36 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 7269,
         sha256:
-            "sha256:9599731c37091dc1d77545c2f83a86e197ea58901c2a466c1567ecdd205038dd",
+            "sha256:cea6190c06bd71cd2ab1f7e68e61beac60e249aad32276526c59561a06077162",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/general/screens/starter_checklist.capability.json",
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:3d98c8f31bae841b9ad2e0339f79081e9df83df0c5b7c2de423c1dedec003dd9",
+            "sha256:e8c34050543ff0f507ac8393b97a81b932c8c3f0dcb8b1aeea68022bbc4079fe",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'Padding': buildPadding,
+        'Row': buildRow,
+        'SafeArea': buildSafeArea,
+        'SizedBox': buildSizedBox,
+        'Text': buildText,
+        'TextRich': buildTextRich,
+      },
+      material: {
+        'AppBar': buildAppBar,
+        'InkWell': buildInkWell,
+        'Scaffold': buildScaffold,
+      },
+    ),
   ),
 );
 
@@ -57,7 +77,7 @@ final starterChecklistRef = SurfaceScreenRef<
   provenance: _starterChecklistProvenance,
   eventContract: _starterChecklistEvents,
   measurementPublicationDraftDigest:
-      "72c49fc7f3f51619b903f932c62be98644425140e3313112094e29513d28c690",
+      "4c731f33e7a3c3961194d572a7ec5f930182ffb49b6c0235ae533274324be873",
 );
 
 StarterChecklistEvent _decodeValidatedStarterChecklistEvent(

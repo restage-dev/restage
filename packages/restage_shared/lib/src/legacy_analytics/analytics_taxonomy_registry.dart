@@ -110,6 +110,7 @@ final Map<String, AnalyticsEventSpec> kAnalyticsRegistry =
   // registry's tolerance of unknown names — a keep-all signal should be
   // declared where sampling is decided, not inferred.
   kSurfaceArtifactFetchFailedEventName: _tier1,
+  'surface_delivery_rate_limited': _tier1,
 
   // --- Tier 1: engagement-flow lifecycle (surface-agnostic) ---
   'flow_started': _tier1,

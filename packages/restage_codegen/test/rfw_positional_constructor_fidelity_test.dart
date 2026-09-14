@@ -94,15 +94,15 @@ void main() {
     expect(
       nullableFlat,
       contains(
-        "regions: source.isList(<Object>['regions']) ? "
-        "source.childList(<Object>['regions']) : null,",
+        "regions: source.isList(const <Object>['regions']) ? "
+        "source.childList(const <Object>['regions']) : null,",
       ),
       reason: 'missing and explicit-null inputs must remain null, while both '
           'empty and non-empty authored lists must retain childList lowering',
     );
     expect(
       nullable,
-      isNot(contains("regions: source.childList(<Object>['regions'])")),
+      isNot(contains("regions: source.childList(const <Object>['regions'])")),
       reason: 'the direct childList read collapses missing/null to an empty '
           'list',
     );

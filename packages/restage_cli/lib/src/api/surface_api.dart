@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -66,7 +66,7 @@ class SurfaceApi {
       'organizationId': ?organizationId,
       'appId': ?appId,
     });
-    return _decodeByteDataWire(raw as String);
+    return _surfaceBytes(raw);
   }
 
   /// Return the active published version of (project, app, surfaceType,
@@ -120,11 +120,7 @@ class SurfaceApi {
       'appSlug': app,
       'surfaceType': surfaceType.wireName,
       'surfaceSlug': surfaceSlug,
-      // Wire format for `ByteData` arguments: a literal string of the
-      // form `decode('<base64>', 'base64')`. The server strips the
-      // prefix/suffix and base64-decodes back into a `ByteData`. Must
-      // match exactly — the server does not accept a bare base64 value.
-      'bytes': "decode('${base64Encode(bytes)}', 'base64')",
+      'bytes': encodeByteDataWire(bytes),
       'organizationId': ?organizationId,
       'appId': ?appId,
     });
@@ -497,18 +493,7 @@ class SurfaceApi {
   }
 }
 
-/// Decode the wire form of a returned `ByteData`
-/// (`decode('<base64>', 'base64')`) back into bytes.
-///
-/// Tolerates a bare base64 string if the wire form ever changes; an
-/// unparseable value throws from [base64Decode] and surfaces to the caller.
-Uint8List _decodeByteDataWire(String wire) {
-  const prefix = "decode('";
-  const suffix = "', 'base64')";
-  if (wire.startsWith(prefix) && wire.endsWith(suffix)) {
-    return base64Decode(
-      wire.substring(prefix.length, wire.length - suffix.length),
-    );
-  }
-  return base64Decode(wire);
-}
+Uint8List _surfaceBytes(Object? raw) => decodeByteDataWire(
+  raw,
+  malformed: (detail) => FormatException('The surface reply $detail'),
+);

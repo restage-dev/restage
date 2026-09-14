@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 /// Version of the closed primitive/typed-data worker protocol.
 const int kMeasurementWorkerProtocolVersion = 1;
@@ -35,7 +36,12 @@ enum MeasurementWorkerAppendValue {
   presentation(1),
 
   /// One interaction was observed for an already precomputed point route.
-  interaction(2);
+  interaction(2),
+
+  /// Explicit published lifecycle occurrences.
+  completion(3),
+  skip(4),
+  dismiss(5);
 
   const MeasurementWorkerAppendValue(this.wireCode);
 
@@ -106,8 +112,11 @@ final class MeasurementWorkerAppendRecord {
     required this.routeIndex,
     required this.monotonicTimestampMicros,
     required this.value,
+    this.answerValueV1,
   }) {
-    if (routeIndex < 0 ||
+    if ((answerValueV1 != null &&
+            value != MeasurementWorkerAppendValue.interaction) ||
+        routeIndex < 0 ||
         monotonicTimestampMicros < 0 ||
         monotonicTimestampMicros > kMeasurementWorkerMaximumPortableInteger) {
       throw ArgumentError('Invalid compact measurement append record');
@@ -122,6 +131,7 @@ final class MeasurementWorkerAppendRecord {
 
   /// Closed observation value.
   final MeasurementWorkerAppendValue value;
+  final MeasurementAnswerValueV1? answerValueV1;
 }
 
 /// Fixed limits for one worker-owned capture session.
@@ -234,37 +244,101 @@ final class MeasurementWorkerSessionRegistration {
   MeasurementWorkerSessionRegistration({
     required this.sessionId,
     required this.captureSessionNonce,
+    this.sdkRuntimeSessionNonce,
+    this.reportedSdkVersion,
     required List<int> publicationContextCanonicalBytes,
     required List<MeasurementWorkerRouteIdentity> routes,
     required this.limits,
     required this.firstSequence,
-  })  : _publicationContextCanonicalBytes = Uint8List.fromList(
+    List<int>? orderedCaptureCanonicalBytesV1,
+    List<int>? experimentAssignmentCanonicalBytes,
+    List<int>? presentationContextCanonicalBytes,
+    this.routingSelectionReceipt,
+  })  : _orderedCaptureCanonicalBytesV1 = orderedCaptureCanonicalBytesV1 == null
+            ? null
+            : Uint8List.fromList(orderedCaptureCanonicalBytesV1),
+        _presentationContextCanonicalBytes =
+            presentationContextCanonicalBytes == null
+                ? null
+                : Uint8List.fromList(presentationContextCanonicalBytes),
+        _experimentAssignmentCanonicalBytes =
+            experimentAssignmentCanonicalBytes == null
+                ? null
+                : Uint8List.fromList(experimentAssignmentCanonicalBytes),
+        _publicationContextCanonicalBytes = Uint8List.fromList(
           publicationContextCanonicalBytes,
         ),
         routes = List.unmodifiable(routes) {
-    if (!_isOpaqueIdentifier(sessionId) ||
+    if ((sdkRuntimeSessionNonce != null &&
+            !RegExp(r'^[0-9a-f]{64}$').hasMatch(sdkRuntimeSessionNonce!)) ||
+        (reportedSdkVersion != null &&
+            (sdkRuntimeSessionNonce == null ||
+                !RegExp(r'^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$')
+                    .hasMatch(reportedSdkVersion!))) ||
+        (_orderedCaptureCanonicalBytesV1 != null &&
+            (_orderedCaptureCanonicalBytesV1.isEmpty ||
+                _orderedCaptureCanonicalBytesV1.length > 512 * 1024)) ||
+        !_isOpaqueIdentifier(sessionId) ||
         !_isOpaqueIdentifier(captureSessionNonce) ||
         _publicationContextCanonicalBytes.isEmpty ||
         _publicationContextCanonicalBytes.length >
             kMeasurementWorkerMaximumPublicationContextBytes ||
         this.routes.length > kMeasurementWorkerMaximumRouteCount ||
+        (_experimentAssignmentCanonicalBytes != null &&
+            (_experimentAssignmentCanonicalBytes.isEmpty ||
+                _experimentAssignmentCanonicalBytes.length > 8192)) ||
+        (_presentationContextCanonicalBytes != null &&
+            (_presentationContextCanonicalBytes.isEmpty ||
+                _presentationContextCanonicalBytes.length > 8192)) ||
+        (routingSelectionReceipt != null &&
+            (routingSelectionReceipt!.isEmpty ||
+                routingSelectionReceipt!.length > 4096)) ||
         firstSequence <= 0 ||
         firstSequence > kMeasurementWorkerMaximumPortableInteger) {
       throw ArgumentError('Invalid measurement worker session registration');
     }
   }
 
+  final Uint8List? _orderedCaptureCanonicalBytesV1;
+
+  /// Versioned publication admission for ordered occurrences.
+  Uint8List? get orderedCaptureCanonicalBytesV1 =>
+      _orderedCaptureCanonicalBytesV1 == null
+          ? null
+          : Uint8List.fromList(_orderedCaptureCanonicalBytesV1);
+
   /// Opaque capture-session coordinate.
   final String sessionId;
 
   /// Opaque retry nonce, not a subject identity.
   final String captureSessionNonce;
+  final String? sdkRuntimeSessionNonce;
+  final String? reportedSdkVersion;
 
   final Uint8List _publicationContextCanonicalBytes;
 
   /// Exact publication context bytes, defensively copied for callers.
   Uint8List get publicationContextCanonicalBytes =>
       Uint8List.fromList(_publicationContextCanonicalBytes);
+
+  final Uint8List? _presentationContextCanonicalBytes;
+
+  /// Presentation context bytes, defensively copied for worker transfer.
+  Uint8List? get presentationContextCanonicalBytes {
+    final bytes = _presentationContextCanonicalBytes;
+    return bytes == null ? null : Uint8List.fromList(bytes);
+  }
+
+  /// Opaque routing receipt supplied with the delivery.
+  final String? routingSelectionReceipt;
+
+  final Uint8List? _experimentAssignmentCanonicalBytes;
+
+  /// Closed assignment bytes, defensively copied for worker transfer.
+  Uint8List? get experimentAssignmentCanonicalBytes {
+    final bytes = _experimentAssignmentCanonicalBytes;
+    return bytes == null ? null : Uint8List.fromList(bytes);
+  }
 
   /// Immutable precomputed route table identities.
   final List<MeasurementWorkerRouteIdentity> routes;
@@ -282,12 +356,39 @@ final class MeasurementWorkerSessionRegistration {
         [for (final route in routes) route.toWire()],
         limits.toWire(),
         firstSequence,
+        experimentAssignmentCanonicalBytes,
+        orderedCaptureCanonicalBytesV1,
+        sdkRuntimeSessionNonce,
+        reportedSdkVersion,
+        presentationContextCanonicalBytes,
+        routingSelectionReceipt,
       ];
 
   static MeasurementWorkerSessionRegistration fromWire(Object? value) {
-    final values = _requireList(value, expectedLength: 6);
+    final values = _requireList(value);
+    if (values.length != 7 &&
+        values.length != 8 &&
+        values.length != 10 &&
+        values.length != 12)
+      throw ArgumentError('Invalid worker registration length');
     final rawRoutes = _requireList(values[3]);
     return MeasurementWorkerSessionRegistration(
+      presentationContextCanonicalBytes:
+          values.length >= 12 && values[10] != null
+              ? _requireBytes(values[10])
+              : null,
+      routingSelectionReceipt: values.length >= 12 && values[11] != null
+          ? _requireString(values[11])
+          : null,
+      orderedCaptureCanonicalBytesV1: values.length >= 8 && values[7] != null
+          ? _requireBytes(values[7])
+          : null,
+      sdkRuntimeSessionNonce: values.length >= 10 && values[8] != null
+          ? _requireString(values[8])
+          : null,
+      reportedSdkVersion: values.length >= 10 && values[9] != null
+          ? _requireString(values[9])
+          : null,
       sessionId: _requireString(values[0]),
       captureSessionNonce: _requireString(values[1]),
       publicationContextCanonicalBytes: _requireBytes(values[2]),
@@ -297,6 +398,8 @@ final class MeasurementWorkerSessionRegistration {
       ],
       limits: MeasurementWorkerSessionLimits.fromWire(values[4]),
       firstSequence: _requireInt(values[5]),
+      experimentAssignmentCanonicalBytes:
+          values[6] == null ? null : _requireBytes(values[6]),
     );
   }
 }
@@ -679,7 +782,8 @@ abstract interface class MeasurementWorkerRuntimeState {
   /// Releases the worker-owned batch copy after downstream durable ownership.
   Future<MeasurementWorkerReleaseResult> releasePreparedBatch(String batchId);
 
-  /// Finalizes active sessions through ordered barriers and closes the worker.
+  /// Finalizes unassigned sessions and closes the worker.
+  /// Assigned sessions require an explicit teardown with an elapsed sample.
   Future<MeasurementWorkerShutdownResult> shutdown();
 
   /// Test-only crash control used to prove fail-closed propagation.
@@ -690,9 +794,9 @@ abstract interface class MeasurementWorkerRuntimeState {
 abstract interface class MeasurementWorkerSessionState {
   MeasurementWorkerAppendOutcome append(MeasurementWorkerAppendRecord record);
 
-  Future<MeasurementWorkerBatchResult> checkpoint();
+  Future<MeasurementWorkerBatchResult> checkpoint({int? frameElapsedMicros});
 
-  Future<MeasurementWorkerBatchResult> teardown();
+  Future<MeasurementWorkerBatchResult> teardown({int? frameElapsedMicros});
 }
 
 /// Public handle for one worker-owned session.
@@ -711,10 +815,14 @@ final class MeasurementWorkerSession {
       _state.append(record);
 
   /// Orders a nonterminal checkpoint after prior appends.
-  Future<MeasurementWorkerBatchResult> checkpoint() => _state.checkpoint();
+  /// Assigned sessions require elapsed time from the append clock.
+  Future<MeasurementWorkerBatchResult> checkpoint({int? frameElapsedMicros}) =>
+      _state.checkpoint(frameElapsedMicros: frameElapsedMicros);
 
   /// Orders finalization after prior appends and rejects later appends locally.
-  Future<MeasurementWorkerBatchResult> teardown() => _state.teardown();
+  /// Assigned sessions require elapsed time from the append clock.
+  Future<MeasurementWorkerBatchResult> teardown({int? frameElapsedMicros}) =>
+      _state.teardown(frameElapsedMicros: frameElapsedMicros);
 }
 
 /// Platform implementation result before the public runtime wrapper is created.
@@ -810,21 +918,45 @@ abstract final class MeasurementWorkerProtocol {
         record.routeIndex,
         record.monotonicTimestampMicros,
         record.value.wireCode,
+        if (record.answerValueV1 != null)
+          switch (record.answerValueV1!) {
+            MeasurementCategoryAnswerV1(:final value) => ['category', value],
+            MeasurementIntegerAnswerV1(:final value) => ['integer', value],
+            MeasurementScaledAnswerV1(:final coefficient, :final scale) => [
+                'scaledDecimal',
+                coefficient,
+                scale
+              ],
+          },
       ];
 
   /// Builds one ordered checkpoint barrier.
   static List<Object?> checkpoint({
     required int requestId,
     required String sessionId,
+    int? frameElapsedMicros,
   }) =>
-      [_checkpoint, kMeasurementWorkerProtocolVersion, requestId, sessionId];
+      [
+        _checkpoint,
+        kMeasurementWorkerProtocolVersion,
+        requestId,
+        sessionId,
+        frameElapsedMicros
+      ];
 
   /// Builds one ordered finalization barrier.
   static List<Object?> teardown({
     required int requestId,
     required String sessionId,
+    int? frameElapsedMicros,
   }) =>
-      [_teardown, kMeasurementWorkerProtocolVersion, requestId, sessionId];
+      [
+        _teardown,
+        kMeasurementWorkerProtocolVersion,
+        requestId,
+        sessionId,
+        frameElapsedMicros
+      ];
 
   /// Builds one byte-identical retry request.
   static List<Object?> retry({
@@ -957,12 +1089,14 @@ abstract final class MeasurementWorkerProtocol {
         ),
       _append => _decodeAppend(values),
       _checkpoint => MeasurementWorkerCheckpointMessage(
-          requestId: _requirePositiveRequestId(values, expectedLength: 4),
+          requestId: _requirePositiveRequestId(values, expectedLength: 5),
           sessionId: _requireString(values[3]),
+          frameElapsedMicros: values[4] == null ? null : _requireInt(values[4]),
         ),
       _teardown => MeasurementWorkerTeardownMessage(
-          requestId: _requirePositiveRequestId(values, expectedLength: 4),
+          requestId: _requirePositiveRequestId(values, expectedLength: 5),
           sessionId: _requireString(values[3]),
+          frameElapsedMicros: values[4] == null ? null : _requireInt(values[4]),
         ),
       _retry => MeasurementWorkerRetryMessage(
           requestId: _requirePositiveRequestId(values, expectedLength: 4),
@@ -1030,7 +1164,7 @@ abstract final class MeasurementWorkerProtocol {
   }
 
   static MeasurementWorkerAppendMessage _decodeAppend(List<Object?> values) {
-    if (values.length != 6) {
+    if (values.length != 6 && values.length != 7) {
       throw const MeasurementWorkerProtocolException('invalid_append_length');
     }
     final value = MeasurementWorkerAppendValue.fromWireCode(
@@ -1042,6 +1176,19 @@ abstract final class MeasurementWorkerProtocol {
     return MeasurementWorkerAppendMessage(
       sessionId: _requireString(values[2]),
       record: MeasurementWorkerAppendRecord(
+        answerValueV1: values.length == 6
+            ? null
+            : switch (values[6]) {
+                ['category', final String value] =>
+                  MeasurementCategoryAnswerV1(value),
+                ['integer', final String value] =>
+                  MeasurementIntegerAnswerV1(value),
+                ['scaledDecimal', final String coefficient, final int scale] =>
+                  MeasurementScaledAnswerV1(
+                      coefficient: coefficient, scale: scale),
+                _ => throw const MeasurementWorkerProtocolException(
+                    'invalid_answer_value'),
+              },
         routeIndex: _requireInt(values[3]),
         monotonicTimestampMicros: _requireInt(values[4]),
         value: value,
@@ -1093,10 +1240,12 @@ final class MeasurementWorkerCheckpointMessage
   const MeasurementWorkerCheckpointMessage({
     required this.requestId,
     required this.sessionId,
+    this.frameElapsedMicros,
   });
 
   final int requestId;
   final String sessionId;
+  final int? frameElapsedMicros;
 }
 
 /// Parsed finalization barrier command.
@@ -1105,10 +1254,12 @@ final class MeasurementWorkerTeardownMessage
   const MeasurementWorkerTeardownMessage({
     required this.requestId,
     required this.sessionId,
+    this.frameElapsedMicros,
   });
 
   final int requestId;
   final String sessionId;
+  final int? frameElapsedMicros;
 }
 
 /// Parsed retained-batch retry command.

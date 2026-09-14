@@ -7,11 +7,14 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
+import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/canonical_assignment_fixture.dart';
 import 'surface_screen_test_support.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
@@ -21,12 +24,124 @@ const _meteringKey = 'd9428888-122b-4b0b-8b7f-3e23441121e8';
 void main() {
   setUp(resetSurfaceScreenTestState);
 
+  tearDown(Restage.debugReset);
+
+  test('an in-flight typed resolve omits the identifier after analytics is off',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    Restage.configure(
+      apiKey: _apiKey,
+      baseUrl: _baseUrl,
+      measurementEnabled: false,
+    );
+    await pumpEventQueue();
+    final started = Completer<void>();
+    final identifier = Completer<String?>();
+    SurfaceAnalyticsIdentityProvider.install(() {
+      started.complete();
+      return identifier.future;
+    });
+    final fixture = stringScreenFixture();
+    final bodies = <Map<String, dynamic>>[];
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('', 204);
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    final pending = resolver.resolve(fixture.ref);
+    await started.future;
+    Restage.configure(
+      apiKey: _apiKey,
+      baseUrl: _baseUrl,
+      analyticsEnabled: false,
+    );
+    identifier.complete('12345678-1234-4234-8234-123456789abc');
+    final resolved = await pending;
+
+    expect(resolved.origin, SurfaceScreenOrigin.bundled);
+    expect(bodies, hasLength(1));
+    expect(bodies.single, isNot(contains('analyticsAnonymousId')));
+  });
+
+  test('each typed attempt reads the identifier under its own assignment lease',
+      () async {
+    const firstId = '12345678-1234-4234-8234-123456789abc';
+    const secondId = '22345678-1234-4234-8234-123456789abc';
+    SurfaceAssignmentKeyProvider.current = () => 'assignment-a';
+    var reads = 0;
+    SurfaceAnalyticsIdentityProvider.install(() async {
+      reads += 1;
+      return reads == 1 ? firstId : secondId;
+    });
+    final fixture = stringScreenFixture();
+    final bodies = <Map<String, dynamic>>[];
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          if (bodies.length == 1) {
+            SurfaceAssignmentKeyProvider.current = () => 'assignment-b';
+          }
+          return http.Response('', 204);
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    await resolver.resolve(fixture.ref);
+
+    expect(reads, 2);
+    expect(bodies.map((body) => body['assignmentKey']),
+        ['assignment-a', 'assignment-b']);
+    expect(bodies.map((body) => body['analyticsAnonymousId']),
+        [firstId, secondId]);
+  });
+
   test(
-      'accepts valid hosted content, forwards metering context, and partitions cache by request identity',
+      'typed requests omit an identifier when its provider changes after reading',
+      () async {
+    const identifier = '12345678-1234-4234-8234-123456789abc';
+    SurfaceAnalyticsIdentityProvider.install(() async => identifier);
+    SurfaceCanonicalCarrierProvider.installHeldAssignment(() {
+      SurfaceAnalyticsIdentityProvider.install(() async => identifier);
+      return null;
+    });
+    final fixture = stringScreenFixture();
+    final bodies = <Map<String, dynamic>>[];
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('', 204);
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    await resolver.resolve(fixture.ref);
+
+    expect(bodies, hasLength(1));
+    expect(bodies.single, isNot(contains('analyticsAnonymousId')));
+  });
+
+  test(
+      'decides freshly on every resolve and forwards metering and assignment context',
       () async {
     final fixture = stringScreenFixture();
     await _installMeteringKey();
     final bindingReference = _bindingReference('a');
+    final assignment = canonicalAssignmentFixture();
     String? assignmentKey = 'assignment-a';
     SurfaceAssignmentKeyProvider.current = () => assignmentKey;
     final requests = <http.Request>[];
@@ -37,12 +152,13 @@ void main() {
       httpClient: fixture.hostedDelivery.client((request) async {
         requests.add(request);
         return http.Response(
-          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
-            fixture.delivery(
-              hostedBlob: hostedBlob,
-              publishedRevision: 8,
+          jsonEncode({
+            ...SurfaceScreenDeliveryDescriptorV1Codec.encode(
+              fixture.delivery(hostedBlob: hostedBlob, publishedRevision: 8),
             ),
-          ),
+            if (assignmentKey == 'assignment-a')
+              'assignment': assignment.toJson(),
+          }),
           200,
           headers: {
             'Restage-Measurement-Publication-Binding-V1':
@@ -57,7 +173,7 @@ void main() {
     );
 
     final first = await resolver.resolve(fixture.ref);
-    final cached = await resolver.resolve(fixture.ref);
+    final second = await resolver.resolve(fixture.ref);
     assignmentKey = 'assignment-b';
     final otherAssignment = await resolver.resolve(fixture.ref);
     assignmentKey = null;
@@ -69,26 +185,30 @@ void main() {
       measurementPublicationBindingReferenceFor(first),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(first), assignment);
     expect(first.contentHash, isNot(fixture.contentHash));
-    expect(cached.cacheHit, isTrue);
+    expect(second.cacheHit, isFalse);
     expect(
-      measurementPublicationBindingReferenceFor(cached),
+      measurementPublicationBindingReferenceFor(second),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(second), assignment);
+    expect(measurementExperimentAssignmentFor(otherAssignment), isNull);
+    expect(measurementExperimentAssignmentFor(unassigned), isNull);
     expect(otherAssignment.cacheHit, isFalse);
     expect(unassigned.cacheHit, isFalse);
-    expect(requests, hasLength(3));
+    expect(requests, hasLength(4));
 
     final bodies = requests
         .map((request) => jsonDecode(request.body) as Map<String, Object?>)
         .toList();
     expect(
       bodies.map((body) => body['assignmentKey']),
-      <Object?>['assignment-a', 'assignment-b', null],
+      <Object?>['assignment-a', 'assignment-a', 'assignment-b', null],
     );
     expect(
       bodies.map((body) => body['meteringKey']),
-      <Object?>[_meteringKey, _meteringKey, _meteringKey],
+      <Object?>[_meteringKey, _meteringKey, _meteringKey, _meteringKey],
     );
     expect(
       bodies.every((body) =>

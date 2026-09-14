@@ -3,9 +3,10 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/governed_measurement_transport.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
+import '../support/restage_runtime_test_support.dart';
+
 void main() {
-  setUp(Restage.debugReset);
-  tearDown(Restage.debugReset);
+  installRestageRuntimeTestSupport();
 
   test('fails closed before a host authority is installed', () async {
     final challengeResult = await Restage.measurement.issueLinkChallenge(

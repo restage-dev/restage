@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage/src/restage_rpc_client/surface_delivery_evidence.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -14,6 +15,52 @@ final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   group('RestageRpcClient.fetchSurfaceScreen', () {
+    test('reports a malformed 429 and preserves transport unavailability',
+        () async {
+      _delivery.artifactRequests.clear();
+      final evidence = <({
+        Surface surfaceType,
+        String surfaceSlug,
+        Duration retryAfter,
+      })>[];
+      SurfaceDeliveryEvidence.install(
+        ({
+          required surfaceType,
+          required surfaceSlug,
+          required version,
+          required reason,
+        }) {},
+        rateLimited: ({
+          required surfaceType,
+          required surfaceSlug,
+          required retryAfter,
+        }) {
+          evidence.add((
+            surfaceType: surfaceType,
+            surfaceSlug: surfaceSlug,
+            retryAfter: retryAfter,
+          ));
+        },
+      );
+      addTearDown(SurfaceDeliveryEvidence.clear);
+      final client = _client(
+        (_) async => http.Response(
+          'not json',
+          429,
+          headers: {'Retry-After': '9'},
+        ),
+      );
+
+      final result = await _fetch(client, _request());
+
+      expect(result, isA<SurfaceScreenDeliveryTransportUnavailable>());
+      expect(evidence, hasLength(1));
+      expect(evidence.single.surfaceType, Surface.general);
+      expect(evidence.single.surfaceSlug, 'feature_announcement');
+      expect(evidence.single.retryAfter, const Duration(seconds: 9));
+      expect(_delivery.artifactRequests, isEmpty);
+    });
+
     test('posts the canonical request and returns the typed response',
         () async {
       late http.Request seen;
@@ -53,6 +100,65 @@ void main() {
       expect(response.contractVersion, 7);
       expect(response.publishedRevision, 12);
       expect(available.publicationBindingReference, bindingReference);
+    });
+
+    test('owns assignment responses before strict descriptor decoding',
+        () async {
+      final assignment = <String, Object?>{
+        'schemaVersion': 1,
+        'experimentId': 'experiment.message',
+        'experimentRevisionId': 'revision.message',
+        'experimentEpochId': 'epoch.message',
+        'armId': 'arm.treatment',
+        'outcomeLinkCarrier': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      };
+      for (final raw in <Object?>[
+        assignment,
+        {'result': 'assignmentNotPresented'},
+        null,
+      ]) {
+        final response = jsonDecode(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              _response()),
+        ) as Map<String, dynamic>;
+        if (raw != null) response['assignment'] = raw;
+        final client =
+            _client((_) async => http.Response(jsonEncode(response), 200));
+        final available =
+            await _fetch(client, _request()) as SurfaceScreenDeliveryAvailable;
+        expect(available.canonicalExperimentAssignment?.toJson(),
+            identical(raw, assignment) ? assignment : null);
+        expect(
+            available.assignmentDiagnostic,
+            raw is Map && raw['result'] == 'assignmentNotPresented'
+                ? SurfaceAssignmentDiagnostic.assignmentNotPresented
+                : null);
+        if (raw != null) {
+          expect(() => SurfaceScreenDeliveryDescriptorV1Codec.decode(response),
+              throwsFormatException);
+        }
+      }
+    });
+
+    test('refuses malformed assignment before fetching screen bytes', () async {
+      for (final raw in <Object?>[
+        {},
+        {'schemaVersion': 2},
+        {'result': 'assignmentNotPresented', 'extra': true},
+        'unknownAssignment',
+      ]) {
+        final response = jsonDecode(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              _response()),
+        ) as Map<String, dynamic>;
+        response['assignment'] = raw;
+        final client =
+            _client((_) async => http.Response(jsonEncode(response), 200));
+        final artifactCount = _delivery.artifactRequests.length;
+        expect(await _fetch(client, _request()),
+            isA<SurfaceScreenDeliveryInvalidResponse>());
+        expect(_delivery.artifactRequests.length, artifactCount);
+      }
     });
 
     test(

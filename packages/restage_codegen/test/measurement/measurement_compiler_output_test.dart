@@ -4,6 +4,18 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('default collection stamps the executable finite policy revision', () {
+    expect(
+      MeasurementCompilerPolicyInput.fromBuilderOptions(BuilderOptions.empty)
+          .collectionBudgetRevisionId
+          .value,
+      'restage.collection-budget.v3',
+    );
+    expect(
+      kMeasurementDefaultPrivacyPolicyRevisionId,
+      'restage.manifest-privacy.v2',
+    );
+  });
   test('unset builder options stamp the shipped policy', () {
     expect(
       MeasurementCompilerPolicyInput.fromBuilderOptions(

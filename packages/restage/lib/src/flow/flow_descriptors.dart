@@ -4,7 +4,9 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
+import '../runtime/surface_vocabulary.dart';
 import '../surface_screen/surface_screen_runtime_provenance.dart';
+import 'compiled_flow.dart';
 
 /// Base type for valid flow transition targets.
 sealed class FlowTargetRef {
@@ -169,6 +171,9 @@ final class SurfaceScreenRef<E> extends FlowScreenRef {
         'does not match the event schema in this screen provenance',
       );
     }
+    // Puts the screen's widgets and icons in place for a reader that never
+    // mounts it, such as a resolver. Each mount installs them again.
+    provenance.vocabulary.addToInstalled();
   }
 
   /// Creates a compiler-generated standalone reference with exact bundled
@@ -254,6 +259,9 @@ final class SurfaceFlowRef<R> {
     required this.surface,
     required this.decodeResult,
     this.deliveryMode = FlowDeliveryMode.typed,
+    this.vocabulary = SurfaceVocabulary.none,
+    this.subFlows = const [],
+    this.compiled,
   }) : _measurementPublicationDraftDigest = null;
 
   /// Creates a compiler-generated flow reference with its exact bundled
@@ -266,7 +274,42 @@ final class SurfaceFlowRef<R> {
     required this.decodeResult,
     required this.deliveryMode,
     required String measurementPublicationDraftDigest,
+    this.vocabulary = SurfaceVocabulary.none,
+    this.subFlows = const [],
+    this.compiled,
   }) : _measurementPublicationDraftDigest = measurementPublicationDraftDigest;
+
+  /// Original compiler-emitted graph and Flutter constructors.
+  final CompiledFlow? compiled;
+
+  /// Binds constructors that need arguments supplied by the app.
+  SurfaceFlowRef<R> withScreenBuilders(
+      Map<String, CompiledFlowScreenBuilder> builders) {
+    final bound = compiled?.withScreenBuilders(builders);
+    final digest = _measurementPublicationDraftDigest;
+    return digest == null
+        ? SurfaceFlowRef<R>(
+            id: id,
+            version: version,
+            minClient: minClient,
+            surface: surface,
+            decodeResult: decodeResult,
+            deliveryMode: deliveryMode,
+            vocabulary: vocabulary,
+            subFlows: subFlows,
+            compiled: bound)
+        : SurfaceFlowRef<R>.generatedWithMeasurementPublicationDraftDigest(
+            id: id,
+            version: version,
+            minClient: minClient,
+            surface: surface,
+            decodeResult: decodeResult,
+            deliveryMode: deliveryMode,
+            measurementPublicationDraftDigest: digest,
+            vocabulary: vocabulary,
+            subFlows: subFlows,
+            compiled: bound);
+  }
 
   /// Stable flow identifier.
   final String id;
@@ -299,6 +342,20 @@ final class SurfaceFlowRef<R> {
 
   /// Converts a filtered end-state result map into the generated result type.
   final FlowResultDecoder<R> decodeResult;
+
+  /// The widgets and icons this flow's screens draw.
+  ///
+  /// A flow reference is `const`, so every controller built over it adds this
+  /// to the installed stores as it is constructed — first mount, swap, or a
+  /// host composing the flow primitives itself — before anything renders.
+  final SurfaceVocabulary vocabulary;
+
+  /// The flows this flow enters as sub-flows.
+  ///
+  /// A sub-flow's screens draw their own widgets and icons, so a controller
+  /// installs the [vocabulary] of every reference reachable here alongside
+  /// this flow's own.
+  final List<SurfaceFlowRef<dynamic>> subFlows;
 
   final String? _measurementPublicationDraftDigest;
 
@@ -341,8 +398,8 @@ abstract final class PaywallFlowEvents {
 
 /// Descriptor for a host action that a flow may request.
 ///
-/// Actions are app-owned capabilities. A flow document may select an installed
-/// action by contract, but it does not define executable behavior.
+/// Actions are app-owned capabilities with handlers compiled into the app.
+/// A flow document selects an installed action through its declared contract.
 final class FlowActionRef<I, O> {
   /// Creates a host action reference.
   const FlowActionRef(this.id, {this.idempotent = false});

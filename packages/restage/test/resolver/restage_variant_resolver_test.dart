@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show MaterialApp, SizedBox;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,7 +21,10 @@ import 'package:restage/src/runtime/library_runtime_registry.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
+import '../fixtures/compiled_surfaces/native_flow.dart';
+import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 /// The resolver's capability ceiling — the installed built-in catalog version.
 const int _supportedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
@@ -30,6 +34,47 @@ const int _supportedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  for (final bundled in [true, false]) {
+    testWidgets(
+        'generated paywall hosted flow needs bundled baseline: $bundled',
+        (tester) async {
+      Restage.debugReset();
+      SharedPreferences.setMockInitialValues({});
+      addTearDown(Restage.debugReset);
+      final local = _reservedCommerceEventScreen('Bundled original');
+      final hosted = _reservedCommerceEventScreen('Hosted offer');
+      final bundle = _PaywallAssetBundle();
+      if (bundled) {
+        bundle.writeFlow('native_offer',
+            _flowDocument(flow: 'native_offer', screenBytes: local));
+        bundle.writeScreen('paywall_native_offer.rfw', local);
+      }
+      final events = <RestageEvent>[];
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: 'rs_pk_dev_fallback',
+        environment: RestageEnvironment.production,
+        baseUrl: 'https://surfaces.example.com',
+        httpClient: _server(
+            _paywallFlowEnvelope(screenBytes: hosted, slug: 'native_offer'),
+            onRequest: requests.add),
+        assetFallback: AssetVariantResolver(bundle: bundle),
+      );
+      await tester.pumpWidget(MaterialApp(
+          home: NativeOfferSurface(resolver: resolver, onEvent: events.add)));
+      await tester.pumpAndSettle();
+      final hostedCount = find.text('Hosted offer').evaluate().length;
+      final originalCount = find.text('Offer original').evaluate().length;
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(requests, hasLength(1));
+      expect(hostedCount, bundled ? 1 : 0);
+      expect(originalCount, bundled ? 0 : 1);
+      expect(events.whereType<PaywallLoadFailed>().map((e) => e.errorCode),
+          bundled ? isEmpty : contains('delivery_unavailable'));
+    });
+  }
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_abc123';
   final blob = Uint8List.fromList([10, 20, 30, 255]);
@@ -71,9 +116,7 @@ void main() {
       expect(activeBody['surfaceType'], 'paywall');
       expect(activeBody['surfaceSlug'], 'pro_upgrade');
       expect(activeBody.containsKey('version'), isFalse);
-      // The client contract hash rides every hosted fetch (the hot path); the
-      // full contract is uploaded only if the server asks (contractRequired).
-      expect(activeBody['contractHash'], startsWith('sha256:'));
+      expect(activeBody.containsKey('contractHash'), isFalse);
       expect(activeBody.containsKey('contract'), isFalse);
 
       // The resolved variant carries the blob, the id, and the SERVED version.
@@ -104,7 +147,7 @@ void main() {
       expect(keyedBody['surfaceType'], 'paywall');
       expect(keyedBody['surfaceSlug'], 'pro_upgrade');
       expect(keyedBody['assignmentKey'], 'anon-assignment-1');
-      expect(keyedBody['contractHash'], startsWith('sha256:'));
+      expect(keyedBody.containsKey('contractHash'), isFalse);
     });
 
     test(
@@ -149,57 +192,8 @@ void main() {
       );
     });
 
-    test(
-        'a contractRequired response triggers a single upload-on-miss retry '
-        'with the full contract, then renders the served arm', () async {
-      final envelope =
-          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
-      final requests = <http.Request>[];
-      final resolver = RestageVariantResolver(
-        apiKey: apiKey,
-        environment: RestageEnvironment.production,
-        baseUrl: baseUrl,
-        httpClient: _delivery.client((request) async {
-          requests.add(request);
-          final uploaded =
-              (jsonDecode(request.body) as Map).containsKey('contract');
-          // First fetch (hash only): no cached contract → ask for upload.
-          // Second fetch (contract attached): serve the arm.
-          if (!uploaded) {
-            return http.Response(
-              jsonEncode({
-                ..._delivery.describeEnvelope(envelope),
-                'contractRequired': true,
-              }),
-              200,
-            );
-          }
-          return http.Response(
-            jsonEncode({
-              ..._delivery.describeEnvelope(envelope),
-            }),
-            200,
-          );
-        }),
-      );
-
-      final variant = await resolver.resolve('pro_upgrade');
-
-      // Exactly two fetches: hash-only, then the retry carrying the contract.
-      expect(requests, hasLength(2));
-      final first = jsonDecode(requests[0].body) as Map<String, dynamic>;
-      final second = jsonDecode(requests[1].body) as Map<String, dynamic>;
-      expect(first['contractHash'], startsWith('sha256:'));
-      expect(first.containsKey('contract'), isFalse);
-      expect(second['contractHash'], startsWith('sha256:'));
-      expect(second['contract'], isA<Map<String, dynamic>>());
-      // The retried ordinary delivery renders its artifact.
-      expect(variant.bytes, blob);
-    });
-
-    test(
-        'two consecutive contractRequired responses fail closed to '
-        'unavailable — the upload-on-miss retry never loops', () async {
+    test('a delivery still claiming the retired upload signal is served once',
+        () async {
       final envelope =
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
       final requests = <http.Request>[];
@@ -219,12 +213,15 @@ void main() {
         }),
       );
 
-      await expectLater(
-        resolver.resolve('pro_upgrade'),
-        throwsA(isA<RestagePaywallError>()),
+      final variant = await resolver.resolve('pro_upgrade');
+
+      // One fetch, no upload, no retry: the signal buys the service nothing.
+      expect(requests, hasLength(1));
+      expect(
+        withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)),
+        {'surfaceType': 'paywall', 'surfaceSlug': 'pro_upgrade'},
       );
-      // The hot-path fetch + exactly one upload retry — never more.
-      expect(requests, hasLength(2));
+      expect(variant.bytes, blob);
     });
   });
 
@@ -454,6 +451,7 @@ void main() {
       final envelope =
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
       final bindingReference = _bindingReference('a');
+      final assignment = canonicalAssignmentFixture();
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
         environment: RestageEnvironment.production,
@@ -462,6 +460,7 @@ void main() {
           http.Response(
             _surfaceResponseJson(
               envelope,
+              assignment: assignment,
             ),
             200,
             headers: {
@@ -481,6 +480,7 @@ void main() {
         measurementPublicationBindingReferenceFor(first),
         bindingReference,
       );
+      expect(measurementExperimentAssignmentFor(first), assignment);
 
       final second = await resolver.resolve('pro_upgrade');
       // Fetch failed -> served from the in-memory hold-last-good cache.
@@ -492,6 +492,7 @@ void main() {
         measurementPublicationBindingReferenceFor(second),
         bindingReference,
       );
+      expect(measurementExperimentAssignmentFor(second), assignment);
     });
 
     test('a REJECTED fresh blob funnels into the same ladder (serves cached)',
@@ -749,6 +750,7 @@ void main() {
       final bundledScreen = _reservedCommerceEventScreen('Subscribe');
       final hostedScreen = _reservedCommerceEventScreen('Subscribe now');
       final bindingReference = _bindingReference('b');
+      final assignment = canonicalAssignmentFixture();
       final bundle = _PaywallAssetBundle()
         ..writeFlow(
           'pro_upgrade',
@@ -763,6 +765,7 @@ void main() {
           http.Response(
             _surfaceResponseJson(
               _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
+              assignment: assignment,
             ),
             200,
             headers: {
@@ -784,6 +787,7 @@ void main() {
         measurementPublicationBindingReferenceFor(first.flow),
         bindingReference,
       );
+      expect(measurementExperimentAssignmentFor(first.flow), assignment);
       // Second (fetch failed): the held-last-good active flow, re-gated + served
       // as a cache hit (still the served version, not the bundled null).
       expect(second, isA<FlowPaywallPayload>());
@@ -795,6 +799,7 @@ void main() {
         measurementPublicationBindingReferenceFor(held.flow),
         bindingReference,
       );
+      expect(measurementExperimentAssignmentFor(held.flow), assignment);
     });
 
     test('reaches bundled flow through asset fallback when fetch fails',
@@ -843,9 +848,11 @@ MockClient _server(
   });
 }
 
-String _surfaceResponseJson(Uint8List envelope) {
+String _surfaceResponseJson(Uint8List envelope,
+    {CanonicalSurfaceExperimentAssignmentV1? assignment}) {
   return jsonEncode({
     ..._delivery.describeEnvelope(envelope),
+    if (assignment != null) 'assignment': assignment.toJson(),
   });
 }
 

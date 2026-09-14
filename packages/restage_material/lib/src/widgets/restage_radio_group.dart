@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:restage_core/restage_core.dart';
 
-/// A single-select radio group expressed as a purely declarative surface.
+/// A single-select radio group with selection behavior compiled into your app.
 ///
 /// Each entry in [items] becomes one selectable row (a `RadioListTile`); the
 /// row whose [RestageSelectionOption.value] equals [selected] is checked.
 /// Tapping a row fires [onChanged] with that row's value — the settled
 /// selection event. The radio-selection wiring (the `RadioGroup` ancestor that
 /// flows the group value through the descendant rows) lives inside this
-/// compiled widget; a declarative composition supplies only the inert
-/// [items] / [selected] values and names the [onChanged] event, never the
-/// selection machinery.
+/// widget, compiled into your app. The surface configures [items] and
+/// [selected], and binds the [onChanged] event.
 ///
 /// Unlike a bare Flutter `Radio` (which is inert without a `RadioGroup`
 /// ancestor and a value-management callback), this is a self-contained widget:

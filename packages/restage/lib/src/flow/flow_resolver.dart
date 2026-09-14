@@ -7,6 +7,7 @@ import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import 'bundled_flow_loader.dart';
 import 'flow_descriptors.dart';
+import 'compiled_flow.dart';
 import 'flow_experiment_artifact_metadata.dart';
 
 /// Resolves generated surface-flow descriptors for `RestageFlowGraph`.
@@ -54,8 +55,10 @@ final class ResolvedFlow {
     required FlowDocument document,
     required Map<String, Uint8List> screenBlobs,
     this.contentHash,
+    CompiledFlow? compiled,
     required this.cacheHit,
-  })  : document = _freezeDocument(document),
+  })  : compiled = compiled?.freeze(),
+        document = _freezeDocument(document),
         screenBlobs = Map.unmodifiable({
           for (final entry in screenBlobs.entries)
             entry.key: Uint8List.fromList(entry.value).asUnmodifiableView(),
@@ -65,8 +68,12 @@ final class ResolvedFlow {
     required this.document,
     required this.screenBlobs,
     required this.contentHash,
+    required this.compiled,
     required this.cacheHit,
   });
+
+  /// Native original selected before starting; null for RFW delivery.
+  final CompiledFlow? compiled;
 
   /// Decoded and validated flow document.
   final FlowDocument document;
@@ -86,9 +93,13 @@ final class ResolvedFlow {
         document: document,
         screenBlobs: screenBlobs,
         contentHash: contentHash,
+        compiled: compiled,
         cacheHit: true,
       ),
       measurementPublicationBindingReferenceFor(this),
+      canonicalExperimentAssignment: measurementExperimentAssignmentFor(this),
+      routingSelectionReceipt: routingSelectionReceiptFor(this),
+      routingSelectionProvenance: routingSelectionProvenanceFor(this),
     );
     final sourceCarrier = attachMeasurementBundledGeneratedSourceCarrier(
       cacheHit,
@@ -471,6 +482,16 @@ final class AssetFlowResolver
 
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    try {
+      return await _resolveAssets(flow);
+    } on FlowUnavailableError {
+      final compiled = flow.compiled;
+      if (compiled == null) rethrow;
+      return _own(compiled.resolve());
+    }
+  }
+
+  Future<ResolvedFlow> _resolveAssets<R>(OnboardingFlowRef<R> flow) async {
     final surface = flow.surfaceType.wireName;
     final artifacts = await loadBundledFlowArtifacts(
       bundle: _effectiveBundle,

@@ -10,6 +10,7 @@ import 'package:restage_cli/api.dart';
 import 'api_runner.dart';
 import 'canonical_mutation_tool.dart';
 import 'experiment_activation_tool.dart';
+import 'experiment_apply_tool.dart';
 import 'experimental_gate.dart';
 
 /// Backend origin used for in-server login when no credential exists yet.
@@ -120,6 +121,16 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         canonicalMutationTool,
         _scrubbed(
           (request) => handleCanonicalMutation(
+            request: request,
+            store: _store,
+            httpClient: _httpClient,
+          ),
+        ),
+      );
+      registerTool(
+        experimentApplyTool,
+        _scrubbed(
+          (request) => handleExperimentApply(
             request: request,
             store: _store,
             httpClient: _httpClient,

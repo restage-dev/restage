@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:restage_core/restage_core.dart';
 
-/// A single-select dropdown expressed as a purely declarative surface.
+/// A single-select dropdown with menu behavior compiled into your app.
 ///
 /// Each entry in [items] becomes one menu option (a `DropdownMenuItem`); the
 /// option whose [RestageSelectionOption.value] equals [selected] is shown as
 /// the current value. Tapping the field opens the menu; choosing an option
 /// fires [onChanged] with that option's value — the settled selection event.
 /// The menu overlay (an imperative pop-up route in Flutter's own
-/// `DropdownButton`) lives entirely inside this compiled widget; a declarative
-/// composition supplies only the inert [items] / [selected] values and names
-/// the [onChanged] event, never the overlay/route machinery.
+/// `DropdownButton`) lives inside this widget, compiled into your app. The
+/// surface configures [items] and [selected], and binds the [onChanged] event.
 ///
-/// This is why the bare Flutter `DropdownButton` is not itself a catalog
-/// widget — it authors an overlay route that a declarative blob cannot
-/// express. The compiled widget owns that route and exposes only the flat
-/// declarative interface. When [items] is empty it renders nothing (the
-/// fail-safe), never a broken or empty menu.
+/// The catalog maps dropdowns to this wrapper, which owns Flutter's overlay
+/// route and exposes its configuration through constructor properties.
+/// When [items] is empty it renders nothing.
 class RestageDropdown<T> extends StatelessWidget {
   /// Creates a declarative dropdown.
   const RestageDropdown({

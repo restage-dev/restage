@@ -23,9 +23,11 @@ import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
+import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -357,6 +359,7 @@ final class ResolvedClassFlowScreen {
     required this.minClient,
     required List<int> blob,
     this.canonicalPaywallId,
+    this.vocabulary = SurfaceVocabularyReferences.empty,
   }) : blob = Uint8List.fromList(blob);
 
   /// Resolved authored declaration. The generated descriptor spelling is only
@@ -370,6 +373,10 @@ final class ResolvedClassFlowScreen {
   final int version;
   final int minClient;
   final Uint8List blob;
+
+  /// The catalog widgets and icon constants this screen renders, named so a
+  /// flow reference can install exactly them.
+  final SurfaceVocabularyReferences vocabulary;
 
   /// The roster-owned authored paywall ID when this is a canonical paywall
   /// adapter. Ordinary screens and legacy paywalls leave this unset.
@@ -412,6 +419,7 @@ Future<ResolvedClassFlowDependencyResult> inspectResolvedClassFlowDependencies({
         _namedArg(invocation, 'flow'),
         issues,
         assetId,
+        flowId: flow.id,
         legacySurfaceFallback: flow.isCanonical ? null : parentSurface,
       );
       if (child == null) continue;
@@ -560,22 +568,24 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
     final method = await _resolvedBuildFlow(library, flow, issues, assetId);
     if (method == null || issues.isNotEmpty) continue;
     final effectiveSurface = flow.surface ?? legacySurface;
+    final screenResolver = _ScreenDescriptorResolver(
+      flowLibrary: library,
+      flowSurface: effectiveSurface,
+      legacyDescriptors: legacyScreenDescriptors,
+      resolvedScreens: resolvedScreenList,
+    );
     final lowered = await _lowerFlow(
       buildStep,
       flow,
       method,
-      _ScreenDescriptorResolver(
-        flowLibrary: library,
-        flowSurface: effectiveSurface,
-        legacyDescriptors: legacyScreenDescriptors,
-        resolvedScreens: resolvedScreenList,
-      ),
+      screenResolver,
       issues,
       assetId,
       screenBlobsByDeclarationIdentity,
       childFlowDocuments,
     );
     if (lowered == null || issues.isNotEmpty) continue;
+    final flowVocabulary = screenResolver.vocabulary;
     final sourceCarrierDraftDigest =
         generatedSourceCarrierDraftDigestsByDeclarationIdentity[
             flow.declarationIdentity];
@@ -594,7 +604,21 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
             flow,
             lowered,
             effectiveSurface,
+            vocabulary: flowVocabulary,
             measurementPublicationDraftDigest: sourceCarrierDraftDigest,
+            nativeScreens: {
+              for (final screen in resolvedScreenList)
+                screen.canonicalPaywallId == null
+                        ? screen.id
+                        : 'paywall_${screen.canonicalPaywallId}':
+                    screen.declaration,
+            },
+            descendants: {
+              for (final entry in childFlowDocuments.entries)
+                if (entry.key.surface == effectiveSurface)
+                  entry.key.id:
+                      FlowDocumentCodec.decodeJson(utf8.decode(entry.value)),
+            },
           ),
         ),
         generatedTopLevelSymbols: _flowGeneratedTopLevelSymbols(
@@ -984,6 +1008,7 @@ Future<_LoweredFlow?> _lowerFlow(
     if (contract != null) actionContracts[action.actionName] = contract;
   }
   final endIds = <String>{};
+  final subFlowReferenceNames = <String>{};
   var endCount = 0;
   for (final element in statesExpr.elements) {
     if (element is! Expression) {
@@ -1046,6 +1071,8 @@ Future<_LoweredFlow?> _lowerFlow(
       childFlowDocuments,
     );
     if (graphNode != null) {
+      final childRef = graphNode.subFlowRef;
+      if (childRef != null) subFlowReferenceNames.add(childRef.referenceName);
       addState(graphNode.id, graphNode.state);
       continue;
     }
@@ -1171,6 +1198,7 @@ Future<_LoweredFlow?> _lowerFlow(
   return _LoweredFlow(
     document: document,
     actionContracts: actionContracts,
+    subFlowReferenceNames: subFlowReferenceNames.toList()..sort(),
   );
 }
 
@@ -1688,6 +1716,7 @@ Future<_GraphNode?> _parseSubFlowNode(
     _namedArg(invocation, 'flow'),
     issues,
     flowAssetId,
+    flowId: flow.id,
     legacySurfaceFallback: flow.isCanonical
         ? null
         : flow.surface ?? _flowSurfaceForAsset(flowAssetId),
@@ -1754,6 +1783,7 @@ Future<_GraphNode?> _parseSubFlowNode(
   }
   return _GraphNode(
     id: id,
+    subFlowRef: childRef,
     state: SubFlowState(
       flow: childRef.id,
       version: childRef.version,
@@ -2023,6 +2053,40 @@ final class _ScreenDescriptorResolver {
   final Map<String, _ScreenDescriptor> legacyDescriptors;
   final List<ResolvedClassFlowScreen> _resolvedScreens;
 
+  final VocabularyUnionBuilder _vocabulary = VocabularyUnionBuilder();
+
+  /// The union over every screen this resolver handed back, which is the set a
+  /// delivered flow can reach: it resolves its screens by slug and never reads
+  /// their generated references.
+  SurfaceVocabularyReferences get vocabulary => _vocabulary.union;
+
+  /// Folds [screen]'s vocabulary into the flow's, recording an issue rather
+  /// than throwing when two screens disagree on what one icon renders.
+  bool _absorbVocabulary(
+    ResolvedClassFlowScreen screen, {
+    required List<Issue> issues,
+    required AssetId assetId,
+  }) {
+    try {
+      _vocabulary.add(screen.vocabulary, screen.declarationIdentity);
+    } on IconCarriageFailure catch (failure) {
+      final other = _vocabulary.ownerOf(failure);
+      final origin = other == null ? '' : ' The other one comes from $other.';
+      issues.add(
+        Issue(
+          code: failure is IconCodePointCollision
+              ? IssueCode.collidingIconCodePoints
+              : IssueCode.unreconstructableIconData,
+          message: 'Screen ${screen.declarationIdentity} joins this '
+              '${flowSurface.wireName} flow, but ${failure.reason}.$origin',
+          location: assetId.path,
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
   _ScreenDescriptor? resolve(
     Expression? expression, {
     required List<Issue> issues,
@@ -2096,6 +2160,9 @@ final class _ScreenDescriptorResolver {
       );
       return null;
     }
+    if (!_absorbVocabulary(screen, issues: issues, assetId: assetId)) {
+      return null;
+    }
     return _ScreenDescriptor(
       name: reference.name,
       id: screen.id,
@@ -2144,6 +2211,9 @@ final class _ScreenDescriptorResolver {
     }
 
     final screen = candidates.single;
+    if (!_absorbVocabulary(screen, issues: issues, assetId: assetId)) {
+      return null;
+    }
     return _ScreenDescriptor(
       name: 'paywallScreen($authoredId)',
       id: screen.id,
@@ -3554,10 +3624,24 @@ VariableElement? _referencedVariableElement(Expression? expression) {
   return element is VariableElement ? element : null;
 }
 
+/// The Dart source a generated part can use to name the reference
+/// [expression] resolves to, or null when [element] is not visible at library
+/// scope. A part shares its library's import scope, so an expression the
+/// authored library already spells is always nameable there.
+String? _libraryScopedReferenceSource(
+  Expression expression,
+  VariableElement element,
+) {
+  final atLibraryScope = element is TopLevelVariableElement ||
+      (element is FieldElement && element.isStatic);
+  return atLibraryScope ? expression.toSource() : null;
+}
+
 _SubFlowRef? _flowRefForExpression(
   Expression? expression,
   List<Issue> issues,
   AssetId assetId, {
+  required String flowId,
   Surface? legacySurfaceFallback,
 }) {
   final element = _referencedVariableElement(expression);
@@ -3603,11 +3687,23 @@ _SubFlowRef? _flowRefForExpression(
     );
     return null;
   }
+  final referenceName = _libraryScopedReferenceSource(expression!, element);
+  if (referenceName == null) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      'subFlow flow: flow $flowId cannot name child flow $id from its '
+      'generated part. Declare the child reference as a top-level constant '
+      'and import it into ${assetId.path}.',
+    );
+    return null;
+  }
   return _SubFlowRef(
     id: id,
     version: version,
     minClient: minClient,
     surface: surface,
+    referenceName: referenceName,
   );
 }
 
@@ -4425,7 +4521,10 @@ String _emitFlowDescriptor(
   _FlowSource flow,
   _LoweredFlow lowered,
   Surface surface, {
+  SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
   String? measurementPublicationDraftDigest,
+  Map<String, ClassElement> nativeScreens = const {},
+  Map<String, FlowDocument> descendants = const {},
 }) {
   final baseName = _flowBaseName(flow.className);
   final descriptorClass = '${flow.className}Descriptor';
@@ -4433,6 +4532,20 @@ String _emitFlowDescriptor(
   // holder class below is the previous shape, kept as a deprecated alias for
   // one major so a source written against it still compiles.
   final refName = generatedHandleName(flow.className, fallback: 'surfaceFlow');
+  final compiled = flow.isCanonical
+      ? emitCompiledFlow(
+          document: lowered.document,
+          descendants: descendants,
+          screens: nativeScreens,
+          library: flow.element.library,
+          refName: refName,
+          mountName:
+              generatedSurfaceName(flow.className, fallback: 'SurfaceFlow'),
+          resultType: flow.delivery == FlowDeliveryMode.general
+              ? 'Map<String, Object?>'
+              : '${baseName}Result',
+        )
+      : (argument: '', mount: '');
   final decoderName = '_decode${flow.className}Result';
   final actionsClass = _actionsClassName(flow.className);
   final actionsInterface =
@@ -4450,6 +4563,13 @@ String _emitFlowDescriptor(
       ? ''
       : '  measurementPublicationDraftDigest: '
           '${_dartStringLiteral(measurementPublicationDraftDigest)},\n';
+  final vocabularyArgument = vocabulary.namesInstallable
+      ? '  vocabulary: ${emitSurfaceVocabulary(vocabulary)},\n'
+      : '';
+  // The argument is emitted only when this flow enters a child flow.
+  final subFlowsArgument = lowered.subFlowReferenceNames.isEmpty
+      ? ''
+      : '  subFlows: [${lowered.subFlowReferenceNames.join(', ')}],\n';
   if (flow.delivery == FlowDeliveryMode.general) {
     final signalNames = lowered.document.outbound.customEvents.keys.toList()
       ..sort();
@@ -4477,7 +4597,7 @@ const $refName = ${referenceConstructor('Map<String, Object?>')}(
   surface: Surface.${surface.wireName},
   deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
   decodeResult: $decoderName,
-$carrierArgument);
+${compiled.argument}$carrierArgument$vocabularyArgument$subFlowsArgument);
 
 Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
 
@@ -4493,6 +4613,7 @@ $generalActionsBody
   @override
   Set<String> get installedSignalNames => $signalSet;
 }
+${compiled.mount}
 $seedClass''';
   }
   final resultClass = '${baseName}Result';
@@ -4507,7 +4628,7 @@ const $refName = ${referenceConstructor(resultClass)}(
   surface: Surface.${surface.wireName},
   deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
   decodeResult: $decoderName,
-$carrierArgument);
+${compiled.argument}$carrierArgument$vocabularyArgument$subFlowsArgument);
 
 ${_emitResultDecoder(decoderName, resultClass, result)}
 
@@ -4524,6 +4645,7 @@ final class $actionsClass$actionsInterface {
 ${_emitActionsConstructor(actionsClass, flow.actions)}
 ${_emitActionFields(flow.actions, flow.minClient, lowered.actionContracts)}
 }
+${compiled.mount}
 $seedClass''';
 }
 
@@ -4533,6 +4655,8 @@ Set<String> _flowGeneratedTopLevelSymbols(
 ) {
   final baseName = _flowBaseName(flow.className);
   return {
+    if (flow.isCanonical)
+      generatedSurfaceName(flow.className, fallback: 'SurfaceFlow'),
     generatedHandleName(flow.className, fallback: 'surfaceFlow'),
     '_decode${flow.className}Result',
     '${flow.className}Descriptor',
@@ -5140,10 +5264,14 @@ final class _GraphNode {
   const _GraphNode({
     required this.id,
     required this.state,
+    this.subFlowRef,
   });
 
   final String id;
   final FlowState state;
+
+  /// The child flow this node enters, set only for `subFlow(...)` nodes.
+  final _SubFlowRef? subFlowRef;
 }
 
 final class _ParsedActionTransition {
@@ -5184,12 +5312,16 @@ final class _SubFlowRef {
     required this.version,
     required this.minClient,
     required this.surface,
+    required this.referenceName,
   });
 
   final String id;
   final int version;
   final int minClient;
   final Surface surface;
+
+  /// The Dart source naming this child's reference from the parent's part.
+  final String referenceName;
 
   NormalizedFlowIdentity get identity =>
       NormalizedFlowIdentity(surface: surface, id: id);
@@ -5209,10 +5341,15 @@ final class _LoweredFlow {
   const _LoweredFlow({
     required this.document,
     required this.actionContracts,
+    this.subFlowReferenceNames = const [],
   });
 
   final FlowDocument document;
   final Map<String, FlowActionContract> actionContracts;
+
+  /// Sorted, deduplicated Dart sources naming the references of the child
+  /// flows this flow enters.
+  final List<String> subFlowReferenceNames;
 }
 
 const _zeroHash = 'sha256:00000000000000000000000000000000'

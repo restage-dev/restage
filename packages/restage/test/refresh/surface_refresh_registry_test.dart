@@ -62,7 +62,9 @@ SurfaceRefreshHandle _handle(
 
 void _configureStampRpc(
   Map<String, int?> versionBySlug, {
+  Map<String, http.Response>? responseBySlug,
   void Function()? onStampRequest,
+  bool? requiresResolution,
 }) {
   Restage.debugRestageRpcClient = RestageRpcClient(
     baseUrl: 'https://example.com',
@@ -71,11 +73,20 @@ void _configureStampRpc(
       if (request.url.path == '/sdk/v1/surface-stamp') {
         onStampRequest?.call();
         final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final response = responseBySlug?[body['surfaceSlug']];
+        if (response != null) return response;
         final version = versionBySlug[body['surfaceSlug']];
         if (version == null) {
           return http.Response('{"error":"unavailable"}', 404);
         }
-        return http.Response('{"version":$version}', 200);
+        return http.Response(
+          jsonEncode({
+            'version': version,
+            if (requiresResolution != null)
+              'requiresResolution': requiresResolution,
+          }),
+          200,
+        );
       }
       return http.Response('{"entitlements":[]}', 200);
     }),
@@ -344,9 +355,10 @@ void main() {
     expect(calls, 2);
   });
 
-  test('stamp equal to rendered version skips refresh', () async {
+  test('matching version without requiresResolution skips refresh', () async {
     final refreshed = <String>[];
-    _configureStampRpc({'same': 5});
+    var stampChecks = 0;
+    _configureStampRpc({'same': 5}, onStampRequest: () => stampChecks++);
     SurfaceRefreshRegistry.instance.register(_handle(
       'same',
       renderedVersion: () => 5,
@@ -356,7 +368,29 @@ void main() {
 
     await SurfaceRefreshRegistry.instance.reload();
 
+    expect(stampChecks, 1);
     expect(refreshed, isEmpty);
+  });
+
+  test('matching version requiring a fresh decision runs refresh', () async {
+    final refreshed = <String>[];
+    var stampChecks = 0;
+    _configureStampRpc(
+      {'same': 5},
+      requiresResolution: true,
+      onStampRequest: () => stampChecks++,
+    );
+    SurfaceRefreshRegistry.instance.register(_handle(
+      'same',
+      renderedVersion: () => 5,
+      stampable: true,
+      refreshed: refreshed,
+    ));
+
+    await SurfaceRefreshRegistry.instance.reload();
+
+    expect(stampChecks, 1);
+    expect(refreshed, ['same']);
   });
 
   test('moved stamp runs refresh', () async {
@@ -387,6 +421,42 @@ void main() {
     await SurfaceRefreshRegistry.instance.reload();
 
     expect(refreshed, ['unknown']);
+  });
+
+  test('a rate-limited stamp skips refresh while a 503 stamp refreshes',
+      () async {
+    final refreshed = <String>[];
+    var stampRequests = 0;
+    _configureStampRpc(
+      const {},
+      responseBySlug: {
+        'rate-limited': http.Response(
+          'not json',
+          429,
+          headers: {'Retry-After': '7'},
+        ),
+        'unavailable': http.Response('{"error":"rate_limited"}', 503),
+      },
+      onStampRequest: () => stampRequests++,
+    );
+    SurfaceRefreshRegistry.instance
+      ..register(_handle(
+        'rate-limited',
+        renderedVersion: () => 5,
+        stampable: true,
+        refreshed: refreshed,
+      ))
+      ..register(_handle(
+        'unavailable',
+        renderedVersion: () => 5,
+        stampable: true,
+        refreshed: refreshed,
+      ));
+
+    await SurfaceRefreshRegistry.instance.reload();
+
+    expect(stampRequests, 2);
+    expect(refreshed, ['unavailable']);
   });
 
   test('non-null stamp with null rendered version runs refresh', () async {

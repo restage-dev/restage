@@ -1,9 +1,16 @@
-import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/analytics/analytics_identity.dart';
+import 'package:restage/src/analytics/root_analytics_context.dart';
+import 'package:restage/src/measurement/governed_measurement_transport.dart';
+import 'package:restage/src/measurement/governed_measurement_rpc_transport.dart';
+import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -23,16 +30,173 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// documentation, so they are pinned rather than left to code reading.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const supportChannel = MethodChannel('plugins.flutter.io/path_provider');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  late Directory supportDirectory;
 
   // A fast-failing host: the analytics POST is intercepted by the injected
   // client.
   const baseUrl = 'http://127.0.0.1:1';
 
-  setUp(() {
+  setUp(() async {
+    supportDirectory =
+        await Directory.systemTemp.createTemp('restage-configure-');
+    messenger.setMockMethodCallHandler(
+        supportChannel,
+        (call) async => call.method == 'getApplicationSupportDirectory'
+            ? supportDirectory.path
+            : null);
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    Restage.debugReset();
+    await Restage.debugResetAndWait();
   });
-  tearDown(Restage.debugReset);
+  tearDown(() async {
+    try {
+      await Restage.debugResetAndWait();
+    } finally {
+      RootAnalyticsRuntime.debugIdentityFactory = null;
+      messenger.setMockMethodCallHandler(supportChannel, null);
+      await supportDirectory.delete(recursive: true);
+    }
+  });
+
+  test('delivery diagnostics report mode changes once without credentials', () {
+    final messages = <String>[];
+    final originalPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) messages.add(message);
+    };
+    addTearDown(() => debugPrint = originalPrint);
+
+    Restage.configure();
+    Restage.configure(apiKey: '');
+    expect(messages, [
+      '[restage] bundled artifacts — no credential configured',
+    ]);
+
+    Restage.configure(apiKey: 'rs_pk_dev_example', analyticsEnabled: false);
+    expect(messages.last,
+        '[restage] bundled artifacts — no hosted origin configured');
+    Restage.configure(
+      apiKey: 'rs_pk_dev_example',
+      baseUrl: 'https://user:password@example.com/private?token=secret',
+      analyticsEnabled: false,
+    );
+    expect(messages.last, '[restage] hosted delivery — https://example.com');
+    expect(messages.join(), isNot(contains('rs_pk_dev_example')));
+    expect(messages.join(), isNot(contains('password')));
+    expect(messages.join(), isNot(contains('secret')));
+
+    Restage.configure(resolver: const AssetVariantResolver());
+    expect(messages.last, '[restage] custom delivery resolvers configured');
+    expect(messages, hasLength(4));
+  });
+
+  for (final credential in <String?>[null, '', ' \t\n ']) {
+    test('absent credential $credential clears hosted state and keeps settings',
+        () async {
+      final identity = _IdentityCallSpy();
+      RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+      Restage.configure(
+        apiKey: 'rs_pk_dev_test',
+        baseUrl: baseUrl,
+        governedMeasurementTransportEnabled: true,
+      );
+      expect(Restage.activeRpcClient, isNotNull);
+      expect(GovernedMeasurementPortRegistry.measurement,
+          isA<RestageGovernedMeasurementRpcTransport>());
+
+      Restage.configure(
+        apiKey: credential,
+        baseUrl: baseUrl,
+        measurementEnabled: false,
+        liveRefresh: const {SurfaceRefreshTrigger.appResume},
+        governedMeasurementTransportEnabled: true,
+        liveRefreshEdgeUrl: Uri.parse('https://updates.example.com'),
+      );
+      await pumpEventQueue();
+
+      expect(Restage.defaultResolver, isA<AssetVariantResolver>());
+      expect(Restage.defaultFlowResolver, isA<AssetFlowResolver>());
+      expect(Restage.defaultSurfaceScreenResolver,
+          isA<AssetSurfaceScreenResolver>());
+      expect(Restage.activeRpcClient, isNull);
+      expect(Restage.configuredUpdateChannel, isNull);
+      expect(Restage.isMeasurementEnabled, isFalse);
+      expect(Restage.effectiveLiveRefreshTriggers('welcome'),
+          {SurfaceRefreshTrigger.appResume});
+      expect(GovernedMeasurementPortRegistry.measurement,
+          isNot(isA<RestageGovernedMeasurementRpcTransport>()));
+      expect(await SurfaceMeteringKeyProvider.currentKey(), isNull);
+      expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
+      expect(await SurfaceAnalyticsIdentityProvider.anonymousId(), isNull);
+      expect(identity.calls, 0);
+    });
+  }
+
+  test('configure can omit the credential and later enable hosted delivery',
+      () {
+    Restage.configure(baseUrl: baseUrl);
+    expect(Restage.activeRpcClient, isNull);
+    expect(Restage.defaultResolver, isA<AssetVariantResolver>());
+
+    Restage.configure(
+      apiKey: 'rs_pk_dev_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+    expect(Restage.activeRpcClient, isNotNull);
+    expect(Restage.defaultResolver, isA<RestageVariantResolver>());
+  });
+
+  test('configuring analytics off with a hosted URL never reads the identifier',
+      () async {
+    final identity = _IdentityCallSpy();
+    RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+
+    await pumpEventQueue();
+
+    expect(identity.calls, 0);
+  });
+
+  test('configuring analytics off never warms a retained identifier', () async {
+    final identity = _IdentityCallSpy();
+    RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+    await pumpEventQueue();
+    expect(identity.calls, 1);
+    identity.calls = 0;
+
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+    await pumpEventQueue();
+
+    expect(identity.calls, 0);
+  });
+
+  test('turning analytics off before deferred work never reads the identifier',
+      () async {
+    final identity = _IdentityCallSpy();
+    RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+
+    await pumpEventQueue();
+
+    expect(identity.calls, 0);
+  });
 
   test('configure installs the metering identity even with analytics disabled',
       () async {
@@ -121,37 +285,14 @@ void main() {
 
     expect(await SurfaceMeteringKeyProvider.currentKey(), isNull);
   });
+}
 
-  test('the metering identity never appears in an analytics event payload',
-      () async {
-    http.Request? captured;
-    Restage.debugAnalyticsHttpClient = MockClient((req) async {
-      captured = req;
-      return http.Response('', 200);
-    });
-    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
-    // Resolve the key first so it definitely exists while the event is built —
-    // otherwise an absent key would make this assertion vacuous.
-    final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
-    expect(meteringKey, isNotNull);
+class _IdentityCallSpy extends AnalyticsIdentity {
+  int calls = 0;
 
-    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
-    await pumpEventQueue();
-    await Restage.debugFlushAnalytics();
-
-    expect(captured, isNotNull);
-    final body = captured!.body;
-    expect(
-      body,
-      isNot(contains(meteringKey!)),
-      reason: 'the delivery-metering identity must not cross into analytics',
-    );
-    // The analytics stream has its own separate pseudonymous id, and it must
-    // NOT be the metering one — otherwise the two identities are joinable.
-    final events =
-        (jsonDecode(body) as Map<String, Object?>)['events']! as List;
-    final envelope = events.single! as Map<String, Object?>;
-    expect(envelope['anonymousId'], isNotNull);
-    expect(envelope['anonymousId'], isNot(meteringKey));
-  });
+  @override
+  Future<String> anonymousId() async {
+    calls += 1;
+    return '12345678-1234-4234-8234-123456789abc';
+  }
 }

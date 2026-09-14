@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:restage_codegen/src/lowering_targets.dart';
 
 /// Shared recognition of the `intl` number/currency formatting idiom —
 /// `NumberFormat.<ctor>(...).format(<value>)` — single-sourced so the
@@ -63,9 +64,9 @@ String? numberFormatAdoptTarget(MethodInvocation expr) {
   final libraryUri = ctor.type.element?.library?.identifier ?? '';
   if (!libraryUri.startsWith('package:intl/')) return null;
   final ctorName = ctor.name?.name;
-  if (_kRestagePriceCtors.contains(ctorName)) return 'RestagePrice';
+  if (_kRestagePriceCtors.contains(ctorName)) return kPriceLowering.name;
   if (_kRestageFormattedNumberCtors.contains(ctorName)) {
-    return 'RestageFormattedNumber';
+    return kFormattedNumberLowering.name;
   }
   return null;
 }
@@ -76,7 +77,7 @@ String? numberFormatAdoptTarget(MethodInvocation expr) {
 String numberFormatDeferMessage(String adoptTarget) {
   const base = 'Number formatting with intl.NumberFormat is not a supported '
       'paywall expression.';
-  if (adoptTarget == 'RestagePrice') {
+  if (adoptTarget == kPriceLowering.name) {
     return '$base Use the catalog widget `RestagePrice(value:, numberLocale:, '
         'symbol:, decimalDigits:)`. For a store product price, prefer the '
         'pre-localized `localizedPrice` via a data reference.';

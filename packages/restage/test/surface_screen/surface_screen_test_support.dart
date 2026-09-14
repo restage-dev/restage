@@ -156,6 +156,7 @@ ScreenFixture<String> stringScreenFixture({
   CapabilityManifest? capabilities,
   Uint8List? blob,
   bool packagesBundle = true,
+  SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
 }) {
   final effectiveCapabilities = capabilities ??
       CapabilityManifest(builtInFloor: 1, requiredLibraries: const []);
@@ -174,6 +175,7 @@ ScreenFixture<String> stringScreenFixture({
     capabilities: effectiveCapabilities,
     blob: blob ?? rfwScreenBlob(text: text, event: emittedEvent),
     packagesBundle: packagesBundle,
+    vocabulary: vocabulary,
     eventContract: (hash) => SurfaceScreenEventContract<String>.generated(
       hash: hash,
       decodeValidated: decoder ?? (name, _) => name,
@@ -212,6 +214,7 @@ ScreenFixture<E> _fixtureFor<E>({
   required Uint8List blob,
   required bool packagesBundle,
   required SurfaceScreenEventContract<E> Function(String hash) eventContract,
+  SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
 }) {
   final sidecarBytes = Uint8List.fromList(
     utf8.encode(
@@ -249,6 +252,7 @@ ScreenFixture<E> _fixtureFor<E>({
     capabilities: capabilities,
     eventSchema: schema,
     bundle: packagesBundle ? locator : null,
+    vocabulary: vocabulary,
   );
   return ScreenFixture<E>._(
     ref: SurfaceScreenRef<E>.generated(

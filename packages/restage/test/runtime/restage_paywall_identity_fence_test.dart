@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_experiment_mount.dart'
     show FlowMountRevalidationBoundary;
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
+import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage/src/runtime/first_paint_lease_guard.dart';
@@ -20,18 +22,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../flow/flow_test_support.dart'
     show registerThrowingWidget, resolvedFlow, screenBlob;
 import '../support/hosted_artifact_delivery.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 
 /// The stub delivery for this file: it describes surfaces AND answers for
 /// their content, so no test here can stub half a wire.
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  setUp(debugResetAppBuildOrdinal);
+  tearDown(debugResetAppBuildOrdinal);
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     Restage.debugReset();
     _ResetPaintProbe.reset();
+    debugSetOsVersion(null);
+    PackageInfo.setMockInitialValues(
+        appName: 'Fence test',
+        packageName: 'example.fence',
+        version: '1.0.0',
+        buildNumber: '42',
+        buildSignature: '');
   });
   tearDown(Restage.debugReset);
 
@@ -221,10 +233,7 @@ void main() {
       'publishes only the retried content, and reuses only that HLG',
       (tester) async {
     _registerResetPaintProbe(_ResetTiming.duringBuild);
-    Restage.configure(
-      apiKey: 'rs_pk_test',
-      baseUrl: 'https://surfaces.example.com',
-    );
+    _configureHostedFence();
     final baselineScreen = screenBlob('Frozen bundled baseline', 'finish');
     final bundle = _StrictPaywallAssetBundle(
       document: _strictFlowDocument(screen: baselineScreen),
@@ -249,7 +258,9 @@ void main() {
     ));
     await _pumpUntil(tester, () => server.requests.length == 1);
     expect(
-        _requestJson(server.requests[0].request), contains('flowContractHash'));
+      _requestJson(server.requests[0].request),
+      isNot(contains('flowContract')),
+    );
     server.requests[0].complete(_hostedResponse(
       _strictFlowEnvelope(
         screen: _resettingFlowScreenBlob(),
@@ -265,6 +276,8 @@ void main() {
 
     await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
     await _pumpUntil(tester, () => server.requests.length == 2);
+    expect(_assignmentKey(server.requests[0].request), 'credential.fence.1');
+    expect(_assignmentKey(server.requests[1].request), 'credential.fence.2');
     final actorBScreen = screenBlob('Strict actor B', 'finish');
     server.requests[1].complete(_hostedResponse(
       _strictFlowEnvelope(screen: actorBScreen, version: 10),
@@ -640,10 +653,7 @@ void main() {
 
   testWidgets('strict ordinary hosted refresh promotes and replaces HLG',
       (tester) async {
-    Restage.configure(
-      apiKey: 'rs_pk_test',
-      baseUrl: 'https://surfaces.example.com',
-    );
+    _configureHostedFence();
     final baselineScreen = screenBlob('Frozen bundled baseline', 'finish');
     final bundle = _StrictPaywallAssetBundle(
       document: _strictFlowDocument(screen: baselineScreen),
@@ -662,6 +672,7 @@ void main() {
       home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
     ));
     await _pumpUntil(tester, () => server.requests.length == 1);
+    expect(_assignmentKey(server.requests[0].request), 'credential.fence.1');
     final screenA = screenBlob('Strict current A', 'finish');
     server.requests[0].complete(_hostedResponse(
       _strictFlowEnvelope(screen: screenA, version: 9),
@@ -1561,6 +1572,31 @@ void _registerResetPaintProbe(_ResetTiming timing) {
       ),
     ],
     capabilityVersion: 1,
+  );
+}
+
+void _configureHostedFence() {
+  Restage.configure(
+      apiKey: 'rs_pk_test', baseUrl: 'https://surfaces.example.com');
+  final issuedHandles = <String, String>{};
+  Restage.debugRestageRpcClient = RestageRpcClient(
+    baseUrl: 'https://surfaces.example.com',
+    apiKey: 'rs_pk_test',
+    httpClient: MockClient((request) async {
+      if (request.url.path != '/sdk/v1/measurement-assignment-credential') {
+        return http.Response('{}', 404);
+      }
+      final body = _requestJson(request);
+      final nonce = body['registrationNonce'] as String;
+      final handle = issuedHandles.putIfAbsent(
+          nonce, () => 'credential.fence.${issuedHandles.length + 1}');
+      return http.Response(
+          jsonEncode({
+            'credentialHandle': handle,
+            'expiresAtMicros': 4102444800000000
+          }),
+          200);
+    }),
   );
 }
 

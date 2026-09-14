@@ -14,12 +14,26 @@ void main() {
       }
       expect(plan.source, isNot(contains('*.generated/')));
       expect(plan.source, isNot(contains('generated/')));
+      expect(plan.source, contains('.restage/build/'));
+      expect(plan.source, isNot(contains('measurement-state.json')));
+      expect(plan.source, isNot(contains('wire-ids.events.jsonl')));
+    });
+
+    test('upgrades earlier ignore rules without restoring deleted rules', () {
+      const source =
+          '# Restage portable generated output. Remove or negate '
+          'individual rules to track it.\n*.rsbundle\n';
+      final plan = planPortableOutputIgnores(source);
+      expect(plan.source.startsWith(source), isTrue);
+      expect(plan.addedPatterns, ['.restage/build/']);
+      expect(planPortableOutputIgnores(plan.source).isNoOp, isTrue);
     });
 
     test('keeps a complete existing file byte-for-byte', () {
       const source = '''
 # Project rules
 build/
+.restage/build/
 *.rsbundle
 *.restage.md
 restage.outputs.json
@@ -84,7 +98,7 @@ restage_a2ui_catalog.a2ui.json
       'does not restore a deliberately deleted rule in its managed section',
       () {
         const source = '''
-# Restage portable generated output. Remove or negate individual rules to track it.
+# Restage portable generated output. Build cache and portable artifacts; remove or negate individual rules to track them.
 *.rsbundle
 *.restage.md
 restage.outputs.json

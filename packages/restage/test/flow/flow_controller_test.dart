@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
 import 'package:restage/src/flow/flow_controller.dart'
     show createHostMeasurementFlowController;
 // `package:matcher` (via `flutter_test`) also exports `allOf`, used below as a
@@ -100,6 +102,43 @@ void main() {
       expect(controller.currentScreenId, 'welcome');
       expect(admittedRootIds, ['first_run']);
     });
+  });
+
+  test(
+      'host lifecycle follows exact rendered entries and successful completion',
+      () async {
+    final occurrences = <(MeasurementOccurrenceChannelV1, String?)>[];
+    final controller = createHostMeasurementFlowController<_FirstRunResult>(
+      flow: _flowRef,
+      resolver: _StaticFlowResolver(_resolvedFlow()),
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+      onRootResolved: (_) async {},
+      sanitizeAndRecordEvent: (value) => value,
+      onMeasurementLifecycle: (channel, screenId) =>
+          occurrences.add((channel, screenId)),
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+    final firstEntry = controller.currentScreenEntryId!;
+    controller.acknowledgeRenderedEntry(firstEntry + 100);
+    expect(occurrences, isEmpty);
+    controller.acknowledgeRenderedEntry(firstEntry);
+    controller.acknowledgeRenderedEntry(firstEntry);
+    controller.handleEvent('next', const {});
+    await _drainFlowTasks();
+    controller.acknowledgeRenderedEntry(firstEntry);
+    controller.acknowledgeRenderedEntry(controller.currentScreenEntryId!);
+    controller.handleEvent('finish', const {});
+    await _drainFlowTasks();
+    expect(occurrences, [
+      (MeasurementOccurrenceChannelV1.presentation, 'welcome'),
+      (MeasurementOccurrenceChannelV1.presentation, 'profile'),
+      (MeasurementOccurrenceChannelV1.completion, 'profile'),
+      (MeasurementOccurrenceChannelV1.completion, null),
+    ]);
   });
 
   test('the public constructor needs no Measurement syntax', () async {
@@ -3725,12 +3764,18 @@ void main() {
     test('emits changed answers once in declared order after a trigger settles',
         () async {
       final events = <RestageEvent>[];
-      final controller = RestageFlowController<Map<String, Object?>>(
+      final measuredAnswers = <(String, Object?)>[];
+      final controller =
+          createHostMeasurementFlowController<Map<String, Object?>>(
         flow: _surveyFlowRef,
         resolver: _StaticFlowResolver(
           _resolvedFlow(document: _surveyDocumentForController()),
         ),
         actions: null,
+        onRootResolved: (_) async {},
+        sanitizeAndRecordEvent: (value) => value,
+        onMeasurementAnswer: (question, value) =>
+            measuredAnswers.add((question, value)),
         onEvent: events.add,
         onComplete: (_) {},
         onUnavailable: (_) {},
@@ -3765,6 +3810,8 @@ void main() {
       );
       await _drainFlowTasks();
       expect(events.whereType<SurveyQuestionResponded>(), hasLength(2));
+      expect(measuredAnswers, hasLength(2));
+      expect(measuredAnswers.map((answer) => answer.$2), isNot(contains(null)));
 
       controller.handleEvent(
         'again',
@@ -4403,7 +4450,8 @@ void main() {
 
     test('skip routes the reserved skip event as a custom event', () async {
       final events = <RestageEvent>[];
-      final controller = RestageFlowController<_FirstRunResult>(
+      final captured = <(MeasurementOccurrenceChannelV1, String?)>[];
+      final controller = createHostMeasurementFlowController<_FirstRunResult>(
         flow: _flowRef,
         resolver: _StaticFlowResolver(
           _resolvedFlow(
@@ -4420,6 +4468,10 @@ void main() {
         onEvent: events.add,
         onComplete: (_) {},
         onUnavailable: (_) {},
+        onRootResolved: (_) async {},
+        sanitizeAndRecordEvent: (value) => value,
+        onMeasurementLifecycle: (channel, screenId) =>
+            captured.add((channel, screenId)),
       );
       addTearDown(controller.dispose);
 
@@ -4435,6 +4487,7 @@ void main() {
             (event) => event.eventName == 'skip',
           );
       expect(skips, hasLength(1));
+      expect(captured, [(MeasurementOccurrenceChannelV1.skip, 'welcome')]);
     });
 
     test('canSkip is false when the screen has no skip destination', () async {

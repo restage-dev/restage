@@ -66,7 +66,7 @@ void main() {
       readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/generated/restage_a2ui_catalog.a2ui.json',
+          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
         ),
       ),
     ) as Map<String, Object?>;
@@ -127,7 +127,27 @@ void main() {
     );
     expect(disabled.catalogDart, isNot(contains('RoutedCard')));
     expect(disabled.factoryDart, isNot(contains('RoutedCard')));
-    expect(disabled.factoryDart, contains('void registerRestageWidgets() {}'));
+    // A package with no widget of its own still installs the built-in catalog
+    // and the vocabulary its own surfaces render.
+    expect(
+      disabled.factoryDart,
+      contains(
+        '  void call({\n'
+        '    bool includeMaterial = true,\n'
+        '    bool includeCupertino = true,\n'
+        '  }) {\n'
+        '    InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(\n'
+        '      includeMaterial: includeMaterial,\n'
+        '      includeCupertino: includeCupertino,\n'
+        '    ));\n'
+        '    InstalledIconTable.add(builtInIconTable(\n'
+        '      includeMaterial: includeMaterial,\n'
+        '      includeCupertino: includeCupertino,\n'
+        '    ));\n'
+        '    kRestageAppVocabulary.addToInstalled(explicitSelection: true);\n'
+        '  }',
+      ),
+    );
     expect(
       disabled.factoryDart,
       contains(
@@ -136,7 +156,7 @@ void main() {
       ),
     );
     expect(
-      RegExp(r'void registerRestageWidgets\(\) \{')
+      RegExp(r'void registerRestageWidgets\(\{')
           .allMatches(disabled.factoryDart)
           .length,
       1,
@@ -385,7 +405,7 @@ const _rfwArtifactPaths = <String>{
 };
 const _a2uiArtifactPaths = <String>{
   'lib/generated/restage_a2ui_catalog.g.dart',
-  'lib/generated/restage_a2ui_catalog.a2ui.json',
+  '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
 };
 const _widgetbookArtifactPaths = <String>{
   'lib/widgets/restage.generated/routed_card.stories.dart',
@@ -511,7 +531,7 @@ class IgnoreProbe extends StatelessWidget {
     'lib/src/widget_catalog/catalog.json',
     'lib/user_factories.g.dart',
     'lib/generated/restage_a2ui_catalog.g.dart',
-    'lib/generated/restage_a2ui_catalog.a2ui.json',
+    '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
     'lib/widgets/restage.generated/ignore_probe.stories.dart',
   ];
   return {
@@ -586,7 +606,7 @@ Future<({String dart, String stamp})> _runA2ui(
     stamp: readerWriter.testing.readString(
       AssetId(
         'apps_examples',
-        'lib/generated/restage_a2ui_catalog.a2ui.json',
+        '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
       ),
     ),
   );

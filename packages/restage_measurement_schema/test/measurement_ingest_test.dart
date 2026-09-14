@@ -10,6 +10,62 @@ import 'support/exact_publication_context_test_support.dart';
 
 void main() {
   group('MeasurementIngestRequestV1', () {
+    test('existing request round-trips and rejects the diagnostic kind', () {
+      final request =
+          MeasurementIngestRequestV1.fromFactFrame(_validatedFrame());
+      final document = decodeCanonicalObject(request.canonicalBytes);
+      final read = MeasurementIngestRequestV1.fromBase64(
+        _base64Url(CanonicalJsonCodec.encode(document)),
+      );
+      expect(read.canonicalBytes, orderedEquals(request.canonicalBytes));
+      expect(
+          () => MeasurementIngestRequestV1.fromBase64(
+                _base64Url(CanonicalJsonCodec.encode({
+                  ...document,
+                  'kind':
+                      'authenticatedMeasurementPresentationDiagnosticRequest',
+                })),
+              ),
+          throwsA(isA<MeasurementIngestCodecException>()));
+      expect(
+          () => MeasurementIngestRequestV1.fromBase64(
+                _base64Url(CanonicalJsonCodec.encode({
+                  ...document,
+                  'diagnosticCanonicalBase64': 'e30',
+                })),
+              ),
+          throwsA(isA<MeasurementIngestCodecException>()));
+    });
+
+    test(
+        'runtime metadata survives wire and changes authenticated retry identity',
+        () {
+      final frame = _validatedFrame();
+      final plain = MeasurementIngestRequestV1.fromFactFrame(frame);
+      final request = MeasurementIngestRequestV1.fromFactFrame(frame,
+          sdkRuntimeSessionNonce: 'a' * 64, reportedSdkVersion: '2.0.0');
+      final read =
+          MeasurementIngestRequestV1.fromBase64(request.canonicalRequestBase64);
+      expect(read.sdkRuntimeSessionNonce, 'a' * 64);
+      expect(read.reportedSdkVersion, '2.0.0');
+      expect(read.requestSha256, isNot(plain.requestSha256));
+      expect(read.factFrameSha256, plain.factFrameSha256);
+      expect(plain.sdkRuntimeSessionNonce, isNull);
+      expect(plain.reportedSdkVersion, isNull);
+      for (final nonce in ['', 'a' * 63, 'A' * 64]) {
+        expect(
+            () => MeasurementIngestRequestV1.fromFactFrame(frame,
+                sdkRuntimeSessionNonce: nonce),
+            throwsA(isA<MeasurementIngestCodecException>()));
+      }
+      for (final version in ['', 'v' * 65, '2.0\nspoof']) {
+        expect(
+            () => MeasurementIngestRequestV1.fromFactFrame(frame,
+                sdkRuntimeSessionNonce: 'a' * 64, reportedSdkVersion: version),
+            throwsA(isA<MeasurementIngestCodecException>()));
+      }
+    });
+
     test('encodes the exact authenticated request from one validated frame',
         () {
       final frame = _validatedFrame();
@@ -66,7 +122,12 @@ void main() {
       );
     });
 
-    for (final subjectField in const ['customerId', 'purchaserId']) {
+    for (final subjectField in const [
+      'customerId',
+      'purchaserId',
+      'context',
+      'data',
+    ]) {
       test('rejects a frame with a $subjectField field before encoding', () {
         final frame = decodeCanonicalObject(_validFrameBytes());
         final injectedSubject = CanonicalJsonCodec.encode({
@@ -83,6 +144,103 @@ void main() {
   });
 
   group('MeasurementIngestReceiptV1', () {
+    test('a receipt carries a diagnostic digest instead of a fact digest', () {
+      final digest = 'a' * 64;
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 0,
+        captureSessionNonce: 'capture.diagnostic',
+        diagnosticSha256: digest,
+        isFinal: true,
+        persistedAtMicros: 4100000,
+        publicationBindingReference: _bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: 'b' * 64,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: 1,
+      );
+
+      expect(receipt.factFrameSha256, isNull);
+      expect(receipt.diagnosticSha256, digest);
+      final decoded = MeasurementIngestReceiptV1.fromCanonicalBytes(
+        receipt.canonicalBytes,
+      );
+      expect(decoded.canonicalBytes, orderedEquals(receipt.canonicalBytes));
+    });
+
+    test('a receipt with neither digest is refused', () {
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 1,
+        captureSessionNonce: 'capture.receipt',
+        factFrameSha256: 'a' * 64,
+        isFinal: true,
+        persistedAtMicros: 4100000,
+        publicationBindingReference: _bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: 'b' * 64,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: 1,
+      );
+      final document = decodeCanonicalObject(receipt.canonicalBytes)
+        ..remove('factFrameSha256');
+
+      expect(
+        () => MeasurementIngestReceiptV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode(document),
+        ),
+        throwsA(isA<MeasurementIngestCodecException>()),
+      );
+    });
+
+    test('a receipt with both digests is refused', () {
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 1,
+        captureSessionNonce: 'capture.receipt',
+        factFrameSha256: 'a' * 64,
+        isFinal: true,
+        persistedAtMicros: 4100000,
+        publicationBindingReference: _bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: 'b' * 64,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: 1,
+      );
+      final document = decodeCanonicalObject(receipt.canonicalBytes)
+        ..['diagnosticSha256'] = 'c' * 64;
+
+      expect(
+        () => MeasurementIngestReceiptV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode(document),
+        ),
+        throwsA(isA<MeasurementIngestCodecException>()),
+      );
+    });
+
+    test('an existing fact-only receipt still decodes', () {
+      final request = MeasurementIngestRequestV1.fromFactFrame(
+        _validatedFrame(),
+      );
+      final receipt = MeasurementIngestReceiptV1.accepted(
+        acceptedObservationCount: 1,
+        captureSessionNonce: request.factFrame.captureSessionNonce,
+        factFrameSha256: request.factFrameSha256,
+        isFinal: request.factFrame.isFinal,
+        persistedAtMicros: 4100000,
+        publicationBindingReference:
+            request.factFrame.publishedContext.bindingReference,
+        receiptId: 'receipt.sdk.ingest.0001',
+        requestSha256: request.requestSha256,
+        rootObservationUnitKey: 'root.sdk.ingest.0001',
+        sequence: request.factFrame.sequence,
+      );
+      final decoded = MeasurementIngestReceiptV1.fromCanonicalBytes(
+        receipt.canonicalBytes,
+      );
+
+      expect(decoded.canonicalBytes, orderedEquals(receipt.canonicalBytes));
+      expect(decoded.factFrameSha256, request.factFrameSha256);
+      expect(decoded.diagnosticSha256, isNull);
+    });
+
     test('encodes and strictly round-trips the accepted request proof', () {
       final request = MeasurementIngestRequestV1.fromFactFrame(
         _validatedFrame(),
@@ -179,12 +337,245 @@ void main() {
       expect(receipt.requestSha256, _sha256(requestBytes));
     });
   });
+
+  group('canonical experiment assignment on the fact frame', () {
+    test('is absent from ordinary delivery', () {
+      expect(_validatedFrame().experimentAssignment, isNull);
+    });
+
+    test('carries the opaque carrier', () {
+      final frame = _validatedFrame(
+        experimentAssignment: _assignment(),
+      );
+      final assignment = frame.experimentAssignment;
+
+      expect(assignment, isNotNull);
+      expect(assignment!.outcomeLinkCarrier, _carrier);
+      expect(assignment.toJson(), {
+        'kind': 'measurementExperimentAssignment',
+        'outcomeLinkCarrier': _carrier,
+        'schemaVersion': 1,
+      });
+    });
+
+    test('retains independently bounded first occurrences on each fact', () {
+      final frame = _validatedFrame(
+        experimentAssignment: _assignment(),
+        factFields: {
+          'presentationFirstOccurrenceMicros': 0,
+          'interactionFirstOccurrenceMicros':
+              measurementIngestMaximumOutcomeWitnessMicros,
+        },
+      );
+      expect(frame.facts.single.presentationFirstOccurrenceMicros, 0);
+      expect(
+        frame.facts.single.interactionFirstOccurrenceMicros,
+        measurementIngestMaximumOutcomeWitnessMicros,
+      );
+      expect(
+        frame.facts.single.toJson()['presentationFirstOccurrenceMicros'],
+        0,
+      );
+      expect(
+        frame.facts.single.toJson()['interactionFirstOccurrenceMicros'],
+        measurementIngestMaximumOutcomeWitnessMicros,
+      );
+      expect(
+        _validatedFrame().facts.single.toJson(),
+        isNot(contains('presentationFirstOccurrenceMicros')),
+      );
+      expect(
+        _validatedFrame().facts.single.toJson(),
+        isNot(contains('interactionFirstOccurrenceMicros')),
+      );
+    });
+
+    test('rejects out-of-bound, unordered and unsupported fact witnesses', () {
+      for (final field in [
+        'presentationFirstOccurrenceMicros',
+        'interactionFirstOccurrenceMicros',
+      ]) {
+        for (final value in [
+          -1,
+          measurementIngestMaximumOutcomeWitnessMicros + 1,
+          '1',
+          1.5,
+          null,
+        ]) {
+          expect(
+            () => MeasurementFact.fromJson(
+              {
+                ..._validatedFrame().facts.single.toJson(),
+                field: value,
+              },
+              bounds: _validatedFrame().bounds,
+            ),
+            throwsA(isA<MeasurementIngestCodecException>()),
+            reason: '$field: $value',
+          );
+        }
+      }
+      for (final fields in <Map<String, Object?>>[
+        {
+          'presentationFirstOccurrenceMicros': 10,
+          'interactionFirstOccurrenceMicros': 9,
+        },
+        {
+          'interactionState': 'observedZero',
+          'interactionCount': {'saturated': false, 'value': 0},
+          'interactionFirstOccurrenceMicros': 1,
+        },
+        {
+          'interactionState': 'transportTruncated',
+          'interactionCount': null,
+          'interactionFirstOccurrenceMicros': 1,
+        },
+      ]) {
+        expect(
+          () => _validatedFrame(factFields: fields),
+          throwsA(isA<MeasurementIngestCodecException>()),
+        );
+      }
+    });
+
+    test('assigned and witnessed frames require a bounded capture elapsed time',
+        () {
+      final assigned = decodeCanonicalObject(
+        _validFrameBytes(experimentAssignment: _assignment()),
+      );
+      expect(_validatedFrame().frameElapsedMicros, isNull);
+      expect(
+        _validatedFrame(experimentAssignment: _assignment()).frameElapsedMicros,
+        measurementIngestMaximumOutcomeWitnessMicros,
+      );
+      for (final invalid in [
+        -1,
+        measurementIngestMaximumOutcomeWitnessMicros + 1,
+        null,
+        '1',
+      ]) {
+        expect(
+          () => MeasurementFactFrameV1.fromCanonicalBytes(
+            CanonicalJsonCodec.encode({
+              ...assigned,
+              'frameElapsedMicros': invalid,
+            }),
+          ),
+          throwsA(isA<MeasurementIngestCodecException>()),
+        );
+      }
+      assigned.remove('frameElapsedMicros');
+      expect(
+        () => MeasurementFactFrameV1.fromCanonicalBytes(
+          CanonicalJsonCodec.encode(assigned),
+        ),
+        throwsA(isA<MeasurementIngestCodecException>()),
+      );
+      final witnessed = decodeCanonicalObject(
+        _validFrameBytes(
+          factFields: {'interactionFirstOccurrenceMicros': 10},
+        ),
+      );
+      for (final elapsed in [null, 9]) {
+        if (elapsed == null) {
+          witnessed.remove('frameElapsedMicros');
+        } else {
+          witnessed['frameElapsedMicros'] = elapsed;
+        }
+        expect(
+          () => MeasurementFactFrameV1.fromCanonicalBytes(
+            CanonicalJsonCodec.encode(witnessed),
+          ),
+          throwsA(isA<MeasurementIngestCodecException>()),
+        );
+      }
+    });
+
+    test('rides inside the signed request bytes and changes their digest', () {
+      final ordinary = MeasurementIngestRequestV1.fromFactFrame(
+        _validatedFrame(),
+      );
+      final assigned = MeasurementIngestRequestV1.fromFactFrame(
+        _validatedFrame(experimentAssignment: _assignment()),
+      );
+      final witnessed = MeasurementIngestRequestV1.fromFactFrame(
+        _validatedFrame(
+          experimentAssignment: _assignment(),
+          factFields: {'interactionFirstOccurrenceMicros': 1},
+        ),
+      );
+
+      expect(decodeCanonicalObject(assigned.canonicalBytes).keys, {
+        'factFrameCanonicalBase64',
+        'factFrameSha256',
+        'kind',
+        'schemaVersion',
+      });
+      expect(assigned.factFrameSha256, isNot(ordinary.factFrameSha256));
+      expect(assigned.requestSha256, isNot(ordinary.requestSha256));
+      expect(witnessed.factFrameSha256, isNot(assigned.factFrameSha256));
+      expect(witnessed.requestSha256, isNot(assigned.requestSha256));
+    });
+
+    test('rejects every noncanonical assignment', () {
+      final invalid = <String, Map<String, Object?>>{
+        'unknown key': {..._assignment(), 'armId': 'treatment'},
+        'missing carrier': {
+          'kind': 'measurementExperimentAssignment',
+          'schemaVersion': 1,
+        },
+        'empty carrier': _assignment(carrier: ''),
+        'padded carrier': _assignment(carrier: 'YWJj='),
+        'noncanonical carrier': _assignment(carrier: 'not/base64+url'),
+        'oversized carrier': _assignment(carrier: 'A' * 5000),
+        'wrong kind': {
+          ..._assignment(),
+          'kind': 'measurementSurfaceAssignment',
+        },
+        'wrong schema version': {..._assignment(), 'schemaVersion': 2},
+        'global witness': {..._assignment(), 'outcomeFirstOccurrenceMicros': 1},
+      };
+
+      for (final entry in invalid.entries) {
+        expect(
+          () => _validatedFrame(experimentAssignment: entry.value),
+          throwsA(isA<MeasurementIngestCodecException>()),
+          reason: entry.key,
+        );
+      }
+    });
+  });
 }
 
-MeasurementFactFrameV1 _validatedFrame() =>
-    MeasurementFactFrameV1.fromCanonicalBytes(_validFrameBytes());
+const _carrier = 'b3V0Y29tZS1saW5rLWNhcnJpZXI';
 
-Uint8List _validFrameBytes() => CanonicalJsonCodec.encode({
+Map<String, Object?> _assignment({
+  String carrier = _carrier,
+}) =>
+    {
+      'kind': 'measurementExperimentAssignment',
+      'outcomeLinkCarrier': carrier,
+      'schemaVersion': 1,
+    };
+
+MeasurementFactFrameV1 _validatedFrame({
+  Map<String, Object?>? experimentAssignment,
+  Map<String, Object?> factFields = const {},
+}) =>
+    MeasurementFactFrameV1.fromCanonicalBytes(
+      _validFrameBytes(
+        experimentAssignment: experimentAssignment,
+        factFields: factFields,
+      ),
+    );
+
+Uint8List _validFrameBytes({
+  Map<String, Object?>? experimentAssignment,
+  Map<String, Object?> factFields = const {},
+}) =>
+    CanonicalJsonCodec.encode({
+      if (experimentAssignment != null)
+        'experimentAssignment': experimentAssignment,
       'bounds': {
         'maximumCounterValue': 10,
         'maximumInteractionCounters': 1,
@@ -192,12 +583,17 @@ Uint8List _validFrameBytes() => CanonicalJsonCodec.encode({
         'maximumPresentedPoints': 1,
       },
       'captureSessionNonce': 'session-sdk-ingest-0001',
+      if (experimentAssignment != null ||
+          factFields.containsKey('presentationFirstOccurrenceMicros') ||
+          factFields.containsKey('interactionFirstOccurrenceMicros'))
+        'frameElapsedMicros': measurementIngestMaximumOutcomeWitnessMicros,
       'facts': [
         {
           'interactionCount': {'saturated': false, 'value': 1},
           'interactionState': 'observedValue',
           'lineageId': 'lineage.sdk.ingest',
           'occurrenceId': 'a' * 64,
+          ...factFields,
         },
       ],
       'finality': {'kind': 'final'},

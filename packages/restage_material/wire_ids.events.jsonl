@@ -661,3 +661,5 @@
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0486","kind":"alloc","name":"unselectedLabelColor","owner":"w0048","source":"package:flutter/src/material/tabs.dart#TabBar.unselectedLabelColor","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0487","kind":"alloc","name":"onTap","owner":"w0048","source":"package:flutter/src/material/tabs.dart#TabBar.onTap","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0488","kind":"alloc","name":"analyticsId","owner":"w0048","source":"package:flutter/src/material/tabs.dart#TabBar.analyticsId","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0489","kind":"alloc","name":"iconFontFamily","owner":"w0020","source":"package:flutter/src/widgets/icon.dart#Icon.iconFontFamily","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0490","kind":"alloc","name":"iconMatchTextDirection","owner":"w0020","source":"package:flutter/src/widgets/icon.dart#Icon.iconMatchTextDirection","type":"property"}

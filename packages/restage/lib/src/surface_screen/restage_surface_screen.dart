@@ -5,20 +5,29 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
-    show DynamicContent, Runtime, WidgetLibrary, decodeLibraryBlob;
+    show
+        DynamicContent,
+        RemoteWidget,
+        Runtime,
+        WidgetLibrary,
+        decodeLibraryBlob;
 
-import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart' show PagerPageChanged;
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
-import '../runtime/builtin_catalog_capabilities.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show
+        SurfaceDeliveryObservationCell,
+        readSurfaceDeliveryObservations,
+        requestingViewShortestLogicalSide,
+        withSurfaceDeliveryObservations;
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
-import '../runtime/library_runtime_registry.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
@@ -83,10 +92,9 @@ final class RestageScreen<E> extends StatefulWidget {
 }
 
 class _RestageScreenState<E> extends State<RestageScreen<E>> {
-  late final FlowScreenLibraries _libraries;
-
   _ScreenStage? _stage;
   SurfaceScreenUnavailableError? _unavailableError;
+  SurfaceDeliveryObservationCell? _observationCell;
   var _resolutionEpoch = 0;
   var _dependenciesReady = false;
   ContextSnapshot? _context;
@@ -100,7 +108,6 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void initState() {
     super.initState();
     _refreshContext();
-    _libraries = FlowScreenLibraries();
     _restart();
   }
 
@@ -127,15 +134,33 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void dispose() {
     _resolutionEpoch += 1;
     _disposeStage();
+    _observationCell = null;
     super.dispose();
   }
 
+  SurfaceDeliveryObservationCell _presentationObservations() =>
+      _observationCell ??= SurfaceDeliveryObservationCell(
+        () => readSurfaceDeliveryObservations(
+          shortestLogicalSide:
+              mounted ? requestingViewShortestLogicalSide(context) : null,
+        ),
+      );
+
   void _restart() {
+    // Installing here is what makes a screen swapped into this position
+    // render with its own vocabulary.
+    widget.screen.provenance.vocabulary.addToInstalled();
+    _observationCell = null;
     final epoch = ++_resolutionEpoch;
     _disposeStage();
     setState(() => _unavailableError = null);
-    unawaited(_resolve(epoch));
+    unawaited(_resolveInScope(epoch));
   }
+
+  Future<void> _resolveInScope(int epoch) => withSurfaceDeliveryObservations(
+        cell: _presentationObservations(),
+        resolve: () => _resolve(epoch),
+      );
 
   Future<void> _resolve(int epoch) async {
     final screen = widget.screen;
@@ -197,6 +222,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       stage.attachMeasurementSession(
         await MeasurementHostSessionController.openForResolvedArtifact(
           resolved,
+          presentationObservations: _observationCell?.read,
         ),
       );
     } on Object {
@@ -216,10 +242,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
     final capabilityVerdict = BlobRenderCapabilityGate.evaluate(
       required: provenance.capabilities,
-      installed: InstalledCapability(
-        builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
-        installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
-      ),
+      installed: currentInstalledCapability(),
     );
     if (capabilityVerdict is BlobRenderRejected) {
       throw SurfaceScreenUnavailableError(
@@ -240,7 +263,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       );
     }
 
-    final runtime = _libraries.runtimeFor(library);
+    final runtime = flowScreenRuntime(library);
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: provenance.surface.wireName,
       surfaceId: provenance.slug,
@@ -381,17 +404,11 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       child: stage.wrapMeasuredRoot(
         RestagePagerEventScope(
           sink: _pagerSinkForStage(stage),
-          child: RestagePrivacyAwareRemoteWidget(
+          child: RemoteWidget(
             runtime: stage.runtime,
             data: stage.data,
             widget: kFlowScreenWidget,
-            mayExposeNonEmptyHostContext: () =>
-                stage.contextPublisher.mayExposeNonEmptyHostContext,
-            onEvent: (name, value) => RestageRenderEventPrivacy.run<void>(
-              mayExposeNonEmptyHostContext:
-                  stage.contextPublisher.mayExposeNonEmptyHostContext,
-              body: () => _handleEvent(stage, name, value),
-            ),
+            onEvent: (name, value) => _handleEvent(stage, name, value),
           ),
         ),
       ),

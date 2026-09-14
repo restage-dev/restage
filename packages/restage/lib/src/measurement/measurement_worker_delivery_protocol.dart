@@ -1,7 +1,37 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'measurement_outbox_protocol.dart';
 import 'measurement_worker_protocol.dart';
+
+/// Root-isolate cancellation latch shared with native startup, never serialized.
+/// Cancellation completion acknowledges worker reset; it is not an atomic
+/// cross-isolate wall-clock barrier at the synchronous call site.
+@internal
+final class MeasurementWorkerOwnedDeliveryCancellation {
+  bool _cancelled = false;
+  Future<void> Function()? _reset;
+  Future<void>? _completion;
+
+  bool get isCancelled => _cancelled;
+  Future<void> get completion => _completion ?? Future<void>.value();
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    final reset = _reset;
+    if (reset != null) _completion = reset();
+  }
+
+  void attach(Future<void> Function() reset) {
+    if (_reset != null) throw StateError('Cancellation already attached');
+    _reset = reset;
+    if (_cancelled) _completion = reset();
+  }
+}
 
 /// The five admission predicates that must be true before delivery startup.
 ///
@@ -526,9 +556,14 @@ abstract interface class MeasurementWorkerOwnedDeliveryRuntimeState {
 abstract interface class MeasurementWorkerOwnedDeliverySessionState {
   MeasurementWorkerAppendOutcome append(MeasurementWorkerAppendRecord record);
 
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint();
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint(
+      {int? frameElapsedMicros});
 
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown();
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
+      {int? frameElapsedMicros});
+
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult>
+      reportTerminalDiagnostic(Uint8List canonicalSummaryBytes);
 
   Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard();
 }
@@ -552,12 +587,21 @@ final class MeasurementWorkerOwnedDeliverySession {
       _state.append(record);
 
   /// Orders durable checkpoint preparation and one bounded upload attempt.
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint() =>
-      _state.checkpoint();
+  /// Assigned sessions require elapsed time from the append clock.
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint(
+          {int? frameElapsedMicros}) =>
+      _state.checkpoint(frameElapsedMicros: frameElapsedMicros);
 
   /// Orders terminal preparation and rejects later appends locally.
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown() =>
-      _state.teardown();
+  /// Assigned sessions require elapsed time from the append clock.
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
+          {int? frameElapsedMicros}) =>
+      _state.teardown(frameElapsedMicros: frameElapsedMicros);
+
+  /// Reports only the terminal summary and closes capture.
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult>
+      reportTerminalDiagnostic(Uint8List canonicalSummaryBytes) =>
+          _state.reportTerminalDiagnostic(canonicalSummaryBytes);
 
   /// Removes an uncommitted session without preparing a fact frame.
   Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard() =>
@@ -628,11 +672,28 @@ final class MeasurementWorkerOwnedDeliveryCheckpointMessage
     required this.requestId,
     required this.sessionId,
     required this.isFinal,
+    this.frameElapsedMicros,
   });
 
   final int requestId;
   final String sessionId;
   final bool isFinal;
+  final int? frameElapsedMicros;
+}
+
+final class MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage
+    extends MeasurementWorkerOwnedDeliveryInboundMessage {
+  MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage({
+    required this.requestId,
+    required this.sessionId,
+    required Uint8List canonicalSummaryBytes,
+  }) : _canonicalSummaryBytes = _requireSummaryBytes(canonicalSummaryBytes);
+
+  final int requestId;
+  final String sessionId;
+  final Uint8List _canonicalSummaryBytes;
+  Uint8List get canonicalSummaryBytes =>
+      Uint8List.fromList(_canonicalSummaryBytes);
 }
 
 final class MeasurementWorkerOwnedDeliveryDiscardMessage
@@ -644,6 +705,11 @@ final class MeasurementWorkerOwnedDeliveryDiscardMessage
 
   final int requestId;
   final String sessionId;
+}
+
+final class MeasurementWorkerOwnedDeliveryActivateMessage
+    extends MeasurementWorkerOwnedDeliveryInboundMessage {
+  const MeasurementWorkerOwnedDeliveryActivateMessage();
 }
 
 final class MeasurementWorkerOwnedDeliveryResetMessage
@@ -800,6 +866,8 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static const int _reset = 4;
   static const int _shutdown = 5;
   static const int _discard = 6;
+  static const int _activate = 7;
+  static const int _terminalDiagnostic = 8;
 
   static const int _ready = 101;
   static const int _opened = 102;
@@ -811,6 +879,8 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static const int _debug = 108;
   static const int _fatal = 109;
   static const int _discardResult = 110;
+
+  static List<Object?> activate() => [_activate, _version];
 
   static List<Object?> register({
     required int requestId,
@@ -829,14 +899,45 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
         record.routeIndex,
         record.monotonicTimestampMicros,
         record.value.wireCode,
+        if (record.answerValueV1 != null)
+          switch (record.answerValueV1!) {
+            MeasurementCategoryAnswerV1(:final value) => ['category', value],
+            MeasurementIntegerAnswerV1(:final value) => ['integer', value],
+            MeasurementScaledAnswerV1(:final coefficient, :final scale) => [
+                'scaledDecimal',
+                coefficient,
+                scale
+              ],
+          },
       ];
 
   static List<Object?> checkpoint({
     required int requestId,
     required String sessionId,
     required bool isFinal,
+    int? frameElapsedMicros,
   }) =>
-      [_checkpoint, _version, requestId, sessionId, isFinal];
+      [
+        _checkpoint,
+        _version,
+        requestId,
+        sessionId,
+        isFinal,
+        frameElapsedMicros
+      ];
+
+  static List<Object?> terminalDiagnostic({
+    required int requestId,
+    required String sessionId,
+    required Uint8List canonicalSummaryBytes,
+  }) =>
+      [
+        _terminalDiagnostic,
+        _version,
+        requestId,
+        sessionId,
+        _requireSummaryBytes(canonicalSummaryBytes)
+      ];
 
   static List<Object?> discard({
     required int requestId,
@@ -959,6 +1060,8 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
     final tag = _requireIntAt(values, 0);
     _requireVersion(values);
     return switch (tag) {
+      _activate when values.length == 2 =>
+        const MeasurementWorkerOwnedDeliveryActivateMessage(),
       _register => MeasurementWorkerOwnedDeliveryRegisterMessage(
           requestId: _requirePositiveRequestId(values, expectedLength: 4),
           registration:
@@ -966,9 +1069,16 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
         ),
       _append => _decodeAppend(values),
       _checkpoint => MeasurementWorkerOwnedDeliveryCheckpointMessage(
-          requestId: _requirePositiveRequestId(values, expectedLength: 5),
+          requestId: _requirePositiveRequestId(values, expectedLength: 6),
           sessionId: _requireString(values[3]),
           isFinal: _requireBool(values[4]),
+          frameElapsedMicros: values[5] == null ? null : _requireInt(values[5]),
+        ),
+      _terminalDiagnostic =>
+        MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage(
+          requestId: _requirePositiveRequestId(values, expectedLength: 5),
+          sessionId: _requireString(values[3]),
+          canonicalSummaryBytes: _requireSummaryBytes(values[4]),
         ),
       _discard => MeasurementWorkerOwnedDeliveryDiscardMessage(
           requestId: _requirePositiveRequestId(values, expectedLength: 4),
@@ -1051,10 +1161,26 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static MeasurementWorkerOwnedDeliveryAppendMessage _decodeAppend(
     List<Object?> values,
   ) {
-    _requireLength(values, 6);
+    if (values.length != 6 && values.length != 7)
+      throw const MeasurementWorkerOwnedDeliveryProtocolException(
+          'invalid_append_length');
     return MeasurementWorkerOwnedDeliveryAppendMessage(
       sessionId: _requireString(values[2]),
       record: MeasurementWorkerAppendRecord(
+        answerValueV1: values.length == 6
+            ? null
+            : switch (values[6]) {
+                ['category', final String value] =>
+                  MeasurementCategoryAnswerV1(value),
+                ['integer', final String value] =>
+                  MeasurementIntegerAnswerV1(value),
+                ['scaledDecimal', final String coefficient, final int scale] =>
+                  MeasurementScaledAnswerV1(
+                      coefficient: coefficient, scale: scale),
+                _ =>
+                  throw const MeasurementWorkerOwnedDeliveryProtocolException(
+                      'invalid_answer_value'),
+              },
         routeIndex: _requireInt(values[3]),
         monotonicTimestampMicros: _requireInt(values[4]),
         value: _requireAppendValue(_requireInt(values[5])),
@@ -1263,4 +1389,12 @@ MeasurementOutboxPurgeReason _requirePurgeReason(int index) {
     );
   }
   return MeasurementOutboxPurgeReason.values[index];
+}
+
+Uint8List _requireSummaryBytes(Object? value) {
+  if (value is! Uint8List || value.isEmpty || value.length > 8192) {
+    throw const MeasurementWorkerOwnedDeliveryProtocolException(
+        'invalid_summary_bytes');
+  }
+  return Uint8List.fromList(value);
 }

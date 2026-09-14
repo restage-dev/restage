@@ -27,7 +27,7 @@ final _lumenTrialEndingScreenProvenance =
   slug: "lumen_trial_ending",
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 6,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -43,7 +43,7 @@ final _lumenTrialEndingScreenProvenance =
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 21460,
         sha256:
-            "sha256:f44e2aaba46fe1a62b7ed0812c9fb8f5b5c59437f99e97a2c0f6d0e0173f31a5",
+            "sha256:41ffaf4eaffcb35de7acaa06c0a837ce99a8dcd3b522c9103de54fc5af7756e2",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -51,9 +51,37 @@ final _lumenTrialEndingScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:f39890b189cfaf31f1b72546e69b82d17366ec5de4977e46f323722da489b832",
+            "sha256:d8bca2f7ed873b9aa3b510a66ac41238cf2822fd9e7be585279674f0f1145fed",
       ),
     ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'Row': buildRow,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Icon': buildIcon,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+        0xf0027: IconData(0xf0027, fontFamily: 'MaterialIcons'),
+      },
+    }),
   ),
 );
 
@@ -62,7 +90,7 @@ final lumenTrialEndingScreenRef = SurfaceScreenRef<
   provenance: _lumenTrialEndingScreenProvenance,
   eventContract: _lumenTrialEndingScreenEvents,
   measurementPublicationDraftDigest:
-      "5bc664ec75d0469bf406787b68115e92bf2eca72cc6255d9c7a801020deaa1e7",
+      "8a8ec0f86bd778d3d875009e0ace637a71fcbf0118ddfd0691e4d382099e6935",
 );
 
 LumenTrialEndingScreenEvent _decodeValidatedLumenTrialEndingScreenEvent(

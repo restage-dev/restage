@@ -10,10 +10,45 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 import '../helpers.dart';
 
 void main() {
+  test('exports the cached custom catalog for a widget-only package', () async {
+    final catalog = encodeCatalog(Catalog(
+      schemaVersion: kSupportedSchemaVersion,
+      generatedAt: '2026-01-01T00:00:00Z',
+      libraries: {
+        WidgetLibrary.custom('fixture.widgets'):
+            const LibraryInfo(version: '1.0.0')
+      },
+      widgets: [],
+    ));
+    final bundle = RestageSurfacePublicationBundle.valid(
+      manifest: SurfacePublicationManifest(publications: []),
+      artifacts: {},
+    );
+    final result = await testBuilder(
+      RestageOutputsBuilder(
+          const BuilderOptions({'output_root': 'tool/restage'})),
+      {
+        'fixture|lib/src/widget_catalog/catalog.json': catalog,
+        'fixture|$kRestageSurfacePublicationCompilerBundlePath':
+            bundle.encodeCanonicalJson(),
+      },
+      rootPackage: 'fixture',
+      outputs: {
+        'fixture|tool/restage/widget_catalog/catalog.json': catalog,
+        'fixture|tool/restage/metadata/restage.outputs.json': anything,
+        'fixture|tool/restage/metadata/restage.publication.json': anything,
+        'fixture|tool/restage/metadata/restage.analytics-id.metadata.json':
+            anything,
+      },
+    );
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  });
+
   test(
       'materializes one deterministic bundle per authored library plus the '
       'package-wide index and publication manifest', () async {
@@ -107,7 +142,7 @@ const launch = FlowDefinition(
     final announcementBundleBytes = readerWriter.testing.readBytes(
       AssetId(
         'apps_examples',
-        'lib/features/restage.generated/announcement.rsbundle',
+        '.restage/build/bundles/lib/features/announcement.rsbundle',
       ),
     );
     final announcementBundle = RestageBundleCodec.decode(
@@ -135,7 +170,7 @@ const launch = FlowDefinition(
     final launchBundleBytes = readerWriter.testing.readBytes(
       AssetId(
         'apps_examples',
-        'lib/journeys/restage.generated/launch.rsbundle',
+        '.restage/build/bundles/lib/journeys/launch.rsbundle',
       ),
     );
     final launchBundle = RestageBundleCodec.decode(launchBundleBytes);
@@ -150,7 +185,7 @@ const launch = FlowDefinition(
       readerWriter.testing.exists(
         AssetId(
           'apps_examples',
-          'lib/features/restage.generated/announcement.restage.md',
+          '.restage/build/reports/lib/features/announcement.restage.md',
         ),
       ),
       isFalse,
@@ -158,7 +193,8 @@ const launch = FlowDefinition(
 
     // Package-wide publication manifest and physical output index.
     final manifestJson = readerWriter.testing.readString(
-      AssetId('apps_examples', 'lib/generated/restage.publication.json'),
+      AssetId(
+          'apps_examples', '.restage/build/metadata/restage.publication.json'),
     );
     final manifest = SurfacePublicationManifestV1Codec.decode(
       jsonDecode(manifestJson),
@@ -191,14 +227,15 @@ const launch = FlowDefinition(
 
     final indexJson = jsonDecode(
       readerWriter.testing.readString(
-        AssetId('apps_examples', 'lib/generated/restage.outputs.json'),
+        AssetId(
+            'apps_examples', '.restage/build/metadata/restage.outputs.json'),
       ),
     ) as Map<String, Object?>;
     expect(indexJson['package'], 'apps_examples');
-    expect(indexJson['physicalRoot'], '.');
+    expect(indexJson['physicalRoot'], '.restage/build');
     expect(
       indexJson['publicationManifestPath'],
-      'lib/generated/restage.publication.json',
+      '.restage/build/metadata/restage.publication.json',
     );
     final indexEntries = indexJson['entries']! as List<Object?>;
     final byPath = {
@@ -215,7 +252,7 @@ const launch = FlowDefinition(
         .path;
     expect(
       byPath[announcementBlobPath]!['bundle'],
-      'lib/features/restage.generated/announcement.rsbundle',
+      '.restage/build/bundles/lib/features/announcement.rsbundle',
     );
     // The index is an exact bijection with the manifest's own artifact
     // set: text-role entries stay in the bundle but never appear here —
@@ -227,7 +264,7 @@ const launch = FlowDefinition(
     );
     expect(
       byPath['assets/general/flows/launch.flow.json']!['bundle'],
-      'lib/journeys/restage.generated/launch.rsbundle',
+      '.restage/build/bundles/lib/journeys/launch.rsbundle',
     );
     // Entries are sorted by logical path.
     final indexPaths = [
@@ -240,7 +277,7 @@ const launch = FlowDefinition(
         readerWriter.testing.readString(
           AssetId(
             'apps_examples',
-            'lib/generated/restage.analytics-id.metadata.json',
+            '.restage/build/metadata/restage.analytics-id.metadata.json',
           ),
         ),
       ),
@@ -305,7 +342,7 @@ final class FeatureAnnouncement extends StatelessWidget {
     final bundleBytes = readerWriter.testing.readBytes(
       AssetId(
         'apps_examples',
-        'lib/features/restage.generated/announcement.rsbundle',
+        '.restage/build/bundles/lib/features/announcement.rsbundle',
       ),
     );
     final bundle = RestageBundleCodec.decode(bundleBytes);
@@ -314,7 +351,7 @@ final class FeatureAnnouncement extends StatelessWidget {
     final reportText = readerWriter.testing.readString(
       AssetId(
         'apps_examples',
-        'lib/features/restage.generated/announcement.restage.md',
+        '.restage/build/reports/lib/features/announcement.restage.md',
       ),
     );
 
@@ -591,7 +628,7 @@ final class FeatureAnnouncement extends StatelessWidget {
       readerWriter.testing.exists(
         AssetId(
           'apps_examples',
-          'lib/features/restage.generated/empty.rsbundle',
+          '.restage/build/bundles/lib/features/empty.rsbundle',
         ),
       ),
       isFalse,
@@ -599,7 +636,8 @@ final class FeatureAnnouncement extends StatelessWidget {
     final manifest = SurfacePublicationManifestV1Codec.decode(
       jsonDecode(
         readerWriter.testing.readString(
-          AssetId('apps_examples', 'lib/generated/restage.publication.json'),
+          AssetId('apps_examples',
+              '.restage/build/metadata/restage.publication.json'),
         ),
       ),
     );
@@ -689,7 +727,7 @@ final class FeatureAnnouncement extends StatelessWidget {
           build.readerWriter.testing.readString(
             AssetId(
               'apps_examples',
-              'lib/generated/restage.analytics-id.metadata.json',
+              '.restage/build/metadata/restage.analytics-id.metadata.json',
             ),
           ),
         ),
@@ -701,10 +739,10 @@ final class FeatureAnnouncement extends StatelessWidget {
 }
 
 const _packageOutputPaths = <String>[
-  'lib/generated/restage.publication.json',
-  'lib/generated/restage.outputs.json',
-  'lib/generated/restage.measurement.index.json',
-  'lib/generated/restage.analytics-id.metadata.json',
+  '.restage/build/metadata/restage.publication.json',
+  '.restage/build/metadata/restage.outputs.json',
+  '.restage/build/metadata/restage.measurement.index.json',
+  '.restage/build/metadata/restage.analytics-id.metadata.json',
 ];
 
 Future<({TestBuilderResult result, TestReaderWriter readerWriter})>
@@ -827,17 +865,19 @@ Future<
     metadata: readerWriter.testing.readString(
       AssetId(
         'apps_examples',
-        'lib/generated/restage.analytics-id.metadata.json',
+        '.restage/build/metadata/restage.analytics-id.metadata.json',
       ),
     ),
     manifest: readerWriter.testing.readString(
-      AssetId('apps_examples', 'lib/generated/restage.publication.json'),
+      AssetId(
+          'apps_examples', '.restage/build/metadata/restage.publication.json'),
     ),
     outputIndex: readerWriter.testing.readString(
-      AssetId('apps_examples', 'lib/generated/restage.outputs.json'),
+      AssetId('apps_examples', '.restage/build/metadata/restage.outputs.json'),
     ),
     measurementIndex: readerWriter.testing.readString(
-      AssetId('apps_examples', 'lib/generated/restage.measurement.index.json'),
+      AssetId('apps_examples',
+          '.restage/build/metadata/restage.measurement.index.json'),
     ),
   );
 }

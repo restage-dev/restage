@@ -225,6 +225,7 @@ void main() {
       childArtifactIds: const [],
       points: [occurrence],
       generatedReferences: [reference],
+      generatedPresentationReferences: const [],
       privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
       collectionBudgetRevisionId: AuthorityRevisionId('collection.v1'),
     );
@@ -379,7 +380,8 @@ void main() {
     );
   });
 
-  test('legacy local-manifest fixture remains byte exact', () {
+  test('local-manifest fixture retains an explicit empty presentation list',
+      () {
     final bytes = File(
       'test/fixtures/compiler/local_measurement_manifest_v1.json',
     ).readAsBytesSync();
@@ -389,7 +391,16 @@ void main() {
     expect(decoded.canonicalBytes, bytes);
     expect(decoded.generatedPresentationReferences, isEmpty);
     expect(
-        decoded.toJson(), isNot(contains('generatedPresentationReferences')));
+        decoded.toJson(), containsPair('generatedPresentationReferences', []));
+    final priorShape = Map<String, Object?>.from(decoded.toJson())
+      ..remove('generatedPresentationReferences');
+    expect(priorShape, isNot(contains('generatedPresentationReferences')));
+    expect(
+      () => LocalMeasurementManifestV1.fromCanonicalBytes(
+        CanonicalJsonCodec.encode(priorShape),
+      ),
+      throwsA(isA<CanonicalFormatException>()),
+    );
   });
 
   test('manifest admits presentation and interaction slots on one node', () {
@@ -536,6 +547,7 @@ void main() {
         childArtifactIds: const [],
         points: [occurrence, duplicateIdentity],
         generatedReferences: const [],
+        generatedPresentationReferences: const [],
         privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
         collectionBudgetRevisionId: AuthorityRevisionId('collection.v1'),
       ),
@@ -556,6 +568,7 @@ void main() {
         ],
         points: [occurrence],
         generatedReferences: const [],
+        generatedPresentationReferences: const [],
         privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
         collectionBudgetRevisionId: AuthorityRevisionId('collection.v1'),
       ),

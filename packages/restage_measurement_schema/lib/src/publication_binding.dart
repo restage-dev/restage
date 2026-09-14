@@ -1,3 +1,4 @@
+import 'ordered_capture.dart';
 import 'package:restage_measurement_schema/src/canonical.dart';
 import 'package:restage_measurement_schema/src/identifiers.dart';
 import 'package:restage_measurement_schema/src/manifest.dart';
@@ -611,8 +612,9 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     required this.completeMeasurementManifest,
     required List<MeasurementPublicationMountedArtifactRoutesV1>
         mountedArtifactRoutes,
-    List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
-        mountedArtifactPresentationRoutes = const [],
+    required List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
+        mountedArtifactPresentationRoutes,
+    this.orderedCaptureV1,
   })  : publishedArtifacts = _sortedUniqueBindingPublishedArtifacts(
           publishedArtifacts,
         ),
@@ -631,6 +633,47 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
       completeManifest: completeMeasurementManifest,
     );
     _validateExactRouteClosure();
+    final sourceRoutes = {
+      for (final mounted in this.mountedArtifactRoutes)
+        for (final route in mounted.routes)
+          '${route.occurrenceId.hex}\u0000${route.lineageId.value}'
+    };
+    for (final route
+        in orderedCaptureV1?.routes ?? <MeasurementOrderedCaptureRouteV1>[]) {
+      if (!sourceRoutes.contains(route.identity)) {
+        throw ArgumentError(
+            'Ordered capture must name an admitted source route');
+      }
+      if (route.answerCarrier != null) {
+        final source = this
+            .mountedArtifactRoutes
+            .expand((mounted) => mounted.routes)
+            .singleWhere((source) =>
+                source.occurrenceId == route.occurrenceId &&
+                source.lineageId == route.lineageId);
+        if (OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
+                route.answerCarrier!) !=
+            source.opaqueRouteToken)
+          throw ArgumentError(
+              'Answer carrier must match its declared source route');
+      }
+      final lifecycle = route.lifecycle;
+      if (lifecycle != null) {
+        final source = this
+            .mountedArtifactRoutes
+            .expand((mounted) => mounted.routes)
+            .singleWhere((source) =>
+                source.occurrenceId == route.occurrenceId &&
+                source.lineageId == route.lineageId);
+        if (!route.channels.contains(lifecycle.channel) ||
+            OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
+                    lifecycle.carrier) !=
+                source.opaqueRouteToken) {
+          throw ArgumentError(
+              'Lifecycle carrier must match its declared source route');
+        }
+      }
+    }
   }
 
   /// Decodes byte-exact canonical binding bytes.
@@ -648,6 +691,7 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     final reader = CanonicalObjectReader(
       json,
       allowedKeys: const {
+        'orderedCaptureV1',
         'completeMeasurementManifest',
         'exactArtifactGraph',
         'kind',
@@ -662,6 +706,7 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'completeMeasurementManifest',
         'exactArtifactGraph',
         'kind',
+        'mountedArtifactPresentationRoutes',
         'mountedArtifactRoutes',
         'publicationAuthorityReference',
         'publishedArtifacts',
@@ -691,9 +736,9 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'input bound',
       );
     }
-    final mountedArtifactPresentationRoutes =
-        reader.optionalList('mountedArtifactPresentationRoutes') ??
-            const <Object?>[];
+    final mountedArtifactPresentationRoutes = reader.list(
+      'mountedArtifactPresentationRoutes',
+    );
     if (mountedArtifactPresentationRoutes.length >
         kMaximumMeasurementPublicationBindingMountedArtifactCount) {
       throw const CanonicalFormatException(
@@ -718,6 +763,10 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     return _constructBinding(
       'measurementPublicationBinding',
       () => MeasurementPublicationBindingV1(
+        orderedCaptureV1: reader.optionalObject('orderedCaptureV1') == null
+            ? null
+            : MeasurementOrderedCaptureV1.fromJson(
+                reader.object('orderedCaptureV1')),
         publicationAuthorityReference:
             RegisteredPublicationAuthorityReferenceV1.fromJson(
           reader.object('publicationAuthorityReference'),
@@ -755,6 +804,9 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
       ),
     );
   }
+
+  /// Optional versioned ordered-capture route admission.
+  final MeasurementOrderedCaptureV1? orderedCaptureV1;
 
   /// Opaque exact external publication/revision and artifact-byte authority.
   final RegisteredPublicationAuthorityReferenceV1 publicationAuthorityReference;
@@ -823,14 +875,15 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
 
   @override
   Map<String, Object?> toJson() => {
+        if (orderedCaptureV1 != null)
+          'orderedCaptureV1': orderedCaptureV1!.toJson(),
         'completeMeasurementManifest': completeMeasurementManifest.toJson(),
         'exactArtifactGraph': exactArtifactGraph.toJson(),
         'kind': 'measurementPublicationBinding',
-        if (mountedArtifactPresentationRoutes.isNotEmpty)
-          'mountedArtifactPresentationRoutes': [
-            for (final routes in mountedArtifactPresentationRoutes)
-              routes.toJson(),
-          ],
+        'mountedArtifactPresentationRoutes': [
+          for (final routes in mountedArtifactPresentationRoutes)
+            routes.toJson(),
+        ],
         'mountedArtifactRoutes': [
           for (final routes in mountedArtifactRoutes) routes.toJson(),
         ],

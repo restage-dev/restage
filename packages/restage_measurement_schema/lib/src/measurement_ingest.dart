@@ -1,3 +1,5 @@
+import 'presentation_diagnostic.dart';
+import 'ordered_capture.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -21,6 +23,13 @@ const int measurementIngestMaximumFactFrameBytes = 256 * 1024;
 /// request contract rather than introducing an independent transport limit.
 const int measurementIngestMaximumReceiptBytes =
     measurementIngestMaximumRequestBytes;
+
+/// Maximum characters in the opaque outcome-link carrier.
+const int measurementOutcomeLinkCarrierMaximumLength = 4096;
+
+/// Maximum capture-session offset a first-occurrence witness may report.
+const int measurementIngestMaximumOutcomeWitnessMicros =
+    7 * 24 * 60 * 60 * 1000 * 1000;
 
 const int _maximumPresentedPoints = 1024;
 
@@ -48,6 +57,16 @@ final class MeasurementIngestCodecException implements Exception {
   String toString() => 'MeasurementIngestCodecException($reason)';
 }
 
+void _validateSdkMetadata(String? nonce, String? version) {
+  if ((nonce != null && !RegExp(r'^[0-9a-f]{64}$').hasMatch(nonce)) ||
+      (version != null &&
+          (nonce == null ||
+              !RegExp(r'^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$')
+                  .hasMatch(version)))) {
+    throw const MeasurementIngestCodecException('invalid_sdk_metadata');
+  }
+}
+
 /// Exact canonical request and its nested, validated subjectless fact frame.
 final class MeasurementIngestRequestV1 {
   MeasurementIngestRequestV1._({
@@ -55,6 +74,10 @@ final class MeasurementIngestRequestV1 {
     required this.canonicalRequestBase64,
     required this.requestSha256,
     required this.factFrame,
+    this.sdkRuntimeSessionNonce,
+    this.reportedSdkVersion,
+    this.presentationContextCanonicalBase64,
+    this.routingSelectionReceipt,
   }) : _canonicalBytes = Uint8List.fromList(canonicalBytes);
 
   /// Encodes [factFrame] as the exact authenticated ingest request envelope.
@@ -62,19 +85,36 @@ final class MeasurementIngestRequestV1 {
   /// The frame is already validated and retains its one raw SHA-256 value, so
   /// encoding never re-hashes or re-decodes the frame bytes.
   factory MeasurementIngestRequestV1.fromFactFrame(
-    MeasurementFactFrameV1 factFrame,
-  ) {
+    MeasurementFactFrameV1 factFrame, {
+    String? sdkRuntimeSessionNonce,
+    String? reportedSdkVersion,
+    String? presentationContextCanonicalBase64,
+    String? routingSelectionReceipt,
+  }) {
+    _validateSdkMetadata(sdkRuntimeSessionNonce, reportedSdkVersion);
     final canonicalBytes = CanonicalJsonCodec.encode({
       'factFrameCanonicalBase64': _base64Url(factFrame._canonicalBytes),
       'factFrameSha256': factFrame.frameSha256.hex,
       'kind': 'authenticatedMeasurementIngestRequest',
+      if (presentationContextCanonicalBase64 != null)
+        'presentationContextCanonicalBase64':
+            presentationContextCanonicalBase64,
+      if (reportedSdkVersion != null) 'reportedSdkVersion': reportedSdkVersion,
+      if (routingSelectionReceipt != null)
+        'routingSelectionReceipt': routingSelectionReceipt,
       'schemaVersion': kMeasurementSchemaVersion,
+      if (sdkRuntimeSessionNonce != null)
+        'sdkRuntimeSessionNonce': sdkRuntimeSessionNonce,
     });
     return MeasurementIngestRequestV1._(
       canonicalBytes: canonicalBytes,
       canonicalRequestBase64: _base64Url(canonicalBytes),
       requestSha256: _rawSha256(canonicalBytes).hex,
       factFrame: factFrame,
+      sdkRuntimeSessionNonce: sdkRuntimeSessionNonce,
+      reportedSdkVersion: reportedSdkVersion,
+      presentationContextCanonicalBase64: presentationContextCanonicalBase64,
+      routingSelectionReceipt: routingSelectionReceipt,
     );
   }
 
@@ -89,6 +129,10 @@ final class MeasurementIngestRequestV1 {
       final reader = _IngestObjectReader(
         decodeCanonicalObject(canonicalBytes),
         allowedKeys: const {
+          'sdkRuntimeSessionNonce',
+          'reportedSdkVersion',
+          'presentationContextCanonicalBase64',
+          'routingSelectionReceipt',
           'factFrameCanonicalBase64',
           'factFrameSha256',
           'kind',
@@ -112,6 +156,10 @@ final class MeasurementIngestRequestV1 {
         reader.string('factFrameSha256'),
         'authenticatedMeasurementIngestRequest.factFrameSha256',
       );
+      final metadata = decodeCanonicalObject(canonicalBytes);
+      final nonce = metadata['sdkRuntimeSessionNonce'] as String?;
+      final version = metadata['reportedSdkVersion'] as String?;
+      _validateSdkMetadata(nonce, version);
       final factFrame = MeasurementFactFrameV1.fromCanonicalBytes(frameBytes);
       if (factFrame.frameSha256.hex != claimedDigest) {
         throw const MeasurementIngestCodecException('frame_hash_mismatch');
@@ -121,6 +169,11 @@ final class MeasurementIngestRequestV1 {
         canonicalRequestBase64: encoded,
         requestSha256: _rawSha256(canonicalBytes).hex,
         factFrame: factFrame,
+        sdkRuntimeSessionNonce: nonce,
+        reportedSdkVersion: version,
+        presentationContextCanonicalBase64:
+            metadata['presentationContextCanonicalBase64'] as String?,
+        routingSelectionReceipt: metadata['routingSelectionReceipt'] as String?,
       );
     } on MeasurementIngestCodecException {
       rethrow;
@@ -140,6 +193,18 @@ final class MeasurementIngestRequestV1 {
   /// Raw SHA-256 of [canonicalBytes].
   final String requestSha256;
 
+  /// Anonymous in-memory SDK runtime session, distinct from the root nonce.
+  final String? sdkRuntimeSessionNonce;
+
+  /// Bounded self-reported SDK build version; absence is unknown.
+  final String? reportedSdkVersion;
+
+  /// Canonical presentation observations carried as unpadded base64url.
+  final String? presentationContextCanonicalBase64;
+
+  /// Opaque routing receipt supplied with the delivery.
+  final String? routingSelectionReceipt;
+
   /// Validated fact frame embedded by this request.
   final MeasurementFactFrameV1 factFrame;
 
@@ -148,6 +213,175 @@ final class MeasurementIngestRequestV1 {
 
   /// Raw SHA-256 of the exact embedded fact-frame bytes.
   String get factFrameSha256 => factFrame.frameSha256.hex;
+}
+
+/// Exact canonical request for a terminated presentation attempt.
+final class MeasurementPresentationDiagnosticRequestV1 {
+  MeasurementPresentationDiagnosticRequestV1._({
+    required Uint8List canonicalBytes,
+    required this.captureSessionNonce,
+    required this.publicationBindingReference,
+    required this.sequence,
+    required this.diagnostic,
+    this.sdkRuntimeSessionNonce,
+    this.reportedSdkVersion,
+    this.presentationContextCanonicalBase64,
+    this.routingSelectionReceipt,
+  }) : _canonicalBytes = Uint8List.fromList(canonicalBytes) {
+    if (!RegExp(_noncePattern).hasMatch(captureSessionNonce) || sequence <= 0) {
+      throw ArgumentError(
+          'Invalid measurement presentation diagnostic request');
+    }
+  }
+
+  factory MeasurementPresentationDiagnosticRequestV1.fromDiagnostic(
+    MeasurementPresentationDiagnosticV1 diagnostic, {
+    required String captureSessionNonce,
+    required MeasurementPublicationBindingReferenceV1
+        publicationBindingReference,
+    required int sequence,
+    String? sdkRuntimeSessionNonce,
+    String? reportedSdkVersion,
+    String? presentationContextCanonicalBase64,
+    String? routingSelectionReceipt,
+  }) {
+    _validateSdkMetadata(sdkRuntimeSessionNonce, reportedSdkVersion);
+    return MeasurementPresentationDiagnosticRequestV1.fromCanonicalBytes(
+      CanonicalJsonCodec.encode({
+        'captureSessionNonce': captureSessionNonce,
+        'diagnosticCanonicalBase64': _base64Url(diagnostic.canonicalBytes),
+        'kind': 'authenticatedMeasurementPresentationDiagnosticRequest',
+        if (presentationContextCanonicalBase64 != null)
+          'presentationContextCanonicalBase64':
+              presentationContextCanonicalBase64,
+        'publicationBindingReference': publicationBindingReference.toJson(),
+        if (reportedSdkVersion != null)
+          'reportedSdkVersion': reportedSdkVersion,
+        if (routingSelectionReceipt != null)
+          'routingSelectionReceipt': routingSelectionReceipt,
+        'schemaVersion': kMeasurementSchemaVersion,
+        if (sdkRuntimeSessionNonce != null)
+          'sdkRuntimeSessionNonce': sdkRuntimeSessionNonce,
+        'sequence': sequence,
+      }),
+    );
+  }
+
+  factory MeasurementPresentationDiagnosticRequestV1.fromBase64(
+          String encoded) =>
+      MeasurementPresentationDiagnosticRequestV1.fromCanonicalBytes(
+        _decodeBase64Url(encoded,
+            path: 'authenticatedMeasurementPresentationDiagnosticRequest',
+            maximumBytes: measurementIngestMaximumRequestBytes),
+      );
+
+  factory MeasurementPresentationDiagnosticRequestV1.fromCanonicalBytes(
+      List<int> suppliedBytes) {
+    if (suppliedBytes.isEmpty ||
+        suppliedBytes.length > measurementIngestMaximumRequestBytes) {
+      throw const MeasurementIngestCodecException('request_too_large');
+    }
+    final canonicalBytes = Uint8List.fromList(suppliedBytes);
+    try {
+      final metadata = decodeCanonicalObject(canonicalBytes);
+      final reader = _IngestObjectReader(
+        metadata,
+        allowedKeys: const {
+          'captureSessionNonce',
+          'diagnosticCanonicalBase64',
+          'kind',
+          'presentationContextCanonicalBase64',
+          'publicationBindingReference',
+          'reportedSdkVersion',
+          'routingSelectionReceipt',
+          'schemaVersion',
+          'sdkRuntimeSessionNonce',
+          'sequence',
+        },
+        requiredKeys: const {
+          'captureSessionNonce',
+          'diagnosticCanonicalBase64',
+          'kind',
+          'publicationBindingReference',
+          'schemaVersion',
+          'sequence',
+        },
+        path: 'authenticatedMeasurementPresentationDiagnosticRequest',
+      );
+      _requireDocument(
+          reader, 'authenticatedMeasurementPresentationDiagnosticRequest');
+      final diagnostic = MeasurementPresentationDiagnosticV1.fromCanonicalBytes(
+        _decodeBase64Url(reader.string('diagnosticCanonicalBase64'),
+            path:
+                'authenticatedMeasurementPresentationDiagnosticRequest.diagnosticCanonicalBase64',
+            maximumBytes: measurementIngestMaximumRequestBytes),
+      );
+      final nonce = metadata['sdkRuntimeSessionNonce'] as String?;
+      final version = metadata['reportedSdkVersion'] as String?;
+      _validateSdkMetadata(nonce, version);
+      final request = MeasurementPresentationDiagnosticRequestV1._(
+        canonicalBytes: canonicalBytes,
+        captureSessionNonce: reader.string('captureSessionNonce'),
+        publicationBindingReference:
+            MeasurementPublicationBindingReferenceV1.fromJson(
+                reader.object('publicationBindingReference')),
+        sequence: reader.integer('sequence'),
+        diagnostic: diagnostic,
+        sdkRuntimeSessionNonce: nonce,
+        reportedSdkVersion: version,
+        presentationContextCanonicalBase64:
+            metadata['presentationContextCanonicalBase64'] as String?,
+        routingSelectionReceipt: metadata['routingSelectionReceipt'] as String?,
+      );
+      if (!_sameBytes(
+          CanonicalJsonCodec.encode(request.toJson()), canonicalBytes)) {
+        throw const MeasurementIngestCodecException('noncanonical_request');
+      }
+      return request;
+    } on MeasurementIngestCodecException {
+      rethrow;
+    } on Object {
+      throw const MeasurementIngestCodecException('invalid_canonical_request');
+    }
+  }
+
+  final Uint8List _canonicalBytes;
+  Uint8List get canonicalBytes => Uint8List.fromList(_canonicalBytes);
+  String get canonicalRequestBase64 => _base64Url(_canonicalBytes);
+  String get requestSha256 => _rawSha256(_canonicalBytes).hex;
+
+  /// Identifies the capture session for this presentation attempt.
+  final String captureSessionNonce;
+
+  /// Identifies the published policy for this presentation attempt.
+  final MeasurementPublicationBindingReferenceV1 publicationBindingReference;
+
+  /// Orders this diagnostic within its capture session.
+  final int sequence;
+  final MeasurementPresentationDiagnosticV1 diagnostic;
+  String get diagnosticCanonicalBase64 => _base64Url(diagnostic.canonicalBytes);
+  final String? sdkRuntimeSessionNonce;
+  final String? reportedSdkVersion;
+  final String? presentationContextCanonicalBase64;
+  final String? routingSelectionReceipt;
+
+  Map<String, Object?> toJson() => {
+        'captureSessionNonce': captureSessionNonce,
+        'diagnosticCanonicalBase64': diagnosticCanonicalBase64,
+        'kind': 'authenticatedMeasurementPresentationDiagnosticRequest',
+        if (presentationContextCanonicalBase64 != null)
+          'presentationContextCanonicalBase64':
+              presentationContextCanonicalBase64,
+        'publicationBindingReference': publicationBindingReference.toJson(),
+        if (reportedSdkVersion != null)
+          'reportedSdkVersion': reportedSdkVersion,
+        if (routingSelectionReceipt != null)
+          'routingSelectionReceipt': routingSelectionReceipt,
+        'schemaVersion': kMeasurementSchemaVersion,
+        if (sdkRuntimeSessionNonce != null)
+          'sdkRuntimeSessionNonce': sdkRuntimeSessionNonce,
+        'sequence': sequence,
+      };
 }
 
 /// Exact canonical receipt emitted after one authenticated ingest succeeds.
@@ -159,7 +393,8 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
     required Uint8List canonicalBytes,
     required this.acceptedObservationCount,
     required this.captureSessionNonce,
-    required this.factFrameSha256,
+    this.factFrameSha256,
+    this.diagnosticSha256,
     required this.isFinal,
     required this.persistedAtMicros,
     required this.publicationBindingReference,
@@ -174,7 +409,9 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
         acceptedObservationCount < 0 ||
         acceptedObservationCount > kMaximumPortableJsonInteger ||
         !RegExp(_noncePattern).hasMatch(captureSessionNonce) ||
-        !RegExp(_digestPattern).hasMatch(factFrameSha256) ||
+        (factFrameSha256 == null) == (diagnosticSha256 == null) ||
+        !RegExp(_digestPattern)
+            .hasMatch(factFrameSha256 ?? diagnosticSha256!) ||
         persistedAtMicros <= 0 ||
         !RegExp(_lineagePattern).hasMatch(receiptId) ||
         !RegExp(_digestPattern).hasMatch(requestSha256) ||
@@ -188,7 +425,8 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
   factory MeasurementIngestReceiptV1.accepted({
     required int acceptedObservationCount,
     required String captureSessionNonce,
-    required String factFrameSha256,
+    String? factFrameSha256,
+    String? diagnosticSha256,
     required bool isFinal,
     required int persistedAtMicros,
     required MeasurementPublicationBindingReferenceV1
@@ -201,8 +439,9 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
     final canonicalBytes = CanonicalJsonCodec.encode({
       'acceptedObservationCount': acceptedObservationCount,
       'captureSessionNonce': captureSessionNonce,
+      if (diagnosticSha256 != null) 'diagnosticSha256': diagnosticSha256,
       'disposition': 'accepted',
-      'factFrameSha256': factFrameSha256,
+      if (factFrameSha256 != null) 'factFrameSha256': factFrameSha256,
       'final': isFinal,
       'kind': 'measurementIngestReceipt',
       'persistedAtMicros': persistedAtMicros,
@@ -218,6 +457,7 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
       acceptedObservationCount: acceptedObservationCount,
       captureSessionNonce: captureSessionNonce,
       factFrameSha256: factFrameSha256,
+      diagnosticSha256: diagnosticSha256,
       isFinal: isFinal,
       persistedAtMicros: persistedAtMicros,
       publicationBindingReference: publicationBindingReference,
@@ -238,11 +478,13 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
     }
     final canonicalBytes = Uint8List.fromList(suppliedBytes);
     try {
+      final metadata = decodeCanonicalObject(canonicalBytes);
       final reader = _IngestObjectReader(
-        decodeCanonicalObject(canonicalBytes),
+        metadata,
         allowedKeys: const {
           'acceptedObservationCount',
           'captureSessionNonce',
+          'diagnosticSha256',
           'disposition',
           'factFrameSha256',
           'final',
@@ -259,7 +501,6 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
           'acceptedObservationCount',
           'captureSessionNonce',
           'disposition',
-          'factFrameSha256',
           'final',
           'kind',
           'persistedAtMicros',
@@ -282,10 +523,8 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
         canonicalBytes: canonicalBytes,
         acceptedObservationCount: reader.integer('acceptedObservationCount'),
         captureSessionNonce: reader.string('captureSessionNonce'),
-        factFrameSha256: _requireSha256(
-          reader.string('factFrameSha256'),
-          'measurementIngestReceipt.factFrameSha256',
-        ),
+        factFrameSha256: metadata['factFrameSha256'] as String?,
+        diagnosticSha256: metadata['diagnosticSha256'] as String?,
         isFinal: reader.boolean('final'),
         persistedAtMicros: reader.integer('persistedAtMicros'),
         publicationBindingReference:
@@ -333,7 +572,10 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
   final String captureSessionNonce;
 
   /// Raw SHA-256 of the accepted canonical fact frame.
-  final String factFrameSha256;
+  final String? factFrameSha256;
+
+  /// Raw SHA-256 of the accepted canonical presentation diagnostic.
+  final String? diagnosticSha256;
 
   /// Whether the accepted frame finalizes its capture session.
   final bool isFinal;
@@ -370,8 +612,9 @@ final class MeasurementIngestReceiptV1 extends CanonicalValue {
   Map<String, Object?> toJson() => {
         'acceptedObservationCount': acceptedObservationCount,
         'captureSessionNonce': captureSessionNonce,
+        if (diagnosticSha256 != null) 'diagnosticSha256': diagnosticSha256,
         'disposition': 'accepted',
-        'factFrameSha256': factFrameSha256,
+        if (factFrameSha256 != null) 'factFrameSha256': factFrameSha256,
         'final': isFinal,
         'kind': 'measurementIngestReceipt',
         'persistedAtMicros': persistedAtMicros,
@@ -389,7 +632,10 @@ final class MeasurementFactFrameV1 {
   MeasurementFactFrameV1._({
     required Uint8List canonicalBytes,
     required this.bounds,
+    required this.orderedCaptureIncompleteV1,
     required this.captureSessionNonce,
+    required this.experimentAssignment,
+    required this.frameElapsedMicros,
     required this.facts,
     required this.isFinal,
     required this.missingness,
@@ -410,8 +656,11 @@ final class MeasurementFactFrameV1 {
       final reader = _IngestObjectReader(
         decodeCanonicalObject(canonicalBytes),
         allowedKeys: const {
+          'orderedCaptureV1',
           'bounds',
           'captureSessionNonce',
+          'experimentAssignment',
+          'frameElapsedMicros',
           'facts',
           'finality',
           'kind',
@@ -464,10 +713,76 @@ final class MeasurementFactFrameV1 {
         reader.object('truncation'),
         maximumCounterValue: bounds.maximumCounterValue,
       );
+      final assignmentValues = reader.optionalObject('experimentAssignment');
+      final elapsed = reader.optionalInteger('frameElapsedMicros');
+      final orderedRaw = reader.optionalObject('orderedCaptureV1');
+      bool? orderedIncomplete;
+      if (orderedRaw != null) {
+        final ordered = _IngestObjectReader(orderedRaw,
+            allowedKeys: const {'schemaVersion', 'incomplete'},
+            requiredKeys: const {'schemaVersion', 'incomplete'},
+            path: 'orderedCaptureV1');
+        if (ordered.integer('schemaVersion') != 1 || elapsed == null) {
+          throw const MeasurementIngestCodecException(
+              'unsupported_ordered_capture');
+        }
+        orderedIncomplete = ordered.boolean('incomplete');
+      }
+      final occurrences = <MeasurementTimedOccurrenceV1>[];
+      for (final fact in facts) {
+        if (fact.timedOccurrencesV1 != null) {
+          if (orderedIncomplete == null)
+            throw const MeasurementIngestCodecException(
+                'ordered_capability_missing');
+          occurrences.addAll(fact.timedOccurrencesV1!);
+        }
+      }
+      occurrences.sort((a, b) => a.ordinal.compareTo(b.ordinal));
+      if (occurrences.length > measurementMaximumTimedOccurrencesPerRoot) {
+        throw const MeasurementIngestCodecException(
+            'ordered_root_bound_exceeded');
+      }
+      var priorMicros = -1;
+      for (var i = 0; i < occurrences.length; i++) {
+        final occurrence = occurrences[i];
+        if (occurrence.ordinal != i + 1 ||
+            occurrence.elapsedMicros < priorMicros ||
+            elapsed == null ||
+            occurrence.elapsedMicros > elapsed) {
+          throw const MeasurementIngestCodecException('invalid_ordered_prefix');
+        }
+        priorMicros = occurrence.elapsedMicros;
+      }
+      if (elapsed != null &&
+          (elapsed < 0 ||
+              elapsed > measurementIngestMaximumOutcomeWitnessMicros)) {
+        throw const MeasurementIngestCodecException(
+            'frame_elapsed_out_of_range');
+      }
+      if (assignmentValues != null && elapsed == null) {
+        throw const MeasurementIngestCodecException(
+            'assigned_frame_missing_elapsed');
+      }
+      for (final fact in facts) {
+        for (final witness in [
+          fact.presentationFirstOccurrenceMicros,
+          fact.interactionFirstOccurrenceMicros,
+        ]) {
+          if (witness != null && (elapsed == null || witness > elapsed)) {
+            throw const MeasurementIngestCodecException(
+                'witness_after_frame_elapsed');
+          }
+        }
+      }
       return MeasurementFactFrameV1._(
         canonicalBytes: canonicalBytes,
+        orderedCaptureIncompleteV1: orderedIncomplete,
         bounds: bounds,
         captureSessionNonce: nonce,
+        experimentAssignment: assignmentValues == null
+            ? null
+            : MeasurementExperimentAssignmentV1.fromJson(assignmentValues),
+        frameElapsedMicros: elapsed,
         facts: facts,
         isFinal: isFinal,
         missingness: missingness,
@@ -491,11 +806,23 @@ final class MeasurementFactFrameV1 {
   /// The one raw SHA-256 computed while validating this frame.
   final CanonicalDigest frameSha256;
 
+  /// Null for unsupported capture; true means its ordered prefix lost a tail.
+  final bool? orderedCaptureIncompleteV1;
+
   /// Per-frame hard bounds.
   final MeasurementFactBounds bounds;
 
   /// Opaque retry coordinate, not a subject identifier.
   final String captureSessionNonce;
+
+  /// The experiment assignment this capture session was delivered under.
+  ///
+  /// Absent whenever the delivered surface carried no assignment.
+  final MeasurementExperimentAssignmentV1? experimentAssignment;
+
+  /// Capture-session elapsed time when this snapshot was emitted.
+  /// Required for assigned frames and frames carrying occurrence witnesses.
+  final int? frameElapsedMicros;
 
   /// Bounded source facts selected only by compiler-owned identities.
   final List<MeasurementFact> facts;
@@ -517,6 +844,58 @@ final class MeasurementFactFrameV1 {
 
   /// Explicit truncation evidence.
   final MeasurementTruncation truncation;
+}
+
+/// The experiment assignment a delivered surface carried into capture.
+///
+/// The carrier is an opaque server-issued handle. It identifies no subject and
+/// the SDK never interprets it; holding one proves only that the server issued
+/// this outcome link.
+final class MeasurementExperimentAssignmentV1 {
+  /// Creates one assignment from an already-validated carrier.
+  const MeasurementExperimentAssignmentV1({
+    required this.outcomeLinkCarrier,
+  });
+
+  /// Strictly decodes one closed assignment object.
+  factory MeasurementExperimentAssignmentV1.fromJson(
+    Map<String, Object?> values,
+  ) {
+    const path = 'measurementFactFrame.experimentAssignment';
+    final reader = _IngestObjectReader(
+      values,
+      allowedKeys: const {
+        'kind',
+        'outcomeLinkCarrier',
+        'schemaVersion',
+      },
+      requiredKeys: const {'kind', 'outcomeLinkCarrier', 'schemaVersion'},
+      path: path,
+    );
+    _requireDocument(reader, 'measurementExperimentAssignment');
+    final carrier = reader.string('outcomeLinkCarrier');
+    if (carrier.length > measurementOutcomeLinkCarrierMaximumLength) {
+      throw const MeasurementIngestCodecException('carrier_too_long');
+    }
+    _decodeBase64Url(
+      carrier,
+      path: '$path.outcomeLinkCarrier',
+      maximumBytes: (measurementOutcomeLinkCarrierMaximumLength * 3) ~/ 4,
+    );
+    return MeasurementExperimentAssignmentV1(
+      outcomeLinkCarrier: carrier,
+    );
+  }
+
+  /// Opaque handle to the outcome link the server issued with this assignment.
+  final String outcomeLinkCarrier;
+
+  /// Closed assignment representation.
+  Map<String, Object?> toJson() => {
+        'kind': 'measurementExperimentAssignment',
+        'outcomeLinkCarrier': outcomeLinkCarrier,
+        'schemaVersion': kMeasurementSchemaVersion,
+      };
 }
 
 /// Per-frame bounds admitted before fact values are materialized.
@@ -669,6 +1048,9 @@ final class MeasurementFact {
     required this.lineageId,
     required this.interactionState,
     required this.interactionCount,
+    this.timedOccurrencesV1,
+    this.presentationFirstOccurrenceMicros,
+    this.interactionFirstOccurrenceMicros,
   });
 
   /// Decodes one closed subjectless fact object.
@@ -679,10 +1061,13 @@ final class MeasurementFact {
     final reader = _IngestObjectReader(
       values,
       allowedKeys: const {
+        'timedOccurrencesV1',
         'interactionCount',
         'interactionState',
         'lineageId',
         'occurrenceId',
+        'presentationFirstOccurrenceMicros',
+        'interactionFirstOccurrenceMicros',
       },
       requiredKeys: const {'interactionState', 'lineageId', 'occurrenceId'},
       path: 'measurementFactFrame.facts[]',
@@ -738,13 +1123,66 @@ final class MeasurementFact {
             interactionCount.value != bounds.maximumCounterValue)) {
       throw const MeasurementIngestCodecException('invalid_observed_capped');
     }
+    final presentationWitness =
+        reader.optionalInteger('presentationFirstOccurrenceMicros');
+    final interactionWitness =
+        reader.optionalInteger('interactionFirstOccurrenceMicros');
+    for (final witness in [presentationWitness, interactionWitness]) {
+      if (witness != null &&
+          (witness < 0 ||
+              witness > measurementIngestMaximumOutcomeWitnessMicros)) {
+        throw const MeasurementIngestCodecException('witness_out_of_range');
+      }
+    }
+    if (interactionWitness != null &&
+        interactionState != MeasurementFactInteractionState.observedValue &&
+        interactionState != MeasurementFactInteractionState.observedCapped) {
+      throw const MeasurementIngestCodecException(
+        'interaction_witness_without_value',
+      );
+    }
+    if (presentationWitness != null &&
+        interactionWitness != null &&
+        interactionWitness < presentationWitness) {
+      throw const MeasurementIngestCodecException(
+        'interaction_witness_before_presentation',
+      );
+    }
+    final timedRaw = values['timedOccurrencesV1'];
+    List<MeasurementTimedOccurrenceV1>? timed;
+    if (values.containsKey('timedOccurrencesV1')) {
+      if (timedRaw is! List ||
+          timedRaw.length > measurementMaximumTimedOccurrencesPerRoute) {
+        throw const MeasurementIngestCodecException(
+            'ordered_route_bound_exceeded');
+      }
+      timed = List.unmodifiable([
+        for (final item in timedRaw)
+          MeasurementTimedOccurrenceV1.fromJson(
+              requireCanonicalObject(item, 'timedOccurrence'))
+      ]);
+      var previousOrdinal = 0;
+      for (final occurrence in timed) {
+        if (occurrence.ordinal <= previousOrdinal) {
+          throw const MeasurementIngestCodecException(
+              'unordered_route_occurrences');
+        }
+        previousOrdinal = occurrence.ordinal;
+      }
+    }
     return MeasurementFact(
+      timedOccurrencesV1: timed,
       occurrenceId: occurrenceId,
       lineageId: lineageId,
       interactionState: interactionState,
       interactionCount: interactionCount,
+      presentationFirstOccurrenceMicros: presentationWitness,
+      interactionFirstOccurrenceMicros: interactionWitness,
     );
   }
+
+  /// Bounded cumulative ordered prefix for an admitted route.
+  final List<MeasurementTimedOccurrenceV1>? timedOccurrencesV1;
 
   /// Exact occurrence digest.
   final String occurrenceId;
@@ -758,14 +1196,29 @@ final class MeasurementFact {
   /// Interaction counter when transport retained one for this presented point.
   final MeasurementCounter? interactionCount;
 
+  /// Capture-session offset of this point's first retained presentation.
+  final int? presentationFirstOccurrenceMicros;
+
+  /// Capture-session offset of this point's first positive interaction.
+  final int? interactionFirstOccurrenceMicros;
+
   /// Closed identity key for bounded monotonicity validation.
   String get identity => '$occurrenceId\u0000$lineageId';
 
   /// Exact retained source-fact payload excluding frame-only coordinates.
   Map<String, Object?> toJson() => {
+        if (timedOccurrencesV1 != null)
+          'timedOccurrencesV1': [
+            for (final occurrence in timedOccurrencesV1!) occurrence.toJson()
+          ],
         if (interactionCount != null)
           'interactionCount': interactionCount!.toJson(),
         'interactionState': interactionState.wireName,
+        if (presentationFirstOccurrenceMicros != null)
+          'presentationFirstOccurrenceMicros':
+              presentationFirstOccurrenceMicros,
+        if (interactionFirstOccurrenceMicros != null)
+          'interactionFirstOccurrenceMicros': interactionFirstOccurrenceMicros,
         'lineageId': lineageId,
         'occurrenceId': occurrenceId,
       };
@@ -1143,6 +1596,11 @@ final class _IngestObjectReader {
         _values[key],
         '$path.$key',
       );
+
+  int? optionalInteger(String key) {
+    if (!_values.containsKey(key)) return null;
+    return integer(key);
+  }
 
   Map<String, Object?>? optionalObject(String key) {
     if (!_values.containsKey(key)) return null;

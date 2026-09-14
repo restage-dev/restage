@@ -4,7 +4,7 @@ const craveLocationScreenRef = NeutralFlowScreenRef(
   id: 'crave_location',
   artifactPath: 'crave_location.rfw',
   version: 1,
-  minClient: 1,
+  minClient: 6,
 );
 
 @Deprecated('Use craveLocationScreenRef')

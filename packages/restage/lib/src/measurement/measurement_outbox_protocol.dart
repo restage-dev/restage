@@ -157,7 +157,8 @@ final class MeasurementOutboxPreparedBatch {
     required this.bodySha256,
     required this.captureSessionNonce,
     required this.requestSha256,
-    required this.factFrameSha256,
+    this.factFrameSha256,
+    this.diagnosticSha256,
     required List<int> publicationBindingReferenceCanonicalBytes,
   })  : _exactRequestBytes = Uint8List.fromList(exactRequestBytes),
         _publicationBindingReferenceCanonicalBytes = Uint8List.fromList(
@@ -169,7 +170,8 @@ final class MeasurementOutboxPreparedBatch {
         _exactRequestBytes.length > kMeasurementOutboxMaximumHttpBodyBytes ||
         !_isCaptureSessionNonce(captureSessionNonce) ||
         !_isSha256(requestSha256) ||
-        !_isSha256(factFrameSha256) ||
+        (factFrameSha256 == null) == (diagnosticSha256 == null) ||
+        !_isSha256(factFrameSha256 ?? diagnosticSha256 ?? '') ||
         _publicationBindingReferenceCanonicalBytes.isEmpty ||
         _publicationBindingReferenceCanonicalBytes.length >
             kMeasurementOutboxMaximumBindingReferenceBytes ||
@@ -213,6 +215,44 @@ final class MeasurementOutboxPreparedBatch {
     }
   }
 
+  /// Adapts a terminal diagnostic with its caller-supplied session witnesses.
+  factory MeasurementOutboxPreparedBatch.fromWorkerPreparedDiagnosticBatch(
+    MeasurementWorkerPreparedBatch batch, {
+    required String captureSessionNonce,
+    required List<int> publicationBindingReferenceCanonicalBytes,
+  }) {
+    try {
+      final request = MeasurementPresentationDiagnosticRequestV1.fromBase64(
+        batch.canonicalRequestBase64,
+      );
+      if (!_sameBytes(request.canonicalBytes, batch.canonicalRequestBytes) ||
+          request.requestSha256 != batch.requestSha256 ||
+          request.captureSessionNonce != captureSessionNonce ||
+          request.sequence != batch.sequence ||
+          !_sameBytes(request.publicationBindingReference.canonicalBytes,
+              publicationBindingReferenceCanonicalBytes) ||
+          batch.sequence <= 0 ||
+          !batch.isFinal) {
+        throw ArgumentError('Inconsistent measurement diagnostic worker batch');
+      }
+      final body = _encodeExactIngestHttpBody(request.canonicalRequestBase64);
+      return MeasurementOutboxPreparedBatch._(
+        sessionId: batch.sessionId,
+        sequence: batch.sequence,
+        isFinal: batch.isFinal,
+        exactRequestBytes: body,
+        bodySha256: _sha256Hex(body),
+        captureSessionNonce: captureSessionNonce,
+        requestSha256: request.requestSha256,
+        diagnosticSha256: _sha256Hex(request.diagnostic.canonicalBytes),
+        publicationBindingReferenceCanonicalBytes:
+            publicationBindingReferenceCanonicalBytes,
+      );
+    } on Object {
+      throw ArgumentError('Invalid measurement diagnostic worker batch');
+    }
+  }
+
   factory MeasurementOutboxPreparedBatch._fromStored({
     required String sessionId,
     required int sequence,
@@ -221,24 +261,43 @@ final class MeasurementOutboxPreparedBatch {
     required String bodySha256,
     required String captureSessionNonce,
     required String requestSha256,
-    required String factFrameSha256,
+    String? factFrameSha256,
+    String? diagnosticSha256,
     required List<int> publicationBindingReferenceCanonicalBytes,
   }) {
     try {
-      final request = _decodeExactIngestHttpBody(exactRequestBytes);
-      final expectedBinding =
-          request.factFrame.publishedContext.bindingReference.canonicalBytes;
-      if (_sha256Hex(exactRequestBytes) != bodySha256 ||
-          request.factFrame.sequence != sequence ||
-          request.factFrame.isFinal != isFinal ||
-          request.factFrame.captureSessionNonce != captureSessionNonce ||
-          request.requestSha256 != requestSha256 ||
-          request.factFrameSha256 != factFrameSha256 ||
-          !_sameBytes(
-            expectedBinding,
-            publicationBindingReferenceCanonicalBytes,
-          )) {
-        throw ArgumentError('Inconsistent stored measurement outbox batch');
+      if (diagnosticSha256 != null) {
+        final request = MeasurementPresentationDiagnosticRequestV1.fromBase64(
+          _decodeExactHttpBodyCarrier(exactRequestBytes),
+        );
+        if (!isFinal ||
+            request.captureSessionNonce != captureSessionNonce ||
+            request.sequence != sequence ||
+            !_sameBytes(request.publicationBindingReference.canonicalBytes,
+                publicationBindingReferenceCanonicalBytes) ||
+            !_sameBytes(
+                _encodeExactIngestHttpBody(request.canonicalRequestBase64),
+                exactRequestBytes) ||
+            request.requestSha256 != requestSha256 ||
+            _sha256Hex(request.diagnostic.canonicalBytes) != diagnosticSha256) {
+          throw ArgumentError('Inconsistent stored measurement diagnostic');
+        }
+      } else {
+        final request = _decodeExactIngestHttpBody(exactRequestBytes);
+        final expectedBinding =
+            request.factFrame.publishedContext.bindingReference.canonicalBytes;
+        if (_sha256Hex(exactRequestBytes) != bodySha256 ||
+            request.factFrame.sequence != sequence ||
+            request.factFrame.isFinal != isFinal ||
+            request.factFrame.captureSessionNonce != captureSessionNonce ||
+            request.requestSha256 != requestSha256 ||
+            request.factFrameSha256 != factFrameSha256 ||
+            !_sameBytes(
+              expectedBinding,
+              publicationBindingReferenceCanonicalBytes,
+            )) {
+          throw ArgumentError('Inconsistent stored measurement outbox batch');
+        }
       }
       return MeasurementOutboxPreparedBatch._(
         sessionId: sessionId,
@@ -249,6 +308,7 @@ final class MeasurementOutboxPreparedBatch {
         captureSessionNonce: captureSessionNonce,
         requestSha256: requestSha256,
         factFrameSha256: factFrameSha256,
+        diagnosticSha256: diagnosticSha256,
         publicationBindingReferenceCanonicalBytes:
             publicationBindingReferenceCanonicalBytes,
       );
@@ -302,7 +362,10 @@ final class MeasurementOutboxPreparedBatch {
   final String requestSha256;
 
   /// SHA-256 of the canonical fact frame carried by [exactRequestBytes].
-  final String factFrameSha256;
+  final String? factFrameSha256;
+
+  /// SHA-256 of the canonical diagnostic; exactly one content digest is set.
+  final String? diagnosticSha256;
 
   final Uint8List _publicationBindingReferenceCanonicalBytes;
 
@@ -354,7 +417,8 @@ final class MeasurementOutboxAcknowledgement {
   MeasurementOutboxAcknowledgement._({
     required this.sequence,
     required this.requestSha256,
-    required this.factFrameSha256,
+    this.factFrameSha256,
+    this.diagnosticSha256,
     required this.isFinal,
     required List<int> publicationBindingReferenceCanonicalBytes,
     required this.receiptSha256,
@@ -372,6 +436,7 @@ final class MeasurementOutboxAcknowledgement {
         receipt.sequence != batch.sequence ||
         receipt.requestSha256 != batch.requestSha256 ||
         receipt.factFrameSha256 != batch.factFrameSha256 ||
+        receipt.diagnosticSha256 != batch.diagnosticSha256 ||
         receipt.isFinal != batch.isFinal ||
         !_sameBytes(
           receipt.publicationBindingReference.canonicalBytes,
@@ -383,6 +448,7 @@ final class MeasurementOutboxAcknowledgement {
       sequence: receipt.sequence,
       requestSha256: receipt.requestSha256,
       factFrameSha256: receipt.factFrameSha256,
+      diagnosticSha256: receipt.diagnosticSha256,
       isFinal: receipt.isFinal,
       publicationBindingReferenceCanonicalBytes:
           receipt.publicationBindingReference.canonicalBytes,
@@ -397,7 +463,10 @@ final class MeasurementOutboxAcknowledgement {
   final String requestSha256;
 
   /// Server-proven raw fact-frame digest.
-  final String factFrameSha256;
+  final String? factFrameSha256;
+
+  /// Server-proven raw presentation diagnostic digest.
+  final String? diagnosticSha256;
 
   /// Server-proven finality.
   final bool isFinal;
@@ -416,6 +485,7 @@ final class MeasurementOutboxAcknowledgement {
       sequence == record.batch.sequence &&
       requestSha256 == record.batch.requestSha256 &&
       factFrameSha256 == record.batch.factFrameSha256 &&
+      diagnosticSha256 == record.batch.diagnosticSha256 &&
       isFinal == record.batch.isFinal &&
       _sameBytes(
         _publicationBindingReferenceCanonicalBytes,
@@ -990,6 +1060,7 @@ abstract final class MeasurementOutboxRecordCodec {
       utf8.encode(record.batch.captureSessionNonce).length +
       record.batch.publicationBindingReferenceCanonicalBytes.length +
       record.batch.exactRequestBytes.length +
+      (record.batch.diagnosticSha256 == null ? 0 : 32) +
       _integrityDigestLength +
       _commitMarker.length;
 
@@ -1026,7 +1097,12 @@ abstract final class MeasurementOutboxRecordCodec {
     bytes
       ..setRange(42, 74, _sha256Bytes(record.batch.bodySha256))
       ..setRange(74, 106, _sha256Bytes(record.batch.requestSha256))
-      ..setRange(106, 138, _sha256Bytes(record.batch.factFrameSha256));
+      ..setRange(
+          106,
+          138,
+          record.batch.factFrameSha256 == null
+              ? Uint8List(32)
+              : _sha256Bytes(record.batch.factFrameSha256!));
     var cursor = _fixedHeaderLength;
     bytes.setRange(cursor, cursor + sessionBytes.length, sessionBytes);
     cursor += sessionBytes.length;
@@ -1038,6 +1114,11 @@ abstract final class MeasurementOutboxRecordCodec {
     cursor += bindingBytes.length;
     bytes.setRange(cursor, cursor + body.length, body);
     cursor += body.length;
+    // The optional trailing digest leaves original fact records unchanged.
+    if (record.batch.diagnosticSha256 case final digest?) {
+      bytes.setRange(cursor, cursor + 32, _sha256Bytes(digest));
+      cursor += 32;
+    }
     bytes.setRange(
       cursor,
       cursor + _integrityDigestLength,
@@ -1084,21 +1165,22 @@ abstract final class MeasurementOutboxRecordCodec {
     final createdAtUtcMicros = data.getInt64(26, Endian.big);
     final bodyLength = data.getUint32(34, Endian.big);
     final bindingLength = data.getUint32(38, Endian.big);
-    if (sequence == 0 ||
+    final extensionLength = bytes.length -
+        (_fixedHeaderLength +
+            sessionLength +
+            fingerprintLength +
+            nonceLength +
+            bindingLength +
+            bodyLength +
+            _integrityDigestLength +
+            _commitMarker.length);
+    if ((extensionLength != 0 && extensionLength != 32) ||
+        sequence == 0 ||
         createdAtUtcMicros < 0 ||
         bodyLength == 0 ||
         bodyLength > kMeasurementOutboxMaximumHttpBodyBytes ||
         bindingLength == 0 ||
-        bindingLength > kMeasurementOutboxMaximumBindingReferenceBytes ||
-        _fixedHeaderLength +
-                sessionLength +
-                fingerprintLength +
-                nonceLength +
-                bindingLength +
-                bodyLength +
-                _integrityDigestLength +
-                _commitMarker.length !=
-            bytes.length) {
+        bindingLength > kMeasurementOutboxMaximumBindingReferenceBytes) {
       throw const MeasurementOutboxCodecException('invalid_record_bounds');
     }
     if (!_matchesAt(
@@ -1119,7 +1201,11 @@ abstract final class MeasurementOutboxRecordCodec {
     }
     final bodySha256 = _hex(bytes.sublist(42, 74));
     final requestSha256 = _hex(bytes.sublist(74, 106));
-    final factFrameSha256 = _hex(bytes.sublist(106, 138));
+    final frameDigestBytes = bytes.sublist(106, 138);
+    final factFrameSha256 =
+        extensionLength == 32 && frameDigestBytes.every((byte) => byte == 0)
+            ? null
+            : _hex(frameDigestBytes);
     var cursor = _fixedHeaderLength;
     final sessionBytes = bytes.sublist(cursor, cursor + sessionLength);
     cursor += sessionLength;
@@ -1153,6 +1239,10 @@ abstract final class MeasurementOutboxRecordCodec {
           captureSessionNonce: captureSessionNonce,
           requestSha256: requestSha256,
           factFrameSha256: factFrameSha256,
+          diagnosticSha256: extensionLength == 32
+              ? _hex(
+                  bytes.sublist(cursor + bodyLength, cursor + bodyLength + 32))
+              : null,
           publicationBindingReferenceCanonicalBytes: bindingBytes,
         ),
         createdAtUtcMicros: createdAtUtcMicros,
@@ -1361,6 +1451,19 @@ Uint8List _encodeExactIngestHttpBody(String canonicalRequestBase64) =>
     );
 
 MeasurementIngestRequestV1 _decodeExactIngestHttpBody(List<int> supplied) {
+  final request = MeasurementIngestRequestV1.fromBase64(
+    _decodeExactHttpBodyCarrier(supplied),
+  );
+  if (!_sameBytes(
+    _encodeExactIngestHttpBody(request.canonicalRequestBase64),
+    supplied,
+  )) {
+    throw ArgumentError('Noncanonical measurement HTTP body');
+  }
+  return request;
+}
+
+String _decodeExactHttpBodyCarrier(List<int> supplied) {
   if (supplied.isEmpty ||
       supplied.length > kMeasurementOutboxMaximumHttpBodyBytes) {
     throw ArgumentError('Invalid measurement HTTP body length');
@@ -1370,14 +1473,14 @@ MeasurementIngestRequestV1 _decodeExactIngestHttpBody(List<int> supplied) {
   if (match == null || match.start != 0 || match.end != body.length) {
     throw ArgumentError('Invalid measurement HTTP body spelling');
   }
-  final request = MeasurementIngestRequestV1.fromBase64(match.group(1)!);
+  final carrier = match.group(1)!;
   if (!_sameBytes(
-    _encodeExactIngestHttpBody(request.canonicalRequestBase64),
+    _encodeExactIngestHttpBody(carrier),
     supplied,
   )) {
     throw ArgumentError('Noncanonical measurement HTTP body');
   }
-  return request;
+  return carrier;
 }
 
 bool _sameBytes(List<int> left, List<int> right) {

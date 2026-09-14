@@ -7,6 +7,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        CanonicalSurfaceExperimentAssignmentV1,
+        SurfaceRoutingSelectionProvenanceV1,
         FlowActiveRenderGate,
         FlowContentHash,
         FlowDeliveryMode,
@@ -24,9 +26,13 @@ import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/report_surface_resolution.dart';
+import '../resolver/surface_resolution_report.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
+import '../runtime/surface_vocabulary.dart';
 import 'bundled_flow_loader.dart';
+import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_artifact_metadata.dart';
 import 'flow_experiment_mount.dart';
@@ -37,11 +43,19 @@ import 'flow_resolver.dart';
 /// The reference uses the built-in catalog capability installed by this SDK as
 /// its client floor. The resolver still applies its authoritative document and
 /// per-artifact capability gates before returning a flow.
+///
+/// Pass [vocabulary] when the app knows what the hosted flow draws: the
+/// generated `SurfaceVocabulary` of the surface it serves. Passing none
+/// installs nothing, so an app serving content it cannot know ahead of time
+/// installs the whole catalog itself at startup with
+/// `InstalledWidgetLibraries.install(RestageWidgetLibraries.builtIn())` and
+/// `InstalledIconTable.install(builtInIconTable())`.
 SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
   required String id,
   required int version,
   required Surface surfaceType,
   required FlowResultDecoder<R> decodeResult,
+  SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
 }) {
   return SurfaceFlowRef<R>(
     id: id,
@@ -49,6 +63,7 @@ SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
     minClient: RestageBuiltInCatalogCapabilities.currentVersion,
     surface: surfaceType,
     decodeResult: decodeResult,
+    vocabulary: vocabulary,
   );
 }
 
@@ -62,8 +77,8 @@ SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
 /// served from the server's currently-active version, contract-gated against
 /// the client's bundled document and fail-closed through a hold-last-good →
 /// bundled → typed-error ladder. The default (`active: false`) leaves the exact
-/// path byte-unchanged. The active arm needs the bundled flow asset present (the
-/// build emits it) — with no bundled contract it fails closed.
+/// path intact. The active arm uses the generated Dart contract when present;
+/// older references still require the bundled graph and screen artifacts.
 final class ServerFlowResolver
     implements
         FlowResolver,
@@ -101,7 +116,7 @@ final class ServerFlowResolver
 
   /// The active-arm hold-last-good cache, keyed by (surface type, flow id), not
   /// version: it holds the last gate-accepted active document for a flow,
-  /// re-gated against the current bundled contract on every hit so a
+  /// re-gated against the current client contract on every hit so a
   /// stale-but-incompatible active is never served. Separate from [_cache] so
   /// contract-version (the exact key) never collides with resolved-active-
   /// version.
@@ -163,9 +178,14 @@ final class ServerFlowResolver
         );
       }
       _checkRequiredLibraries(flow, cached.requiredLibraries);
-      return _own(
-        cached.toResolvedFlow(cacheHit: true),
-        requiredLibraries: cached.requiredLibraries,
+      // An exact version is a deliberate pin, so serving it again is not a hold.
+      return reportSurfaceResolution(
+        flow.id,
+        _own(
+          cached.toResolvedFlow(cacheHit: true),
+          requiredLibraries: cached.requiredLibraries,
+        ),
+        SurfaceResolutionSource.fresh,
       );
     }
 
@@ -236,11 +256,18 @@ final class ServerFlowResolver
       screenBlobs,
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
     );
     _cache[cacheKey] = cachedFlow;
-    return _own(
-      cachedFlow.toResolvedFlow(cacheHit: false),
-      requiredLibraries: cachedFlow.requiredLibraries,
+    return reportSurfaceResolution(
+      flow.id,
+      _own(
+        cachedFlow.toResolvedFlow(cacheHit: false),
+        requiredLibraries: cachedFlow.requiredLibraries,
+      ),
+      SurfaceResolutionSource.fresh,
     );
   }
 
@@ -256,12 +283,9 @@ final class ServerFlowResolver
 
     final activeCacheKey = _activeCacheKey(flow);
 
-    // Load the client's bundled contract: it is BOTH the render gate's `client`
-    // argument AND the Tier-3 fallback. If it is not loadable (no bundled asset
-    // / hash mismatch) there is no contract to gate against, so the active
-    // document can never be accepted — the ladder fails closed rather than
-    // performing an ungated accept.
-    final bundled = await _loadBundledContract(flow);
+    // The generated Dart graph supplies the original contract without requiring
+    // screen assets. Older references retain the bundled baseline path.
+    final bundled = await _loadClientBaseline(flow);
 
     if (bundled != null) {
       // Tier 1 — fresh active fetch + contract gate. A fetch failure or a
@@ -274,9 +298,13 @@ final class ServerFlowResolver
             active: active.document,
           )) {
         _activeCache[activeCacheKey] = active;
-        return _own(
-          active.toResolvedFlow(cacheHit: false),
-          requiredLibraries: active.requiredLibraries,
+        return reportSurfaceResolution(
+          flow.id,
+          _own(
+            active.toResolvedFlow(cacheHit: false),
+            requiredLibraries: active.requiredLibraries,
+          ),
+          SurfaceResolutionSource.fresh,
         );
       }
 
@@ -295,15 +323,23 @@ final class ServerFlowResolver
             cached.document,
             cached.requiredLibraries,
           )) {
-        return _own(
-          cached.toResolvedFlow(cacheHit: true),
-          requiredLibraries: cached.requiredLibraries,
+        return reportSurfaceResolution(
+          flow.id,
+          _own(
+            cached.toResolvedFlow(cacheHit: true),
+            requiredLibraries: cached.requiredLibraries,
+          ),
+          SurfaceResolutionSource.holdLastGood,
         );
       }
 
       // Tier 3 — the client's own bundled document (exact; its version equals
       // the requested version, so the controller's retained version pin passes).
-      return _bundledResolvedFlow(bundled);
+      return reportSurfaceResolution(
+        flow.id,
+        bundled,
+        SurfaceResolutionSource.bundled,
+      );
     }
 
     // Tier 4 — nothing renderable: no bundled contract and no servable active.
@@ -324,14 +360,11 @@ final class ServerFlowResolver
       FlowMountRevalidationBoundary.request,
       captureSeed,
     );
-    var result = await _fetchExperimentSurface(
+    final result = await _fetchExperimentSurface(
       flow: flow,
       snapshot: snapshot,
       captureSeed: captureSeed,
       boundary: FlowMountRevalidationBoundary.request,
-      flowContract: FlowContractFetchRequest.hashOnly(
-        snapshot.contentHash.value,
-      ),
     );
     _requireExperimentSnapshotCurrent(
       snapshot,
@@ -339,31 +372,6 @@ final class ServerFlowResolver
       captureSeed,
     );
     if (result == null) return null;
-
-    if (result.flowContractRequired) {
-      final current = _captureExperimentSeed(captureSeed);
-      final bytes = snapshot.bytesForRetry(
-        FlowMountRevalidationBoundary.uploadRetry,
-        current,
-      );
-      if (bytes == null) throw const _ExperimentSeedDrift();
-      result = await _fetchExperimentSurface(
-        flow: flow,
-        snapshot: snapshot,
-        captureSeed: captureSeed,
-        boundary: FlowMountRevalidationBoundary.uploadRetry,
-        flowContract: FlowContractFetchRequest.retry(
-          snapshot.contentHash.value,
-          bytes,
-        ),
-      );
-      _requireExperimentSnapshotCurrent(
-        snapshot,
-        FlowMountRevalidationBoundary.uploadRetry,
-        captureSeed,
-      );
-      if (result == null || result.flowContractRequired) return null;
-    }
 
     // Both artifact refusals reach the same `null` the decode failure always
     // did — this arm's ladder treats an unrenderable active exactly like an
@@ -395,6 +403,9 @@ final class ServerFlowResolver
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
     );
     return _ExperimentFreshFlow(
       candidateRoot: _own(
@@ -409,14 +420,12 @@ final class ServerFlowResolver
     required FlowMountContractSnapshot snapshot,
     required FlowMountSeedCapture captureSeed,
     required FlowMountRevalidationBoundary boundary,
-    required FlowContractFetchRequest flowContract,
   }) async {
     try {
       return await _client.fetchSurface(
         surfaceType: flow.surfaceType.wireName,
         surfaceSlug: flow.id,
         assignmentKey: snapshot.assignmentKey,
-        flowContract: flowContract,
         publicationGuard: () =>
             _experimentSnapshotIsCurrent(snapshot, boundary, captureSeed),
       );
@@ -425,17 +434,17 @@ final class ServerFlowResolver
     }
   }
 
-  /// Loads the client's bundled flow document + screen blobs from its surface
-  /// directory by convention (`assets/<surface>/flows/<id>.flow.json`).
-  /// Embedded paywall-owned screens still load from the paywall screen
-  /// directory. Returns null when no bundled asset is present or it fails to
-  /// load — the "no contract ⇒ fail closed" signal for the active arm.
-  Future<BundledFlowArtifacts?> _loadBundledContract<R>(
-    OnboardingFlowRef<R> flow,
-  ) async {
+  /// Selects the compiler-retained original, or the legacy bundled baseline.
+  Future<ResolvedFlow?> _loadClientBaseline<R>(OnboardingFlowRef<R> flow,
+      {CompiledFlow? compiledClosure}) async {
+    final compiled =
+        flow.compiled ?? compiledClosure?.find(flow.id, flow.version);
+    if (compiled != null && compiled.hasCompleteScreenBuilders) {
+      return _own(compiled.resolve(), requiredLibraries: const []);
+    }
     try {
       final surface = flow.surfaceType.wireName;
-      return await loadBundledFlowArtifacts(
+      final bundled = await loadBundledFlowArtifacts(
         bundle: _effectiveBundle,
         flowJsonPath: 'assets/$surface/flows/${flow.id}.flow.json',
         screenAssetPathPrefix: 'assets/$surface/screens',
@@ -450,6 +459,7 @@ final class ServerFlowResolver
         buildError: (reason, message, [cause]) =>
             _error(flow, reason, message, cause),
       );
+      return _bundledResolvedFlow(bundled);
     } on FlowUnavailableError catch (error) {
       debugPrint(
         '[restage] rejected bundled ${flow.surfaceType.wireName} flow baseline '
@@ -513,6 +523,9 @@ final class ServerFlowResolver
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
     );
   }
 
@@ -552,7 +565,7 @@ final class ServerFlowResolver
   /// candidate active document, returning false (→ ladder) on any rejection
   /// rather than throwing. Used both for a fresh active fetch and to re-affirm a
   /// held-last-good document against the current registry/installed capability
-  /// (the caller re-runs the render gate against the current bundled contract).
+  /// (the caller re-runs the render gate against the current client contract).
   bool _passesRetainedChecks<R>(
     OnboardingFlowRef<R> flow,
     FlowDocument document,
@@ -788,7 +801,7 @@ final class _ServerFlowExperimentPresentation
     required this.owner,
     required this.flow,
     required this.captureSeed,
-  }) : _baselineResolver = _BundledExperimentResolver(owner);
+  }) : _baselineResolver = _BundledExperimentResolver(owner, flow.compiled);
 
   final ServerFlowResolver owner;
   final OnboardingFlowRef<Object?> flow;
@@ -845,7 +858,11 @@ final class _ServerFlowExperimentPresentation
               snapshot: snapshot,
               accepted: prefetched,
             );
-            return prefetched.candidateRoot;
+            return await reportSurfaceResolution(
+              flow.id,
+              prefetched.candidateRoot,
+              SurfaceResolutionSource.fresh,
+            );
           }
           if (prefetched is FlowCandidatePrefetchRejected &&
               prefetched.reason == FlowCandidatePrefetchRejection.seedDrift) {
@@ -868,7 +885,11 @@ final class _ServerFlowExperimentPresentation
           final accepted = held.accepted.asCacheHit();
           _selectedResolver = accepted.resolver;
           _provisional = null;
-          return accepted.candidateRoot;
+          return reportSurfaceResolution(
+            flow.id,
+            accepted.candidateRoot,
+            SurfaceResolutionSource.holdLastGood,
+          );
         }
         owner._experimentActiveCache.remove(key);
       }
@@ -882,7 +903,11 @@ final class _ServerFlowExperimentPresentation
       }
       _selectedResolver = snapshot.baselineResolver;
       _provisional = null;
-      return snapshot.baselineRoot;
+      return reportSurfaceResolution(
+        flow.id,
+        snapshot.baselineRoot,
+        SurfaceResolutionSource.bundled,
+      );
     }
     throw _unavailable('unstable_mount_identity');
   }
@@ -958,13 +983,15 @@ final class _ServerFlowExperimentPresentation
 
 final class _BundledExperimentResolver
     implements FlowResolver, FlowExperimentArtifactMetadataProvider {
-  const _BundledExperimentResolver(this.owner);
+  const _BundledExperimentResolver(this.owner, [this.compiledClosure]);
 
   final ServerFlowResolver owner;
+  final CompiledFlow? compiledClosure;
 
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
-    final bundled = await owner._loadBundledContract(flow);
+    final bundled =
+        await owner._loadClientBaseline(flow, compiledClosure: compiledClosure);
     if (bundled == null) {
       throw FlowUnavailableError(
         flowId: flow.id,
@@ -973,7 +1000,7 @@ final class _BundledExperimentResolver
         message: 'Bundled baseline flow "${flow.id}" is unavailable.',
       );
     }
-    return owner._bundledResolvedFlow(bundled);
+    return bundled;
   }
 
   @override
@@ -1015,14 +1042,6 @@ void _requireExactPublicationCurrent(bool Function()? publicationGuard) {
   throw const _ExperimentSeedDrift();
 }
 
-FlowMountLeaseSeed _captureExperimentSeed(FlowMountSeedCapture captureSeed) {
-  try {
-    return captureSeed();
-  } on Object {
-    throw const _ExperimentSeedDrift();
-  }
-}
-
 bool _experimentSnapshotIsCurrent(
   FlowMountContractSnapshot snapshot,
   FlowMountRevalidationBoundary boundary,
@@ -1052,6 +1071,9 @@ final class _CachedServerFlow {
     this.contentHash,
     this.requiredLibraries,
     this.publicationBindingReference,
+    this.canonicalExperimentAssignment,
+    this.routingSelectionReceipt,
+    this.routingSelectionProvenance,
   );
 
   /// Builds a cache entry, computing the canonical-document content hash (the
@@ -1062,6 +1084,10 @@ final class _CachedServerFlow {
     List<LibraryRequirement> requiredLibraries, {
     required MeasurementPublicationBindingReferenceV1?
         publicationBindingReference,
+    required CanonicalSurfaceExperimentAssignmentV1?
+        canonicalExperimentAssignment,
+    required String? routingSelectionReceipt,
+    required SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
   }) {
     return _CachedServerFlow(
       document,
@@ -1069,6 +1095,9 @@ final class _CachedServerFlow {
       FlowContentHash.compute(FlowDocumentCodec.encodeCanonicalJson(document)),
       requiredLibraries,
       publicationBindingReference,
+      canonicalExperimentAssignment,
+      routingSelectionReceipt,
+      routingSelectionProvenance,
     );
   }
 
@@ -1082,6 +1111,9 @@ final class _CachedServerFlow {
 
   /// Exact immutable Measurement provenance retained with these exact bytes.
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+  final String? routingSelectionReceipt;
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
 
   ResolvedFlow toResolvedFlow({required bool cacheHit}) {
     return attachMeasurementPublicationBindingReference(
@@ -1092,6 +1124,9 @@ final class _CachedServerFlow {
         cacheHit: cacheHit,
       ),
       publicationBindingReference,
+      canonicalExperimentAssignment: canonicalExperimentAssignment,
+      routingSelectionReceipt: routingSelectionReceipt,
+      routingSelectionProvenance: routingSelectionProvenance,
     );
   }
 }

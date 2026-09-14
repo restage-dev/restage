@@ -16,13 +16,10 @@ const String _outputAsset = 'lib/src/registration.g.dart';
 /// One builder run per consuming package. Reads the package's
 /// `lib/src/widget_catalog/catalog.json` (emitted by the workspace
 /// catalog tool from each library's `kRegistry`) and writes
-/// `lib/src/registration.g.dart` declaring a const
+/// `lib/src/registration.g.dart`, which declares one public builder
+/// function per widget plus a const
 /// `Map<String, LocalWidgetBuilder> kXxxLibraryFactories` keyed by widget
 /// name.
-///
-/// Scaffold: the emitted map is empty regardless of catalog content.
-/// Per-widget closures land in follow-up work that decodes flat
-/// `DataSource` arguments and constructs the canonical Flutter widget.
 final class FactoryFunctionBuilder implements Builder {
   /// Const constructor used by the `factoryFunctionBuilder` factory.
   const FactoryFunctionBuilder(this.options);
@@ -43,9 +40,8 @@ final class FactoryFunctionBuilder implements Builder {
 
     // A pure-custom catalog (no built-in library) registers through the
     // @RestageWidget factory aggregator, not this builder. Since a custom
-    // package now emits its own catalog.json — and this builder is keyed on
-    // catalog.json — it runs on the custom catalog too; skip it rather than
-    // treating a custom namespace as a configuration error.
+    // package may carry an authored custom catalog at the same path.
+    // Custom factories come from the annotation-driven builder.
     final hasBuiltInLibrary = catalog.libraries.keys.any(
       (l) => WidgetLibrary.builtInByNamespace(l.namespace) != null,
     );
@@ -119,21 +115,16 @@ String _emitRegistrationFile({
   final mapEntries = <String>[];
   final emittedEntries = <WidgetEntry>[];
   for (final entry in widgets) {
-    final emitted = emitFactoryFunction(entry, nativeIndex: nativeIndex);
+    final emitted = emitFactoryFunction(
+      entry,
+      nativeIndex: nativeIndex,
+      publicName: true,
+    );
     if (emitted == null) continue;
     factoryDefinitions.add(emitted);
-    mapEntries.add("  '${entry.name}': ${functionNameFor(entry)},");
+    mapEntries.add("  '${entry.name}': ${publicFunctionNameFor(entry)},");
     emittedEntries.add(entry);
   }
-
-  // An icon factory constructs `IconData` from a runtime codepoint (the
-  // `--no-tree-shake-icons` RFW pattern). Newer analyzers flag the non-const
-  // codePoint argument, and pub's analyzer scoring does not honour an
-  // `analysis_options` exclude — only an in-file ignore. Emit it for the whole
-  // generated file, but only when an icon factory actually lands here (so
-  // icon-free libraries don't carry a would-be-unnecessary directive).
-  final needsIconDataIgnore =
-      factoryDefinitions.any((body) => body.contains('IconData('));
 
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
@@ -144,16 +135,8 @@ String _emitRegistrationFile({
     )
     ..writeln('// To change this map: edit lib/registry_curation.dart, then')
     ..writeln('// re-run build_runner (it regenerates the registry, the')
-    ..writeln('// catalog, and this file).');
-  if (needsIconDataIgnore) {
-    buf
-      ..writeln('//')
-      ..writeln('// ignore_for_file: non_const_argument_for_const_parameter')
-      ..writeln('// (icon factories build IconData from a runtime codepoint,')
-      ..writeln('// which newer analyzers flag because the codePoint is not')
-      ..writeln('// const).');
-  }
-  buf.writeln();
+    ..writeln('// catalog, and this file).')
+    ..writeln();
   // Flutter import is only needed when at least one factory function
   // body lands in the file; an empty map references no Flutter types
   // and the unused import would trigger an analyzer warning.
@@ -169,14 +152,18 @@ String _emitRegistrationFile({
   // for byte-deterministic emit. Without this, the emitted factory
   // body references a class the file doesn't import and analyze fails.
   // `restage_core` carries `RestageDecoders` (helpers for property
-  // types not covered by rfw's `ArgumentDecoders`, e.g. `Duration`)
-  // and `resolveThemeBinding` (the runtime resolver for theme-binding
-  // defaults). Emit the barrel import only when at least one factory body
+  // types not covered by rfw's `ArgumentDecoders`, e.g. `Duration`),
+  // `resolveThemeBinding` (the runtime resolver for theme-binding
+  // defaults) and `resolveInstalledIcon` (the installed-icon lookup).
+  // Emit the barrel import only when at least one factory body
   // references one of them — keeps unused-import warnings out of
-  // libraries whose curation reaches neither. Self-imports via
+  // libraries whose curation reaches none of them. Self-imports via
   // `package:` URI resolve fine for the core library itself.
   final referencesCoreRuntime = factoryDefinitions.any(
-    (d) => d.contains('RestageDecoders.') || d.contains('resolveThemeBinding('),
+    (d) =>
+        d.contains('RestageDecoders.') ||
+        d.contains('resolveThemeBinding(') ||
+        d.contains('resolveInstalledIcon('),
   );
   final primaryFlutterImport = _flutterImportFor(library);
   final extraWidgetImports = <String>{

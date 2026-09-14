@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,18 +30,6 @@ class _StaticResolver implements VariantResolver {
         paywallId: id,
         paywallPublishedVersion: publishedVersion,
       );
-}
-
-final class _ControlledResolver implements VariantResolver {
-  final Completer<ResolvedVariant> response = Completer<ResolvedVariant>();
-
-  @override
-  Future<ResolvedVariant> resolve(
-    String id, {
-    String? placementId,
-    Locale? locale,
-  }) =>
-      response.future;
 }
 
 void main() {
@@ -107,115 +92,9 @@ void main() {
     expect(viewed.publishedVersion, isNull);
   });
 
-  testWidgets('a blob paywall emits one canonical root after successful paint',
-      (tester) async {
-    final requests = <http.Request>[];
-    Restage.debugAnalyticsHttpClient = MockClient((request) async {
-      requests.add(request);
-      return http.Response('', 200);
-    });
-    Restage.configure(
-      apiKey: 'rs_pk_test',
-      baseUrl: 'http://127.0.0.1:1',
-    );
-    const source = '''
-      import restage.core;
-      widget Paywall = Text(text: "Canonical");
-    ''';
-    final bytes =
-        Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: RestagePaywall(
-          id: 'upgrade',
-          resolver: _StaticResolver(bytes, publishedVersion: 12),
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await Restage.debugFlushAnalytics();
-
-    final events = <Map<String, Object?>>[
-      for (final request in requests)
-        for (final event in (jsonDecode(request.body)
-            as Map<String, Object?>)['events']! as List)
-          (event! as Map).cast<String, Object?>(),
-    ];
-    final presentations =
-        events.where((event) => event['name'] == 'surface_presented').toList();
-    expect(presentations, hasLength(1));
-    expect(presentations.single['surface'], 'paywall');
-    expect(presentations.single['surfaceId'], 'upgrade');
-    expect(presentations.single['surfaceVersion'], '12');
-    expect(presentations.single['surfaceSessionId'], isNotNull);
-    expect(presentations.single, isNot(contains('experimentId')));
-    expect(presentations.single, isNot(contains('variantId')));
-    expect(presentations.single, isNot(contains('experimentEpoch')));
-
-    final viewed =
-        events.singleWhere((event) => event['name'] == 'paywall_viewed');
-    expect(viewed['surface'], 'paywall');
-    expect(viewed['surfaceId'], 'upgrade');
-    expect(viewed['surfaceVersion'], '12');
-    expect(
-      viewed['surfaceSessionId'],
-      presentations.single['surfaceSessionId'],
-    );
-    expect(viewed, isNot(contains('experimentId')));
-    expect(viewed, isNot(contains('variantId')));
-    expect(viewed, isNot(contains('experimentEpoch')));
-  });
-
-  testWidgets('a custom blob version reaches the active root attribution',
-      (tester) async {
-    final requests = <http.Request>[];
-    Restage.debugAnalyticsHttpClient = MockClient((request) async {
-      requests.add(request);
-      return http.Response('', 200);
-    });
-    Restage.configure(
-      apiKey: 'rs_pk_test',
-      baseUrl: 'http://127.0.0.1:1',
-    );
-    final bytes = Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
-      import restage.core;
-      widget Paywall = Text(text: "Custom version");
-    ''')));
-
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: RestagePaywall(
-          id: 'custom-version',
-          resolver: _StaticResolver(
-            bytes,
-            surfaceVersion: 'custom-content-v2',
-          ),
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await Restage.debugFlushAnalytics();
-
-    final events = await _capturedEvents(requests);
-    final presentation = events.singleWhere(
-      (event) => event['name'] == 'surface_presented',
-    );
-    final viewed = events.singleWhere(
-      (event) => event['name'] == 'paywall_viewed',
-    );
-    expect(presentation['surfaceVersion'], 'custom-content-v2');
-    expect(viewed['surfaceVersion'], 'custom-content-v2');
-  });
-
   testWidgets('an active paywall reports settled pager changes',
       (tester) async {
-    final requests = <http.Request>[];
     final received = <RestageEvent>[];
-    Restage.debugAnalyticsHttpClient = MockClient((request) async {
-      requests.add(request);
-      return http.Response('', 200);
-    });
     Restage.configure(
       apiKey: 'rs_pk_test',
       baseUrl: 'http://127.0.0.1:1',
@@ -247,7 +126,6 @@ void main() {
 
     await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
-    await Restage.debugFlushAnalytics();
 
     expect(
       received.whereType<PagerPageChanged>(),
@@ -257,213 +135,5 @@ void main() {
             .having((event) => event.pageCount, 'pageCount', 2),
       ],
     );
-    final events = await _capturedEvents(requests);
-    final pager =
-        events.singleWhere((event) => event['name'] == 'page_changed');
-    expect(pager['surface'], 'paywall');
-    expect(pager['surfaceId'], 'pager-paywall');
-    expect(pager['surfaceVersion'], 'pager-v1');
-    expect(pager['properties'], <String, Object?>{
-      'pageIndex': 1,
-      'pageCount': 2,
-    });
   });
-
-  testWidgets('prepaint paywall lifecycle is owner-bound', (tester) async {
-    final requests = <http.Request>[];
-    _configureAnalytics(requests);
-    final resolver = _ControlledResolver();
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: RestagePaywall(id: 'pending', resolver: resolver),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    final events = await _capturedEvents(requests);
-    final started = events.singleWhere(
-      (event) => event['name'] == 'paywall_load_started',
-    );
-    expect(started['surface'], 'paywall');
-    expect(started['surfaceId'], 'pending');
-    expect(started['surfaceVersion'], isNull);
-    expect(started['surfaceSessionId'], isNull);
-    expect(started, isNot(contains('experimentId')));
-    expect(started, isNot(contains('variantId')));
-    expect(started, isNot(contains('experimentEpoch')));
-
-    resolver.response.complete(
-      ResolvedVariant(
-        bytes: _blob('Pending resolved'),
-        surfaceVersion: 'test',
-        paywallId: 'pending',
-      ),
-    );
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets(
-      'failed prepaint paywall lifecycle never fabricates a root session',
-      (tester) async {
-    final requests = <http.Request>[];
-    _configureAnalytics(requests);
-    final resolver = _ControlledResolver();
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: RestagePaywall(id: 'failed', resolver: resolver),
-        ),
-      ),
-    );
-    await tester.pump();
-    resolver.response.completeError(
-      const RestagePaywallError(
-        code: RestageErrorCodes.deliveryUnavailable,
-        message: 'controlled unavailable',
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final events = await _capturedEvents(requests);
-    for (final event in events.where(
-      (event) =>
-          event['name'] == 'paywall_load_started' ||
-          event['name'] == 'paywall_load_failed',
-    )) {
-      expect(event['surface'], 'paywall');
-      expect(event['surfaceId'], 'failed');
-      expect(event['surfaceVersion'], isNull);
-      expect(event['surfaceSessionId'], isNull);
-      expect(event, isNot(contains('experimentId')));
-      expect(event, isNot(contains('variantId')));
-      expect(event, isNot(contains('experimentEpoch')));
-    }
-  });
-
-  testWidgets(
-      'overlapping paywalls retain independent active contexts when one '
-      'unmounts', (tester) async {
-    final requests = <http.Request>[];
-    _configureAnalytics(requests);
-    final controllerA = RestagePaywallController();
-    final controllerB = RestagePaywallController();
-    final bytes = _blob('Overlapping');
-
-    Widget paywall(
-      String id,
-      int version,
-      RestagePaywallController controller,
-    ) =>
-        RestagePaywall(
-          key: ValueKey<String>(id),
-          id: id,
-          controller: controller,
-          resolver: _StaticResolver(bytes, publishedVersion: version),
-        );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Row(
-          children: <Widget>[
-            Expanded(
-              key: const ValueKey<String>('slot-a'),
-              child: paywall('a', 1, controllerA),
-            ),
-            Expanded(
-              key: const ValueKey<String>('slot-b'),
-              child: paywall('b', 2, controllerB),
-            ),
-          ],
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final canonical = (await _capturedEvents(requests))
-        .where((event) => event['name'] == 'surface_presented')
-        .toList();
-    final sessionA = canonical
-        .singleWhere((event) => event['surfaceId'] == 'a')['surfaceSessionId'];
-    final sessionB = canonical
-        .singleWhere((event) => event['surfaceId'] == 'b')['surfaceSessionId'];
-    requests.clear();
-
-    controllerA.fireEvent('event_a');
-    controllerB.fireEvent('event_b');
-    await tester.pump();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Row(
-          children: <Widget>[
-            Expanded(
-              key: const ValueKey<String>('slot-b'),
-              child: paywall('b', 2, controllerB),
-            ),
-          ],
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    controllerB.fireEvent('event_b_after_a_unmount');
-    await tester.pump();
-
-    final events = await _capturedEvents(requests);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpAndSettle();
-    final eventA = events.singleWhere(
-      (event) =>
-          (event['properties'] as Map<String, Object?>?)?['eventName'] ==
-          'event_a',
-    );
-    final eventB = events.singleWhere(
-      (event) =>
-          (event['properties'] as Map<String, Object?>?)?['eventName'] ==
-          'event_b',
-    );
-    final eventBAfter = events.singleWhere(
-      (event) =>
-          (event['properties'] as Map<String, Object?>?)?['eventName'] ==
-          'event_b_after_a_unmount',
-    );
-    expect(eventA['surfaceId'], 'a');
-    expect(eventA['surfaceSessionId'], sessionA);
-    expect(eventB['surfaceId'], 'b');
-    expect(eventB['surfaceSessionId'], sessionB);
-    expect(eventBAfter['surfaceId'], 'b');
-    expect(eventBAfter['surfaceSessionId'], sessionB);
-  });
-}
-
-Uint8List _blob(String text) {
-  final source = '''
-    import restage.core;
-    widget Paywall = Text(text: "$text");
-  ''';
-  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-}
-
-void _configureAnalytics(List<http.Request> requests) {
-  Restage.debugAnalyticsHttpClient = MockClient((request) async {
-    requests.add(request);
-    return http.Response('', 200);
-  });
-  Restage.configure(
-    apiKey: 'rs_pk_test',
-    baseUrl: 'http://127.0.0.1:1',
-  );
-}
-
-Future<List<Map<String, Object?>>> _capturedEvents(
-  List<http.Request> requests,
-) async {
-  await Restage.debugFlushAnalytics();
-  return <Map<String, Object?>>[
-    for (final request in requests)
-      for (final event in (jsonDecode(request.body)
-          as Map<String, Object?>)['events']! as List)
-        (event! as Map).cast<String, Object?>(),
-  ];
 }

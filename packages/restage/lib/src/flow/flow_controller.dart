@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementOccurrenceChannelV1;
+
 import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
+import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import '../measurement/measurement_event_sanitizer.dart';
+import '../runtime/surface_vocabulary.dart';
+import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
@@ -22,6 +27,10 @@ typedef _FlowEventMeasurementSanitizer = Object? Function(Object? rawValue);
 /// filtering, and reports unavailable artifacts through the fail-closed path.
 final class RestageFlowController<R> extends ChangeNotifier {
   /// Creates a flow controller.
+  ///
+  /// Adds the widgets and icons of the flow and of the sub-flows it can enter
+  /// to the installed stores, so a host that composes the flow primitives
+  /// itself installs nothing by hand.
   RestageFlowController({
     required this.flow,
     required this.resolver,
@@ -31,7 +40,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onEvent,
     required this.onComplete,
     required this.onUnavailable,
-  });
+  })  : _onMeasurementLifecycle = null,
+        _onMeasurementAnswer = null {
+    _installFlowVocabularies();
+  }
 
   RestageFlowController._forHostMeasurement({
     required this.flow,
@@ -44,8 +56,15 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onUnavailable,
     required _FlowRootResolvedAdmission onRootResolved,
     required _FlowEventMeasurementSanitizer sanitizeAndRecordEvent,
-  })  : _onRootResolved = onRootResolved,
-        _sanitizeAndRecordEvent = sanitizeAndRecordEvent;
+    void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
+        onMeasurementLifecycle,
+    void Function(String questionId, Object? value)? onMeasurementAnswer,
+  })  : _onMeasurementAnswer = onMeasurementAnswer,
+        _onMeasurementLifecycle = onMeasurementLifecycle,
+        _onRootResolved = onRootResolved,
+        _sanitizeAndRecordEvent = sanitizeAndRecordEvent {
+    _installFlowVocabularies();
+  }
 
   /// Flow descriptor being executed.
   final OnboardingFlowRef<R> flow;
@@ -84,6 +103,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   _FlowRootResolvedAdmission? _onRootResolved;
   _FlowEventMeasurementSanitizer? _sanitizeAndRecordEvent;
+  final void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
+      _onMeasurementLifecycle;
+  final void Function(String questionId, Object? value)? _onMeasurementAnswer;
+  int? _measurementRenderedEntryId;
 
   static final Random _operationIdRandom = Random.secure();
   static const Object _missingOutboundValue = Object();
@@ -126,6 +149,39 @@ final class RestageFlowController<R> extends ChangeNotifier {
       installedSignalNames.contains(name) ||
       _registrySignalNames.contains(name);
 
+  /// This flow and, transitively, every sub-flow it can enter. A reference
+  /// reached more than once appears once.
+  late final List<SurfaceFlowRef<dynamic>> _flowClosure = _computeFlowClosure();
+
+  List<SurfaceFlowRef<dynamic>> _computeFlowClosure() {
+    final closure = <SurfaceFlowRef<dynamic>>[];
+    final seen = <String>{};
+    final pending = <SurfaceFlowRef<dynamic>>[flow];
+    while (pending.isNotEmpty) {
+      final ref = pending.removeLast();
+      if (!seen.add(ref.id)) continue;
+      closure.add(ref);
+      pending.addAll(ref.subFlows);
+    }
+    return closure;
+  }
+
+  /// Installs what this flow draws and what its sub-flows draw, so entering a
+  /// sub-flow renders the widgets and icons only that sub-flow names.
+  void _installFlowVocabularies() {
+    for (final ref in _flowClosure) {
+      ref.vocabulary.addToInstalled();
+    }
+  }
+
+  /// The generated reference for flow [flowId], when this flow carries one.
+  SurfaceFlowRef<dynamic>? _carriedFlowRef(String flowId) {
+    for (final ref in _flowClosure) {
+      if (ref.id == flowId) return ref;
+    }
+    return null;
+  }
+
   /// The SURFACE's delivery mode, established once from the ROOT document at
   /// [load]. The custom-event-name cap and the outbound-filter posture are
   /// anchored to THIS, never to a per-frame document's self-attested marker — a
@@ -154,6 +210,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Decoded RFW library for the current screen.
   WidgetLibrary? get currentLibrary => _currentFrame?.currentLibrary;
+
+  /// Authored constructor for the current visit when native fallback was selected.
+  CompiledFlowScreenBuilder? get currentNativeScreen =>
+      _currentFrame?.currentNativeScreen;
 
   /// Monotonic id of the current screen *visit*; null when no screen is
   /// mounted — before the first screen loads, while crossing a sub-flow
@@ -281,9 +341,18 @@ final class RestageFlowController<R> extends ChangeNotifier {
           ? resolver as ActiveArmFlowResolver
           : null;
       final active = activeResolver?.activeArmEnabled ?? false;
-      final resolved = active
-          ? await activeResolver!.resolveActiveRoot(flow)
-          : await resolver.resolve(flow);
+      ResolvedFlow resolved;
+      try {
+        resolved = active
+            ? await activeResolver!.resolveActiveRoot(flow)
+            : await resolver.resolve(flow);
+      } on FlowUnavailableError {
+        // Only a delivery failure falls back to the authored original; a
+        // resolver defect must surface as a failure, not as an outage.
+        final compiled = flow.compiled;
+        if (compiled == null) rethrow;
+        resolved = compiled.resolve();
+      }
       if (_isDisposed) return;
       _validateResolved(resolved, active: active);
       // Anchor the surface mode ONCE from the root document. Every later cap /
@@ -350,7 +419,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Routes an RFW event through the flow transition table.
   void handleEvent(String name, Object? args) {
-    RestageFlowRenderEventPrivacyRegistry.runControllerEvent(
+    RestageFlowEventDispatchRegistry.runControllerEvent(
       controller: this,
       body: () => _handleEvent(name, args),
     );
@@ -378,6 +447,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // [canSkip] single-sources the skip-destination predicate (its other guards
     // are already satisfied here).
     if (flowEventName == _skipEventName && canSkip) {
+      _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.skip,
+          screenId: current);
       _emitEvent(OnboardingSkipped(
         flowId: frame.flowId,
         flowVersion: frame.flowVersion,
@@ -575,7 +646,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
       );
       if (before != after) {
         reports.add(
-          _SurveyAnswerReport(questionId: questionId, questionIndex: index),
+          _SurveyAnswerReport(
+              questionId: questionId, questionIndex: index, value: after.value),
         );
       }
     }
@@ -588,11 +660,26 @@ final class RestageFlowController<R> extends ChangeNotifier {
   ) {
     for (final report in emission.reports) {
       if (!_canReportSurveyAnswers(transaction, emission)) return;
+      _emitMeasurementAnswer(transaction, report);
+      if (!_canReportSurveyAnswers(transaction, emission)) return;
       _emitEvent(SurveyQuestionResponded(
         questionId: report.questionId,
         questionIndex: report.questionIndex,
       ));
       if (!_canReportSurveyAnswers(transaction, emission)) return;
+    }
+  }
+
+  void _emitMeasurementAnswer(
+    _SurveyAnswerTransaction transaction,
+    _SurveyAnswerReport report,
+  ) {
+    if (!transaction.measurementReportedQuestions.add(report.questionId))
+      return;
+    try {
+      _onMeasurementAnswer?.call(report.questionId, report.value);
+    } on Object {
+      // Measurement does not interrupt the settled business transaction.
     }
   }
 
@@ -679,6 +766,14 @@ final class RestageFlowController<R> extends ChangeNotifier {
     ));
   }
 
+  void _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1 channel,
+      {String? screenId}) {
+    if (_frames.isEmpty || _frames.last.parent != null) return;
+    try {
+      _onMeasurementLifecycle?.call(channel, screenId);
+    } on Object {/* Capture remains observational. */}
+  }
+
   /// Acknowledges that the exact current screen entry built successfully.
   ///
   /// Package-internal render-commit handshake. Installing and decoding a screen
@@ -688,6 +783,16 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// repeated acknowledgement is a no-op.
   @internal
   void acknowledgeRenderedEntry(int entryId) {
+    if (!_isDisposed &&
+        !_isUnavailable &&
+        !_isComplete &&
+        _currentScreenEntryId == entryId &&
+        _frames.isNotEmpty &&
+        _measurementRenderedEntryId != entryId) {
+      _measurementRenderedEntryId = entryId;
+      _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.presentation,
+          screenId: currentScreenId);
+    }
     if (_isDisposed ||
         _isUnavailable ||
         _isComplete ||
@@ -725,6 +830,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final prior = frame.screenHistory.last;
     frame.currentStateId = prior.stateId;
     frame.currentLibrary = prior.library;
+    frame.currentNativeScreen = prior.nativeScreen;
     _currentScreenEntryId = prior.entryId;
     _notifyHostListeners();
   }
@@ -1172,19 +1278,27 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _emitFlowStarted(parentFrame);
     parentFrame.currentStateId = null;
     parentFrame.currentLibrary = null;
+    parentFrame.currentNativeScreen = null;
     _currentScreenEntryId = null;
     _notifyHostListeners();
 
+    // The synthesized reference says what the authored one says, so a reader
+    // of it sees the vocabulary the sub-flow's screens draw.
+    final carried = _carriedFlowRef(state.flow);
     final childRef = OnboardingFlowRef<Map<String, Object?>>(
       id: state.flow,
       version: state.version,
       minClient: state.minClient,
       surface: flow.surface,
       decodeResult: _decodeSubFlowResult,
+      vocabulary: carried?.vocabulary ?? SurfaceVocabulary.none,
     );
 
     try {
-      final childResolved = await resolver.resolve(childRef);
+      final compiledParent = parentFrame.resolved.compiled;
+      final childResolved = compiledParent == null
+          ? await resolver.resolve(childRef)
+          : compiledParent.children[state.flow]!.resolve();
       if (!_isActiveFrame(parentFrame)) return;
       _validateSubFlowResolved(parentFrame, state, childResolved);
       final childActionBindings =
@@ -1415,10 +1529,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
         'Flow state "$stateId" is not a screen state.',
       );
     }
-    final library = _decodeScreenBlob(frame, state.screen);
+    final nativeScreen = resolved.compiled?.screens[state.screen];
+    final library =
+        nativeScreen == null ? _decodeScreenBlob(frame, state.screen) : null;
     final entryId = ++_screenEntrySequence;
     frame.currentStateId = stateId;
     frame.currentLibrary = library;
+    frame.currentNativeScreen = nativeScreen;
     _currentScreenEntryId = entryId;
     // Record this screen *visit* on the frame's back-stack. Forward navigation
     // pushes; back() pops. Decision/action states are never recorded (they sit
@@ -1427,6 +1544,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       entryId: entryId,
       stateId: stateId,
       library: library,
+      nativeScreen: nativeScreen,
     ));
     _evictScreenHistory(frame);
     _emitFlowStarted(frame);
@@ -1531,6 +1649,20 @@ final class RestageFlowController<R> extends ChangeNotifier {
       ));
       return;
     }
+    // Terminal callbacks may synchronously tear down the host session. Record
+    // its settled scalar answers while that exact session still owns the root;
+    // public survey events retain their existing transaction-finally ordering.
+    final survey = _activeSurveyTransaction;
+    if (survey != null &&
+        identical(survey.rootFrame, frame) &&
+        _isSurveyTransactionReadyToRun(survey)) {
+      for (final report in _snapshotChangedSurveyAnswers(survey)) {
+        _emitMeasurementAnswer(survey, report);
+      }
+    }
+    _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.completion,
+        screenId: frame.currentStateId);
+    _recordMeasurementLifecycle(MeasurementOccurrenceChannelV1.completion);
     _emitEvent(FlowCompleted(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
@@ -2287,6 +2419,9 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
   required void Function(FlowUnavailableError error) onUnavailable,
   required Future<void> Function(ResolvedFlow root) onRootResolved,
   required Object? Function(Object? rawValue) sanitizeAndRecordEvent,
+  void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
+      onMeasurementLifecycle,
+  void Function(String questionId, Object? value)? onMeasurementAnswer,
 }) {
   return RestageFlowController<R>._forHostMeasurement(
     flow: flow,
@@ -2299,6 +2434,8 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
     onUnavailable: onUnavailable,
     onRootResolved: onRootResolved,
     sanitizeAndRecordEvent: sanitizeAndRecordEvent,
+    onMeasurementLifecycle: onMeasurementLifecycle,
+    onMeasurementAnswer: onMeasurementAnswer,
   );
 }
 
@@ -2359,6 +2496,7 @@ final class _FlowFrame {
   Map<String, Object?> flowState;
   String? currentStateId;
   WidgetLibrary? currentLibrary;
+  CompiledFlowScreenBuilder? currentNativeScreen;
   bool hasStarted = false;
 
   /// The frame's screen back-stack: one entry per screen *visit*, in visit
@@ -2377,6 +2515,7 @@ final class _SurveyAnswerTransaction {
   final _FlowFrame rootFrame;
   final FlowDocument document;
   final Map<String, _SurveyAnswerValue> before;
+  final Set<String> measurementReportedQuestions = {};
   _SurveyTransactionStage stage = _SurveyTransactionStage.awaitingTrigger;
   _SurveyUnavailabilityOrigin unavailabilityOrigin =
       _SurveyUnavailabilityOrigin.none;
@@ -2418,10 +2557,12 @@ final class _SurveyAnswerReport {
   const _SurveyAnswerReport({
     required this.questionId,
     required this.questionIndex,
+    required this.value,
   });
 
   final String questionId;
   final int questionIndex;
+  final Object? value;
 }
 
 final class _SurveyAnswerValue {
@@ -2456,11 +2597,13 @@ final class _ScreenEntry {
     required this.entryId,
     required this.stateId,
     required this.library,
+    required this.nativeScreen,
   });
 
   final int entryId;
   final String stateId;
-  final WidgetLibrary library;
+  final WidgetLibrary? library;
+  final CompiledFlowScreenBuilder? nativeScreen;
 }
 
 final class _SubFlowParent {

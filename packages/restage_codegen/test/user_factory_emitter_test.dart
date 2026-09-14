@@ -50,7 +50,7 @@ void main() {
       expect(source, isNotNull);
       expect(source, isNot(contains('analyticsId:')));
       expect(source, isNot(contains("['analyticsId']")));
-      expect(source, contains("source.v<String>(<Object>['label'])"));
+      expect(source, contains("source.v<String>(const <Object>['label'])"));
     });
 
     test('fails closed for malformed custom analyticsId metadata', () {
@@ -170,7 +170,7 @@ void main() {
       // depend on rfw.
       expect(src, isNot(contains("import 'package:rfw/rfw.dart'")));
       expect(src, contains("import 'package:acme/widgets/acmebadge.dart'"));
-      expect(src, contains('void registerRestageWidgets() {'));
+      expect(src, contains('void registerRestageWidgets({'));
       expect(
         src,
         contains("@Deprecated('Use registerRestageWidgets; removed in 3.0')"),
@@ -182,7 +182,7 @@ void main() {
         ),
       );
       expect(
-        RegExp(r'void registerRestageWidgets\(\) \{').allMatches(src!).length,
+        RegExp(r'void registerRestageWidgets\(\{').allMatches(src!).length,
         1,
       );
       expect(
@@ -205,7 +205,7 @@ void main() {
       expect(
         src,
         contains(
-          "source.v<String>(<Object>['label']) ??",
+          "source.v<String>(const <Object>['label']) ??",
         ),
       );
       expect(
@@ -367,7 +367,7 @@ void main() {
         contains('Widget _buildAcmeBorder(BuildContext context, '
             'DataSource source)'),
       );
-      expect(src, contains("child: source.child(<Object>['child'])"));
+      expect(src, contains("child: source.child(const <Object>['child'])"));
       // Required child slot uses source.child (returns Widget), not
       // source.optionalChild (returns Widget?).
       expect(src, isNot(contains('source.optionalChild')));
@@ -393,7 +393,7 @@ void main() {
       expect(src, isNotNull);
       expect(
         src,
-        contains("child: source.optionalChild(<Object>['child'])"),
+        contains("child: source.optionalChild(const <Object>['child'])"),
       );
     });
 
@@ -420,7 +420,7 @@ void main() {
       );
       expect(
         src,
-        contains("children: source.childList(<Object>['children'])"),
+        contains("children: source.childList(const <Object>['children'])"),
       );
     });
 
@@ -479,28 +479,28 @@ void main() {
           packed,
           contains(
             'RestageDecoders.optionalPreferredSize('
-            "source.optionalChild(<Object>['positionalNullable']))",
+            "source.optionalChild(const<Object>['positionalNullable']))",
           ),
         );
         expect(
           packed,
           contains(
             'RestageDecoders.preferredSize('
-            "source.child(<Object>['positionalControl']))",
+            "source.child(const<Object>['positionalControl']))",
           ),
         );
         expect(
           packed,
           contains(
             'namedNullable:RestageDecoders.optionalPreferredSize('
-            "source.optionalChild(<Object>['namedNullable']))",
+            "source.optionalChild(const<Object>['namedNullable']))",
           ),
         );
         expect(
           packed,
           contains(
             'namedControl:RestageDecoders.preferredSize('
-            "source.child(<Object>['namedControl']))",
+            "source.child(const<Object>['namedControl']))",
           ),
         );
       },
@@ -550,23 +550,25 @@ void main() {
         final flat = src!.replaceAll(RegExp(r'\s+'), ' ');
         expect(
           flat,
-          contains("source.child(<Object>['header'])"),
+          contains("source.child(const <Object>['header'])"),
         );
         expect(
           flat,
           contains(
-            "primaryActions: source.childList(<Object>['primaryActions'])",
+            'primaryActions: source.childList(const '
+            "<Object>['primaryActions'])",
           ),
         );
         expect(
           flat,
-          contains("footer: source.optionalChild(<Object>['footer'])"),
+          contains("footer: source.optionalChild(const <Object>['footer'])"),
         );
         expect(
           flat,
           contains(
-            "secondaryActions: source.isList(<Object>['secondaryActions']) "
-            "? source.childList(<Object>['secondaryActions']) : null",
+            'secondaryActions: source.isList(const '
+            "<Object>['secondaryActions']) "
+            "? source.childList(const <Object>['secondaryActions']) : null",
           ),
         );
       },

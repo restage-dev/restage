@@ -9,9 +9,10 @@ import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
+import '../support/restage_runtime_test_support.dart';
+
 void main() {
-  setUp(Restage.debugReset);
-  tearDown(Restage.debugReset);
+  installRestageRuntimeTestSupport();
 
   test('measurement configuration controls new host sessions', () async {
     final bindingReadPort = _CountingBindingReadPort();

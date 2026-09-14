@@ -163,7 +163,9 @@ abstract final class MeasurementRfwRouteComposer {
     final references = generatedReferences ??
         {
           for (final route in routePlan.routes)
-            route.generatedReferenceId.value,
+            if (route.orderedCaptureV1?.lifecycleChannel == null &&
+                route.orderedCaptureV1?.declaredAnswerV1 == null)
+              route.generatedReferenceId.value,
         };
     var result = text;
     for (final route in routePlan.routes) {
@@ -232,7 +234,10 @@ abstract final class MeasurementRfwRouteComposer {
     required Set<String> consumedReferences,
   }) {
     final required = {
-      for (final route in routePlan.routes) route.generatedReferenceId.value,
+      for (final route in routePlan.routes)
+        if (route.orderedCaptureV1?.lifecycleChannel == null &&
+            route.orderedCaptureV1?.declaredAnswerV1 == null)
+          route.generatedReferenceId.value,
     };
     if (required.length != consumedReferences.length ||
         !required.containsAll(consumedReferences) ||

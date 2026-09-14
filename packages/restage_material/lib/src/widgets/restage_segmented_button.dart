@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage_core/restage_core.dart';
 
-/// A segmented button (single- or multi-select) expressed as a purely
-/// declarative surface.
+/// A segmented button supporting single or multiple selections.
 ///
 /// Each entry in [items] becomes one segment (a `ButtonSegment`); the segments
 /// whose [RestageSelectionOption.value] are in [selected] are shown selected.
@@ -10,10 +9,9 @@ import 'package:restage_core/restage_core.dart';
 /// a `List<String>` in **segment order** (never tap/insertion order and never
 /// `Set`-iteration order — the fired list is deterministic so the event wire is
 /// stable). The selection wiring (a `Set<T>` the framework `SegmentedButton`
-/// drives) lives inside this compiled widget; a declarative composition supplies
-/// only the inert [items] / [selected] values and names the [onChanged] event,
-/// never the `Set` machinery — a `Set` is not a wire-safe value, so the
-/// selection rides as a `List` and the `Set` is materialized here.
+/// drives) lives inside this widget, compiled into your app. The surface
+/// configures [items] and [selected], and binds [onChanged]. Selections travel
+/// as a `List`; the widget converts that list into the `Set` Flutter uses.
 ///
 /// The wrapper owns every constructor-precondition fail-safe the framework
 /// `SegmentedButton` asserts, so a corrupt / hostile / stale wire degrades

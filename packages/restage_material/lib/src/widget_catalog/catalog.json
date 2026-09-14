@@ -2618,13 +2618,28 @@
           "priority": "primary"
         },
         {
+          "wireId": "p0489",
+          "name": "iconFontFamily",
+          "type": "string",
+          "description": "Icon font family the codepoint belongs to, e.g. CupertinoIcons. Defaults to the Material icon font when absent.",
+          "synthetic": "iconFontFamily"
+        },
+        {
+          "wireId": "p0490",
+          "name": "iconMatchTextDirection",
+          "type": "boolean",
+          "description": "Selects the mirroring variant of a codepoint that has one — the glyph that flips in a right-to-left locale. Defaults to false.",
+          "synthetic": "iconMatchTextDirection"
+        },
+        {
           "wireId": "p0433",
           "name": "analyticsId",
           "type": "string",
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 6
     },
     {
       "wireId": "w0021",
@@ -2942,7 +2957,7 @@
       "name": "RestageModalSheet",
       "library": "restage.material",
       "category": "action",
-      "description": "A modal bottom sheet that slides up over a scrim and can be dismissed by dragging it down or tapping the scrim — expressed as a purely declarative surface.",
+      "description": "A modal bottom sheet that slides up over a scrim and can be dismissed by dragging it down or tapping the scrim.",
       "flutterType": "package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet",
       "childrenSlot": "single",
       "properties": [
@@ -3405,7 +3420,7 @@
       "name": "RestageRadioGroupString",
       "library": "restage.material",
       "category": "input",
-      "description": "A single-select radio group expressed as a purely declarative surface.",
+      "description": "A single-select radio group with selection behavior compiled into your app.",
       "flutterType": "package:restage_material/src/widgets/restage_radio_group.dart#RestageRadioGroup<String>",
       "childrenSlot": "none",
       "properties": [
@@ -3456,7 +3471,7 @@
       "name": "RestageDropdownString",
       "library": "restage.material",
       "category": "input",
-      "description": "A single-select dropdown expressed as a purely declarative surface.",
+      "description": "A single-select dropdown with menu behavior compiled into your app.",
       "flutterType": "package:restage_material/src/widgets/restage_dropdown.dart#RestageDropdown<String>",
       "childrenSlot": "none",
       "properties": [
@@ -3507,7 +3522,7 @@
       "name": "RestageToggleButtons",
       "library": "restage.material",
       "category": "input",
-      "description": "A horizontal set of mutually-independent toggle buttons expressed as a purely declarative surface.",
+      "description": "A horizontal set of independently selectable toggle buttons.",
       "flutterType": "package:restage_material/src/widgets/restage_toggle_buttons.dart#RestageToggleButtons",
       "childrenSlot": "list",
       "properties": [
@@ -3551,7 +3566,7 @@
       "name": "RestageSegmentedButtonString",
       "library": "restage.material",
       "category": "input",
-      "description": "A segmented button (single- or multi-select) expressed as a purely declarative surface.",
+      "description": "A segmented button supporting single or multiple selections.",
       "flutterType": "package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>",
       "childrenSlot": "none",
       "properties": [
@@ -3660,7 +3675,7 @@
       "name": "RestageDraggableSheet",
       "library": "restage.material",
       "category": "action",
-      "description": "A persistent, resizable bottom sheet the user drags between a peek size and a fully-expanded size — expressed as a purely declarative surface. Unlike [RestageModalSheet] it never dismisses: it bottoms out at [minChildSize] and stays in the layout.",
+      "description": "A persistent, resizable bottom sheet the user drags between a peek size and a fully-expanded size. Unlike [RestageModalSheet] it never dismisses: it bottoms out at [minChildSize] and stays in the layout.",
       "flutterType": "package:restage_material/src/widgets/restage_draggable_sheet.dart#RestageDraggableSheet",
       "childrenSlot": "single",
       "properties": [

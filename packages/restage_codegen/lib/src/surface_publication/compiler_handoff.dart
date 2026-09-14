@@ -92,7 +92,11 @@ final class RestageSurfacePublicationBundle {
     required Map<String, List<int>> borrowedArtifacts,
     required Map<String, List<int>> ownedOutputs,
     required Map<String, String> artifactLibraryPaths,
+    required Iterable<String> surfaceWidgetNames,
   })  : errors = List.unmodifiable(errors),
+        surfaceWidgetNames = List.unmodifiable(
+          surfaceWidgetNames.toSet().toList()..sort(),
+        ),
         artifacts = Map.unmodifiable({
           for (final entry in artifacts.entries)
             entry.key: List<int>.unmodifiable(entry.value),
@@ -116,6 +120,7 @@ final class RestageSurfacePublicationBundle {
     Map<String, List<int>> borrowedArtifacts = const {},
     Map<String, List<int>> ownedOutputs = const {},
     Map<String, String> artifactLibraryPaths = const {},
+    Iterable<String> surfaceWidgetNames = const [],
   }) {
     final canonicalManifest = _canonicalizeManifest(manifest);
     final frozenArtifacts = <String, List<int>>{
@@ -170,6 +175,7 @@ final class RestageSurfacePublicationBundle {
       borrowedArtifacts: frozenBorrowedArtifacts,
       ownedOutputs: frozenOwnedOutputs,
       artifactLibraryPaths: artifactLibraryPaths,
+      surfaceWidgetNames: surfaceWidgetNames,
     );
   }
 
@@ -192,6 +198,7 @@ final class RestageSurfacePublicationBundle {
       borrowedArtifacts: const {},
       ownedOutputs: const {},
       artifactLibraryPaths: const {},
+      surfaceWidgetNames: const [],
     );
   }
 
@@ -211,6 +218,9 @@ final class RestageSurfacePublicationBundle {
         'artifactLibraryPaths',
       },
       r'$',
+      // Additive: a handoff written before the surface vocabularies were
+      // recorded still decodes, naming no widget.
+      optional: const {'surfaceWidgetNames'},
     );
     final schemaVersion = _requiredInt(json, 'schemaVersion', r'$');
     if (schemaVersion != 2) {
@@ -244,7 +254,8 @@ final class RestageSurfacePublicationBundle {
           rawArtifacts.isNotEmpty ||
           rawBorrowedArtifacts.isNotEmpty ||
           rawOwnedOutputs.isNotEmpty ||
-          rawArtifactLibraryPaths.isNotEmpty) {
+          rawArtifactLibraryPaths.isNotEmpty ||
+          _optionalStringList(json, 'surfaceWidgetNames', r'$').isNotEmpty) {
         throw const FormatException(
           'An invalid surface publication bundle must not carry outputs.',
         );
@@ -283,6 +294,11 @@ final class RestageSurfacePublicationBundle {
       borrowedArtifacts: borrowedArtifacts,
       ownedOutputs: ownedOutputs,
       artifactLibraryPaths: artifactLibraryPaths,
+      surfaceWidgetNames: _optionalStringList(
+        json,
+        'surfaceWidgetNames',
+        r'$',
+      ),
     );
   }
 
@@ -314,6 +330,14 @@ final class RestageSurfacePublicationBundle {
   /// artifact path. Every manifest artifact has exactly one entry.
   final Map<String, String> artifactLibraryPaths;
 
+  /// Namespaced catalog widget names every compiled surface in this package
+  /// renders, sorted ascending.
+  ///
+  /// These are the entries the compiler actually selected, so they name a
+  /// widget the translation lowered to a different catalog entry than the
+  /// Flutter type its source wrote.
+  final List<String> surfaceWidgetNames;
+
   /// Encodes the fixed aggregate handoff deterministically.
   String encodeCanonicalJson() {
     final value = <String, Object?>{
@@ -333,6 +357,7 @@ final class RestageSurfacePublicationBundle {
             'library': entry.value,
           },
       ],
+      'surfaceWidgetNames': surfaceWidgetNames,
     };
     return const JsonEncoder.withIndent('  ').convert(value);
   }
@@ -413,10 +438,11 @@ Map<String, Object?> _requireObject(Object? value, String path) {
 void _exactKeys(
   Map<String, Object?> value,
   Set<String> expected,
-  String path,
-) {
+  String path, {
+  Set<String> optional = const {},
+}) {
   for (final key in value.keys) {
-    if (!expected.contains(key)) {
+    if (!expected.contains(key) && !optional.contains(key)) {
       throw FormatException('Unsupported field "$path.$key".');
     }
   }
@@ -489,6 +515,16 @@ List<String> _requiredStringList(
       ),
   ];
 }
+
+/// [key] as a string list, or an empty list when the field is absent.
+List<String> _optionalStringList(
+  Map<String, Object?> value,
+  String key,
+  String path,
+) =>
+    value.containsKey(key)
+        ? _requiredStringList(value, key, path)
+        : const <String>[];
 
 List<int> _decodeBase64Url(String value, String path) {
   if (value.isEmpty) {

@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart'
     show BuildContext, DefaultTextStyle, Locale, Localizations, MediaQuery;
-import 'package:restage_core/library_registration.dart' as restage_core;
-import 'package:restage_cupertino/library_registration.dart'
-    as restage_cupertino;
-import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_shared/restage_shared.dart' show kCapturedEventValueKey;
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
 import '../measurement/measurement_rfw_presentation.dart';
 import '../runtime/context_data.dart';
 import '../runtime/library_runtime_registry.dart';
+import '../runtime/restage_widget_libraries.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
 
@@ -84,34 +80,24 @@ void populateFlowScreenData(
   );
 }
 
-/// The immutable base widget libraries (core / material / cupertino) a flow
-/// screen runtime needs. Built once per rendering surface and reused to stamp a
-/// fresh [Runtime] per screen blob.
+/// A fresh [Runtime] importing the installed base widget libraries (core /
+/// material / cupertino) plus the given [screen] blob under
+/// [kFlowScreenLibrary], with the custom widget registry applied.
 ///
-/// Each screen visit gets its own [Runtime] (so screens never share live render
-/// state), but they all share these immutable base libraries.
-final class FlowScreenLibraries {
-  /// Builds the three base libraries. Construct once (e.g. in a `State`'s
-  /// `initState`) and reuse [runtimeFor] across screens.
-  FlowScreenLibraries()
-      : _core = restage_core.buildCoreWidgetLibrary(),
-        _material = restage_material.buildMaterialWidgetLibrary(),
-        _cupertino = restage_cupertino.buildCupertinoWidgetLibrary();
-
-  final WidgetLibrary _core;
-  final WidgetLibrary _material;
-  final WidgetLibrary _cupertino;
-
-  /// A fresh [Runtime] importing the base libraries plus the given [screen]
-  /// blob under [kFlowScreenLibrary], with the custom widget registry applied.
-  Runtime runtimeFor(WidgetLibrary screen) {
-    final runtime = RestageRenderRuntime()
-      ..update(kFlowCoreLibrary, _core)
-      ..update(kFlowMaterialLibrary, _material)
-      ..update(kFlowCupertinoLibrary, _cupertino)
-      ..update(kFlowScreenLibrary, screen);
-    LibraryRuntimeRegistry.applyTo(runtime);
-    installMeasurementRfwPresentationLibrary(runtime);
-    return runtime;
-  }
+/// The installed libraries are read here, as the runtime is built, so a screen
+/// assembled after another surface installs its own vocabulary renders with
+/// everything installed by then. Each screen visit gets its own [Runtime], so
+/// screens never share live render state.
+Runtime flowScreenRuntime(WidgetLibrary screen) {
+  final runtime = Runtime();
+  InstalledWidgetLibraries.current.installInto(
+    runtime,
+    coreName: kFlowCoreLibrary,
+    materialName: kFlowMaterialLibrary,
+    cupertinoName: kFlowCupertinoLibrary,
+  );
+  runtime.update(kFlowScreenLibrary, screen);
+  LibraryRuntimeRegistry.applyTo(runtime);
+  installMeasurementRfwPresentationLibrary(runtime);
+  return runtime;
 }

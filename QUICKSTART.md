@@ -8,9 +8,10 @@ The whole thing runs offline. You don't need a Restage account or a backend to
 write a surface and render it on device.
 
 If you'd rather read working code, the [`apps/examples`](apps/examples)
-README has four starters to copy (a paywall, an onboarding flow, a one-screen
-message, and a custom widget), each the smallest file that still ships. This
-guide builds one from scratch so you see each piece.
+README has five starters to copy (a paywall, an onboarding flow, a one-screen
+message, a custom widget, and a screen driven by host data), each the smallest
+file that still ships. This guide builds one from scratch so you see each
+piece.
 
 ## 1. Add the packages
 
@@ -20,14 +21,14 @@ In your app's `pubspec.yaml`, add these to whatever is already there:
 dependencies:
   flutter:
     sdk: flutter
-  restage: ^1.3.0
-  restage_material: ^1.0.2
+  restage: ^2.0.0
+  restage_material: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   build_runner: ">=2.4.0 <3.0.0"
-  restage_codegen: ^1.2.0
+  restage_codegen: ^2.0.0
 ```
 
 Then fetch them:
@@ -75,11 +76,11 @@ class ProUpgradePaywall extends StatelessWidget {
               const Text('Everything, unlocked.'),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: paywallPurchase(slot: 'annual'),
+                onPressed: paywallEvent('continue', args: {'plan': 'annual'}),
                 child: const Text('Start free trial'),
               ),
               TextButton(
-                onPressed: paywallEvent('restage.restore'),
+                onPressed: paywallEvent('restore_purchases'),
                 child: const Text('Restore purchases'),
               ),
             ],
@@ -91,22 +92,22 @@ class ProUpgradePaywall extends StatelessWidget {
 }
 ```
 
-Two helpers come from the SDK. `paywallPurchase(slot: 'annual')` wires the
-button to buy that product. `paywallEvent('restage.restore')` fires the SDK's
-reserved restore event, which the SDK handles when it renders the paywall.
+Both buttons use `paywallEvent`. It takes an event name and optional
+arguments, and the build compiles them into the artifact. When the user taps,
+your app receives a `PaywallCustomEvent` with that name and those arguments in
+`onEvent` (step 5), and runs the purchase from there through the store library
+it already uses.
 
-A third helper, `paywallPriceFor(slot: 'annual')`, puts a live store price into
-any `Text`. It binds to your connected store products at render time, so it
-works once you pass products to `Restage.configure` (step 5). This guide
-attaches no store, and a price binding with nothing behind it reports a paywall
-load failure instead of rendering a wrong price, so leave it out here.
+The names `purchase` and `restore`, and any name that starts with `restage.`,
+are reserved for the SDK and never reach your app. Use your own names, as this
+guide does.
 
 A few habits keep a surface compilable. The build follows your widget tree
 literally, so write each string as one literal, keep the build tree flat
 instead of extracting helper widgets, and write theme reads inline where you
-use them. The examples document the full list. One boundary: custom render
-logic (a `CustomPainter`, for instance) isn't available in a surface; compose
-from Flutter's own widgets instead. If the build can't lower something, it
+use them. The examples document the full list. Custom rendering logic, such as
+a `CustomPainter`, belongs in a registered app-backed widget. You can also
+compose the surface from catalog widgets. If the build can't lower something, it
 tells you at build time instead of rendering it differently.
 
 ## 3. Compile it
@@ -136,10 +137,12 @@ is one block to edit. If two keys disagree, the build fails with a placement
 options divergence error instead of scattering output.
 
 > [!NOTE]
-> `bundled_runtime: true` is what makes this offline guide work. It is not the
-> default. By default nothing goes into the app's assets: with hosted delivery,
-> surfaces reach installed apps over the air and no `build.yaml` is needed at
-> all. See **Hosted delivery** under *Where to go next*.
+> This guide mounts `RestagePaywall` by id. Keep `bundled_runtime: true` and the
+> asset declarations for its offline fallback, including when adding hosted delivery.
+> Hosted delivery alone does not retain the original paywall widget. Generated
+> standalone screen mounts already retain their authored widget. Typed paywall and
+> flow mounts add that behavior in the next SDK release; see **Hosted delivery**
+> under *Where to go next* for the API-specific requirements.
 
 Run the build:
 
@@ -157,9 +160,9 @@ The `.rsbundle` is a zip that holds the compiled artifacts at their logical
 paths: the binary `.rfw` artifact your app renders, the readable `.rfwtxt`, and
 the capability sidecar. Unzip it when you want to read the `.rfwtxt`.
 
-Those artifacts are the only thing that ships over the air. They hold
-references and literal values, never executable code. Your Dart stays in the
-app.
+What ships is data the app renders. Your widgets carry the logic — real Dart,
+compiled into your app. The surface composes and configures them over the air.
+New behavior is a release.
 
 The build also writes `lib/generated/restage.publication.json`, which records
 the exact artifacts for each surface id. It is a build output, so it appears
@@ -217,10 +220,7 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 void main() {
-  Restage.configure(
-    apiKey: 'local-dev',
-    // products: [ ... your store products ... ],
-  );
+  Restage.configure(apiKey: 'local-dev');
   runApp(const MyApp());
 }
 
@@ -237,8 +237,8 @@ class MyApp extends StatelessWidget {
             switch (event) {
               case PaywallViewed():
                 debugPrint('paywall viewed');
-              case PurchaseSucceeded():
-                debugPrint('purchased');
+              case PaywallCustomEvent(:final eventName, :final args):
+                debugPrint('$eventName ${args['plan'] ?? ''}');
               case PaywallLoadFailed(:final message):
                 debugPrint('paywall load failed: $message');
               case _:
@@ -254,14 +254,11 @@ class MyApp extends StatelessWidget {
 
 `RestagePaywall(id: 'pro_upgrade')` resolves the bundled paywall and renders
 it as real Flutter widgets. `onEvent` is where your app reacts to what happens
-in the surface: a view, a purchase, a restore, or any event you fired with
-`paywallEvent`. Keep the `PaywallLoadFailed` case during development. A
-surface that can't render fails closed to an empty box, and that event's
-message is the one signal that says why.
-
-To see real prices and a working purchase, pass your App Store and Play
-products to `products:` in `configure`. The `paywallPriceFor` and
-`paywallPurchase` slots bind to them by slot name.
+in the surface: a view, a dismissal, or an event you fired with
+`paywallEvent`. The `continue` event arrives with `args['plan']`, so your
+purchase code goes in that case. Keep the `PaywallLoadFailed` case during
+development. A surface that can't render fails closed to an empty box, and
+that event's message is the one signal that says why.
 
 Build and run it:
 
@@ -269,14 +266,10 @@ Build and run it:
 flutter run
 ```
 
-A debug `flutter run` doesn't tree-shake icons, so it needs no flag. When you
-build a release of an app that ships a Restage surface, add
-`--no-tree-shake-icons`. The artifact constructs icons from runtime values,
-which the release icon tree-shaker can't see, so the build fails without it:
-
-```sh
-flutter build ios --no-tree-shake-icons
-```
+Release builds need no special flags. The build step records which widgets and
+icons your app uses, so a release keeps only those and Flutter's icon
+tree-shaking works as usual. Don't pass `--no-tree-shake-icons`: it puts the
+whole icon font back into the app.
 
 ## 6. The edit loop
 

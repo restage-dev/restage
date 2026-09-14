@@ -29,6 +29,8 @@ void main() {
     'track': 'static void track(',
     'beginSurfaceSession': 'static void beginSurfaceSession()',
     'endSurfaceSession': 'static void endSurfaceSession()',
+    'debugAnalyticsHttpClient': 'static http.Client? debugAnalyticsHttpClient',
+    'debugFlushAnalytics': 'debugFlushAnalytics',
   };
 
   group('removed app-global recording controls stay removed', () {
@@ -96,18 +98,5 @@ void main() {
       isTrue,
       reason: 'Expected reset() to still document what it does not do.',
     );
-  });
-
-  test('firing an event does not call the recording bridge directly', () {
-    // The host event stream and the recording path are separate concerns: the
-    // recording runtime registers a sink for itself. Collapsing them back into
-    // a hard call re-couples a retained public surface to a runtime that is
-    // scheduled for replacement.
-    expect(runtimeSource.contains('_bridgeEventToAnalytics(event);'), isFalse);
-    expect(
-      runtimeSource.contains('_recordingSink = _bridgeEventToAnalytics;'),
-      isTrue,
-    );
-    expect(runtimeSource.contains('_recordingSink?.call('), isTrue);
   });
 }

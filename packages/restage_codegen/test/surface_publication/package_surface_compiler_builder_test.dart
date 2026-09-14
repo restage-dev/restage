@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
+import 'package:logging/logging.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -133,12 +136,15 @@ const launch = FlowDefinition(
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
+    final logs = <LogRecord>[];
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
       sources,
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       flattenOutput: true,
+      onLog: logs.add,
+      verbose: true,
     );
 
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
@@ -193,6 +199,236 @@ const launch = FlowDefinition(
       ),
       contains('SurfaceFlowRef<LaunchResult>'),
     );
+    final summaries = logs
+        .where((record) => record.message.contains('[restage] Compiled'))
+        .map((record) => record.message)
+        .toList();
+    expect(summaries, hasLength(1));
+    expect(summaries.single, contains('2 surfaces'));
+    expect(summaries.single, contains('1 screen'));
+    expect(summaries.single, contains('1 flow'));
+    expect(summaries.single, contains('FeatureAnnouncementSurface'));
+    expect(summaries.single, contains('LaunchSurface'));
+  });
+
+  test('does not report compilation success for a package without surfaces',
+      () async {
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final logs = <LogRecord>[];
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const {'apps_examples|lib/plain.dart': 'class Plain {}'},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+      onLog: logs.add,
+      verbose: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    expect(
+      logs.map((record) => record.message),
+      everyElement(isNot(contains('[restage] Compiled'))),
+    );
+  });
+
+  test('emits valid mount types for legacy callback formals', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/callbacks.restage.g.dart';
+
+@Screen(id: 'callbacks', surface: Surface.general)
+final class Callbacks extends StatelessWidget {
+  const Callbacks(
+    void callback(final int value),
+    void looseCallback(var value),
+    void nullableCallback(int value)?,
+    void annotatedCallback(@Deprecated('x') int value), {
+    super.key,
+  }) : callback = callback,
+       looseCallback = looseCallback,
+       nullableCallback = nullableCallback,
+       annotatedCallback = annotatedCallback;
+
+  final void Function(int) callback;
+  final void Function(dynamic) looseCallback;
+  final void Function(int)? nullableCallback;
+  final void Function(int) annotatedCallback;
+
+  @override
+  Widget build(BuildContext context) => const Text('Callbacks');
+}
+''';
+    final descriptor = await _generatedPart(screen, 'callbacks');
+    expect(descriptor, contains('void Function(int value) callback'));
+    expect(
+      descriptor,
+      contains('void Function(dynamic value) looseCallback'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(int value) _restageArgument0;'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(dynamic value) _restageArgument1;'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(int value)? _restageArgument2;'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(int value) _restageArgument3;'),
+    );
+    expect(descriptor, isNot(contains('Function(final')));
+    expect(descriptor, isNot(contains('Function(var')));
+    expect(descriptor, isNot(contains('@Deprecated')));
+  });
+
+  test('mirrors the library language override on the generated part', () async {
+    const screen = '''
+// @dart=3.6
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/pinned_language.restage.g.dart';
+
+@Screen(id: 'pinned_language', surface: Surface.general)
+final class PinnedLanguage extends StatelessWidget {
+  const PinnedLanguage({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Pinned language');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'pinned_language',
+    );
+    expect(descriptor, startsWith('// @dart=3.6\npart of '));
+  });
+
+  test('keeps qualified types outside a generic callback scope', () async {
+    const screen = '''
+import 'dart:typed_data';
+import 'dart:typed_data' as data;
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/captured_callback.restage.g.dart';
+
+@Screen(id: 'captured_callback', surface: Surface.general)
+final class CapturedCallback extends StatelessWidget {
+  const CapturedCallback(
+    void callback<Uint8List>(data.Uint8List value), {
+    super.key,
+  }) : callback = callback;
+
+  final void Function<Uint8List>(data.Uint8List) callback;
+
+  @override
+  Widget build(BuildContext context) => const Text('Captured callback');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'captured_callback',
+    );
+
+    expect(
+      descriptor,
+      contains(
+        'void Function<Uint8List>(data.Uint8List value) callback',
+      ),
+    );
+    expect(
+      descriptor,
+      contains(
+        'final void Function<Uint8List>(data.Uint8List value) '
+        '_restageArgument0;',
+      ),
+    );
+    expect(
+      descriptor,
+      isNot(contains('Function<Uint8List>(Uint8List)')),
+    );
+  });
+
+  test('qualifies a forwarded callback under a generic shadow', () async {
+    const screen = '''
+import 'dart:typed_data';
+import 'dart:typed_data' as data;
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/forwarded_callback.restage.g.dart';
+
+abstract class CallbackBase extends StatelessWidget {
+  const CallbackBase(this.callback, {super.key});
+  final void Function<Uint8List>(data.Uint8List)? callback;
+}
+
+@Screen(id: 'forwarded_callback', surface: Surface.general)
+final class ForwardedCallback extends CallbackBase {
+  const ForwardedCallback(super.callback, {super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Forwarded callback');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'forwarded_callback',
+    );
+
+    expect(
+      descriptor,
+      contains(
+        'final void Function<Uint8List>(data.Uint8List)? _restageArgument0;',
+      ),
+    );
+    expect(descriptor, isNot(contains('Function<Uint8List>(Uint8List)')));
+  });
+
+  test('keeps an explicit backed super callback type', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/inherited_callback.restage.g.dart';
+
+abstract class CallbackBase extends StatelessWidget {
+  const CallbackBase(this.callback, {super.key});
+  final void Function(int) callback;
+}
+
+@Screen(id: 'inherited_callback', surface: Surface.general)
+final class InheritedCallback extends CallbackBase {
+  const InheritedCallback(void super.callback(num value), {super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Inherited callback');
+}
+''';
+    final descriptor = await _generatedPart(
+      screen,
+      'inherited_callback',
+    );
+
+    expect(
+      descriptor,
+      contains('void Function(num value) callback'),
+    );
+    expect(
+      descriptor,
+      contains('final void Function(num value) _restageArgument0;'),
+    );
+    expect(descriptor, isNot(contains('void Function(int) callback')));
   });
 
   test('compiles callback-free static collection leaves with measurement',
@@ -964,6 +1200,82 @@ const secondJourney = FlowDefinition(
       hasLength(2),
       reason: 'each containing flow resolves to its own copy of the screen',
     );
+  });
+
+  test(
+      'compiled flow fixture retains original constructors '
+      'and exact child graphs', () async {
+    final fixture = Directory('../restage/test/fixtures/compiled_surfaces');
+    final source = File('${fixture.path}/native_flow.dart').readAsStringSync();
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      {'apps_examples|lib/native_flow.dart': source},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final generated = utf8.decode(
+      bundle.ownedOutputs['lib/restage.generated/native_flow.restage.g.dart']!,
+    );
+    await _expectAnalyzesClean({
+      'apps_examples|lib/native_flow.dart': source,
+      'apps_examples|lib/restage.generated/native_flow.restage.g.dart':
+          generated,
+    });
+    final output =
+        File('${fixture.path}/restage.generated/native_flow.restage.g.dart');
+    if (Platform.environment['UPDATE_COMPILED_SURFACE_FIXTURE'] == '1') {
+      output.writeAsStringSync(generated);
+    }
+    expect(generated, output.readAsStringSync());
+    expect(generated, contains('class NativeWelcomeFlowSurface'));
+    expect(generated, contains('NativeWelcome.new'));
+    expect(generated, contains('NativeOffer.new'));
+  });
+
+  test('generates a typed paywall mount with its authored constructor',
+      () async {
+    const source = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall(id: 'upgrade_offer')
+final class UpgradeOffer extends StatelessWidget {
+  const UpgradeOffer(this.title, {super.key, this.subtitle = 'Try it'});
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Text(title);
+}
+''';
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const {'apps_examples|lib/offer.dart': source},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final generated = utf8.decode(
+      bundle.ownedOutputs['lib/restage.generated/offer.restage.g.dart']!,
+    );
+    expect(generated, contains('class UpgradeOfferSurface'));
+    expect(generated, contains('id: "upgrade_offer"'));
+    expect(generated, contains('fallbackBuilder: (context) => UpgradeOffer('));
+    await _expectAnalyzesClean({
+      'apps_examples|lib/offer.dart': source,
+      'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,
+    });
   });
 
   test('compiles colocated explicit paywalls without a generated part',
@@ -2038,9 +2350,16 @@ final class FlatParent extends RestageFlow {
     );
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-      const <String, String>{
+      <String, String>{
         'apps_examples|lib/ui/shared_entry.dart': screen,
         'apps_examples|lib/z_children/flat_leaf.dart': child,
+        'apps_examples|lib/z_children/other_leaf.dart': child
+            .replaceAll(
+              'Surface.general',
+              'Surface.onboarding, version: 9',
+            )
+            .replaceAll(
+                'flat_leaf.restage.g.dart', 'other_leaf.restage.g.dart'),
         'apps_examples|lib/a_parents/flat_parent.dart': parent,
       },
       rootPackage: 'apps_examples',
@@ -2060,6 +2379,31 @@ final class FlatParent extends RestageFlow {
     final childState = parentDocument.states['child']! as SubFlowState;
     expect(childState.flow, 'flat_leaf');
     expect(childState.contentHash, FlowContentHash.compute(childBytes));
+    final generated = utf8.decode(
+      bundle.ownedOutputs[
+          'lib/a_parents/restage.generated/flat_parent.restage.g.dart']!,
+    );
+    final compiledDocuments = RegExp(r'documentJson:\s*("(?:\\.|[^"\\])*")')
+        .allMatches(generated)
+        .map(
+          (match) => FlowDocumentCodec.decodeJson(
+            jsonDecode(match.group(1)!) as String,
+          ),
+        )
+        .toList();
+    final compiledChild = compiledDocuments.singleWhere(
+      (document) => document.flow == 'flat_leaf',
+    );
+    final compiledParent = compiledDocuments.singleWhere(
+      (document) => document.flow == 'flat_parent',
+    );
+    expect(compiledChild.version, 1);
+    expect(
+      (compiledParent.states['child']! as SubFlowState).contentHash,
+      FlowContentHash.compute(
+        FlowDocumentCodec.encodeCanonicalJson(compiledChild),
+      ),
+    );
   });
 
   test(
@@ -2388,6 +2732,72 @@ final _alternateMeasurementPolicy =
     kMeasurementCollectionBudgetRevisionOption: 'budget.test-v2',
   }),
 );
+
+Future<String> _generatedPart(String source, String name) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  final result = await testBuilders(
+    [
+      restageSourceRosterBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      userCatalogJsonBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      restageGeneratedDartBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      restageOutputsBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+    ],
+    {'apps_examples|lib/$name.dart': source},
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+    flattenOutput: true,
+  );
+
+  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  final descriptor = readerWriter.testing.readString(
+    AssetId(
+      'apps_examples',
+      'lib/restage.generated/$name.restage.g.dart',
+    ),
+  );
+  expect(descriptor, isNotEmpty);
+  await _expectAnalyzesClean({
+    'apps_examples|lib/$name.dart': source,
+    'apps_examples|lib/restage.generated/$name.restage.g.dart': descriptor,
+  });
+  return descriptor;
+}
+
+Future<void> _expectAnalyzesClean(Map<String, String> sources) async {
+  final entry = sources.keys.first;
+  await resolveWorkspaceSources(
+    sources,
+    (resolver) async {
+      final library = await resolver.libraryFor(AssetId.parse(entry));
+      final resolved = await library.session.getResolvedLibraryByElement(
+        library,
+      );
+      if (resolved is! ResolvedLibraryResult) {
+        throw StateError('$entry did not resolve.');
+      }
+      final errors = [
+        for (final unit in resolved.units)
+          for (final diagnostic in unit.diagnostics)
+            if (diagnostic.severity == Severity.error)
+              '${unit.path}: ${diagnostic.message}',
+      ];
+      expect(errors, isEmpty, reason: 'the generated part must analyze clean');
+    },
+    resolverFor: entry,
+    rootPackage: 'apps_examples',
+  );
+}
 
 Future<Map<String, List<TrackedPackageSurfaceCompilation>>> _runPolicyProbe(
   Map<String, List<MeasurementCompilerPolicyInput>> policies,
