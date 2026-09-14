@@ -8,6 +8,10 @@ import 'measurement_worker_protocol.dart';
 
 export 'measurement_worker_delivery_protocol.dart';
 
+/// Whether this build contains the governed native delivery implementation.
+const bool measurementWorkerDeliverySupported =
+    bool.fromEnvironment('dart.library.io');
+
 /// Closed result of trying to create a delivery runtime.
 enum MeasurementWorkerOwnedDeliveryStartOutcome {
   /// One native long-lived worker is ready.
@@ -73,9 +77,8 @@ final class MeasurementWorkerOwnedDeliveryStartResult {
 
 /// Internal bootstrap seam for the one worker-owned measurement outbox.
 ///
-/// No production host constructs this runtime yet. The future host lane must
-/// prove [MeasurementWorkerOwnedDeliveryConfiguration.admission] before it
-/// calls this seam; this facade independently preserves that fail-closed rule.
+/// The host must prove [MeasurementWorkerOwnedDeliveryConfiguration.admission]
+/// before calling this seam; the facade independently preserves that rule.
 final class MeasurementWorkerOwnedDeliveryRuntime {
   MeasurementWorkerOwnedDeliveryRuntime._(this._state);
 
@@ -96,6 +99,7 @@ final class MeasurementWorkerOwnedDeliveryRuntime {
   static Future<MeasurementWorkerOwnedDeliveryStartResult> start({
     required MeasurementWorkerOwnedDeliveryConfiguration configuration,
     MeasurementWorkerOwnedDeliveryPathResolver? pathResolver,
+    MeasurementWorkerOwnedDeliveryCancellation? cancellation,
   }) async {
     final denial = configuration.admission.denial;
     if (denial != null) {
@@ -109,6 +113,7 @@ final class MeasurementWorkerOwnedDeliveryRuntime {
     final launched = await implementation.startMeasurementWorkerOwnedDelivery(
       configuration: configuration,
       pathResolver: pathResolver,
+      cancellation: cancellation,
     );
     final state = launched.state;
     if (state == null) {
@@ -120,6 +125,13 @@ final class MeasurementWorkerOwnedDeliveryRuntime {
       MeasurementWorkerOwnedDeliveryRuntime._(state),
     );
   }
+
+  /// Purges persisted records without constructing an upload client or admission.
+  static Future<void> purgePersisted({
+    MeasurementWorkerOwnedDeliveryPathResolver? pathResolver,
+  }) =>
+      implementation.purgeMeasurementWorkerOwnedDelivery(
+          pathResolver: pathResolver);
 
   /// Whether the current generation can accept further compact appends.
   bool get isAvailable => _state.isAvailable;
@@ -157,6 +169,7 @@ final class MeasurementWorkerOwnedDeliveryRuntime {
       _state.reset(reason);
 
   /// Stops a quiescent worker without making a UI-isolate fallback available.
+  /// Assigned sessions require an explicit teardown with an elapsed sample.
   Future<MeasurementWorkerOwnedDeliveryShutdownResult> shutdown() =>
       _state.shutdown();
 

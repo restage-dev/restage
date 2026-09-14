@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        CanonicalSurfaceExperimentAssignmentV1,
         FlowActiveRenderGate,
         FlowContentHash,
         FlowDocument,
@@ -62,6 +63,7 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
   required String paywallId,
   required int activeVersion,
   MeasurementPublicationBindingReferenceV1? publicationBindingReference,
+  CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment,
   bool cacheHit = false,
 }) {
   final active = activePayload.flowDocument;
@@ -97,6 +99,7 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
       cacheHit: cacheHit,
     ),
     publicationBindingReference,
+    canonicalExperimentAssignment: canonicalExperimentAssignment,
   );
   return FlowPaywallActiveAccepted(
     FlowPaywallPayload(

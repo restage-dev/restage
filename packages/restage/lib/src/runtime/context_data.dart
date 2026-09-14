@@ -134,16 +134,6 @@ final class ContextPublisher {
     return _state == _ContextPublisherState.published ? _lastPublished : null;
   }
 
-  /// Whether this target may currently expose non-empty host render data.
-  bool get mayExposeNonEmptyHostContext {
-    return switch (_state) {
-      _ContextPublisherState.never || _ContextPublisherState.withdrawn => false,
-      _ContextPublisherState.published =>
-        _lastPublished?.value.isNotEmpty ?? false,
-      _ContextPublisherState.unknown => true,
-    };
-  }
-
   /// Normalizes and publishes [context] to this publisher's target.
   void publish(Map<String, Object?>? context) {
     final publication = _ContextPublication.pending();

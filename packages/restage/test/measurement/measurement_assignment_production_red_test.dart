@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/measurement/measurement_assignment_diagnostics.dart';
 import 'package:restage/src/measurement/measurement_assignment_transport.dart';
+import 'package:restage_shared/restage_shared.dart';
 
 void main() {
   test(
@@ -10,10 +11,11 @@ void main() {
         requestRevision: 1,
       );
       final adapter = _TypedIttProductionAdapter();
-      final result = await MeasurementAssignmentTransport<_IttProductionRequest,
-          _IttProductionResult>.adapter(
+      final result = (await MeasurementAssignmentTransport<
+              _IttProductionRequest, _IttProductionResult>.adapter(
         adapter,
-      ).deliver(request);
+      ).deliver(request))
+          .diagnostic;
 
       expect(adapter.request, same(request));
       expect(
@@ -67,4 +69,10 @@ final class _TypedIttProductionAdapter
       MeasurementAssignmentDeliveryAssigned(
         candidateDelivery: result.candidateDelivery,
       );
+
+  @override
+  CanonicalSurfaceExperimentAssignmentV1? assignmentFor(
+    _IttProductionResult result,
+  ) =>
+      null;
 }

@@ -10,6 +10,7 @@ import 'measurement_publication_binding_runtime.dart';
 import 'measurement_rfw_presentation.dart';
 import 'measurement_runtime_capture.dart';
 import 'measurement_worker_delivery.dart';
+import 'measurement_outbox_protocol.dart';
 import 'measurement_worker_protocol.dart';
 import 'presentation_commit.dart';
 
@@ -24,9 +25,7 @@ typedef MeasurementHostConstructionWorkerRuntimeStarter
 });
 
 /// Exact policy/profile state understood by the construction-plane host owner.
-///
-/// It deliberately remains a local, test-installed value. Nothing here adds a
-/// public configuration field or a production profile fetch path.
+
 @internal
 enum MeasurementHostConstructionPolicyStatus {
   /// The exact manifest privacy/capability policy is supported locally.
@@ -203,13 +202,24 @@ final class MeasurementHostConstructionAdmission {
       deliveryAdmission.isAdmitted;
 }
 
-/// One immutable construction-plane owner for all test-installed Source roots.
+/// One immutable construction owner for governed Source roots.
 ///
 /// It owns exactly one long-lived [MeasurementWorkerOwnedDeliveryRuntime].
 /// It never reads legacy analytics identity, installs a production registry,
 /// constructs a direct transport, or evaluates a current/latest publication.
 @internal
 final class MeasurementHostConstructionOwner {
+  /// Creates a governed host owner using the platform support path and worker.
+  MeasurementHostConstructionOwner.production({
+    required MeasurementHostConstructionProfileReadPort profileReadPort,
+    Future<void>? startupBarrier,
+  })  : _startupBarrier = startupBarrier,
+        _profileReadPort = profileReadPort,
+        _pathResolver = null,
+        _assignmentCredentialPort = null,
+        _monotonicClock = _StopwatchMonotonicClock(),
+        _workerRuntimeStarter = null;
+
   /// Creates the test-only construction owner used by a test new-only install.
   @visibleForTesting
   MeasurementHostConstructionOwner.forTesting({
@@ -218,14 +228,20 @@ final class MeasurementHostConstructionOwner {
     MeasurementHostAssignmentCredentialPort? assignmentCredentialPort,
     MeasurementCaptureMonotonicClock? monotonicClock,
     MeasurementHostConstructionWorkerRuntimeStarter? workerRuntimeStarter,
-  })  : _profileReadPort = profileReadPort,
+  })  : _startupBarrier = null,
+        _profileReadPort = profileReadPort,
         _pathResolver = pathResolver,
         _assignmentCredentialPort = assignmentCredentialPort,
         _monotonicClock = monotonicClock ?? _StopwatchMonotonicClock(),
         _workerRuntimeStarter = workerRuntimeStarter;
 
+  final Future<void>? _startupBarrier;
+  final MeasurementWorkerOwnedDeliveryCancellation _cancellation =
+      MeasurementWorkerOwnedDeliveryCancellation();
+  Future<void>? _cancellationFuture;
+  Future<void>? _privacyPurgeCompletion;
   final MeasurementHostConstructionProfileReadPort _profileReadPort;
-  final MeasurementWorkerOwnedDeliveryPathResolver _pathResolver;
+  final MeasurementWorkerOwnedDeliveryPathResolver? _pathResolver;
   final MeasurementHostAssignmentCredentialPort? _assignmentCredentialPort;
   final MeasurementCaptureMonotonicClock _monotonicClock;
   final MeasurementHostConstructionWorkerRuntimeStarter? _workerRuntimeStarter;
@@ -273,6 +289,7 @@ final class MeasurementHostConstructionOwner {
     required MeasurementRuntimeRouteTable routeTable,
     required MeasurementCaptureAdmission capabilityAdmission,
     required String Function() captureSessionNonceSource,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
   }) async {
     if (_closed) return null;
 
@@ -298,10 +315,14 @@ final class MeasurementHostConstructionOwner {
     }
 
     try {
+      final sessionClock = _SessionMonotonicClock(_monotonicClock);
       final opened = await runtime.openSession(
         MeasurementWorkerSessionRegistration(
           sessionId: _nextSessionId(),
           captureSessionNonce: captureSessionNonceSource(),
+          experimentAssignmentCanonicalBytes: experimentAssignment == null
+              ? null
+              : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
           publicationContextCanonicalBytes:
               resolvedMount.publicationContextRef.canonicalBytes,
           routes: [
@@ -331,13 +352,17 @@ final class MeasurementHostConstructionOwner {
       }
 
       budgetReservation.consume();
+      if (_closed) {
+        await workerSession.discard();
+        return null;
+      }
       final session = MeasurementHostConstructionSession._(
         owner: this,
         admission: admission,
         resolvedMount: resolvedMount,
         routeTable: routeTable,
         workerSession: workerSession,
-        monotonicClock: _monotonicClock,
+        monotonicClock: sessionClock,
       );
       _sessions.add(session);
       return session;
@@ -446,16 +471,19 @@ final class MeasurementHostConstructionOwner {
     );
     MeasurementWorkerOwnedDeliveryRuntime? runtime;
     try {
+      await _startupBarrier;
+      if (_cancellation.isCancelled) return null;
       final starter = _workerRuntimeStarter;
       if (starter != null) {
         runtime = await starter(
           configuration: configuration,
-          pathResolver: _pathResolver,
+          pathResolver: _pathResolver!,
         );
       } else {
         runtime = (await MeasurementWorkerOwnedDeliveryRuntime.start(
           configuration: configuration,
           pathResolver: _pathResolver,
+          cancellation: _cancellation,
         ))
             .runtime;
       }
@@ -522,8 +550,42 @@ final class MeasurementHostConstructionOwner {
     return 'measurement-host.$_nextSessionOrdinal';
   }
 
+  /// Revokes capture immediately and acknowledges worker cancellation.
+  /// The configuration owner supplies the purge barrier shared by all retiring
+  /// generations, so a session teardown cannot bypass durable privacy cleanup.
+  Future<void> cancelCollection({Future<void>? purgeCompletion}) {
+    if (purgeCompletion != null) _privacyPurgeCompletion = purgeCompletion;
+    final existing = _cancellationFuture;
+    if (existing != null) return existing;
+    _closed = true;
+    _cancellation.cancel();
+    for (final session
+        in List<MeasurementHostConstructionSession>.of(_sessions)) {
+      session._active = false;
+      session._closeCaptureEdge();
+      _release(session);
+    }
+    return _cancellationFuture = _cancelActive();
+  }
+
+  Future<void> _cancelActive() async {
+    final runtimeFuture = _runtimeFuture;
+    final runtime =
+        _runtime ?? (runtimeFuture == null ? null : await runtimeFuture);
+    await _cancellation.completion;
+    if (_workerRuntimeStarter != null && runtime != null) {
+      await runtime.reset(MeasurementOutboxPurgeReason.privacyReset);
+    }
+    await _closeFuture;
+  }
+
   /// Finalizes all live sessions, then closes the one owned worker exactly once.
   Future<void> close() {
+    if (_cancellation.isCancelled) {
+      return _privacyPurgeCompletion ??
+          _cancellationFuture ??
+          Future<void>.value();
+    }
     final existing = _closeFuture;
     if (existing != null) return existing;
     _closed = true;
@@ -538,8 +600,9 @@ final class MeasurementHostConstructionOwner {
       for (final session in sessions) session.teardown(),
     ]);
     final runtimeFuture = _runtimeFuture;
-    final runtime = runtimeFuture == null ? _runtime : await runtimeFuture;
-    if (runtime == null) return;
+    final runtime =
+        _runtime ?? (runtimeFuture == null ? null : await runtimeFuture);
+    if (runtime == null || _cancellation.isCancelled) return;
     await runtime.shutdown();
   }
 }
@@ -680,13 +743,20 @@ final class MeasurementHostConstructionSession
         !_owner._admissionRemainsUsable(_admission)) {
       return null;
     }
-    final result = await _workerSession.checkpoint();
+    final result = await _workerSession.checkpoint(
+        frameElapsedMicros: _monotonicClock.readMicros());
     _owner._observeDeliveryResult(result);
     return result;
   }
 
   /// Finalizes after a successful paint, or discards an uncommitted session.
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?> teardown() {
+    if (_owner._cancellation.isCancelled) {
+      return (_owner._privacyPurgeCompletion ??
+              _owner._cancellationFuture ??
+              Future<void>.value())
+          .then((_) => null);
+    }
     final existing = _teardownFuture;
     if (existing != null) return existing;
     final future = _teardownActive();
@@ -707,7 +777,8 @@ final class MeasurementHostConstructionSession
         await _discardUncommitted();
         return null;
       }
-      final result = await _workerSession.teardown();
+      final result = await _workerSession.teardown(
+          frameElapsedMicros: _monotonicClock.readMicros());
       _owner._observeDeliveryResult(result);
       return result;
     } finally {
@@ -833,6 +904,16 @@ final class _MeasurementHostConstructionBudgetReservation {
     _settled = true;
     _ledger.refundReservation();
   }
+}
+
+final class _SessionMonotonicClock implements MeasurementCaptureMonotonicClock {
+  _SessionMonotonicClock(this._source) : _origin = _source.readMicros();
+
+  final MeasurementCaptureMonotonicClock _source;
+  final int _origin;
+
+  @override
+  int readMicros() => _source.readMicros() - _origin;
 }
 
 final class _StopwatchMonotonicClock

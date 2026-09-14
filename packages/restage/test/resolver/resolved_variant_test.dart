@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 
+import '../support/canonical_assignment_fixture.dart';
+
 void main() {
   test('ResolvedVariant stores bytes + metadata', () {
     final v = ResolvedVariant(
@@ -120,6 +122,7 @@ void main() {
         cacheHit: false,
       ),
       _bindingReference('c'),
+      canonicalExperimentAssignment: canonicalAssignmentFixture(),
     );
 
     test('copyWith() with no overrides preserves every field', () {
@@ -132,6 +135,7 @@ void main() {
       // A public copy can alter the payload identity, so it must never carry
       // an exact delivery binding by implication.
       expect(measurementPublicationBindingReferenceFor(copy), isNull);
+      expect(measurementExperimentAssignmentFor(copy), isNull);
       expect(copy.cacheHit, isFalse);
     });
 
@@ -145,6 +149,21 @@ void main() {
       expect(hit.paywallVersion, '0.0.1');
       expect(hit.paywallPublishedVersion, 7);
       expect(measurementPublicationBindingReferenceFor(hit), isNull);
+      expect(measurementExperimentAssignmentFor(hit), isNull);
+    });
+
+    test('changed identity never inherits assignment', () {
+      for (final copy in [
+        full.copyWith(paywallId: 'other'),
+        full.copyWith(surfaceVersion: 'next'),
+        full.copyWith(paywallVersion: 'next'),
+        full.copyWith(paywallPublishedVersion: 9),
+        full.copyWith(bytes: Uint8List.fromList([9]), surfaceVersion: 'next'),
+      ]) {
+        expect(measurementExperimentAssignmentFor(copy), isNull);
+      }
+      expect(measurementExperimentAssignmentFor(full),
+          canonicalAssignmentFixture());
     });
 
     test('each override lands independently', () {
@@ -208,6 +227,40 @@ void main() {
       throwsStateError,
     );
     expect(measurementPublicationBindingReferenceFor(variant), original);
+  });
+
+  test('assignment provenance is absent unless supplied and immutable once set',
+      () {
+    final resolved = Object();
+    attachMeasurementPublicationBindingReference(resolved, null);
+    expect(measurementExperimentAssignmentFor(resolved), isNull);
+    final assignment = canonicalAssignmentFixture();
+    attachMeasurementPublicationBindingReference(
+      resolved,
+      null,
+      canonicalExperimentAssignment: assignment,
+    );
+    attachMeasurementPublicationBindingReference(resolved, null);
+    attachMeasurementPublicationBindingReference(
+      resolved,
+      null,
+      canonicalExperimentAssignment: canonicalAssignmentFixture(),
+    );
+    for (final changed in [
+      canonicalAssignmentFixture(arm: 'arm-b'),
+      canonicalAssignmentFixture(carrier: 'ZGVm'),
+    ]) {
+      expect(
+          () => attachMeasurementPublicationBindingReference(
+                resolved,
+                _bindingReference('a'),
+                canonicalExperimentAssignment: changed,
+              ),
+          throwsStateError);
+      expect(measurementExperimentAssignmentFor(resolved), assignment);
+      expect(measurementPublicationBindingReferenceFor(resolved), isNull);
+    }
+    expect(measurementExperimentAssignmentFor(Object()), isNull);
   });
 
   test('ResolvedVariant rejects an empty surfaceVersion', () {

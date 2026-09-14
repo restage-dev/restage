@@ -73,6 +73,42 @@ Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts. A required value with no default then exits non-zero with a
 `required: --foo <value>` message.
 
+## Experiments (pre-release)
+
+`restage experiment` runs one experiment operation per subcommand. It is
+pre-release and hidden until you set `RESTAGE_EXPERIMENTAL=1`, because the
+hosted service does not serve these routes yet.
+
+```sh
+restage experiment discover
+restage experiment create
+restage experiment save --draft-id <id> --draft-revision-id <rev> \
+  --expected-cas <token> --replacement choices.json
+restage experiment validate --draft-id <id> --draft-revision-id <rev> \
+  --expected-cas <token>
+restage experiment review --draft-id <id> --draft-revision-id <rev> \
+  --expected-cas <token>
+restage experiment activate --draft-id <id> --draft-revision-id <rev> \
+  --expected-cas <token> --review-id <id> --review-digest <digest> --yes
+
+restage experiment list
+restage experiment read --experiment-id <id>
+restage experiment pause --experiment-id <id> --expected-lifecycle-ordinal <n>
+```
+
+There are fifteen subcommands, one per operation: `discover`, `create`,
+`read-draft`, `save`, `copy`, `validate`, `review`, `activate`, `pause`,
+`resume`, `conclude`, `list`, `read`, `results`, `archive`. Reading a draft,
+reading an experiment, and reading its results are three of them, because they
+are three different requests.
+
+`--json` prints the exact result the service returned rather than a shape this
+tool invents, so a script reads what the service said. A write that changes live
+state needs `--yes` or an interactive confirmation. Writes carry an idempotency
+key, generated per run unless you pass `--idempotency-key`; a retry within one
+run resends byte-identical content under the same key, so a lost reply cannot
+apply an operation twice.
+
 ## Pushing and publishing
 
 A push uploads a version to the server and changes nothing that is running. A
@@ -144,8 +180,8 @@ dashboard origin is the pinned parent origin. `--parent-origin` is accepted
 only when it matches the configured dashboard origin, and `--bundle-origin`
 may supply the bundle control member of the same triplet.
 
-This lane is pre-release. It is not a public deployment or package-release
-signal.
+Render bundles are pre-release. Their presence here is not a public deployment
+or package-release signal.
 
 ## License
 

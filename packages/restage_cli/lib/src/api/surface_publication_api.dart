@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -289,11 +289,11 @@ final class SurfacePublicationApi {
         'environmentSlug': environment,
         'upload': <String, dynamic>{
           '__className__': 'MeasurementBoundSurfacePublicationUpload',
-          'publicationUploadCanonicalBytes': _encodeByteDataWire(
+          'publicationUploadCanonicalBytes': encodeByteDataWire(
             upload.publicationUploadCanonicalBytes,
           ),
           'selectedSingleEntryPublicationManifestCanonicalBytes':
-              _encodeByteDataWire(
+              encodeByteDataWire(
                 upload.selectedSingleEntryPublicationManifestCanonicalBytes,
               ),
           'declaredArtifactClosure': [
@@ -301,13 +301,13 @@ final class SurfacePublicationApi {
               <String, dynamic>{
                 '__className__': 'MeasurementBoundSurfacePublicationArtifact',
                 'path': artifact.path,
-                'bytes': _encodeByteDataWire(artifact.bytes),
+                'bytes': encodeByteDataWire(artifact.bytes),
               },
           ],
-          'measurementPublicationDraftCanonicalBytes': _encodeByteDataWire(
+          'measurementPublicationDraftCanonicalBytes': encodeByteDataWire(
             upload.measurementPublicationDraftCanonicalBytes,
           ),
-          'candidateReferenceCanonicalBytes': _encodeByteDataWire(
+          'candidateReferenceCanonicalBytes': encodeByteDataWire(
             upload.candidateReferenceCanonicalBytes,
           ),
         },
@@ -328,33 +328,10 @@ final class SurfacePublicationApi {
   }
 }
 
-String _encodeByteDataWire(List<int> bytes) =>
-    "decode('${base64Encode(bytes)}', 'base64')";
-
-Uint8List _decodeByteDataWire(Object? value) {
-  if (value is! String) {
-    throw const FormatException(
-      'The Measurement publication response omitted canonical bytes.',
-    );
-  }
-  final match = RegExp(
-    r"^decode\('([A-Za-z0-9+/]*={0,2})', 'base64'\)$",
-  ).firstMatch(value);
-  if (match == null) {
-    throw const FormatException(
-      'The Measurement publication response contained malformed bytes.',
-    );
-  }
-  try {
-    final encoded = match.group(1)!;
-    final bytes = base64Decode(encoded);
-    if (bytes.isEmpty || base64Encode(bytes) != encoded) {
-      throw const FormatException('noncanonical bytes');
-    }
-    return bytes;
-  } on FormatException {
-    throw const FormatException(
-      'The Measurement publication response contained malformed bytes.',
-    );
-  }
-}
+// The caller rewraps every failure below, so this text never reaches a reader.
+Uint8List _decodeByteDataWire(Object? value) => decodeByteDataWire(
+  value,
+  malformed: (_) => const FormatException(
+    'The Measurement publication response was malformed.',
+  ),
+);

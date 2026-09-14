@@ -12,7 +12,6 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 // ignore: implementation_imports
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
-import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
@@ -27,115 +26,6 @@ void main() {
 
   setUp(Restage.debugReset);
   tearDown(Restage.debugReset);
-
-  test(
-      'presentation preflights and seals the exact flow contract before a '
-      'hash-only request and one canonical retry', () async {
-    final bundledScreen = _screen('Bundled');
-    final hostedScreen = _screen('Hosted');
-    final bundle = _ControlledPaywallBundle()
-      ..writeFlow(_flowDocument(screen: bundledScreen))
-      ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen)
-      ..hold('assets/paywalls/pro_upgrade.flow.json')
-      ..hold('assets/paywalls/screens/paywall_pro_upgrade.rfw');
-    final assignmentStarted = Completer<void>();
-    final assignment = Completer<String?>();
-    SurfaceAssignmentKeyProvider.current = () {
-      if (!assignmentStarted.isCompleted) assignmentStarted.complete();
-      return assignment.future;
-    };
-    final server = _ControlledSurfaceServer();
-    final resolver = RestageVariantResolver(
-      apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
-      baseUrl: 'https://surfaces.example.com',
-      httpClient: server.client,
-      assetFallback: AssetVariantResolver(bundle: bundle),
-    );
-
-    final resolved = resolver.resolvePayloadForPresentation('pro_upgrade');
-
-    await _waitUntil(
-      () => bundle.loadedKeys.isNotEmpty || assignmentStarted.isCompleted,
-    );
-    expect(
-      (
-        firstAsset: bundle.loadedKeys.firstOrNull,
-        assignmentStarted: assignmentStarted.isCompleted,
-        requestCount: server.requests.length,
-      ),
-      (
-        firstAsset: 'assets/paywalls/pro_upgrade.flow.json',
-        assignmentStarted: false,
-        requestCount: 0,
-      ),
-    );
-
-    bundle.release('assets/paywalls/pro_upgrade.flow.json');
-    await _waitUntil(
-      () => bundle.loadedKeys
-          .contains('assets/paywalls/screens/paywall_pro_upgrade.rfw'),
-    );
-    expect(server.requests, isEmpty);
-    expect(assignmentStarted.isCompleted, isFalse);
-
-    bundle.release('assets/paywalls/screens/paywall_pro_upgrade.rfw');
-    await assignmentStarted.future;
-    expect(server.requests, isEmpty);
-
-    assignment.complete('anon-paywall-key');
-    await _waitUntil(() => server.requests.length == 1);
-    final firstBody = _requestBody(server.requests.single.request);
-    expect(firstBody['assignmentKey'], 'anon-paywall-key');
-    expect(firstBody['surfaceType'], 'paywall');
-    expect(firstBody['surfaceSlug'], 'pro_upgrade');
-    expect(firstBody['flowContractKind'], kFlowExperimentContractKind);
-    expect(firstBody['flowContractVersion'], 1);
-    expect(firstBody['flowContractHash'], startsWith('sha256:'));
-    expect(firstBody, isNot(contains('flowContractBytes')));
-    expect(firstBody, isNot(contains('contractHash')));
-    expect(firstBody, isNot(contains('contract')));
-
-    server.requests.single.complete(_surfaceResponse(
-      _flowEnvelope(screen: hostedScreen, publishedVersion: 9),
-      flowContractRequired: true,
-    ));
-    await _waitUntil(() => server.requests.length == 2);
-    final secondBody = _requestBody(server.requests[1].request);
-    expect(secondBody['assignmentKey'], 'anon-paywall-key');
-    expect(
-      secondBody['flowContractHash'],
-      firstBody['flowContractHash'],
-    );
-    final retryBytes = base64Url.decode(
-      base64Url.normalize(secondBody['flowContractBytes']! as String),
-    );
-    expect(
-      FlowExperimentClientContractV1.decode(retryBytes).contentHash.value,
-      firstBody['flowContractHash'],
-    );
-    expect(secondBody, isNot(contains('contractHash')));
-    expect(secondBody, isNot(contains('contract')));
-
-    server.requests[1].complete(_surfaceResponse(
-      _flowEnvelope(screen: hostedScreen, publishedVersion: 9),
-    ));
-    final payload = await resolved as FlowPaywallPayload;
-    await Future<void>.delayed(Duration.zero);
-
-    expect(server.requests, hasLength(2));
-    expect(payload.acceptedCandidate, isNotNull);
-    expect(payload.flow, same(payload.acceptedCandidate!.candidateRoot));
-    expect(payload.paywallPublishedVersion, 9);
-    expect(payload.flow.screenBlobs['welcome'], hostedScreen);
-    expect(
-      bundle.loadedKeys,
-      orderedEquals(<String>[
-        'assets/paywalls/pro_upgrade.flow.json',
-        'assets/paywalls/screens/paywall_pro_upgrade.rfw',
-      ]),
-    );
-  });
 
   test(
       'missing flow preflight preserves the ordinary blob request body and still '
@@ -274,59 +164,6 @@ void main() {
     expect(payload.flow.screenBlobs['welcome'], freshScreen);
   });
 
-  test('identity drift during canonical retry rejects both stale responses',
-      () async {
-    var actorGeneration = 0;
-    SurfaceAssignmentKeyProvider.install(
-      key: () => 'actor-$actorGeneration',
-      identityGeneration: () => actorGeneration,
-    );
-    final bundledScreen = _screen('Bundled');
-    final staleScreen = _screen('Stale retry');
-    final freshScreen = _screen('Fresh retry');
-    final server = _ControlledSurfaceServer();
-    final resolver = RestageVariantResolver(
-      apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
-      baseUrl: 'https://surfaces.example.com',
-      httpClient: server.client,
-      assetFallback: AssetVariantResolver(
-        bundle: (_ControlledPaywallBundle()
-          ..writeFlow(_flowDocument(screen: bundledScreen))
-          ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen)),
-      ),
-    );
-
-    final resolved = resolver.resolvePayloadForPresentation('pro_upgrade');
-    await _waitUntil(() => server.requests.length == 1);
-    final staleResponse = _surfaceResponse(
-      _flowEnvelope(screen: staleScreen, publishedVersion: 8),
-    );
-    server.requests[0].complete(_surfaceResponse(
-      _flowEnvelope(screen: staleScreen, publishedVersion: 8),
-      flowContractRequired: true,
-    ));
-    await _waitUntil(() => server.requests.length == 2);
-    actorGeneration += 1;
-    server.requests[1].complete(staleResponse);
-    await _waitUntil(() => server.requests.length == 3);
-    server.requests[2].complete(_surfaceResponse(
-      _flowEnvelope(screen: freshScreen, publishedVersion: 9),
-    ));
-
-    final payload = await resolved as FlowPaywallPayload;
-    final bodies =
-        server.requests.map((entry) => _requestBody(entry.request)).toList();
-    expect(server.requests, hasLength(3));
-    expect(bodies[0]['assignmentKey'], 'actor-0');
-    expect(bodies[0], isNot(contains('flowContractBytes')));
-    expect(bodies[1]['assignmentKey'], 'actor-0');
-    expect(bodies[1], contains('flowContractBytes'));
-    expect(bodies[2]['assignmentKey'], 'actor-1');
-    expect(bodies[2], isNot(contains('flowContractBytes')));
-    expect(payload.flow.screenBlobs['welcome'], freshScreen);
-  });
-
   test(
       'child-prefetch drift rejects the stale root then pins the fresh exact '
       'paywall closure', () async {
@@ -418,14 +255,15 @@ void main() {
     expect(payload.flow, same(payload.acceptedCandidate!.candidateRoot));
     expect(payload.flow.screenBlobs['welcome'], candidateRootScreen);
     expect(pinnedChild.screenBlobs['screen'], candidateChildScreen);
-    for (final childRequest in <Map<String, Object?>>[
-      staleChildRequest,
-      freshChildRequest,
+    for (final (childRequest, assignmentKey) in [
+      (staleChildRequest, 'actor-0'),
+      (freshChildRequest, 'actor-1'),
     ]) {
       expect(childRequest, <String, Object?>{
         'surfaceType': 'paywall',
         'surfaceSlug': 'child',
         'version': 1,
+        'assignmentKey': assignmentKey,
       });
     }
     expect(
@@ -582,14 +420,10 @@ MockClient _failingServer(List<String> bodies) {
 Map<String, Object?> _requestBody(http.Request request) =>
     (jsonDecode(request.body) as Map).cast<String, Object?>();
 
-http.Response _surfaceResponse(
-  Uint8List envelope, {
-  bool flowContractRequired = false,
-}) {
+http.Response _surfaceResponse(Uint8List envelope) {
   return http.Response(
     jsonEncode(<String, Object?>{
       ..._delivery.describeEnvelope(envelope),
-      if (flowContractRequired) 'flowContractRequired': true,
     }),
     200,
   );

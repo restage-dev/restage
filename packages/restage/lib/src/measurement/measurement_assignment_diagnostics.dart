@@ -43,23 +43,6 @@ final class MeasurementAssignmentDeliveryAssigned
   final MeasurementAssignmentCandidateDeliveryDiagnostic candidateDelivery;
 }
 
-/// The request was outside the admitted audience.
-@internal
-final class MeasurementAssignmentDeliveryOutsideAudience
-    extends MeasurementAssignmentDeliveryDiagnostic {
-  /// Creates an outside-audience diagnostic.
-  const MeasurementAssignmentDeliveryOutsideAudience();
-}
-
-/// The request was in the audience but failed the additional eligibility
-/// authority.
-@internal
-final class MeasurementAssignmentDeliveryIneligible
-    extends MeasurementAssignmentDeliveryDiagnostic {
-  /// Creates an ineligible diagnostic.
-  const MeasurementAssignmentDeliveryIneligible();
-}
-
 /// A non-inference assignment failure that must not become an assignment.
 @internal
 final class MeasurementAssignmentDeliveryUnavailable
@@ -125,6 +108,9 @@ enum MeasurementAssignmentUnavailableReason {
 
   /// The adapter did not complete with a typed outcome.
   transportFailure,
+
+  /// The service did not confirm an assignment for this request.
+  replayUnconfirmed,
 }
 
 /// Why a randomized-unit population or its pre-treatment source is unavailable

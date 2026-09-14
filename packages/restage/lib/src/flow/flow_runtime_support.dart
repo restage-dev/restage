@@ -8,7 +8,6 @@ import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_shared/restage_shared.dart' show kCapturedEventValueKey;
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
 import '../measurement/measurement_rfw_presentation.dart';
 import '../runtime/context_data.dart';
 import '../runtime/library_runtime_registry.dart';
@@ -105,7 +104,7 @@ final class FlowScreenLibraries {
   /// A fresh [Runtime] importing the base libraries plus the given [screen]
   /// blob under [kFlowScreenLibrary], with the custom widget registry applied.
   Runtime runtimeFor(WidgetLibrary screen) {
-    final runtime = RestageRenderRuntime()
+    final runtime = Runtime()
       ..update(kFlowCoreLibrary, _core)
       ..update(kFlowMaterialLibrary, _material)
       ..update(kFlowCupertinoLibrary, _cupertino)

@@ -235,6 +235,7 @@ final class ResolvedSurfaceScreen {
         cacheHit: true,
       ),
       measurementPublicationBindingReferenceFor(this),
+      canonicalExperimentAssignment: measurementExperimentAssignmentFor(this),
     );
   }
 }

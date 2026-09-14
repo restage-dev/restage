@@ -1049,10 +1049,10 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     required List<MeasurementPublicationDraftNodeV1> nodes,
     required List<MeasurementPublicationDraftEventV1> events,
     required List<MeasurementPublicationDraftRouteSeedV1> routeSeeds,
+    required List<MeasurementPublicationDraftPresentationV1> presentations,
+    required List<MeasurementPublicationDraftPresentationRouteSeedV1>
+        presentationRouteSeeds,
     required List<MeasurementPublicationLineageIntentV1> lineageIntents,
-    List<MeasurementPublicationDraftPresentationV1> presentations = const [],
-    List<MeasurementPublicationDraftPresentationRouteSeedV1>
-        presentationRouteSeeds = const [],
   })  : artifacts = _sortedUniqueRouteArtifacts(artifacts),
         codeIdentityBindings = _sortedUniqueCodeIdentityBindings(
           codeIdentityBindings,
@@ -1131,6 +1131,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         'lineageIntents',
         'minimumMeasurementClient',
         'nodes',
+        'presentationRouteSeeds',
+        'presentations',
         'privacyPolicyRevisionId',
         'routeSeeds',
         'schemaVersion',
@@ -1147,10 +1149,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     final nodes = reader.list('nodes');
     final events = reader.list('events');
     final routeSeeds = reader.list('routeSeeds');
-    final presentations =
-        reader.optionalList('presentations') ?? const <Object?>[];
-    final presentationRouteSeeds =
-        reader.optionalList('presentationRouteSeeds') ?? const <Object?>[];
+    final presentations = reader.list('presentations');
+    final presentationRouteSeeds = reader.list('presentationRouteSeeds');
     final lineageIntents = reader.list('lineageIntents');
     _validateRawRoutePlanListBounds(
       artifacts: artifacts,
@@ -1311,15 +1311,13 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         ],
         'minimumMeasurementClient': minimumMeasurementClient,
         'nodes': [for (final node in nodes) node.toJson()],
-        if (presentations.isNotEmpty)
-          'presentations': [
-            for (final presentation in presentations) presentation.toJson(),
-          ],
+        'presentations': [
+          for (final presentation in presentations) presentation.toJson(),
+        ],
         'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
-        if (presentationRouteSeeds.isNotEmpty)
-          'presentationRouteSeeds': [
-            for (final routeSeed in presentationRouteSeeds) routeSeed.toJson(),
-          ],
+        'presentationRouteSeeds': [
+          for (final routeSeed in presentationRouteSeeds) routeSeed.toJson(),
+        ],
         'routeSeeds': [for (final routeSeed in routeSeeds) routeSeed.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,
         'surfaceId': surfaceId.value,
@@ -1660,6 +1658,8 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
         'lineageIntents',
         'minimumMeasurementClient',
         'nodes',
+        'presentations',
+        'presentationRoutes',
         'privacyPolicyRevisionId',
         'routes',
         'schemaVersion',
@@ -1676,10 +1676,8 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
     final nodes = reader.list('nodes');
     final events = reader.list('events');
     final routes = reader.list('routes');
-    final presentations =
-        reader.optionalList('presentations') ?? const <Object?>[];
-    final presentationRoutes =
-        reader.optionalList('presentationRoutes') ?? const <Object?>[];
+    final presentations = reader.list('presentations');
+    final presentationRoutes = reader.list('presentationRoutes');
     final lineageIntents = reader.list('lineageIntents');
     _validateRawDraftListBounds(
       artifacts: artifacts,
@@ -1899,14 +1897,12 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
         ],
         'minimumMeasurementClient': minimumMeasurementClient,
         'nodes': [for (final node in nodes) node.toJson()],
-        if (presentations.isNotEmpty)
-          'presentations': [
-            for (final presentation in presentations) presentation.toJson(),
-          ],
-        if (presentationRoutes.isNotEmpty)
-          'presentationRoutes': [
-            for (final route in presentationRoutes) route.toJson(),
-          ],
+        'presentations': [
+          for (final presentation in presentations) presentation.toJson(),
+        ],
+        'presentationRoutes': [
+          for (final route in presentationRoutes) route.toJson(),
+        ],
         'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
         'routes': [for (final route in routes) route.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,

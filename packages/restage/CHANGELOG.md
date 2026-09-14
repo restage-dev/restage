@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+The SDK no longer sends events to the Restage service. `Restage.events` is
+unchanged and remains the way an app feeds its own analytics, and the events it
+carries are unchanged. `analyticsEnabled` on `configure` still applies: it gates
+the anonymous identifier used for surface assignment and for Measurement. The
+debug-only `debugAnalyticsHttpClient` and `debugFlushAnalytics` statics are
+removed with the egress they served.
+
 ## 2.0.0
 
 The published device data carries the ambient view padding alongside the safe

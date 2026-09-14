@@ -7,6 +7,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        CanonicalSurfaceExperimentAssignmentV1,
         FlowActiveRenderGate,
         FlowContentHash,
         FlowDeliveryMode,
@@ -236,6 +237,7 @@ final class ServerFlowResolver
       screenBlobs,
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
     );
     _cache[cacheKey] = cachedFlow;
     return _own(
@@ -324,14 +326,11 @@ final class ServerFlowResolver
       FlowMountRevalidationBoundary.request,
       captureSeed,
     );
-    var result = await _fetchExperimentSurface(
+    final result = await _fetchExperimentSurface(
       flow: flow,
       snapshot: snapshot,
       captureSeed: captureSeed,
       boundary: FlowMountRevalidationBoundary.request,
-      flowContract: FlowContractFetchRequest.hashOnly(
-        snapshot.contentHash.value,
-      ),
     );
     _requireExperimentSnapshotCurrent(
       snapshot,
@@ -339,31 +338,6 @@ final class ServerFlowResolver
       captureSeed,
     );
     if (result == null) return null;
-
-    if (result.flowContractRequired) {
-      final current = _captureExperimentSeed(captureSeed);
-      final bytes = snapshot.bytesForRetry(
-        FlowMountRevalidationBoundary.uploadRetry,
-        current,
-      );
-      if (bytes == null) throw const _ExperimentSeedDrift();
-      result = await _fetchExperimentSurface(
-        flow: flow,
-        snapshot: snapshot,
-        captureSeed: captureSeed,
-        boundary: FlowMountRevalidationBoundary.uploadRetry,
-        flowContract: FlowContractFetchRequest.retry(
-          snapshot.contentHash.value,
-          bytes,
-        ),
-      );
-      _requireExperimentSnapshotCurrent(
-        snapshot,
-        FlowMountRevalidationBoundary.uploadRetry,
-        captureSeed,
-      );
-      if (result == null || result.flowContractRequired) return null;
-    }
 
     // Both artifact refusals reach the same `null` the decode failure always
     // did — this arm's ladder treats an unrenderable active exactly like an
@@ -395,6 +369,7 @@ final class ServerFlowResolver
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
     );
     return _ExperimentFreshFlow(
       candidateRoot: _own(
@@ -409,14 +384,12 @@ final class ServerFlowResolver
     required FlowMountContractSnapshot snapshot,
     required FlowMountSeedCapture captureSeed,
     required FlowMountRevalidationBoundary boundary,
-    required FlowContractFetchRequest flowContract,
   }) async {
     try {
       return await _client.fetchSurface(
         surfaceType: flow.surfaceType.wireName,
         surfaceSlug: flow.id,
         assignmentKey: snapshot.assignmentKey,
-        flowContract: flowContract,
         publicationGuard: () =>
             _experimentSnapshotIsCurrent(snapshot, boundary, captureSeed),
       );
@@ -513,6 +486,7 @@ final class ServerFlowResolver
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
     );
   }
 
@@ -1015,14 +989,6 @@ void _requireExactPublicationCurrent(bool Function()? publicationGuard) {
   throw const _ExperimentSeedDrift();
 }
 
-FlowMountLeaseSeed _captureExperimentSeed(FlowMountSeedCapture captureSeed) {
-  try {
-    return captureSeed();
-  } on Object {
-    throw const _ExperimentSeedDrift();
-  }
-}
-
 bool _experimentSnapshotIsCurrent(
   FlowMountContractSnapshot snapshot,
   FlowMountRevalidationBoundary boundary,
@@ -1052,6 +1018,7 @@ final class _CachedServerFlow {
     this.contentHash,
     this.requiredLibraries,
     this.publicationBindingReference,
+    this.canonicalExperimentAssignment,
   );
 
   /// Builds a cache entry, computing the canonical-document content hash (the
@@ -1062,6 +1029,8 @@ final class _CachedServerFlow {
     List<LibraryRequirement> requiredLibraries, {
     required MeasurementPublicationBindingReferenceV1?
         publicationBindingReference,
+    required CanonicalSurfaceExperimentAssignmentV1?
+        canonicalExperimentAssignment,
   }) {
     return _CachedServerFlow(
       document,
@@ -1069,6 +1038,7 @@ final class _CachedServerFlow {
       FlowContentHash.compute(FlowDocumentCodec.encodeCanonicalJson(document)),
       requiredLibraries,
       publicationBindingReference,
+      canonicalExperimentAssignment,
     );
   }
 
@@ -1082,6 +1052,7 @@ final class _CachedServerFlow {
 
   /// Exact immutable Measurement provenance retained with these exact bytes.
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
 
   ResolvedFlow toResolvedFlow({required bool cacheHit}) {
     return attachMeasurementPublicationBindingReference(
@@ -1092,6 +1063,7 @@ final class _CachedServerFlow {
         cacheHit: cacheHit,
       ),
       publicationBindingReference,
+      canonicalExperimentAssignment: canonicalExperimentAssignment,
     );
   }
 }

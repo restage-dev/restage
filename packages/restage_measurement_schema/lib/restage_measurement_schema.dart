@@ -2,6 +2,8 @@
 library;
 
 export 'src/canonical.dart';
+export 'src/collection_decision.dart';
+export 'src/experiment_authoring.dart';
 export 'src/governed_subject.dart';
 export 'src/identifiers.dart';
 export 'src/identity_policy.dart';

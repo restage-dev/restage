@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import '../analytics/render_event_privacy.dart';
+import 'event_dispatch_admission.dart';
 import 'authoring_dispatch_access.dart';
 import 'authoring_refusal_diagnostic.dart';
 
@@ -53,7 +53,7 @@ SurfaceEventHandler? surfaceEventDispatcherOf(BuildContext context) {
     return null;
   }
   final dispatcher = scope._capture(
-    binding: RestageFlowRenderEventPrivacyScope.maybeOf(context),
+    binding: RestageFlowEventDispatchScope.maybeOf(context),
   );
   if (dispatcher == null) {
     recordAuthoringDispatcherRefusal(
@@ -106,7 +106,6 @@ final class RestageFlowEventRegistration extends StatefulWidget {
     required this.contentToken,
     required this.associatedHandler,
     required this.isCurrent,
-    required this.mayExposeNonEmptyHostContext,
     required this.child,
   });
 
@@ -115,7 +114,6 @@ final class RestageFlowEventRegistration extends StatefulWidget {
   final Object contentToken;
   final SurfaceEventHandler associatedHandler;
   final bool Function() isCurrent;
-  final bool Function() mayExposeNonEmptyHostContext;
   final Widget child;
 
   @override
@@ -156,14 +154,13 @@ class _RestageFlowEventRegistrationState
       return;
     }
     _unregister();
-    RestageFlowRenderEventPrivacyRegistry.register(
+    RestageFlowEventDispatchRegistry.register(
       controller: widget.controller,
       owner: owner,
       registration: widget.registration,
       contentToken: widget.contentToken,
       associatedHandler: widget.associatedHandler,
       isCurrent: _isCurrent,
-      mayExposeNonEmptyHostContext: _mayExposeNonEmptyHostContext,
     );
     _registered = (
       controller: widget.controller,
@@ -176,13 +173,10 @@ class _RestageFlowEventRegistrationState
 
   bool _isCurrent() => mounted && widget.isCurrent();
 
-  bool _mayExposeNonEmptyHostContext() =>
-      !mounted || widget.mayExposeNonEmptyHostContext();
-
   void _unregister() {
     final registered = _registered;
     if (registered == null) return;
-    RestageFlowRenderEventPrivacyRegistry.unregister(
+    RestageFlowEventDispatchRegistry.unregister(
       controller: registered.controller,
       owner: registered.owner,
       registration: registered.identity,
@@ -197,7 +191,7 @@ class _RestageFlowEventRegistrationState
   }
 
   @override
-  Widget build(BuildContext context) => RestageFlowRenderEventPrivacyScope(
+  Widget build(BuildContext context) => RestageFlowEventDispatchScope(
         controller: widget.controller,
         registration: widget.registration,
         child: widget.child,
@@ -250,7 +244,7 @@ class _RestageFlowEventHandlerAssociationState
     }
     _unregister();
     if (owner == null) return;
-    RestageFlowRenderEventPrivacyRegistry.registerHandlerAssociation(
+    RestageFlowEventDispatchRegistry.registerHandlerAssociation(
       controller: widget.controller,
       owner: owner,
       association: this,
@@ -269,7 +263,7 @@ class _RestageFlowEventHandlerAssociationState
   void _unregister() {
     final registered = _registered;
     if (registered == null) return;
-    RestageFlowRenderEventPrivacyRegistry.unregisterHandlerAssociation(
+    RestageFlowEventDispatchRegistry.unregisterHandlerAssociation(
       owner: registered.owner,
       association: this,
     );
@@ -298,10 +292,10 @@ class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
   }
 
   SurfaceEventHandler? _capture({
-    required RestageFlowRenderEventPrivacyBinding? binding,
+    required RestageFlowEventDispatchBinding? binding,
   }) {
     final handler = widget.onEvent;
-    return RestageFlowRenderEventPrivacyRegistry.bindDispatcherHandler(
+    return RestageFlowEventDispatchRegistry.bindDispatcherHandler(
       owner: this,
       binding: binding,
       handler: handler,
@@ -344,7 +338,7 @@ final class _RestageEventDispatcherScope extends InheritedWidget {
   final SurfaceEventHandler _handler;
 
   SurfaceEventHandler? _capture({
-    required RestageFlowRenderEventPrivacyBinding? binding,
+    required RestageFlowEventDispatchBinding? binding,
   }) =>
       _owner._capture(binding: binding);
 

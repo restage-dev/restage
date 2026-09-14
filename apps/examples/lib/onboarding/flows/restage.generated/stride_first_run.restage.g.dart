@@ -9,7 +9,7 @@ const strideFirstRunFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.general,
   decodeResult: _decodeStrideFirstRunFlowResult,
   measurementPublicationDraftDigest:
-      '6f7ee10c1e85276d2f59d0fa90e728757ad25978b5208829562ddd71a7986e67',
+      'e699eed712614ba2e65b5e018e451d9b394017354da860299a5c30de5e88b515',
 );
 
 Map<String, Object?> _decodeStrideFirstRunFlowResult(

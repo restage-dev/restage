@@ -1377,6 +1377,8 @@ void main() {
           ),
         ],
         routeSeeds: const [],
+        presentations: const [],
+        presentationRouteSeeds: const [],
         lineageIntents: [
           MeasurementPublicationLineageIntentV1(
             transitionId: LineageTransitionId(

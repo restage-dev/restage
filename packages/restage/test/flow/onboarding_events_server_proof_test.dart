@@ -5,11 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/analytics/analytics_event_mapper.dart';
 // The installed built-in catalog content version (the resolver's capability
 // ceiling) is internal; this proof reaches it via the src path.
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
-import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 
@@ -46,12 +44,6 @@ final HostedArtifactFixture _delivery = HostedArtifactFixture();
 void main() {
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_proof';
-  const appContext = AnalyticsAppContext(
-    platform: 'ios',
-    locale: 'en_US',
-    sdkVersion: '1.0.0',
-  );
-
   setUp(Restage.debugReset);
 
   RestageFlowController<_ProofResult> serverController(
@@ -111,24 +103,6 @@ void main() {
       events.whereType<OnboardingStepViewed>().map((e) => e.screenId).toList(),
       ['welcome', 'ready'],
     );
-
-    // The server-delivered typed event maps to the blessed onboarding envelope.
-    final envelope = mapRestageEventToEnvelope(
-      firstSteps.single,
-      eventId: 'evt-1',
-      anonymousId: 'anon-1',
-      sessionId: 'sess-1',
-      appContext: appContext,
-      now: DateTime.utc(2026),
-    );
-    expect(envelope.surface, AnalyticsSurface.onboarding);
-    expect(envelope.surfaceId, 'proof');
-    expect(envelope.surfaceVersion, '1');
-    expect(envelope.properties, {
-      'screenId': 'welcome',
-      'stepIndex': 0,
-      'stepCount': 2,
-    });
   });
 
   test(

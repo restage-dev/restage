@@ -109,6 +109,21 @@ abstract final class SurfaceContractJson {
     return value;
   }
 
+  /// The string at [key], or null when absent. A present non-string is a
+  /// format error rather than a silently dropped member.
+  static String? optionalString(
+    Map<String, Object?> json,
+    String key,
+    String path,
+  ) {
+    if (!json.containsKey(key) || json[key] == null) return null;
+    final value = json[key];
+    if (value is! String) {
+      throw FormatException('Expected "$path.$key" to be a string.');
+    }
+    return value;
+  }
+
   static int requiredInt(
     Map<String, Object?> json,
     String key,

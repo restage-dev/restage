@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,10 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/analytics/analytics_event_mapper.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
-import 'package:restage_shared/legacy_analytics.dart';
+import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -240,15 +240,25 @@ void main() {
   });
 
   testWidgets(
-      'Restage.reset rotates the assignment key synchronously across a real '
+      'Restage.reset rotates the issued assignment credential across a real '
       'paywall mount', (tester) async {
-    Restage.debugAnalyticsHttpClient =
-        MockClient((_) async => http.Response('', 200));
     Restage.configure(
       apiKey: 'rs_pk_test',
       baseUrl: 'http://127.0.0.1:1',
     );
 
+    var issued = 0;
+    Restage.debugRestageRpcClient = RestageRpcClient(
+      baseUrl: 'http://127.0.0.1:1',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async => http.Response(
+            jsonEncode({
+              'credentialHandle': 'credential.reset.${++issued}',
+              'expiresAtMicros': 4102444800000000
+            }),
+            200,
+          )),
+    );
     final resolver = _TextResolver();
     await _mountPaywall(tester, id: 'before-reset', resolver: resolver);
     final oldAssignmentKey = await SurfaceAssignmentKeyProvider.resolve();
@@ -259,7 +269,6 @@ void main() {
     final immediateAssignmentKey = await SurfaceAssignmentKeyProvider.resolve();
 
     await tester.pump();
-    await Restage.debugFlushAnalytics();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
 
@@ -268,7 +277,6 @@ void main() {
     await _mountPaywall(tester, id: 'after-reset', resolver: resolver);
     final afterRealMountKey = await SurfaceAssignmentKeyProvider.resolve();
     await tester.pump();
-    await Restage.debugFlushAnalytics();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
 
@@ -279,27 +287,26 @@ void main() {
   });
 }
 
-AnalyticsEvent _event(
+typedef _IdentityStamp = ({
+  String anonymousId,
+  String sessionId,
+  String? surfaceSessionId,
+  String? userId,
+});
+
+_IdentityStamp _event(
   AnalyticsIdentity identity, {
   required String anonymousId,
   required String sessionId,
 }) =>
-    mapRestageEventToEnvelope(
-      const PaywallViewed(paywallId: 'pricing'),
-      eventId: identity.newEventId(),
+    (
       anonymousId: anonymousId,
       sessionId: sessionId,
       surfaceSessionId: identity.surfaceSessionId,
       userId: identity.userId,
-      appContext: const AnalyticsAppContext(
-        platform: AnalyticsPlatform.ios,
-        locale: 'en-US',
-        sdkVersion: '1.0.0',
-      ),
-      now: DateTime.utc(2026, 1, 1),
     );
 
-Future<AnalyticsEvent> _queuedEvent(
+Future<_IdentityStamp> _queuedEvent(
   AnalyticsIdentity identity, {
   required String eventId,
 }) async {
@@ -308,19 +315,11 @@ Future<AnalyticsEvent> _queuedEvent(
   final userId = identity.userId;
   final anonymousId =
       identity.cachedAnonymousId ?? await identity.anonymousId();
-  return mapRestageEventToEnvelope(
-    const PaywallViewed(paywallId: 'pricing'),
-    eventId: eventId,
+  return (
     anonymousId: anonymousId,
     sessionId: sessionId,
     surfaceSessionId: surfaceSessionId,
     userId: userId,
-    appContext: const AnalyticsAppContext(
-      platform: AnalyticsPlatform.ios,
-      locale: 'en-US',
-      sdkVersion: '1.0.0',
-    ),
-    now: DateTime.utc(2026, 1, 1),
   );
 }
 

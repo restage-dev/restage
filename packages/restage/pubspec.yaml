@@ -38,6 +38,7 @@ dependencies:
   # Root-isolate-only application-support path resolution for the bounded
   # worker-owned measurement journal. The worker receives only the plain path.
   path_provider: ^2.1.0
+  package_info_plus: ^8.3.1
   # Capped below 1.2.0 deliberately. The build-time toolchain encodes blobs with
   # a vendored, frozen copy of the rfw formats codec, while this runtime decodes
   # with the published rfw. A breaking binary-format change in a future minor
@@ -49,6 +50,7 @@ dependencies:
   web_socket_channel: ^3.0.3
 
 dev_dependencies:
+  shared_preferences_platform_interface: ^2.4.0
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter

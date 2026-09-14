@@ -11,7 +11,7 @@ import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
-import '../analytics/render_event_privacy.dart';
+import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
 import '../authoring/paywall_event_dispatch.dart';
@@ -278,10 +278,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _fireDismissed(reason);
       },
       onFireEvent: (name, {Map<String, Object?>? args}) {
-        RestageRenderEventPrivacy.run<void>(
-          mayExposeNonEmptyHostContext: _presentedContextExposure,
-          body: () => _handleRfwEvent(name, args ?? const <String, Object?>{}),
-        );
+        _handleRfwEvent(name, args ?? const <String, Object?>{});
       },
     );
     _load();
@@ -1819,8 +1816,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       measurementSession: measurementSession,
     );
     final eventLease = RestageTargetEventDispatchLease(
-      mayExposeNonEmptyHostContext: false,
-      resolveLiveExposure: () => _blobStageLiveExposure(stage),
+      isCurrent: () => _isBlobEventStageCurrent(stage),
     );
     stage.eventHandler = (name, args) {
       eventLease.invoke(() => _handleBlobRfwEvent(stage, name, args));
@@ -1838,7 +1834,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   Runtime _createBlobRuntime() {
-    final runtime = RestageRenderRuntime()
+    final runtime = Runtime()
       ..update(
         const LibraryName(<String>['restage', 'core']),
         restage_core.buildCoreWidgetLibrary(),
@@ -1902,24 +1898,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       !stage._disposed &&
       identical(_blobPresentation, stage) &&
       stage.transaction.isCommitted;
-
-  bool? _blobStageLiveExposure(_BlobStage stage) {
-    if (!_isBlobEventStageCurrent(stage)) return null;
-    return stage.contextPublisher.mayExposeNonEmptyHostContext;
-  }
-
-  /// Whether the presented content may currently carry non-empty host render
-  /// data. A blob reports its own published state; a flow renders under this
-  /// surface's snapshot, and an unresolved surface falls back to it too.
-  bool get _presentedContextExposure {
-    if (!_flowIsPresented) {
-      final stage = _blobPresentation;
-      if (stage != null) {
-        return stage.contextPublisher.mayExposeNonEmptyHostContext;
-      }
-    }
-    return _context?.value.isNotEmpty ?? false;
-  }
 
   /// Paint-time authority mutation. Keep this synchronous and callback-free.
   void _commitBlobStage(_BlobStage stage) {
@@ -2357,8 +2335,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
                   owner: this,
                   content: stage,
                   isCurrent: () => _isBlobEventStageCurrent(stage),
-                  mayExposeNonEmptyHostContext: () =>
-                      stage.contextPublisher.mayExposeNonEmptyHostContext,
                   child: RestagePaywallEventDispatcher(
                     onEvent: stage.eventHandler,
                     child: RuntimeErrorBoundary(
@@ -2385,15 +2361,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
                         // failure rejects the candidate.
                         FirstPaintLeaseScope(
                           transaction: stage.transaction,
-                          child: RestagePrivacyAwareRemoteWidget(
+                          child: RemoteWidget(
                             runtime: stage.runtime,
                             data: stage.data,
                             widget: const FullyQualifiedWidgetName(
                               _paywallLibrary,
                               'Paywall',
                             ),
-                            mayExposeNonEmptyHostContext: () => stage
-                                .contextPublisher.mayExposeNonEmptyHostContext,
                             onEvent: stage.eventHandler,
                           ),
                         ),

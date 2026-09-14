@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 
+import '../support/restage_runtime_test_support.dart';
+
 void main() {
-  tearDown(Restage.debugReset);
+  installRestageRuntimeTestSupport();
 
   test('precedence: widget override > per-surface override > global > empty',
       () {

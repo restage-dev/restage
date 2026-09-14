@@ -12,6 +12,7 @@ import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/canonical_assignment_fixture.dart';
 import 'surface_screen_test_support.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
@@ -27,6 +28,7 @@ void main() {
     final fixture = stringScreenFixture();
     await _installMeteringKey();
     final bindingReference = _bindingReference('a');
+    final assignment = canonicalAssignmentFixture();
     String? assignmentKey = 'assignment-a';
     SurfaceAssignmentKeyProvider.current = () => assignmentKey;
     final requests = <http.Request>[];
@@ -37,12 +39,13 @@ void main() {
       httpClient: fixture.hostedDelivery.client((request) async {
         requests.add(request);
         return http.Response(
-          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
-            fixture.delivery(
-              hostedBlob: hostedBlob,
-              publishedRevision: 8,
+          jsonEncode({
+            ...SurfaceScreenDeliveryDescriptorV1Codec.encode(
+              fixture.delivery(hostedBlob: hostedBlob, publishedRevision: 8),
             ),
-          ),
+            if (assignmentKey == 'assignment-a')
+              'assignment': assignment.toJson(),
+          }),
           200,
           headers: {
             'Restage-Measurement-Publication-Binding-V1':
@@ -69,12 +72,16 @@ void main() {
       measurementPublicationBindingReferenceFor(first),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(first), assignment);
     expect(first.contentHash, isNot(fixture.contentHash));
     expect(cached.cacheHit, isTrue);
     expect(
       measurementPublicationBindingReferenceFor(cached),
       bindingReference,
     );
+    expect(measurementExperimentAssignmentFor(cached), assignment);
+    expect(measurementExperimentAssignmentFor(otherAssignment), isNull);
+    expect(measurementExperimentAssignmentFor(unassigned), isNull);
     expect(otherAssignment.cacheHit, isFalse);
     expect(unassigned.cacheHit, isFalse);
     expect(requests, hasLength(3));

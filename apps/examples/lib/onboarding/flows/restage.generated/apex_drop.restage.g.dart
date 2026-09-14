@@ -9,7 +9,7 @@ const apexDropFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeApexDropFlowResult,
   measurementPublicationDraftDigest:
-      'daa060634f056f3cb1fc3e4d9d2efff64bb7a8c466b0d56f460b0b4e19715b65',
+      'ed2cb271ff3dc32024eedc1c070e2c4ff84575d5f3c189da49bda48137da59ad',
 );
 
 ApexDropResult _decodeApexDropFlowResult(Map<String, Object?> result) {

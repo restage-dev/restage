@@ -18,7 +18,7 @@ void main() {
           httpClient: MockClient((request) async {
             seen = request;
             return http.Response(
-              '{"result":"assigned","candidateDelivery":"rendered"}',
+              '{"result":"assigned","candidateDelivery":"rendered","assignment":{"schemaVersion":1,"experimentId":"experiment.checkout","experimentRevisionId":"revision.checkout.1","experimentEpochId":"epoch.checkout.1","armId":"arm.treatment","outcomeLinkCarrier":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}',
               200,
             );
           }),
@@ -44,12 +44,15 @@ void main() {
       );
     });
 
-    test('maps exact ITT no-admission and unavailable diagnostics closedly',
+    test('maps every unconfirmed replay and unavailable answer closedly',
         () async {
       final cases = <String, Type>{
-        '{"result":"outsideAudience"}':
-            MeasurementAssignmentDeliveryOutsideAudience,
-        '{"result":"ineligible"}': MeasurementAssignmentDeliveryIneligible,
+        '{"result":"replayMiss"}': MeasurementAssignmentDeliveryUnavailable,
+        '{"result":"assignmentNotPresented"}':
+            MeasurementAssignmentDeliveryUnavailable,
+        '{"result":"assignmentDisagrees"}':
+            MeasurementAssignmentDeliveryUnavailable,
+        '{"result":"notDelivered"}': MeasurementAssignmentDeliveryUnavailable,
         '{"result":"authorityUnavailable"}':
             MeasurementAssignmentDeliveryUnavailable,
         '{"result":"populationUnavailable"}':
@@ -65,11 +68,34 @@ void main() {
           ),
         );
 
-        final diagnostic =
-            adapter.diagnosticFor(await adapter.deliver(_request()));
+        final result = await adapter.deliver(_request());
 
-        expect(diagnostic.runtimeType, entry.value, reason: entry.key);
+        expect(adapter.diagnosticFor(result).runtimeType, entry.value,
+            reason: entry.key);
+        expect(adapter.assignmentFor(result), isNull, reason: entry.key);
       }
+    });
+
+    test('an unconfirmed replay is told apart from a transport failure',
+        () async {
+      final adapter = IttAssignmentRpcAdapter(
+        RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient(
+            (_) async => http.Response('{"result":"replayMiss"}', 200),
+          ),
+        ),
+      );
+
+      final diagnostic =
+          adapter.diagnosticFor(await adapter.deliver(_request()))
+              as MeasurementAssignmentDeliveryUnavailable;
+
+      expect(
+        diagnostic.reason,
+        MeasurementAssignmentUnavailableReason.replayUnconfirmed,
+      );
     });
 
     test('rejects malformed success bodies and preserves auth/fault outcomes',

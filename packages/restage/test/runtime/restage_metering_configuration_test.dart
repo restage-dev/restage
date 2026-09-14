@@ -1,5 +1,6 @@
-import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -23,16 +24,34 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// documentation, so they are pinned rather than left to code reading.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const supportChannel = MethodChannel('plugins.flutter.io/path_provider');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  late Directory supportDirectory;
 
   // A fast-failing host: the analytics POST is intercepted by the injected
   // client.
   const baseUrl = 'http://127.0.0.1:1';
 
-  setUp(() {
+  setUp(() async {
+    supportDirectory =
+        await Directory.systemTemp.createTemp('restage-configure-');
+    messenger.setMockMethodCallHandler(
+        supportChannel,
+        (call) async => call.method == 'getApplicationSupportDirectory'
+            ? supportDirectory.path
+            : null);
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    Restage.debugReset();
+    await Restage.debugResetAndWait();
   });
-  tearDown(Restage.debugReset);
+  tearDown(() async {
+    try {
+      await Restage.debugResetAndWait();
+    } finally {
+      messenger.setMockMethodCallHandler(supportChannel, null);
+      await supportDirectory.delete(recursive: true);
+    }
+  });
 
   test('configure installs the metering identity even with analytics disabled',
       () async {
@@ -120,38 +139,5 @@ void main() {
     Restage.debugReset();
 
     expect(await SurfaceMeteringKeyProvider.currentKey(), isNull);
-  });
-
-  test('the metering identity never appears in an analytics event payload',
-      () async {
-    http.Request? captured;
-    Restage.debugAnalyticsHttpClient = MockClient((req) async {
-      captured = req;
-      return http.Response('', 200);
-    });
-    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
-    // Resolve the key first so it definitely exists while the event is built —
-    // otherwise an absent key would make this assertion vacuous.
-    final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
-    expect(meteringKey, isNotNull);
-
-    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
-    await pumpEventQueue();
-    await Restage.debugFlushAnalytics();
-
-    expect(captured, isNotNull);
-    final body = captured!.body;
-    expect(
-      body,
-      isNot(contains(meteringKey!)),
-      reason: 'the delivery-metering identity must not cross into analytics',
-    );
-    // The analytics stream has its own separate pseudonymous id, and it must
-    // NOT be the metering one — otherwise the two identities are joinable.
-    final events =
-        (jsonDecode(body) as Map<String, Object?>)['events']! as List;
-    final envelope = events.single! as Map<String, Object?>;
-    expect(envelope['anonymousId'], isNotNull);
-    expect(envelope['anonymousId'], isNot(meteringKey));
   });
 }

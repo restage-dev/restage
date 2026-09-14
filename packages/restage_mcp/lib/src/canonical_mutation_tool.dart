@@ -8,6 +8,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
 
 import 'api_runner.dart';
+import 'exact_target.dart';
 
 const _canonicalMutationRequestError =
     'canonicalRequestBase64 must contain one non-empty, bounded, canonical '
@@ -97,7 +98,7 @@ Future<CallToolResult> handleCanonicalMutation({
     action: 'applying the canonical mutation',
     surfaceNoun: 'surface',
     body: (api) async {
-      final target = await _resolveExactTarget(
+      final target = await resolveExactTarget(
         api: api,
         organizationId: organizationId,
         projectSlug: projectSlug,
@@ -115,10 +116,10 @@ Future<CallToolResult> handleCanonicalMutation({
               appSlug: appSlug,
               environmentSlug: environmentSlug,
               organizationId: organizationId,
-              appId: target.appId,
-              namedEnvironmentId: target.namedEnvironmentId,
-              environmentTargetId: target.environmentTargetId,
-              runtimePlane: target.runtimePlane,
+              appId: target.appId.value,
+              namedEnvironmentId: target.namedEnvironmentId.value,
+              environmentTargetId: target.environmentTargetId.value,
+              runtimePlane: runtimePlane,
               canonicalRequestBytes: bytes,
             );
         return _canonicalMutationSuccess(response, target);
@@ -158,55 +159,9 @@ Uint8List? _decodeCanonicalRequestBase64(String encoded) {
   return bytes;
 }
 
-Future<_CanonicalMutationTarget?> _resolveExactTarget({
-  required RestageApi api,
-  required int organizationId,
-  required String projectSlug,
-  required String appSlug,
-  required String environmentSlug,
-  required int environmentTargetId,
-  required RuntimePlane runtimePlane,
-}) async {
-  final discovery = DiscoveryApi(api);
-  final apps = await discovery.listApps(
-    organizationId: organizationId,
-    projectSlug: projectSlug,
-  );
-  final matchingApps = [
-    for (final app in apps)
-      if (app.slug == appSlug && app.appId != null) app,
-  ];
-  if (matchingApps.length != 1) return null;
-  final appId = matchingApps.single.appId!;
-
-  final targets = await discovery.listEnvironmentTargets(
-    organizationId: organizationId,
-    projectSlug: projectSlug,
-    appSlug: appSlug,
-    appId: appId,
-    runtimePlane: runtimePlane,
-  );
-  final matchingTargets = [
-    for (final target in targets)
-      if (target.environmentTargetId == environmentTargetId &&
-          target.environmentSlug == environmentSlug &&
-          target.runtimePlane == runtimePlane)
-        target,
-  ];
-  if (matchingTargets.length != 1) return null;
-  final target = matchingTargets.single;
-  return _CanonicalMutationTarget(
-    organizationId: organizationId,
-    appId: appId,
-    namedEnvironmentId: target.namedEnvironmentId,
-    environmentTargetId: target.environmentTargetId,
-    runtimePlane: target.runtimePlane,
-  );
-}
-
 CallToolResult _canonicalMutationSuccess(
   ProgrammaticMutationResponseWireV1 response,
-  _CanonicalMutationTarget target,
+  measurement.TargetCoordinate target,
 ) {
   final bytes = response.canonicalBytes;
   return CallToolResult(
@@ -220,28 +175,12 @@ CallToolResult _canonicalMutationSuccess(
       'responseKind': response.resultKind,
       'byteLength': bytes.length,
       'target': {
-        'organizationId': target.organizationId,
-        'appId': target.appId,
-        'namedEnvironmentId': target.namedEnvironmentId,
-        'environmentTargetId': target.environmentTargetId,
+        'organizationId': target.organizationId.value,
+        'appId': target.appId.value,
+        'namedEnvironmentId': target.namedEnvironmentId.value,
+        'environmentTargetId': target.environmentTargetId.value,
         'runtimePlane': target.runtimePlane.wireName,
       },
     },
   );
-}
-
-final class _CanonicalMutationTarget {
-  const _CanonicalMutationTarget({
-    required this.organizationId,
-    required this.appId,
-    required this.namedEnvironmentId,
-    required this.environmentTargetId,
-    required this.runtimePlane,
-  });
-
-  final int organizationId;
-  final int appId;
-  final int namedEnvironmentId;
-  final int environmentTargetId;
-  final RuntimePlane runtimePlane;
 }

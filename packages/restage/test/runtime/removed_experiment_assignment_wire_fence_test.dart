@@ -22,7 +22,14 @@ void main() {
     final offenders = <String>[];
     for (final file in publicSources) {
       final source = file.readAsStringSync();
-      if (file.path == _surfaceResponseParserPath(repository)) {
+      if (file.path == _canonicalAssignmentPath(repository)) {
+        _assertRequiredFence(source, _canonicalAssignmentFence, file.path);
+        _assertRequiredFence(
+          source,
+          _canonicalAssignmentFieldsFence,
+          file.path,
+        );
+      } else if (file.path == _surfaceResponseParserPath(repository)) {
         _assertRequiredFence(
           source,
           _surfaceResponseFence,
@@ -171,6 +178,20 @@ final _surfaceResponseFence = RegExp(
   dotAll: true,
 );
 
+// `experimentId` is a member of the current canonical assignment. It is
+// allowed only inside that declaration and its own field set.
+final _canonicalAssignmentFence = RegExp(
+  r'''^final class CanonicalSurfaceExperimentAssignmentV1 \{.*?^\}\n''',
+  multiLine: true,
+  dotAll: true,
+);
+
+final _canonicalAssignmentFieldsFence = RegExp(
+  r'''^const Set<String> _assignmentFields = <String>\{\n.*?^\};\n''',
+  multiLine: true,
+  dotAll: true,
+);
+
 final _analyticsFieldFence = RegExp(
   r'''^const _unsupportedTopLevelFields = <String>\{\n.*?^\};\n''',
   multiLine: true,
@@ -185,6 +206,9 @@ final _analyticsReservedKeysFence = RegExp(
 
 String _surfaceResponseParserPath(Directory root) =>
     '${root.path}/packages/restage/lib/src/restage_rpc_client/restage_rpc_client.dart';
+
+String _canonicalAssignmentPath(Directory root) =>
+    '${root.path}/packages/restage_shared/lib/src/surface_contract/surface_publication_contract.dart';
 
 String _analyticsParserPath(Directory root) =>
     '${root.path}/packages/restage_shared/lib/src/legacy_analytics/analytics_event.dart';
@@ -208,6 +232,21 @@ bool _isAllowedRefusalFenceOccurrence(
   Directory repository,
 ) {
   final line = _lineContaining(source, match.start);
+  if (path == _canonicalAssignmentPath(repository)) {
+    if (identifier != 'experimentId') return false;
+    for (final fence in <RegExp>[
+      _canonicalAssignmentFence,
+      _canonicalAssignmentFieldsFence,
+    ]) {
+      final region = fence.firstMatch(source);
+      if (region != null &&
+          match.start >= region.start &&
+          match.end <= region.end) {
+        return true;
+      }
+    }
+    return false;
+  }
   if (path == _surfaceResponseParserPath(repository)) {
     final fence = _surfaceResponseFence.firstMatch(source);
     return fence != null &&

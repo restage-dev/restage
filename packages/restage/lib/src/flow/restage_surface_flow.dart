@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 
-import '../analytics/render_event_privacy.dart';
+import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart';
 import '../events/restage_event.dart'
@@ -909,8 +909,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     if (!identical(_controller, controller)) return;
     final owner = currentSurfaceEventDispatcherOwner;
     if (owner == null) return;
-    final hasRegistration =
-        RestageFlowRenderEventPrivacyRegistry.hasRegistration(
+    final hasRegistration = RestageFlowEventDispatchRegistry.hasRegistration(
       controller: controller,
       owner: owner,
     );

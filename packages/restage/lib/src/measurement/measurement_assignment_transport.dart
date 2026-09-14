@@ -1,13 +1,33 @@
 import 'package:meta/meta.dart';
+import 'package:restage_shared/restage_shared.dart';
 
 import 'measurement_assignment_diagnostics.dart';
+
+/// One assignment-delivery attempt: its diagnostic and the accepted assignment.
+///
+/// The assignment is the service's committed decision, retained verbatim. The
+/// SDK never derives, repairs, or substitutes one.
+@internal
+final class MeasurementAssignmentDelivery {
+  /// Creates one delivery outcome.
+  const MeasurementAssignmentDelivery({
+    required this.diagnostic,
+    this.assignment,
+  });
+
+  /// Closed delivery state observed after the service's durable decision.
+  final MeasurementAssignmentDeliveryDiagnostic diagnostic;
+
+  /// The accepted assignment, or `null` when the service admitted none.
+  final CanonicalSurfaceExperimentAssignmentV1? assignment;
+}
 
 /// Dependency-inversion seam for an exact service-owned assignment contract.
 ///
 /// [Request] and [Result] belong to the frozen engine/service contract. The
 /// SDK neither serializes a substitute carrier nor interprets assignment
-/// selection or ITT state; it accepts only the diagnostic mapping supplied by
-/// the internal composition owner.
+/// selection or ITT state; it accepts only what the internal composition owner
+/// maps out of the service result.
 @internal
 abstract interface class MeasurementAssignmentTypedAdapter<
     Request extends Object, Result extends Object> {
@@ -16,6 +36,10 @@ abstract interface class MeasurementAssignmentTypedAdapter<
 
   /// Maps only the service result's delivery diagnostic into the SDK state.
   MeasurementAssignmentDeliveryDiagnostic diagnosticFor(Result result);
+
+  /// Reads the assignment the service committed, or `null` when it admitted
+  /// none.
+  CanonicalSurfaceExperimentAssignmentV1? assignmentFor(Result result);
 }
 
 /// Fail-closed SDK transport for assignment delivery diagnostics.
@@ -41,18 +65,21 @@ final class MeasurementAssignmentTransport<Request extends Object,
   final MeasurementAssignmentTypedAdapter<Request, Result>? _adapter;
   final _MeasurementAssignmentTransportMode _mode;
 
-  /// Delivers [request] and retains only its closed diagnostic result.
-  Future<MeasurementAssignmentDeliveryDiagnostic> deliver(
-    Request request,
-  ) async {
+  /// Delivers [request] and retains the accepted assignment with its
+  /// diagnostic.
+  Future<MeasurementAssignmentDelivery> deliver(Request request) async {
     switch (_mode) {
       case _MeasurementAssignmentTransportMode.disabled:
-        return const MeasurementAssignmentDeliveryUnavailable(
-          MeasurementAssignmentUnavailableReason.disabled,
+        return const MeasurementAssignmentDelivery(
+          diagnostic: MeasurementAssignmentDeliveryUnavailable(
+            MeasurementAssignmentUnavailableReason.disabled,
+          ),
         );
       case _MeasurementAssignmentTransportMode.noAdapter:
-        return const MeasurementAssignmentDeliveryUnavailable(
-          MeasurementAssignmentUnavailableReason.noAdapter,
+        return const MeasurementAssignmentDelivery(
+          diagnostic: MeasurementAssignmentDeliveryUnavailable(
+            MeasurementAssignmentUnavailableReason.noAdapter,
+          ),
         );
       case _MeasurementAssignmentTransportMode.adapter:
         break;
@@ -61,10 +88,15 @@ final class MeasurementAssignmentTransport<Request extends Object,
     try {
       final adapter = _adapter!;
       final result = await adapter.deliver(request);
-      return adapter.diagnosticFor(result);
+      return MeasurementAssignmentDelivery(
+        diagnostic: adapter.diagnosticFor(result),
+        assignment: adapter.assignmentFor(result),
+      );
     } on Object {
-      return const MeasurementAssignmentDeliveryUnavailable(
-        MeasurementAssignmentUnavailableReason.transportFailure,
+      return const MeasurementAssignmentDelivery(
+        diagnostic: MeasurementAssignmentDeliveryUnavailable(
+          MeasurementAssignmentUnavailableReason.transportFailure,
+        ),
       );
     }
   }

@@ -238,7 +238,12 @@ final class MeasurementWorkerSessionRegistration {
     required List<MeasurementWorkerRouteIdentity> routes,
     required this.limits,
     required this.firstSequence,
-  })  : _publicationContextCanonicalBytes = Uint8List.fromList(
+    List<int>? experimentAssignmentCanonicalBytes,
+  })  : _experimentAssignmentCanonicalBytes =
+            experimentAssignmentCanonicalBytes == null
+                ? null
+                : Uint8List.fromList(experimentAssignmentCanonicalBytes),
+        _publicationContextCanonicalBytes = Uint8List.fromList(
           publicationContextCanonicalBytes,
         ),
         routes = List.unmodifiable(routes) {
@@ -248,6 +253,9 @@ final class MeasurementWorkerSessionRegistration {
         _publicationContextCanonicalBytes.length >
             kMeasurementWorkerMaximumPublicationContextBytes ||
         this.routes.length > kMeasurementWorkerMaximumRouteCount ||
+        (_experimentAssignmentCanonicalBytes != null &&
+            (_experimentAssignmentCanonicalBytes.isEmpty ||
+                _experimentAssignmentCanonicalBytes.length > 8192)) ||
         firstSequence <= 0 ||
         firstSequence > kMeasurementWorkerMaximumPortableInteger) {
       throw ArgumentError('Invalid measurement worker session registration');
@@ -266,6 +274,14 @@ final class MeasurementWorkerSessionRegistration {
   Uint8List get publicationContextCanonicalBytes =>
       Uint8List.fromList(_publicationContextCanonicalBytes);
 
+  final Uint8List? _experimentAssignmentCanonicalBytes;
+
+  /// Closed assignment bytes, defensively copied for worker transfer.
+  Uint8List? get experimentAssignmentCanonicalBytes {
+    final bytes = _experimentAssignmentCanonicalBytes;
+    return bytes == null ? null : Uint8List.fromList(bytes);
+  }
+
   /// Immutable precomputed route table identities.
   final List<MeasurementWorkerRouteIdentity> routes;
 
@@ -282,10 +298,11 @@ final class MeasurementWorkerSessionRegistration {
         [for (final route in routes) route.toWire()],
         limits.toWire(),
         firstSequence,
+        experimentAssignmentCanonicalBytes,
       ];
 
   static MeasurementWorkerSessionRegistration fromWire(Object? value) {
-    final values = _requireList(value, expectedLength: 6);
+    final values = _requireList(value, expectedLength: 7);
     final rawRoutes = _requireList(values[3]);
     return MeasurementWorkerSessionRegistration(
       sessionId: _requireString(values[0]),
@@ -297,6 +314,8 @@ final class MeasurementWorkerSessionRegistration {
       ],
       limits: MeasurementWorkerSessionLimits.fromWire(values[4]),
       firstSequence: _requireInt(values[5]),
+      experimentAssignmentCanonicalBytes:
+          values[6] == null ? null : _requireBytes(values[6]),
     );
   }
 }
@@ -679,7 +698,8 @@ abstract interface class MeasurementWorkerRuntimeState {
   /// Releases the worker-owned batch copy after downstream durable ownership.
   Future<MeasurementWorkerReleaseResult> releasePreparedBatch(String batchId);
 
-  /// Finalizes active sessions through ordered barriers and closes the worker.
+  /// Finalizes unassigned sessions and closes the worker.
+  /// Assigned sessions require an explicit teardown with an elapsed sample.
   Future<MeasurementWorkerShutdownResult> shutdown();
 
   /// Test-only crash control used to prove fail-closed propagation.
@@ -690,9 +710,9 @@ abstract interface class MeasurementWorkerRuntimeState {
 abstract interface class MeasurementWorkerSessionState {
   MeasurementWorkerAppendOutcome append(MeasurementWorkerAppendRecord record);
 
-  Future<MeasurementWorkerBatchResult> checkpoint();
+  Future<MeasurementWorkerBatchResult> checkpoint({int? frameElapsedMicros});
 
-  Future<MeasurementWorkerBatchResult> teardown();
+  Future<MeasurementWorkerBatchResult> teardown({int? frameElapsedMicros});
 }
 
 /// Public handle for one worker-owned session.
@@ -711,10 +731,14 @@ final class MeasurementWorkerSession {
       _state.append(record);
 
   /// Orders a nonterminal checkpoint after prior appends.
-  Future<MeasurementWorkerBatchResult> checkpoint() => _state.checkpoint();
+  /// Assigned sessions require elapsed time from the append clock.
+  Future<MeasurementWorkerBatchResult> checkpoint({int? frameElapsedMicros}) =>
+      _state.checkpoint(frameElapsedMicros: frameElapsedMicros);
 
   /// Orders finalization after prior appends and rejects later appends locally.
-  Future<MeasurementWorkerBatchResult> teardown() => _state.teardown();
+  /// Assigned sessions require elapsed time from the append clock.
+  Future<MeasurementWorkerBatchResult> teardown({int? frameElapsedMicros}) =>
+      _state.teardown(frameElapsedMicros: frameElapsedMicros);
 }
 
 /// Platform implementation result before the public runtime wrapper is created.
@@ -816,15 +840,29 @@ abstract final class MeasurementWorkerProtocol {
   static List<Object?> checkpoint({
     required int requestId,
     required String sessionId,
+    int? frameElapsedMicros,
   }) =>
-      [_checkpoint, kMeasurementWorkerProtocolVersion, requestId, sessionId];
+      [
+        _checkpoint,
+        kMeasurementWorkerProtocolVersion,
+        requestId,
+        sessionId,
+        frameElapsedMicros
+      ];
 
   /// Builds one ordered finalization barrier.
   static List<Object?> teardown({
     required int requestId,
     required String sessionId,
+    int? frameElapsedMicros,
   }) =>
-      [_teardown, kMeasurementWorkerProtocolVersion, requestId, sessionId];
+      [
+        _teardown,
+        kMeasurementWorkerProtocolVersion,
+        requestId,
+        sessionId,
+        frameElapsedMicros
+      ];
 
   /// Builds one byte-identical retry request.
   static List<Object?> retry({
@@ -957,12 +995,14 @@ abstract final class MeasurementWorkerProtocol {
         ),
       _append => _decodeAppend(values),
       _checkpoint => MeasurementWorkerCheckpointMessage(
-          requestId: _requirePositiveRequestId(values, expectedLength: 4),
+          requestId: _requirePositiveRequestId(values, expectedLength: 5),
           sessionId: _requireString(values[3]),
+          frameElapsedMicros: values[4] == null ? null : _requireInt(values[4]),
         ),
       _teardown => MeasurementWorkerTeardownMessage(
-          requestId: _requirePositiveRequestId(values, expectedLength: 4),
+          requestId: _requirePositiveRequestId(values, expectedLength: 5),
           sessionId: _requireString(values[3]),
+          frameElapsedMicros: values[4] == null ? null : _requireInt(values[4]),
         ),
       _retry => MeasurementWorkerRetryMessage(
           requestId: _requirePositiveRequestId(values, expectedLength: 4),
@@ -1093,10 +1133,12 @@ final class MeasurementWorkerCheckpointMessage
   const MeasurementWorkerCheckpointMessage({
     required this.requestId,
     required this.sessionId,
+    this.frameElapsedMicros,
   });
 
   final int requestId;
   final String sessionId;
+  final int? frameElapsedMicros;
 }
 
 /// Parsed finalization barrier command.
@@ -1105,10 +1147,12 @@ final class MeasurementWorkerTeardownMessage
   const MeasurementWorkerTeardownMessage({
     required this.requestId,
     required this.sessionId,
+    this.frameElapsedMicros,
   });
 
   final int requestId;
   final String sessionId;
+  final int? frameElapsedMicros;
 }
 
 /// Parsed retained-batch retry command.

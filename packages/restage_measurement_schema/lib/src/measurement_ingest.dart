@@ -22,6 +22,13 @@ const int measurementIngestMaximumFactFrameBytes = 256 * 1024;
 const int measurementIngestMaximumReceiptBytes =
     measurementIngestMaximumRequestBytes;
 
+/// Maximum characters in the opaque outcome-link carrier.
+const int measurementOutcomeLinkCarrierMaximumLength = 4096;
+
+/// Maximum capture-session offset a first-occurrence witness may report.
+const int measurementIngestMaximumOutcomeWitnessMicros =
+    7 * 24 * 60 * 60 * 1000 * 1000;
+
 const int _maximumPresentedPoints = 1024;
 
 const int _maximumInteractionCounters = 256;
@@ -390,6 +397,8 @@ final class MeasurementFactFrameV1 {
     required Uint8List canonicalBytes,
     required this.bounds,
     required this.captureSessionNonce,
+    required this.experimentAssignment,
+    required this.frameElapsedMicros,
     required this.facts,
     required this.isFinal,
     required this.missingness,
@@ -412,6 +421,8 @@ final class MeasurementFactFrameV1 {
         allowedKeys: const {
           'bounds',
           'captureSessionNonce',
+          'experimentAssignment',
+          'frameElapsedMicros',
           'facts',
           'finality',
           'kind',
@@ -464,10 +475,37 @@ final class MeasurementFactFrameV1 {
         reader.object('truncation'),
         maximumCounterValue: bounds.maximumCounterValue,
       );
+      final assignmentValues = reader.optionalObject('experimentAssignment');
+      final elapsed = reader.optionalInteger('frameElapsedMicros');
+      if (elapsed != null &&
+          (elapsed < 0 ||
+              elapsed > measurementIngestMaximumOutcomeWitnessMicros)) {
+        throw const MeasurementIngestCodecException(
+            'frame_elapsed_out_of_range');
+      }
+      if (assignmentValues != null && elapsed == null) {
+        throw const MeasurementIngestCodecException(
+            'assigned_frame_missing_elapsed');
+      }
+      for (final fact in facts) {
+        for (final witness in [
+          fact.presentationFirstOccurrenceMicros,
+          fact.interactionFirstOccurrenceMicros,
+        ]) {
+          if (witness != null && (elapsed == null || witness > elapsed)) {
+            throw const MeasurementIngestCodecException(
+                'witness_after_frame_elapsed');
+          }
+        }
+      }
       return MeasurementFactFrameV1._(
         canonicalBytes: canonicalBytes,
         bounds: bounds,
         captureSessionNonce: nonce,
+        experimentAssignment: assignmentValues == null
+            ? null
+            : MeasurementExperimentAssignmentV1.fromJson(assignmentValues),
+        frameElapsedMicros: elapsed,
         facts: facts,
         isFinal: isFinal,
         missingness: missingness,
@@ -497,6 +535,15 @@ final class MeasurementFactFrameV1 {
   /// Opaque retry coordinate, not a subject identifier.
   final String captureSessionNonce;
 
+  /// The experiment assignment this capture session was delivered under.
+  ///
+  /// Absent whenever the delivered surface carried no assignment.
+  final MeasurementExperimentAssignmentV1? experimentAssignment;
+
+  /// Capture-session elapsed time when this snapshot was emitted.
+  /// Required for assigned frames and frames carrying occurrence witnesses.
+  final int? frameElapsedMicros;
+
   /// Bounded source facts selected only by compiler-owned identities.
   final List<MeasurementFact> facts;
 
@@ -517,6 +564,58 @@ final class MeasurementFactFrameV1 {
 
   /// Explicit truncation evidence.
   final MeasurementTruncation truncation;
+}
+
+/// The experiment assignment a delivered surface carried into capture.
+///
+/// The carrier is an opaque server-issued handle. It identifies no subject and
+/// the SDK never interprets it; holding one proves only that the server issued
+/// this outcome link.
+final class MeasurementExperimentAssignmentV1 {
+  /// Creates one assignment from an already-validated carrier.
+  const MeasurementExperimentAssignmentV1({
+    required this.outcomeLinkCarrier,
+  });
+
+  /// Strictly decodes one closed assignment object.
+  factory MeasurementExperimentAssignmentV1.fromJson(
+    Map<String, Object?> values,
+  ) {
+    const path = 'measurementFactFrame.experimentAssignment';
+    final reader = _IngestObjectReader(
+      values,
+      allowedKeys: const {
+        'kind',
+        'outcomeLinkCarrier',
+        'schemaVersion',
+      },
+      requiredKeys: const {'kind', 'outcomeLinkCarrier', 'schemaVersion'},
+      path: path,
+    );
+    _requireDocument(reader, 'measurementExperimentAssignment');
+    final carrier = reader.string('outcomeLinkCarrier');
+    if (carrier.length > measurementOutcomeLinkCarrierMaximumLength) {
+      throw const MeasurementIngestCodecException('carrier_too_long');
+    }
+    _decodeBase64Url(
+      carrier,
+      path: '$path.outcomeLinkCarrier',
+      maximumBytes: (measurementOutcomeLinkCarrierMaximumLength * 3) ~/ 4,
+    );
+    return MeasurementExperimentAssignmentV1(
+      outcomeLinkCarrier: carrier,
+    );
+  }
+
+  /// Opaque handle to the outcome link the server issued with this assignment.
+  final String outcomeLinkCarrier;
+
+  /// Closed assignment representation.
+  Map<String, Object?> toJson() => {
+        'kind': 'measurementExperimentAssignment',
+        'outcomeLinkCarrier': outcomeLinkCarrier,
+        'schemaVersion': kMeasurementSchemaVersion,
+      };
 }
 
 /// Per-frame bounds admitted before fact values are materialized.
@@ -669,6 +768,8 @@ final class MeasurementFact {
     required this.lineageId,
     required this.interactionState,
     required this.interactionCount,
+    this.presentationFirstOccurrenceMicros,
+    this.interactionFirstOccurrenceMicros,
   });
 
   /// Decodes one closed subjectless fact object.
@@ -683,6 +784,8 @@ final class MeasurementFact {
         'interactionState',
         'lineageId',
         'occurrenceId',
+        'presentationFirstOccurrenceMicros',
+        'interactionFirstOccurrenceMicros',
       },
       requiredKeys: const {'interactionState', 'lineageId', 'occurrenceId'},
       path: 'measurementFactFrame.facts[]',
@@ -738,11 +841,38 @@ final class MeasurementFact {
             interactionCount.value != bounds.maximumCounterValue)) {
       throw const MeasurementIngestCodecException('invalid_observed_capped');
     }
+    final presentationWitness =
+        reader.optionalInteger('presentationFirstOccurrenceMicros');
+    final interactionWitness =
+        reader.optionalInteger('interactionFirstOccurrenceMicros');
+    for (final witness in [presentationWitness, interactionWitness]) {
+      if (witness != null &&
+          (witness < 0 ||
+              witness > measurementIngestMaximumOutcomeWitnessMicros)) {
+        throw const MeasurementIngestCodecException('witness_out_of_range');
+      }
+    }
+    if (interactionWitness != null &&
+        interactionState != MeasurementFactInteractionState.observedValue &&
+        interactionState != MeasurementFactInteractionState.observedCapped) {
+      throw const MeasurementIngestCodecException(
+        'interaction_witness_without_value',
+      );
+    }
+    if (presentationWitness != null &&
+        interactionWitness != null &&
+        interactionWitness < presentationWitness) {
+      throw const MeasurementIngestCodecException(
+        'interaction_witness_before_presentation',
+      );
+    }
     return MeasurementFact(
       occurrenceId: occurrenceId,
       lineageId: lineageId,
       interactionState: interactionState,
       interactionCount: interactionCount,
+      presentationFirstOccurrenceMicros: presentationWitness,
+      interactionFirstOccurrenceMicros: interactionWitness,
     );
   }
 
@@ -758,6 +888,12 @@ final class MeasurementFact {
   /// Interaction counter when transport retained one for this presented point.
   final MeasurementCounter? interactionCount;
 
+  /// Capture-session offset of this point's first retained presentation.
+  final int? presentationFirstOccurrenceMicros;
+
+  /// Capture-session offset of this point's first positive interaction.
+  final int? interactionFirstOccurrenceMicros;
+
   /// Closed identity key for bounded monotonicity validation.
   String get identity => '$occurrenceId\u0000$lineageId';
 
@@ -766,6 +902,11 @@ final class MeasurementFact {
         if (interactionCount != null)
           'interactionCount': interactionCount!.toJson(),
         'interactionState': interactionState.wireName,
+        if (presentationFirstOccurrenceMicros != null)
+          'presentationFirstOccurrenceMicros':
+              presentationFirstOccurrenceMicros,
+        if (interactionFirstOccurrenceMicros != null)
+          'interactionFirstOccurrenceMicros': interactionFirstOccurrenceMicros,
         'lineageId': lineageId,
         'occurrenceId': occurrenceId,
       };
@@ -1143,6 +1284,11 @@ final class _IngestObjectReader {
         _values[key],
         '$path.$key',
       );
+
+  int? optionalInteger(String key) {
+    if (!_values.containsKey(key)) return null;
+    return integer(key);
+  }
 
   Map<String, Object?>? optionalObject(String key) {
     if (!_values.containsKey(key)) return null;

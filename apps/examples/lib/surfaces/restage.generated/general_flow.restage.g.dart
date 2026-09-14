@@ -9,7 +9,7 @@ const generalJourneyRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeGeneralJourneyResult,
   measurementPublicationDraftDigest:
-      '374886c2ed4976406e1bd301cc297620152ef8773b4981880c3655f7daf13948',
+      '58c7a4ecc6a2025610c4a461d7387e2b917da80a7e168410e86c74d5b7a3d0ff',
 );
 
 GeneralJourneyResult _decodeGeneralJourneyResult(Map<String, Object?> result) {
