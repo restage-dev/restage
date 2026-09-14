@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage/src/restage_rpc_client/uuid_v4.dart';
 import 'package:restage/src/resolver/surface_assignment_built_ins.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
@@ -16,8 +17,12 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../surface_screen/surface_screen_test_support.dart';
+import '../support/supported_policy_revisions_body.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 
 void main() {
+  setUp(debugResetAppBuildOrdinal);
+  tearDown(debugResetAppBuildOrdinal);
   TestWidgetsFlutterBinding.ensureInitialized();
   const supportChannel = MethodChannel('plugins.flutter.io/path_provider');
   final messenger =
@@ -49,17 +54,8 @@ void main() {
     }
   });
 
-  test('assignment API level matches the compiled SDK major version', () {
-    final pubspec = [
-      File('pubspec.yaml'),
-      File('packages/restage/pubspec.yaml')
-    ].firstWhere((file) =>
-        file.existsSync() &&
-        file.readAsStringSync().startsWith('name: restage\n'));
-    final major = RegExp(r'^version: ([0-9]+)\.', multiLine: true)
-        .firstMatch(pubspec.readAsStringSync())!
-        .group(1)!;
-    expect(assignmentSdkApiLevel, int.parse(major));
+  test('the compiled assignment API level is 3', () {
+    expect(assignmentSdkApiLevel, 3);
   });
 
   test(
@@ -130,26 +126,37 @@ void main() {
     expect(registrationRequests, hasLength(1));
     expect(surfaceRequests.single['assignmentKey'], 'credential.screen.1');
     expect(
-        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
-            surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
-        {'appBuildOrdinal': 42, 'platform': 'android', 'sdkApiLevel': 2});
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('appBuildOrdinal', 42),
+    );
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('platform', 'android'),
+    );
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('sdkApiLevel', 3),
+    );
     expect(surfaceRequests.single.containsKey('assignmentCanonicalBase64'),
         isFalse);
 
-    final cached =
+    final resolvedAgain =
         await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
-    expect(measurementExperimentAssignmentFor(cached), assignment);
-    expect(surfaceRequests, hasLength(1));
+    expect(measurementExperimentAssignmentFor(resolvedAgain), assignment);
+    expect(surfaceRequests, hasLength(2));
 
     configure();
     await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
     expect(registrationRequests[1]['registrationNonce'],
         registrationRequests[0]['registrationNonce']);
     expect(registrationRequests[1]['credentialHandle'], 'credential.screen.1');
-    expect(surfaceRequests[1]['assignmentCanonicalBase64'], isNotNull);
+    expect(surfaceRequests[2]['assignmentCanonicalBase64'], isNotNull);
     expect(
         jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
-            surfaceRequests[1]['assignmentCanonicalBase64'] as String)))),
+            surfaceRequests[2]['assignmentCanonicalBase64'] as String)))),
         assignment.toJson());
 
     Restage.reset();
@@ -230,12 +237,18 @@ void main() {
         }),
       );
       await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
-      expect(seen.containsKey('sdkBuiltInsCanonicalBase64'), isFalse,
+      final carrier = seen['sdkBuiltInsCanonicalBase64'] as String;
+      final observations = jsonDecode(
+          utf8.decode(base64Url.decode(base64Url.normalize(carrier)))) as Map;
+      expect(observations.containsKey('appBuildOrdinal'), isFalse,
           reason: buildNumber);
+      expect(observations['platform'], 'android', reason: buildNumber);
+      expect(observations['sdkApiLevel'], 3, reason: buildNumber);
     }
   });
 
-  test('collection opt-outs send no credential or assignment carriers',
+  test(
+      'collection opt-outs send observations but no credential or assignment carriers',
       () async {
     final fixture = stringScreenFixture();
     for (final disabled in ['analytics', 'measurement']) {
@@ -267,12 +280,253 @@ void main() {
       for (final key in [
         'assignmentKey',
         'assignmentCanonicalBase64',
-        'sdkBuiltInsCanonicalBase64'
       ]) {
         expect(requests.single.containsKey(key), isFalse,
             reason: '$disabled $key');
       }
+      expect(requests.single.containsKey('sdkBuiltInsCanonicalBase64'), isTrue,
+          reason: '$disabled observations');
     }
+  });
+
+  test(
+      'measurement off still reports observations without an assignment credential',
+      () async {
+    final fixture = stringScreenFixture();
+    final surfaceRequests = <Map<String, dynamic>>[];
+    Restage.configure(
+      apiKey: 'rs_pk_observations',
+      baseUrl: 'https://surfaces.example.com',
+      measurementEnabled: false,
+    );
+    Restage.debugRestageRpcClient = RestageRpcClient(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_observations',
+      httpClient: fixture.hostedDelivery.client((request) async {
+        expect(request.url.path, '/sdk/v1/surface');
+        surfaceRequests.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              fixture.delivery(hostedBlob: fixture.blob, publishedRevision: 8),
+            ),
+            200);
+      }),
+    );
+    await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
+    expect(surfaceRequests, hasLength(1));
+    expect(surfaceRequests.single.containsKey('sdkBuiltInsCanonicalBase64'),
+        isTrue);
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('appBuildOrdinal', 42),
+    );
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('platform', 'android'),
+    );
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('sdkApiLevel', 3),
+    );
+    expect(surfaceRequests.single.containsKey('assignmentKey'), isFalse);
+  });
+
+  test(
+      'analytics off still reports observations without an assignment credential',
+      () async {
+    final fixture = stringScreenFixture();
+    final surfaceRequests = <Map<String, dynamic>>[];
+    Restage.configure(
+      apiKey: 'rs_pk_observations',
+      baseUrl: 'https://surfaces.example.com',
+      analyticsEnabled: false,
+    );
+    Restage.debugRestageRpcClient = RestageRpcClient(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_observations',
+      httpClient: fixture.hostedDelivery.client((request) async {
+        expect(request.url.path, '/sdk/v1/surface');
+        surfaceRequests.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              fixture.delivery(hostedBlob: fixture.blob, publishedRevision: 8),
+            ),
+            200);
+      }),
+    );
+    await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
+    expect(surfaceRequests, hasLength(1));
+    expect(surfaceRequests.single.containsKey('sdkBuiltInsCanonicalBase64'),
+        isTrue);
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('appBuildOrdinal', 42),
+    );
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('platform', 'android'),
+    );
+    expect(
+      jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
+      containsPair('sdkApiLevel', 3),
+    );
+    expect(surfaceRequests.single.containsKey('assignmentKey'), isFalse);
+  });
+
+  Future<void> captureGeneralAnalyticsRequest(
+    List<Map<String, dynamic>> surfaceRequests, {
+    bool analyticsEnabled = true,
+    bool measurementEnabled = true,
+  }) async {
+    final fixture = stringScreenFixture();
+    Restage.configure(
+      apiKey: 'rs_pk_analytics',
+      baseUrl: 'https://surfaces.example.com',
+      analyticsEnabled: analyticsEnabled,
+      measurementEnabled: measurementEnabled,
+    );
+    final client = RestageRpcClient(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_analytics',
+      httpClient: fixture.hostedDelivery.client((request) async {
+        if (request.url.path.endsWith('assignment-credential')) {
+          return http.Response('{}', 503);
+        }
+        expect(request.url.path, '/sdk/v1/surface');
+        surfaceRequests.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response('{}', 404);
+      }),
+    );
+    Restage.debugRestageRpcClient = client;
+    await client.fetchSurface(surfaceType: 'paywall', surfaceSlug: 'example');
+  }
+
+  test('the general active request carries the policy revision support report',
+      () async {
+    final surfaceRequests = <Map<String, dynamic>>[];
+    await captureGeneralAnalyticsRequest(surfaceRequests);
+    expect(surfaceRequests, hasLength(1));
+    withoutSupportedPolicyRevisions(surfaceRequests.single);
+  });
+
+  test('the typed screen request carries the policy revision support report',
+      () async {
+    final fixture = stringScreenFixture();
+    final surfaceRequests = <Map<String, dynamic>>[];
+    Restage.configure(
+      apiKey: 'rs_pk_support',
+      baseUrl: 'https://surfaces.example.com',
+    );
+    Restage.debugRestageRpcClient = RestageRpcClient(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_support',
+      httpClient: fixture.hostedDelivery.client((request) async {
+        if (request.url.path.endsWith('assignment-credential')) {
+          return http.Response('{}', 503);
+        }
+        expect(request.url.path, '/sdk/v1/surface');
+        surfaceRequests.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+            fixture.delivery(hostedBlob: fixture.blob, publishedRevision: 8),
+          ),
+          200,
+        );
+      }),
+    );
+    final resolved =
+        await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
+    expect(resolved.origin, SurfaceScreenOrigin.hosted);
+    expect(surfaceRequests, hasLength(1));
+    withoutSupportedPolicyRevisions(surfaceRequests.single);
+  });
+
+  test('policy revision support is reported when measurement is disabled',
+      () async {
+    final surfaceRequests = <Map<String, dynamic>>[];
+    await captureGeneralAnalyticsRequest(surfaceRequests,
+        measurementEnabled: false);
+    expect(surfaceRequests, hasLength(1));
+    withoutSupportedPolicyRevisions(surfaceRequests.single);
+  });
+
+  test('analytics disabled mints nothing and sends nothing', () async {
+    final surfaceRequests = <Map<String, dynamic>>[];
+    await captureGeneralAnalyticsRequest(surfaceRequests,
+        analyticsEnabled: false);
+    expect(surfaceRequests, hasLength(1));
+    expect(surfaceRequests.single.containsKey('analyticsAnonymousId'), isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.containsKey('restage.analytics.anonymous_id'), isFalse);
+  });
+
+  test('analytics on with measurement off still sends its identifier',
+      () async {
+    final surfaceRequests = <Map<String, dynamic>>[];
+    await captureGeneralAnalyticsRequest(surfaceRequests,
+        measurementEnabled: false);
+    expect(surfaceRequests, hasLength(1));
+    expect(
+        isValidUuidV4(surfaceRequests.single['analyticsAnonymousId'] as String),
+        isTrue);
+  });
+
+  test('reconfigure disabling analytics stops sending its identifier',
+      () async {
+    final surfaceRequests = <Map<String, dynamic>>[];
+    await captureGeneralAnalyticsRequest(surfaceRequests);
+    expect(surfaceRequests, hasLength(1));
+    expect(
+        isValidUuidV4(surfaceRequests.first['analyticsAnonymousId'] as String),
+        isTrue);
+    await captureGeneralAnalyticsRequest(surfaceRequests,
+        analyticsEnabled: false);
+    expect(surfaceRequests, hasLength(2));
+    expect(surfaceRequests.last.containsKey('analyticsAnonymousId'), isFalse);
+  });
+
+  test('typed screen resolution sends the analytics identifier', () async {
+    final fixture = stringScreenFixture();
+    final surfaceRequests = <Map<String, dynamic>>[];
+    Restage.configure(
+      apiKey: 'rs_pk_analytics',
+      baseUrl: 'https://surfaces.example.com',
+      analyticsEnabled: true,
+    );
+    Restage.debugRestageRpcClient = RestageRpcClient(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_analytics',
+      httpClient: fixture.hostedDelivery.client((request) async {
+        if (request.url.path.endsWith('assignment-credential')) {
+          return http.Response('{}', 503);
+        }
+        expect(request.url.path, '/sdk/v1/surface');
+        surfaceRequests.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              fixture.delivery(hostedBlob: fixture.blob, publishedRevision: 8),
+            ),
+            200);
+      }),
+    );
+    final resolved =
+        await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
+    expect(resolved.origin, SurfaceScreenOrigin.hosted);
+    expect(surfaceRequests, hasLength(1));
+    expect(
+        isValidUuidV4(surfaceRequests.single['analyticsAnonymousId'] as String),
+        isTrue);
+  });
+
+  test('no base URL reports no observations', () async {
+    Restage.configure(apiKey: 'rs_pk_no_base_url');
+    expect(await SurfaceCanonicalCarrierProvider.builtIns(), isNull);
   });
 
   test('bundled-only setup creates no enrollment transport or carriers',

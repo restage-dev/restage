@@ -1,6 +1,10 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart'
+    show normalizePresentationCountry;
 import 'package:restage_shared/restage_shared.dart'
     show kDeviceContractPaths, kThemeContractPaths;
 import 'package:rfw/rfw.dart';
@@ -16,12 +20,49 @@ Object _readKey(DynamicContent dc, String key) {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('populateDeviceData', () {
+    test('null region uses the device country instead of the UI country', () {
+      final country = normalizePresentationCountry(
+        PlatformDispatcher.instance.locale.countryCode,
+      );
+      final uiCountry = country == 'US' ? 'SE' : 'US';
+      final locale = Locale('en', uiCountry);
+      final dc = DynamicContent();
+      populateDeviceData(
+        dc,
+        locale: locale,
+        deviceRegion: null,
+        mediaQuery: const MediaQueryData(),
+      );
+
+      final device = _readKey(dc, 'device') as Map;
+      expect(device['countryCode'], country);
+      expect(device['countryCode'], isNot(uiCountry));
+      expect(device['locale'], locale.toString());
+      expect(device['languageCode'], 'en');
+    });
+
+    test('an invalid device region omits the country key', () {
+      final dc = DynamicContent();
+      populateDeviceData(
+        dc,
+        locale: const Locale('en', 'US'),
+        deviceRegion: 'XYZ',
+        mediaQuery: const MediaQueryData(),
+      );
+
+      final device = _readKey(dc, 'device') as Map;
+      expect(device.containsKey('countryCode'), isFalse);
+    });
+
     test('includes locale, platform, screen dimensions, safe-area insets', () {
       final dc = DynamicContent();
       populateDeviceData(
         dc,
         locale: const Locale('en', 'US'),
+        deviceRegion: 'se',
         mediaQuery: const MediaQueryData(
           size: Size(390, 844),
           devicePixelRatio: 3.0,
@@ -34,7 +75,7 @@ void main() {
       final device = _readKey(dc, 'device') as Map;
       expect(device['locale'], 'en_US');
       expect(device['languageCode'], 'en');
-      expect(device['countryCode'], 'US');
+      expect(device['countryCode'], 'SE');
       expect(device['platform'], 'ios');
       expect(device['screenWidth'], 390.0);
       expect(device['screenHeight'], 844.0);
@@ -75,6 +116,7 @@ void main() {
       populateDeviceData(
         dc,
         locale: const Locale('fr'),
+        deviceRegion: 'XYZ',
         mediaQuery: const MediaQueryData(),
       );
 
@@ -100,12 +142,13 @@ void main() {
     });
 
     test(
-        'a country-bearing locale publishes exactly the kDeviceContractPaths '
+        'a known device region publishes exactly the kDeviceContractPaths '
         'set — drift gate against the codegen-side contract validation', () {
       final dc = DynamicContent();
       populateDeviceData(
         dc,
         locale: const Locale('en', 'US'),
+        deviceRegion: 'se',
         mediaQuery: const MediaQueryData(),
         platform: 'iOS',
       );

@@ -101,6 +101,8 @@ export 'src/resolver/restage_variant_resolver.dart'
 export 'src/secure_transport.dart' show InsecureBaseUrlException;
 export 'src/resolver/resolved_variant.dart';
 export 'src/resolver/variant_resolver.dart';
+export 'src/resolver/surface_resolution_report.dart'
+    show SurfaceResolutionSource, SurfaceResolutionReport;
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart';

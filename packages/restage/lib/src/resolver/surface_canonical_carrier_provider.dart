@@ -72,6 +72,10 @@ abstract final class SurfaceCanonicalCarrierProvider {
   static void installHeldAssignment(FutureOr<String?> Function()? provider) =>
       _heldAssignment = provider;
 
+  /// Whether an audience-observation source is installed.
+  @internal
+  static bool get hasBuiltIns => _builtIns != null;
+
   /// Resolves the audience observations, or null when unavailable.
   static Future<String?> builtIns() => _resolve(_builtIns);
 

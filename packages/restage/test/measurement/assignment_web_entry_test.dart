@@ -17,7 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
-      'browser configure keeps hosted requests ordinary without delivery support',
+      'browser configure reports observations without an assignment credential',
       () async {
     SharedPreferences.setMockInitialValues({});
     Restage.debugReset();
@@ -44,15 +44,27 @@ void main() {
           .fetchSurface(surfaceType: 'message', surfaceSlug: 'welcome');
       expect(requests.map((r) => r.url.path), ['/sdk/v1/surface']);
       final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
-      for (final key in [
-        'assignmentKey',
-        'sdkBuiltInsCanonicalBase64',
-        'assignmentCanonicalBase64'
-      ]) {
+      for (final key in ['assignmentKey', 'assignmentCanonicalBase64']) {
         expect(body.containsKey(key), isFalse, reason: key);
       }
+      expect(body.containsKey('sdkBuiltInsCanonicalBase64'), isTrue);
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url
+            .normalize(body['sdkBuiltInsCanonicalBase64'] as String)))),
+        containsPair('appBuildOrdinal', 42),
+      );
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url
+            .normalize(body['sdkBuiltInsCanonicalBase64'] as String)))),
+        containsPair('platform', 'web'),
+      );
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url
+            .normalize(body['sdkBuiltInsCanonicalBase64'] as String)))),
+        containsPair('sdkApiLevel', 3),
+      );
       expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
-      expect(await SurfaceCanonicalCarrierProvider.builtIns(), isNull);
+      expect(await SurfaceCanonicalCarrierProvider.builtIns(), isNotNull);
       final prefs = await SharedPreferences.getInstance();
       expect(
           prefs.getKeys().where(

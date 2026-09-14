@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -923,6 +924,23 @@ void main() {
         () => SurfaceScreenDeliveryRequestV1Codec.decode(<String, Object?>{
           ...request.toJson(),
           'unknown': true,
+        }),
+        throwsFormatException,
+      );
+
+      final supportedRevisions =
+          'a' * sdkSupportedPolicyRevisionsMaximumCarrierCharacters;
+      expect(
+        SurfaceScreenDeliveryRequest.fromJson(<String, Object?>{
+          ...request.toJson(),
+          'sdkSupportedPolicyRevisions': supportedRevisions,
+        }).sdkSupportedPolicyRevisions,
+        supportedRevisions,
+      );
+      expect(
+        () => SurfaceScreenDeliveryRequest.fromJson(<String, Object?>{
+          ...request.toJson(),
+          'sdkSupportedPolicyRevisions': '${supportedRevisions}a',
         }),
         throwsFormatException,
       );

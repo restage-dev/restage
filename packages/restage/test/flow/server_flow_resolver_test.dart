@@ -15,6 +15,7 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 import '../support/restage_runtime_test_support.dart';
 
 /// The built-in catalog version this SDK build installs. A delivered document
@@ -82,7 +83,7 @@ void main() {
     expect(request.url.toString(), '$baseUrl/sdk/v1/surface');
     expect(request.headers['Authorization'], 'Bearer $apiKey');
     expect(
-      jsonDecode(request.body),
+      withoutSupportedPolicyRevisions(jsonDecode(request.body)),
       {'surfaceType': 'onboarding', 'surfaceSlug': 'first_run', 'version': 1},
     );
 
@@ -181,7 +182,8 @@ void main() {
 
       expect(requests, hasLength(1));
       expect(requests.single.url.toString(), '$baseUrl/sdk/v1/surface');
-      expect(jsonDecode(requests.single.body), {
+      expect(
+          withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)), {
         'surfaceType': testCase.wireName,
         'surfaceSlug': 'first_run',
         'version': 1,
@@ -214,6 +216,43 @@ void main() {
       resolver.resolve(messageRef),
       throwsA(_flowUnavailable('surface_mismatch')),
     );
+  });
+
+  test('an exact version reports fresh on the fetch and on the cache hit',
+      () async {
+    final reports = <SurfaceResolutionReport>[];
+    Restage.configure(
+      apiKey: apiKey,
+      analyticsEnabled: false,
+      measurementEnabled: false,
+      onSurfaceResolution: reports.add,
+    );
+    final screenBytes = Uint8List.fromList([1, 2, 3]);
+    final requests = <http.Request>[];
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      httpClient: _delivery.client((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode(_delivery.describeEnvelope(
+            _envelope(_validDocument(screenBytes: screenBytes), screenBytes),
+          )),
+          200,
+        );
+      }),
+    );
+
+    final first = await resolver.resolve(flowRef);
+    final second = await resolver.resolve(flowRef);
+
+    expect(requests, hasLength(1));
+    expect(first.cacheHit, isFalse);
+    expect(second.cacheHit, isTrue);
+    expect(reports, hasLength(2));
+    expect(reports.map((report) => report.source),
+        everyElement(SurfaceResolutionSource.fresh));
+    expect(reports.map((report) => report.surface), everyElement(flowRef.id));
   });
 
   test('exact cache separates identical slug/version across surface types',

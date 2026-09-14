@@ -8,6 +8,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         CanonicalSurfaceExperimentAssignmentV1,
+        SurfaceRoutingSelectionProvenanceV1,
         FlowActiveRenderGate,
         FlowContentHash,
         FlowDeliveryMode,
@@ -25,6 +26,8 @@ import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/report_surface_resolution.dart';
+import '../resolver/surface_resolution_report.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'bundled_flow_loader.dart';
@@ -164,9 +167,14 @@ final class ServerFlowResolver
         );
       }
       _checkRequiredLibraries(flow, cached.requiredLibraries);
-      return _own(
-        cached.toResolvedFlow(cacheHit: true),
-        requiredLibraries: cached.requiredLibraries,
+      // An exact version is a deliberate pin, so serving it again is not a hold.
+      return reportSurfaceResolution(
+        flow.id,
+        _own(
+          cached.toResolvedFlow(cacheHit: true),
+          requiredLibraries: cached.requiredLibraries,
+        ),
+        SurfaceResolutionSource.fresh,
       );
     }
 
@@ -238,11 +246,17 @@ final class ServerFlowResolver
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
       canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
     );
     _cache[cacheKey] = cachedFlow;
-    return _own(
-      cachedFlow.toResolvedFlow(cacheHit: false),
-      requiredLibraries: cachedFlow.requiredLibraries,
+    return reportSurfaceResolution(
+      flow.id,
+      _own(
+        cachedFlow.toResolvedFlow(cacheHit: false),
+        requiredLibraries: cachedFlow.requiredLibraries,
+      ),
+      SurfaceResolutionSource.fresh,
     );
   }
 
@@ -276,9 +290,13 @@ final class ServerFlowResolver
             active: active.document,
           )) {
         _activeCache[activeCacheKey] = active;
-        return _own(
-          active.toResolvedFlow(cacheHit: false),
-          requiredLibraries: active.requiredLibraries,
+        return reportSurfaceResolution(
+          flow.id,
+          _own(
+            active.toResolvedFlow(cacheHit: false),
+            requiredLibraries: active.requiredLibraries,
+          ),
+          SurfaceResolutionSource.fresh,
         );
       }
 
@@ -297,15 +315,23 @@ final class ServerFlowResolver
             cached.document,
             cached.requiredLibraries,
           )) {
-        return _own(
-          cached.toResolvedFlow(cacheHit: true),
-          requiredLibraries: cached.requiredLibraries,
+        return reportSurfaceResolution(
+          flow.id,
+          _own(
+            cached.toResolvedFlow(cacheHit: true),
+            requiredLibraries: cached.requiredLibraries,
+          ),
+          SurfaceResolutionSource.holdLastGood,
         );
       }
 
       // Tier 3 — the client's own bundled document (exact; its version equals
       // the requested version, so the controller's retained version pin passes).
-      return _bundledResolvedFlow(bundled);
+      return reportSurfaceResolution(
+        flow.id,
+        _bundledResolvedFlow(bundled),
+        SurfaceResolutionSource.bundled,
+      );
     }
 
     // Tier 4 — nothing renderable: no bundled contract and no servable active.
@@ -370,6 +396,8 @@ final class ServerFlowResolver
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
       canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
     );
     return _ExperimentFreshFlow(
       candidateRoot: _own(
@@ -487,6 +515,8 @@ final class ServerFlowResolver
       surfaceDocument.requiredLibraries,
       publicationBindingReference: result.publicationBindingReference,
       canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
     );
   }
 
@@ -819,7 +849,11 @@ final class _ServerFlowExperimentPresentation
               snapshot: snapshot,
               accepted: prefetched,
             );
-            return prefetched.candidateRoot;
+            return await reportSurfaceResolution(
+              flow.id,
+              prefetched.candidateRoot,
+              SurfaceResolutionSource.fresh,
+            );
           }
           if (prefetched is FlowCandidatePrefetchRejected &&
               prefetched.reason == FlowCandidatePrefetchRejection.seedDrift) {
@@ -842,7 +876,11 @@ final class _ServerFlowExperimentPresentation
           final accepted = held.accepted.asCacheHit();
           _selectedResolver = accepted.resolver;
           _provisional = null;
-          return accepted.candidateRoot;
+          return reportSurfaceResolution(
+            flow.id,
+            accepted.candidateRoot,
+            SurfaceResolutionSource.holdLastGood,
+          );
         }
         owner._experimentActiveCache.remove(key);
       }
@@ -856,7 +894,11 @@ final class _ServerFlowExperimentPresentation
       }
       _selectedResolver = snapshot.baselineResolver;
       _provisional = null;
-      return snapshot.baselineRoot;
+      return reportSurfaceResolution(
+        flow.id,
+        snapshot.baselineRoot,
+        SurfaceResolutionSource.bundled,
+      );
     }
     throw _unavailable('unstable_mount_identity');
   }
@@ -1019,6 +1061,8 @@ final class _CachedServerFlow {
     this.requiredLibraries,
     this.publicationBindingReference,
     this.canonicalExperimentAssignment,
+    this.routingSelectionReceipt,
+    this.routingSelectionProvenance,
   );
 
   /// Builds a cache entry, computing the canonical-document content hash (the
@@ -1031,6 +1075,8 @@ final class _CachedServerFlow {
         publicationBindingReference,
     required CanonicalSurfaceExperimentAssignmentV1?
         canonicalExperimentAssignment,
+    required String? routingSelectionReceipt,
+    required SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
   }) {
     return _CachedServerFlow(
       document,
@@ -1039,6 +1085,8 @@ final class _CachedServerFlow {
       requiredLibraries,
       publicationBindingReference,
       canonicalExperimentAssignment,
+      routingSelectionReceipt,
+      routingSelectionProvenance,
     );
   }
 
@@ -1053,6 +1101,8 @@ final class _CachedServerFlow {
   /// Exact immutable Measurement provenance retained with these exact bytes.
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
   final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
+  final String? routingSelectionReceipt;
+  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
 
   ResolvedFlow toResolvedFlow({required bool cacheHit}) {
     return attachMeasurementPublicationBindingReference(
@@ -1064,6 +1114,8 @@ final class _CachedServerFlow {
       ),
       publicationBindingReference,
       canonicalExperimentAssignment: canonicalExperimentAssignment,
+      routingSelectionReceipt: routingSelectionReceipt,
+      routingSelectionProvenance: routingSelectionProvenance,
     );
   }
 }

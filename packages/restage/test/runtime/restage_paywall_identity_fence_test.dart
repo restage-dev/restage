@@ -22,12 +22,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../flow/flow_test_support.dart'
     show registerThrowingWidget, resolvedFlow, screenBlob;
 import '../support/hosted_artifact_delivery.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 
 /// The stub delivery for this file: it describes surfaces AND answers for
 /// their content, so no test here can stub half a wire.
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  setUp(debugResetAppBuildOrdinal);
+  tearDown(debugResetAppBuildOrdinal);
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {

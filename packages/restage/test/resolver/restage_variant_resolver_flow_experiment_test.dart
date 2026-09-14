@@ -16,6 +16,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 /// The stub delivery for this file: it describes surfaces AND answers for
 /// their content, so no test here can stub half a wire.
@@ -259,7 +260,7 @@ void main() {
       (staleChildRequest, 'actor-0'),
       (freshChildRequest, 'actor-1'),
     ]) {
-      expect(childRequest, <String, Object?>{
+      expect(withoutSupportedPolicyRevisions(childRequest), <String, Object?>{
         'surfaceType': 'paywall',
         'surfaceSlug': 'child',
         'version': 1,

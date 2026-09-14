@@ -12,6 +12,8 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_experiment_mount.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage/src/runtime/first_paint_lease_guard.dart';
@@ -21,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'flow_test_support.dart';
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_abc123';
@@ -40,6 +43,8 @@ const _flowRef = OnboardingFlowRef<Map<String, Object?>>(
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  setUp(debugResetAppBuildOrdinal);
+  tearDown(debugResetAppBuildOrdinal);
   setUp(Restage.debugReset);
 
   testWidgets(
@@ -264,7 +269,7 @@ void main() {
 
     expect(observed.candidateBeforeChild, 0);
     expect(rootRequest.containsKey('version'), isFalse);
-    expect(childRequest, {
+    expect(withoutSupportedPolicyRevisions(childRequest), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
@@ -610,7 +615,7 @@ void main() {
     final beforeCacheProbe = server.requests.length;
     final cachedChild = await resolver.resolve<Object?>(childRef);
 
-    expect(childRequest, {
+    expect(withoutSupportedPolicyRevisions(childRequest), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
@@ -717,11 +722,19 @@ void main() {
         jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
           firstRequest['sdkBuiltInsCanonicalBase64']! as String,
         )))),
-        {
-          'appBuildOrdinal': 42,
-          'platform': defaultTargetPlatform.name.toLowerCase(),
-          'sdkApiLevel': 2,
-        },
+        containsPair('appBuildOrdinal', 42),
+      );
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          firstRequest['sdkBuiltInsCanonicalBase64']! as String,
+        )))),
+        containsPair('platform', defaultTargetPlatform.name.toLowerCase()),
+      );
+      expect(
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
+          firstRequest['sdkBuiltInsCanonicalBase64']! as String,
+        )))),
+        containsPair('sdkApiLevel', 3),
       );
       server.respondJson(
         0,
@@ -1021,6 +1034,50 @@ void main() {
     expect(unavailableErrors, isEmpty);
     expect(observed.unavailable, 0);
     expect(observed.bundled, 1);
+  });
+
+  testWidgets('an identity retry keeps the presentation device reading',
+      (tester) async {
+    var actorGeneration = 0;
+    var ambientReads = 0;
+    final cells = <SurfaceDeliveryObservationCell?>[];
+    SurfaceCanonicalCarrierProvider.installBuiltIns(() async {
+      ambientReads += 1;
+      return null;
+    });
+    addTearDown(SurfaceCanonicalCarrierProvider.clear);
+    SurfaceAssignmentKeyProvider.install(
+      key: () => 'actor-$actorGeneration',
+      identityGeneration: () => actorGeneration,
+    );
+    final bundledBytes = screenBlob('Bundled', 'next');
+    final requests = <http.Request>[];
+    final resolver = ServerFlowResolver(
+      baseUrl: _baseUrl,
+      apiKey: _apiKey,
+      active: true,
+      bundle: _bundleFor(
+        _screenDocument(screenBytes: bundledBytes),
+        bundledBytes,
+      ),
+      httpClient: _delivery.client((request) async {
+        requests.add(request);
+        cells.add(currentSurfaceDeliveryObservationCell());
+        // Drift the identity only after the request has read the device.
+        actorGeneration += 1;
+        return http.Response('', 404);
+      }),
+    );
+
+    await tester.pumpWidget(_host(resolver));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(requests.length, greaterThan(1));
+    expect(cells.first, isNotNull);
+    expect(cells, everyElement(same(cells.first)));
+    expect(ambientReads, 0);
   });
 
   testWidgets('disposing an in-flight request cannot publish HLG',
@@ -1352,14 +1409,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(requestBodies[0]['assignmentKey'], 'actor-0');
-    expect(requestBodies[1], {
+    expect(withoutSupportedPolicyRevisions(requestBodies[1]), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,
       'assignmentKey': 'actor-0',
     });
     expect(requestBodies[2]['assignmentKey'], 'actor-1');
-    expect(_requestBody(server.requests[3]), {
+    expect(withoutSupportedPolicyRevisions(_requestBody(server.requests[3])), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'child',
       'version': 1,

@@ -21,6 +21,8 @@ import 'measurement_rfw_presentation.dart';
 import 'measurement_runtime_capture.dart';
 import 'presentation_commit.dart';
 import '../resolver/resolved_paywall_payload.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show SurfaceDeliveryObservations;
 import '../runtime/restage.dart';
 
 /// Test-visible lifecycle state for the SDK-internal host session.
@@ -424,8 +426,9 @@ final class MeasurementHostSessionController
   /// the generated-source resolver for one exact final publication locator. The
   /// nullable construction authority is checked before either lazy path.
   static Future<MeasurementHostSessionController> openForResolvedArtifact(
-    Object resolvedOrPayload,
-  ) async {
+    Object resolvedOrPayload, {
+    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+  }) async {
     if (!Restage.isMeasurementEnabled) {
       return MeasurementHostSessionController._disabled();
     }
@@ -438,6 +441,8 @@ final class MeasurementHostSessionController
         FlowPaywallPayload(:final flow) => flow,
         _ => resolvedOrPayload,
       };
+      final routingSelectionReceipt =
+          routingSelectionReceiptFor(provenanceOwner);
       final canonicalAssignment = measurementExperimentAssignmentFor(
         provenanceOwner,
       );
@@ -466,6 +471,8 @@ final class MeasurementHostSessionController
           ),
           authority,
           experimentAssignment: experimentAssignment,
+          presentationObservations: presentationObservations,
+          routingSelectionReceipt: routingSelectionReceipt,
         );
       }
 
@@ -484,6 +491,8 @@ final class MeasurementHostSessionController
           bindingReadPort: bundledProfile.bindingReadPort,
         ),
         authority,
+        presentationObservations: presentationObservations,
+        routingSelectionReceipt: routingSelectionReceipt,
       );
     } on Object {
       return MeasurementHostSessionController._disabled();
@@ -494,6 +503,8 @@ final class MeasurementHostSessionController
     MeasurementHostSessionOpenRequest request,
     MeasurementHostSessionConstructionAuthority authority, {
     MeasurementExperimentAssignmentV1? experimentAssignment,
+    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+    String? routingSelectionReceipt,
   }) async {
     try {
       final resolution = await request._resolveExact();
@@ -525,11 +536,27 @@ final class MeasurementHostSessionController
 
       final constructionOwner = authority._constructionOwner;
       if (constructionOwner != null) {
+        SurfaceDeliveryObservations? observations;
+        try {
+          observations = await presentationObservations?.call();
+        } on Object {
+          observations = null;
+        }
+        final presentationContext = observations == null
+            ? null
+            : MeasurementPresentationContextV1(
+                presentationCountry: observations.presentationCountry,
+                platform: observations.platform,
+                appBuildOrdinal: observations.appBuildOrdinal,
+                deviceClass: observations.deviceClass,
+              );
         final constructionSession = await constructionOwner.openSession(
           resolvedMount: resolvedMount,
           routeTable: routeTable,
           capabilityAdmission: admission,
           experimentAssignment: experimentAssignment,
+          presentationContext: presentationContext,
+          routingSelectionReceipt: routingSelectionReceipt,
           captureSessionNonceSource: () =>
               _encodeNonce(authority.takeNonceBytes()),
         );
@@ -541,6 +568,7 @@ final class MeasurementHostSessionController
           presentationRouteHandle: MeasurementPresentationRouteHandle.open(
             publishedSurfaceRevision: resolvedMount.publishedSurfaceRevision,
             captureSink: constructionSession,
+            observer: constructionSession.presentationAttemptObserver,
             onUncommittedAbort: constructionSession.abortBeforeSuccessfulPaint,
           ),
         );
@@ -878,7 +906,7 @@ final class MeasurementHostSessionController
       // Finalization remains authoritative even if observer removal fails.
     }
     _lifecycleRegistration = null;
-    _presentationRouteHandle?.supersede();
+    _presentationRouteHandle?.abandon();
     final lifecycleCheckpoints = List<Future<void>>.of(
       _pendingLifecycleCheckpoints,
     );

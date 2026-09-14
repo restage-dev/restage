@@ -245,6 +245,21 @@ no measurement sessions. The setting defaults to `true` and is independent of
 `analyticsEnabled`, hosted operational controls, and platform admission. None
 of those controls can enable measurement in a build that disables it.
 
+Hosted surface requests describe the device. Every request includes the
+platform (for example, `ios`). From request API level 3 a request also carries
+the app build ordinal (`412`), the device region (`se`) and the device class
+(`phone`) whenever the device can supply them, and omits any it cannot — an app
+whose build number is not a plain number, for instance, sends the rest without
+it. These facts travel regardless of `analyticsEnabled` and
+`measurementEnabled`. They let the service choose a published version of a
+surface for your device, such as a version for one country or for tablets.
+Without them, the service can only serve the default.
+
+With analytics off, hosted requests carry no analytics identifier and no
+assignment credential. The metering token described in the next section is
+separate and is unaffected by that setting. The device facts above are stored
+only when measurement is on and a session is created.
+
 ### The metering token
 
 The hosted service is billed by monthly active users, so the SDK needs a way to

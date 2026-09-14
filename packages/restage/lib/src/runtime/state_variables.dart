@@ -5,11 +5,13 @@ import 'package:flutter/material.dart'
     show ColorScheme, IconThemeData, MediaQueryData, TextStyle, TextTheme;
 import 'package:rfw/rfw.dart';
 
+import '../resolver/surface_delivery_observations.dart'
+    show normalizePresentationCountry;
 import 'context_data.dart';
 
 /// Populates the `data.device.*` namespace on [target].
 ///
-/// Includes the locale and its subtags, the platform identifier, screen size
+/// Includes the UI locale, device region, platform identifier, screen size
 /// and orientation, device pixel ratio, and safe-area insets. Authors reference
 /// these via `data.device.screenWidth`, `data.device.orientation`, and so on.
 ///
@@ -26,8 +28,11 @@ void populateDeviceData(
   required Locale locale,
   required MediaQueryData mediaQuery,
   String platform = 'unknown',
+  String? deviceRegion,
 }) {
-  final countryCode = locale.countryCode;
+  final countryCode = normalizePresentationCountry(
+    deviceRegion ?? PlatformDispatcher.instance.locale.countryCode,
+  );
   target.update('device', <String, Object?>{
     'locale': locale.toString(),
     'languageCode': locale.languageCode,

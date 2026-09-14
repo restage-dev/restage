@@ -37,11 +37,13 @@ import '../refresh/restage_hosted_update_channel.dart';
 import '../refresh/surface_update_channel.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/restage_variant_resolver.dart';
+import '../resolver/surface_resolution_report.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_assignment_credential_store.dart';
 import '../resolver/surface_assignment_persistence.dart';
 import '../resolver/surface_assignment_built_ins.dart';
 import '../resolver/surface_canonical_carrier_provider.dart';
+import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
@@ -67,6 +69,7 @@ abstract final class Restage {
   /// Explicit coordinator over independently-owned privacy operations.
   static final RestagePrivacy privacy = RestagePrivacy.internal();
 
+  static void Function(SurfaceResolutionReport report)? _onSurfaceResolution;
   static String? _apiKey;
   static String? _baseUrl;
   static RestageEnvironment _environment = RestageEnvironment.production;
@@ -116,6 +119,9 @@ abstract final class Restage {
   /// bundled `.rfw` paywalls can pass [AssetVariantResolver] here or on each
   /// `RestagePaywall`.
   ///
+  /// [onSurfaceResolution] reports each public hosted paywall resolution source.
+  /// Exceptions thrown by this optional callback are ignored.
+  ///
   /// Pass [flowResolver] to choose the onboarding flow source. When omitted,
   /// flows use [AssetFlowResolver]; this method does not enable hosted flow
   /// delivery.
@@ -134,6 +140,21 @@ abstract final class Restage {
   ///
   /// [measurementEnabled] (default `true`) controls new Measurement sessions.
   /// When `false`, new sessions do not load publications or submit data.
+  ///
+  /// Hosted surface requests describe the device so the service can choose a
+  /// published version of a surface for it, such as a version for one country
+  /// or for tablets. Without that description it can only serve the default.
+  /// Every request carries the platform (e.g. `ios`); it also carries the app
+  /// build ordinal (e.g. `412`), the device region (e.g. `se`) and the device
+  /// class (e.g. `phone`) whenever the device can supply them, and omits any it
+  /// cannot. These facts travel regardless of [analyticsEnabled] and
+  /// [measurementEnabled].
+  ///
+  /// With analytics disabled, hosted requests carry no analytics identifier and
+  /// no assignment credential. The metering token that counts use of the hosted
+  /// service is separate and is unaffected by that flag; the package README
+  /// describes it in full. The device facts above are stored only when
+  /// measurement is enabled and a session is created.
   ///
   /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
   /// update signals. A custom [updateChannel] takes precedence when both are
@@ -158,6 +179,7 @@ abstract final class Restage {
     bool analyticsEnabled = true,
     bool measurementEnabled = true,
     RestageEnvironment environment = RestageEnvironment.production,
+    void Function(SurfaceResolutionReport report)? onSurfaceResolution,
     VariantResolver? resolver,
     FlowResolver? flowResolver,
     SurfaceScreenResolver? surfaceScreenResolver,
@@ -179,6 +201,7 @@ abstract final class Restage {
     }
     _configurationGeneration += 1;
     _measurementEnabled = measurementEnabled;
+    _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
     // A reconfiguration must never retain a client bound to the previous
@@ -247,15 +270,10 @@ abstract final class Restage {
     );
     _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
-    if (baseUrl != null) {
-      // Microtask-defer so `configure` stays sync-returning. The cold-start
-      // sync runs after the host's `runApp` settles. Re-calls of
-      // `configure` re-schedule — supporting hosts that switch
-      // environment / base-URL at runtime.
+    if (_analyticsAuthority != null) {
+      // Defer the best-effort identity warm-up to keep configuration synchronous.
       scheduleMicrotask(() async {
-        // Warm the persisted pseudonymous id so events firing during cold start
-        // carry it synchronously rather than racing the prefs read. Best-effort
-        // — the bridge resolves it lazily, so a prefs fault never breaks boot.
+        if (_analyticsAuthority == null) return;
         try {
           await _analyticsIdentity?.anonymousId();
         } on Object catch (_) {}
@@ -303,6 +321,7 @@ abstract final class Restage {
         _retireAnalyticsAuthority();
       }
       _analyticsAuthority = null;
+      SurfaceAnalyticsIdentityProvider.clear();
       return;
     }
     final authority = (apiKey: apiKey, environment: environment);
@@ -312,6 +331,7 @@ abstract final class Restage {
     }
     _analyticsAuthority = authority;
     _analyticsIdentity ??= RootAnalyticsRuntime.createIdentity();
+    SurfaceAnalyticsIdentityProvider.install(_analyticsIdentity!.anonymousId);
     RootAnalyticsRuntime.install(identity: _analyticsIdentity!);
   }
 
@@ -335,6 +355,12 @@ abstract final class Restage {
   }) {
     final identity = _analyticsIdentity;
     SurfaceCanonicalCarrierProvider.clear();
+    // Observations describe the device for delivery selection, so they do not
+    // depend on measurement support or an assignment credential.
+    if (baseUrl != null && baseUrl.isNotEmpty) {
+      SurfaceCanonicalCarrierProvider.installBuiltIns(
+          readSurfaceAssignmentBuiltIns);
+    }
     if (!enabled ||
         !measurementWorkerDeliverySupported ||
         baseUrl == null ||
@@ -355,8 +381,6 @@ abstract final class Restage {
           : null,
     );
     SurfaceCanonicalCarrierProvider.enableAssignmentRetention(namespace);
-    SurfaceCanonicalCarrierProvider.installBuiltIns(
-        readSurfaceAssignmentBuiltIns);
     SurfaceAssignmentKeyProvider.install(
       key: credentialStore.resolve,
       identityGeneration: () => credentialStore.generation,
@@ -577,6 +601,11 @@ abstract final class Restage {
     return RestageRpcClient(baseUrl: baseUrl, apiKey: apiKey);
   }
 
+  /// The optional host callback for resolved surface sources.
+  @internal
+  static void Function(SurfaceResolutionReport report)?
+      get configuredSurfaceResolutionCallback => _onSurfaceResolution;
+
   /// The active RPC client, or `null` when no service is configured.
   @internal
   static RestageRpcClient? get activeRpcClient => _requireRpcClient();
@@ -652,6 +681,7 @@ abstract final class Restage {
   static void debugReset() {
     _configurationGeneration += 1;
     _configureMeasurementHost(enabled: false, privacyReset: false);
+    _onSurfaceResolution = null;
     _apiKey = null;
     _baseUrl = null;
     _environment = RestageEnvironment.production;
@@ -669,6 +699,7 @@ abstract final class Restage {
     RootAnalyticsRuntime.clear();
     _analyticsIdentity = null;
     _analyticsAuthority = null;
+    SurfaceAnalyticsIdentityProvider.clear();
     SurfaceAssignmentKeyProvider.clear();
     SurfaceCanonicalCarrierProvider.clear();
     _meteringTokenStore = null;

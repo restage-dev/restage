@@ -19,6 +19,12 @@ import '../events/restage_event.dart'
         RestageEvent;
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show
+        SurfaceDeliveryObservationCell,
+        readSurfaceDeliveryObservations,
+        requestingViewShortestLogicalSide,
+        withSurfaceDeliveryObservations;
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -177,6 +183,7 @@ final class RestageFlowGraph<R> extends StatefulWidget {
 class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   static const int _maxHostedIdentityAttempts = 3;
 
+  SurfaceDeliveryObservationCell? _observationCell;
   RestageFlowController<R>? _controller;
   FirstPaintLeaseTransaction? _transaction;
   RootAnalyticsPresentation? _presentation;
@@ -379,7 +386,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     };
     _pendingReadinessListener = readinessListener;
     pending.addListener(readinessListener);
-    unawaited(pending.load());
+    unawaited(_loadPendingInScope(pending));
   }
 
   void _promotePending(RestageFlowController<R> pending) {
@@ -548,8 +555,29 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           ? second == null
           : second != null && setEquals(first, second);
 
+  SurfaceDeliveryObservationCell _presentationObservations() =>
+      _observationCell ??= SurfaceDeliveryObservationCell(
+        () => readSurfaceDeliveryObservations(
+          shortestLogicalSide:
+              mounted ? requestingViewShortestLogicalSide(context) : null,
+        ),
+      );
+
+  Future<void> _loadInScope(RestageFlowController<R> controller) =>
+      withSurfaceDeliveryObservations(
+        cell: _presentationObservations(),
+        resolve: controller.load,
+      );
+
+  Future<void> _loadPendingInScope(RestageFlowController<R> controller) async {
+    if (!mounted) return;
+    await _loadInScope(controller);
+  }
+
   void _start({bool identityRetry = false}) {
+    // An identity retry is the same presentation, so it keeps its device reading.
     if (!identityRetry) {
+      _observationCell = null;
       _rejectedHostedIdentityAttempts = 0;
       _forceUnassignedFallback = false;
     }
@@ -613,7 +641,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _controller = controller;
     _transaction = transaction;
     _presentation = presentation;
-    unawaited(controller.load());
+    unawaited(_loadInScope(controller));
   }
 
   bool _shouldConvertUnstableInitialHostedFailure(
@@ -888,6 +916,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final session =
         await MeasurementHostSessionController.openForResolvedArtifact(
       resolvedOrPayload,
+      presentationObservations: _observationCell?.read,
     );
     if (!_ownedControllers.contains(controller)) {
       unawaited(session.teardown());
@@ -979,6 +1008,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _unregisterRefreshHandle();
     _disposePending();
     _disposeController();
+    _observationCell = null;
     super.dispose();
   }
 

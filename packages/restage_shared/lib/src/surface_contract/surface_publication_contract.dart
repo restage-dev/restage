@@ -941,6 +941,8 @@ final class SurfaceScreenDeliveryRequest {
     required int contractVersion,
     String? assignmentKey,
     String? meteringKey,
+    String? analyticsAnonymousId,
+    String? sdkSupportedPolicyRevisions,
     String? assignmentCanonicalBase64,
     String? sdkBuiltInsCanonicalBase64,
   }) {
@@ -955,6 +957,8 @@ final class SurfaceScreenDeliveryRequest {
       contractVersion: contractVersion,
       assignmentKey: normalizeAssignmentKey(assignmentKey),
       meteringKey: normalizeMeteringKey(meteringKey),
+      analyticsAnonymousId: normalizeAnalyticsAnonymousId(analyticsAnonymousId),
+      sdkSupportedPolicyRevisions: sdkSupportedPolicyRevisions,
       assignmentCanonicalBase64: assignmentCanonicalBase64,
       sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
     );
@@ -966,6 +970,8 @@ final class SurfaceScreenDeliveryRequest {
     required this.contractVersion,
     required this.assignmentKey,
     required this.meteringKey,
+    required this.analyticsAnonymousId,
+    required this.sdkSupportedPolicyRevisions,
     required this.assignmentCanonicalBase64,
     required this.sdkBuiltInsCanonicalBase64,
   });
@@ -993,11 +999,16 @@ final class SurfaceScreenDeliveryRequest {
     return value;
   }
 
+  static String? normalizeAnalyticsAnonymousId(Object? value) =>
+      normalizeMeteringKey(value);
+
   final Surface surface;
   final String slug;
   final int contractVersion;
   final String? assignmentKey;
   final String? meteringKey;
+  final String? analyticsAnonymousId;
+  final String? sdkSupportedPolicyRevisions;
 
   /// The canonical assignment the device already holds, passed through as sent.
   final String? assignmentCanonicalBase64;
@@ -1012,6 +1023,10 @@ final class SurfaceScreenDeliveryRequest {
         'contractVersion': contractVersion,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
         if (meteringKey != null) 'meteringKey': meteringKey,
+        if (analyticsAnonymousId != null)
+          'analyticsAnonymousId': analyticsAnonymousId,
+        if (sdkSupportedPolicyRevisions != null)
+          'sdkSupportedPolicyRevisions': sdkSupportedPolicyRevisions,
         if (assignmentCanonicalBase64 != null)
           'assignmentCanonicalBase64': assignmentCanonicalBase64,
         if (sdkBuiltInsCanonicalBase64 != null)
@@ -1029,6 +1044,8 @@ final class SurfaceScreenDeliveryRequest {
         'contractVersion',
         'assignmentKey',
         'meteringKey',
+        'analyticsAnonymousId',
+        'sdkSupportedPolicyRevisions',
         'assignmentCanonicalBase64',
         'sdkBuiltInsCanonicalBase64',
       },
@@ -1047,6 +1064,15 @@ final class SurfaceScreenDeliveryRequest {
       ),
       assignmentKey: normalizeAssignmentKey(json['assignmentKey']),
       meteringKey: normalizeMeteringKey(json['meteringKey']),
+      analyticsAnonymousId:
+          normalizeAnalyticsAnonymousId(json['analyticsAnonymousId']),
+      sdkSupportedPolicyRevisions: _boundedSupportedPolicyRevisions(
+        SurfaceContractJson.optionalString(
+          json,
+          'sdkSupportedPolicyRevisions',
+          r'$',
+        ),
+      ),
       assignmentCanonicalBase64: SurfaceContractJson.optionalString(
         json,
         'assignmentCanonicalBase64',
@@ -1430,6 +1456,135 @@ abstract final class SurfaceScreenDeliveryDescriptorV1Codec {
     SurfaceScreenDeliveryDescriptor descriptor,
   ) =>
       SurfaceContractJson.encode(encode(descriptor));
+}
+
+/// Inert selection metadata accompanying a surface delivery.
+@immutable
+final class SurfaceRoutingSelectionProvenanceV1 {
+  /// Creates bounded selection metadata.
+  SurfaceRoutingSelectionProvenanceV1({
+    this.selectedRouteId,
+    this.audienceRevisionRef,
+    this.routingRevisionOrdinal,
+    this.rolloutAllocationId,
+    this.rolloutBranch,
+    this.defaultSelectionReason,
+  }) {
+    _selectionString(selectedRouteId, 'selectedRouteId');
+    _selectionString(audienceRevisionRef, 'audienceRevisionRef');
+    _selectionOrdinal(routingRevisionOrdinal, 'routingRevisionOrdinal');
+    _selectionString(rolloutAllocationId, 'rolloutAllocationId');
+    _selectionString(rolloutBranch, 'rolloutBranch');
+    _selectionString(defaultSelectionReason, 'defaultSelectionReason');
+  }
+
+  /// Decodes selection metadata, refusing unknown or invalid members.
+  factory SurfaceRoutingSelectionProvenanceV1.fromJson(Object? value) {
+    final json = SurfaceContractJson.requireObject(value, 'selection');
+    SurfaceContractJson.allowedKeys(
+        json,
+        const {
+          'selectedRouteId',
+          'audienceRevisionRef',
+          'routingRevisionOrdinal',
+          'rolloutAllocationId',
+          'rolloutBranch',
+          'defaultSelectionReason',
+        },
+        'selection');
+    return SurfaceRoutingSelectionProvenanceV1(
+      selectedRouteId:
+          _selectionString(json['selectedRouteId'], 'selectedRouteId'),
+      audienceRevisionRef:
+          _selectionString(json['audienceRevisionRef'], 'audienceRevisionRef'),
+      routingRevisionOrdinal: _selectionOrdinal(
+          json['routingRevisionOrdinal'], 'routingRevisionOrdinal'),
+      rolloutAllocationId:
+          _selectionString(json['rolloutAllocationId'], 'rolloutAllocationId'),
+      rolloutBranch: _selectionString(json['rolloutBranch'], 'rolloutBranch'),
+      defaultSelectionReason: _selectionString(
+          json['defaultSelectionReason'], 'defaultSelectionReason'),
+    );
+  }
+
+  /// Treats malformed optional delivery metadata as absent.
+  static SurfaceRoutingSelectionProvenanceV1? normalize(Object? value) {
+    if (value == null) return null;
+    try {
+      return SurfaceRoutingSelectionProvenanceV1.fromJson(value);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// The selected route identifier.
+  final String? selectedRouteId;
+
+  /// The audience revision reference.
+  final String? audienceRevisionRef;
+
+  /// The non-negative routing revision ordinal.
+  final int? routingRevisionOrdinal;
+
+  /// The rollout allocation identifier.
+  final String? rolloutAllocationId;
+
+  /// The rollout branch.
+  final String? rolloutBranch;
+
+  /// The bounded reason for a default selection.
+  final String? defaultSelectionReason;
+
+  Map<String, Object?> toJson() => {
+        if (selectedRouteId != null) 'selectedRouteId': selectedRouteId,
+        if (audienceRevisionRef != null)
+          'audienceRevisionRef': audienceRevisionRef,
+        if (routingRevisionOrdinal != null)
+          'routingRevisionOrdinal': routingRevisionOrdinal,
+        if (rolloutAllocationId != null)
+          'rolloutAllocationId': rolloutAllocationId,
+        if (rolloutBranch != null) 'rolloutBranch': rolloutBranch,
+        if (defaultSelectionReason != null)
+          'defaultSelectionReason': defaultSelectionReason,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is SurfaceRoutingSelectionProvenanceV1 &&
+      selectedRouteId == other.selectedRouteId &&
+      audienceRevisionRef == other.audienceRevisionRef &&
+      routingRevisionOrdinal == other.routingRevisionOrdinal &&
+      rolloutAllocationId == other.rolloutAllocationId &&
+      rolloutBranch == other.rolloutBranch &&
+      defaultSelectionReason == other.defaultSelectionReason;
+
+  @override
+  int get hashCode => Object.hash(
+        selectedRouteId,
+        audienceRevisionRef,
+        routingRevisionOrdinal,
+        rolloutAllocationId,
+        rolloutBranch,
+        defaultSelectionReason,
+      );
+}
+
+String? _selectionString(Object? value, String key) {
+  if (value == null) return null;
+  if (value is! String || value.length > 256) {
+    throw FormatException(
+        'Expected "$key" to be a string of at most 256 characters.');
+  }
+  SurfaceContractJson.requireUnicodeScalars(value, key);
+  return value;
+}
+
+int? _selectionOrdinal(Object? value, String key) {
+  if (value == null) return null;
+  if (value is! int || value < 0) {
+    throw FormatException('Expected "$key" to be a non-negative integer.');
+  }
+  return value;
 }
 
 /// The sole experiment assignment a delivery response may carry.
@@ -1867,6 +2022,18 @@ bool _sameRequirements(
     if (leftCanonical[index] != rightCanonical[index]) return false;
   }
   return true;
+}
+
+// Enforces the shared supported policy revisions carrier bound.
+String? _boundedSupportedPolicyRevisions(String? value) {
+  if (value == null) return null;
+  if (value.length > sdkSupportedPolicyRevisionsMaximumCarrierCharacters) {
+    throw FormatException(
+      r'Expected "$.sdkSupportedPolicyRevisions" to be at most '
+      '$sdkSupportedPolicyRevisionsMaximumCarrierCharacters characters.',
+    );
+  }
+  return value;
 }
 
 void _requirePackageRelativePath(String value, String path) {

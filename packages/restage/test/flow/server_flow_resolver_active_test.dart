@@ -19,6 +19,7 @@ import 'flow_test_support.dart';
 
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 /// The installed built-in catalog version this SDK build ships. The active arm's
 /// retained installed-floor backstop rejects a document above it.
@@ -90,7 +91,7 @@ void main() {
     final body = jsonDecode(requests.single.body) as Map<String, Object?>;
     expect(body['assignmentKey'], 'anon-controlled');
     expect(
-        body.keys,
+        withoutSupportedPolicyRevisions(body).keys,
         unorderedEquals(<String>[
           'surfaceType',
           'surfaceSlug',
@@ -324,7 +325,8 @@ void main() {
 
       expect(resolved.document.version, 2);
       expect(resolved.screenBlobs['welcome'], activeBytes);
-      expect(jsonDecode(requests.single.body), {
+      expect(
+          withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)), {
         'surfaceType': surfaceType.wireName,
         'surfaceSlug': 'first_run',
       });
@@ -385,7 +387,7 @@ void main() {
     final resolved = await resolver.resolve(flowRef);
 
     // Byte-unchanged exact path: the request carries the explicit version key.
-    expect(jsonDecode(requests.single.body), {
+    expect(withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'first_run',
       'version': 1,
@@ -414,7 +416,7 @@ void main() {
     final resolved = await resolver.resolveActiveRoot(flowRef);
 
     // Exact request (the explicit version key); the active arm omits it.
-    expect(jsonDecode(requests.single.body), {
+    expect(withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)), {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'first_run',
       'version': 1,

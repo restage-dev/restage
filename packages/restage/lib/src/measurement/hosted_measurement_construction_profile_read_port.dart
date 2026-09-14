@@ -8,6 +8,56 @@ import 'hosted_measurement_publication_binding_read_port.dart';
 import 'measurement_host_construction_owner.dart';
 import 'measurement_worker_delivery.dart';
 
+/// Whether a decision's policy revisions admit collection at all.
+bool measurementCollectionAdmittedByPolicy({
+  required String privacyPolicyRevisionId,
+  required String collectionBudgetRevisionId,
+  required String classificationRevisionId,
+}) =>
+    policyRevisionAtOrAbove(
+      collectionBudgetRevisionId,
+      collectionBudgetFamily,
+      collectionBudgetPolicyFloor,
+    ) &&
+    policyRevisionAtOrAbove(
+      privacyPolicyRevisionId,
+      manifestPrivacyPolicyFamily,
+      collectionPrivacyPolicyFloor,
+    ) &&
+    classificationRevisionId == privacyClassificationRevisionId;
+
+/// Whether those revisions also admit the presentation metadata.
+bool presentationMetadataAdmittedByPolicy({
+  required String privacyPolicyRevisionId,
+  required String collectionBudgetRevisionId,
+}) =>
+    policyRevisionAtOrAbove(
+      privacyPolicyRevisionId,
+      manifestPrivacyPolicyFamily,
+      presentationMetadataPrivacyPolicyFloor,
+    ) &&
+    policyRevisionAtOrAbove(
+      collectionBudgetRevisionId,
+      collectionBudgetFamily,
+      presentationMetadataCollectionBudgetFloor,
+    );
+
+/// Whether those revisions also admit the SDK runtime session.
+bool sdkRuntimeSessionAdmittedByPolicy({
+  required String privacyPolicyRevisionId,
+  required String collectionBudgetRevisionId,
+}) =>
+    policyRevisionAtOrAbove(
+      privacyPolicyRevisionId,
+      manifestPrivacyPolicyFamily,
+      sdkSessionPrivacyPolicyFloor,
+    ) &&
+    policyRevisionAtOrAbove(
+      collectionBudgetRevisionId,
+      collectionBudgetFamily,
+      sdkSessionCollectionBudgetFloor,
+    );
+
 /// Joins an authenticated collection decision to the exact mounted publication.
 final class HostedMeasurementConstructionProfileReadPort
     implements MeasurementHostConstructionProfileReadPort {
@@ -52,12 +102,11 @@ final class HostedMeasurementConstructionProfileReadPort
     );
     if (decision == null || client() != rpc) return _missing;
     if (!decision.matchesBinding(binding)) return _stale;
-    if (!const {'restage.collection-budget.v2', 'restage.collection-budget.v3'}
-            .contains(decision.collectionBudgetRevisionId.value) ||
-        !const {'restage.manifest-privacy.v1', 'restage.manifest-privacy.v2'}
-            .contains(decision.privacyPolicyRevisionId.value) ||
-        decision.privacyClassificationRevisionId.value !=
-            'restage.privacy-classification.v1') {
+    if (!measurementCollectionAdmittedByPolicy(
+      privacyPolicyRevisionId: decision.privacyPolicyRevisionId.value,
+      collectionBudgetRevisionId: decision.collectionBudgetRevisionId.value,
+      classificationRevisionId: decision.privacyClassificationRevisionId.value,
+    )) {
       return const MeasurementHostConstructionProfileReadRejected(
         MeasurementHostConstructionPolicyStatus.unsupported,
       );
@@ -65,10 +114,14 @@ final class HostedMeasurementConstructionProfileReadPort
     return MeasurementHostConstructionProfileReadAccepted(
       MeasurementHostConstructionProfile(
         publicationContext: publicationContext,
-        sdkRuntimeSessionAdmitted: decision.privacyPolicyRevisionId.value ==
-                'restage.manifest-privacy.v2' &&
-            decision.collectionBudgetRevisionId.value ==
-                'restage.collection-budget.v3',
+        presentationMetadataAdmitted: presentationMetadataAdmittedByPolicy(
+          privacyPolicyRevisionId: decision.privacyPolicyRevisionId.value,
+          collectionBudgetRevisionId: decision.collectionBudgetRevisionId.value,
+        ),
+        sdkRuntimeSessionAdmitted: sdkRuntimeSessionAdmittedByPolicy(
+          privacyPolicyRevisionId: decision.privacyPolicyRevisionId.value,
+          collectionBudgetRevisionId: decision.collectionBudgetRevisionId.value,
+        ),
         endpoint:
             '${baseUrl.replaceFirst(RegExp(r'/+$'), '')}/sdk/v1/measurement',
         analyticsEnabled: true,

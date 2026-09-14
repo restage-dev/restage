@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/analytics/analytics_identity.dart';
+import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -48,9 +50,59 @@ void main() {
     try {
       await Restage.debugResetAndWait();
     } finally {
+      RootAnalyticsRuntime.debugIdentityFactory = null;
       messenger.setMockMethodCallHandler(supportChannel, null);
       await supportDirectory.delete(recursive: true);
     }
+  });
+
+  test('configuring analytics off with a hosted URL never reads the identifier',
+      () async {
+    final identity = _IdentityCallSpy();
+    RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+
+    await pumpEventQueue();
+
+    expect(identity.calls, 0);
+  });
+
+  test('configuring analytics off never warms a retained identifier', () async {
+    final identity = _IdentityCallSpy();
+    RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+    await pumpEventQueue();
+    expect(identity.calls, 1);
+    identity.calls = 0;
+
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+    await pumpEventQueue();
+
+    expect(identity.calls, 0);
+  });
+
+  test('turning analytics off before deferred work never reads the identifier',
+      () async {
+    final identity = _IdentityCallSpy();
+    RootAnalyticsRuntime.debugIdentityFactory = () => identity;
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+    );
+
+    await pumpEventQueue();
+
+    expect(identity.calls, 0);
   });
 
   test('configure installs the metering identity even with analytics disabled',
@@ -140,4 +192,14 @@ void main() {
 
     expect(await SurfaceMeteringKeyProvider.currentKey(), isNull);
   });
+}
+
+class _IdentityCallSpy extends AnalyticsIdentity {
+  int calls = 0;
+
+  @override
+  Future<String> anonymousId() async {
+    calls += 1;
+    return '12345678-1234-4234-8234-123456789abc';
+  }
 }

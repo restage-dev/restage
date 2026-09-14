@@ -9,6 +9,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/supported_policy_revisions_body.dart';
 
 /// Canonical base64url of a short document, minted the way the wire mints it.
 String _carrier(String text) =>
@@ -89,7 +90,8 @@ void main() {
         }),
       ).fetchSurface(surfaceType: 'paywall', surfaceSlug: 'pro_upgrade');
 
-      expect(sent, {'surfaceType': 'paywall', 'surfaceSlug': 'pro_upgrade'});
+      expect(withoutSupportedPolicyRevisions(sent),
+          {'surfaceType': 'paywall', 'surfaceSlug': 'pro_upgrade'});
     });
 
     test('never sends a carrier that is not canonical base64url', () async {
@@ -146,7 +148,7 @@ void main() {
 
       expect(sent, hasLength(2));
       for (final request in sent) {
-        expect(request, {
+        expect(withoutSupportedPolicyRevisions(request), {
           'surfaceType': 'onboarding',
           'surfaceSlug': 'first_run',
         });

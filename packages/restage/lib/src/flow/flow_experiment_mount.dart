@@ -514,6 +514,8 @@ ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
     ),
     measurementPublicationBindingReferenceFor(flow),
     canonicalExperimentAssignment: measurementExperimentAssignmentFor(flow),
+    routingSelectionReceipt: routingSelectionReceiptFor(flow),
+    routingSelectionProvenance: routingSelectionProvenanceFor(flow),
   );
 }
 

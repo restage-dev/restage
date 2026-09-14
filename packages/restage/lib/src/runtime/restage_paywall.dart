@@ -27,6 +27,12 @@ import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
+import '../resolver/surface_delivery_observations.dart'
+    show
+        SurfaceDeliveryObservationCell,
+        readSurfaceDeliveryObservations,
+        requestingViewShortestLogicalSide,
+        withSurfaceDeliveryObservations;
 import '../measurement/measurement_rfw_presentation.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
@@ -172,6 +178,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   _BlobStage? _blobPresentation;
   _BlobStage? _pendingBlobStage;
+  SurfaceDeliveryObservationCell? _observationCell;
   int _loadEpoch = 0;
   RestagePaywallError? _error;
   DateTime? _mountedAt;
@@ -531,6 +538,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ));
   }
 
+  SurfaceDeliveryObservationCell _presentationObservations() =>
+      _observationCell ??= SurfaceDeliveryObservationCell(
+        () => readSurfaceDeliveryObservations(
+          shortestLogicalSide:
+              mounted ? requestingViewShortestLogicalSide(context) : null,
+        ),
+      );
+
   Future<void> _load({
     bool isRefresh = false,
     bool announceLoadStarted = true,
@@ -545,7 +560,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final stopwatch = Stopwatch()..start();
     final resolver = widget.resolver ?? Restage.defaultResolver;
     try {
-      final payload = await _resolveStablePayload(resolver, epoch);
+      final payload = await withSurfaceDeliveryObservations(
+        cell: _presentationObservations(),
+        resolve: () => _resolveStablePayload(resolver, epoch),
+      );
       if (payload == null) return;
       // This check is intentionally the first work after the await. A newer
       // load supersedes this result, while an actor boundary re-enters the same
@@ -1557,7 +1575,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowPaywallPayload payload,
   ) async {
     final session =
-        await MeasurementHostSessionController.openForResolvedArtifact(payload);
+        await MeasurementHostSessionController.openForResolvedArtifact(
+      payload,
+      presentationObservations: _observationCell?.read,
+    );
     if (!_measurementOwnedFlowControllers.contains(controller)) {
       unawaited(session.teardown());
       return;
@@ -1790,7 +1811,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required bool cacheHit,
   }) async {
     final measurementSession =
-        await MeasurementHostSessionController.openForResolvedArtifact(payload);
+        await MeasurementHostSessionController.openForResolvedArtifact(
+      payload,
+      presentationObservations: _observationCell?.read,
+    );
     if (!mounted || epoch != _loadEpoch) {
       unawaited(measurementSession.teardown());
       payload.abandonHostedLastGood();
@@ -2187,6 +2211,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _blobPresentation = null;
     _pendingBlobStage = null;
     _blobToDisposeAfterPromotion = null;
+    _observationCell = null;
     super.dispose();
   }
 
