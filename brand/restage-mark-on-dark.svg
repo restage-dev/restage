@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <rect width="800" height="800" fill="#0C0E13"/>
+  <svg x="50" y="50" width="700" height="700" viewBox="-28.0 -580.0 672.0 650.0" preserveAspectRatio="xMidYMid meet">
+    <g style="isolation:isolate" transform="scale(1,-1)">
+      <path fill="#FF7E6B" opacity="0.92" d="M42.0 0.0H384.0V120.0H264.0V496.0H54.0V376.0H144.0V120.0H42.0Z"/><path fill="#34D399" opacity="0.92" style="mix-blend-mode:screen" d="M288.0 354.7807312011719Q290.7846374511719 359.1147766113281 294.0 363.0Q318.0 392.0 360.0 392.0Q402.0 392.0 423.0 367.5Q444.0 343.0 444.0 302.0V288.0L574.0 300.0V322.0Q574.0 417.0 529.0 463.5Q484.0 510.0 410.0 510.0Q364.0 510.0 330.0 487.5Q302.41986083984375 469.2484436035156 288.0 438.8236083984375V354.7807312011719ZM144.0 280.0H264.0V496.0H144.0Z"/>
+    </g>
+  </svg>
+</svg>

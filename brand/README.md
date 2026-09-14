@@ -1,6 +1,6 @@
 # Restage brand assets
 
-This directory contains the official Restage marks, wordmarks, and lockups.
+This directory contains the official Restage mark and wordmark.
 
 ## Ownership
 
@@ -55,25 +55,19 @@ with Restage, provided that it does not imply endorsement or official status.
 
 ## Choosing an asset
 
-The files at the top level are the current logo: the "r" cut into its stem and
-its arm, one ink each, laid across each other so the overlap is the
-registration, and the wordmark with the rest of the word in the colour the two
-inks make together.
+The "r" is cut into its stem and its arm, one ink each, laid across each other
+so the overlap is the registration. The wordmark sets the rest of the word in
+the colour the two inks make together.
 
 - **Mark:** the standalone Restage symbol, for compact or square placements.
 - **Wordmark:** the Restage name.
-- **Lockup:** the mark and wordmark together.
 - **Light:** intended for light backgrounds.
 - **Dark:** intended for dark backgrounds.
-- **Bold Italic:** the mark is also supplied in the italic face.
-- **Banner:** the wordmark or lockup on its own dark ground, for places that
-  show one image on any background (a package listing, an avatar, a slide).
-  Supplied as SVG and PNG.
-
-`v1/` holds the earlier logo — the same letter printed twice, the copy offset —
-for anything already built on it. Its animated variants (`*-oscillate-*`) stay
-at their original names here, because pages already published point at them.
-The earlier files remain official Restage assets and the same terms apply.
+- **Banner:** the wordmark on its own dark ground, for places that show one
+  image on any background (a package listing, an avatar, a slide). Supplied as
+  PNG.
+- **On light / on dark:** the mark on a square of the Restage light or dark
+  ground, for avatars and app icons that need the background included.
 
 Use the supplied files rather than recreating the artwork.
 

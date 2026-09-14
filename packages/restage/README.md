@@ -17,7 +17,7 @@
 <!--
   Logo: the split-r wordmark. GitHub renders the theme-matched SVG; viewers that
   strip <picture> sources (pub.dev among them) fall back to the PNG banner on a
-  dark ground. The mark and a mark+wordmark lockup ship alongside in /brand/.
+  dark ground. The standalone mark ships alongside in /brand/.
 -->
 
 Restage is a server-driven UI toolkit for Flutter. Build any part of your app
