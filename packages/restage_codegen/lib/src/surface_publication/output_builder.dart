@@ -13,6 +13,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
@@ -67,6 +68,7 @@ final class RestageOutputsBuilder implements Builder {
         plan.outputIndexPath,
         plan.measurementOutputIndexPath,
         plan.analyticsIdMetadataPath,
+        plan.customCatalogPath,
       ];
     } else {
       final placement = plan.forLibrary(buildStep.inputId.path);
@@ -113,6 +115,26 @@ final class RestageOutputsBuilder implements Builder {
     BuildStep buildStep,
     RestageSurfacePublicationBundle bundle,
   ) async {
+    final customCatalog = AssetId(
+      buildStep.inputId.package,
+      'lib/src/widget_catalog/catalog.json',
+    );
+    if (await buildStep.canRead(customCatalog)) {
+      final bytes = await buildStep.readAsBytes(customCatalog);
+      final catalog = decodeCatalog(utf8.decode(bytes));
+      if (!catalog.libraries.keys.any((library) =>
+          WidgetLibrary.builtInByNamespace(library.namespace) != null)) {
+        await buildStep.writeAsBytes(
+          AssetId(buildStep.inputId.package, plan.customCatalogPath),
+          bytes,
+        );
+        await removeIdenticalLegacyOutput(
+          buildStep,
+          customCatalog.path,
+          bytes,
+        );
+      }
+    }
     final manifest = bundle.manifest;
     if (manifest == null) return;
     final AnalyticsIdControlOutputV1? analyticsIdControl;
@@ -227,22 +249,7 @@ final class RestageOutputsBuilder implements Builder {
         ).encodeJson(),
       );
     }
-    final surfaceCount = manifest.publications.length;
-    // Normal delivery configuration is informational. Warnings are reserved
-    // for direct mounts without a generated asset or explicit fallback.
-    log.info(
-      plan.bundledRuntime
-          ? '[restage] bundled_runtime: true — $surfaceCount '
-              'surface${surfaceCount == 1 ? '' : 's'}; '
-              'bundles generated under assets/restage/bundles/. '
-              'Declare the generated bundle paths in pubspec.yaml to include '
-              'offline content and flow contracts in the app.'
-          : '[restage] bundled_runtime: false — no runtime bundles generated '
-              'in assets. Generated surface mounts retain authored Flutter '
-              'fallbacks and flow contracts. ID-based paywalls and older flow '
-              'references still need bundled assets or explicit '
-              'unavailable UI.',
-    );
+    await cleanLegacyRestageOutputs(buildStep.inputId.package, plan);
   }
 
   /// Every manifest-closure entry plus the library's canonical `.rfwtxt`

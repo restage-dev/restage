@@ -238,7 +238,8 @@ void main() {
 }
 
 const _catalogPath = 'lib/src/widget_catalog/catalog.json';
-const _measurementIndexPath = 'lib/generated/restage.measurement.index.json';
+const _measurementIndexPath =
+    '.restage/build/metadata/restage.measurement.index.json';
 // Each scenario's primary-constructor source and the product it must not
 // emit when that source is refused.
 const _primaryConstructorScenarios =
@@ -437,6 +438,7 @@ Map<String, String> _productOutputs(TestBuilderResult result) =>
           !_internalCompilerArtifacts.contains(path) &&
           (path == _catalogPath ||
               path.startsWith('lib/generated/') ||
+              path.startsWith('.restage/build/') ||
               path.endsWith(kNeutralGeneratedPartSuffix) ||
               path.startsWith('assets/')),
     );

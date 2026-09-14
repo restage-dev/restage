@@ -1,5 +1,6 @@
 additional_public_assets:
-  - restage_measurement.compiler.json
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
 
 # The example app ships its generated surfaces inside the app bundle so the demos run
 # standalone, with no hosted delivery configured. `bundled_runtime` routes only

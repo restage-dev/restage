@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
+import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -61,12 +63,14 @@ final class UserCatalogJsonBuilder implements Builder {
     // Emit only — never append to the event log. The runtime-catalog builder
     // owns the append; running after it means the log is already complete here,
     // and the ids are deterministic regardless of order.
+    final catalogJson = encodeCatalog(allocation.catalog);
     await buildStep.writeAsString(
       AssetId(
         buildStep.inputId.package,
         'lib/src/widget_catalog/catalog.json',
       ),
-      encodeCatalog(allocation.catalog),
+      catalogJson,
     );
+    await recordGeneratedCustomCatalog(buildStep, utf8.encode(catalogJson));
   }
 }

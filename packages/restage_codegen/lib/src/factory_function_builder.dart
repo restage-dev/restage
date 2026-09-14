@@ -43,9 +43,8 @@ final class FactoryFunctionBuilder implements Builder {
 
     // A pure-custom catalog (no built-in library) registers through the
     // @RestageWidget factory aggregator, not this builder. Since a custom
-    // package now emits its own catalog.json — and this builder is keyed on
-    // catalog.json — it runs on the custom catalog too; skip it rather than
-    // treating a custom namespace as a configuration error.
+    // package may carry an authored custom catalog at the same path.
+    // Custom factories come from the annotation-driven builder.
     final hasBuiltInLibrary = catalog.libraries.keys.any(
       (l) => WidgetLibrary.builtInByNamespace(l.namespace) != null,
     );

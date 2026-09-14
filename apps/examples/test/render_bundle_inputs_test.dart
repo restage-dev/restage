@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_example/src/render_bundle_manifest_loader.dart';
+import 'package:restage_example/user_catalog.g.dart';
 import 'package:restage_preview_host/restage_preview_host.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 String _sha256(File file) => sha256.convert(file.readAsBytesSync()).toString();
 
@@ -174,8 +176,7 @@ void main() {
   });
 
   test('generated catalog remains valid and credential-free as a manifest', () {
-    final source =
-        File('lib/src/widget_catalog/catalog.json').readAsStringSync();
+    final source = encodeCatalog(kUserCatalog);
     final manifest = RenderBundleManifest.fromCatalogJson(source);
     final catalog = jsonDecode(source) as Map<String, Object?>;
 

@@ -29,6 +29,27 @@ class UpgradedFlow {}
 
 void main() {
   group('explicit-authoring compiler diagnostics', () {
+    test('rejects an SDK runtime paywall widget used as metadata', () async {
+      final result = await _compileSources({
+        'apps_examples|lib/features/pro_upgrade_paywall.dart': '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart' as rs;
+
+@rs.RestagePaywall(id: 'upgrade')
+class Upgrade extends StatelessWidget {
+  const Upgrade({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Upgrade');
+}
+''',
+      });
+      _expectDiagnostic(result, 'Use @Paywall');
+      final log = _logs[result] ?? '';
+      expect(log, contains('lib/features/pro_upgrade_paywall.dart@'));
+      expect(log, isNot(contains('[restage] Compiled')));
+    });
+
     test('rejects multiple implicit declarations in one library', () async {
       final result = await _compileScenario('negative/duplicate_implicit.dart');
       _expectDiagnostic(result, 'implicit');
@@ -136,7 +157,8 @@ void main() {
     // The aggregate owns them instead — packed into its own containers, so
     // the index is where their existence is visible.
     final measurementIndex = result.readerWriter.testing.readString(
-      AssetId('apps_examples', 'lib/generated/restage.measurement.index.json'),
+      AssetId('apps_examples',
+          '.restage/build/metadata/restage.measurement.index.json'),
     );
     for (final id in ['derived_notice', 'stable_notice']) {
       expect(
@@ -209,7 +231,10 @@ void main() {
 final _logs = <TestBuilderResult, String>{};
 
 Future<TestBuilderResult> _compileScenario(String scenario) async {
-  final sources = _loadScenario(scenario);
+  return _compileSources(_loadScenario(scenario));
+}
+
+Future<TestBuilderResult> _compileSources(Map<String, String> sources) async {
   final writer = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
   );
@@ -239,6 +264,7 @@ Future<TestBuilderResult> _compileScenario(String scenario) async {
     readerWriter: writer,
     flattenOutput: true,
     onLog: logs.add,
+    verbose: true,
   );
   _logs[result] = logs.map((entry) => entry.message).join('\n');
   return result;

@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 /// Portable generated files that Restage's starter configuration does not
 /// track by default.
 const List<String> restagePortableOutputIgnorePatterns = <String>[
+  '.restage/build/',
   '*.rsbundle',
   '*.restage.md',
   'restage.outputs.json',
@@ -10,9 +11,12 @@ const List<String> restagePortableOutputIgnorePatterns = <String>[
   'restage_a2ui_catalog.a2ui.json',
 ];
 
-const String _portableOutputHeader =
+const String _legacyPortableOutputHeader =
     '# Restage portable generated output. Remove or negate individual rules '
     'to track it.';
+const String _portableOutputHeader =
+    '# Restage portable generated output. Build cache and portable artifacts; '
+    'remove or negate individual rules to track them.';
 final _lineBreak = RegExp(r'\r?\n');
 
 /// The result of planning an update to a project's `.gitignore`.
@@ -54,9 +58,14 @@ PortableOutputIgnorePlan planPortableOutputIgnores(String source) {
     }
   }
 
+  final hasLegacyHeader = source
+      .split(_lineBreak)
+      .any((line) => line.trim() == _legacyPortableOutputHeader);
   final missing = <String>[
     for (final pattern in restagePortableOutputIgnorePatterns)
-      if (!present.contains(pattern)) pattern,
+      if (!present.contains(pattern) &&
+          (!hasLegacyHeader || pattern == '.restage/build/'))
+        pattern,
   ];
   if (missing.isEmpty || _hasPortableOutputHeader(source)) {
     return PortableOutputIgnorePlan(

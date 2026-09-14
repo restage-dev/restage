@@ -115,7 +115,7 @@ A push uploads a version to the server and changes nothing that is running. A
 publish makes one of those versions live. Push ten variants; publish one.
 
 After `dart run build_runner build`, the CLI reads the generated manifest at
-`lib/generated/restage.publication.json` and uploads the artifacts it records
+`.restage/build/metadata/restage.publication.json` and uploads the artifacts it records
 for the surface you name. `--type` is optional validation.
 
 You can name the surface by id or by its `.dart` file:
@@ -182,6 +182,13 @@ may supply the bundle control member of the same triplet.
 
 Render bundles are pre-release. Their presence here is not a public deployment
 or package-release signal.
+
+Hosted generation works without an app `build.yaml`. The CLI reads generated
+publication metadata from `.restage/build/metadata/` and follows its bundle
+locators. Explicit `output_root` configuration remains supported. `restage init`
+adds `.restage/build/` to portable output ignore rules. Keep the durable identity
+files `.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`
+tracked in Git.
 
 ## License
 

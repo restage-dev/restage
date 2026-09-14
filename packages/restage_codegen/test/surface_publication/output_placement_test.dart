@@ -9,6 +9,12 @@ void main() {
         BuilderOptions.empty,
       );
       final source = plan.forLibrary('lib/features/onboarding/welcome.dart');
+      expect(
+          plan.outputIndexPath, '.restage/build/metadata/restage.outputs.json');
+      expect(
+          plan.customCatalogPath, '.restage/build/widget_catalog/catalog.json');
+      expect(plan.packageGeneratedDartPath('restage_a2ui_catalog.g.dart'),
+          'lib/generated/restage_a2ui_catalog.g.dart');
 
       expect(
         source.neutralPartPath,
@@ -16,12 +22,12 @@ void main() {
       );
       expect(
         source.bundlePath,
-        'lib/features/onboarding/restage.generated/welcome.rsbundle',
+        '.restage/build/bundles/lib/features/onboarding/welcome.rsbundle',
       );
       expect(source.inspectionReportPath, isNull);
       expect(
         plan.analyticsIdMetadataPath,
-        'lib/generated/restage.analytics-id.metadata.json',
+        '.restage/build/metadata/restage.analytics-id.metadata.json',
       );
 
       final extensions = plan.portableBuildExtensions;
@@ -33,7 +39,7 @@ void main() {
         unorderedEquals(<AssetId>[
           AssetId(
             'fixture',
-            'lib/features/onboarding/restage.generated/welcome.rsbundle',
+            '.restage/build/bundles/lib/features/onboarding/welcome.rsbundle',
           ),
         ]),
       );
@@ -62,10 +68,11 @@ void main() {
         source.neutralPartPath,
         'lib/features/onboarding/welcome.restage.g.dart',
       );
-      expect(source.bundlePath, 'lib/features/onboarding/welcome.rsbundle');
+      expect(source.bundlePath,
+          '.restage/build/bundles/lib/features/onboarding/welcome.rsbundle');
       expect(
         source.inspectionReportPath,
-        'lib/features/onboarding/welcome.restage.md',
+        '.restage/build/reports/lib/features/onboarding/welcome.restage.md',
       );
       expect(
         source.generatedDartPath('welcome_screen.stories.dart'),
@@ -85,11 +92,11 @@ void main() {
         unorderedEquals(<AssetId>[
           AssetId(
             'fixture',
-            'lib/features/onboarding/welcome.rsbundle',
+            '.restage/build/bundles/lib/features/onboarding/welcome.rsbundle',
           ),
           AssetId(
             'fixture',
-            'lib/features/onboarding/welcome.restage.md',
+            '.restage/build/reports/lib/features/onboarding/welcome.restage.md',
           ),
         ]),
       );

@@ -15,8 +15,8 @@ builders:
       $package$:
         - "assets/restage/source-index.json"
         - "assets/restage/output-roster.json"
-    auto_apply: dependents
-    build_to: source
+    auto_apply: root_package
+    build_to: cache
     runs_before:
       - 'restage_codegen:paywall_codegen'
       - 'restage_codegen:paywall_flow_codegen'
@@ -42,8 +42,8 @@ builders:
         - "lib/src/surface_publication/surface_publication.compiler.json"
         - "lib/src/measurement/restage.measurement.compiler.json"
         - "lib/src/measurement/restage.analytics-id.control.json"
-    auto_apply: dependents
-    build_to: source
+    auto_apply: root_package
+    build_to: cache
     runs_before:
       - 'restage_codegen:outputs'
       - 'restage_codegen:generated_dart'
@@ -76,13 +76,14 @@ builders:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['restageOutputsBuilder']
     build_extensions:
-      "{{dir}}/{{file}}.dart":
-        - "{{dir}}/restage.generated/{{file}}.rsbundle"
+      "lib/{{source}}.dart":
+        - ".restage/build/bundles/lib/{{source}}.rsbundle"
       $package$:
-        - "lib/generated/restage.outputs.json"
-        - "lib/generated/restage.publication.json"
-        - "lib/generated/restage.measurement.index.json"
-        - "lib/generated/restage.analytics-id.metadata.json"
+        - ".restage/build/metadata/restage.outputs.json"
+        - ".restage/build/metadata/restage.publication.json"
+        - ".restage/build/metadata/restage.measurement.index.json"
+        - ".restage/build/metadata/restage.analytics-id.metadata.json"
+        - ".restage/build/widget_catalog/catalog.json"
     auto_apply: dependents
     build_to: source
     runs_before: []
@@ -230,8 +231,8 @@ builders:
     build_extensions:
       $lib$:
         - "src/widget_catalog/catalog.json"
-    auto_apply: dependents
-    build_to: source
+    auto_apply: root_package
+    build_to: cache
     runs_before:
       - 'restage_codegen:paywall_codegen'
       - 'restage_codegen:onboarding_screen_codegen'
@@ -269,7 +270,7 @@ builders:
     build_extensions:
       $package$:
         - "lib/generated/restage_a2ui_catalog.g.dart"
-        - "lib/generated/restage_a2ui_catalog.a2ui.json"
+        - ".restage/build/a2ui/restage_a2ui_catalog.a2ui.json"
     # Opt-in only: the generated code imports the genui runtime, so this builder
     # must not apply to dependents who don't want an A2UI catalog. A consumer
     # enables it explicitly in their own build.yaml.

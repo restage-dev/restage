@@ -65,6 +65,14 @@ Future<Map<String, List<int>>> readPriorGeneratedOutputs(
   );
   if (packageLib == null || packageLib.scheme != 'file') return const {};
   final root = Directory.fromUri(packageLib.resolve('../'));
+  return readPriorGeneratedOutputsFromDirectory(root, plan);
+}
+
+/// Captures the previous valid files under the selected package directory.
+Map<String, List<int>> readPriorGeneratedOutputsFromDirectory(
+  Directory root,
+  RestageOutputPlacementPlan plan,
+) {
   if (!root.existsSync()) return const {};
   final outputs = <String, List<int>>{};
   for (final path in <String>[
@@ -72,11 +80,17 @@ Future<Map<String, List<int>>> readPriorGeneratedOutputs(
     plan.outputIndexPath,
     plan.measurementOutputIndexPath,
     plan.analyticsIdMetadataPath,
+    plan.customCatalogPath,
   ]) {
     final file = File(p.join(root.path, path));
     if (file.existsSync()) outputs[path] = file.readAsBytesSync();
   }
   _collectGeneratedFiles(root, root: root.path, outputs: outputs);
+  final portable = Directory(p.join(root.path, plan.outputRoot!));
+  if (portable.existsSync()) {
+    _collectGeneratedFiles(portable,
+        root: root.path, outputs: outputs, includeHidden: true);
+  }
   return outputs;
 }
 
@@ -84,12 +98,14 @@ void _collectGeneratedFiles(
   Directory directory, {
   required String root,
   required Map<String, List<int>> outputs,
+  bool includeHidden = false,
 }) {
   for (final entity in directory.listSync(followLinks: false)) {
     final name = p.basename(entity.path);
-    if (name.startsWith('.') || name == 'build') continue;
+    if (!includeHidden && (name.startsWith('.') || name == 'build')) continue;
     if (entity is Directory) {
-      _collectGeneratedFiles(entity, root: root, outputs: outputs);
+      _collectGeneratedFiles(entity,
+          root: root, outputs: outputs, includeHidden: includeHidden);
       continue;
     }
     if (entity is! File) continue;

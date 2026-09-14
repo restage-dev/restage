@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
+import 'package:logging/logging.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -135,12 +136,15 @@ const launch = FlowDefinition(
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
+    final logs = <LogRecord>[];
     final result = await testBuilder(
       const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
       sources,
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       flattenOutput: true,
+      onLog: logs.add,
+      verbose: true,
     );
 
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
@@ -194,6 +198,39 @@ const launch = FlowDefinition(
             'lib/journeys/restage.generated/launch.restage.g.dart']!,
       ),
       contains('SurfaceFlowRef<LaunchResult>'),
+    );
+    final summaries = logs
+        .where((record) => record.message.contains('[restage] Compiled'))
+        .map((record) => record.message)
+        .toList();
+    expect(summaries, hasLength(1));
+    expect(summaries.single, contains('2 surfaces'));
+    expect(summaries.single, contains('1 screen'));
+    expect(summaries.single, contains('1 flow'));
+    expect(summaries.single, contains('FeatureAnnouncementSurface'));
+    expect(summaries.single, contains('LaunchSurface'));
+  });
+
+  test('does not report compilation success for a package without surfaces',
+      () async {
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final logs = <LogRecord>[];
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const {'apps_examples|lib/plain.dart': 'class Plain {}'},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+      onLog: logs.add,
+      verbose: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    expect(
+      logs.map((record) => record.message),
+      everyElement(isNot(contains('[restage] Compiled'))),
     );
   });
 

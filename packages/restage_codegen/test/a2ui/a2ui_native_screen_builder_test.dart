@@ -65,7 +65,7 @@ class LegacyGauge extends StatelessWidget {
     final jsonBytes = result.readerWriter.testing.readBytes(
       AssetId(
         'apps_examples',
-        'lib/generated/restage_a2ui_catalog.a2ui.json',
+        '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
       ),
     );
     expect(
@@ -162,7 +162,7 @@ dependencies:
       );
       final stampId = AssetId(
         'apps_examples',
-        'lib/generated/restage_a2ui_catalog.a2ui.json',
+        '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
       );
       expect(result.readerWriter.testing.exists(dartId), isTrue);
       expect(result.readerWriter.testing.exists(stampId), isTrue);
@@ -280,7 +280,7 @@ dependencies:
           result.readerWriter.testing.readBytes(
             AssetId(
               'apps_examples',
-              'lib/generated/restage_a2ui_catalog.a2ui.json',
+              '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
             ),
           ),
         ),
@@ -417,7 +417,7 @@ class OrderScreen extends StatelessWidget {
         expect(logs.join('\n'), contains('missingPartDirective'));
         for (final path in const <String>[
           'lib/generated/restage_a2ui_catalog.g.dart',
-          'lib/generated/restage_a2ui_catalog.a2ui.json',
+          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
         ]) {
           expect(
             result.readerWriter.testing.exists(

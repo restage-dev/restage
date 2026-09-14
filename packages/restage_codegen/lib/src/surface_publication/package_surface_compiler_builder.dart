@@ -3,7 +3,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
@@ -12,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
+import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
@@ -1178,24 +1178,70 @@ final class PackageSurfaceCompilerBuilder implements Builder {
         compilation.analyticsIdControlOutput.encodeJson(),
       ),
     ]);
+    if (compilation.isValid) {
+      _logCompilationSummary(compilation);
+    }
   }
+}
+
+final RegExp _generatedMountDeclaration = RegExp(
+  r'^final class ([A-Za-z_$][A-Za-z0-9_$]*Surface)(?:<[^>\n]+>)? extends ',
+  multiLine: true,
+);
+
+void _logCompilationSummary(TrackedPackageSurfaceCompilation compilation) {
+  final publications = compilation.publicationBundle.manifest!.publications;
+  if (publications.isEmpty) return;
+
+  final counts = <SurfaceSourceKind, int>{};
+  for (final entry in publications) {
+    counts.update(
+      entry.publication.sourceKind,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+  }
+  final countSummary = <String>[
+    for (final kind in const [
+      SurfaceSourceKind.screen,
+      SurfaceSourceKind.paywall,
+      SurfaceSourceKind.flowGraph,
+    ])
+      if (counts[kind] case final count?)
+        '$count ${switch (kind) {
+          SurfaceSourceKind.screen => count == 1 ? 'screen' : 'screens',
+          SurfaceSourceKind.paywall => count == 1 ? 'paywall' : 'paywalls',
+          SurfaceSourceKind.flowGraph => count == 1 ? 'flow' : 'flows',
+        }}',
+  ].join(', ');
+  final mounts = <String>{
+    for (final source in compilation.generatedParts.values)
+      for (final match in _generatedMountDeclaration.allMatches(source))
+        match.group(1)!,
+  }.toList()
+    ..sort();
+  final surfaceCount = publications.length;
+  final mountSummary = mounts.isEmpty
+      ? 'no generated mounts'
+      : 'generated mounts: ${mounts.join(', ')}';
+  log.info(
+    '[restage] Compiled $surfaceCount '
+    'surface${surfaceCount == 1 ? '' : 's'} ($countSummary); $mountSummary.',
+  );
 }
 
 Future<RestageMeasurementCompilerOutputV1?> _readPriorMeasurementOutput(
   BuildStep buildStep,
   List<Issue> issues,
 ) async {
-  final asset = AssetId(
-    buildStep.inputId.package,
-    kRestageMeasurementCompilerLedgerSourcePath,
-  );
-  if (!await buildStep.canRead(asset)) {
-    return RestageMeasurementCompilerOutputV1.empty();
-  }
   try {
-    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-      await buildStep.readAsBytes(asset),
+    final bytes = await readDurableRestageState(
+      buildStep,
+      path: kRestageMeasurementCompilerLedgerSourcePath,
+      legacyPath: kLegacyRestageMeasurementCompilerLedgerSourcePath,
     );
+    if (bytes == null) return RestageMeasurementCompilerOutputV1.empty();
+    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(bytes);
     if (!output.valid) {
       throw const FormatException(
         'The committed Measurement ledger source must be a valid compiler '
@@ -1220,14 +1266,14 @@ Future<void> _persistMeasurementCompilerLedgerSource({
   required String package,
   required RestageMeasurementCompilerOutputV1 output,
 }) async {
-  final packageLib = await Isolate.resolvePackageUri(
-    Uri.parse('package:$package/'),
+  final root = await restagePackageRoot(package);
+  if (root == null) return;
+  final file = migrateDurableRestageState(
+    root: Directory.fromUri(root),
+    path: kRestageMeasurementCompilerLedgerSourcePath,
+    legacyPath: kLegacyRestageMeasurementCompilerLedgerSourcePath,
   );
-  if (packageLib == null || packageLib.scheme != 'file') return;
-  final root = packageLib.resolve('../');
-  final file = File.fromUri(
-    root.resolve(kRestageMeasurementCompilerLedgerSourcePath),
-  );
+  if (output.publications.isEmpty && output.ledgerNodes.isEmpty) return;
   writeMeasurementCompilerLedgerSource(
     file: file,
     bytes: output.canonicalBytes,

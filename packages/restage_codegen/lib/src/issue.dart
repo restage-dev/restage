@@ -19,6 +19,9 @@ enum IssueCode {
   /// `@PaywallSource` could not be const-evaluated by analyzer.
   annotationEvaluationFailed,
 
+  /// An SDK runtime surface widget was used as source metadata.
+  runtimeWidgetUsedAsAnnotation,
+
   /// Two `@PaywallSource` classes share the same `id`.
   duplicateId,
 
@@ -568,6 +571,7 @@ enum IssueCode {
           true,
         // Everything below is a real codegen error the author must resolve.
         IssueCode.annotationEvaluationFailed ||
+        IssueCode.runtimeWidgetUsedAsAnnotation ||
         IssueCode.duplicateId ||
         IssueCode.measurementConfigurationInvalid ||
         IssueCode.unsupportedBaseClass ||

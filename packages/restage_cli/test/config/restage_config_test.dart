@@ -415,9 +415,7 @@ Directory _locateExamplesApp() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
     final candidate = Directory(p.join(dir.path, 'apps', 'examples'));
-    if (File(
-      p.join(candidate.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
-    ).existsSync()) {
+    if (File(p.join(candidate.path, 'pubspec.yaml')).existsSync()) {
       return candidate;
     }
     final parent = dir.parent;

@@ -122,7 +122,7 @@ Future<_Compiled> _compileFixture(String sourcePath) async {
 void _expectUnmeasuredStatefulPaywall(TestReaderWriter readerWriter) {
   final manifest = SurfacePublicationManifestV1Codec.decodeJson(
     readerWriter.testing.readString(
-      AssetId(_package, 'lib/generated/restage.publication.json'),
+      AssetId(_package, '.restage/build/metadata/restage.publication.json'),
     ),
   );
   expect(manifest.publications, hasLength(1));

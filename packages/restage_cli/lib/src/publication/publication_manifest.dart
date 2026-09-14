@@ -11,7 +11,7 @@ import 'publication_outputs.dart';
 /// Configured `output_root` values and transient Build Runner overrides are
 /// resolved from the generated output index instead of this default path.
 const String surfacePublicationManifestRelativePath =
-    'lib/generated/restage.publication.json';
+    '.restage/build/metadata/restage.publication.json';
 
 /// The fixed code-generation failure marker consumed by the freshness gate.
 const String surfacePublicationInvalidRelativePath =

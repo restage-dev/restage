@@ -98,7 +98,7 @@ Builder userCatalogBuilder(BuilderOptions options) =>
 /// build_runner factory entry point for the package-wide widget catalog
 /// JSON emitter. Scans every `lib/**.dart` and walks the files that spell a
 /// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
-/// classes and emits `lib/src/widget_catalog/catalog.json` from the same
+/// classes and caches `lib/src/widget_catalog/catalog.json` from the same
 /// allocation as `lib/user_catalog.g.dart`, so a paywall referencing a
 /// registered custom widget resolves it against the catalog.
 Builder userCatalogJsonBuilder(BuilderOptions options) =>

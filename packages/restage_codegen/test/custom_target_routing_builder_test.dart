@@ -66,7 +66,7 @@ void main() {
       readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/generated/restage_a2ui_catalog.a2ui.json',
+          '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
         ),
       ),
     ) as Map<String, Object?>;
@@ -385,7 +385,7 @@ const _rfwArtifactPaths = <String>{
 };
 const _a2uiArtifactPaths = <String>{
   'lib/generated/restage_a2ui_catalog.g.dart',
-  'lib/generated/restage_a2ui_catalog.a2ui.json',
+  '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
 };
 const _widgetbookArtifactPaths = <String>{
   'lib/widgets/restage.generated/routed_card.stories.dart',
@@ -511,7 +511,7 @@ class IgnoreProbe extends StatelessWidget {
     'lib/src/widget_catalog/catalog.json',
     'lib/user_factories.g.dart',
     'lib/generated/restage_a2ui_catalog.g.dart',
-    'lib/generated/restage_a2ui_catalog.a2ui.json',
+    '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
     'lib/widgets/restage.generated/ignore_probe.stories.dart',
   ];
   return {
@@ -586,7 +586,7 @@ Future<({String dart, String stamp})> _runA2ui(
     stamp: readerWriter.testing.readString(
       AssetId(
         'apps_examples',
-        'lib/generated/restage_a2ui_catalog.a2ui.json',
+        '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json',
       ),
     ),
   );

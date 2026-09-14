@@ -45,6 +45,29 @@ inputs and write the generated outputs next to them.
 
 The categories are `onboarding`, `message`, `survey`, `paywall`, and `general`.
 
+Hosted generation needs no app `build.yaml`: run `dart run build_runner build`.
+Add `--verbose` to show the Restage compilation summary, including surface
+counts and generated mount names.
+Generated Dart stays beside its source in `restage.generated/`; package-wide
+Dart retains its existing paths. Portable artifacts live in `.restage/build/`:
+`bundles/` preserves the `lib/` hierarchy, `metadata/` holds publication indexes,
+`widget_catalog/` holds custom catalog JSON, and optional `a2ui/` holds producer
+JSON. `bundled_runtime: true` still places runtime bundles under
+`assets/restage/bundles/`. A2UI and Widgetbook remain opt-in.
+
+Ignore `.restage/build/` in Git. Track `.restage/measurement-state.json` and
+`.restage/wire-ids.events.jsonl`: they preserve Measurement and widget identities
+across clean builds. Generation migrates the former root-level state files
+without resetting IDs and refuses conflicting old/new copies. It removes
+recognized obsolete generated artifacts while preserving authored files and
+Dart output directories.
+
+Build Runner's default source filters exclude hidden state. Normal source edits
+and clean builds read that state directly. If you manually edit identity state
+while using watch mode, include `.restage/measurement-state.json` and
+`.restage/wire-ids.events.jsonl` in your target's `sources` alongside its existing
+source patterns, or clean the Build Runner cache before rebuilding.
+
 ## What it produces
 
 From one annotated source file:
@@ -59,7 +82,7 @@ From one annotated source file:
   `SurfaceScreenRef<E>` and `SurfaceFlowRef<R>` accessors with the category,
   compatibility, and event or result contracts, plus typed `<Screen>Surface`
   widgets for eligible screens.
-- **A publication manifest** (`lib/generated/restage.publication.json`): the
+- **A publication manifest** (`.restage/build/metadata/restage.publication.json`): the
   exact set of generated artifacts for each surface id. `restage surface
   publish` reads it.
 
@@ -100,7 +123,7 @@ widget factories for the runtime.
 
 ## Renaming catalog classes
 
-The package-root `wire_ids.events.jsonl` file is the durable identity record
+The `.restage/wire-ids.events.jsonl` file is the durable identity record
 for generated catalog entries. Commit it with the source it describes.
 
 When generation can unambiguously pair one vanished `@RestageWidget` class
@@ -189,10 +212,8 @@ Dart toolchain still reports it. The exception is the deprecated screen path
 builders still analyse a library there whether or not it is annotated, and the
 two opt-in package-wide builders still select it, so its errors are unchanged.
 
-The two roster ledgers, `assets/restage/source-index.json` and
-`assets/restage/output-roster.json`, are written into your package only once it
-declares a Restage source, or reports a problem with one. A package that merely
-depends on `restage_codegen` does not get them.
+The source/output rosters and compiler handoffs stay in Build Runner’s cache.
+They run only for the root package and emit no source-tree bookkeeping.
 
 **Turning builders off.** If a package will never declare a custom widget or
 a Restage surface — a data layer, a networking package, a generated-model
@@ -219,11 +240,12 @@ Restage's own registry-driven widget packages use the first two entries of that
 recipe.
 
 `generate_for` is not an alternative here. These builders take a `build_runner`
-placeholder as their input — `$package$` for the source roster and the surface
-compiler, `lib/$lib$` for the three widget aggregators — not your source files.
+placeholder as their input — `$package$` for the source roster, surface
+compiler; `lib/$lib$` for the catalog JSON, catalog Dart, and factory Dart
+aggregators.
 A glob narrowed to a subtree (`lib/widgets/**`) matches neither placeholder, so
 it does not scope the builder, it stops it running. A broad glob (`lib/**`)
-matches `lib/$lib$`, so it scopes nothing for the three widget aggregators —
+matches `lib/$lib$`, so it scopes nothing for the Dart widget aggregators —
 and it does not match `$package$`, so it stops the source roster and the surface
 compiler outright. `enabled: false` is the supported control.
 

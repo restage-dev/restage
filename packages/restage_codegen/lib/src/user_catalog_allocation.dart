@@ -1,13 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:build/build.dart';
-import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart'
     show
         isCustomStructuredFieldSlot,
         isCustomStructuredPropertySlot,
         structuredSlotKey;
+import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/user_catalog_emitter.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
@@ -34,7 +34,7 @@ final class UserCatalogAllocation {
 
 /// Allocates stable package-root wire IDs for generated custom widgets.
 ///
-/// The package-root `wire_ids.events.jsonl` is treated as one append-only
+/// The `.restage/wire-ids.events.jsonl` is treated as one append-only
 /// source of truth for the generated `user_catalog.g.dart` surface. Entries
 /// replay by exact source/name match. A likely rename or source move fails
 /// before allocation and supplies the `rename` event that preserves its ID.
@@ -262,26 +262,20 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
   );
 }
 
-/// Reads a package-root `wire_ids.events.jsonl` event log for [package].
+/// Reads the durable `.restage/wire-ids.events.jsonl` event log for [package].
 Future<RootEventLogContents?> readRootEventLog(
   BuildStep buildStep,
   String package,
 ) async {
-  final eventLog = AssetId(package, 'wire_ids.events.jsonl');
-  if (await buildStep.canRead(eventLog)) {
-    return RootEventLogContents(
-      contents: await buildStep.readAsString(eventLog),
-      sourceDescription: '${eventLog.package}|${eventLog.path}',
-    );
-  }
-
-  final root = await _packageRoot(package);
-  if (root == null) return null;
-  final file = File.fromUri(root.resolve('wire_ids.events.jsonl'));
-  if (!file.existsSync()) return null;
+  final bytes = await readDurableRestageState(
+    buildStep,
+    path: '.restage/wire-ids.events.jsonl',
+    legacyPath: 'wire_ids.events.jsonl',
+  );
+  if (bytes == null) return null;
   return RootEventLogContents(
-    contents: file.readAsStringSync(),
-    sourceDescription: file.path,
+    contents: utf8.decode(bytes),
+    sourceDescription: '$package|.restage/wire-ids.events.jsonl',
   );
 }
 
@@ -291,14 +285,19 @@ Future<void> appendEventsToRootEventLog({
   required Iterable<WireIdEvent> events,
   bool createIfMissing = false,
 }) async {
-  final root = await _packageRoot(package);
+  final root = await restagePackageRoot(package);
   if (root == null) return;
-  final file = File.fromUri(root.resolve('wire_ids.events.jsonl'));
+  final file = migrateDurableRestageState(
+    root: Directory.fromUri(root),
+    path: '.restage/wire-ids.events.jsonl',
+    legacyPath: 'wire_ids.events.jsonl',
+  );
   if (file.existsSync()) {
     appendWireIdEventsSync(file, events);
     return;
   }
   if (createIfMissing) {
+    file.parent.createSync(recursive: true);
     writeWireIdEventLogSync(file, events);
   }
 }
@@ -539,7 +538,7 @@ final class _PotentialClassRenameException implements Exception {
         )
         ..writeln(
           'If this is the same class, append this line to '
-          'wire_ids.events.jsonl and rerun:',
+          '.restage/wire-ids.events.jsonl and rerun:',
         )
         ..write(encodeWireIdEventsJsonl([rename.renameEvent]))
         ..writeln(
@@ -1174,15 +1173,4 @@ String _parameterSource(
   return variantSource.endsWith('.')
       ? '$variantSource$label'
       : '$variantSource.$label';
-}
-
-Future<Uri?> _packageRoot(String package) async {
-  final packageConfigUri = await Isolate.packageConfig;
-  if (packageConfigUri == null) return null;
-  final config = await loadPackageConfigUri(packageConfigUri);
-  final packageConfig = config[package];
-  if (packageConfig == null || !packageConfig.root.isScheme('file')) {
-    return null;
-  }
-  return packageConfig.root;
 }
