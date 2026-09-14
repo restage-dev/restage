@@ -241,7 +241,7 @@ class LumenReminderScreen extends StatelessWidget {
                         child: Container(
                           height: 58,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(18),
                             gradient: LinearGradient(
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,

@@ -147,6 +147,7 @@ class _LumenDeviceState extends State<_LumenDevice> {
       MarketingLumenFlow(
         generation: _flowGeneration,
         started: _flowStarted,
+        published: widget.state.published,
         onEvent: widget.onEvent,
         onRestart: () => setState(() {
           _flowStarted = false;
@@ -190,6 +191,7 @@ class MarketingLumenFlow extends StatefulWidget {
   const MarketingLumenFlow({
     required this.generation,
     required this.started,
+    required this.published,
     required this.welcome,
     required this.onEvent,
     required this.onRestart,
@@ -199,6 +201,7 @@ class MarketingLumenFlow extends StatefulWidget {
 
   final int generation;
   final bool started;
+  final bool published;
   final Widget welcome;
   final ValueChanged<String> onEvent;
   final VoidCallback onRestart;
@@ -223,7 +226,8 @@ class _MarketingLumenFlowState extends State<MarketingLumenFlow> {
   @override
   void didUpdateWidget(MarketingLumenFlow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.generation != widget.generation) {
+    if (oldWidget.generation != widget.generation ||
+        oldWidget.published != widget.published) {
       _resetController();
       unawaited(_start());
     }
@@ -231,19 +235,41 @@ class _MarketingLumenFlowState extends State<MarketingLumenFlow> {
 
   Future<void> _start() async {
     final generation = widget.generation;
+    final published = widget.published;
     late final FlowSurfacePayload payload;
     try {
-      final resolved = await Restage.defaultFlowResolver.resolve(
-        lumenOnboardingFlowRef,
-      );
-      if (!mounted || generation != widget.generation) return;
-      payload = FlowSurfacePayload(
-        flowDocument: resolved.document,
-        screenBlobs: resolved.screenBlobs,
-      );
-    } on FlowUnavailableError catch (error) {
-      if (mounted && generation == widget.generation) {
-        setState(() => _error = error);
+      if (published) {
+        final resolved = await Restage.defaultFlowResolver.resolve(
+          lumenOnboardingFlowRef,
+        );
+        payload = FlowSurfacePayload(
+          flowDocument: resolved.document,
+          screenBlobs: resolved.screenBlobs,
+        );
+      } else {
+        final data = await rootBundle.load(
+          'assets/marketing/lumen_original.payload',
+        );
+        payload = SurfacePayload.decode(Uint8List.sublistView(data))
+            as FlowSurfacePayload;
+      }
+      if (!mounted ||
+          generation != widget.generation ||
+          published != widget.published) return;
+    } on Object catch (error) {
+      if (mounted &&
+          generation == widget.generation &&
+          published == widget.published) {
+        setState(() {
+          _error = error is FlowUnavailableError
+              ? error
+              : FlowUnavailableError(
+                  flowId: lumenOnboardingFlowRef.id,
+                  flowVersion: lumenOnboardingFlowRef.version,
+                  reason: 'demo_payload_unavailable',
+                  message: 'Could not load the prepared flow: $error',
+                );
+        });
       }
       return;
     }
