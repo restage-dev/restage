@@ -97,80 +97,83 @@ class LumenWelcomeScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.dark_mode_outlined,
-                                size: 28,
-                                color: dark
-                                    ? const Color(0xFFC39BFF)
-                                    : const Color(0xFF6A55C4),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'LUMEN',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 2,
+                      SizedBox(
+                        height: 36,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.dark_mode_outlined,
+                                  size: 28,
                                   color: dark
                                       ? const Color(0xFFC39BFF)
                                       : const Color(0xFF6A55C4),
                                 ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Container(
-                                width: 22,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(999),
-                                  color: dark
-                                      ? const Color(0xFFC39BFF)
-                                      : const Color(0xFF6A55C4),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'LUMEN',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 2,
+                                    color: dark
+                                        ? const Color(0xFFC39BFF)
+                                        : const Color(0xFF6A55C4),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: dark
-                                      ? const Color(0x2EFFFFFF)
-                                      : const Color(0x1A7C6CD6),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 22,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(999),
+                                    color: dark
+                                        ? const Color(0xFFC39BFF)
+                                        : const Color(0xFF6A55C4),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: dark
-                                      ? const Color(0x2EFFFFFF)
-                                      : const Color(0x1A7C6CD6),
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: dark
+                                        ? const Color(0x2EFFFFFF)
+                                        : const Color(0x1A7C6CD6),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: dark
-                                      ? const Color(0x2EFFFFFF)
-                                      : const Color(0x1A7C6CD6),
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: dark
+                                        ? const Color(0x2EFFFFFF)
+                                        : const Color(0x1A7C6CD6),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: dark
+                                        ? const Color(0x2EFFFFFF)
+                                        : const Color(0x1A7C6CD6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                       Expanded(
                         child: SingleChildScrollView(

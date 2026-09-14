@@ -480,29 +480,24 @@ class _DeliveredLumenState extends State<_DeliveredLumen> {
   int? _reportedErrorRequestId;
 
   Future<({Uint8List original, Uint8List published})> _loadBlobs() async {
-    final data = await rootBundle.load(
-      'assets/restage/bundles/lib/onboarding/screens/lumen_welcome.rsbundle',
-    );
-    final bundle = RestageBundleCodec.decode(Uint8List.sublistView(data));
-    final textEntry = bundle.entries.singleWhere(
-      (entry) => entry.role == RestageBundleEntryRole.rfwText,
-    );
-    final source = utf8.decode(textEntry.bytes);
-    const original = 'Text(text: "Begin",';
-    const replacement = 'Text(text: "Begin your practice",';
-    if (original.allMatches(source).length != 1) {
-      throw const FormatException('The Lumen CTA source shape has changed.');
+    Future<Uint8List> loadScreen(String filename) async {
+      final data = await rootBundle.load(
+        'assets/restage/bundles/lib/onboarding/screens/$filename.rsbundle',
+      );
+      final bundle = RestageBundleCodec.decode(Uint8List.sublistView(data));
+      final textEntry = bundle.entries.singleWhere(
+        (entry) => entry.role == RestageBundleEntryRole.rfwText,
+      );
+      return rfw_formats.encodeLibraryBlob(
+        rfw_formats.parseLibraryFile(utf8.decode(textEntry.bytes)),
+      );
     }
-    return (
-      original: rfw_formats.encodeLibraryBlob(
-        rfw_formats.parseLibraryFile(source),
-      ),
-      published: rfw_formats.encodeLibraryBlob(
-        rfw_formats.parseLibraryFile(
-          source.replaceFirst(original, replacement),
-        ),
-      ),
-    );
+
+    final screens = await Future.wait([
+      loadScreen('lumen_welcome'),
+      loadScreen('lumen_welcome_refresh'),
+    ]);
+    return (original: screens[0], published: screens[1]);
   }
 
   void _reportApplied() {
