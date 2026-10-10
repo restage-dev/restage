@@ -4,7 +4,8 @@ import 'package:restage_measurement_schema/src/manifest.dart';
 import 'package:restage_measurement_schema/src/target.dart';
 
 /// Stable identity of one published surface across immutable revisions.
-final class PublishedSurfaceIdentityV1 extends CanonicalDocument {
+final class PublishedSurfaceIdentityV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates an identity from its exact target and stable surface ID.
   const PublishedSurfaceIdentityV1({
     required this.target,
@@ -59,7 +60,8 @@ final class PublishedSurfaceIdentityV1 extends CanonicalDocument {
 }
 
 /// Immutable published revision of one stable surface.
-final class PublishedSurfaceRevisionV1 extends CanonicalDocument {
+final class PublishedSurfaceRevisionV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates a published-only revision that seals its graph and manifest.
   PublishedSurfaceRevisionV1({
     required this.revisionId,
@@ -246,7 +248,8 @@ final class PublishedSurfaceRevisionV1 extends CanonicalDocument {
 }
 
 /// Content identity of one published artifact.
-final class PublishedArtifactIdentityV1 extends CanonicalDocument {
+final class PublishedArtifactIdentityV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates an identity without graph-bound manifest fields.
   const PublishedArtifactIdentityV1({
     required this.surfaceRevisionId,
@@ -329,7 +332,8 @@ final class PublishedArtifactIdentityV1 extends CanonicalDocument {
 }
 
 /// Published artifact record carrying its graph-bound local manifest.
-final class PublishedArtifactV1 extends CanonicalValue {
+final class PublishedArtifactV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates an artifact with a sorted unique child definition set.
   PublishedArtifactV1({
     required this.identity,
@@ -427,7 +431,8 @@ final class PublishedArtifactV1 extends CanonicalValue {
 }
 
 /// One incoming artifact occurrence edge in an exact publication graph.
-final class ArtifactOccurrenceEdgeV1 extends CanonicalValue {
+final class ArtifactOccurrenceEdgeV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates an edge; omit [parentEdgeToken] only for the synthetic root.
   const ArtifactOccurrenceEdgeV1({
     required this.edgeToken,
@@ -499,7 +504,8 @@ final class ArtifactOccurrenceEdgeV1 extends CanonicalValue {
 }
 
 /// Exact immutable artifact occurrence graph for one surface revision.
-final class ExactArtifactGraphV1 extends CanonicalDocument {
+final class ExactArtifactGraphV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates and validates graph-internal topology and identity closure.
   ExactArtifactGraphV1({
     required this.surfaceRevisionId,
@@ -675,7 +681,8 @@ final class ExactArtifactGraphV1 extends CanonicalDocument {
 }
 
 /// Origin-neutral canonical node-token authority.
-final class CanonicalNodeTokenV1 extends CanonicalDocument {
+final class CanonicalNodeTokenV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates one canonical node-token record.
   const CanonicalNodeTokenV1({required this.nodeTokenId});
 
@@ -719,7 +726,8 @@ final class CanonicalNodeTokenV1 extends CanonicalDocument {
 }
 
 /// One code identity to canonical node-token binding.
-final class CodeIdentityBindingV1 extends CanonicalValue {
+final class CodeIdentityBindingV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one identity binding without source-locator metadata.
   const CodeIdentityBindingV1({
     required this.codeIdentityId,
@@ -763,7 +771,8 @@ final class CodeIdentityBindingV1 extends CanonicalValue {
 }
 
 /// Canonical code-identity ledger for one stable published surface.
-final class CodeIdentityLedgerV1 extends CanonicalDocument {
+final class CodeIdentityLedgerV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates a sorted one-to-one code identity ledger.
   CodeIdentityLedgerV1({
     required this.surfaceIdentity,

@@ -178,17 +178,22 @@ final class MeasurementPublicationFixture {
 }
 
 /// Write a generated paywall with an admitted or zero-route Measurement draft.
+///
+/// Pass [paddingNodes] to grow the draft past a byte limit: each padded node
+/// hangs off the root node, so the draft stays structurally closed while its
+/// canonical bytes grow.
 Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   Directory projectRoot, {
+  String slug = 'measured_upgrade',
   bool admittedRoute = true,
   bool mismatchEmittedCarrier = false,
   MeasurementOrderedCaptureDeclarationV1? orderedCapture,
   bool omitPhysicalCarrier = false,
   bool routeOnSidecar = false,
   String? screenDraftHashOverride,
+  int paddingNodes = 0,
   GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
 }) async {
-  const slug = 'measured_upgrade';
   final placeholderPayload = BlobSurfacePayload(
     minClient: 2,
     blob: ordinaryRfwBlob(),
@@ -253,12 +258,25 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
         codeIdentityId: CodeIdentityId('code.measured-button'),
         canonicalNodeTokenId: NodeTokenId('node.measured-button'),
       ),
+      for (var index = 0; index < paddingNodes; index++)
+        CodeIdentityBindingV1(
+          codeIdentityId: CodeIdentityId(_paddingIdentity('code.pad', index)),
+          canonicalNodeTokenId: NodeTokenId(
+            _paddingIdentity('node.pad', index),
+          ),
+        ),
     ],
     nodes: [
       MeasurementPublicationDraftNodeV1(
         codeIdentityId: CodeIdentityId('code.measured-button'),
         artifactOccurrenceEdgeToken: routeOnSidecar ? sidecarEdge : screenEdge,
       ),
+      for (var index = 0; index < paddingNodes; index++)
+        MeasurementPublicationDraftNodeV1(
+          codeIdentityId: CodeIdentityId(_paddingIdentity('code.pad', index)),
+          artifactOccurrenceEdgeToken: screenEdge,
+          parentCodeIdentityId: CodeIdentityId('code.measured-button'),
+        ),
     ],
     events: admittedRoute
         ? [
@@ -392,11 +410,30 @@ widget Preview = Button(
   );
 }
 
+/// One entry of the generated Measurement publication index.
+///
+/// `draftBase64` overrides the encoding of `draft`, so a test can write an
+/// entry the canonical encoder would never produce.
+typedef MeasurementIndexEntryFixture = ({
+  SurfacePublicationManifestEntry entry,
+  MeasurementPublicationDraftV1 draft,
+  String? draftBase64,
+});
+
 /// Write the generated Measurement publication index for [entry] and [draft].
 Future<void> writeMeasurementPublicationIndex(
   Directory projectRoot,
   SurfacePublicationManifestEntry entry,
   MeasurementPublicationDraftV1 draft, {
+  GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
+}) => writeMeasurementPublicationIndexEntries(projectRoot, [
+  (entry: entry, draft: draft, draftBase64: null),
+], layout: layout);
+
+/// Write the generated Measurement publication index over several drafts.
+Future<void> writeMeasurementPublicationIndexEntries(
+  Directory projectRoot,
+  List<MeasurementIndexEntryFixture> indexed, {
   GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
 }) async {
   final file = File(
@@ -409,27 +446,37 @@ Future<void> writeMeasurementPublicationIndex(
   await file.writeAsBytes(
     CanonicalJsonCodec.encode({
       'entries': [
-        {
-          'draftBase64': base64UrlEncode(
-            draft.canonicalBytes,
-          ).replaceAll('=', ''),
-          'draftDigest': draft.canonicalDigest.hex,
-          'routePlanDigest': draft.routeDraftClosureDigest.hex,
-          'selector': {
-            if (entry.publication.sourceKind == SurfaceSourceKind.screen)
-              'contractVersion': entry.publication.contractVersion,
-            'slug': entry.publication.slug,
-            'sourceKind': entry.publication.sourceKind.wireName,
-            'surface': entry.publication.surface.wireName,
+        for (final indexedEntry in indexed)
+          {
+            'draftBase64':
+                indexedEntry.draftBase64 ??
+                base64UrlEncode(
+                  indexedEntry.draft.canonicalBytes,
+                ).replaceAll('=', ''),
+            'draftDigest': indexedEntry.draft.canonicalDigest.hex,
+            'routePlanDigest': indexedEntry.draft.routeDraftClosureDigest.hex,
+            'selector': {
+              if (indexedEntry.entry.publication.sourceKind ==
+                  SurfaceSourceKind.screen)
+                'contractVersion':
+                    indexedEntry.entry.publication.contractVersion,
+              'slug': indexedEntry.entry.publication.slug,
+              'sourceKind': indexedEntry.entry.publication.sourceKind.wireName,
+              'surface': indexedEntry.entry.publication.surface.wireName,
+            },
+            'surfaceId': indexedEntry.draft.surfaceId.value,
           },
-          'surfaceId': draft.surfaceId.value,
-        },
       ],
       'kind': 'restageMeasurementPublicationIndex',
       'package': fixturePackageName,
       'schemaVersion': 1,
     }),
   );
+}
+
+String _paddingIdentity(String prefix, int index) {
+  final value = '$prefix.$index.${'p' * 128}';
+  return value.substring(0, 128);
 }
 
 /// The extract of the example app's generated Measurement publication index

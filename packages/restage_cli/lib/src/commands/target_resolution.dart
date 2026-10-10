@@ -31,12 +31,16 @@ class ResolvedEnvironmentTargetContext {
   /// Construct a resolved target context.
   const ResolvedEnvironmentTargetContext({
     required this.organizationId,
+    required this.organizationSlug,
     required this.appId,
     required this.target,
   });
 
   /// Authorized organization id.
   final int organizationId;
+
+  /// Slug of the organization [organizationId] names.
+  final String organizationSlug;
 
   /// Active numeric App authority verified during discovery.
   final int appId;
@@ -159,6 +163,7 @@ Future<ResolvedEnvironmentTargetContext?> resolveEnvironmentTargetContext({
 
     return ResolvedEnvironmentTargetContext(
       organizationId: organization.organizationId,
+      organizationSlug: organization.slug,
       appId: appId,
       target: target,
     );

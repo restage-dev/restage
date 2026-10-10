@@ -62,6 +62,24 @@ class SurfaceSlugRejected extends GenericTypedException {
   String toString() => 'SurfaceSlugRejected(slug: $slug, reason: $reason)';
 }
 
+/// A measurement read named a window or selector it cannot answer.
+@experimental
+class MeasurementReadRejected extends GenericTypedException {
+  /// Construct with the read's closed [reason] and its operator-readable
+  /// [detail].
+  const MeasurementReadRejected({required this.reason, required this.detail});
+
+  /// The read transport's closed refusal reason.
+  final String reason;
+
+  /// What the caller must change.
+  final String detail;
+
+  @override
+  String toString() =>
+      'MeasurementReadRejected(reason: $reason, detail: $detail)';
+}
+
 /// The caller is not authorised to act on the named [resource]. Maps
 /// from the backend's `UnauthorizedException`.
 @experimental
@@ -114,6 +132,11 @@ GenericTypedException? decodeGenericTypedException(String body) {
       return SurfaceSlugRejected(
         slug: data['slug'] as String,
         reason: data['reason'] as String,
+      );
+    case 'MeasurementReadRejectedException':
+      return MeasurementReadRejected(
+        reason: data['reason'] as String,
+        detail: data['detail'] as String,
       );
     default:
       return null;

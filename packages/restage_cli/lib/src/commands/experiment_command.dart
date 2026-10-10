@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
@@ -939,6 +938,13 @@ class _ListCommand extends _ExperimentSubcommand {
   ExperimentAuthoringOperationV1? get operation => null;
 
   @override
+  void addOptions(ArgParser parser) => parser.addFlag(
+    'results',
+    negatable: false,
+    help: "Read each listed experiment's results beside its identity.",
+  );
+
+  @override
   Map<String, Object?>? buildPayload() => const {};
 
   @override
@@ -946,14 +952,42 @@ class _ListCommand extends _ExperimentSubcommand {
     ExperimentApi api,
     TargetCoordinate target,
     String correlationId,
-  ) => api.listEveryPage(target: target, correlationId: correlationId);
+  ) => argResults?['results'] as bool? ?? false
+      ? api.listEveryPageWithResults(
+          target: target,
+          correlationId: correlationId,
+          newCorrelationId: () => _newIdentity('correlation'),
+        )
+      : api.listEveryPage(target: target, correlationId: correlationId);
 
   @override
   String renderDrained(Object? value) {
+    if (value case final List<ExperimentRosterEntry> roster) {
+      if (roster.isEmpty) return 'No experiments at this target.';
+      return roster.map(_rosterLines).join('\n');
+    }
     final entries = value! as List<ExperimentListEntryV1>;
     if (entries.isEmpty) return 'No experiments at this target.';
     return entries.map((entry) => entry.experimentId.value).join('\n');
   }
+}
+
+/// One roster entry: its identity, then the figures its results carry.
+String _rosterLines(ExperimentRosterEntry entry) {
+  final identity = entry.entry.experimentId.value;
+  final results = entry.results;
+  if (results == null) {
+    final refusal = entry.refusal?.refusal.code.wireName;
+    return '$identity: no result (${refusal ?? entry.omission!.name})';
+  }
+  if (results.availability.kind !=
+      ExperimentResultsAvailabilityKindV1.available) {
+    return '$identity: no result (${results.availability.kind.wireName})';
+  }
+  return [
+    '$identity (${results.lifecycleState.wireName}):',
+    for (final arm in results.armResults) _armResultLine(arm),
+  ].join('\n');
 }
 
 /// Reads one accepted experiment.
@@ -1082,9 +1116,30 @@ class _ResultsCommand extends _ExperimentSubcommand {
   }
 
   @override
-  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
-      'Read results.';
+  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
+    final view = accepted.response as ExperimentResultsViewV1;
+    if (view.availability.kind !=
+        ExperimentResultsAvailabilityKindV1.available) {
+      return 'No result: ${view.availability.kind.wireName}.';
+    }
+    return [
+      'Results for ${view.experimentId.value} (${view.lifecycleState.wireName}):',
+      for (final arm in view.armResults) _armResultLine(arm),
+      for (final guardrail in view.guardrailOutcomes)
+        '  guardrail ${guardrail.guardrailId.value}: ${guardrail.outcome}',
+    ].join('\n');
+  }
 }
+
+/// One arm's rate, effect and interval, in the digits the result carries.
+///
+/// The exact fraction behind each figure is in the result itself; `--json`
+/// prints it.
+String _armResultLine(ExperimentArmResultV1 arm) =>
+    '  ${arm.stableArmId.value}: rate ${arm.rate} '
+    '(${arm.successCount}/${arm.observedCount} of ${arm.admittedCount}) '
+    'effect ${arm.effect}, '
+    'interval ${arm.interval.lower} to ${arm.interval.upper}';
 
 /// Registers what one installed app build can supply.
 class _RegisterBuildCommand extends _ExperimentSubcommand {
@@ -1363,21 +1418,22 @@ Object? _drainJson(Object? value) => switch (value) {
     ],
     'target': discovery.target.toJson(),
   },
+  final List<ExperimentRosterEntry> roster => [
+    for (final entry in roster)
+      {
+        'entry': entry.entry.toJson(),
+        'omission': entry.omission?.name,
+        'refusal': entry.refusal?.toJson(),
+        'results': entry.results?.toJson(),
+      },
+  ],
   final List<ExperimentListEntryV1> entries => [
     for (final entry in entries) entry.toJson(),
   ],
   _ => value,
 };
 
-final _random = Random.secure();
-
-String _newIdentity(String prefix) {
-  final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
-  final hex = bytes
-      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-      .join();
-  return '$prefix-$hex';
-}
+String _newIdentity(String prefix) => newExperimentIdentity(prefix);
 
 /// Produces the serving records a target lacks, or counts what is missing.
 class _RebuildServingRecordsCommand extends _ExperimentSubcommand {

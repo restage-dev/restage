@@ -31,27 +31,13 @@ void addPushAllOption(ArgParser parser, {required String noun}) =>
 /// keeping the rule one a developer can predict without consulting anything.
 bool _isDartSourceArgument(String argument) => argument.endsWith('.dart');
 
-/// Resolve which generated publications one push invocation addresses.
+/// Selects generated publications by canonical ID or `.dart` source path.
+/// A path includes attributed publications, such as a flow containing a screen.
 ///
-/// The id stays the canonical key; a `.dart` path is a convenience resolved
-/// through the generated manifest. A path selects everything the manifest
-/// ATTRIBUTES to that file, which is wider than what the file declares: name
-/// a screen inside a flow and you select the flow that ships it.
-///
-/// When that is more than one surface this asks rather than guesses:
-/// interactively where there is a terminal, and with a listing of runnable
-/// commands where there is not, so a CI run fails with instructions instead
-/// of blocking on a prompt.
-///
-/// [pathSourceKind] narrows a path match, so a file that produced an
-/// unrelated surface alongside the wanted one does not abort the run. The id
-/// lane deliberately does not take it: an id names one publication, and
-/// telling the developer that exact publication is the wrong kind beats
-/// telling them nothing matched.
-///
-/// Returns null after writing a user-facing message to [stderr] when the
-/// caller should exit non-zero. Throws [PublicationManifestException] for a
-/// manifest that cannot answer the question at all.
+/// Multiple matches prompt in a terminal or print runnable commands in CI.
+/// [pathSourceKind] filters path matches only; ID selection retains type errors.
+/// Returns null after writing an error to [stderr], or throws
+/// [PublicationManifestException] when the manifest cannot resolve selection.
 Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
   required LoadedSurfacePublicationManifest manifest,
   required String argument,
@@ -134,19 +120,13 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
       : <SurfacePublicationManifestEntry>[matches[choice]];
 }
 
-/// Push [assembled] in order against one already-resolved target.
+/// Pushes [assembled] in order, stopping at the first failure.
+/// Returns an exit code and reports partial progress; uploads are not atomic.
 ///
-/// There is no batch push, so a run over several surfaces is not atomic.
-/// It stops at the first failure and reports exactly how far it got rather
-/// than leaving that to be reconstructed from the surfaces' live state.
-///
-/// Returns the process exit code. [noun] names what is being pushed in the
-/// output; [onApiException] renders the command's typed-error handling.
-///
-/// Each publication goes out through the operation its own optional
-/// measurement candidate selects, so a measurement-bound surface takes the
-/// bound operation and finalizes its local bundled profile under
-/// [packageRoot], while an ordinary one takes the plain upload.
+/// Each publication selects its plain or measurement-bound upload operation.
+/// Bound uploads finalize the bundled profile under [packageRoot].
+/// [onPushed] runs after each accepted upload. [noun] labels the output;
+/// [onApiException] renders typed errors.
 Future<int> runPush({
   required RestageApi api,
   required List<AssembledSurfacePublication> assembled,
@@ -160,6 +140,11 @@ Future<int> runPush({
   required int Function(RestageApiException) onApiException,
   required StringSink stdout,
   required StringSink stderr,
+  Future<void> Function(
+    AssembledSurfacePublication publication,
+    SurfacePublicationUploadResult result,
+  )?
+  onPushed,
 }) async {
   final uploader = SurfacePublicationApi(api);
   for (var index = 0; index < assembled.length; index += 1) {
@@ -184,6 +169,7 @@ Future<int> runPush({
       stdout.writeln(
         '${describe(publication)} to $environment; ${result.stateDescription}',
       );
+      await onPushed?.call(publication, result);
     } on RestageApiException catch (error) {
       return stopWith(onApiException(error));
     } on SocketException {

@@ -115,6 +115,17 @@ Uint8List discoveryPage({
   'schemaVersion': kMeasurementSchemaVersion,
 }).canonicalBytes;
 
+/// Canonical bytes of one accepted, evaluated experiment result.
+Uint8List resultsView({String? correlationId, TargetCoordinate? target}) =>
+    ExperimentAuthoringResultV1.fromJson({
+      'correlationId':
+          correlationId ?? fixtureCorrelationId('readExperimentResults'),
+      'kind': 'accepted',
+      'operation': 'readExperimentResults',
+      'response': _resultsResponse(target ?? fixtureTarget),
+      'schemaVersion': kMeasurementSchemaVersion,
+    }).canonicalBytes;
+
 /// Canonical bytes of one accepted experiment-list page.
 Uint8List listPage({
   List<String> experimentIds = const [],
@@ -333,12 +344,72 @@ Map<String, Object?> _discoveryResponse({
   'target': target.toJson(),
 };
 
+Map<String, Object?> _resultsResponse(TargetCoordinate target) => {
+  'analysis': 'fixedHorizonNArmRate',
+  'armResults': const [
+    {
+      'admittedCount': 5000,
+      'effect': '0.000000000',
+      'effectExact': {'denominator': '1', 'numerator': '0'},
+      'interval': {
+        'lower': '0.000000000',
+        'lowerExact': {'denominator': '1', 'numerator': '0'},
+        'upper': '0.000000000',
+        'upperExact': {'denominator': '1', 'numerator': '0'},
+      },
+      'kind': 'experimentArmResult',
+      'observedCount': 5000,
+      'rate': '0.100000000',
+      'rateExact': {'denominator': '10', 'numerator': '1'},
+      'stableArmId': 'arm.control',
+      'successCount': 500,
+    },
+    {
+      'admittedCount': 5000,
+      'effect': '0.005000000',
+      'effectExact': {'denominator': '200', 'numerator': '1'},
+      'interval': {
+        'lower': '-0.000976563',
+        'lowerExact': {'denominator': '1024', 'numerator': '-1'},
+        'upper': '0.008789063',
+        'upperExact': {'denominator': '1024', 'numerator': '9'},
+      },
+      'kind': 'experimentArmResult',
+      'observedCount': 5000,
+      'rate': '0.105000000',
+      'rateExact': {'denominator': '200', 'numerator': '21'},
+      'stableArmId': 'arm.variant',
+      'successCount': 525,
+    },
+  ],
+  'availability': const {'kind': 'available'},
+  'designDigest': _fixtureMintedDigest('results-design'),
+  'epochDigest': _fixtureMintedDigest('results-epoch'),
+  'experimentId': 'experiment.checkout',
+  'generatedAtMicros': 1788091400000000,
+  'guardrailOutcomes': const [
+    {
+      'guardrailId': 'guardrail.checkout-errors',
+      'kind': 'experimentGuardrailOutcome',
+      'outcome': 'withinBound',
+    },
+  ],
+  'kind': 'experimentResultsView',
+  'lifecycleState': 'active',
+  'resultDigest': _fixtureMintedDigest('results-digest'),
+  'schemaVersion': kMeasurementSchemaVersion,
+  'structuredCopyKeys': const ['experiment.result.noDecision'],
+  'target': target.toJson(),
+};
+
 Map<String, Object?> _surfaceCapability((String, String) surface) => {
+  'active': true,
   'analysisChoices': <Object?>[],
   'deliverySurfaceType': 'paywall',
   'installedMetricCapabilities': <Object?>[],
   'kind': 'experimentSurfaceCapability',
   'label': surface.$1,
+  'revisionOrdinal': 1,
   'surfaceReference': {
     'kind': 'exactSurfaceReference',
     'surfaceId': fixtureMintedSurfaceId(surface.$1),

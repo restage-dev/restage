@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:dart_mcp/server.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
@@ -228,10 +226,4 @@ measurement.ExperimentAuthoringOperationV1? _operationFor(String wireName) {
   return null;
 }
 
-final _random = Random.secure();
-
-String _newCorrelationId() {
-  final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
-  return 'correlation-'
-      '${bytes.map((byte) => byte.toRadixString(16).padLeft(2, "0")).join()}';
-}
+String _newCorrelationId() => newExperimentIdentity('correlation');

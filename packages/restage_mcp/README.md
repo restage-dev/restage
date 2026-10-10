@@ -124,6 +124,7 @@ to sign in against a self-hosted or staging backend instead.
 | `restage_list_surfaces` | List surfaces for a `surfaceType` under a project + app. Use the closed values `onboarding`, `message`, `survey`, `paywall`, or `general`. |
 | `restage_surface_status` | Show the live version, lock state, delivery shape, and lifecycle state for one surface. |
 | `restage_surface_history` | Show the audit timeline for one surface. |
+| `restage_read_surface_funnel` | Read one surface's funnel over a window: views, steps, drop-off and completions per published version. |
 | `restage_push_surface` | Push one surface's current draft to an environment (admin). |
 | `restage_rollback_preflight` | Preview the expected client-impact classification for a rollback without changing state. |
 | `restage_rollback_surface` | Roll a surface back to a pushed version, with an audit reason (admin). |
@@ -183,6 +184,8 @@ normal push, use the surface-family tools above:
 | Tool | What it does |
 | --- | --- |
 | `restage_experiment_apply` | Apply one experiment operation at an exact target. |
+| `restage_read_experiment_results` | Read one experiment's results at an exact target. |
+| `restage_read_experiment_roster` | List every experiment at an exact target beside the results each names. |
 
 `operation` is a closed choice of the fifteen experiment operations —
 `discoverTargetsAndCapabilities`, `openDraft`, `readDraft`, `replaceDraft`,
@@ -205,6 +208,19 @@ different requests.
 Pass `idempotencyKey` for an operation that changes state, and leave it off for
 one that does not. A refusal from the service comes back as a refusal carrying
 its code, not as a tool error.
+
+The read tools close the loop an agent runs. Read the roster with
+`restage_read_experiment_roster` to see every experiment at a target beside its
+figures, or one experiment's results with `restage_read_experiment_results`.
+Read one surface's own funnel with `restage_read_surface_funnel` to see, per
+published version, how many presentations were viewed, where they stopped and
+how many completed. Decide from what you read, push the next onboarding flow,
+survey, message or paywall with `restage_push_surface`, start the next
+comparison with `restage_activate_experiment`, read the results again, and roll
+the surface back with `restage_rollback_surface` if the figures say so. Every
+rate, effect and interval end arrives as a decimal beside the exact numerator
+and denominator it came from, exactly as the service produced it; no tool
+rounds, re-derives or drops a figure.
 
 The tool adds no confirmation step of its own for a write to a live experiment.
 Your MCP host already approves each tool call, and that approval is the consent

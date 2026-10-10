@@ -75,7 +75,8 @@ T _decodeGovernanceRef<T, R extends MeasurementIdentifier>(
 }
 
 /// Immutable reference to one governed subject-policy revision.
-final class SubjectPolicyRefV1 extends CanonicalValue {
+final class SubjectPolicyRefV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const SubjectPolicyRefV1({
     required this.subjectPolicyId,
     required this.revisionId,

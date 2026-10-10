@@ -27,6 +27,7 @@ class RestageConfig {
     this.endpoint,
     this.dashboardOrigin,
     this.renderBundleOrigin,
+    this.recordGit,
   });
 
   /// Project slug the host repository belongs to.
@@ -53,6 +54,9 @@ class RestageConfig {
   /// Exact render-bundle upload/control origin.
   final String? renderBundleOrigin;
 
+  /// Whether push and publish record a release receipt by default.
+  final bool? recordGit;
+
   /// Decode from a YAML string. Throws [RestageConfigFormatException] when
   /// required keys are missing or have the wrong shape.
   factory RestageConfig.fromYaml(String yamlSrc) {
@@ -75,6 +79,7 @@ class RestageConfig {
     final endpoint = _optionalString(map, 'endpoint');
     final dashboardOrigin = _optionalString(map, 'dashboardOrigin');
     final renderBundleOrigin = _optionalString(map, 'renderBundleOrigin');
+    final recordGit = _optionalBool(map, 'recordGit');
     return RestageConfig(
       project: project,
       app: app,
@@ -83,6 +88,7 @@ class RestageConfig {
       endpoint: endpoint,
       dashboardOrigin: dashboardOrigin,
       renderBundleOrigin: renderBundleOrigin,
+      recordGit: recordGit,
     );
   }
 
@@ -108,6 +114,9 @@ class RestageConfig {
     if (renderBundleOrigin != null) {
       buffer.writeln('renderBundleOrigin: $renderBundleOrigin');
     }
+    if (recordGit != null) {
+      buffer.writeln('recordGit: $recordGit');
+    }
     return buffer.toString();
   }
 }
@@ -124,7 +133,7 @@ class RestageConfigFormatException implements Exception {
   String toString() => message;
 }
 
-/// Validated origins used by the isolated render-bundle build and upload lane.
+/// Validated origins used by the isolated render-bundle build and upload path.
 typedef RenderBundleOriginTriplet = ({
   Uri apiOrigin,
   Uri dashboardOrigin,
@@ -275,6 +284,17 @@ String? _optionalString(Map<dynamic, dynamic> map, String key) {
   if (value is! String) {
     throw RestageConfigFormatException(
       'Expected `$key` to be a string, got ${value.runtimeType}.',
+    );
+  }
+  return value;
+}
+
+bool? _optionalBool(Map<dynamic, dynamic> map, String key) {
+  final value = map[key];
+  if (value == null) return null;
+  if (value is! bool) {
+    throw RestageConfigFormatException(
+      'Expected `$key` to be true or false, got ${value.runtimeType}.',
     );
   }
   return value;

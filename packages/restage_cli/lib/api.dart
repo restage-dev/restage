@@ -35,6 +35,7 @@ export 'src/api/paywall_models.dart';
 export 'src/api/programmatic_mutation_api.dart';
 export 'src/api/render_bundle_api.dart';
 export 'src/api/surface_api.dart';
+export 'src/api/surface_funnel_api.dart';
 export 'src/api/surface_publication_api.dart';
 export 'src/api/surface_routing_api.dart';
 export 'src/api/typed_error_models.dart';

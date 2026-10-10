@@ -12,12 +12,9 @@ import 'package:restage_measurement_schema/src/target.dart';
 /// work.
 const int kMaximumMeasurementPublicationBundledRegistryEntryCount = 1024;
 
-/// Maximum canonical bytes admitted for one bundled registry document.
-///
-/// Thirty-two MiB bounds one immutable app-asset parse while leaving room for
-/// the bounded publication closures it carries. A target whose registry is
-/// larger must fail closed at generation rather than silently widening the V1
-/// accepted set.
+/// Maximum canonical bytes for one bundled registry document: 32 MiB.
+/// One entry at every candidate maximum uses under 15 MiB. Generation must
+/// reject larger registries rather than exceed the V1 limit.
 const int kMaximumMeasurementPublicationBundledRegistryBytes = 32 * 1024 * 1024;
 
 /// Exact generated publication-and-artifact closure locator.
@@ -26,7 +23,7 @@ const int kMaximumMeasurementPublicationBundledRegistryBytes = 32 * 1024 * 1024;
 /// and declared artifact-byte closure by their independently recomputed
 /// digests. It contains no delivery selection state or author-facing identity.
 final class MeasurementBundledGeneratedPublicationLocatorV1
-    extends CanonicalValue {
+    extends CanonicalValue implements ImmutableCanonicalDocument {
   /// Creates one exact generated publication-and-artifact locator.
   const MeasurementBundledGeneratedPublicationLocatorV1({
     required this.selectedPublicationManifestDigest,
@@ -154,8 +151,8 @@ final class MeasurementPublicationBundledRegistryLocatorAmbiguous
 /// The entry carries the generated publication locator, candidate closure,
 /// final binding, and registered attestation together. It never derives any of
 /// them from a host request.
-final class MeasurementPublicationBundledRegistryEntryV1
-    extends CanonicalValue {
+final class MeasurementPublicationBundledRegistryEntryV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one closed exact bundled binding proof.
   MeasurementPublicationBundledRegistryEntryV1({
     required this.generatedPublicationLocator,
@@ -334,7 +331,8 @@ final class MeasurementPublicationBundledRegistryEntryV1
 ///
 /// This document has no delivery-selection field. It is an exact proof asset:
 /// callers can only resolve one complete generated publication locator.
-final class MeasurementPublicationBundledRegistryV1 extends CanonicalDocument {
+final class MeasurementPublicationBundledRegistryV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates one target-specific immutable registry.
   MeasurementPublicationBundledRegistryV1({
     required this.target,

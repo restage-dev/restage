@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/publish_selection.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
@@ -15,6 +16,10 @@ import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
+import 'package:restage_cli/src/receipts/git_repository.dart';
+import 'package:restage_cli/src/receipts/receipt_location.dart';
+import 'package:restage_cli/src/receipts/release_recorder.dart';
+import 'package:restage_cli/src/receipts/release_receipt.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Push one generated surface from its exact manifest artifact closure.
@@ -27,12 +32,16 @@ class SurfacePushCommand extends Command<int> {
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
     PublicationBundleReader? bundleReader,
+    GitProcessRunner? processRunner,
+    ReceiptGeneratorRunner? generator,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
        _credentialStore = credentialStore,
        _httpClient = httpClient,
-       _bundleReader = bundleReader {
+       _bundleReader = bundleReader,
+       _processRunner = processRunner,
+       _generator = generator {
     argParser
       ..addOption(
         'organization',
@@ -62,6 +71,13 @@ class SurfacePushCommand extends Command<int> {
         help:
             'Directory to locate restage_config.yaml and generated publication '
             'metadata. It does not select artifacts.',
+      )
+      ..addFlag(
+        'record-git',
+        help:
+            'Build from committed source and commit a release receipt naming '
+            'the commit it came from. Set `recordGit` in restage_config.yaml '
+            'to make it the default for the project.',
       );
     addPushAllOption(argParser, noun: 'surface');
     addRuntimePlaneOption(argParser);
@@ -73,6 +89,8 @@ class SurfacePushCommand extends Command<int> {
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
   final PublicationBundleReader? _bundleReader;
+  final GitProcessRunner? _processRunner;
+  final ReceiptGeneratorRunner? _generator;
 
   @override
   String get name => 'push';
@@ -127,11 +145,35 @@ class SurfacePushCommand extends Command<int> {
       return 1;
     }
 
+    // Everything the receipt claims is checked before the first server call,
+    // and the output it uploads is produced from the committed source.
+    final ReleaseRecorder? recorder;
+    final ReceiptSource? recordedSource;
+    if (_recordGit(loadedConfig?.config)) {
+      recorder = await ReleaseRecorder.open(
+        projectRoot: projectRoot,
+        stderr: _stderr,
+        processRunner: _processRunner,
+      );
+      if (recorder == null) return 1;
+      recordedSource = await recorder.buildFromCommittedSource(
+        stdout: _stdout,
+        stderr: _stderr,
+        generator: _generator,
+      );
+      if (recordedSource == null) return 1;
+    } else {
+      recorder = null;
+      recordedSource = null;
+    }
+
     final List<AssembledSurfacePublication> assembled;
+    final String generationFingerprint;
     try {
       final manifest = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
       );
+      generationFingerprint = manifest.outputIndex.generationFingerprint;
       final entries = await resolvePublicationEntries(
         manifest: manifest,
         argument: selector,
@@ -211,7 +253,19 @@ class SurfacePushCommand extends Command<int> {
           loadedConfig?.config.organization,
       runtimePlane: runtimePlaneFromArgs(argResults),
       assembled: assembled,
+      recorder: recorder,
+      recordedSource: recordedSource,
+      generationFingerprint: generationFingerprint,
     );
+  }
+
+  /// Whether this invocation records a release receipt.
+  bool _recordGit(RestageConfig? config) {
+    final results = argResults;
+    if (results != null && results.wasParsed('record-git')) {
+      return results['record-git'] as bool;
+    }
+    return config?.recordGit ?? false;
   }
 
   Surface? _parseType(String? raw) {
@@ -236,6 +290,9 @@ class SurfacePushCommand extends Command<int> {
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
     required List<AssembledSurfacePublication> assembled,
+    required ReleaseRecorder? recorder,
+    required ReceiptSource? recordedSource,
+    required String generationFingerprint,
   }) async {
     final RestageApi api;
     try {
@@ -262,7 +319,9 @@ class SurfacePushCommand extends Command<int> {
       );
       if (target == null) return 1;
 
-      return await runPush(
+      var recordFailed = false;
+      final recordedPushes = <String>[];
+      final pushCode = await runPush(
         api: api,
         assembled: assembled,
         packageRoot: packageRoot,
@@ -277,10 +336,104 @@ class SurfacePushCommand extends Command<int> {
         onApiException: _handleApiException,
         stdout: _stdout,
         stderr: _stderr,
+        onPushed: recorder == null
+            ? null
+            : (publication, result) async {
+                recordedPushes.add(
+                  '${result.family.surfaceSlug} r${result.storedRevision}',
+                );
+                final written = await recorder.write(
+                  receipt: _pushReceipt(
+                    publication: publication,
+                    result: result,
+                    target: target,
+                    source: recordedSource!,
+                    project: project,
+                    app: app,
+                    environment: environment,
+                    organization: preferredOrganizationSlug,
+                    generationFingerprint: generationFingerprint,
+                  ),
+                  relativePath: surfacePushReceiptPath(
+                    organization: target.organizationSlug,
+                    project: project,
+                    app: app,
+                    surfaceType: result.family.surfaceType,
+                    surfaceId: result.family.surfaceSlug,
+                    environment: environment,
+                    revision: result.storedRevision,
+                  ),
+                  stdout: _stdout,
+                  stderr: _stderr,
+                );
+                if (!written) recordFailed = true;
+              },
       );
+      if (recorder == null) return pushCode;
+
+      // The receipts are already on disk, so the commit happens whether or
+      // not the run reached every surface it was given.
+      final committed = await recorder.commit(
+        message: _receiptCommitMessage(recordedPushes, environment),
+        stdout: _stdout,
+        stderr: _stderr,
+      );
+      if (pushCode != 0) return pushCode;
+      return committed && !recordFailed ? 0 : 2;
     } finally {
       if (_httpClient == null) api.close();
     }
+  }
+
+  /// The receipt for one accepted push.
+  ReleaseReceipt _pushReceipt({
+    required AssembledSurfacePublication publication,
+    required SurfacePublicationUploadResult result,
+    required ResolvedEnvironmentTargetContext target,
+    required ReceiptSource source,
+    required String project,
+    required String app,
+    required String environment,
+    required String? organization,
+    required String generationFingerprint,
+  }) => ReleaseReceipt(
+    operation: ReceiptOperation.surfacePush,
+    recordedAt: DateTime.now(),
+    target: ReceiptTarget(
+      organization: target.organizationSlug,
+      organizationId: target.organizationId,
+      project: project,
+      app: app,
+      environment: environment,
+      environmentTargetId: target.target.environmentTargetId,
+      runtimePlane: target.target.runtimePlane.wireName,
+    ),
+    surface: ReceiptSurface(
+      type: result.family.surfaceType,
+      id: result.family.surfaceSlug,
+      sourceKind: result.family.sourceKind,
+      contractVersion: result.family.contractVersion,
+    ),
+    revision: ReceiptRevision(
+      stored: result.storedRevision,
+      activeAfter: result.activeRevision,
+      identityFrozen: result.identityFrozen,
+    ),
+    artifacts: [
+      for (final artifact in publication.entry.artifacts)
+        ReceiptArtifact(path: artifact.path, contentHash: artifact.contentHash),
+    ],
+    generationFingerprint: generationFingerprint,
+    source: source,
+  );
+
+  /// The message for the one commit an invocation makes.
+  String _receiptCommitMessage(List<String> pushes, String environment) {
+    if (pushes.length == 1) {
+      return 'restage: push ${pushes.single} to $environment';
+    }
+    return 'restage: push ${pushes.length} surfaces to $environment\n\n'
+        '${pushes.join('\n')}';
   }
 
   int _handleApiException(RestageApiException error) {

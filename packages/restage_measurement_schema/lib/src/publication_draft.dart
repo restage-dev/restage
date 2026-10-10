@@ -47,7 +47,8 @@ const int kMaximumMeasurementPublicationDraftLineageIntentCount =
     kMaximumMeasurementPublicationRuntimeRouteCount;
 
 /// One target-neutral artifact occurrence in a generated publication draft.
-final class MeasurementPublicationDraftArtifactV1 extends CanonicalValue {
+final class MeasurementPublicationDraftArtifactV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one artifact occurrence without final publication identity.
   const MeasurementPublicationDraftArtifactV1({
     required this.artifactId,
@@ -147,7 +148,8 @@ final class MeasurementPublicationDraftArtifactV1 extends CanonicalValue {
 /// This is a positive projection: only fields that exist before route-carrier
 /// injection are admitted. In particular, final artifact content hashes never
 /// enter route derivation.
-final class MeasurementPublicationRouteArtifactV1 extends CanonicalValue {
+final class MeasurementPublicationRouteArtifactV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one artifact occurrence for pre-carrier route derivation.
   const MeasurementPublicationRouteArtifactV1({
     required this.artifactId,
@@ -235,7 +237,8 @@ final class MeasurementPublicationRouteArtifactV1 extends CanonicalValue {
 }
 
 /// One target-neutral canonical node in a generated publication draft.
-final class MeasurementPublicationDraftNodeV1 extends CanonicalValue {
+final class MeasurementPublicationDraftNodeV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one canonical node closure entry.
   const MeasurementPublicationDraftNodeV1({
     required this.codeIdentityId,
@@ -305,7 +308,8 @@ final class MeasurementPublicationDraftNodeV1 extends CanonicalValue {
 }
 
 /// One compiler-resolved source-event slot without target or revision identity.
-final class MeasurementPublicationDraftEventV1 extends CanonicalValue {
+final class MeasurementPublicationDraftEventV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one strict event slot in a target-neutral draft.
   const MeasurementPublicationDraftEventV1({
     required this.nodeCodeIdentityId,
@@ -442,7 +446,8 @@ final class MeasurementPublicationDraftEventV1 extends CanonicalValue {
 /// catalog occurrence. The schema validates its closure and policy; the
 /// production compiler establishes catalog provenance before it creates this
 /// typed value.
-final class MeasurementPublicationDraftPresentationV1 extends CanonicalValue {
+final class MeasurementPublicationDraftPresentationV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one presentation occurrence in a target-neutral draft.
   MeasurementPublicationDraftPresentationV1({
     required this.nodeCodeIdentityId,
@@ -543,7 +548,8 @@ final class MeasurementPublicationDraftPresentationV1 extends CanonicalValue {
 }
 
 /// One target-neutral request to derive a full private route carrier.
-final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
+final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one route derivation seed.
   const MeasurementPublicationDraftRouteSeedV1({
     this.orderedCaptureV1,
@@ -614,7 +620,7 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
 
 /// One target-neutral request to derive a presentation route carrier.
 final class MeasurementPublicationDraftPresentationRouteSeedV1
-    extends CanonicalValue {
+    extends CanonicalValue implements ImmutableCanonicalDocument {
   /// Creates one presentation route derivation seed.
   const MeasurementPublicationDraftPresentationRouteSeedV1({
     required this.generatedPresentationReferenceId,
@@ -675,7 +681,8 @@ final class MeasurementPublicationDraftPresentationRouteSeedV1
 }
 
 /// One derived full private route carrier retained in the generated draft.
-final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
+final class MeasurementPublicationDraftRouteV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one fully derived route and verifies every coupled value.
   MeasurementPublicationDraftRouteV1({
     this.orderedCaptureV1,
@@ -774,7 +781,7 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
 
 /// One derived presentation route retained in the generated draft.
 final class MeasurementPublicationDraftPresentationRouteV1
-    extends CanonicalValue {
+    extends CanonicalValue implements ImmutableCanonicalDocument {
   /// Creates one fully derived presentation route.
   MeasurementPublicationDraftPresentationRouteV1({
     required this.generatedPresentationReferenceId,
@@ -863,8 +870,8 @@ final class MeasurementPublicationDraftPresentationRouteV1
 }
 
 /// One target-neutral current endpoint claim in a lineage intent.
-final class MeasurementPublicationCurrentEndpointIntentV1
-    extends CanonicalValue {
+final class MeasurementPublicationCurrentEndpointIntentV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one claim against an exact generated reference.
   const MeasurementPublicationCurrentEndpointIntentV1({
     required this.generatedReferenceId,
@@ -917,7 +924,8 @@ final class MeasurementPublicationCurrentEndpointIntentV1
 ///
 /// Prior values carry only stable lineage IDs. Exact prior occurrence IDs are
 /// supplied by the finalization input and never occur in draft bytes.
-final class MeasurementPublicationLineageIntentV1 extends CanonicalValue {
+final class MeasurementPublicationLineageIntentV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates and validates one closed lineage operation intent.
   MeasurementPublicationLineageIntentV1({
     required this.transitionId,
@@ -1057,7 +1065,8 @@ final class MeasurementPublicationLineageIntentV1 extends CanonicalValue {
 /// content hashes, carriers, and every other post-injection value are absent by
 /// construction. Adding a field to the final publication draft therefore
 /// cannot silently add it to this route preimage.
-final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
+final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates and closes one pre-carrier route plan.
   MeasurementPublicationRoutePlanV1({
     required this.surfaceId,
@@ -1627,7 +1636,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
 /// must come from one already-closed [MeasurementPublicationRoutePlanV1]. It
 /// deliberately carries no target, final revision, final row, ordinal,
 /// external authority reference, binding, or prior occurrence ID.
-final class MeasurementPublicationDraftV1 extends CanonicalDocument {
+final class MeasurementPublicationDraftV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates a complete final target-neutral generated publication draft.
   MeasurementPublicationDraftV1({
     required this.routePlan,

@@ -27,7 +27,7 @@ const String _declaredArtifactBytesDomain =
 final class MeasurementPublicationCandidateAssembler {
   /// Assemble an additive upload when the selected draft has admitted routes.
   ///
-  /// A missing index or a matching zero-route draft preserves ordinary publication
+  /// A missing index or a matching zero-route draft preserves ordinary
   /// publication only when the selected artifacts contain no Measurement
   /// carrier. Every partial or disagreeing Measurement input fails before the
   /// network boundary.
@@ -55,7 +55,7 @@ final class MeasurementPublicationCandidateAssembler {
         return null;
       }
 
-      final entries = await _readIndex(indexFile, loaded);
+      final entries = await _readIndex(indexFile, loaded, only: entry);
       final selected = [
         for (final indexed in entries)
           if (identical(indexed.publication, entry)) indexed,
@@ -190,8 +190,9 @@ final class _IndexedMeasurementPublication {
 
 Future<List<_IndexedMeasurementPublication>> _readIndex(
   File file,
-  LoadedSurfacePublicationManifest loaded,
-) async {
+  LoadedSurfacePublicationManifest loaded, {
+  required SurfacePublicationManifestEntry only,
+}) async {
   final perEntryLimit =
       ((kMaximumMeasurementPublicationCandidateDraftBytes + 2) ~/ 3) * 4 +
       kMaximumMeasurementPublicationCandidateDraftBytes +
@@ -233,8 +234,7 @@ Future<List<_IndexedMeasurementPublication>> _readIndex(
   final rawEntries = _list(root, 'entries', 'Measurement index');
   if (rawEntries.length > loaded.manifest.publications.length) {
     throw const FormatException(
-      'the Measurement publication index has more drafts than publication '
-      'publications',
+      'the Measurement publication index has more drafts than publications',
     );
   }
 
@@ -259,13 +259,20 @@ Future<List<_IndexedMeasurementPublication>> _readIndex(
         'the Measurement publication index repeats a publication selector',
       );
     }
+    // Only the selected publication's draft is decoded, so an unrelated
+    // draft cannot refuse a publication that never carries it.
+    if (!identical(publication, only)) continue;
     final draftBytes = _canonicalBase64Url(
       _string(value, 'draftBase64', path),
       '$path draftBase64',
       maximumDecodedLength: kMaximumMeasurementPublicationCandidateDraftBytes,
     );
     if (draftBytes.length > kMaximumMeasurementPublicationCandidateDraftBytes) {
-      throw FormatException('$path draft exceeds its byte limit');
+      throw FormatException(
+        '$path draft exceeds its byte limit: ${draftBytes.length} bytes '
+        'against a limit of '
+        '$kMaximumMeasurementPublicationCandidateDraftBytes',
+      );
     }
     final draft = MeasurementPublicationDraftV1.fromCanonicalBytes(draftBytes);
     if (_string(value, 'draftDigest', path) != draft.canonicalDigest.hex ||
@@ -596,8 +603,16 @@ Uint8List _canonicalBase64Url(
   required int maximumDecodedLength,
 }) {
   final maximumEncodedLength = ((maximumDecodedLength + 2) ~/ 3) * 4;
-  if (value.contains('=') || value.length > maximumEncodedLength) {
+  // A length of 1 mod 4 encodes no whole byte, so it has no decoded size to
+  // report against the limit.
+  if (value.contains('=') || value.length % 4 == 1) {
     throw FormatException('$path must use unpadded base64url');
+  }
+  if (value.length > maximumEncodedLength) {
+    throw FormatException(
+      '$path exceeds its byte limit: ${value.length * 3 ~/ 4} bytes decoded '
+      'against a limit of $maximumDecodedLength',
+    );
   }
   try {
     final bytes = Uint8List.fromList(

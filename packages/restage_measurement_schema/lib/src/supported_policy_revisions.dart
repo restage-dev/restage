@@ -5,7 +5,8 @@ import 'package:restage_measurement_schema/src/policy_revision.dart' as policy;
 const int sdkSupportedPolicyRevisionsMaximumCarrierCharacters = 2048;
 
 /// The policy revisions supported by one SDK build.
-final class SdkSupportedPolicyRevisionsV1 extends CanonicalValue {
+final class SdkSupportedPolicyRevisionsV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a bounded report of the SDK's supported policy revisions.
   SdkSupportedPolicyRevisionsV1({
     required this.sdkVersion,

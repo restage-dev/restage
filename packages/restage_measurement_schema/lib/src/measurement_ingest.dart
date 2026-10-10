@@ -388,7 +388,8 @@ final class MeasurementPresentationDiagnosticRequestV1 {
 ///
 /// The receipt is a closed server assertion over the accepted request and its
 /// publication binding. It contains no local journal/session coordinate.
-final class MeasurementIngestReceiptV1 extends CanonicalValue {
+final class MeasurementIngestReceiptV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementIngestReceiptV1._({
     required Uint8List canonicalBytes,
     required this.acceptedObservationCount,

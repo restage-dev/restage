@@ -147,6 +147,74 @@ revision is live now.
 the same manifest. New scripts should use `restage surface push` for every
 category.
 
+### Release receipts
+
+`--record-git` records a push or a publish in your repository. The CLI writes a
+small JSON file under `.restage/receipts/` and commits that one file.
+
+```sh
+restage surface push welcome --record-git
+restage surface publish welcome --record-git
+```
+
+Set `recordGit: true` in `restage_config.yaml` to make it the default for the
+project, and pass `--no-record-git` to skip it for one run. With neither, push
+and publish behave as they do above.
+
+A recorded push checks its source before it calls the server:
+
+- Your app package, and the packages it depends on inside the repository, must
+  be committed. Untracked files count. Ignored files do not. If the resolved
+  package graph is missing, the push stops and asks you to run `dart pub get`,
+  since the packages to check cannot be read without it.
+- The generator runs and the check repeats, so generated output your repository
+  tracks has to be committed too.
+- The receipt then carries the exact revision, the artifact hashes, and the
+  commit the output was produced from.
+
+Two commits are involved, and they are different things:
+
+- The source commit is yours, made with your normal Git workflow.
+- The receipt commit is the CLI's. It holds only the receipt and points at the
+  source commit. Anything else you have staged or modified stays where it is.
+
+Revision numbers are counted per organization, per project and per environment,
+so `r17` in staging and `r17` in production are different content, and so is
+another project's `r17`. Receipts are filed that way for the same reason, under
+the organization the operation resolved to:
+
+```
+.restage/receipts/acme/storefront/mobile/surface/paywall/welcome/staging/push-r17.json
+.restage/receipts/acme/storefront/mobile/surface/paywall/welcome/staging/publish-20260917T195237.412Z-r17.json
+```
+
+Publishing reads that revision's push receipt, so the record names the commit
+the revision was built from however far your `HEAD` has moved since. When no
+receipt here recorded that push, the receipt says the source is unknown and the
+publish goes ahead.
+
+If the server call succeeds and the commit does not, because of a hook or a
+signing key, the receipt file is already written. The CLI reports both outcomes
+and prints the two commands that commit it:
+
+```
+Published "welcome" at r17 in production (contract v2).
+Git receipt pending: the operation is recorded in app/.restage/receipts/...
+error: cannot run .git/hooks/pre-commit: No such file or directory
+Commit it with:
+  git -C '/path/to/repo' add -- 'app/.restage/receipts/...'
+  git -C '/path/to/repo' commit --only -m 'restage: publish welcome r17 to production' -- 'app/.restage/receipts/...'
+```
+
+What Git said is printed above the commands, so a receipts directory you have
+ignored, or a key that is locked, says so.
+
+Running those commits the same file. Nothing is pushed or published again.
+
+The CLI never sends Git commits to a remote, and never creates a branch or a
+pull request. Receipt commits land on your current branch and go out with your
+normal workflow.
+
 ## Render bundles (pre-release)
 
 `restage build push` builds a renderer for your custom widgets, uploads it, and

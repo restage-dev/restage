@@ -17,6 +17,47 @@ Uint8List _decodeDraft(String value) =>
     base64Url.decode(value.padRight((value.length + 3) ~/ 4 * 4, '='));
 
 void main() {
+  test('every generated draft in the example index binds', () {
+    final index =
+        jsonDecode(
+              File(
+                p.join(
+                  locateCheckoutRoot().path,
+                  exampleMeasurementIndexFixturePath,
+                ),
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final entries = index['entries']! as List<Object?>;
+    expect(entries, isNotEmpty);
+
+    var largest = 0;
+    for (final raw in entries) {
+      final entry = raw! as Map<String, Object?>;
+      final slug =
+          (entry['selector']! as Map<String, Object?>)['slug']! as String;
+      final bytes = _decodeDraft(entry['draftBase64']! as String);
+      expect(
+        bytes.length,
+        lessThanOrEqualTo(kMaximumMeasurementPublicationCandidateDraftBytes),
+        reason: '$slug carries a draft the index cannot admit',
+      );
+      // Decoding through the schema proves the bound admits the real value
+      // rather than only comparing its length.
+      expect(
+        MeasurementPublicationDraftV1.fromCanonicalBytes(bytes).canonicalBytes,
+        orderedEquals(bytes),
+      );
+      if (bytes.length > largest) largest = bytes.length;
+    }
+
+    expect(
+      largest,
+      533530,
+      reason: 'the largest generated draft in the example app has moved',
+    );
+  });
+
   test(
     'the Measurement index fixture records the hashes the bundles declare',
     () {

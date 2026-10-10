@@ -30,7 +30,8 @@ const int kMaximumMeasurementPublicationRouteCarrierLength = 256;
 /// The value remains opaque outside the publication and host-sanitizer seams.
 /// Its mounted edge and local token are exposed only to let those seams prove
 /// exact carrier closure without consulting event names or business arguments.
-final class MeasurementPublicationRouteCarrierV1 extends CanonicalValue {
+final class MeasurementPublicationRouteCarrierV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementPublicationRouteCarrierV1._({
     required this.value,
     required this.artifactOccurrenceEdgeToken,
@@ -261,7 +262,8 @@ MeasurementPublicationRouteCarrierV1 _deriveSourceRouteCarrier({
 ///
 /// Only the fingerprint is retained in the published binding. The raw carrier
 /// remains draft and generated-artifact material.
-final class OpaqueMeasurementRouteTokenV1 extends CanonicalValue {
+final class OpaqueMeasurementRouteTokenV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one already-validated opaque route-carrier fingerprint.
   const OpaqueMeasurementRouteTokenV1({required this.fingerprint});
 

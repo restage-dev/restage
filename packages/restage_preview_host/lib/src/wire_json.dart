@@ -1,8 +1,65 @@
+/// Deepest nesting a message may carry, matching the browser transports.
+const int renderWireMaxDepth = 64;
+
+/// Most values a message may carry, matching the browser transports.
+const int renderWireMaxNodes = 100000;
+
+/// Snapshots one outbound message and enforces the transport's JSON budget.
+///
+/// Throws when the message nests deeper than [renderWireMaxDepth], carries more
+/// than [renderWireMaxNodes] values, or holds a value no transport can encode.
+/// A sender that carries values it does not control checks here first, so the
+/// transport never throws from inside the code that produced them.
+Map<String, Object?> boundedWireMessage(Map<String, Object?> payload) {
+  var nodes = 0;
+
+  Object? bound(Object? value, int depth) {
+    nodes += 1;
+    if (depth > renderWireMaxDepth || nodes > renderWireMaxNodes) {
+      throw const FormatException('Message exceeds the wire budget.');
+    }
+    if (value == null || value is bool || value is String) return value;
+    if (value is num) {
+      if (!value.isFinite) {
+        throw const FormatException('Message numbers must be finite.');
+      }
+      return value;
+    }
+    if (value is List<Object?>) {
+      return List<Object?>.unmodifiable(
+        value.map((child) => bound(child, depth + 1)),
+      );
+    }
+    if (value is Map<Object?, Object?>) {
+      final result = <String, Object?>{};
+      for (final entry in value.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw const FormatException('Message object keys must be strings.');
+        }
+        result[key] = bound(entry.value, depth + 1);
+      }
+      return Map<String, Object?>.unmodifiable(result);
+    }
+    throw const FormatException('Message must contain only JSON values.');
+  }
+
+  return bound(payload, 0)! as Map<String, Object?>;
+}
+
 Map<String, Object?> snapshotWireMap(
   Map<String, Object?> source, {
   required String argumentName,
 }) {
   rejectCredentialFields(source, argumentName: argumentName);
+  return snapshotWireObject(source, argumentName: argumentName);
+}
+
+/// Snapshots one map of wire values without the credential-name gate.
+Map<String, Object?> snapshotWireObject(
+  Map<String, Object?> source, {
+  required String argumentName,
+}) {
   return Map<String, Object?>.unmodifiable(
     source.map(
       (key, value) => MapEntry<String, Object?>(

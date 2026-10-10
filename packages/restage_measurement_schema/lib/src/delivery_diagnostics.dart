@@ -165,7 +165,8 @@ enum MeasurementDeliveryDiagnosticsSurfaceTypeV1 {
 /// [reason] remains a string because served-default rows preserve their
 /// stored vocabulary. That includes `frozen` and a future producer's unknown
 /// reason rather than silently classifying either as an ordinary default.
-final class MeasurementDeliveryDiagnosticsReasonCountV1 extends CanonicalValue {
+final class MeasurementDeliveryDiagnosticsReasonCountV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one disclosed or held reason entry.
   MeasurementDeliveryDiagnosticsReasonCountV1({
     required this.reason,
@@ -226,7 +227,8 @@ final class MeasurementDeliveryDiagnosticsReasonCountV1 extends CanonicalValue {
 }
 
 /// One population's reason distribution and its truthfully narrow coverage.
-final class MeasurementDeliveryDiagnosticsSectionV1 extends CanonicalValue {
+final class MeasurementDeliveryDiagnosticsSectionV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one section, requiring canonical reason order and availability.
   MeasurementDeliveryDiagnosticsSectionV1({
     required this.population,
@@ -326,7 +328,8 @@ final class MeasurementDeliveryDiagnosticsSectionV1 extends CanonicalValue {
 }
 
 /// The canonical bounded diagnostic read for one resolved delivery scope.
-final class MeasurementDeliveryDiagnosticsV1 extends CanonicalValue {
+final class MeasurementDeliveryDiagnosticsV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a complete strict delivery diagnostic read.
   MeasurementDeliveryDiagnosticsV1({
     required this.target,

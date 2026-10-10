@@ -29,7 +29,8 @@ enum RuntimePlane {
 }
 
 /// Exact post-resolution control-plane coordinate.
-final class TargetCoordinate extends CanonicalDocument {
+final class TargetCoordinate extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates a complete target coordinate from existing integer authorities.
   const TargetCoordinate({
     required this.organizationId,

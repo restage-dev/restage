@@ -83,8 +83,20 @@ abstract interface class HostedRenderBundleFrame {
   Future<void> dispose();
 }
 
+/// A hosted frame that can grant and revoke pointer, focus and keyboard input.
+/// Begins concealed and inert. Platforms unable to revoke input must use
+/// [HostedRenderBundleFrame].
+abstract interface class InteractiveHostedRenderBundleFrame
+    implements HostedRenderBundleFrame {
+  /// Hands input to the child, or takes it back.
+  void setInteractive(bool interactive);
+}
+
 /// One hosted frame paired with the shell-side frozen-v1 provider.
-final class HostedRenderBundleSession {
+///
+/// This session renders and captures; its view stays inert for its whole life.
+/// Mounting lives on [InteractiveHostedRenderBundleSession].
+base class HostedRenderBundleSession {
   /// Composes a platform frame with one exact-origin seam provider.
   HostedRenderBundleSession({
     required HostedRenderBundleFrame frame,
@@ -145,6 +157,150 @@ final class HostedRenderBundleSession {
   Future<void> _dispose() async {
     await _provider.dispose();
     if (!identical(_frame.transport, _frame)) await _frame.dispose();
+  }
+}
+
+/// A mounted surface session that accepts input only while settled and visible.
+/// Starts concealed until [revealPixels]. Rendering, failure, concealment or
+/// disposal disables input. [surfaceEvents] contains events from the visible,
+/// current surface.
+final class InteractiveHostedRenderBundleSession
+    extends HostedRenderBundleSession {
+  /// Composes an interactive platform frame with one exact-origin provider.
+  InteractiveHostedRenderBundleSession({
+    required InteractiveHostedRenderBundleFrame super.frame,
+    required super.bundleOrigin,
+    required super.scheduleFrame,
+  }) : _interactiveFrame = frame {
+    _events = provider.events.listen(_onRenderEvent);
+  }
+
+  final InteractiveHostedRenderBundleFrame _interactiveFrame;
+  late final StreamSubscription<RenderEvent> _events;
+  final StreamController<MountedSurfaceEvent> _surfaceEvents =
+      StreamController<MountedSurfaceEvent>.broadcast(sync: true);
+  int? _mountedEpoch;
+  bool _settled = false;
+  bool _concealed = true;
+  bool _disposed = false;
+  bool _interactive = false;
+
+  /// Whether the frame is currently handing input to the surface.
+  bool get interactive => _interactive;
+
+  /// Events fired while the mounted surface was visible and taking input.
+  /// Filters [provider]'s stream, which also includes events from concealed frames.
+  Stream<MountedSurfaceEvent> get surfaceEvents => _surfaceEvents.stream;
+
+  /// Mounts one surface, whose fired events arrive on [surfaceEvents].
+  ///
+  /// Refuses when the bundle did not advertise mounting, so nothing reaches
+  /// the wire that the bundle would silently drop.
+  Future<void> mount(RenderRequest request) async {
+    final mountProvider = provider.mountProvider;
+    if (mountProvider == null) {
+      throw const RenderMountUnsupported(
+        'The render bundle does not support mounting a surface.',
+      );
+    }
+    final replacedEpoch = _mountedEpoch;
+    final replacedSettled = _settled;
+    _mountedEpoch = request.epoch;
+    _settled = false;
+    _applyInteractivity();
+    try {
+      await mountProvider.mount(request);
+    } on Object {
+      // A refused mount changed nothing on the wire, so the surface that was
+      // already there keeps its input and its events.
+      _mountedEpoch = replacedEpoch;
+      _settled = replacedSettled;
+      _applyInteractivity();
+      rethrow;
+    }
+  }
+
+  /// Renders one surface without mounting it, leaving the frame inert.
+  Future<void> render(RenderRequest request) async {
+    _clearSurface();
+    await provider.render(request);
+  }
+
+  @override
+  void concealPixels() {
+    _concealed = true;
+    _applyInteractivity();
+    super.concealPixels();
+  }
+
+  @override
+  void revealPixels() {
+    super.revealPixels();
+    _concealed = false;
+    _applyInteractivity();
+  }
+
+  @override
+  void setRasterScale(double scale) {
+    if (_mountedEpoch != null) {
+      throw StateError('A mounted surface cannot be rescaled.');
+    }
+    super.setRasterScale(scale);
+  }
+
+  @override
+  void emergencyRemovePixels() {
+    _concealed = true;
+    _clearSurface();
+    super.emergencyRemovePixels();
+  }
+
+  @override
+  Future<void> dispose() async {
+    _disposed = true;
+    try {
+      _applyInteractivity();
+    } on Object {
+      // Disposal continues; the frame is being torn down either way.
+    }
+    _interactive = false;
+    await _events.cancel();
+    await _surfaceEvents.close();
+    await super.dispose();
+  }
+
+  void _onRenderEvent(RenderEvent event) {
+    switch (event) {
+      case Settled(:final epoch):
+        if (epoch != _mountedEpoch) return;
+        _settled = true;
+        _applyInteractivity();
+      case RenderError(:final epoch):
+        if (epoch != _mountedEpoch) return;
+        _clearSurface();
+      case ProtocolError():
+        _clearSurface();
+      case MountedSurfaceEvent():
+        if (_interactive && !_disposed && !_surfaceEvents.isClosed) {
+          _surfaceEvents.add(event);
+        }
+    }
+  }
+
+  void _clearSurface() {
+    _mountedEpoch = null;
+    _settled = false;
+    _applyInteractivity();
+  }
+
+  void _applyInteractivity() {
+    final wanted =
+        !_disposed && !_concealed && _settled && _mountedEpoch != null;
+    if (wanted == _interactive) return;
+    // The frame is the authority: a refused change leaves the session's own
+    // answer alone so the next transition tries again.
+    _interactiveFrame.setInteractive(wanted);
+    _interactive = wanted;
   }
 }
 

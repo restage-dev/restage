@@ -3649,6 +3649,50 @@ void main() {
       },
     );
 
+    test('each surface capability names its version and whether it serves', () {
+      final live = ExperimentSurfaceCapabilityV1.fromJson(
+        _surfaceCapability(
+          _mintedSurfaceRevisionId('surface.capability.v2'),
+          revisionOrdinal: 2,
+        ),
+        path: 'surfaceCapability',
+      );
+      expect(live.active, isTrue);
+      expect(live.revisionOrdinal, 2);
+
+      final superseded = ExperimentSurfaceCapabilityV1.fromJson(
+        _surfaceCapability(
+          _mintedSurfaceRevisionId('surface.capability.v1'),
+          active: false,
+        ),
+        path: 'surfaceCapability',
+      );
+      expect(superseded.active, isFalse);
+      expect(superseded.revisionOrdinal, 1);
+
+      final capability = _surfaceCapability(
+        _mintedSurfaceRevisionId('surface.capability.v1'),
+      );
+      for (final invalid in <Map<String, Object?>>[
+        {...capability}..remove('active'),
+        {...capability}..remove('revisionOrdinal'),
+        {...capability, 'revisionOrdinal': 0},
+        {...capability, 'revisionOrdinal': -1},
+        {...capability, 'revisionOrdinal': kMaximumPortableJsonInteger + 1},
+        {...capability, 'revisionOrdinal': '1'},
+        {...capability, 'active': 'true'},
+      ]) {
+        expect(
+          () => ExperimentSurfaceCapabilityV1.fromJson(
+            invalid,
+            path: 'surfaceCapability',
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: invalid.toString(),
+        );
+      }
+    });
+
     test('one 1024-locus surface capability fits a discovery result', () {
       final capability = _maximumSurfaceCapability(pointCount: 1024);
       final result = {
@@ -4779,6 +4823,241 @@ void main() {
         'experiment.result.guardrailWithinBound',
       ]);
       _expectNoSensitiveKeys(results.toJson());
+    });
+
+    test('every figure carries a decimal beside its exact fraction', () {
+      final variant = ExperimentResultsViewV1.fromJson(
+        _results(),
+      ).armResults.last;
+
+      expect(variant.rate, '0.105000000');
+      expect(variant.rateExact.numerator, BigInt.from(21));
+      expect(variant.rateExact.denominator, BigInt.from(200));
+      expect(variant.effect, '0.005000000');
+      expect(variant.effectExact.numerator, BigInt.one);
+      expect(variant.effectExact.denominator, BigInt.from(200));
+      expect(variant.interval.lower, '-0.000976563');
+      expect(variant.interval.lowerExact.numerator, -BigInt.one);
+      expect(variant.interval.lowerExact.denominator, BigInt.from(1024));
+      expect(variant.interval.upper, '0.008789063');
+      expect(variant.interval.upperExact.numerator, BigInt.from(9));
+    });
+
+    test('interval ends round away from the interval at a halfway value', () {
+      final results = ExperimentResultsViewV1.fromJson(_halfwayResults());
+      final above = results.armResults.first;
+      final below = results.armResults.last;
+
+      expect(
+        above.interval.lowerExact.decimal(
+          ExperimentDecimalRoundingV1.nearest,
+        ),
+        '0.000000001',
+      );
+      expect(above.interval.lower, '0.000000000');
+      expect(
+        below.interval.upperExact.decimal(
+          ExperimentDecimalRoundingV1.nearest,
+        ),
+        '-0.000000001',
+      );
+      expect(below.interval.upper, '0.000000000');
+    });
+
+    test('point figures are placed to the nearest, halves away from zero', () {
+      final results = ExperimentResultsViewV1.fromJson(_repeatingResults());
+      final thirds = results.armResults.first;
+      final sevenths = results.armResults.last;
+
+      // A third of the way: nearest holds where rounding up would not.
+      expect(thirds.rate, '0.333333333');
+      expect(
+        thirds.rateExact.decimal(ExperimentDecimalRoundingV1.up),
+        '0.333333334',
+      );
+      // Two sevenths: nearest holds where rounding down would not.
+      expect(sevenths.rate, '0.285714286');
+      expect(
+        sevenths.rateExact.decimal(ExperimentDecimalRoundingV1.down),
+        '0.285714285',
+      );
+      expect(thirds.effect, '0.285714286');
+      expect(
+        thirds.effectExact.decimal(ExperimentDecimalRoundingV1.down),
+        '0.285714285',
+      );
+      // An exact half in the tenth place moves away from zero.
+      expect(sevenths.effect, '-0.000000001');
+      expect(
+        sevenths.effectExact.decimal(ExperimentDecimalRoundingV1.up),
+        '0.000000000',
+      );
+    });
+
+    test('a point figure one place off its exact value is refused', () {
+      const neighbours = [
+        {'rate': '0.333333334'},
+        {'effect': '0.285714285'},
+      ];
+
+      for (final neighbour in neighbours) {
+        expect(
+          () => ExperimentResultsViewV1.fromJson(
+            _repeatingResults(firstArm: neighbour),
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: neighbour.keys.single,
+        );
+      }
+    });
+
+    test('an interval end outside minus one to one is refused', () {
+      const atTheBound = {
+        'lower': '-1.000000000',
+        'lowerExact': {'denominator': '1', 'numerator': '-1'},
+        'upper': '1.000000000',
+        'upperExact': {'denominator': '1', 'numerator': '1'},
+      };
+      const beyondIt = [
+        {
+          'lower': '-1.000000001',
+          'lowerExact': {
+            'denominator': '1000000000',
+            'numerator': '-1000000001'
+          },
+          'upper': '0.000000000',
+          'upperExact': {'denominator': '1', 'numerator': '0'},
+        },
+        {
+          'lower': '0.000000000',
+          'lowerExact': {'denominator': '1', 'numerator': '0'},
+          'upper': '1.000000001',
+          'upperExact': {
+            'denominator': '1000000000',
+            'numerator': '1000000001'
+          },
+        },
+      ];
+
+      expect(
+        ExperimentResultsViewV1.fromJson(
+          _resultsWithVariantArm(const {'interval': atTheBound}),
+        ).armResults.last.interval.upper,
+        '1.000000000',
+      );
+      for (final interval in beyondIt) {
+        expect(
+          () => ExperimentResultsViewV1.fromJson(
+            _resultsWithVariantArm({'interval': interval}),
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+        );
+      }
+    });
+
+    test('an interval end placed inside the certified one is refused', () {
+      final arms = (_halfwayResults()['armResults']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final narrowed = {
+        ..._halfwayResults(),
+        'armResults': [
+          {
+            ...arms.first,
+            'interval': {
+              ...arms.first['interval']! as Map<String, Object?>,
+              'lower': '0.000000001',
+            },
+          },
+          arms.last,
+        ],
+      };
+
+      expect(
+        () => ExperimentResultsViewV1.fromJson(narrowed),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('a bound wider than a machine integer is carried whole', () {
+      const numerator = '12345678901234567890123456789012345679';
+      const denominator = '340282366920938463463374607431768211456';
+      final arm = ExperimentResultsViewV1.fromJson(
+        _resultsWithVariantArm({
+          'interval': {
+            'lower': '0.036280689',
+            'lowerExact': {
+              'denominator': denominator,
+              'numerator': numerator,
+            },
+            'upper': '0.036280690',
+            'upperExact': {
+              'denominator': denominator,
+              'numerator': numerator,
+            },
+          },
+        }),
+      ).armResults.last;
+
+      expect(arm.interval.lowerExact.numerator, BigInt.parse(numerator));
+      expect(
+        arm.interval.lowerExact.numerator,
+        greaterThan(BigInt.two.pow(63)),
+      );
+      expect(arm.interval.lower, '0.036280689');
+      expect(arm.interval.upper, '0.036280690');
+    });
+
+    test('an exact pair must be reduced over a positive denominator', () {
+      expect(
+        () => ExperimentResultsViewV1.fromJson(
+          _resultsWithVariantArm({
+            'rateExact': {'denominator': '2000', 'numerator': '210'},
+          }),
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+      expect(
+        () => ExperimentResultsViewV1.fromJson(
+          _resultsWithVariantArm({
+            'effect': '-0.005000000',
+            'effectExact': {'denominator': '-200', 'numerator': '1'},
+          }),
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test("a rate that is not its arm's count ratio is refused", () {
+      expect(
+        () => ExperimentResultsViewV1.fromJson(
+          _resultsWithVariantArm({
+            'rate': '0.100000000',
+            'rateExact': {'denominator': '10', 'numerator': '1'},
+          }),
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('a figure written off the fixed scale is refused', () {
+      const written = [
+        '0.105',
+        '0.1050000000',
+        '105/1000',
+        '.105000000',
+        '-0.000000000',
+        '00.105000000',
+      ];
+
+      for (final rate in written) {
+        expect(
+          () => ExperimentResultsViewV1.fromJson(
+            _resultsWithVariantArm({'rate': rate}),
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: rate,
+        );
+      }
     });
 
     test('results keep every non-result state explicit and closed', () {
@@ -6549,7 +6828,13 @@ Map<String, Object?> _slotProjectionReference(
       'semanticDigest': _digest(digestDigit),
     };
 
-Map<String, Object?> _surfaceCapability(String revisionId) => {
+Map<String, Object?> _surfaceCapability(
+  String revisionId, {
+  bool active = true,
+  int revisionOrdinal = 1,
+}) =>
+    {
+      'active': active,
       'analysisChoices': ['measureOnly', 'fixedHorizonNArmRate'],
       'deliverySurfaceType': 'general',
       'installedMetricCapabilities': [
@@ -6577,6 +6862,7 @@ Map<String, Object?> _surfaceCapability(String revisionId) => {
       ],
       'kind': 'experimentSurfaceCapability',
       'label': 'Published surface',
+      'revisionOrdinal': revisionOrdinal,
       'surfaceReference': _surfaceReference(revisionId),
       'treatmentOrigins': [
         {
@@ -6612,11 +6898,13 @@ Map<String, Object?> _maximumSurfaceCapability({required int pointCount}) {
   final baseSurfaceId = _mintedSurfaceId('maximum-base');
   final baseRevisionId = _mintedSurfaceRevisionId('maximum-base');
   return {
+    'active': true,
     'analysisChoices': ['measureOnly'],
     'deliverySurfaceType': _maximumIdentifier('delivery.'),
     'installedMetricCapabilities': <Object?>[],
     'kind': 'experimentSurfaceCapability',
     'label': 'l' * 4096,
+    'revisionOrdinal': kMaximumPortableJsonInteger,
     'surfaceReference': {
       'kind': 'exactSurfaceReference',
       'surfaceId': surfaceId,
@@ -7701,32 +7989,142 @@ Map<String, Object?> _draftDetail({
       'summary': summary ?? _draftSummary(),
     };
 
+/// [_results] with the variant arm's fields replaced by [changes].
+Map<String, Object?> _resultsWithVariantArm(Map<String, Object?> changes) {
+  final results = _results();
+  final arms =
+      (results['armResults']! as List<Object?>).cast<Map<String, Object?>>();
+  return {
+    ...results,
+    'armResults': [
+      arms.first,
+      {...arms.last, ...changes},
+    ],
+  };
+}
+
+/// A result whose figures do not terminate at the published scale.
+///
+/// One third and two sevenths place differently under each rounding, and the
+/// negative effect sits on an exact half in the tenth place.
+Map<String, Object?> _repeatingResults(
+        {Map<String, Object?> firstArm = const {}}) =>
+    {
+      ..._results(),
+      'armResults': [
+        {
+          'admittedCount': 3,
+          'effect': '0.285714286',
+          'effectExact': {'denominator': '7', 'numerator': '2'},
+          'interval': {
+            'lower': '-0.333333334',
+            'lowerExact': {'denominator': '3', 'numerator': '-1'},
+            'upper': '0.666666667',
+            'upperExact': {'denominator': '3', 'numerator': '2'},
+          },
+          'kind': 'experimentArmResult',
+          'observedCount': 3,
+          'rate': '0.333333333',
+          'rateExact': {'denominator': '3', 'numerator': '1'},
+          'stableArmId': 'arm.thirds',
+          'successCount': 1,
+          ...firstArm,
+        },
+        const {
+          'admittedCount': 7,
+          'effect': '-0.000000001',
+          'effectExact': {'denominator': '2000000000', 'numerator': '-1'},
+          'interval': {
+            'lower': '-0.285714286',
+            'lowerExact': {'denominator': '7', 'numerator': '-2'},
+            'upper': '0.333333334',
+            'upperExact': {'denominator': '3', 'numerator': '1'},
+          },
+          'kind': 'experimentArmResult',
+          'observedCount': 7,
+          'rate': '0.285714286',
+          'rateExact': {'denominator': '7', 'numerator': '2'},
+          'stableArmId': 'arm.sevenths',
+          'successCount': 2,
+        },
+      ],
+    };
+
+/// A result whose outer interval ends sit exactly halfway between decimals.
+Map<String, Object?> _halfwayResults() => {
+      ..._results(),
+      'armResults': const [
+        {
+          'admittedCount': 4,
+          'effect': '0.000000000',
+          'effectExact': {'denominator': '1', 'numerator': '0'},
+          'interval': {
+            'lower': '0.000000000',
+            'lowerExact': {'denominator': '2000000000', 'numerator': '1'},
+            'upper': '0.500000000',
+            'upperExact': {'denominator': '2', 'numerator': '1'},
+          },
+          'kind': 'experimentArmResult',
+          'observedCount': 4,
+          'rate': '0.250000000',
+          'rateExact': {'denominator': '4', 'numerator': '1'},
+          'stableArmId': 'arm.above',
+          'successCount': 1,
+        },
+        {
+          'admittedCount': 4,
+          'effect': '-0.500000000',
+          'effectExact': {'denominator': '2', 'numerator': '-1'},
+          'interval': {
+            'lower': '-0.500000000',
+            'lowerExact': {'denominator': '2', 'numerator': '-1'},
+            'upper': '0.000000000',
+            'upperExact': {'denominator': '2000000000', 'numerator': '-1'},
+          },
+          'kind': 'experimentArmResult',
+          'observedCount': 4,
+          'rate': '0.750000000',
+          'rateExact': {'denominator': '4', 'numerator': '3'},
+          'stableArmId': 'arm.below',
+          'successCount': 3,
+        },
+      ],
+    };
+
 Map<String, Object?> _results({String lifecycleState = 'active'}) => {
       'analysis': 'fixedHorizonNArmRate',
       'armResults': const [
         {
           'admittedCount': 5000,
-          'effect': {'denominator': 1, 'numerator': 0},
+          'effect': '0.000000000',
+          'effectExact': {'denominator': '1', 'numerator': '0'},
           'interval': {
-            'lower': {'denominator': 1000, 'numerator': 87},
-            'upper': {'denominator': 1000, 'numerator': 113},
+            'lower': '0.000000000',
+            'lowerExact': {'denominator': '1', 'numerator': '0'},
+            'upper': '0.000000000',
+            'upperExact': {'denominator': '1', 'numerator': '0'},
           },
           'kind': 'experimentArmResult',
           'observedCount': 5000,
-          'rate': {'denominator': 10, 'numerator': 1},
+          'rate': '0.100000000',
+          'rateExact': {'denominator': '10', 'numerator': '1'},
           'stableArmId': 'arm.control',
           'successCount': 500,
         },
         {
           'admittedCount': 5000,
-          'effect': {'denominator': 1000, 'numerator': 5},
+          'effect': '0.005000000',
+          'effectExact': {'denominator': '200', 'numerator': '1'},
           'interval': {
-            'lower': {'denominator': 1000, 'numerator': -8},
-            'upper': {'denominator': 1000, 'numerator': 18},
+            'lower': '-0.000976563',
+            'lowerExact': {'denominator': '1024', 'numerator': '-1'},
+            'upper': '0.008789063',
+            'upperExact': {'denominator': '1024', 'numerator': '9'},
           },
           'kind': 'experimentArmResult',
           'observedCount': 5000,
-          'rate': {'denominator': 1000, 'numerator': 105},
+          'rate': '0.105000000',
+          'rateExact': {'denominator': '200', 'numerator': '21'},
           'stableArmId': 'arm.variant',
           'successCount': 525,
         },

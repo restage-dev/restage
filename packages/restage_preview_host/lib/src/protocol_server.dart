@@ -13,6 +13,8 @@ import 'wire_json.dart';
 
 typedef BundleRenderHandler = Future<BundleRenderResult> Function(
     RenderRequest request);
+typedef BundleMountHandler = Future<BundleRenderResult> Function(
+    RenderRequest request);
 typedef BundleInitHandler = void Function(BundleInitialization initialization);
 typedef BundleSnapshotHandler = Future<Uint8List> Function(
   int epoch,
@@ -49,6 +51,18 @@ final class BundleRenderResult {
   final Map<String, Object?>? timings;
 }
 
+/// What became of one event a mounted surface fired.
+enum SurfaceEventPublication {
+  /// The event reached the shell.
+  sent,
+
+  /// No mounted, settled surface owned this epoch, so nothing was sent.
+  inactive,
+
+  /// The arguments do not fit one message, so the whole event was dropped.
+  oversize,
+}
+
 /// A controlled render failure suitable for the wire's public diagnostic.
 final class BundleRenderFailure implements Exception {
   const BundleRenderFailure(this.message, {this.path});
@@ -68,12 +82,14 @@ final class RenderProtocolServer {
     required BundleInitHandler initialize,
     required BundleRenderHandler render,
     BundleSnapshotHandler? snapshot,
+    BundleMountHandler? mount,
   })  : _transport = transport,
         _supportedVersions = _snapshotSupportedVersions(supportedVersions),
         _scheduleFrame = scheduleFrame,
         _initialize = initialize,
         _render = render,
-        _snapshot = snapshot;
+        _snapshot = snapshot,
+        _mount = mount;
 
   final RenderMessageTransport _transport;
   final RenderBundleManifest manifest;
@@ -83,6 +99,7 @@ final class RenderProtocolServer {
   final BundleInitHandler _initialize;
   final BundleRenderHandler _render;
   final BundleSnapshotHandler? _snapshot;
+  final BundleMountHandler? _mount;
 
   StreamSubscription<RenderTransportMessage>? _subscription;
   String? _lockedOrigin;
@@ -96,6 +113,7 @@ final class RenderProtocolServer {
   final Set<int> _scheduledGeometry = <int>{};
   final Set<String> _snapshotRequests = <String>{};
   bool _disposed = false;
+  int? _mountedEpoch;
   BundleInitialization? _latestInitialization;
 
   /// Origin captured from the first fully valid supported init or render.
@@ -104,16 +122,23 @@ final class RenderProtocolServer {
   /// Latest fully valid supported init accepted from the locked origin.
   BundleInitialization? get latestInitialization => _latestInitialization;
 
+  /// Epoch of the latest accepted mount, while it is still the current epoch.
+  int? get mountedEpoch =>
+      _mountedEpoch == _currentEpoch ? _mountedEpoch : null;
+
   void start() {
     if (_disposed) throw StateError('A disposed render server cannot restart.');
     if (_subscription != null) return;
     _subscription = _transport.messages.listen(_receive);
+    final capabilities = <String>[
+      if (_snapshot != null) renderSnapshotCapability,
+      if (_mount != null) renderMountCapability,
+    ];
     _transport.send(
       <String, Object?>{
         'type': 'ready',
         'protocolVersions': (_supportedVersions.toList()..sort()),
-        if (_snapshot != null)
-          'capabilities': const <String>[renderSnapshotCapability],
+        if (capabilities.isNotEmpty) 'capabilities': capabilities,
         'manifest': manifest.toJson(),
         'engine': engine.toJson(),
       },
@@ -128,7 +153,10 @@ final class RenderProtocolServer {
     final payload = _asMap(message.payload);
     if (payload == null) return;
     final type = payload['type'];
-    if (type != 'init' && type != 'render' && type != 'snapshotRequest') {
+    if (type != 'init' &&
+        type != 'render' &&
+        type != 'mount' &&
+        type != 'snapshotRequest') {
       return;
     }
     try {
@@ -155,6 +183,9 @@ final class RenderProtocolServer {
         return;
       }
 
+      final mount = _mount;
+      final mounting = type == 'mount';
+      if (mounting && mount == null) return;
       final parsed = _parseRender(payload);
       final version = parsed.version;
       if (!_supportedVersions.contains(version)) {
@@ -167,11 +198,17 @@ final class RenderProtocolServer {
       }
       if (!_selectOrAccept(message.origin, version)) return;
       final request = parsed.request;
+      if (mounting && request.env.zoom != 1) {
+        throw const FormatException('A mounted surface requires zoom 1.');
+      }
       final current = _currentEpoch;
       if (current != null && request.epoch <= current) return;
       _currentEpoch = request.epoch;
+      _mountedEpoch = mounting ? request.epoch : null;
       _snapshotRequests.clear();
-      unawaited(_performRender(request, version));
+      unawaited(
+        _performRender(request, version, mounting ? mount! : _render),
+      );
     } on Object catch (error) {
       _sendProtocolErrorTo(
         message.origin,
@@ -321,9 +358,13 @@ final class RenderProtocolServer {
     );
   }
 
-  Future<void> _performRender(RenderRequest request, int version) async {
+  Future<void> _performRender(
+    RenderRequest request,
+    int version,
+    BundleRenderHandler handler,
+  ) async {
     try {
-      final result = await _render(request);
+      final result = await handler(request);
       if (request.epoch != _currentEpoch ||
           _terminatedEpochs.contains(request.epoch)) {
         return;
@@ -373,6 +414,42 @@ final class RenderProtocolServer {
     final version = _selectedVersion;
     if (version == null) return;
     _fail(epoch, version, failure.message, failure.path);
+  }
+
+  /// Sends one event the mounted surface fired, and says what became of it.
+  ///
+  /// Arguments a transport cannot carry drop the whole event, so a partial
+  /// event never reaches the shell and the transport never throws back into
+  /// the code that fired it. Events from an epoch that is not the mounted one
+  /// are dropped the same way geometry is.
+  SurfaceEventPublication publishSurfaceEvent(
+    int epoch,
+    String name,
+    Map<String, Object?> arguments,
+  ) {
+    if (_disposed || name.isEmpty) return SurfaceEventPublication.inactive;
+    final version = _selectedVersion;
+    if (version == null) return SurfaceEventPublication.inactive;
+    if (epoch != _currentEpoch ||
+        epoch != _mountedEpoch ||
+        !_settledEpochs.contains(epoch) ||
+        _terminatedEpochs.contains(epoch)) {
+      return SurfaceEventPublication.inactive;
+    }
+    final Map<String, Object?> message;
+    try {
+      message = boundedWireMessage(<String, Object?>{
+        'v': version,
+        'type': 'event',
+        'epoch': epoch,
+        'name': name,
+        'arguments': arguments,
+      });
+    } on Object {
+      return SurfaceEventPublication.oversize;
+    }
+    _send(message);
+    return SurfaceEventPublication.sent;
   }
 
   /// Publishes the latest geometry, coalesced to one emission per frame.

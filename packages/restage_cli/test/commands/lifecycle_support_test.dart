@@ -22,6 +22,7 @@ void main() {
       app: 'app',
       environment: 'environment',
       organizationId: 11,
+      organizationSlug: 'acme',
       appId: 23,
       namedEnvironmentId: 37,
       environmentTargetId: 31,

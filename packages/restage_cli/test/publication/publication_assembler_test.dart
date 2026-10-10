@@ -7,6 +7,7 @@ import 'package:restage_cli/src/commands/surface_payload.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -99,6 +100,45 @@ void main() {
       payload.contentHash,
     );
     expect(assembled.measurementUpload, isNotNull);
+  });
+
+  test('assembles the largest generated flow and its draft', () async {
+    await _seedGeneratedFlow(tempDir, slug: 'tally_onboarding');
+    final loaded = await SurfacePublicationManifestLoader().load(
+      projectRoot: tempDir,
+    );
+
+    final assembled = await SurfacePublicationAssembler().assemble(
+      loaded: loaded,
+      entry: loaded.manifest.publications.single,
+    );
+
+    final upload = assembled.measurementUpload;
+    expect(upload, isNotNull);
+    final draftBytes =
+        upload!.proof.measurementPublicationDraft.canonicalBytes.length;
+    expect(
+      draftBytes,
+      greaterThan(512 * 1024),
+      reason: 'this flow must stay the one that outgrew the older draft bound',
+    );
+    expect(
+      draftBytes,
+      lessThan(kMaximumMeasurementPublicationCandidateDraftBytes),
+    );
+    expect((assembled.payload as FlowSurfacePayload).screenBlobs, hasLength(8));
+    expect(
+      upload.proof.assembledPublicationUploadCanonicalBytes.length,
+      lessThan(kMaximumMeasurementPublicationCandidateUploadBytes),
+    );
+    expect(
+      upload.proof.selectedPublicationManifestCanonicalBytes.length,
+      lessThan(kMaximumMeasurementPublicationCandidateManifestBytes),
+    );
+    expect(
+      assembled.request.publication.payloadContentHash,
+      assembled.payload.contentHash,
+    );
   });
 
   test('unions verified sidecar requirements into the flow payload', () async {
