@@ -77,6 +77,7 @@ restage surface draft push <id>
 
 # App configuration, store products, and API keys.
 restage app-config show
+restage app-config platforms
 restage app-config set --ios-bundle-id <id>
 restage products list
 restage products import --store appStore

@@ -402,7 +402,7 @@ void main() {
       );
     });
 
-    test('emits source.childList(...) for a children list slot', () {
+    test('emits the widget-list decoder for a children list slot', () {
       final src = emitUserFactoriesDart([
         _widgetEntry(
           name: 'AcmeStack',
@@ -425,7 +425,10 @@ void main() {
       );
       expect(
         src,
-        contains("children: source.childList(const <Object>['children'])"),
+        contains(
+          'children: RestageDecoders.widgetList(source, '
+          "const <Object>['children'])",
+        ),
       );
     });
 
@@ -560,7 +563,7 @@ void main() {
         expect(
           flat,
           contains(
-            'primaryActions: source.childList(const '
+            'primaryActions: RestageDecoders.widgetList(source, const '
             "<Object>['primaryActions'])",
           ),
         );
@@ -573,7 +576,8 @@ void main() {
           contains(
             'secondaryActions: source.isList(const '
             "<Object>['secondaryActions']) "
-            "? source.childList(const <Object>['secondaryActions']) : null",
+            '? RestageDecoders.widgetList(source, '
+            "const <Object>['secondaryActions']) : null",
           ),
         );
       },

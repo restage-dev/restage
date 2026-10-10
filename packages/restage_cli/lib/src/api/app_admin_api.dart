@@ -102,6 +102,18 @@ class AppAdminApi {
     return null;
   }
 
+  /// What each platform has sent from each named environment of an app, with
+  /// its identifiers: the dashboard's Platforms read.
+  Future<AdminRow> readPlatforms({
+    required int organizationId,
+    required String project,
+    required String app,
+  }) => _row('app', 'readPlatforms', {
+    'organizationId': organizationId,
+    'projectSlug': project,
+    'appSlug': app,
+  });
+
   /// Rename an app. Its slug stays.
   Future<AdminRow> renameApp({
     required String project,

@@ -407,7 +407,7 @@ Widget buildColoredBox(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Column` widget from [source].
 Widget buildColumn(BuildContext context, DataSource source) {
-  final children = source.childList(<Object>['children']);
+  final children = RestageDecoders.widgetList(source, <Object>['children']);
 
   return RestageColumn(
     mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
@@ -723,7 +723,7 @@ Widget buildListView(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 
@@ -883,7 +883,7 @@ Widget buildRestageStagger(BuildContext context, DataSource source) {
         RestageDecoders.offset(source, <Object>['fromOffset']) ?? Offset.zero,
     fromOpacity: source.v<double>(const <Object>['fromOpacity']) ?? 0.0,
     fromScale: source.v<double>(const <Object>['fromScale']) ?? 1.0,
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 
@@ -930,7 +930,7 @@ Widget buildPositioned(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Row` widget from [source].
 Widget buildRow(BuildContext context, DataSource source) {
-  final children = source.childList(<Object>['children']);
+  final children = RestageDecoders.widgetList(source, <Object>['children']);
 
   return RestageRow(
     mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
@@ -1027,7 +1027,7 @@ Widget buildStack(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 
@@ -1189,6 +1189,6 @@ Widget buildWrap(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }

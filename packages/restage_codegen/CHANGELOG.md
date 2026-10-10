@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+Widget lists support `if` inside a loop over host data, including `else`, nested
+conditions, and literal spreads. A false condition without `else` contributes no
+child. Generated widget factories use the shared grouped-list decoder; surfaces
+that need it require built-in catalog capability 10. Regenerate and ship app
+factories, including custom widget factories, before publishing these surfaces.
+
 An error inside a helper or custom widget declared in another file now points at that
 file. A refused helper says why: it is from another package, or it returns a type a
 helper can't have.

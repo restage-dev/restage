@@ -42,7 +42,7 @@ void main() {
         'sessions': {
           'counts': {'distinctKnownSessions': 1500, 'distinctSessions': 1500},
         },
-        'lifecycle': _series(),
+        'typedLifecycle': _series(),
         'rows': [
           _row([
             {
@@ -59,24 +59,27 @@ void main() {
     expect(figures.revenue, r'$4,100');
   });
 
-  test('prefers the typed lifecycle series when the page carries one', () {
-    final figures = overviewFiguresOf(
-      _reply({
-        'sessions': {'counts': <String, Object?>{}},
-        'lifecycle': _series(completed: 100, eligible: 200),
-        'typedLifecycle': _series(completed: 50, eligible: 200),
-        'rows': <Object?>[],
-      }),
-    );
+  test(
+    'counts onboarding and survey surfaces only, never the all-type series',
+    () {
+      final figures = overviewFiguresOf(
+        _reply({
+          'sessions': {'counts': <String, Object?>{}},
+          'lifecycle': _series(completed: 100, eligible: 200),
+          'typedLifecycle': _series(completed: 50, eligible: 200),
+          'rows': <Object?>[],
+        }),
+      );
 
-    expect(figures.finished, '25%');
-  });
+      expect(figures.finished, '25%');
+    },
+  );
 
   test('a held count reads <5 and an unread figure reads Not available', () {
     final figures = overviewFiguresOf(
       _reply({
         'sessions': {'counts': <String, Object?>{}},
-        'lifecycle': _series(completed: null),
+        'typedLifecycle': _series(completed: null),
         'rows': [_row([])],
       }),
     );
@@ -92,7 +95,7 @@ void main() {
         'sessions': {
           'counts': {'distinctKnownSessions': 900},
         },
-        'lifecycle': _series(publications: 0),
+        'typedLifecycle': _series(publications: 0),
         'rows': <Object?>[],
       }),
     );
@@ -105,7 +108,7 @@ void main() {
     final figures = overviewFiguresOf(
       _reply({
         'sessions': {'counts': <String, Object?>{}},
-        'lifecycle': _series(),
+        'typedLifecycle': _series(),
         'rows': [
           _row([
             {

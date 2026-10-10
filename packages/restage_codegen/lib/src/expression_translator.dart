@@ -2036,10 +2036,7 @@ final class ExpressionTranslator {
             refusal,
             issues,
             itemType: itemType,
-            measurementScope: _walk.measurementWidgetList?.element(
-              ordinal,
-              collectionOccurrence: runtimeLoop.template,
-            ),
+            ordinal: ordinal,
           );
           if (emitted != null) parts.add(emitted);
           ordinal++;
@@ -2076,11 +2073,9 @@ final class ExpressionTranslator {
     required int ordinal,
     PropertyType? itemType,
   }) {
-    // A tree that yields an element on every path is one element, so one
-    // switch. Otherwise the element must be absent on some path, and a
-    // placeholder would not do — a parent counts its children — so each leaf
-    // becomes a loop guarded by the conditions along its path.
-    if (_runtimeIfIsTotal(candidate)) {
+    // Guarded loops omit absent elements and keep each callback in one
+    // emitted branch when composed conditions repeat their selector text.
+    if (_runtimeIfHasSingleEmission(candidate)) {
       return _emitTotalRuntimeIf(
         candidate,
         issues,
@@ -2144,7 +2139,7 @@ final class ExpressionTranslator {
   }
 
   bool _emitGuardedBranch(
-    CollectionRuntimeIfBranch branch,
+    CollectionRuntimeBranch branch,
     _ConditionLowering guard,
     List<String> elements,
     List<Issue> issues, {
@@ -2152,7 +2147,7 @@ final class ExpressionTranslator {
     PropertyType? itemType,
   }) {
     switch (branch) {
-      case CollectionRuntimeIfNested(:final candidate):
+      case CollectionRuntimeConditional(:final candidate):
         return _emitGuardedLeaves(
           candidate,
           guard,
@@ -2161,7 +2156,7 @@ final class ExpressionTranslator {
           ordinal: ordinal,
           itemType: itemType,
         );
-      case CollectionRuntimeIfGroup(:final members):
+      case CollectionRuntimeGroup(:final members):
         for (final member in members) {
           if (_emitGuardedBranch(
             member,
@@ -2175,7 +2170,7 @@ final class ExpressionTranslator {
           }
         }
         return false;
-      case CollectionRuntimeIfLeaf():
+      case CollectionRuntimeLeaf():
         final dsl = _emitRuntimeIfBranch(
           branch,
           issues,
@@ -2218,37 +2213,51 @@ final class ExpressionTranslator {
     return lowering(thenDsl, elseDsl);
   }
 
-  /// Whether every path through [candidate] yields an element.
-  bool _runtimeIfIsTotal(CollectionRuntimeIfCandidate candidate) {
+  /// Whether a switch can select one element without copying a branch.
+  bool _runtimeIfHasSingleEmission(CollectionRuntimeIfCandidate candidate) {
     final otherwise = candidate.elseBranch;
     return otherwise != null &&
-        _branchIsTotal(candidate.thenBranch) &&
-        _branchIsTotal(otherwise);
+        !_conditionCopiesBranch(candidate.condition) &&
+        _branchHasSingleEmission(candidate.thenBranch) &&
+        _branchHasSingleEmission(otherwise);
   }
 
-  bool _branchIsTotal(CollectionRuntimeIfBranch branch) => switch (branch) {
-        CollectionRuntimeIfLeaf() => true,
+  bool _conditionCopiesBranch(Expression expression) {
+    final condition = _resolveBoundIdentifier(expression);
+    return switch (condition) {
+      PrefixExpression(:final operator, :final operand)
+          when operator.lexeme == '!' =>
+        _conditionCopiesBranch(operand),
+      BinaryExpression(:final operator) =>
+        operator.lexeme == '&&' || operator.lexeme == '||',
+      _ => false,
+    };
+  }
+
+  bool _branchHasSingleEmission(CollectionRuntimeBranch branch) =>
+      switch (branch) {
+        CollectionRuntimeLeaf() => true,
         // A spread yields its own element count, so it is guarded per element.
-        CollectionRuntimeIfGroup() => false,
-        CollectionRuntimeIfNested(:final candidate) =>
-          _runtimeIfIsTotal(candidate),
+        CollectionRuntimeGroup() => false,
+        CollectionRuntimeConditional(:final candidate) =>
+          _runtimeIfHasSingleEmission(candidate),
       };
 
   String? _emitRuntimeIfBranch(
-    CollectionRuntimeIfBranch branch,
+    CollectionRuntimeBranch branch,
     List<Issue> issues, {
     required int ordinal,
     PropertyType? itemType,
   }) {
     switch (branch) {
-      case CollectionRuntimeIfNested(:final candidate):
+      case CollectionRuntimeConditional(:final candidate):
         return _emitRuntimeIfCandidate(
           candidate,
           issues,
           ordinal: ordinal,
           itemType: itemType,
         );
-      case CollectionRuntimeIfLeaf(:final occurrence):
+      case CollectionRuntimeLeaf(:final occurrence):
         final before = issues.length;
         final dsl = _translateOccurrence(
           occurrence,
@@ -2261,7 +2270,7 @@ final class ExpressionTranslator {
         );
         if (dsl.isEmpty || issues.length != before) return null;
         return dsl;
-      case CollectionRuntimeIfGroup():
+      case CollectionRuntimeGroup():
         throw StateError('A spread branch is emitted as guarded elements');
     }
   }
@@ -2284,8 +2293,8 @@ final class ExpressionTranslator {
     CollectionRuntimeLoopCandidate candidate,
     CollectionUnrollRefused refusal,
     List<Issue> issues, {
+    required int ordinal,
     PropertyType? itemType,
-    MeasurementOccurrenceScope? measurementScope,
   }) {
     final identifier = candidate.identifier;
     if (!isRfwIdentifier(identifier) ||
@@ -2296,7 +2305,7 @@ final class ExpressionTranslator {
           message: "The collection-for name '$identifier' cannot be used in "
               'an RFW loop. Choose a non-reserved name containing only '
               'letters, digits, and underscores.',
-          location: _locationOf(candidate.template.authoredExpression),
+          location: _locationOf(refusal.location),
         ),
       );
       return null;
@@ -2312,16 +2321,34 @@ final class ExpressionTranslator {
         _RuntimeLoopBinding(candidate.binding, identifier, input.elementShape),
       ],
     );
-    late final String template;
+    String? template;
     try {
-      template = _translateOccurrence(
-        candidate.template,
-        issues,
-        itemType: itemType,
-        measurementScope: measurementScope,
-      );
+      if (_branchHasSingleEmission(candidate.template)) {
+        template = _emitRuntimeIfBranch(
+          candidate.template,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+        );
+      } else if (itemType == PropertyType.widget) {
+        final elements = <String>[];
+        if (!_emitGuardedBranch(
+          candidate.template,
+          const _ConditionLowering(_unguarded),
+          elements,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+        )) {
+          template = '[${elements.join(', ')}]';
+        }
+      }
     } finally {
       _walk = saved;
+    }
+    if (template == null) {
+      if (issues.length == before) _recordCollectionRefusal(refusal, issues);
+      return null;
     }
     if (template.isEmpty || issues.length != before) return null;
     if (_containsConstructorCall(template, identifier)) {
@@ -2330,7 +2357,7 @@ final class ExpressionTranslator {
           code: IssueCode.unsupportedCollectionFlow,
           message: "The collection-for name '$identifier' conflicts with an "
               'RFW constructor used by its template. Rename the loop value.',
-          location: _locationOf(candidate.template.authoredExpression),
+          location: _locationOf(refusal.location),
         ),
       );
       return null;

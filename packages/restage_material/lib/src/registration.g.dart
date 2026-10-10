@@ -92,7 +92,7 @@ Widget buildAppBar(BuildContext context, DataSource source) {
         source.v<bool>(const <Object>['automaticallyImplyLeading']) ?? true,
     title: source.optionalChild(const <Object>['title']),
     actions: source.isList(const <Object>['actions'])
-        ? source.childList(const <Object>['actions'])
+        ? RestageDecoders.widgetList(source, const <Object>['actions'])
         : null,
     bottom: RestageDecoders.optionalPreferredSize(
         source.optionalChild(const <Object>['bottom']),
@@ -302,7 +302,7 @@ Widget buildExpansionTile(BuildContext context, DataSource source) {
         RestageDecoders.shapeBorder(source, <Object>['collapsedShape']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 
@@ -523,7 +523,7 @@ Widget buildRestagePager(BuildContext context, DataSource source) {
     pageSnapping: source.v<bool>(const <Object>['pageSnapping']) ?? true,
     onPageChanged: RestageDecoders.valueChanged<int>(
         source, const <Object>['onPageChanged']),
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 
@@ -556,7 +556,7 @@ Widget buildRestageToggleButtons(BuildContext context, DataSource source) {
         (throw ArgumentError('RestageToggleButtons.isSelected is required.')),
     onPressed:
         RestageDecoders.valueChanged<int>(source, const <Object>['onPressed']),
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 
@@ -787,7 +787,7 @@ Widget buildDefaultTabController(BuildContext context, DataSource source) {
 /// Builds the catalog's `TabBar` widget from [source].
 Widget buildTabBar(BuildContext context, DataSource source) {
   return TabBar(
-    tabs: source.childList(const <Object>['tabs']),
+    tabs: RestageDecoders.widgetList(source, const <Object>['tabs']),
     isScrollable: source.v<bool>(const <Object>['isScrollable']) ?? false,
     indicatorColor: ArgumentDecoders.color(source, <Object>['indicatorColor']),
     labelColor: ArgumentDecoders.color(source, <Object>['labelColor']),

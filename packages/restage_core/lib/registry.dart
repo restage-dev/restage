@@ -2125,6 +2125,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 10,
     ),
     WidgetEntry(
       wireId: WireId('w0056'),
@@ -5735,6 +5736,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 10,
     ),
     WidgetEntry(
       wireId: WireId('w0026'),
@@ -9446,4 +9448,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.core` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCoreCatalogContentVersion = 7;
+const int kCoreCatalogContentVersion = 10;

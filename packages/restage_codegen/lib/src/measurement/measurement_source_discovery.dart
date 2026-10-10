@@ -678,10 +678,8 @@ final class _MeasurementSourceDiscovery {
         CollectionListElement(:final occurrence) => [occurrence],
         CollectionListRefusal(:final refusal) => switch (refusal.runtimeIf) {
             final runtimeIf? => runtimeIf.leafOccurrences.toList(),
-            _ => [
-                refusal.runtimeLoop?.template ??
-                    (throw ArgumentError(refusal.detail)),
-              ],
+            _ => refusal.runtimeLoop?.template.leafOccurrences.toList() ??
+                (throw ArgumentError(refusal.detail)),
           },
       };
       for (final occurrence in occurrences) {

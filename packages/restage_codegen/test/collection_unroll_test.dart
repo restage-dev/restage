@@ -89,24 +89,25 @@ void main() {
     expect(candidate, isNotNull);
     expect(candidate!.iterable.toSource(), 'values');
     expect(candidate.identifier, 'value');
-    expect(candidate.template.authoredExpression.toSource(), 'value');
-    expect(candidate.template.terminalExpression.toSource(), 'value');
+    final template = candidate.template.leafOccurrences.single;
+    expect(template.authoredExpression.toSource(), 'value');
+    expect(template.terminalExpression.toSource(), 'value');
     expect(
       identical(
         candidate.binding,
-        (candidate.template.terminalExpression as SimpleIdentifier).element,
+        (template.terminalExpression as SimpleIdentifier).element,
       ),
       isTrue,
     );
     expect(
-      candidate.template.structuralPath.map((step) => step.kind),
+      template.structuralPath.map((step) => step.kind),
       [
         CollectionStructuralOccurrenceKind.listElement,
         CollectionStructuralOccurrenceKind.loopTemplate,
       ],
     );
     expect(
-      candidate.template.structuralPath.map((step) => step.ordinal),
+      template.structuralPath.map((step) => step.ordinal),
       [0, 0],
     );
     expect(spreadRefusal.reason, CollectionUnrollRefusal.runtimeValue);

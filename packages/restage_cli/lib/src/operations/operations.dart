@@ -16,6 +16,7 @@ import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/audit_rendering.dart';
 import 'package:restage_cli/src/commands/render_bundle_coverage.dart';
 import 'package:restage_cli/src/operations/operation.dart';
+import 'package:restage_cli/src/operations/platforms_report.dart';
 
 /// Store vendors the product operations accept.
 const storeVendorWireNames = <String>['appStore', 'playStore'];
@@ -294,6 +295,33 @@ final List<Operation> sharedOperations = [
       }
       return row;
     },
+  ),
+  Operation(
+    cliPath: 'app-config platforms',
+    mcpName: 'restage_read_platforms',
+    description:
+        'Show what each platform has sent from each environment: when it was '
+        'last seen, on which build and SDK, and its fallbacks this week.',
+    mcpDescription:
+        "Read an app's connections: for each platform (ios, android, web) "
+        'and each named environment, whether the SDK has been seen, the UTC '
+        'hour of its latest presentation, the app version and build, the SDK '
+        'version, and its presentations and fallbacks over the last seven '
+        'days with their share. A fallback is a presentation not served '
+        'fresh. Includes the platform identifiers and how many of the cells '
+        'have been seen. Use it to check that an app is connected.',
+    scope: OperationScope.app,
+    call: (target, _) async => platformsReport(
+      await AppAdminApi(target.api).readPlatforms(
+        organizationId: await target.organization(),
+        project: target.project!,
+        app: target.app!,
+      ),
+      project: target.project!,
+      app: target.app!,
+    ),
+    render: (out, value, _, _) =>
+        writePlatformsReport(out, (value! as Map).cast<String, Object?>()),
   ),
   Operation(
     cliPath: 'app-config set',

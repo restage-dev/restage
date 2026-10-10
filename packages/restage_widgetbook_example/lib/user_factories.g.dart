@@ -177,7 +177,7 @@ Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
             ]) ??
             (bool _) {},
         #hero: source.child(const <Object>['hero']),
-        #details: source.childList(const <Object>['details']),
+        #details: RestageDecoders.widgetList(source, const <Object>['details']),
         #footer: source.optionalChild(const <Object>['footer']),
         #data: source.isMap(<Object>['data'])
             ? s7.CatalogShowcaseData(
@@ -400,7 +400,7 @@ Widget _buildConstructorPositionalCorpus(
 Widget _buildFeaturePanel(BuildContext context, DataSource source) {
   return s3.FeaturePanel(
     header: source.optionalChild(const <Object>['header']),
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 

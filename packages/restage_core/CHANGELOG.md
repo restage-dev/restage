@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `RestageDecoders.widgetList` for conditional widget groups in runtime loops.
+  Core catalog capability 10 includes the updated Column and Row factories.
 - Shapes accept a radius per corner as well as one radius for all corners.
 
 ## 2.0.0

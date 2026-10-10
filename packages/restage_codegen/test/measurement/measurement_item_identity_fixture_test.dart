@@ -2,6 +2,7 @@
 // element's literal key or position, or a run-time element's position.
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
@@ -20,6 +21,8 @@ const _fixtureRoot = 'test/fixtures/measurement_item_identity';
 const _package = 'apps_examples';
 const _fixtureDartPaths = <String>[
   'lib/surfaces/host_rows.dart',
+  'lib/surfaces/filtered_rows.dart',
+  'lib/surfaces/conditional_tags.dart',
   'lib/surfaces/host_tags.dart',
   'lib/surfaces/static_plans.dart',
   'lib/surfaces/free_text.dart',
@@ -44,6 +47,8 @@ void main() {
           .map((publication) => publication.selector.slug),
       unorderedEquals(<String>[
         'host_rows',
+        'filtered_rows',
+        'conditional_tags',
         'host_tags',
         'static_plans',
         'toggle_plans',
@@ -65,6 +70,28 @@ void main() {
     expect((item! as fmt.LoopReference).parts, <Object>['__restage_index']);
   });
 
+  test('a filtered loop preserves its source item and compiled runtime fixture',
+      () {
+    expect(compiled.itemRouteCount('filtered_rows'), 1);
+    final taps = compiled.measuredHandlers('lib/surfaces/filtered_rows.dart');
+    expect(taps, hasLength(1));
+    final item =
+        taps.single.eventArguments[kMeasurementPublicationItemArgumentKeyV1]!
+            as fmt.LoopReference;
+    expect(item.loop, 1);
+    expect(item.parts, <Object>['__restage_index']);
+
+    final blob = compiled.blob('lib/surfaces/filtered_rows.dart');
+    final fixture = File(
+      '../restage/test/fixtures/collection_if/filtered_rows.rfw',
+    );
+    if (Platform.environment['REGEN_COLLECTION_IF_FIXTURE'] == '1') {
+      fixture.parent.createSync(recursive: true);
+      fixture.writeAsBytesSync(blob);
+    }
+    expect(blob, orderedEquals(fixture.readAsBytesSync()));
+  });
+
   test('a run-time loop over scalars keeps one shared count', () {
     expect(compiled.itemRouteCount('host_tags'), 0);
     final taps = compiled.measuredHandlers('lib/surfaces/host_tags.dart');
@@ -74,6 +101,17 @@ void main() {
       isNot(contains(kMeasurementPublicationItemArgumentKeyV1)),
     );
     expect(compiled.log, contains('interactionItemUnavailable'));
+  });
+
+  test('composed loop conditions emit each measured callback once', () {
+    expect(compiled.itemRouteCount('conditional_tags'), 0);
+    final taps =
+        compiled.measuredHandlers('lib/surfaces/conditional_tags.dart');
+    expect(taps, hasLength(2));
+    final routes = taps.map(
+      (tap) => tap.eventArguments[kMeasurementPublicationRouteArgumentKeyV1],
+    );
+    expect(routes.toSet(), hasLength(2));
   });
 
   test('static elements share one route and carry their key or position', () {
@@ -213,6 +251,10 @@ final class _Compiled {
           .toList();
 
   List<fmt.AnyEventHandler> eventHandlers(String sourcePath) {
+    return rfwEventHandlers(fmt.decodeLibraryBlob(blob(sourcePath)));
+  }
+
+  Uint8List blob(String sourcePath) {
     final bundle = RestageBundleCodec.decode(
       readerWriter.testing.readBytes(
         AssetId(
@@ -221,10 +263,11 @@ final class _Compiled {
         ),
       ),
     );
-    final blob = bundle.entries.singleWhere(
-      (entry) => entry.logicalPath.endsWith('.rfw'),
-    );
-    return rfwEventHandlers(fmt.decodeLibraryBlob(blob.bytes));
+    return bundle.entries
+        .singleWhere(
+          (entry) => entry.logicalPath.endsWith('.rfw'),
+        )
+        .bytes;
   }
 }
 

@@ -405,7 +405,8 @@ void main() {
         expect(
           source,
           contains(
-            "final children = source.childList(<Object>['children']);",
+            'final children = RestageDecoders.widgetList(source, '
+            "<Object>['children']);",
           ),
           reason: widgetName,
         );
@@ -424,7 +425,7 @@ void main() {
         expect(
           _occurrences(
             source,
-            "source.childList(<Object>['children'])",
+            "RestageDecoders.widgetList(source, <Object>['children'])",
           ),
           1,
           reason: widgetName,
@@ -452,7 +453,10 @@ void main() {
         );
         expect(
           source,
-          contains("children: source.childList(const <Object>['children']),"),
+          contains(
+            'children: RestageDecoders.widgetList(source, '
+            "const <Object>['children']),",
+          ),
         );
         expect(source, isNot(contains('final children =')));
         expect(source, isNot(contains('RestageDecoders.derivedSpacing')));
@@ -479,7 +483,7 @@ void main() {
       expect(
         _occurrences(
           source,
-          "source.childList(const <Object>['children'])",
+          "RestageDecoders.widgetList(source, const <Object>['children'])",
         ),
         1,
       );
@@ -578,7 +582,10 @@ void main() {
       );
       expect(
         source,
-        contains("children: source.childList(const <Object>['children']),"),
+        contains(
+          'children: RestageDecoders.widgetList(source, '
+          "const <Object>['children']),",
+        ),
       );
       expect(source, isNot(contains('final children =')));
       expect(source, isNot(contains('RestageDecoders.derivedSpacing')));
@@ -589,7 +596,10 @@ void main() {
 
       expect(
         source,
-        contains("children: source.childList(const <Object>['children'])"),
+        contains(
+          'children: RestageDecoders.widgetList(source, '
+          "const <Object>['children'])",
+        ),
       );
       expect(source, isNot(contains('final children =')));
       expect(source, isNot(contains('RestageDecoders.derivedSpacing')));

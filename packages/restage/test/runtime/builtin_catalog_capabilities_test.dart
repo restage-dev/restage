@@ -49,8 +49,8 @@ void main() {
     expect(RestageBuiltInCatalogCapabilities.currentVersion, expected);
   });
 
-  test('text input and Semantics raise the generated global ceiling to 9', () {
-    expect(RestageBuiltInCatalogCapabilities.currentVersion, 9);
+  test('grouped widget lists raise the generated global ceiling to 10', () {
+    expect(RestageBuiltInCatalogCapabilities.currentVersion, 10);
   });
 
   test('currentVersion is at least the baseline content version', () {

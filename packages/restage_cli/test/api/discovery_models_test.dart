@@ -30,7 +30,7 @@ void main() {
       'organizationId': 7,
       'provenance': 'sample',
       'sampleGeneration': 3,
-      'seedVersion': 'northwind-v1',
+      'seedVersion': 'lumen-labs-v1',
       'hostedAccessState': 'sandbox',
       'productionAllowed': false,
       'canRequestProduction': false,

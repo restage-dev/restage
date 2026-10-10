@@ -1315,11 +1315,47 @@ Future<ScreenArtifact> _artifactFor(
     );
   }
   final bytes = await buildStep.readAsBytes(rfwId);
+  var minClient = descriptor.minClient;
+  final capabilityId = rfwId.changeExtension('.capability.json');
+  if (!await buildStep.canRead(capabilityId)) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingScreenDescriptor,
+        message: 'Missing screen capability sidecar ${capabilityId.path}.',
+        location: flowAssetId.path,
+      ),
+    );
+  } else {
+    try {
+      final json = jsonDecode(await buildStep.readAsString(capabilityId));
+      if (json is! Map<String, dynamic>) {
+        throw const FormatException('Expected a capability sidecar object.');
+      }
+      final sidecar = CapabilitySidecar.fromJson(json);
+      if (sidecar.blobSha256 != CapabilitySidecar.hashBlob(bytes)) {
+        throw const FormatException(
+          'The sidecar does not match its screen blob.',
+        );
+      }
+      if (sidecar.manifest.builtInFloor > minClient) {
+        minClient = sidecar.manifest.builtInFloor;
+      }
+    } on FormatException catch (error) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Invalid screen capability sidecar '
+              '${capabilityId.path}: $error',
+          location: flowAssetId.path,
+        ),
+      );
+    }
+  }
   return ScreenArtifact(
     path: descriptor.artifactPath,
     version: descriptor.version,
     schemaVersion: 1,
-    minClient: descriptor.minClient,
+    minClient: minClient,
     contentHash: FlowContentHash.compute(bytes),
   );
 }

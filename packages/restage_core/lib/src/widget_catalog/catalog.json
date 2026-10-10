@@ -2670,7 +2670,8 @@
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 10
     },
     {
       "wireId": "w0056",
@@ -7371,7 +7372,8 @@
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 10
     },
     {
       "wireId": "w0026",

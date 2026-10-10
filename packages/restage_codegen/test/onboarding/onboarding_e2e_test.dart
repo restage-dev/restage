@@ -102,7 +102,7 @@ void main() {
         contains('SurfaceFlowRef<FirstRunResult>'),
         contains("id: 'first_run'"),
         contains('version: 1'),
-        contains('minClient: 3'),
+        contains('minClient: $kGroupedWidgetListClientFloor'),
         contains('decodeResult: _decodeFirstRunFlowResult'),
         contains('final class FirstRunResult'),
         contains('final class FirstRunActions implements FlowActionRegistry'),
@@ -125,11 +125,17 @@ void main() {
     expect(document.actions.keys, ['requestNotifications']);
     expect(document.actions['requestNotifications']?.idempotent, isFalse);
 
-    final golden = _readSharedFirstRunGolden();
+    // The shared codec fixture keeps its historical capability metadata.
+    // This build uses Column's current floor; its graph and blobs stay pinned.
+    final golden =
+        jsonDecode(_readSharedFirstRunGolden()) as Map<String, dynamic>;
+    golden['minClient'] = kGroupedWidgetListClientFloor;
+    ((golden['screenArtifacts'] as Map<String, dynamic>)['welcome']
+        as Map<String, dynamic>)['minClient'] = kGroupedWidgetListClientFloor;
     expect(
       FlowDocumentCodec.encodeCanonicalJson(document),
       FlowDocumentCodec.encodeCanonicalJson(
-        FlowDocumentCodec.decodeJson(golden),
+        FlowDocumentCodec.decodeJson(jsonEncode(golden)),
       ),
     );
 
@@ -144,12 +150,8 @@ void main() {
         reason: entry.key,
       );
 
-      // Each screen emits a capability sidecar next to its blob — the wiring
-      // that lets a flow publish union its screens' required libraries. The
-      // sidecar is well-formed, hash-tied to the blob it describes, and (for
-      // these built-in-only screens) floors at baseline with no custom
-      // libraries. A custom-library screen would populate requiredLibraries
-      // through the same deriveCapabilityManifest path the paywall e2e proves.
+      // Each screen's capability sidecar must match its blob hash and catalog floor.
+      // These built-in screens require no custom libraries.
       final sidecarPath =
           'assets/onboarding/screens/${entry.value.path.replaceFirst(
         RegExp(r'\.rfw$'),
@@ -163,7 +165,12 @@ void main() {
         CapabilitySidecar.hashBlob(blob),
         reason: '${entry.key} sidecar hash must tie to its blob',
       );
-      expect(sidecar.manifest.builtInFloor, kBaselineCatalogVersion);
+      expect(
+        sidecar.manifest.builtInFloor,
+        entry.key == 'welcome'
+            ? kGroupedWidgetListClientFloor
+            : kBaselineCatalogVersion,
+      );
       expect(sidecar.manifest.requiredLibraries, isEmpty);
     }
 

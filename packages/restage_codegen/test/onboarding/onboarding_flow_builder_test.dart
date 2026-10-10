@@ -479,6 +479,70 @@ void main() {
       );
     });
 
+    for (final (name, declaredFloor, matchingHash, expectedFloor) in [
+      ('raises the screen and flow minimum', 1, true, 10),
+      ('preserves a higher authored minimum', 15, true, 15),
+      ('rejects a sidecar for different blob bytes', 1, false, null),
+    ]) {
+      test('screen capability $name', () async {
+        final sources = _firstRunSources();
+        const welcomeSource =
+            'apps_examples|lib/onboarding/screens/welcome.dart';
+        sources[welcomeSource] = sources[welcomeSource]!.replaceFirst(
+          "@OnboardingSource(id: 'welcome')",
+          "@OnboardingSource(id: 'welcome', minClient: $declaredFloor)",
+        );
+        final readerWriter = await _readerWriterWith(sources);
+        final blob = Uint8List.fromList([1, 2, 3]);
+        for (final screen in ['welcome', 'permissions', 'ready']) {
+          final root = 'assets/onboarding/screens/$screen';
+          final sidecar = CapabilitySidecar(
+            blobSha256: CapabilitySidecar.hashBlob(
+              screen == 'welcome' && !matchingHash ? [4, 5, 6] : blob,
+            ),
+            manifest: CapabilityManifest(
+              builtInFloor: screen == 'welcome' ? 10 : 1,
+              requiredLibraries: const [],
+            ),
+          );
+          readerWriter.testing
+            ..writeBytes(AssetId('apps_examples', '$root.rfw'), blob)
+            ..writeString(
+              AssetId('apps_examples', '$root.capability.json'),
+              jsonEncode(sidecar.toJson()),
+            );
+        }
+        final logs = <LogRecord>[];
+        final result = await testBuilders(
+          [onboardingFlowBuilder(BuilderOptions.empty)],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+          onLog: logs.add,
+        );
+        expect(result.succeeded, matchingHash);
+        if (!matchingHash) {
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            contains('The sidecar does not match its screen blob.'),
+          );
+          return;
+        }
+        final document = FlowDocumentCodec.decodeJson(
+          result.readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              'assets/onboarding/flows/first_run.flow.json',
+            ),
+          ),
+        );
+        expect(document.screenArtifacts['welcome']!.minClient, expectedFloor);
+        expect(document.screenArtifacts['permissions']!.minClient, 1);
+        expect(document.minClient, expectedFloor);
+      });
+    }
+
     test('emits flow state and outbound declarations', () async {
       final sources = _firstRunSourcesWithOutbound();
       final readerWriter = await _readerWriterWith(sources);

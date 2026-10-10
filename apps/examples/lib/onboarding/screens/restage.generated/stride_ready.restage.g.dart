@@ -6,7 +6,7 @@ const strideReadyScreenRef = NeutralFlowScreenRef(
   id: 'stride_ready',
   artifactPath: 'stride_ready.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use strideReadyScreenRef')
