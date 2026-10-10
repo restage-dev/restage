@@ -1088,6 +1088,10 @@ final class SurfacePublicationArtifactClosure {
         final typedEvents = {
           for (final event in contract.events.events) event.id: event
         };
+        // Screen-local values are seeded per flow screen or per render root.
+        final local = node.localSeeds[
+                node.flowDocument == null ? renderRoot : entry.key] ??
+            const <String, Object>{};
         for (final emitted in body.events) {
           if (emitted.eventName == kLocalValueSetEventName ||
               emitted.eventName == kMeasurementPublicationTapEventNameV1)
@@ -1101,20 +1105,18 @@ final class SurfacePublicationArtifactClosure {
                           state.on.containsKey(emitted.eventName)));
           // Synthesized navigation events have no user payload and are consumed
           // by their exact compiled screen transition.
-          if (typed == null && internal && emitted.eventArguments.isEmpty)
+          if (typed == null && internal && _fitEventArguments(emitted).isEmpty)
             continue;
           if (typed == null)
             throw FormatException(
                 'Missing typed emitted event "${emitted.eventName}".');
-          _validateFitEvent(emitted, typed, contract.context);
+          _validateFitEvent(emitted, typed, contract.context, local);
           if (internal) continue;
           if (document != null) {
-            if (!document.outbound.customEvents
-                .containsKey(emitted.eventName)) {
-              throw FormatException(
-                  'Unknown flow event egress "${emitted.eventName}".');
-            }
-            final outward = document.outbound.customEvents[emitted.eventName]!;
+            final outward = document.outbound.customEvents[emitted.eventName];
+            // The flow runtime drops an event with no transition and no
+            // declared egress, so it asks nothing of the host.
+            if (outward == null) continue;
             for (final field in outward.fields.values) {
               if (field.ref case final EventFlowOutboundRef reference) {
                 _validateFitOutboundEventValue(
@@ -1126,6 +1128,7 @@ final class SurfacePublicationArtifactClosure {
                     FlowDataType.string => SurfaceScreenEventScalarKind.string,
                   }),
                   contract.context,
+                  local,
                 );
               }
             }
@@ -2772,14 +2775,20 @@ SurfaceScreenHostDataShape _fitContextShape(
   return current;
 }
 
+// The data root screen-local values are published under.
+const String _localValuesDataKey = 'local';
+
+// The authored arguments, without the reserved measurement namespace.
+Map<String, Object?> _fitEventArguments(rfw.EventHandler emitted) => {
+      for (final entry in emitted.eventArguments.entries)
+        if (!entry.key
+            .startsWith(kMeasurementPublicationReservedArgumentPrefixV1))
+          entry.key: entry.value,
+    };
+
 void _validateFitEvent(rfw.EventHandler emitted, SurfaceScreenEvent typed,
-    SurfaceScreenHostDataSchema context) {
-  final arguments = <String, Object?>{
-    for (final entry in emitted.eventArguments.entries)
-      if (!entry.key
-          .startsWith(kMeasurementPublicationReservedArgumentPrefixV1))
-        entry.key: entry.value,
-  };
+    SurfaceScreenHostDataSchema context, Map<String, Object> local) {
+  final arguments = _fitEventArguments(emitted);
   switch (typed.arguments) {
     case SurfaceScreenEventNoArguments():
       typed.arguments.validate(arguments, eventId: typed.id);
@@ -2788,14 +2797,25 @@ void _validateFitEvent(rfw.EventHandler emitted, SurfaceScreenEvent typed,
         throw FormatException(
             'Emitted event "${typed.id}" has a different value wrapper.');
       }
-      _validateFitEventValue(arguments['value'], shape, context);
+      _validateFitEventValue(arguments['value'], shape, context, local);
     case SurfaceScreenEventObjectArguments(:final shape):
-      _validateFitEventValue(arguments, shape, context);
+      _validateFitEventValue(arguments, shape, context, local);
   }
 }
 
 void _validateFitEventValue(Object? value, SurfaceScreenEventShape shape,
-    SurfaceScreenHostDataSchema context) {
+    SurfaceScreenHostDataSchema context, Map<String, Object> local) {
+  if (value is rfw.DataReference &&
+      value.parts.length == 2 &&
+      value.parts.first == _localValuesDataKey) {
+    // A screen-local value holds its seeded scalar type.
+    final seed = local[value.parts[1]];
+    if (seed == null) {
+      throw const FormatException('Unknown emitted event data type.');
+    }
+    _validateFitEventValue(seed, shape, context, local);
+    return;
+  }
   if (value is rfw.DataReference) {
     if (value.parts.length < 2 ||
         value.parts.first != 'context' ||
@@ -2814,24 +2834,26 @@ void _validateFitEventValue(Object? value, SurfaceScreenEventShape shape,
   }
   if (value is rfw.Switch) {
     for (final output in value.outputs.values) {
-      _validateFitEventValue(output, shape, context);
+      _validateFitEventValue(output, shape, context, local);
     }
     return;
   }
   switch (shape) {
     case SurfaceScreenEventNullableShapeV1():
-      if (value != null) _validateFitEventValue(value, shape.value, context);
+      if (value != null) {
+        _validateFitEventValue(value, shape.value, context, local);
+      }
     case SurfaceScreenEventListShapeV1(:final items):
       if (value is! List)
         throw const FormatException('Unknown emitted event list type.');
       for (final item in value) {
-        _validateFitEventValue(item, items, context);
+        _validateFitEventValue(item, items, context, local);
       }
     case SurfaceScreenEventMapShapeV1(:final values):
       if (value is! Map<String, Object?>)
         throw const FormatException('Unknown emitted event map type.');
       for (final item in value.values) {
-        _validateFitEventValue(item, values, context);
+        _validateFitEventValue(item, values, context, local);
       }
     case SurfaceScreenEventScalarShapeV1():
       shape.validate(value);
@@ -2843,19 +2865,20 @@ void _validateFitOutboundEventValue(
   List<String> path,
   SurfaceScreenEventShape shape,
   SurfaceScreenHostDataSchema context,
+  Map<String, Object> local,
 ) {
   if (value is rfw.Switch) {
     for (final output in value.outputs.values) {
-      _validateFitOutboundEventValue(output, path, shape, context);
+      _validateFitOutboundEventValue(output, path, shape, context, local);
     }
   } else if (value is rfw.DataReference) {
     _validateFitEventValue(
-        rfw.DataReference([...value.parts, ...path]), shape, context);
+        rfw.DataReference([...value.parts, ...path]), shape, context, local);
   } else if (path.isEmpty) {
-    _validateFitEventValue(value, shape, context);
+    _validateFitEventValue(value, shape, context, local);
   } else if (value is Map<String, Object?> && value.containsKey(path.first)) {
     _validateFitOutboundEventValue(
-        value[path.first], path.skip(1).toList(), shape, context);
+        value[path.first], path.skip(1).toList(), shape, context, local);
   } else {
     throw const FormatException('Unknown typed flow event egress field.');
   }

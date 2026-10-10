@@ -18,6 +18,7 @@ import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage/src/runtime/first_paint_lease_guard.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -356,6 +357,7 @@ void main() {
       'surfaceSlug': 'child',
       'version': 1,
       'assignmentKey': 'actor-a',
+      'sdkInstalledLibraries': installedLibrariesCarrier(),
     });
     expect(
       observed.candidateAfterChild,
@@ -703,6 +705,7 @@ void main() {
       'version': 1,
       'assignmentKey': 'actor-a',
       'meteringKey': 'd9428888-122b-4b0b-8b7f-3e23441121e8',
+      'sdkInstalledLibraries': installedLibrariesCarrier(),
     });
     expect(
       root.contentHash,
@@ -775,6 +778,7 @@ void main() {
       'HLG is rejected when the exact assignment key changes without '
       'generation drift', (tester) async {
     final originalFlutterErrorHandler = FlutterError.onError;
+    SharedPreferences.setMockInitialValues({});
     _configureAnalytics();
     try {
       var assignmentKey = 'actor-a';
@@ -816,7 +820,7 @@ void main() {
         jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
           firstRequest['sdkBuiltInsCanonicalBase64']! as String,
         )))),
-        containsPair('sdkApiLevel', 3),
+        containsPair('sdkApiLevel', 4),
       );
       server.respondJson(
         0,
@@ -1496,6 +1500,7 @@ void main() {
       'surfaceSlug': 'child',
       'version': 1,
       'assignmentKey': 'actor-0',
+      'sdkInstalledLibraries': installedLibrariesCarrier(),
     });
     expect(requestBodies[2]['assignmentKey'], 'actor-1');
     expect(withoutSupportedPolicyRevisions(_requestBody(server.requests[3])), {
@@ -1503,6 +1508,7 @@ void main() {
       'surfaceSlug': 'child',
       'version': 1,
       'assignmentKey': 'actor-1',
+      'sdkInstalledLibraries': installedLibrariesCarrier(),
     });
     expect(find.text('Fresh root'), findsOneWidget);
     expect(find.text('Stale root'), findsNothing);

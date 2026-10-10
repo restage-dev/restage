@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../restage_rpc_client/restage_rpc_client.dart';
@@ -20,7 +22,7 @@ import 'surface_update_channel.dart';
 /// liveRefreshEdgeUrl: ...)` and the SDK installs it as the default update
 /// channel. To drive live refresh from your own infrastructure instead,
 /// implement [SurfaceUpdateChannel] and pass it as `updateChannel`.
-final class RestageHostedUpdateChannel implements SurfaceUpdateChannel {
+final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
   /// Creates a hosted update channel.
   RestageHostedUpdateChannel({
     required RestageRpcClient rpcClient,
@@ -38,13 +40,76 @@ final class RestageHostedUpdateChannel implements SurfaceUpdateChannel {
   final Random _random;
 
   @override
-  Stream<SurfaceUpdate> watch(SurfaceRef surface) => _HostedWatch(
-        surface: surface,
-        rpcClient: _rpcClient,
+  Stream<SurfaceUpdate> watch(SurfaceRef surface) =>
+      _HostedWatch<SurfaceUpdate>(
+        update: SurfaceUpdate(surface),
+        fetchStamp: () async {
+          final stamp = await _rpcClient.fetchSurfaceStamp(
+              surfaceType: surface.surfaceType, surfaceSlug: surface.slug);
+          return switch (stamp) {
+            SurfaceStamp() =>
+              _WatchStamp(identity: stamp.version, token: stamp.watchChannel),
+            SurfaceStampRateLimited() =>
+              _WatchStamp(retry: true, retryAfter: stamp.retryAfter),
+            _ => const _WatchStamp(retry: true),
+          };
+        },
         edgeUrl: _edgeUrl,
         reconnectBaseDelay: _reconnectBaseDelay,
         random: _random,
       ).stream;
+
+  @override
+  Stream<DeliveryPolicyScopeV1> watchDelivery(
+    DeliveryPolicyScopeV1 scope, {
+    PlacementDeliveryWatchV1? watch,
+    Future<PlacementRefreshProbeV1> Function()? reconnectProbe,
+  }) {
+    var firstStamp = true;
+    var hasAuthority = watch != null;
+    return _HostedWatch<DeliveryPolicyScopeV1>(
+      update: scope,
+      initialIdentity: watch?.decisionIdentityDigest,
+      fetchStamp: () async {
+        if (firstStamp) {
+          firstStamp = false;
+          if (watch != null) return _deliveryStamp(scope, watch);
+        }
+        final probe = await reconnectProbe?.call() ??
+            const PlacementRefreshProbeV1.unavailable();
+        final stamp = switch (probe) {
+          PlacementRefreshRateLimitedV1() =>
+            _WatchStamp(retry: true, retryAfter: probe.retryAfter),
+          PlacementRefreshUnchangedV1(watch: final renewed?)
+              when renewed.decisionIdentityDigest ==
+                  probe.decisionIdentityDigest =>
+            _deliveryStamp(scope, renewed, requiresResolution: !hasAuthority),
+          _ => const _WatchStamp(retry: true, requiresResolution: true),
+        };
+        if (!stamp.retry) {
+          hasAuthority = true;
+        }
+        return stamp;
+      },
+      edgeUrl: _edgeUrl,
+      reconnectBaseDelay: _reconnectBaseDelay,
+      random: _random,
+    ).stream;
+  }
+}
+
+_WatchStamp _deliveryStamp(
+    DeliveryPolicyScopeV1 scope, PlacementDeliveryWatchV1 watch,
+    {bool requiresResolution = false}) {
+  for (final channel in watch.channels) {
+    if (channel.scope == scope) {
+      return _WatchStamp(
+          identity: watch.decisionIdentityDigest,
+          token: channel.token,
+          requiresResolution: requiresResolution);
+    }
+  }
+  return const _WatchStamp(retry: true, requiresResolution: true);
 }
 
 /// The close code the edge sends when a watch token expires.
@@ -56,36 +121,37 @@ const _maxExpiryReconnectDelay = Duration(seconds: 5);
 /// Frames above this many characters are refused.
 const _maxFrameLength = 64 * 1024;
 
-final class _HostedWatch {
+final class _HostedWatch<T> {
   _HostedWatch({
-    required this.surface,
-    required this.rpcClient,
+    required this.update,
+    required this.fetchStamp,
     required this.edgeUrl,
     required this.reconnectBaseDelay,
     required this.random,
-  }) {
-    controller = StreamController<SurfaceUpdate>(
+    Object? initialIdentity,
+  }) : _lastSeenIdentity = initialIdentity {
+    controller = StreamController<T>(
       onListen: _onListen,
       onCancel: _onCancel,
     );
   }
 
-  final SurfaceRef surface;
-  final RestageRpcClient rpcClient;
+  final T update;
+  final Future<_WatchStamp> Function() fetchStamp;
   final Uri edgeUrl;
   final Duration reconnectBaseDelay;
   final Random random;
 
-  late final StreamController<SurfaceUpdate> controller;
+  late final StreamController<T> controller;
   StreamSubscription<Object?>? _socketSubscription;
   WebSocketChannel? _socket;
   Completer<void>? _socketDone;
   Timer? _backoffTimer;
   Completer<void>? _backoffDone;
   bool _stopped = false;
-  int? _lastSeenVersion;
+  Object? _lastSeenIdentity;
 
-  Stream<SurfaceUpdate> get stream => controller.stream;
+  Stream<T> get stream => controller.stream;
 
   void _onListen() {
     unawaited(_run());
@@ -127,28 +193,23 @@ final class _HostedWatch {
       tokenExpired = false;
 
       try {
-        final stamp = await rpcClient.fetchSurfaceStamp(
-          surfaceType: surface.surfaceType,
-          surfaceSlug: surface.slug,
-        );
+        final stamp = await fetchStamp();
         if (_stopped) return;
-        if (stamp is SurfaceStampRateLimited) {
+        if (stamp.retry) {
+          if (stamp.requiresResolution) controller.add(update);
           retryAfter = stamp.retryAfter;
           reconnectAttempt++;
           continue;
         }
-        if (stamp is! SurfaceStamp) {
-          reconnectAttempt++;
-          continue;
-        }
 
-        final token = stamp.watchChannel;
+        final token = stamp.token;
         if (token == null) return;
 
-        final previousVersion = _lastSeenVersion;
-        _lastSeenVersion = stamp.version;
-        if (previousVersion != null && stamp.version != previousVersion) {
-          controller.add(SurfaceUpdate(surface));
+        final previousIdentity = _lastSeenIdentity;
+        _lastSeenIdentity = stamp.identity;
+        if (stamp.requiresResolution ||
+            (previousIdentity != null && stamp.identity != previousIdentity)) {
+          controller.add(update);
         }
 
         final socket = WebSocketChannel.connect(_webSocketUri(edgeUrl, token));
@@ -206,7 +267,7 @@ final class _HostedWatch {
     try {
       final message = jsonDecode(frame);
       if (message is Map && message['type'] == 'surface_update') {
-        controller.add(SurfaceUpdate(surface));
+        controller.add(update);
       }
     } catch (_) {
       // Ignore malformed or unrelated frames.
@@ -252,6 +313,22 @@ final class _HostedWatch {
       } catch (_) {}
     }
   }
+}
+
+final class _WatchStamp {
+  const _WatchStamp({
+    this.identity,
+    this.token,
+    this.retry = false,
+    this.retryAfter,
+    this.requiresResolution = false,
+  });
+
+  final Object? identity;
+  final String? token;
+  final bool retry;
+  final Duration? retryAfter;
+  final bool requiresResolution;
 }
 
 Uri _webSocketUri(Uri edgeUrl, String token) {

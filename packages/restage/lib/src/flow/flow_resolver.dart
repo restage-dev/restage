@@ -3,9 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../delivery/surface_sections_carrier.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../resolver/placement_mount_resolver.dart' show copyPlacementAdmission;
+import '../resolver/surface_resolution_report.dart';
 import '../assets/bundled_asset_source.dart';
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
+import '../measurement/placement_mount_attribution.dart';
 import 'bundled_flow_loader.dart';
 import 'flow_descriptors.dart';
 import 'compiled_flow.dart';
@@ -90,26 +94,34 @@ final class ResolvedFlow {
 
   ResolvedFlow _withCacheHit() {
     final cacheHit = attachMeasurementPublicationBindingReference(
-      ResolvedFlow._(
-        document: document,
-        screenBlobs: screenBlobs,
-        contentHash: contentHash,
-        compiled: compiled,
-        cacheHit: true,
-      ),
+      copyResolvedPlacementDelivery(
+          this,
+          ResolvedFlow._(
+            document: document,
+            screenBlobs: screenBlobs,
+            contentHash: contentHash,
+            compiled: compiled,
+            cacheHit: true,
+          )),
       measurementPublicationBindingReferenceFor(this),
       canonicalExperimentAssignment: measurementExperimentAssignmentFor(this),
+      registrationFingerprint: measurementRegistrationFingerprintFor(this),
       routingSelectionReceipt: routingSelectionReceiptFor(this),
       routingSelectionProvenance: routingSelectionProvenanceFor(this),
+      surfaceResolutionSource: SurfaceResolutionSource.holdLastGood,
     );
     final sourceCarrier = attachMeasurementBundledGeneratedSourceCarrier(
       cacheHit,
       measurementBundledGeneratedSourceCarrierFor(this),
     );
-    return attachMeasurementBundledGeneratedArtifactClosureCarrier(
-      copySurfaceSections(this, sourceCarrier),
-      measurementBundledGeneratedArtifactClosureCarrierFor(this),
-    );
+    return copyPlacementAdmission(
+        this,
+        attachSurfaceAssignmentLease(
+            attachMeasurementBundledGeneratedArtifactClosureCarrier(
+              copySurfaceSections(this, sourceCarrier),
+              measurementBundledGeneratedArtifactClosureCarrierFor(this),
+            ),
+            surfaceAssignmentLeaseFor(this)));
   }
 }
 

@@ -17,6 +17,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/icon_font_subsetter.dart';
@@ -35,6 +36,7 @@ import 'package:restage_codegen/src/rfw_emitter.dart'
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
@@ -42,6 +44,7 @@ import 'package:restage_codegen/src/surface_publication/screen_contract_referenc
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/flow_experiment.dart' as flow_experiment;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
 
@@ -66,6 +69,7 @@ final class CompiledSurfaceArtifact {
     this.mountVocabulary = SurfaceVocabularyReferences.empty,
     Iterable<String> packageWidgetNames = const [],
     this.nativeMountInput,
+    this.compiledScreenInput,
     Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByOutputRole = const {},
     List<int>? rfwText,
@@ -96,6 +100,7 @@ final class CompiledSurfaceArtifact {
         SurfaceVocabularyReferences.empty,
     Iterable<String> packageWidgetNames = const [],
     ResolvedWidgetMountInput? nativeMountInput,
+    ResolvedWidgetMountInput? compiledScreenInput,
     List<int>? rfwText,
     List<int>? navigationPlan,
     Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
@@ -113,6 +118,7 @@ final class CompiledSurfaceArtifact {
         mountVocabulary: mountVocabulary,
         packageWidgetNames: packageWidgetNames,
         nativeMountInput: nativeMountInput,
+        compiledScreenInput: compiledScreenInput,
         rfwText: rfwText,
         navigationPlan: navigationPlan,
         rfwCatalogOccurrenceSetsByOutputRole:
@@ -163,6 +169,9 @@ final class CompiledSurfaceArtifact {
 
   final ResolvedWidgetMountInput? nativeMountInput;
 
+  /// Resolved typed source inputs retained for final publication qualification.
+  final ResolvedWidgetMountInput? compiledScreenInput;
+
   /// Frozen RFW catalog occurrences keyed by their roster-owned output role.
   ///
   /// A paywall can publish a standalone blob and an adapter blob with distinct
@@ -196,6 +205,7 @@ final class PackageSurfaceCompilationInput {
     required Iterable<NormalizedFlowSource> flows,
     required Iterable<CompiledSurfaceArtifact> renderedSources,
     required Iterable<ResolvedStandaloneScreenContract> standaloneScreens,
+    this.catalog,
     Iterable<LegacyStandaloneScreenContract> legacyStandaloneScreens = const [],
     Iterable<CompiledFlowArtifact> precompiledFlows = const [],
     Map<String, MeasurementPublicationRoutePlanV1>
@@ -231,6 +241,9 @@ final class PackageSurfaceCompilationInput {
 
   /// Canonical package source/output ownership record.
   final RestageSourceRoster roster;
+
+  /// The same validated catalog used by source translation and blob admission.
+  final Catalog? catalog;
 
   /// The package's app widget factories, installed by generated mounts.
   final AppWidgetMountFactories appWidgets;
@@ -956,6 +969,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final artifactLibraryPaths = <String, String>{};
   final artifactsByIdentity = <String, List<_ResolvedArtifact>>{};
   final paywallsByIdentity = <String, PaywallArtifactFacts>{};
+  final paywallMountNamesByIdentity = <String, String>{};
   final partFragments = <String, _PartAccumulator>{};
   // Each class-authored flow's part, and the document it embeds, so the part
   // can follow the document measurement finalizes.
@@ -1326,6 +1340,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       final mount = emitPaywallMount(
         mountInput,
         id: source.effectiveId,
+        navigationFlow: rendered.paywallFacts?.navigationFlow,
         vocabulary: rendered.mountVocabulary,
         appWidgetLibraries: (sdkPrefix) => appWidgetLibraries(
           rendered.mountVocabulary,
@@ -1336,16 +1351,25 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         ),
       );
       if (mount.source case final fragment?) {
-        _claimGeneratedSymbol(
-          claimedSymbols,
-          source: source,
-          library: rendered.declaration.library,
-          symbol: generatedSurfaceName(
+        paywallMountNamesByIdentity[identity] = generatedSurfaceName(
+          rendered.declaration.name!,
+          fallback: 'SurfaceScreen',
+        );
+        for (final symbol in {
+          generatedSurfaceName(
             rendered.declaration.name!,
             fallback: 'SurfaceScreen',
           ),
-          issues: issues,
-        );
+          ...placementDefinitionSymbols(rendered.declaration.name!),
+        }) {
+          _claimGeneratedSymbol(
+            claimedSymbols,
+            source: source,
+            library: rendered.declaration.library,
+            symbol: symbol,
+            issues: issues,
+          );
+        }
         _addPartFragment(
           partFragments,
           path: mountInput.generatedPartPath,
@@ -1452,6 +1476,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
       issues: issues,
       artifactLibraryPaths: artifactLibraryPaths,
+      mountName: paywallMountNamesByIdentity[entry.key],
     );
     if (publication != null) manifestInputs.add(publication);
   }
@@ -2099,6 +2124,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       for (final artifact in assembly.artifacts)
         if (artifact.role.isPayloadSection) artifact.path,
   ]);
+  _attachCompiledFitContracts(manifestInputs, input);
   final manifest = _buildManifest(
     manifestInputs,
     issues: issues,
@@ -2286,6 +2312,216 @@ bool _isReferencedByAnotherPaywallFlow(
   return false;
 }
 
+void _attachCompiledFitContracts(
+  List<SurfacePublicationAssemblyInput> assemblies,
+  PackageSurfaceCompilationInput input,
+) {
+  final catalog = input.catalog;
+  if (catalog == null) return;
+  final sourceByIdentity = {
+    for (final source in input.roster.declarations)
+      source.declarationIdentity: source,
+  };
+  final elements = <String, Element>{
+    for (final artifact in input.renderedSources)
+      artifact.declarationIdentity: artifact.declaration,
+    for (final flow in input.flows) flow.declarationIdentity: flow.declaration,
+    for (final flow in input.precompiledFlows)
+      flow.declarationIdentity: flow.declaration,
+  };
+  final templates = <String, SurfaceCompiledScreenContractV1>{};
+  for (final artifact in input.renderedSources) {
+    final source = sourceByIdentity[artifact.declarationIdentity];
+    final screenInput = artifact.compiledScreenInput;
+    if (source == null || screenInput == null) continue;
+    final inspected = inspectScreenEventContract(screenInput);
+    final events = inspected.schema;
+    if (events == null) continue;
+    for (final output in source.outputs) {
+      final occurrenceSet =
+          artifact.rfwCatalogOccurrenceSetsByOutputRole[output.role];
+      if (occurrenceSet == null) continue;
+      final origins = occurrenceSet.input.catalogConstructors;
+      final entries = [
+        for (final origin in origins)
+          catalog.findByName(origin.constructorName,
+              WidgetLibrary.fromNamespace(origin.catalogLibraryNamespace)),
+      ];
+      if (entries.any((entry) => entry == null)) continue;
+      final selectedLibraries = entries.map((entry) => entry!.library).toSet();
+      templates[output.path] = SurfaceCompiledScreenContractV1(
+        context: hostDataContractOf(screenInput.rootParams),
+        events: events,
+        catalogResolution: occurrenceSet.input,
+        catalog: Catalog(
+            schemaVersion: catalog.schemaVersion,
+            generatedAt: catalog.generatedAt,
+            flutterVersion: catalog.flutterVersion,
+            libraries: {
+              for (final library in selectedLibraries)
+                if (catalog.libraries[library] case final info?) library: info
+            },
+            widgets: entries.nonNulls.toList()),
+      );
+    }
+  }
+  for (var index = 0; index < assemblies.length; index++) {
+    final assembly = assemblies[index];
+    final selector = _measurementSelectorForAssembly(assembly);
+    final contracts = <String, SurfaceCompiledScreenContractV1>{};
+    final conflictingHashes = <String>{};
+    for (final artifact in assembly.artifacts) {
+      if (artifact.role != SurfacePublicationArtifactRole.screenBlob) continue;
+      final matches = templates.entries
+          .where((entry) =>
+              entry.key == artifact.path ||
+              _measurementPublicationOwnedPath(entry.key, selector) ==
+                  artifact.path)
+          .toList();
+      if (matches.length != 1) continue;
+      final contract = matches.single.value;
+      final library = fmt.decodeLibraryBlob(Uint8List.fromList(artifact.bytes));
+      // Final Measurement wrappers are host-installed calls. The original
+      // source-selected catalog/local input is resolved on the final bytes.
+      try {
+        fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+                parsedLibrary: library, input: contract.catalogResolution)
+            .inspectFinalBody(library);
+      } on FormatException {
+        continue;
+      }
+      final hash = CapabilitySidecar.hashBlob(artifact.bytes);
+      if (conflictingHashes.contains(hash)) continue;
+      final previous = contracts[hash];
+      if (previous != null &&
+          (jsonEncode(previous.context.toJson()) !=
+                  jsonEncode(contract.context.toJson()) ||
+              jsonEncode(SurfaceScreenEventSchemaV1Codec.encode(
+                      previous.events)) !=
+                  jsonEncode(SurfaceScreenEventSchemaV1Codec.encode(
+                      contract.events)))) {
+        // One byte-identical body with conflicting typed source facts cannot
+        // supply a complete contract for this publication.
+        contracts.remove(hash);
+        conflictingHashes.add(hash);
+        continue;
+      }
+      contracts[hash] = contract;
+    }
+    final roots = input.roster.declarations
+        .where((source) =>
+            source.effectiveId == assembly.slug &&
+            source.surface == assembly.surface &&
+            source.kind ==
+                switch (assembly.sourceKind) {
+                  SurfaceSourceKind.screen => RestageRosterSourceKind.screen,
+                  SurfaceSourceKind.paywall => RestageRosterSourceKind.paywall,
+                  SurfaceSourceKind.flowGraph => RestageRosterSourceKind.flow,
+                })
+        .toList();
+    final element =
+        roots.length == 1 ? elements[roots.single.declarationIdentity] : null;
+    assemblies[index] = assembly.withCompiledContracts(
+        contracts: contracts,
+        presentation:
+            element == null ? null : _declaredSurfacePresentation(element));
+  }
+  final manifest =
+      SurfacePublicationManifestAssembler.assemble(assemblies).manifest;
+  final bytes = <String, List<int>>{
+    for (final assembly in assemblies)
+      for (final artifact in assembly.artifacts) artifact.path: artifact.bytes,
+  };
+  final closures = manifest.validateArtifactClosure(bytes);
+  final documents = <flow_experiment.FlowExperimentDocumentContract>[];
+  final closureByDocument =
+      <(Surface, String, int), SurfacePublicationArtifactClosure>{};
+  for (final closure in closures) {
+    final document = closure.flowDocument;
+    if (document == null) continue;
+    final libraries = closure.assemblePayload().requiredLibraries;
+    documents.add(flow_experiment.FlowExperimentDocumentContract(
+      surfaceType: closure.publication.surface,
+      flowId: document.flow,
+      version: document.version,
+      schemaVersion: document.schemaVersion,
+      minClient: document.minClient,
+      contentHash: FlowContentHash.compute(
+          FlowDocumentCodec.encodeCanonicalJson(document)),
+      requiredLibraries: libraries,
+      flowDocument: document,
+    ));
+    closureByDocument[(
+      closure.publication.surface,
+      document.flow,
+      document.version
+    )] = closure;
+  }
+  for (var index = 0; index < assemblies.length; index++) {
+    final assembly = assemblies[index];
+    final closure = closures.firstWhere((closure) =>
+        closure.publication.surface == assembly.surface &&
+        closure.publication.slug == assembly.slug);
+    try {
+      final document = closure.flowDocument;
+      final selected = document == null
+          ? <SurfacePublicationArtifactClosure>[]
+          : flow_experiment.FlowExperimentDocumentContract
+                  .selectCompleteClosure(
+              surfaceType: assembly.surface,
+              deliveryMode: document.deliveryMode,
+              descriptor: flow_experiment.FlowExperimentDescriptor(
+                  id: document.flow,
+                  version: document.version,
+                  minClient: document.minClient),
+              documents: documents,
+            )
+              .map((node) => closureByDocument[(
+                    node.surfaceType,
+                    node.flowId,
+                    node.version
+                  )]!)
+              .where((node) => !identical(node, closure))
+              .toList();
+      final requirement = closure.projectFitRequirement(subflows: selected);
+      assemblies[index] = assembly.withCompiledContracts(
+          contracts: assembly.compiledScreenContracts,
+          presentation: assembly.declaredPresentation,
+          requirement: requirement);
+    } on FormatException {
+      // Ordinary publication remains available when complete typed or hosting
+      // evidence is unavailable. The verifier reports the concrete refusal.
+    }
+  }
+}
+
+SurfacePresentationV1? _declaredSurfacePresentation(Element declaration) {
+  final annotation = firstAnnotationFromOriginAny(
+      declaration,
+      const {
+        'Screen',
+        'ScreenSource',
+        'OnboardingSource',
+        'Paywall',
+        'PaywallSource',
+        'FlowGraph',
+        'FlowSource'
+      },
+      'package:restage');
+  final index = annotation
+      ?.computeConstantValue()
+      ?.getField('presentation')
+      ?.getField('index')
+      ?.toIntValue();
+  return switch (index) {
+    null || 0 => null,
+    1 => SurfacePresentationV1.inline,
+    2 => SurfacePresentationV1.presented,
+    _ =>
+      throw const FormatException('Unknown surface presentation requirement.'),
+  };
+}
+
 SurfacePublicationAssemblyInput? _assemblePaywallPublication({
   required RestageSourceDeclaration source,
   required PaywallArtifactFacts facts,
@@ -2293,6 +2529,7 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
   required Set<String> aggregateOwnedOutputPaths,
   required List<Issue> issues,
   required Map<String, String> artifactLibraryPaths,
+  String? mountName,
 }) {
   try {
     final files = facts.filesByPath;
@@ -2364,6 +2601,7 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
           facts.hasFlow ? SurfacePayloadKind.flow : SurfacePayloadKind.blob,
       artifacts: inputs,
       sources: _authoringSources([source]),
+      mountName: mountName,
       flowFacts: facts.hasFlow
           ? SurfacePublicationFlowFacts(
               deliveryMode: facts.navigationFlow!.deliveryMode,
@@ -3426,6 +3664,7 @@ String? _emitFlowReference({
 }) {
   final compiled = emitCompiledFlow(
     document: document,
+    surface: flow.surface,
     descendants: descendants,
     screens: nativeScreens,
     library: flow.declaration.library!,
@@ -3545,6 +3784,8 @@ Set<String> _canonicalFlowGeneratedTopLevelSymbols({
   );
   return {
     generatedSurfaceName(flow.declaration.name!, fallback: 'SurfaceFlow'),
+    if (emitsCompiledFlowMount(flow.declaration.library!))
+      ...placementDefinitionSymbols(flow.declaration.name!),
     refName,
     decoderName,
     if (flow.delivery == FlowDeliveryMode.typed) resultName,

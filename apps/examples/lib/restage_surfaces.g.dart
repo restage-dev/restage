@@ -19,14 +19,15 @@ import 'package:restage_example/onboarding/flows/section_header_showcase.dart'
     as s10;
 import 'package:restage_example/onboarding/flows/stride_first_run.dart' as s11;
 import 'package:restage_example/onboarding/flows/tally_onboarding.dart' as s12;
-import 'package:restage_example/surfaces/categorized_screens.dart' as s13;
-import 'package:restage_example/surfaces/general_flow.dart' as s14;
-import 'package:restage_example/surfaces/lumen_cancel.dart' as s15;
-import 'package:restage_example/surfaces/lumen_cancel_flow.dart' as s16;
-import 'package:restage_example/surfaces/lumen_trial_ending.dart' as s17;
-import 'package:restage_example/surfaces/lumen_trial_ending_flow.dart' as s18;
-import 'package:restage_example/surfaces/message_offer_flow.dart' as s19;
-import 'package:restage_example/surfaces/starter_host_data.dart' as s20;
+import 'package:restage_example/paywalls/minimal_paywall.dart' as s13;
+import 'package:restage_example/surfaces/categorized_screens.dart' as s14;
+import 'package:restage_example/surfaces/general_flow.dart' as s15;
+import 'package:restage_example/surfaces/lumen_cancel.dart' as s16;
+import 'package:restage_example/surfaces/lumen_cancel_flow.dart' as s17;
+import 'package:restage_example/surfaces/lumen_trial_ending.dart' as s18;
+import 'package:restage_example/surfaces/lumen_trial_ending_flow.dart' as s19;
+import 'package:restage_example/surfaces/message_offer_flow.dart' as s20;
+import 'package:restage_example/surfaces/starter_host_data.dart' as s21;
 
 /// Every surface this package compiles, for
 /// `Restage.configure(surfaces: restageSurfaces)`.
@@ -41,7 +42,6 @@ final List<restage.RestageSurfaceRef> restageSurfaces =
     const restage.PaywallRef('lumen_plus_offer'),
     const restage.PaywallRef('lumen_premium'),
     const restage.PaywallRef('lumen_welcome_offer'),
-    const restage.PaywallRef('minimal_paywall'),
     const restage.PaywallRef('modal_sheet_lowering'),
     const restage.PaywallRef('modal_sheet_lowering_cupertino'),
     const restage.PaywallRef('narrate_membership'),
@@ -51,30 +51,31 @@ final List<restage.RestageSurfaceRef> restageSurfaces =
     const restage.PaywallRef('pulse_premium'),
     const restage.PaywallRef('sentinel_protection'),
     const restage.PaywallRef('upgrade_offer'),
-    s0.apexDropFlowRef,
-    s1.bareSurfaceFlowRef,
-    s2.cravePermissionFlowRef,
-    s3.firstRunFlowRef,
-    s4.lumenOnboardingFlowRef,
-    s5.minimalNoticeFlowRef,
-    s6.minimalOnboardingFlowRef,
-    s7.minimalStatsFlowRef,
-    s8.planBoardShowcaseFlowRef,
-    s9.reelCancelFlowRef,
-    s10.sectionHeaderShowcaseFlowRef,
-    s11.strideFirstRunFlowRef,
-    s12.tallyOnboardingFlowRef,
-    s13.generalStatusRef,
-    s13.messageNoticeRef,
-    s13.onboardingWelcomeRef,
-    s14.generalJourneyRef,
-    s15.lumenCancelNoteScreenRef,
-    s15.lumenCancelReasonScreenRef,
-    s15.lumenCancelThanksScreenRef,
-    s16.lumenCancelRef,
-    s17.lumenTrialEndingScreenRef,
-    s18.lumenTrialOfferRef,
-    s19.messageOfferRef,
-    s20.starterChecklistRef,
+    s0.apexDropFlowPlacementDefinition(),
+    s1.bareSurfaceFlowPlacementDefinition(),
+    s2.cravePermissionFlowPlacementDefinition(),
+    s3.firstRunFlowPlacementDefinition(),
+    s4.lumenOnboardingFlowPlacementDefinition(),
+    s5.minimalNoticeFlowPlacementDefinition(),
+    s6.minimalOnboardingFlowPlacementDefinition(),
+    s7.minimalStatsFlowPlacementDefinition(),
+    s8.planBoardShowcaseFlowPlacementDefinition(),
+    s9.reelCancelFlowPlacementDefinition(),
+    s10.sectionHeaderShowcaseFlowPlacementDefinition(),
+    s11.strideFirstRunFlowPlacementDefinition(),
+    s12.tallyOnboardingFlowPlacementDefinition(),
+    s13.minimalPaywallPlacementDefinition(),
+    s14.generalStatusPlacementDefinition(),
+    s14.messageNoticePlacementDefinition(),
+    s14.onboardingWelcomePlacementDefinition(),
+    s15.generalJourneyPlacementDefinition(),
+    s16.lumenCancelNoteScreenPlacementDefinition(),
+    s16.lumenCancelReasonScreenPlacementDefinition(),
+    s16.lumenCancelThanksScreenPlacementDefinition(),
+    s17.lumenCancelPlacementDefinition(),
+    s18.lumenTrialEndingScreenPlacementDefinition(),
+    s19.lumenTrialOfferPlacementDefinition(),
+    s20.messageOfferPlacementDefinition(),
+    s21.starterChecklistPlacementDefinition(),
   ],
 );

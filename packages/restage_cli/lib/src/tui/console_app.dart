@@ -1082,10 +1082,25 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   Component _commandOutputPanel(ConsoleState state) {
     final output = state.commandOutput;
     if (output == null) {
-      return const Text(
-        'Type / then restage <command> to run any command',
-        maxLines: 1,
-        style: TextStyle(color: _ConsoleTheme.muted),
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Type / then restage <command> to run any command',
+            maxLines: 1,
+            style: TextStyle(color: _ConsoleTheme.muted),
+          ),
+          Text(
+            'restage delivery placements list --json',
+            maxLines: 1,
+            style: TextStyle(color: _ConsoleTheme.muted),
+          ),
+          Text(
+            'restage delivery plan history --placement named:welcome --json',
+            maxLines: 1,
+            style: TextStyle(color: _ConsoleTheme.muted),
+          ),
+        ],
       );
     }
     return Column(

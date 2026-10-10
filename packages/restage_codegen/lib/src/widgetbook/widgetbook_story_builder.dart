@@ -6,8 +6,8 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/src/dart_source_parsing.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
-import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_plan.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_source_renderer.dart';
@@ -28,7 +28,7 @@ Builder createWidgetbookStoryBuilder(BuilderOptions options) =>
 /// Story source is generated Dart, so it is placed exactly like the neutral
 /// part of the library that declares the component.
 String widgetbookStoryPath(
-  RestageOutputPlacementPlan plan, {
+  RestageOutputLocationPlan plan, {
   required String declarationSourcePath,
   required String className,
 }) =>
@@ -46,11 +46,11 @@ Builder createWidgetbookStoryBuilderForLib(
   BuilderOptions options,
   Directory lib,
 ) {
-  requireOnlyRestagePlacementOptions(
+  requireOnlyRestageOutputLocationOptions(
     options,
     featureLabel: 'Widgetbook story generation',
   );
-  final plan = RestageOutputPlacementPlan.fromBuilderOptions(options);
+  final plan = RestageOutputLocationPlan.fromBuilderOptions(options);
   return WidgetbookStoryBuilder(_discoverOutputs(lib, plan), plan: plan);
 }
 
@@ -58,23 +58,23 @@ Builder createWidgetbookStoryBuilderForLib(
 final class WidgetbookStoryBuilder implements Builder {
   /// Creates a builder with startup-discovered outputs.
   ///
-  /// [plan] is omitted only by callers that exercise the default placement;
+  /// [plan] is omitted only by callers that exercise the default output location;
   /// production always passes the factory-resolved plan.
   const WidgetbookStoryBuilder(this.buildExtensions, {this.plan});
 
   @override
   final Map<String, List<String>> buildExtensions;
 
-  /// The resolved placement authority for story source, or `null` for the
+  /// The resolved output location authority for story source, or `null` for the
   /// default layout.
-  final RestageOutputPlacementPlan? plan;
+  final RestageOutputLocationPlan? plan;
 
-  RestageOutputPlacementPlan get _placement =>
-      plan ?? RestageOutputPlacementPlan.defaults;
+  RestageOutputLocationPlan get _placement =>
+      plan ?? RestageOutputLocationPlan.defaults;
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(
+    await registerRestageOutputLocationSignature(
       buildStep,
       _placement,
       builderKey: 'restage_codegen:widgetbook_stories',
@@ -238,7 +238,7 @@ String _declaringLibraryPath(String declarationIdentity) => AssetId.resolve(
 
 Map<String, List<String>> _discoverOutputs(
   Directory lib,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) {
   final outputs = <String>{_widgetbookStoryBuilderSentinelOutput};
   if (!lib.existsSync()) return _buildExtensions(outputs);
@@ -283,12 +283,8 @@ bool _canReserveOutput(Directory lib, String output) {
   }
 }
 
-/// Every already-present story file beneath `lib/`, wherever a placement
-/// mode put it.
-///
-/// The scan is placement-agnostic on purpose: a story generated under one
-/// layout must still be recognized — and retired — after the package changes
-/// its layout.
+/// Finds existing story files beneath `lib/` across all output layouts,
+/// so changing layouts can retire files generated under the previous layout.
 Iterable<String> _existingRestageStoryOutputs(Directory lib) sync* {
   if (!lib.existsSync()) return;
   final stories = lib
@@ -305,7 +301,7 @@ Iterable<String> _existingRestageStoryOutputs(Directory lib) sync* {
   }
 }
 
-/// One authored library, with the package-relative path story placement is
+/// One authored library, with the package-relative path story output location is
 /// resolved against.
 @immutable
 final class _AuthoredUnit {
@@ -331,7 +327,7 @@ List<_AuthoredUnit> _readAuthoredUnits(Directory lib) {
 /// declarations.
 ///
 /// A class declared in a `part` belongs to the owning library, and that is
-/// the library whose placement decides where its story is written.
+/// the library whose output location decides where its story is written.
 _AuthoredUnit _authoredUnit(Directory lib, File file) {
   final unit = parseUnresolvedDart(file.readAsStringSync(), path: file.path);
   final own = p.posix.join(

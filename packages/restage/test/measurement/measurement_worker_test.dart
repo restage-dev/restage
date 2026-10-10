@@ -4,12 +4,57 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/measurement/measurement_worker.dart';
 import 'package:restage/src/measurement/measurement_worker_delivery_protocol.dart';
+import 'package:restage/src/measurement/placement_mount_attribution.dart';
 import 'package:restage/src/measurement/measurement_worker_unsupported.dart'
     as unsupported;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart';
+
+import '../support/placement_delivery_fixture.dart';
 
 void main() {
   group('MeasurementWorkerRuntime', () {
+    test('native worker retains placement tuple and original path assignment',
+        () async {
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final fixture = readPlacementDeliveryFixture();
+      final delivery =
+          (fixture.response.decisions.first as PlacementBatchAvailableV1)
+              .publicDelivery;
+      final snapshot = MountAttributionSnapshotV1.hosted(
+          delivery: delivery,
+          defaultSurface: fixture.request.mounts.first.defaultSurface,
+          mountInstanceNonce: 'a' * 43);
+      final assignment = PresentationAssignmentCarrierV2(
+          owner: PresentationAssignmentOwnerV2.path,
+          outcomeLinkCarrier: 'A' * 43);
+      final registration = _registration(
+          sessionId: 'session.placement',
+          captureSessionNonce: snapshot.mountInstanceNonce,
+          attributionCanonicalBytes: snapshot.attribution.canonicalBytes,
+          assignmentCanonicalBytes: assignment.canonicalBytes,
+          registrationFingerprint: 'b' * 64,
+          routingSelectionReceipt: 'opaque.original.receipt');
+      final restored =
+          MeasurementWorkerSessionRegistration.fromWire(registration.toWire());
+      final session = await _open(runtime, restored);
+      expect(_append(session, timestamp: 1),
+          MeasurementWorkerAppendOutcome.accepted);
+      final checkpoint = await session.checkpoint(frameElapsedMicros: 2);
+      final request = MeasurementIngestRequestV1.fromBase64(
+          checkpoint.batch!.canonicalRequestBase64);
+      expect(request.factFrame.attribution, snapshot.attribution);
+      expect(request.factFrame.assignment, assignment);
+      expect(request.factFrame.experimentAssignment, isNull);
+      expect(
+          request.factFrame.captureSessionNonce, snapshot.mountInstanceNonce);
+      expect(request.factFrame.frameElapsedMicros, 2);
+      expect(
+          request.factFrame.facts.single.presentationFirstOccurrenceMicros, 1);
+      expect(request.routingSelectionReceipt, 'opaque.original.receipt');
+      expect(restored.registrationFingerprint, 'b' * 64);
+    });
     test('worker carries runtime session metadata into authenticated requests',
         () async {
       final runtime = await _startRuntime();
@@ -986,6 +1031,10 @@ MeasurementWorkerSessionRegistration _registration({
   String? sdkRuntimeSessionNonce,
   String? reportedSdkVersion,
   String? registrationFingerprint,
+  String? captureSessionNonce,
+  List<int>? attributionCanonicalBytes,
+  List<int>? assignmentCanonicalBytes,
+  String? routingSelectionReceipt,
 }) {
   final context = ExactMeasurementPublicationContextRefV1(
     bindingReference: _bindingReference,
@@ -1008,7 +1057,10 @@ MeasurementWorkerSessionRegistration _registration({
     reportedSdkVersion: reportedSdkVersion,
     orderedCaptureCanonicalBytesV1: orderedCaptureCanonicalBytesV1,
     sessionId: sessionId,
-    captureSessionNonce: 'nonce.$sessionId',
+    captureSessionNonce: captureSessionNonce ?? 'nonce.$sessionId',
+    attributionCanonicalBytes: attributionCanonicalBytes,
+    assignmentCanonicalBytes: assignmentCanonicalBytes,
+    routingSelectionReceipt: routingSelectionReceipt,
     experimentAssignmentCanonicalBytes: experimentAssignmentCanonicalBytes,
     registrationFingerprint: registrationFingerprint,
     publicationContextCanonicalBytes: context.canonicalBytes,

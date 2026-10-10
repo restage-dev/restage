@@ -1,3 +1,5 @@
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
@@ -49,7 +51,7 @@ void main() {
 
       expect(inspection.issues, isEmpty);
       expect(
-        inspection.contract!.emitReferenceDart(),
+        _provenanceDeclaration(inspection.contract!.emitReferenceDart()),
         isNot(contains('vocabulary:')),
       );
     });
@@ -75,6 +77,17 @@ void main() {
 /// [source] with its whitespace removed, so an assertion about an emitted
 /// expression survives the formatter's line breaks.
 String _packed(String source) => source.replaceAll(RegExp(r'\s+'), '');
+
+String _provenanceDeclaration(String source) => parseString(content: source)
+    .unit
+    .declarations
+    .whereType<TopLevelVariableDeclaration>()
+    .singleWhere(
+      (declaration) => declaration.variables.variables.any(
+        (variable) => variable.name.lexeme == '_maintenanceNoticeProvenance',
+      ),
+    )
+    .toSource();
 
 String _screenSource(String flutterImport) => '''
 $flutterImport

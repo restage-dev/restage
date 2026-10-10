@@ -3,6 +3,7 @@ import 'package:restage_cli/src/config/config_target_check.dart'
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/api/surface_routing_api.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 
 /// The exit code and stderr message for a backend refusal.
@@ -53,6 +54,10 @@ String? typedErrorSentence(String body, {SelectorSyntax? syntax}) {
   if (generic != null) return _genericSentence(generic, syntax);
   final surface = decodeSurfaceTypedException(body);
   if (surface != null) return renderSurfaceException(surface);
+  final routing = decodeSurfaceRoutingException(body);
+  if (routing case SurfaceRoutingRejected(:final reason)) {
+    return 'The delivery service refused the request: $reason.';
+  }
   return null;
 }
 

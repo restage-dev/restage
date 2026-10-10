@@ -5,6 +5,8 @@ import 'dart:math';
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show PlacementMountRequestV1;
 
 import 'bundled_measurement_publication_binding_read_port.dart';
 import 'bundled_measurement_target_profile_loader.dart';
@@ -20,10 +22,35 @@ import 'measurement_resolved_publication_provenance.dart';
 import 'measurement_rfw_presentation.dart';
 import 'measurement_runtime_capture.dart';
 import 'presentation_commit.dart';
+import 'placement_mount_attribution.dart';
 import '../resolver/resolved_paywall_payload.dart';
 import '../resolver/surface_delivery_observations.dart'
     show SurfaceDeliveryObservations;
 import '../runtime/restage.dart';
+
+/// Reserves the existing capture nonce before optional session construction.
+@internal
+String reserveMeasurementCaptureSessionNonce() => _encodeNonce(
+    MeasurementHostSessionConstructionRegistry._authority?.takeNonceBytes() ??
+        _secureNonceBytes());
+
+/// Reserves one nonce on the existing capture authority before optional work.
+@internal
+MountAttributionSnapshotV1? captureMountAttribution(
+  PlacementMountRequestV1? mount, {
+  Object? resolved,
+}) {
+  if (mount == null) return null;
+  final nonce = reserveMeasurementCaptureSessionNonce();
+  return resolved == null
+      ? MountAttributionSnapshotV1.original(
+          key: mount.key,
+          hostContractHash: mount.hostContractHash,
+          defaultSurface: mount.defaultSurface,
+          mountInstanceNonce: nonce)
+      : MountAttributionSnapshotV1.fromResolved(
+          resolved: resolved, mount: mount, mountInstanceNonce: nonce);
+}
 
 /// Test-visible lifecycle state for the SDK-internal host session.
 @internal
@@ -397,11 +424,13 @@ final class MeasurementHostSessionController
     required MeasurementPresentationRouteHandle presentationRouteHandle,
     required MeasurementRuntimeRouteTable routeTable,
     required MeasurementIngestTransport transport,
+    String? routingSelectionReceipt,
   })  : _captureSession = captureSession,
         _presentationRouteHandle = presentationRouteHandle,
         _routeTable = routeTable,
         _completionRoutes = routeTable,
         _transport = transport,
+        _routingSelectionReceipt = routingSelectionReceipt,
         _debugState = MeasurementHostSessionDebugState.active;
 
   MeasurementHostSessionController._pending({required bool workerOwned})
@@ -436,10 +465,12 @@ final class MeasurementHostSessionController
   static Future<MeasurementHostSessionController> openForResolvedArtifact(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+    MountAttributionSnapshotV1? mountAttribution,
   }) {
     final opening = _openForResolvedArtifact(
       resolvedOrPayload,
       presentationObservations: presentationObservations,
+      mountAttribution: mountAttribution,
     );
     return opening.timeout(openBudget, onTimeout: () {
       unawaited(opening.then(
@@ -465,6 +496,7 @@ final class MeasurementHostSessionController
   static MeasurementHostSessionController openDeferred(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+    MountAttributionSnapshotV1? mountAttribution,
   }) {
     if (!Restage.isMeasurementEnabled) {
       return MeasurementHostSessionController._disabled();
@@ -478,6 +510,7 @@ final class MeasurementHostSessionController
     unawaited(_openForResolvedArtifact(
       resolvedOrPayload,
       presentationObservations: presentationObservations,
+      mountAttribution: mountAttribution,
     ).then(pending._adoptOpened,
         onError: (Object _) => pending._dropPending()));
     return pending;
@@ -486,6 +519,7 @@ final class MeasurementHostSessionController
   static Future<MeasurementHostSessionController> _openForResolvedArtifact(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+    MountAttributionSnapshotV1? mountAttribution,
   }) async {
     if (!Restage.isMeasurementEnabled) {
       return MeasurementHostSessionController._disabled();
@@ -516,7 +550,9 @@ final class MeasurementHostSessionController
       final hostedReference = measurementPublicationBindingReferenceFor(
         provenanceOwner,
       );
-      if (canonicalAssignment != null && hostedReference == null) {
+      if ((canonicalAssignment != null ||
+              resolvedPlacementDeliveryFor(provenanceOwner) != null) &&
+          hostedReference == null) {
         return MeasurementHostSessionController._disabled();
       }
       if (hostedReference != null) {
@@ -534,6 +570,7 @@ final class MeasurementHostSessionController
           registrationFingerprint: registrationFingerprint,
           presentationObservations: presentationObservations,
           routingSelectionReceipt: routingSelectionReceipt,
+          mountAttribution: mountAttribution,
         );
       }
 
@@ -554,6 +591,7 @@ final class MeasurementHostSessionController
         authority,
         presentationObservations: presentationObservations,
         routingSelectionReceipt: routingSelectionReceipt,
+        mountAttribution: mountAttribution,
       );
     } on Object {
       return MeasurementHostSessionController._disabled();
@@ -567,6 +605,7 @@ final class MeasurementHostSessionController
     String? registrationFingerprint,
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
     String? routingSelectionReceipt,
+    MountAttributionSnapshotV1? mountAttribution,
   }) async {
     try {
       final resolution = await request._resolveExact();
@@ -620,7 +659,10 @@ final class MeasurementHostSessionController
           registrationFingerprint: registrationFingerprint,
           presentationContext: presentationContext,
           routingSelectionReceipt: routingSelectionReceipt,
+          attribution: mountAttribution?.attribution,
+          assignment: mountAttribution?.assignment,
           captureSessionNonceSource: () =>
+              mountAttribution?.mountInstanceNonce ??
               _encodeNonce(authority.takeNonceBytes()),
         );
         if (constructionSession == null) {
@@ -654,10 +696,13 @@ final class MeasurementHostSessionController
           maximumMissingnessEntries: kMaximumMeasurementMissingnessEntryCount,
         ),
         captureSessionNonce: MeasurementCaptureSessionNonce(
-          _encodeNonce(authority.takeNonceBytes()),
+          mountAttribution?.mountInstanceNonce ??
+              _encodeNonce(authority.takeNonceBytes()),
         ),
         publicationContextRef: resolvedMount.publicationContextRef,
         experimentAssignment: experimentAssignment,
+        attribution: mountAttribution?.attribution,
+        assignment: mountAttribution?.assignment,
         routeTable: routeTable,
         sequence: 1,
       );
@@ -669,6 +714,7 @@ final class MeasurementHostSessionController
         ),
         routeTable: routeTable,
         transport: authority.transport,
+        routingSelectionReceipt: routingSelectionReceipt,
       );
       if (!controller._startLifecycleObservation(
         authority._lifecycleRegistrar,
@@ -704,6 +750,7 @@ final class MeasurementHostSessionController
   MeasurementRuntimeRouteTable? _completionRoutes;
   bool _lastInteractionCompletes = false;
   MeasurementIngestTransport? _transport;
+  String? _routingSelectionReceipt;
   MeasurementHostSessionLifecycleRegistration? _lifecycleRegistration;
   final Set<Future<void>> _pendingLifecycleCheckpoints = <Future<void>>{};
   bool _backgroundCheckpointIssued = false;
@@ -1181,7 +1228,8 @@ final class MeasurementHostSessionController
     if (transport == null) return null;
     try {
       return await transport.submit(
-        MeasurementIngestSubmission.fromFactFrame(frame),
+        MeasurementIngestSubmission.fromFactFrame(frame,
+            routingSelectionReceipt: _routingSelectionReceipt),
       );
     } on Object {
       return const MeasurementIngestTransportUnavailable(

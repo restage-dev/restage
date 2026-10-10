@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'surface_assignment_key_provider.dart';
@@ -132,6 +133,86 @@ abstract final class SurfaceCanonicalCarrierProvider {
     );
     return held != null && held == _encode(assignment);
   }
+
+  /// Retains the exact opaque carrier under its mount and current credential.
+  @internal
+  static Future<void> retainPlacement({
+    required PlacementMountRequestV1 mount,
+    required SurfaceAssignmentResolutionLease lease,
+    required PresentationAssignmentCarrierV2 assignment,
+  }) async {
+    final generation = SurfaceAssignmentPersistence.generation;
+    final namespace = _storageScope;
+    final key = lease.assignmentKey;
+    if (namespace == null || key == null || !lease.isCurrent) return;
+    final scope = _placementScope(mount, key);
+    final encoded =
+        base64UrlEncode(assignment.canonicalBytes).replaceAll('=', '');
+    _assignments[scope] = encoded;
+    try {
+      await SurfaceAssignmentPersistence.ready;
+      if (lease.isCurrent && _storageScope == namespace) {
+        await SurfaceAssignmentPersistence.writeString(
+            _storageKey(namespace, scope), encoded,
+            generation: generation);
+      }
+    } on Object {
+      // The current presentation still retains its issued assignment.
+    }
+  }
+
+  /// Forgets a placement carrier the server no longer proves.
+  @internal
+  static Future<void> forgetPlacement({
+    required PlacementMountRequestV1 mount,
+    required String assignmentKey,
+  }) async {
+    final generation = SurfaceAssignmentPersistence.generation;
+    final namespace = _storageScope;
+    if (namespace == null) return;
+    final scope = _placementScope(mount, assignmentKey);
+    _assignments.remove(scope);
+    try {
+      await SurfaceAssignmentPersistence.remove(_storageKey(namespace, scope),
+          generation: generation);
+    } on Object {
+      // The in-memory carrier is already gone for this session.
+    }
+  }
+
+  /// Reads only an original retained carrier; it establishes no new authority.
+  @internal
+  static Future<String?> heldPlacement({
+    required PlacementMountRequestV1 mount,
+    required String assignmentKey,
+  }) async {
+    final namespace = _storageScope;
+    if (namespace == null) return null;
+    final generation = SurfaceAssignmentPersistence.generation;
+    final scope = _placementScope(mount, assignmentKey);
+    final held = _assignments[scope];
+    if (held != null) return held;
+    try {
+      await SurfaceAssignmentPersistence.ready;
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = prefs.getString(_storageKey(namespace, scope));
+      if (_storageScope != namespace ||
+          generation != SurfaceAssignmentPersistence.generation ||
+          encoded == null) {
+        return null;
+      }
+      PresentationAssignmentCarrierV2.fromCanonicalBytes(
+          base64Url.decode(base64Url.normalize(encoded)));
+      _assignments[scope] = encoded;
+      return encoded;
+    } on Object {
+      return null;
+    }
+  }
+
+  static (String, String, int?, String) _placementScope(
+          PlacementMountRequestV1 mount, String key) =>
+      ('placement', sha256.convert(mount.canonicalBytes).toString(), null, key);
 
   static String _encode(CanonicalSurfaceExperimentAssignmentV1 assignment) =>
       base64UrlEncode(utf8.encode(

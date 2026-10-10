@@ -6,7 +6,7 @@ import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -60,7 +60,7 @@ void main() {
           ],
         })));
     cleanLegacyRestageOutputsInDirectory(
-        root, 'fixture', RestageOutputPlacementPlan.defaults);
+        root, 'fixture', RestageOutputLocationPlan.defaults);
     expect(bundle.existsSync(), isFalse);
     expect(index.existsSync(), isFalse);
     expect(manifest.existsSync(), isFalse);
@@ -88,7 +88,7 @@ void main() {
       }));
       final file = write(path, bytes);
       cleanLegacyRestageOutputsInDirectory(
-          root, 'fixture', RestageOutputPlacementPlan.defaults);
+          root, 'fixture', RestageOutputLocationPlan.defaults);
       expect(file.readAsBytesSync(), bytes, reason: path);
     }
   });
@@ -133,7 +133,7 @@ void main() {
     for (final entry in documents.entries) {
       final file = write(entry.key, utf8.encode(entry.value));
       cleanLegacyRestageOutputsInDirectory(
-          root, 'fixture', RestageOutputPlacementPlan.defaults);
+          root, 'fixture', RestageOutputLocationPlan.defaults);
       expect(file.existsSync(), isFalse, reason: entry.key);
       final malformed = jsonDecode(entry.value) as Map<String, Object?>;
       final listKey = ['sources', 'outputs', 'entries', 'publications']
@@ -142,7 +142,7 @@ void main() {
       final malformedBytes = utf8.encode(jsonEncode(malformed));
       write(entry.key, malformedBytes);
       cleanLegacyRestageOutputsInDirectory(
-          root, 'fixture', RestageOutputPlacementPlan.defaults);
+          root, 'fixture', RestageOutputLocationPlan.defaults);
       expect(file.readAsBytesSync(), malformedBytes, reason: entry.key);
     }
   });
@@ -161,7 +161,7 @@ void main() {
     }));
     final file = write('assets/restage/source-index.json', bytes);
     cleanLegacyRestageOutputsInDirectory(
-        root, 'fixture', RestageOutputPlacementPlan.defaults);
+        root, 'fixture', RestageOutputLocationPlan.defaults);
     expect(file.readAsBytesSync(), bytes);
   });
 
@@ -171,7 +171,7 @@ void main() {
     final roster = write('assets/restage/source-index.json',
         utf8.encode('{"notes":"authored"}'));
     cleanLegacyRestageOutputsInDirectory(
-        root, 'fixture', RestageOutputPlacementPlan.defaults);
+        root, 'fixture', RestageOutputLocationPlan.defaults);
     expect(file.readAsStringSync(), 'authored');
     expect(roster.existsSync(), isTrue);
   });

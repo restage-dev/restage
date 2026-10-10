@@ -6,11 +6,15 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/api.dart'
+    show encodeByteDataWire, decodeByteDataWire;
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/surface_push_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:test/test.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as m;
 
 import '../_helpers/publication_fixtures.dart';
 import '../_helpers/test_fixtures.dart';
@@ -119,6 +123,81 @@ void main() {
     app.deleteSync(recursive: true);
     home.deleteSync(recursive: true);
   });
+
+  test(
+    'inverse fit uses the exact live upload target without another selection lookup',
+    () async {
+      writeConfig();
+      final reference = m.DeliveryPublicationReferenceV1(
+        surface: m.DeliverySurfaceReferenceV1(
+          surfaceIdentity: m.PublishedSurfaceIdentityV1(
+            target: m.TargetCoordinate(
+              organizationId: m.OrganizationId(7),
+              appId: m.ApplicationId(5),
+              environmentTargetId: m.EnvironmentTargetId(32),
+              namedEnvironmentId: m.NamedEnvironmentId(22),
+              runtimePlane: m.RuntimePlane.live,
+            ),
+            surfaceId: m.SurfaceId('opaque-live-stored-id'),
+          ),
+          family: const m.DeliveryFamilySelectorV1.general(),
+        ),
+        publishedVersion: 1,
+        payloadFormatVersion: 2,
+        contentHash: m.CanonicalDigest('a' * 64),
+      );
+      var scopeReads = 0;
+      var fitReads = 0;
+      final inner = backend(activeRevision: 1);
+      final client = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (body['method'] == 'read') scopeReads++;
+        if (body['method'] == 'readFit') {
+          fitReads++;
+          expect(body['environmentTargetId'], 32);
+          expect(body['organizationId'], 7);
+          expect(body['runtimePlane'], 'live');
+          final fit = m.DeliveryPolicyFitReadRequestV1.fromCanonicalBytes(
+            decodeByteDataWire(
+              body['requestBytes'],
+              malformed: FormatException.new,
+            ),
+          );
+          expect(fit.publication, reference);
+          return http.Response(
+            jsonEncode(
+              encodeByteDataWire(
+                m.DeliveryPolicyFitReadV1(
+                  request: fit,
+                  authorityDigest: m.CanonicalDigest('b' * 64),
+                  entries: const [],
+                ).canonicalBytes,
+              ),
+            ),
+            200,
+          );
+        }
+        final copy = http.Request(request.method, request.url)
+          ..headers.addAll(request.headers)
+          ..body = request.body;
+        final response = await http.Response.fromStream(await inner.send(copy));
+        if (body['method'] != 'publishPublication') return response;
+        final wire = jsonDecode(response.body) as Map<String, dynamic>;
+        wire['deliveryPublicationBytes'] = encodeByteDataWire(
+          reference.canonicalBytes,
+        );
+        return http.Response(jsonEncode(wire), response.statusCode);
+      });
+      expect(
+        await push(['--plane', 'live', '--organization-id', '7'], client),
+        0,
+        reason: err.toString(),
+      );
+      expect(scopeReads, 1);
+      expect(fitReads, 1);
+      expect(out.toString(), contains('Placement fit for stored revision 1'));
+    },
+  );
 
   test('selectors go to the server as given, once', () async {
     writeConfig();

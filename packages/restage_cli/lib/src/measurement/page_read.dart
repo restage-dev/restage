@@ -5,6 +5,7 @@ import 'package:restage_cli/src/measurement/page_views/overview_view.dart';
 import 'package:restage_cli/src/measurement/page_views/explore_view.dart';
 import 'package:restage_cli/src/measurement/page_views/surface_view.dart';
 import 'package:restage_cli/src/measurement/page_views/taps_view.dart';
+import 'package:restage_cli/src/measurement/page_views/delivery_map_view.dart';
 import 'package:restage_cli/src/measurement/page_views/health_view.dart';
 import 'package:restage_cli/src/measurement/page_views/experiment_list_view.dart';
 import 'package:restage_cli/src/measurement/page_views/experiment_results_view.dart';
@@ -41,6 +42,9 @@ class PageParam {
     required this.help,
     this.required = false,
     this.allowed,
+    this.positional = false,
+    this.cliOnly = false,
+    this.parse,
   });
 
   /// The MCP argument name and the key the read reads.
@@ -60,6 +64,15 @@ class PageParam {
 
   /// The accepted values, when closed.
   final List<String>? allowed;
+
+  /// Whether the CLI takes it as the command's one argument, not a flag.
+  final bool positional;
+
+  /// Whether it shapes only the CLI's text, so no tool or request carries it.
+  final bool cliOnly;
+
+  /// Turns a string value into what the read sends; throws [FormatException].
+  final Object Function(String value)? parse;
 }
 
 /// The half-open window one read covers, in microseconds since the epoch.
@@ -101,6 +114,7 @@ class PageRead {
     this.optionalWindow = false,
     this.allApps,
     this.organizationWide = false,
+    this.renderFor,
   });
 
   /// The CLI command path, such as `analytics overview`.
@@ -140,6 +154,14 @@ class PageRead {
 
   /// Writes the figures of one page document for a person.
   final void Function(StringSink out, Map<String, Object?> document) render;
+
+  /// Writes the page with the values the caller gave, when they shape it.
+  final void Function(
+    StringSink out,
+    Map<String, Object?> document,
+    Map<String, Object?> values,
+  )?
+  renderFor;
 }
 
 /// The window a read covers, or null when it covers the whole run.
@@ -534,4 +556,131 @@ final List<PageRead> pageReads = [
     },
     render: renderExperimentResultsPage,
   ),
+  PageRead(
+    cliPath: 'delivery map',
+    mcpName: 'restage_read_delivery_map',
+    method: 'readDeliveryMapPage',
+    summary: 'What is live where, and what builds painted.',
+    mcpDescription:
+        'Read the delivery map for one exact target and window: every '
+        'placement, the surfaces its rules send requests to and the versions '
+        'each serves, with routed requests and paints by app build. Routed '
+        'counts are fresh resolutions the rules sent there, whatever was '
+        'drawn; paints are what builds drew. A rule\'s split is exact from '
+        'its policy. Flags name a build that cannot render a version, a '
+        'build still painting a version no rule sends, or a destination '
+        'requests reached and nothing painted. A count the service never '
+        'measured reads unknown, never 0; a held count reads held. It also '
+        'states each spot\'s schedule, where a rule carries its name when '
+        'it has one, and fit by build, views by country, '
+        'the release history with upcoming changes first, and surfaces no '
+        'build has placed. Set allEnvironments to read every environment of '
+        'the app. The reply carries both the placement and the surface '
+        'grouping. The figures are the dashboard\'s own and are returned '
+        'unchanged.',
+    params: const [
+      PageParam(
+        'allEnvironments',
+        cli: 'all-environments',
+        kind: PageParamKind.flag,
+        help: 'Every environment of the app.',
+      ),
+      PageParam(
+        'placement',
+        cli: 'placement',
+        kind: PageParamKind.string,
+        help:
+            'Only this placement, as named:<slug> or '
+            'default:<surface-type>:<slug>.',
+      ),
+      PageParam(
+        'surfaceSlug',
+        cli: 'surface',
+        kind: PageParamKind.string,
+        help: 'Only the placements that can show this surface.',
+      ),
+      PageParam(
+        'by',
+        cli: 'by',
+        kind: PageParamKind.string,
+        allowed: ['placement', 'surface'],
+        cliOnly: true,
+        help: 'Group by placement or by surface.',
+      ),
+    ],
+    wire: (r) => {
+      ...pageTargetArgs(r.target),
+      ..._windowArgs(r),
+      'allEnvironments': ?r.values['allEnvironments'],
+      'placement': ?r.values['placement'],
+      'surfaceSlug': ?r.values['surfaceSlug'],
+    },
+    render: (out, document) => renderDeliveryMapPage(out, document),
+    renderFor: (out, document, values) => renderDeliveryMapPage(
+      out,
+      document,
+      bySurface: values['by'] == 'surface',
+    ),
+  ),
+  PageRead(
+    cliPath: 'where',
+    mcpName: 'restage_where',
+    method: 'readDeliveryMapPage',
+    summary: 'Every spot one surface serves.',
+    mcpDescription:
+        'Read where one surface, or one of its versions, is live across '
+        'every environment of the app: each placement it serves, the rules '
+        'that send requests to it, its routed requests and paints by app '
+        'build, and its flags. Name the surface by slug, with @v and a '
+        'version to narrow it, such as daily-check-in@v2. Counts and flags '
+        'read as in the delivery map. The figures are the dashboard\'s own '
+        'and are returned unchanged.',
+    params: [
+      PageParam(
+        'surface',
+        cli: 'surface',
+        kind: PageParamKind.string,
+        required: true,
+        positional: true,
+        parse: parseSurfaceVersion,
+        help: 'The surface slug, with @v and a version to narrow it.',
+      ),
+    ],
+    wire: (r) {
+      final (:slug, :version) = r.values['surface']! as SurfaceVersionArg;
+      return {
+        ...pageTargetArgs(r.target),
+        ..._windowArgs(r),
+        'allEnvironments': true,
+        'surfaceSlug': slug,
+        'version': ?version,
+      };
+    },
+    render: (out, document) => renderDeliveryMapPage(out, document),
+    renderFor: (out, document, values) => renderDeliveryMapPage(
+      out,
+      document,
+      bySurface: true,
+      only: values['surface'] as SurfaceVersionArg?,
+    ),
+  ),
 ];
+
+/// A surface named on the command line, with an optional version.
+typedef SurfaceVersionArg = ({String slug, int? version});
+
+/// Reads `slug` or `slug@version`.
+SurfaceVersionArg parseSurfaceVersion(String value) {
+  final at = value.indexOf('@');
+  final slug = at < 0 ? value : value.substring(0, at);
+  final named = at < 0 ? null : value.substring(at + 1);
+  final version = named == null
+      ? null
+      : int.tryParse(named.startsWith('v') ? named.substring(1) : named);
+  if (slug.isEmpty || (at >= 0 && (version == null || version < 1))) {
+    throw const FormatException(
+      'Name a surface as <slug> or <slug>@v<version>.',
+    );
+  }
+  return (slug: slug, version: version);
+}

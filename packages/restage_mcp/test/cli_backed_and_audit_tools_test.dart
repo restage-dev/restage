@@ -246,6 +246,12 @@ void main() {
       ),
     );
     expect(unnamed.isError, isTrue);
-    expect(_text(unnamed), contains('Name the environment'));
+    expect(
+      _text(unnamed),
+      contains(
+        'Name environmentSlug, or an exact organizationId and '
+        'environmentTargetId.',
+      ),
+    );
   });
 }

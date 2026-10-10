@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -112,8 +113,11 @@ void main() {
         }),
       ).fetchSurface(surfaceType: 'paywall', surfaceSlug: 'pro_upgrade');
 
-      expect(withoutSupportedPolicyRevisions(sent),
-          {'surfaceType': 'paywall', 'surfaceSlug': 'pro_upgrade'});
+      expect(withoutSupportedPolicyRevisions(sent), {
+        'surfaceType': 'paywall',
+        'surfaceSlug': 'pro_upgrade',
+        'sdkInstalledLibraries': installedLibrariesCarrier()
+      });
     });
 
     test('never sends a carrier that is not canonical base64url', () async {
@@ -175,6 +179,7 @@ void main() {
         expect(withoutSupportedPolicyRevisions(request), {
           'surfaceType': 'onboarding',
           'surfaceSlug': 'first_run',
+          'sdkInstalledLibraries': installedLibrariesCarrier(),
         });
       }
     });

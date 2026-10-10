@@ -8,8 +8,10 @@ import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/build_push_command.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/measurement_page_command.dart';
+import 'package:restage_cli/src/measurement/page_read.dart' show pageReads;
 import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
+import 'package:restage_cli/src/commands/delivery_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
 import 'package:restage_cli/src/commands/experiment_activation_command.dart';
 import 'package:restage_cli/src/commands/experiment_command.dart';
@@ -294,7 +296,26 @@ class RestageCli {
         ),
       )
       ..addCommand(
+        DeliveryCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
         AnalyticsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        MeasurementPageCommand(
+          pageReads.singleWhere((read) => read.cliPath == 'where'),
           stdout: _stdout,
           stderr: _stderr,
           interactive: interactive,

@@ -7,6 +7,9 @@ import '../delivery/surface_sections_carrier.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../flow/flow_descriptors.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
+import '../measurement/placement_mount_attribution.dart';
+import '../resolver/placement_mount_resolver.dart' show copyPlacementAdmission;
+import '../resolver/surface_resolution_report.dart';
 
 /// Why a standalone screen could not be rendered.
 enum SurfaceScreenUnavailableReason {
@@ -221,32 +224,39 @@ final class ResolvedSurfaceScreen {
     if (origin != SurfaceScreenOrigin.hosted) {
       throw StateError('Only hosted screens may be returned from cache.');
     }
-    return attachSurfaceAssignmentLease(
-        attachMeasurementPublicationBindingReference(
-          copySurfaceSections(
-            this,
-            ResolvedSurfaceScreen.hosted(
-              surface: surface,
-              slug: slug,
-              contractVersion: contractVersion,
-              publishedRevision: publishedRevision!,
-              sourceKind: sourceKind,
-              payloadKind: payloadKind,
-              capabilities: capabilities,
-              contractFingerprint: contractFingerprint,
-              eventContractHash: eventContractHash,
-              blob: blob,
-              contentHash: contentHash,
-              cacheHit: true,
+    return copyPlacementAdmission(
+        this,
+        attachSurfaceAssignmentLease(
+            attachMeasurementPublicationBindingReference(
+              copySurfaceSections(
+                this,
+                copyResolvedPlacementDelivery(
+                    this,
+                    ResolvedSurfaceScreen.hosted(
+                      surface: surface,
+                      slug: slug,
+                      contractVersion: contractVersion,
+                      publishedRevision: publishedRevision!,
+                      sourceKind: sourceKind,
+                      payloadKind: payloadKind,
+                      capabilities: capabilities,
+                      contractFingerprint: contractFingerprint,
+                      eventContractHash: eventContractHash,
+                      blob: blob,
+                      contentHash: contentHash,
+                      cacheHit: true,
+                    )),
+              ),
+              measurementPublicationBindingReferenceFor(this),
+              canonicalExperimentAssignment:
+                  measurementExperimentAssignmentFor(this),
+              registrationFingerprint:
+                  measurementRegistrationFingerprintFor(this),
+              surfaceResolutionSource: SurfaceResolutionSource.holdLastGood,
+              routingSelectionReceipt: routingSelectionReceiptFor(this),
+              routingSelectionProvenance: routingSelectionProvenanceFor(this),
             ),
-          ),
-          measurementPublicationBindingReferenceFor(this),
-          canonicalExperimentAssignment:
-              measurementExperimentAssignmentFor(this),
-          routingSelectionReceipt: routingSelectionReceiptFor(this),
-          routingSelectionProvenance: routingSelectionProvenanceFor(this),
-        ),
-        surfaceAssignmentLeaseFor(this));
+            surfaceAssignmentLeaseFor(this)));
   }
 }
 

@@ -63,10 +63,73 @@ final class LumenTrialOfferResult {
   const LumenTrialOfferResult();
 }
 
+final _lumenTrialOfferPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: lumenTrialOfferRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'message',
+    'slug': 'lumen_trial_offer',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{},
+      'signals': <Object?>[],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{}
+      }
+    }
+  },
+  vocabulary: lumenTrialOfferRef.vocabulary,
+);
+
+final lumenTrialOfferPlacementDefinition =
+    () => _lumenTrialOfferPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class LumenTrialOfferSurface
     extends RestageFlowGraph<LumenTrialOfferResult> {
   const LumenTrialOfferSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: lumenTrialOfferRef);
+
+  const LumenTrialOfferSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -80,5 +143,14 @@ final class LumenTrialOfferSurface
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: lumenTrialOfferRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: lumenTrialOfferRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: lumenTrialOfferPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

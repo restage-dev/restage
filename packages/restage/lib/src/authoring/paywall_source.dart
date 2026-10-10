@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../flow/flow_descriptors.dart' show SurfaceEvent;
+import '../runtime/placement_mount.dart' show SurfacePresentationRequirement;
 
 /// Marks a Flutter widget class as a specialized paywall source.
 ///
@@ -10,7 +11,11 @@ import '../flow/flow_descriptors.dart' show SurfaceEvent;
 @immutable
 final class Paywall {
   /// Creates a paywall annotation.
-  const Paywall({this.id, this.completesOn = const []});
+  const Paywall({
+    this.id,
+    this.completesOn = const [],
+    this.presentation = SurfacePresentationRequirement.infer,
+  });
 
   /// Optional stable source identity.
   final String? id;
@@ -18,6 +23,9 @@ final class Paywall {
   /// Declared events whose taps end the paywall as completed rather than
   /// dismissed.
   final List<SurfaceEvent<Object?>> completesOn;
+
+  /// Narrows the presentation modes the complete compiled paywall must prove.
+  final SurfacePresentationRequirement presentation;
 }
 
 /// Legacy source annotation for a specialized paywall.
@@ -28,8 +36,14 @@ final class Paywall {
 @immutable
 final class PaywallSource {
   /// Creates a legacy paywall source annotation.
-  const PaywallSource({required this.id});
+  const PaywallSource({
+    required this.id,
+    this.presentation = SurfacePresentationRequirement.infer,
+  });
 
   /// Stable paywall identifier.
   final String id;
+
+  /// Narrows the presentation modes the complete compiled paywall must prove.
+  final SurfacePresentationRequirement presentation;
 }

@@ -4,6 +4,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Generated original-graph argument and the typed mount that binds it.
@@ -24,6 +25,7 @@ String? _sdkPrefix(OwningLibraryNamespace namespace) =>
 /// Retains the existing canonical documents and original Flutter constructors.
 CompiledFlowEmission emitCompiledFlow({
   required FlowDocument document,
+  required Surface surface,
   required Map<String, FlowDocument> descendants,
   required Map<String, ClassElement> screens,
   required LibraryElement library,
@@ -36,7 +38,9 @@ CompiledFlowEmission emitCompiledFlow({
   // Like generated screen mounts, preserve descriptor-only imports.
   if (sdk == null) return (argument: '', mount: '');
   final builders = <String, String>{};
+  final compiledDocuments = <FlowDocument>{};
   String encode(FlowDocument doc) {
+    compiledDocuments.add(doc);
     final constructors = <String>[];
     for (final id in doc.screenArtifacts.keys) {
       final declaration = screens[id];
@@ -91,14 +95,34 @@ ${sdk}CompiledFlow(
 , screenBuilders: {
     ${builders.entries.map((entry) => '${dartStringLiteral(entry.key)}: ${entry.value},').join('\n')}
   }''';
-  return (
-    argument: '  compiled: $compiled,\n',
-    mount: '''
-/// Mounts the authored flow with hosted delivery and a compiled original fallback.
-final class $mountName extends ${sdk}RestageFlowGraph<$resultType> {
-  ${builders.isEmpty ? 'const ' : ''}$mountName({
+  final provider = placementDefinitionProviderName(
+    refName.substring(0, refName.length - 'Ref'.length),
+  );
+  final definition = emitPlacementDefinition(
+    declarationName: refName.substring(0, refName.length - 'Ref'.length),
+    defaultSurfaceArgument: 'defaultSurface: $refName',
+    surface: surface,
+    slug: document.flow,
+    hostContract: SurfaceHostContractV1(
+      hosting: const SurfaceHostingV1(
+        contentKind: SurfaceContentKindV1.flow,
+        presentation: SurfacePresentationV1.inline,
+      ),
+      providedContext: const SurfaceScreenHostDataSchema.empty(),
+      handledEvents: SurfaceScreenEventSchema(events: const []),
+      flowBoundary: FlowHostBoundaryV1.fromDocuments(
+        root: document,
+        descendants: compiledDocuments.where((child) => child != document),
+      ),
+    ),
+    vocabulary: '$refName.vocabulary',
+    sdkHost: '${sdk}RestageFlowGraph',
+  );
+  String constructor({required bool atPlacement}) => '''
+  ${builders.isEmpty ? 'const ' : ''}$mountName${atPlacement ? '.atPlacement(String restagePlacementId, ' : '('}{
     super.key,
     $requiredBuilders
+    ${atPlacement ? '' : 'String? placement,'}
     super.initialState,
     super.actions,
     super.installedSignalNames,
@@ -111,7 +135,24 @@ final class $mountName extends ${sdk}RestageFlowGraph<$resultType> {
     super.liveRefresh,
     super.context,
     super.unavailable = const ${sdk}FlowUnavailablePolicy.hide(),
-  }) : super(flow: $refName$bindings);
+  }) : _restagePlacementName = ${atPlacement ? 'restagePlacementId' : 'placement'},
+       super(flow: $refName$bindings);
+''';
+  return (
+    argument: '  compiled: $compiled,\n',
+    mount: '''
+$definition
+/// Mounts the authored flow with hosted delivery and a compiled original fallback.
+final class $mountName extends ${sdk}RestageFlowGraph<$resultType> {
+${constructor(atPlacement: false)}
+${constructor(atPlacement: true)}
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => ${sdk}RestageFlowGraph.generatedPlacementBinding(
+    definition: $provider,
+    name: _restagePlacementName,
+  );
 }
 ''',
   );

@@ -37,10 +37,10 @@ import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
-import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
@@ -133,25 +133,19 @@ final class _AppFactoryNoticeCensus {
   }
 }
 
-/// Scans only tracked build assets and invokes the package compiler's resolved
-/// frontends and strict artifact adapters.
-///
-/// [plan] is the calling builder's own resolved placement, and [builderKey]
-/// is its `build.yaml` key (diagnostics only). Build Runner has no
-/// cross-builder options channel, so every placement-affected Restage
-/// builder key accepts the same options with the same defaults; two callers
-/// resolving different placement for one package is a configuration error and
-/// is reported as one, naming both keys.
+/// Compiles tracked build assets using resolved frontends and artifact adapters.
+/// [plan] is the calling builder's output plan; [builderKey] identifies it in
+/// errors. Conflicting output plans report both builder keys.
 Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
   BuildStep buildStep, {
   required String builderKey,
   required MeasurementCompilerPolicyInput measurementPolicy,
-  RestageOutputPlacementPlan? plan,
+  RestageOutputLocationPlan? plan,
 }) async {
   final cache = await buildStep.fetchResource(_trackedCompilationResource);
   return cache.get(
     buildStep,
-    plan ?? RestageOutputPlacementPlan.defaults,
+    plan ?? RestageOutputLocationPlan.defaults,
     measurementPolicy,
     builderKey: builderKey,
   );
@@ -159,7 +153,7 @@ Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
 
 Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   BuildStep buildStep,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
   MeasurementCompilerPolicyInput measurementPolicy,
   bool measurementEnabled,
 ) async {
@@ -278,6 +272,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         rendered.add(
           CompiledSurfaceArtifact(
             declaration: screen.input.declaration,
+            compiledScreenInput: ResolvedWidgetMountInput(
+              assetId: screen.input.assetId,
+              screen: screen.input.declaration,
+              rootParams: screen.input.build.rootParams,
+            ),
             blob: screen.blob,
             capabilitySidecar: capabilitySidecar,
             flowArtifactPath: '${screen.input.id}.rfw',
@@ -406,6 +405,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       rendered.add(
         CompiledSurfaceArtifact(
           declaration: declaration,
+          compiledScreenInput: ResolvedWidgetMountInput(
+            assetId: assetId,
+            screen: declaration,
+            rootParams: legacySource.build.rootParams,
+          ),
           blob: blob,
           capabilitySidecar: sidecarBytes,
           flowArtifactPath: '${source.effectiveId}.rfw',
@@ -624,6 +628,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final provisionalResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
+      catalog: await mergedCatalog(),
       appWidgets: appWidgets,
       flows: flows,
       renderedSources: rendered,
@@ -843,6 +848,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final finalizedDraftResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
+      catalog: await mergedCatalog(),
       appWidgets: appWidgets,
       flows: flows,
       renderedSources: finalRendered,
@@ -911,6 +917,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final result = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
+      catalog: await mergedCatalog(),
       appWidgets: appWidgets,
       flows: flows,
       renderedSources: finalRendered,
@@ -1111,11 +1118,11 @@ final class _TrackedCompilationCache {
 
   Future<TrackedPackageSurfaceCompilation> get(
     BuildStep buildStep,
-    RestageOutputPlacementPlan plan,
+    RestageOutputLocationPlan plan,
     MeasurementCompilerPolicyInput measurementPolicy, {
     required String builderKey,
   }) async {
-    await registerRestagePlacementSignature(
+    await registerRestageOutputLocationSignature(
       buildStep,
       plan,
       builderKey: builderKey,
@@ -1193,7 +1200,7 @@ Future<Map<String, Object>> _legacyPaywallLocalSeeds(
 }
 
 /// Fixed aggregate builder consumed by the outputs builder, which owns bundle
-/// and artifact placement.
+/// and artifact output location.
 @internal
 final class PackageSurfaceCompilerBuilder implements Builder {
   const PackageSurfaceCompilerBuilder(
@@ -1219,7 +1226,7 @@ final class PackageSurfaceCompilerBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    final plan = RestageOutputPlacementPlan.fromBuilderOptions(options);
+    final plan = RestageOutputLocationPlan.fromBuilderOptions(options);
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: plan,
@@ -1888,7 +1895,7 @@ Future<void> _appendResolvedScreens(
   required Map<String, MeasurementRouteEmissionPlan> routePlans,
   required Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByDeclarationIdentity,
-  required RestageOutputPlacementPlan placement,
+  required RestageOutputLocationPlan placement,
   required List<CompiledSurfaceArtifact> rendered,
   required List<ResolvedStandaloneScreenContract> contracts,
   required List<LegacyStandaloneScreenContract> legacyContracts,
@@ -1942,6 +1949,11 @@ Future<void> _appendResolvedScreens(
     rendered.add(
       CompiledSurfaceArtifact(
         declaration: screen.input.declaration,
+        compiledScreenInput: ResolvedWidgetMountInput(
+          assetId: screen.input.assetId,
+          screen: screen.input.declaration,
+          rootParams: screen.input.build.rootParams,
+        ),
         blob: screen.blob,
         capabilitySidecar: sidecar,
         flowArtifactPath: '${screen.input.id}.rfw',
@@ -2601,6 +2613,11 @@ Future<void> _compilePaywalls(
       rendered.add(
         CompiledSurfaceArtifact.fromPaywallAdapter(
           declaration: entry.value.declaration,
+          compiledScreenInput: ResolvedWidgetMountInput(
+            assetId: entry.value.assetId,
+            screen: entry.value.declaration,
+            rootParams: compiled.source.build.rootParams,
+          ),
           facts: facts,
           mountVocabulary: mountVocabulary,
           nativeMountInput: source.outputs

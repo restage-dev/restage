@@ -1,8 +1,5 @@
-// Runs RestageOutputsBuilder end to end (not just placement-path math) under
-// every configured placement option: adjacent layout, dart_output_root,
-// output_root, bundled_runtime, and inspection_report — individually and
-// combined, matching the precedence combination output_placement_test.dart
-// already proves at the path-resolution level.
+// Exercises the output builder with each output location option and their
+// precedence combinations, including bundled runtime and inspection reports.
 import 'dart:convert';
 
 import 'package:build/build.dart';
@@ -314,11 +311,8 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
       expect(report, contains(entry.logicalPath));
     }
 
-    // The library's canonical .rfwtxt sibling is bundled and rendered as
-    // fenced text in the report — configured placement doesn't change what
-    // belongs in the bundle. It is never indexed, under any placement: the
-    // index is an exact bijection with the manifest's own artifact set, and
-    // text is never a manifest artifact.
+    // The `.rfwtxt` sibling belongs in the bundle and report under every layout.
+    // It stays out of the index, which contains exactly the manifest's artifacts.
     const rfwTextPath = 'assets/general/screens/alpha.rfwtxt';
     final rfwTextEntry = bundle.entries.singleWhere(
       (entry) => entry.logicalPath == rfwTextPath,
@@ -413,7 +407,7 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
       isTrue,
       reason: 'The recorded bundle locator must be the exact physical '
           "result of the plan's own precedence, matching "
-          'output_placement_test.dart at the path-math level.',
+          'output_location_test.dart at the path-math level.',
     );
   });
 }

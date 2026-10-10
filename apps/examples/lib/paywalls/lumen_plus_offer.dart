@@ -7,6 +7,15 @@ import 'lumen_plus_checkout.dart';
 /// starts. The push to checkout lowers to a flow transition.
 @Paywall()
 class LumenPlusOfferPaywall extends StatefulWidget {
+  /// Asks the app to restore an existing subscription.
+  static const restorePurchases = SurfaceEvent<void>('restore_purchases');
+
+  /// Opens the subscription terms.
+  static const terms = SurfaceEvent<void>('terms');
+
+  /// Opens the privacy policy.
+  static const privacy = SurfaceEvent<void>('privacy');
+
   const LumenPlusOfferPaywall({super.key});
 
   @override

@@ -1,4 +1,6 @@
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MountSelectionAttributionV1, PresentationAssignmentCarrierV2;
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../resolver/surface_resolution_report.dart';
@@ -55,6 +57,9 @@ final class SurfaceDeliveryReceipt {
     required this.routeId,
     required this.latencyBucket,
     required this.minuteBucketUtc,
+    this.attribution,
+    this.routingSelectionReceipt,
+    this.assignment,
   });
 
   final Surface surfaceType;
@@ -70,6 +75,9 @@ final class SurfaceDeliveryReceipt {
   final String routeId;
   final SurfaceDeliveryLatencyBucket latencyBucket;
   final DateTime minuteBucketUtc;
+  final MountSelectionAttributionV1? attribution;
+  final String? routingSelectionReceipt;
+  final PresentationAssignmentCarrierV2? assignment;
 
   /// The wire form, with [count] presentations coalesced into it.
   Map<String, Object> toJson(int count) => <String, Object>{
@@ -85,6 +93,10 @@ final class SurfaceDeliveryReceipt {
         'latencyBucket': latencyBucket.name,
         'minute': formatMinute(minuteBucketUtc),
         'count': count,
+        if (attribution != null) 'attribution': attribution!.toJson(),
+        if (routingSelectionReceipt != null)
+          'routingSelectionReceipt': routingSelectionReceipt!,
+        if (assignment != null) 'assignment': assignment!.toJson(),
       };
 
   /// `2026-09-10T18:42Z` for [minute], which must be UTC.
@@ -108,7 +120,10 @@ final class SurfaceDeliveryReceipt {
           appBuild == other.appBuild &&
           routeId == other.routeId &&
           latencyBucket == other.latencyBucket &&
-          minuteBucketUtc == other.minuteBucketUtc;
+          minuteBucketUtc == other.minuteBucketUtc &&
+          attribution == other.attribution &&
+          routingSelectionReceipt == other.routingSelectionReceipt &&
+          assignment == other.assignment;
 
   @override
   int get hashCode => Object.hash(
@@ -123,5 +138,8 @@ final class SurfaceDeliveryReceipt {
         routeId,
         latencyBucket,
         minuteBucketUtc,
+        attribution,
+        routingSelectionReceipt,
+        assignment,
       );
 }

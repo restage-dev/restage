@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data' show BytesBuilder;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -23,6 +24,7 @@ import '../resolver/surface_request_inputs.dart';
 import '../retry_after.dart';
 import '../secure_transport.dart';
 import 'bounded_http_client.dart';
+import 'placement_delivery_adapter.dart';
 import 'surface_artifact_assembly.dart';
 import 'surface_delivery_evidence.dart';
 
@@ -663,6 +665,183 @@ class RestageRpcClient {
 
   int _heldArtifactBytes = 0;
 
+  TargetCoordinate? _placementTarget;
+
+  /// Target established by a verified reply from this authenticated session.
+  @internal
+  TargetCoordinate? get placementTarget => _placementTarget;
+
+  /// Reports local declarations through this authenticated HTTP session.
+  @internal
+  Future<bool> reportPlacementMounts(PlacementDiscoveryReportV1 report,
+      {required SurfaceRequestPublicationGuard publicationGuard}) async {
+    try {
+      if (!publicationGuard()) return false;
+      final response = await _client.post(
+        Uri.parse('$_baseUrl/sdk/v1/placements/report'),
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: report.canonicalBytes,
+      );
+      return publicationGuard() && response.statusCode == 200;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Verified content this session can advertise as held.
+  @internal
+  Map<ArtifactIdentityV1, List<int>> get heldPlacementArtifacts =>
+      Map.unmodifiable({
+        for (final entry in _artifacts.entries)
+          ArtifactIdentityV1(
+            payloadFormatVersion: entry.key.payloadFormatVersion,
+            contentHash: entry.key.contentHash,
+          ): Uint8List.fromList(entry.value).asUnmodifiableView(),
+      });
+
+  /// Resolves an ordered placement batch through the existing HTTP session.
+  @internal
+  Future<PlacementBatchResponseV1?> fetchPlacements(
+    PlacementBatchRequestV1 request, {
+    required SurfaceRequestPublicationGuard publicationGuard,
+    TargetCoordinate? expectedTarget,
+    Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
+    SurfaceAssignmentResolutionLease? registrationLease,
+    void Function(Duration retryAfter)? onRateLimited,
+  }) async {
+    void checkPublication() {
+      try {
+        if (publicationGuard() &&
+            (registrationLease == null || registrationLease.isCurrent)) {
+          return;
+        }
+      } on Object {
+        // A failed publication fence cannot authorize a request or result.
+      }
+      throw const SurfaceRequestPublicationRejected();
+    }
+
+    checkPublication();
+    final held = {...heldPlacementArtifacts, ...heldArtifactBytes};
+    final requestStartedAtMicros = _utcNowMicros();
+    final wire = http.Request(
+      'POST',
+      Uri.parse('$_baseUrl/sdk/v1/placements/resolve'),
+    )
+      ..headers.addAll({
+        'Authorization': 'Bearer $_apiKey',
+        'Content-Type': 'application/json',
+      })
+      ..bodyBytes = request.canonicalBytes;
+    final Uint8List bytes;
+    try {
+      final response = await _client.send(wire);
+      if (response.statusCode != 200) {
+        checkPublication();
+        if (response.statusCode == 429) {
+          onRateLimited?.call(retryAfterDelay(response.headers['retry-after']));
+        }
+        await response.stream.listen(null).cancel();
+        return null;
+      }
+      if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
+        await response.stream.listen(null).cancel();
+        return PlacementBatchResponseV1.refused(
+          reason: PlacementBatchRefusalReasonV1.invalidRequest,
+        );
+      }
+      final body = BytesBuilder(copy: false);
+      await for (final chunk in response.stream) {
+        checkPublication();
+        if (chunk.length > kMaximumPlacementResponseBytes - body.length) {
+          return PlacementBatchResponseV1.refused(
+            reason: PlacementBatchRefusalReasonV1.invalidRequest,
+          );
+        }
+        body.add(chunk);
+      }
+      bytes = body.takeBytes();
+    } on SurfaceRequestPublicationRejected {
+      rethrow;
+    } on Object {
+      return null;
+    }
+    checkPublication();
+    final PlacementBatchResponseV1 response;
+    try {
+      response = PlacementBatchResponseV1.fromCanonicalBytes(
+        bytes,
+        request: request,
+        expectedTarget: expectedTarget ?? _placementTarget,
+        heldArtifactBytes: held,
+      );
+    } on CanonicalFormatException {
+      return PlacementBatchResponseV1.refused(
+        reason: PlacementBatchRefusalReasonV1.invalidRequest,
+      );
+    }
+    final confirmation = switch (response) {
+      PlacementBatchResolvedV1(:final registration) => registration,
+      PlacementBatchRefusedV1(:final registration) => registration,
+    };
+    if (confirmation != null &&
+        (registrationLease == null ||
+            !await _acceptFoldedRegistration(
+              confirmation.toJson(),
+              registrationLease,
+              requestStartedAtMicros,
+            ))) {
+      return PlacementBatchResponseV1.refused(
+        reason: PlacementBatchRefusalReasonV1.invalidAuthority,
+      );
+    }
+    if (response is PlacementBatchResolvedV1) {
+      final artifacts = await assemblePlacementDeliveryArtifacts(
+        response,
+        heldArtifactBytes: held,
+        publicationGuard: publicationGuard,
+      );
+      checkPublication();
+      if (artifacts == null) {
+        return PlacementBatchResponseV1.refused(
+          reason: PlacementBatchRefusalReasonV1.invalidRequest,
+        );
+      }
+      attachPlacementArtifacts(response, artifacts);
+      for (final entry in artifacts.frames.entries) {
+        _rememberArtifact(
+          _ArtifactIdentity(
+            payloadFormatVersion: entry.key.payloadFormatVersion,
+            contentHash: entry.key.contentHash,
+          ),
+          entry.value,
+        );
+      }
+      if (response.decisions.isNotEmpty) {
+        _placementTarget ??=
+            response.decisions.first.descriptor.placement.target;
+      }
+    }
+    checkPublication();
+    return response;
+  }
+
+  void _rememberArtifact(_ArtifactIdentity identity, Uint8List bytes) {
+    if (_artifacts.containsKey(identity) ||
+        bytes.length > _maxHeldArtifactBytes) {
+      return;
+    }
+    while (_artifacts.isNotEmpty &&
+        _heldArtifactBytes + bytes.length > _maxHeldArtifactBytes) {
+      _heldArtifactBytes -= _artifacts.remove(_artifacts.keys.first)!.length;
+    }
+    _artifacts[identity] = bytes;
+    _heldArtifactBytes += bytes.length;
+  }
+
   /// Accepted binding reads, held for this client's origin and key only.
   final Map<MeasurementPublicationBindingReferenceV1,
           MeasurementPublicationBindingReadRpcAccepted>
@@ -1051,6 +1230,8 @@ class RestageRpcClient {
             if (analyticsAnonymousId != null)
               'analyticsAnonymousId': analyticsAnonymousId,
             if (builtIns != null) 'sdkBuiltInsCanonicalBase64': builtIns,
+            if (gathered.sdkInstalledLibraries case final carrier?)
+              'sdkInstalledLibraries': carrier,
             if (heldAssignment != null)
               'assignmentCanonicalBase64': heldAssignment,
             if (registration != null && registration.credentialHandle == null)
@@ -1274,15 +1455,7 @@ class RestageRpcClient {
       // Held only once it has been verified and decoded. Caching bytes that
       // failed either gate would hand the next resolve a refusal it had already
       // earned, and would do it without a fetch that might now succeed.
-      if (bytes.length <= _maxHeldArtifactBytes) {
-        while (_artifacts.isNotEmpty &&
-            _heldArtifactBytes + bytes.length > _maxHeldArtifactBytes) {
-          _heldArtifactBytes -=
-              _artifacts.remove(_artifacts.keys.first)!.length;
-        }
-        _artifacts[identity] = bytes;
-        _heldArtifactBytes += bytes.length;
-      }
+      _rememberArtifact(identity, bytes);
     }
     return (
       outcome: _reported(

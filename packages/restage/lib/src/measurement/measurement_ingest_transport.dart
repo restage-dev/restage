@@ -12,11 +12,13 @@ final class MeasurementIngestSubmission {
   /// Validates [factFrame] once through the shared schema contract and encodes
   /// the exact authenticated request envelope.
   factory MeasurementIngestSubmission.fromFactFrame(
-    MeasurementFactFrame factFrame,
-  ) =>
+    MeasurementFactFrame factFrame, {
+    String? routingSelectionReceipt,
+  }) =>
       MeasurementIngestSubmission._(
         MeasurementIngestRequestV1.fromFactFrame(
           factFrame.validatedIngestFrameV1,
+          routingSelectionReceipt: routingSelectionReceipt,
         ),
       );
 

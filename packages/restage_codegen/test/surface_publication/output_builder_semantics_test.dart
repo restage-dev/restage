@@ -190,25 +190,10 @@ void main() {
     );
   });
 
-  // NOTE on "stale output deletion": `testBuilder()` runs each call through a
-  // brand-new `BuildPlan`/asset graph (`BuildPlan.load` +
-  // `deleteFilesAndFolders()` at the start of every invocation) — it has no
-  // memory of a *previous* `testBuilder()` call's build. A file this harness
-  // left behind from an earlier round persists in the shared `TestReaderWriter`
-  // purely as a filesystem artifact of the test harness, not because a real
-  // incremental build chose to keep it. Proving that a real `build_runner`
-  // watch/incremental run deletes a stale output for a removed/renamed input
-  // is build_runner's own persistent asset-graph responsibility (exercised by
-  // its own test suite, not by this package's builder-level unit tests) — the
-  // property this builder must uphold, and the one provable here, is that
-  // every physical output path is one `output_placement_test.dart` already
-  // proves is statically enumerable from `buildExtensions` (never an
-  // arbitrary runtime-chosen path), which is exactly the precondition
-  // build_runner's real engine needs to prune it. What's provable per build
-  // round via `TestBuilderResult.outputs` is that a round which no longer
-  // admits a library does not (re)write that library's bundle, and that a
-  // renamed library's bundle is written at its new path with its bytes
-  // intact.
+  // Each `testBuilder` call creates a new asset graph. This test checks
+  // which outputs each build writes; incremental stale-file deletion belongs
+  // to build_runner. `output_location_test.dart` checks that output paths
+  // are enumerable from `buildExtensions`, as deletion requires.
   test('removing an authored library stops producing its bundle', () async {
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',

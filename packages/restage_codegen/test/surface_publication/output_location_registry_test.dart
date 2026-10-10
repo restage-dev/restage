@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// Every builder that resolves a placement plan registers it, so a package
+/// Every builder that resolves an output location plan registers it, so a package
 /// that configures one Restage builder key and forgets another is told.
 ///
 /// Build Runner has no cross-builder options channel: each key accepts the
@@ -19,7 +19,7 @@ import '../helpers.dart';
 const _divergenceMessage =
     'Placement options divergence between Restage builder targets';
 
-/// One authored library with no Restage declaration at all. Placement is
+/// One authored library with no Restage declaration at all. Output location is
 /// resolved from options alone, so the record has to disagree on the options
 /// even when the package has nothing to compile.
 const _source = '// authored, no Restage declarations\n';

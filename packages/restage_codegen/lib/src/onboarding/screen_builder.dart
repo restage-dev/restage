@@ -28,7 +28,7 @@ import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
 import 'package:restage_codegen/src/source_state.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
@@ -669,7 +669,7 @@ final class OnboardingScreenBuilder implements Builder {
   ) async {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
-      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      plan: RestageOutputLocationPlan.fromBuilderOptions(options),
       measurementPolicy:
           MeasurementCompilerPolicyInput.fromBuilderOptions(options),
       builderKey: 'restage_codegen:${surface.wireName}_screen_codegen',

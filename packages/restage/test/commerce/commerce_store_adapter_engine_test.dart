@@ -2,20 +2,36 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/commerce.dart';
-import 'package:restage/restage.dart' show Restage;
+import 'package:restage/restage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage/src/commerce/commerce_report_queue.dart';
 import 'package:restage/src/commerce/commerce_report_queue_io.dart';
 import 'package:restage/src/commerce/restage_commerce.dart';
+import 'package:restage/src/delivery/surface_artifact_store.dart';
+import 'package:restage/src/delivery/surface_delivery_receipt_batch.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart';
+import 'package:restage/src/resolver/surface_metering_key_provider.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/measurement/placement_mount_attribution.dart';
+import 'package:restage/src/restage_rpc_client/placement_delivery_adapter.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/commerce.dart';
+import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/placement_delivery_fixture.dart';
+import '../measurement/admitted_bundled_publication_fixture.dart';
+import '../measurement/measurement_host_construction_test_support.dart';
 
 const _applicationToken = 'c9ea7617-468c-4be9-9430-080703537a9c';
 const _secondApplicationToken = '59eb1fa6-e556-46a4-9fb8-1f77244fe865';
@@ -24,6 +40,620 @@ const _appAccountToken = '65f81e99-48e0-4acf-a532-12a27b6b119c';
 void main() {
   setUp(Restage.debugReset);
   tearDown(Restage.debugReset);
+
+  for (final measurementEnabled in [false, true]) {
+    test(
+        'placement purchase retains selected publication with Measurement '
+        '${measurementEnabled ? 'pending' : 'disabled'}', () async {
+      SharedPreferences.setMockInitialValues({});
+      final directory =
+          await Directory.systemTemp.createTemp('restage-placement-');
+      addTearDown(() => directory.delete(recursive: true));
+      const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathChannel, (_) async => directory.path);
+      addTearDown(() => TestDefaultBinaryMessengerBinding
+          .instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathChannel, null));
+      Restage.configure(
+          analyticsEnabled: measurementEnabled,
+          measurementEnabled: measurementEnabled);
+      final fixture = readPlacementDeliveryFixture();
+      final artifacts = await assemblePlacementDeliveryArtifacts(
+          fixture.response,
+          publicationGuard: () => true);
+      final base =
+          (fixture.response.decisions.first as PlacementBatchAvailableV1)
+              .publicDelivery;
+      final assignment = PresentationAssignmentCarrierV2(
+          owner: PresentationAssignmentOwnerV2.path,
+          outcomeLinkCarrier: 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc');
+      final delivery = PublicPlacementDeliveryV1(
+          mount: base.mount,
+          path: base.path,
+          selectedSurface: base.selectedSurface,
+          actualPublication: base.actualPublication,
+          cacheValidity: base.cacheValidity,
+          fitRequirement: base.fitRequirement,
+          dependencyClosure: base.dependencyClosure,
+          routingSelectionReceipt: 'opaque.original.receipt',
+          assignment: assignment);
+      final snapshot = MountAttributionSnapshotV1.hosted(
+          delivery: delivery,
+          defaultSurface: fixture.request.mounts.first.defaultSurface,
+          selectedDocument: artifacts!.publications[delivery.actualPublication],
+          mountInstanceNonce: 'a' * 43);
+      final intents = <Map<String, dynamic>>[];
+      final adapter = _TestStoreAdapter(
+          store: CommerceStore.appStore,
+          products: const <CommerceStoreProduct>[]);
+      addTearDown(adapter.close);
+      _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          client: MockClient((request) async {
+            intents.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return http.Response('unavailable', 404);
+          }));
+
+      await MountAttributionEventContext(
+          snapshot: snapshot,
+          isCurrent: () =>
+              true).run(() => Restage.commerce
+          .purchase(CommercePurchaseRequest(CommerceOfferId('offer.monthly'))));
+
+      final intent = CommerceIntentRequest.fromJson(intents.single);
+      expect(intent.attribution, snapshot.attribution);
+      expect(intent.routingSelectionReceipt, 'opaque.original.receipt');
+      expect(intent.assignment, assignment);
+      expect(intent.surfaceId,
+          delivery.selectedSurface.surfaceIdentity.surfaceId.value);
+      expect(intent.surfaceKind, 'general');
+      expect(intent.variantSlug, 'welcome');
+      expect(intent.publishedVersion, 9);
+      expect(intent.attribution!.actualSurface!.family,
+          isNot(snapshot.defaultSurface!.family));
+      await Restage.debugResetAndWait();
+    });
+  }
+
+  test('queued placement purchase cannot use invalidated captured authority',
+      () async {
+    final fixture = readPlacementDeliveryFixture();
+    final snapshot = MountAttributionSnapshotV1.hosted(
+        delivery:
+            (fixture.response.decisions.first as PlacementBatchAvailableV1)
+                .publicDelivery,
+        defaultSurface: fixture.request.mounts.first.defaultSurface,
+        mountInstanceNonce: 'a' * 43);
+    final directory =
+        await Directory.systemTemp.createTemp('restage-placement-');
+    addTearDown(() => directory.delete(recursive: true));
+    final queueReady = Completer<CommerceReportQueue>();
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const <CommerceStoreProduct>[]);
+    addTearDown(adapter.close);
+    var requests = 0;
+    _activate(
+        adapter: adapter,
+        queueFactory: () => queueReady.future,
+        client: MockClient((_) async {
+          requests++;
+          return http.Response('unavailable', 404);
+        }));
+    var current = true;
+    final pending = MountAttributionEventContext(
+        snapshot: snapshot,
+        isCurrent: () => true,
+        isAuthorityCurrent: () =>
+            current).run(() => Restage.commerce
+        .purchase(CommercePurchaseRequest(CommerceOfferId('offer.monthly'))));
+    current = false;
+    queueReady.complete(CommerceFileReportQueue(directoryPath: directory.path));
+    expect((await pending).status, CommerceActionStatusCode.failed);
+    expect(requests, 0);
+  });
+
+  testWidgets('simultaneous painted hosts share receipt and purchase tuples',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+        appName: 'test',
+        packageName: 'test',
+        version: '1',
+        buildNumber: '42',
+        buildSignature: '');
+    debugResetAppBuildOrdinal();
+    sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
+    addTearDown(() => sharedSurfaceArtifactStore = null);
+    final directory = await _paintedHostStorage(tester);
+    Restage.configure(
+        apiKey: 'rs_pk_test',
+        baseUrl: 'https://example.com',
+        analyticsEnabled: false,
+        measurementEnabled: false,
+        deliveryReceiptsEnabled: true);
+    debugResetInstallObservations();
+    debugSetOsVersion(19);
+    SurfaceMeteringKeyProvider.clear();
+    Restage.debugPlacementNow = () => DateTime.utc(2026, 10, 4, 12);
+    Restage.debugRestageRpcClient = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/placements/resolve')) {
+            return http.Response.bytes(
+                placementFixtureResponse(
+                        PlacementBatchRequestV1.fromCanonicalBytes(
+                            request.bodyBytes),
+                        routingSelectionReceipt: 'opaque.original.receipt')
+                    .canonicalBytes,
+                200);
+          }
+          return http.Response('{}', 200);
+        }));
+    final fixture = readPlacementDeliveryFixture();
+    final definition = GeneratedPlacementDefinition(
+        defaultSurface: const PaywallRef('original'),
+        defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+            surfaceType: DeliverySurfaceTypeId('paywall'),
+            slug: 'original',
+            family: const DeliveryFamilySelectorV1.general()),
+        key: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('paywall'), slug: 'original'),
+        hostContract:
+            fixture.request.buildContract.contractsByHash.values.first,
+        vocabulary: SurfaceVocabulary.none);
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const <CommerceStoreProduct>[]);
+    addTearDown(adapter.close);
+    final intents = <CommerceIntentRequest>[];
+    await tester.runAsync(() async {
+      _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          client: MockClient((request) async {
+            intents.add(CommerceIntentRequest.fromJson(
+                jsonDecode(request.body) as Map<String, Object?>));
+            return http.Response('{}', 404);
+          }));
+    });
+    final controllers = [
+      RestagePaywallController(),
+      RestagePaywallController()
+    ];
+    final purchases = <Future<CommerceActionResult>>[];
+    await tester.pumpWidget(MaterialApp(
+        home: Column(children: [
+      for (var i = 0; i < 2; i++)
+        SizedBox(
+            width: 80,
+            height: 25,
+            child: RestagePaywall(
+                id: 'original',
+                controller: controllers[i],
+                placementBinding: PlacementMountBinding(
+                    definition: () => definition,
+                    name: i == 0 ? 'home_card' : 'footer_card'),
+                fallbackBuilder: (_) => const Text('Original'),
+                onEvent: (event) {
+                  if (event is PaywallCustomEvent && event.eventName == 'buy') {
+                    purchases.add(Restage.commerce.purchase(
+                        CommercePurchaseRequest(
+                            CommerceOfferId('offer.monthly'))));
+                  }
+                })),
+    ])));
+    for (var i = 0; i < 35; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    final renderedCount = find.text('Welcome').evaluate().length;
+    await tester.runAsync(() async {
+      controllers[0].fireEvent('buy');
+      controllers[1].fireEvent('buy');
+      await Future.wait(purchases);
+    });
+    final receipts = await SurfaceDeliveryReceiptBatch.instance.drain();
+    final painted = receipts.counts.keys
+        .where((receipt) => receipt.attribution != null)
+        .toList();
+    await tester.pumpWidget(const SizedBox());
+    expect(renderedCount, 2);
+    expect(intents, hasLength(2));
+    expect(painted, hasLength(2));
+    expect(
+        intents.map((intent) => intent.attribution!.placementKey!.slug).toSet(),
+        {'home_card', 'footer_card'});
+    expect(
+        intents.map((intent) => intent.attribution!.mountNonceDigest).toSet(),
+        hasLength(2));
+    for (final intent in intents) {
+      final receipt = painted.singleWhere((receipt) =>
+          receipt.attribution!.placementKey ==
+          intent.attribution!.placementKey);
+      expect(receipt.attribution, intent.attribution);
+      expect(receipt.routingSelectionReceipt, intent.routingSelectionReceipt);
+      expect(intent.routingSelectionReceipt, 'opaque.original.receipt');
+      expect(intent.variantSlug, 'welcome');
+      expect(intent.surfaceKind, 'general');
+      expect(intent.publishedVersion, 9);
+    }
+    controllers.first.fireEvent('buy');
+    await tester.pump();
+    expect(intents, hasLength(2));
+    // Reset outside the fake-async zone so retired commerce work can settle.
+    await tester.runAsync(Restage.debugResetAndWait);
+  });
+
+  test('Restage.events retains broadcast subscription behavior', () async {
+    final events = Restage.events;
+    expect(events.isBroadcast, isTrue);
+    expect(identical(events, Restage.events), isTrue);
+    final paused = <RestageEvent>[];
+    final other = <RestageEvent>[];
+    final subscription = events.listen(null);
+    subscription.onData(paused.add);
+    subscription.pause();
+    final second = events.listen(other.add);
+    const event = PaywallViewed(paywallId: 'original');
+    Restage.debugFire(event);
+    await Future<void>.delayed(Duration.zero);
+    expect(paused, isEmpty);
+    expect(other, [event]);
+    expect(subscription.isPaused, isTrue);
+    subscription.resume();
+    await Future<void>.delayed(Duration.zero);
+    expect(paused, [event]);
+    subscription.onData((event) => paused.insert(0, event));
+    await second.cancel();
+    const next = PaywallViewed(paywallId: 'other');
+    Restage.debugFire(next);
+    await Future<void>.delayed(Duration.zero);
+    expect(paused, [next, event]);
+    expect(other, [event]);
+    final filtered = <RestageEvent>[];
+    final failures = <Object>[];
+    final filterSubscription = events.where((value) {
+      if (identical(value, next)) throw StateError('filter refused');
+      return true;
+    }).listen(filtered.add, onError: failures.add);
+    final cancellingFailures = <Object>[];
+    final cancelledOnError = events
+        .where((_) => throw StateError('filter refused'))
+        .listen((_) => fail('A failed filter cannot emit data'),
+            onError: cancellingFailures.add, cancelOnError: true);
+    Restage.debugFire(next);
+    Restage.debugFire(event);
+    await Future<void>.delayed(Duration.zero);
+    expect(failures.single, isStateError);
+    expect(filtered, [event]);
+    expect(cancellingFailures, hasLength(1));
+    await filterSubscription.cancel();
+    await cancelledOnError.cancel();
+    final completed = subscription.asFuture<void>();
+    Restage.debugReset();
+    await completed;
+  });
+
+  for (final filtered in [false, true]) {
+    testWidgets(
+        'delayed ${filtered ? 'filtered ' : ''}Restage.events purchases keep interleaved painted mount tuples',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      PackageInfo.setMockInitialValues(
+          appName: 'test',
+          packageName: 'test',
+          version: '1',
+          buildNumber: '42',
+          buildSignature: '');
+      debugResetAppBuildOrdinal();
+      sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
+      addTearDown(() => sharedSurfaceArtifactStore = null);
+      final directory = await _paintedHostStorage(tester);
+      Restage.configure(
+          apiKey: 'rs_pk_test',
+          baseUrl: 'https://example.com',
+          analyticsEnabled: false,
+          measurementEnabled: false,
+          deliveryReceiptsEnabled: true);
+      debugResetInstallObservations();
+      debugSetOsVersion(19);
+      SurfaceMeteringKeyProvider.clear();
+      Restage.debugPlacementNow = () => DateTime.utc(2026, 10, 4, 12);
+      Restage.debugRestageRpcClient = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient((request) async {
+            if (!request.url.path.endsWith('/placements/resolve')) {
+              return http.Response('{}', 200);
+            }
+            return http.Response.bytes(
+                placementFixtureResponse(
+                        PlacementBatchRequestV1.fromCanonicalBytes(
+                            request.bodyBytes),
+                        routingSelectionReceipt: 'opaque.original.receipt')
+                    .canonicalBytes,
+                200);
+          }));
+      final fixture = readPlacementDeliveryFixture();
+      final definition = GeneratedPlacementDefinition(
+          defaultSurface: const PaywallRef('original'),
+          defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+              surfaceType: DeliverySurfaceTypeId('paywall'),
+              slug: 'original',
+              family: const DeliveryFamilySelectorV1.general()),
+          key: PlacementKeyV1.generatedDefault(
+              surfaceType: DeliverySurfaceTypeId('paywall'), slug: 'original'),
+          hostContract:
+              fixture.request.buildContract.contractsByHash.values.first,
+          vocabulary: SurfaceVocabulary.none);
+      final adapter = _TestStoreAdapter(
+          store: CommerceStore.appStore,
+          products: const <CommerceStoreProduct>[]);
+      addTearDown(adapter.close);
+      final intents = <CommerceIntentRequest>[];
+      await tester.runAsync(() async {
+        _activate(
+            adapter: adapter,
+            journalPath: directory.path,
+            client: MockClient((request) async {
+              intents.add(CommerceIntentRequest.fromJson(
+                  jsonDecode(request.body) as Map<String, Object?>));
+              return http.Response('{}', 404);
+            }));
+      });
+      late Map<String, Completer<void>> releases;
+      late Map<String, Completer<void>> received;
+      final purchases = <String, Future<CommerceActionResult>>{};
+      late StreamSubscription<RestageEvent> subscription;
+      await tester.runAsync(() async {
+        releases = {
+          for (final attempt in ['home', 'footer', 'reset'])
+            attempt: Completer<void>()
+        };
+        received = {
+          for (final attempt in releases.keys) attempt: Completer<void>()
+        };
+        final events = filtered
+            ? Restage.events.where((event) => event is PaywallCustomEvent)
+            : Restage.events;
+        subscription = events.listen((event) {
+          if (event is! PaywallCustomEvent || event.eventName != 'buy') return;
+          final attempt = event.args['attempt']! as String;
+          purchases[attempt] = () async {
+            received[attempt]!.complete();
+            await releases[attempt]!.future;
+            return Restage.commerce.purchase(
+                CommercePurchaseRequest(CommerceOfferId('offer.monthly')));
+          }();
+        });
+      });
+      final controllers = [
+        RestagePaywallController(),
+        RestagePaywallController()
+      ];
+      await tester.pumpWidget(MaterialApp(
+          home: Column(children: [
+        for (var i = 0; i < controllers.length; i++)
+          SizedBox(
+              width: 80,
+              height: 25,
+              child: RestagePaywall(
+                  id: 'original',
+                  controller: controllers[i],
+                  placementBinding: PlacementMountBinding(
+                      definition: () => definition,
+                      name: i == 0 ? 'home_card' : 'footer_card'),
+                  fallbackBuilder: (_) => const Text('Original')))
+      ])));
+      for (var i = 0; i < 35; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      final rendered = find.text('Welcome').evaluate().length;
+      await tester.runAsync(() async {
+        controllers[0].fireEvent('buy', args: {'attempt': 'home'});
+        controllers[1].fireEvent('buy', args: {'attempt': 'footer'});
+        controllers[0].fireEvent('buy', args: {'attempt': 'reset'});
+        await Future.wait(received.values.map((value) => value.future));
+      });
+      final receipts = await SurfaceDeliveryReceiptBatch.instance.drain();
+      final painted = receipts.counts.keys
+          .where((receipt) => receipt.attribution != null)
+          .toList();
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async {
+        releases['footer']!.complete();
+        await purchases['footer'];
+        releases['home']!.complete();
+        await purchases['home'];
+      });
+      final beforeReset = intents.toList();
+      await tester.runAsync(() async => Restage.configure(
+          analyticsEnabled: false, measurementEnabled: false));
+      final resetResult = await tester.runAsync(() async {
+        releases['reset']!.complete();
+        return purchases['reset']!;
+      });
+      await tester.runAsync(subscription.cancel);
+      await tester.runAsync(Restage.debugResetAndWait);
+      expect(rendered, 2);
+      expect(beforeReset, hasLength(2));
+      expect(beforeReset.every((intent) => intent.attribution != null), isTrue);
+      expect(
+          beforeReset.map((intent) => intent.attribution!.placementKey!.slug),
+          ['footer_card', 'home_card']);
+      expect(
+          beforeReset
+              .map((intent) => intent.attribution!.mountNonceDigest)
+              .toSet(),
+          hasLength(2));
+      for (final intent in beforeReset) {
+        final receipt = painted.singleWhere((receipt) =>
+            receipt.attribution!.placementKey ==
+            intent.attribution!.placementKey);
+        expect(intent.attribution, receipt.attribution);
+        expect(intent.routingSelectionReceipt, receipt.routingSelectionReceipt);
+        expect(intent.routingSelectionReceipt, 'opaque.original.receipt');
+        expect(intent.variantSlug, 'welcome');
+        expect(intent.surfaceKind, 'general');
+        expect(intent.publishedVersion, 9);
+      }
+      expect(resetResult!.status, CommerceActionStatusCode.failed);
+      expect(intents, hasLength(2));
+      await tester.pump();
+    });
+  }
+
+  testWidgets(
+      'painted purchase precedes delayed Measurement with one mount nonce',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+        appName: 'test',
+        packageName: 'test',
+        version: '1',
+        buildNumber: '42',
+        buildSignature: '');
+    debugResetAppBuildOrdinal();
+    sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
+    addTearDown(() => sharedSurfaceArtifactStore = null);
+    final directory = await _paintedHostStorage(tester);
+    Restage.configure(
+        apiKey: 'rs_pk_test',
+        baseUrl: 'https://example.com',
+        analyticsEnabled: true,
+        measurementEnabled: true,
+        deliveryReceiptsEnabled: true);
+    debugResetInstallObservations();
+    debugSetOsVersion(19);
+    SurfaceMeteringKeyProvider.clear();
+    SurfaceAssignmentKeyProvider.current = () => null;
+    Restage.debugPlacementNow = () => DateTime.utc(2026, 10, 4, 12);
+    final fixture = readPlacementDeliveryFixture();
+    final base = (fixture.response.decisions.first as PlacementBatchAvailableV1)
+        .publicDelivery;
+    final publication = AdmittedBundledPublicationFixture.build(
+        artifact: fixture.response.artifacts.single.bytes);
+    final release = Completer<void>();
+    final harness = AdmittedConstructionOwnerHostTestHarness.install(
+        publicationContext: publication.publicationContextRef,
+        hostedBindingReadPortLookup: () =>
+            _DelayedBindingReadPort(publication, release.future));
+    addTearDown(harness.close);
+    final actualPublication = DeliveryPublicationReferenceV1(
+        surface: DeliverySurfaceReferenceV1(
+            surfaceIdentity:
+                publication.binding.publishedSurfaceRevision.surfaceIdentity,
+            family: base.selectedSurface.family),
+        publishedVersion: 2,
+        payloadFormatVersion: base.actualPublication.payloadFormatVersion,
+        contentHash: base.actualPublication.contentHash,
+        publicationBindingRef: publication.binding.reference);
+    Restage.debugRestageRpcClient = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((request) async {
+          if (!request.url.path.endsWith('/placements/resolve')) {
+            return http.Response('{}', 200);
+          }
+          return http.Response.bytes(
+              placementFixtureResponse(
+                      PlacementBatchRequestV1.fromCanonicalBytes(
+                          request.bodyBytes),
+                      publicationOverride: actualPublication,
+                      routingSelectionReceipt: 'opaque.original.receipt')
+                  .canonicalBytes,
+              200);
+        }));
+    final definition = GeneratedPlacementDefinition(
+        defaultSurface: const PaywallRef('original'),
+        defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+            surfaceType: DeliverySurfaceTypeId('paywall'),
+            slug: 'original',
+            family: const DeliveryFamilySelectorV1.general()),
+        key: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('paywall'), slug: 'original'),
+        hostContract:
+            fixture.request.buildContract.contractsByHash.values.first,
+        vocabulary: SurfaceVocabulary.none);
+    final adapter = _TestStoreAdapter(
+        store: CommerceStore.appStore,
+        products: const <CommerceStoreProduct>[]);
+    addTearDown(adapter.close);
+    final intents = <CommerceIntentRequest>[];
+    await tester.runAsync(() async {
+      _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          client: MockClient((request) async {
+            intents.add(CommerceIntentRequest.fromJson(
+                jsonDecode(request.body) as Map<String, Object?>));
+            return http.Response('{}', 404);
+          }));
+    });
+    final controller = RestagePaywallController();
+    Future<CommerceActionResult>? purchase;
+    await tester.pumpWidget(MaterialApp(
+        home: SizedBox(
+            width: 80,
+            height: 25,
+            child: RestagePaywall(
+                id: 'original',
+                controller: controller,
+                placementBinding: PlacementMountBinding(
+                    definition: () => definition, name: 'home_card'),
+                fallbackBuilder: (_) => const Text('Original'),
+                onEvent: (event) {
+                  if (event is PaywallCustomEvent && event.eventName == 'buy') {
+                    purchase = Restage.commerce.purchase(
+                        CommercePurchaseRequest(
+                            CommerceOfferId('offer.monthly')));
+                  }
+                }))));
+    for (var i = 0; i < 50; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    final rendered = find.text('Welcome').evaluate().length;
+    await tester.runAsync(() async {
+      controller.fireEvent('buy');
+      await purchase;
+    });
+    final beforeMeasurement = harness.worker.registrations.length;
+    final beforeOpen = intents.toList();
+    release.complete();
+    for (var i = 0; i < 50 && harness.worker.registrations.isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    final registrations = harness.worker.registrations.toList();
+    final receipts = await SurfaceDeliveryReceiptBatch.instance.drain();
+    final painted = receipts.counts.keys
+        .where((receipt) => receipt.attribution != null)
+        .toList();
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(Restage.debugResetAndWait);
+    expect(rendered, 1);
+    expect(beforeMeasurement, 0);
+    expect(beforeOpen, hasLength(1));
+    expect(registrations, hasLength(1));
+    final registration = registrations.single;
+    final attribution = MountSelectionAttributionV1.fromCanonicalBytes(
+        registration.attributionCanonicalBytes!);
+    expect(attribution, beforeOpen.single.attribution);
+    expect(attribution, painted.single.attribution);
+    expect(attribution.measurementBinding, publication.binding.reference);
+    expect(attribution.actualPublication!.publishedVersion, 2);
+    expect(registration.routingSelectionReceipt,
+        beforeOpen.single.routingSelectionReceipt);
+    expect(beforeOpen.single.routingSelectionReceipt,
+        painted.single.routingSelectionReceipt);
+    expect(
+        attribution.mountNonceDigest.hex,
+        crypto.sha256
+            .convert(utf8.encode(registration.captureSessionNonce))
+            .toString());
+  });
 
   test('maps an Apple transaction through a verified report before finishing',
       () async {
@@ -4155,7 +4785,15 @@ void main() {
       () async {
     final directory = await Directory.systemTemp.createTemp('restage-engine-');
     addTearDown(() => _deleteAfterCommerceStops(directory));
-    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final retryPersisted = Completer<CommerceReportRecord?>();
+    final queue = _FaultingCommerceReportQueue(
+      CommerceFileReportQueue(directoryPath: directory.path),
+      onRetryScheduled: (record) {
+        if (record?.applicationAnonymousToken == _applicationToken) {
+          retryPersisted.complete(record);
+        }
+      },
+    );
     await queue.enqueue(
       CommerceReportRecord(
         reportId: '8ba77254-6ab0-4ec8-ae50-f12273ac1f51',
@@ -4226,7 +4864,23 @@ void main() {
       Restage.commerce.currentState.entitlements.single.entitlementId,
       'entitlement.shared',
     );
+    await queue.open();
     oldRelease.complete(http.Response('', 503));
+    final retried =
+        await retryPersisted.future.timeout(const Duration(seconds: 2));
+    expect(retried!.retryAttempt, 1);
+    expect(retried.applicationAnonymousToken, _applicationToken);
+    Restage.debugReset();
+    await queue.open();
+    final persisted =
+        await CommerceFileReportQueue(directoryPath: directory.path).open();
+    expect(
+      persisted
+          .singleWhere(
+              (record) => record.applicationAnonymousToken == _applicationToken)
+          .retryAttempt,
+      1,
+    );
   });
 
   test('changed proof stays distinct from a pending provider report', () async {
@@ -5479,6 +6133,21 @@ http.Response _jsonResponse(
     });
 
 /// Stops commerce before deleting its journal, so no write lands mid-delete.
+/// Temp storage for a widget test; configure purges persisted delivery there.
+Future<Directory> _paintedHostStorage(WidgetTester tester) async {
+  final directory = (await tester
+      .runAsync(() => Directory.systemTemp.createTemp('restage-placement-')))!;
+  const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(pathProvider, (_) async => directory.path);
+  addTearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pathProvider, null);
+    await directory.delete(recursive: true);
+  });
+  return directory;
+}
+
 Future<void> _deleteAfterCommerceStops(Directory directory) async {
   await debugResetRestageCommerce().timeout(_progressTimeout);
   await directory.delete(recursive: true);
@@ -5743,12 +6412,32 @@ final class _TestStoreAdapter implements CommerceStoreAdapter {
   Future<void> close() => _transactions.close();
 }
 
+final class _DelayedBindingReadPort
+    implements MeasurementPublicationBindingReadPort {
+  _DelayedBindingReadPort(this.publication, this.ready);
+
+  final AdmittedBundledPublicationFixture publication;
+  final Future<void> ready;
+
+  @override
+  Future<MeasurementPublicationBindingReadResult> readExact(
+      MeasurementPublicationBindingReferenceV1 reference) async {
+    await ready;
+    return MeasurementPublicationBindingReadAccepted(
+        reference: reference,
+        binding: publication.binding,
+        registeredPublicationAttestation:
+            publication.entry.registeredPublicationAttestation);
+  }
+}
+
 final class _FaultingCommerceReportQueue implements CommerceReportQueue {
   _FaultingCommerceReportQueue(
     this.delegate, {
     this.enqueueFailures = 0,
     this.acknowledgeFailures = 0,
     this.onDueCompleted,
+    this.onRetryScheduled,
   });
 
   final CommerceReportQueue delegate;
@@ -5756,6 +6445,7 @@ final class _FaultingCommerceReportQueue implements CommerceReportQueue {
   int acknowledgeFailures;
   int enqueueAttempts = 0;
   final void Function()? onDueCompleted;
+  final void Function(CommerceReportRecord?)? onRetryScheduled;
 
   @override
   Future<List<CommerceReportRecord>> open() => delegate.open();
@@ -5788,8 +6478,11 @@ final class _FaultingCommerceReportQueue implements CommerceReportQueue {
   }
 
   @override
-  Future<CommerceReportRecord?> scheduleRetry(String reportId) =>
-      delegate.scheduleRetry(reportId);
+  Future<CommerceReportRecord?> scheduleRetry(String reportId) async {
+    final record = await delegate.scheduleRetry(reportId);
+    onRetryScheduled?.call(record);
+    return record;
+  }
 
   @override
   Future<void> acknowledge(String reportId) {

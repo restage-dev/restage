@@ -170,7 +170,7 @@ void main() {
       expect(emitted, isNot(contains(contract.contractFingerprint)));
       expect(
         sha256.convert(utf8.encode(emitted)).toString(),
-        'cb18c88121c251b21b1506024ad4ba370c1fa05c53e51045ce517e31df14e0d6',
+        'bdc277cf46b92b573c4bb5273df257ae275e80576756c56368e9ae4728115f90',
         reason: emitted,
       );
     });
@@ -378,6 +378,7 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
     String? message,
     support.Controller controller = _typedNoticeMountDefault3,
     super.key,
+    String? placement,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
@@ -385,7 +386,8 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
   })  : _restageArgument0 = count,
         _restageArgument1 = groups,
         _restageArgument2 = message,
-        _restageArgument3 = controller;
+        _restageArgument3 = controller,
+        _restagePlacementName = placement;
 '''),
       );
       expect(
@@ -586,6 +588,7 @@ final class HabitNotice extends StatelessWidget {
     this.loadingBuilder,
   ])  : _restageArgument0 = title,
         _restageArgument1 = count,
+        _restagePlacementName = null,
         super(key: key);
 '''),
       );
@@ -603,8 +606,129 @@ final class HabitNotice extends StatelessWidget {
         ),
 '''),
       );
-      await _assertGeneratedPartAnalyzes(source, emitted);
+      await _assertGeneratedPartAnalyzes(
+        '''
+$source
+const originalCall = PositionalNoticeSurface('original', 3);
+const defaultCall = PositionalNoticeSurface('default');
+const namedCall = PositionalNoticeSurface.atPlacement('settings_card', 'named', 4);
+''',
+        emitted,
+        constantFields: const {
+          'originalCall': {
+            '_restageArgument0': 'original',
+            '_restageArgument1': 3,
+            '_restagePlacementName': null,
+          },
+          'defaultCall': {'_restageArgument1': 2},
+          'namedCall': {
+            '_restageArgument0': 'named',
+            '_restageArgument1': 4,
+            '_restagePlacementName': 'settings_card',
+          },
+        },
+      );
     });
+
+    test('placement preserves named inputs callbacks and const calls',
+        () async {
+      final source = _screenSource(
+        className: 'NamedNotice',
+        annotation:
+            "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+        constructor: '  const NamedNotice(this.title, '
+            '{required this.count, this.subtitle = "details", super.key});',
+        fields: '  final String title;\n  final int count;\n'
+            '  final String subtitle;\n',
+        events: "  static const dismiss = SurfaceEvent<void>('dismiss');",
+        part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+      );
+      final inspection = await _inspect(source, className: 'NamedNotice');
+      expect(inspection.issues, isEmpty);
+      final emitted = inspection.contract!.emitReferenceDart();
+      expect(emitted, contains('RestageScreen.generatedPlacementBinding('));
+      expect(emitted, contains('definition: namedNoticePlacementDefinition,'));
+      expect(
+          emitted,
+          contains(
+              'placementBinding: RestageScreen.generatedPlacementBinding('));
+      expect(emitted, isNot(contains("'placement':")));
+      expect(emitted, contains("'contractVersion': 1"));
+      await _assertGeneratedPartAnalyzes(
+        '''
+$source
+void handleNotice(NamedNoticeEvent event) {}
+const originalCall = NamedNoticeSurface('original', count: 3,
+  key: ValueKey('original'), onEvent: handleNotice);
+const namedCall = NamedNoticeSurface('named', count: 4, placement: 'settings_card');
+const universalCall = NamedNoticeSurface.atPlacement('profile_card', 'universal',
+  count: 5, subtitle: 'more', key: ValueKey('universal'), onEvent: handleNotice);
+''',
+        emitted,
+        constantFields: const {
+          'originalCall': {
+            '_restagePlacementName': null,
+            '_restageArgument1': 3,
+          },
+          'namedCall': {
+            '_restagePlacementName': 'settings_card',
+            '_restageArgument2': 'details',
+          },
+          'universalCall': {
+            '_restagePlacementName': 'profile_card',
+            '_restageArgument2': 'more',
+          },
+        },
+      );
+    });
+
+    for (final named in [false, true]) {
+      test('placement keeps both authored collision names ($named)', () async {
+        final source = _screenSource(
+          className: 'CampaignNotice',
+          annotation:
+              "@Screen(id: 'maintenance_notice', surface: Surface.general)",
+          constructor: named
+              ? '  const CampaignNotice({required this.placement, '
+                  'required this.restagePlacementId, super.key});'
+              : '  const CampaignNotice(this.placement, '
+                  'this.restagePlacementId, '
+                  '{super.key});',
+          fields: '  final String placement;\n'
+              '  final String restagePlacementId;\n',
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        );
+        final inspection = await _inspect(source, className: 'CampaignNotice');
+        expect(inspection.issues, isEmpty);
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(emitted, contains('String restagePlacementId2,'));
+        expect(emitted, contains("'placement': _restageArgument0,"));
+        expect(emitted, contains("'restagePlacementId': _restageArgument1,"));
+        final arguments = named
+            ? "placement: 'authored', restagePlacementId: 'authored-id'"
+            : "'authored', 'authored-id'";
+        await _assertGeneratedPartAnalyzes(
+          '''
+$source
+const originalCall = CampaignNoticeSurface($arguments);
+const namedCall = CampaignNoticeSurface.atPlacement('settings_card', $arguments);
+''',
+          emitted,
+          constantFields: const {
+            'originalCall': {
+              '_restageArgument0': 'authored',
+              '_restageArgument1': 'authored-id',
+              '_restagePlacementName': null,
+            },
+            'namedCall': {
+              '_restageArgument0': 'authored',
+              '_restageArgument1': 'authored-id',
+              '_restagePlacementName': 'settings_card',
+            },
+          },
+        );
+      });
+    }
 
     test('qualifies class-owned defaults without changing library defaults',
         () async {
@@ -3286,6 +3410,7 @@ final class PositionalRedirectNotice extends StatelessWidget {
         positionalOutput,
         contains('''
   })  : _restageArgument0 = first,
+        _restagePlacementName = placement,
         super(key: second);
 '''),
       );
@@ -5212,12 +5337,14 @@ Future<void> _assertGeneratedPartAnalyzes(
   String source,
   String generated, {
   Map<String, String> additionalSources = const {},
+  Map<String, Map<String, Object?>> constantFields = const {},
 }) async {
   expect(
     await _generatedPartErrors(
       source,
       generated,
       additionalSources: additionalSources,
+      constantFields: constantFields,
     ),
     isEmpty,
   );
@@ -5227,6 +5354,7 @@ Future<List<String>> _generatedPartErrors(
   String source,
   String generated, {
   Map<String, String> additionalSources = const {},
+  Map<String, Map<String, Object?>> constantFields = const {},
   List<String> sourceIds = const [
     'apps_examples|lib/maintenance_notice.dart',
   ],
@@ -5268,6 +5396,24 @@ Future<List<String>> _generatedPartErrors(
                   includeUrl: false,
                 )}',
         ]);
+        for (final entry in constantFields.entries) {
+          final variable = library.topLevelVariables.singleWhere(
+            (variable) => variable.name == entry.key,
+          );
+          final value = variable.computeConstantValue();
+          expect(value, isNotNull, reason: '${entry.key} must stay const');
+          for (final field in entry.value.entries) {
+            final actual = value!.getField(field.key);
+            expect(actual, isNotNull, reason: '${entry.key}.${field.key}');
+            expect(
+              actual!.isNull
+                  ? null
+                  : actual.toStringValue() ?? actual.toIntValue(),
+              field.value,
+              reason: '${entry.key}.${field.key}',
+            );
+          }
+        }
       }
     },
     resolverFor: sourceId,

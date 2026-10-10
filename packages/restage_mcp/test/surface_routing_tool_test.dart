@@ -14,6 +14,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
 import 'package:test/test.dart';
 
 import '_support/harness.dart';
+import '_support/delivery_fixtures.dart' show policyReview;
 
 /// The wire form the service reads byte columns as.
 String wire(List<int> bytes) => "decode('${base64Encode(bytes)}', 'base64')";
@@ -22,7 +23,7 @@ final _diagnosticsTarget = TargetCoordinate(
   organizationId: OrganizationId(11),
   appId: ApplicationId(12),
   environmentTargetId: EnvironmentTargetId(31),
-  namedEnvironmentId: NamedEnvironmentId(32),
+  namedEnvironmentId: NamedEnvironmentId(41),
   runtimePlane: measurement.RuntimePlane.sandbox,
 );
 
@@ -70,6 +71,19 @@ MeasurementDeliveryDiagnosticsV1 diagnosticsRead({
       ),
 );
 
+DeliveryPolicyReviewV1 currentReview(int? expectedHeadOrdinal) => policyReview(
+  DeliveryPolicyScopeV1(
+    root: DeliveryRootIdentityV1.surface(
+      PublishedSurfaceIdentityV1(
+        target: _diagnosticsTarget,
+        surfaceId: SurfaceId('immutable-welcome-id'),
+      ),
+    ),
+    family: DeliveryFamilySelectorV1.screenContract(contractVersion: 3),
+  ),
+  expectedHeadOrdinal: expectedHeadOrdinal,
+);
+
 void main() {
   late Directory home;
   late FileCredentialStore store;
@@ -107,6 +121,7 @@ void main() {
     'appSlug': 'app',
     'surfaceType': 'onboarding',
     'surfaceSlug': 'welcome',
+    'environmentSlug': 'staging',
     'environmentTargetId': 31,
   };
 
@@ -136,6 +151,8 @@ void main() {
           'restage_read_delivery_flow',
           'restage_read_routing_revision',
           'restage_preview_routing',
+          'restage_review_routing',
+          'restage_review_route_rollback',
           'restage_publish_routing',
           'restage_rollback_route',
         ]),
@@ -212,7 +229,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [9, 9, 9]),
+            'reviewBase64': base64Encode(currentReview(4).canonicalBytes),
             'expectedRevisionOrdinal': 4,
           },
         ),
@@ -538,11 +555,9 @@ void main() {
 
   group('the document travels whole and unread', () {
     test(
-      'every byte of a document naming both branches reaches the service',
+      'publish carries only the reference of the complete original server review',
       () async {
-        final document = utf8.encode(
-          '{"routes":[{"primary":11,"remainder":12}]}',
-        );
+        final review = currentReview(null);
         Map<String, Object?>? sent;
         final connection = await connectServer(
           store: store,
@@ -551,20 +566,26 @@ void main() {
             'revisionOrdinal': 1,
           }, onCall: (body, _) => sent = body),
         );
-
         final result = await connection.callTool(
           CallToolRequest(
             name: 'restage_publish_routing',
             arguments: {
               ...surfaceTarget(),
-              'documentBase64': base64Encode(document),
+              'reviewBase64': base64Encode(review.canonicalBytes),
               'expectNoRevision': true,
             },
           ),
         );
-
         expect(result.isError, isNot(true));
-        expect(sent!['documentBytes'], wire(document));
+        final publish = DeliveryPolicyPublishRequestV1.fromCanonicalBytes(
+          decodeByteDataWire(
+            sent!['documentBytes'],
+            maximumBytes: kMaximumRoutingRequestBytes,
+            malformed: (detail) => FormatException(detail),
+          ),
+        );
+        expect(publish.reviewRef, review.reviewRef);
+        expect(publish.toJson().containsKey('candidatePlan'), isFalse);
       },
     );
 
@@ -591,52 +612,47 @@ void main() {
       expect(result.structuredContent!['revisionOrdinal'], 7);
     });
 
-    test('a preview reports the service classification and evaluates no rule '
-        'locally', () async {
-      // The document is not a routing document and the context carries nothing
-      // a rule could read. A tool that evaluated locally could not report a
-      // match; this one reports what the service said.
-      Map<String, Object?>? sent;
-      final connection = await connectServer(
-        store: store,
-        httpClient: routingClient({
-          'rules': [
-            {'routeId': 'r1', 'matches': true, 'reason': 'matched'},
-            {'routeId': 'r2', 'matches': false, 'reason': 'notMatched'},
-          ],
-          'deliveryBytes': wire(const [7, 7]),
-          'usesActivePointer': true,
-        }, onCall: (body, _) => sent = body),
-      );
-
-      final result = await connection.callTool(
-        CallToolRequest(
-          name: 'restage_preview_routing',
-          arguments: {
-            ...surfaceTarget(),
-            'documentBase64': base64Encode(utf8.encode('not-a-doc')),
-            'schemaBase64': base64Encode(const [1]),
-            'requestContextBase64': base64Encode(const [2]),
-            'audiencesBase64': [
-              base64Encode(const [3]),
-              base64Encode(const [4]),
+    test(
+      'a preview preserves the complete original simulation and evaluates no rule locally',
+      () async {
+        final scope = currentReview(4).scope;
+        final input = DeliveryPolicySimulationRequestV1(
+          scope: scope,
+          inputs: DeliverySimulationInputsV1(localNow: null),
+        );
+        final simulation = DeliveryPolicySimulationV1(
+          scope: scope,
+          reason: 'identityUnavailable',
+          routeId: 'r1',
+        );
+        Map<String, Object?>? sent;
+        final connection = await connectServer(
+          store: store,
+          httpClient: routingClient({
+            'rules': [
+              {'routeId': 'r1', 'matches': true, 'reason': 'matched'},
             ],
-          },
-        ),
-      );
-
-      expect(result.isError, isNot(true));
-      expect(sent!['method'], 'previewRouting');
-      expect(sent!['audienceBytes'], [
-        wire(const [3]),
-        wire(const [4]),
-      ]);
-      expect(sent!['requestContextBytes'], wire(const [2]));
-      final rules = result.structuredContent!['rules']! as List<Object?>;
-      expect((rules.first! as Map)['matches'], isTrue);
-      expect((rules.last! as Map)['reason'], 'notMatched');
-      expect(result.structuredContent!['usesActivePointer'], isTrue);
-    });
+            'deliveryBytes': wire(simulation.canonicalBytes),
+            'usesActivePointer': false,
+          }, onCall: (body, _) => sent = body),
+        );
+        final result = await connection.callTool(
+          CallToolRequest(
+            name: 'restage_preview_routing',
+            arguments: {
+              ...surfaceTarget(),
+              'documentBase64': base64Encode(input.canonicalBytes),
+            },
+          ),
+        );
+        expect(result.isError, isNot(true));
+        expect(sent!['method'], 'previewRouting');
+        expect(sent!['audienceBytes'], isEmpty);
+        expect(sent!['requestContextBytes'], isNull);
+        expect(sent!['schemaBytes'], isNull);
+        expect(result.structuredContent!['simulation'], simulation.toJson());
+      },
+    );
   });
 
   group('the compare-and-set precondition', () {
@@ -655,7 +671,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(30).canonicalBytes),
             'expectedRevisionOrdinal': 30,
           },
         ),
@@ -679,7 +695,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(null).canonicalBytes),
             'expectNoRevision': true,
           },
         ),
@@ -689,33 +705,36 @@ void main() {
       expect(sent!['expectedRevisionOrdinal'], isNull);
     });
 
-    test('neither precondition is refused before any call', () async {
-      var reached = false;
-      final connection = await connectServer(
-        store: store,
-        httpClient: _withTargets((_) async {
-          reached = true;
-          return http.Response('{}', 200);
-        }),
-      );
+    test(
+      'the original review supplies its exact head without a duplicate flag',
+      () async {
+        var reached = false;
+        final connection = await connectServer(
+          store: store,
+          httpClient: _withTargets((_) async {
+            reached = true;
+            return http.Response(
+              jsonEncode({'outcome': 'applied', 'revisionOrdinal': 5}),
+              200,
+            );
+          }),
+        );
 
-      final result = await connection.callTool(
-        CallToolRequest(
-          name: 'restage_publish_routing',
-          arguments: {
-            ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
-          },
-        ),
-      );
+        final result = await connection.callTool(
+          CallToolRequest(
+            name: 'restage_publish_routing',
+            arguments: {
+              ...surfaceTarget(),
+              'reviewBase64': base64Encode(currentReview(4).canonicalBytes),
+            },
+          ),
+        );
 
-      expect(result.isError, isTrue);
-      expect(reached, isFalse);
-      expect(
-        (result.content.single as TextContent).text,
-        contains('exactly one'),
-      );
-    });
+        expect(result.isError, isNot(true));
+        expect(reached, isTrue);
+        expect(result.structuredContent!['revisionOrdinal'], 5);
+      },
+    );
 
     test('both preconditions together are refused before any call', () async {
       var reached = false;
@@ -732,7 +751,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(4).canonicalBytes),
             'expectedRevisionOrdinal': 4,
             'expectNoRevision': true,
           },
@@ -790,7 +809,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(null).canonicalBytes),
             'expectNoRevision': true,
           },
         ),
@@ -822,7 +841,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(null).canonicalBytes),
             'expectNoRevision': true,
             'operationId': supplied,
           },
@@ -849,7 +868,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(null).canonicalBytes),
             'expectNoRevision': true,
             'operationId': 'publish-1',
           },
@@ -1008,7 +1027,7 @@ void main() {
             name: 'restage_publish_routing',
             arguments: {
               ...surfaceTarget(),
-              'documentBase64': base64Encode(const [1]),
+              'reviewBase64': base64Encode(currentReview(4).canonicalBytes),
               'expectedRevisionOrdinal': 4,
             },
           ),
@@ -1044,7 +1063,7 @@ void main() {
           name: 'restage_publish_routing',
           arguments: {
             ...surfaceTarget(),
-            'documentBase64': base64Encode(const [1]),
+            'reviewBase64': base64Encode(currentReview(null).canonicalBytes),
             'expectNoRevision': true,
           },
         ),
@@ -1121,7 +1140,7 @@ void main() {
             name: 'restage_publish_routing',
             arguments: {
               ...surfaceTarget(),
-              'documentBase64': base64Encode(const [1]),
+              'reviewBase64': base64Encode(currentReview(null).canonicalBytes),
               'expectNoRevision': true,
             },
           ),
@@ -1150,7 +1169,7 @@ void main() {
               name: 'restage_publish_routing',
               arguments: {
                 ...surfaceTarget(),
-                'documentBase64': bad,
+                'reviewBase64': bad,
                 'expectNoRevision': true,
               },
             ),
@@ -1330,12 +1349,41 @@ void main() {
 /// A client that answers the live guard's target listing, target 31 on the
 /// sandbox plane and 32 on the live plane, and hands every other call to
 /// [handler].
-MockClient _withTargets(Future<http.Response> Function(http.Request) handler) =>
-    MockClient((request) async {
-      final body = jsonDecode(request.body) as Map<String, Object?>;
-      if (body['method'] != 'listEnvironmentTargets') return handler(request);
-      return http.Response(
-        jsonEncode([
+MockClient _withTargets(
+  Future<http.Response> Function(http.Request) handler,
+) => MockClient((request) async {
+  final body = jsonDecode(request.body) as Map<String, Object?>;
+  if (request.url.path == '/scope' && body['method'] == 'read') {
+    return http.Response(
+      jsonEncode({
+        'organizationId': 11,
+        'session': {
+          'memberships': [
+            {
+              'organizationId': 11,
+              'slug': 'checkout',
+              'name': 'Checkout',
+              'role': 'admin',
+            },
+          ],
+          'workspaceExperiences': <Object>[],
+        },
+        'projects': [
+          {'id': 1, 'slug': 'checkout', 'name': 'Checkout'},
+        ],
+        'apps': [
+          {'id': 12, 'projectId': 1, 'slug': 'app', 'name': 'App'},
+        ],
+        'environments': [
+          {'id': 31, 'appId': 12, 'namedEnvironmentId': 41, 'slug': 'staging'},
+          {
+            'id': 32,
+            'appId': 12,
+            'namedEnvironmentId': 42,
+            'slug': 'production',
+          },
+        ],
+        'environmentTargets': [
           {
             'environmentTargetId': 31,
             'namedEnvironmentId': 41,
@@ -1348,7 +1396,59 @@ MockClient _withTargets(Future<http.Response> Function(http.Request) handler) =>
             'environmentSlug': 'production',
             'runtimePlane': 'live',
           },
-        ]),
-        200,
-      );
-    });
+        ],
+        'surfaces': <Object>[],
+        'apiKeys': <Object>[],
+      }),
+      200,
+    );
+  }
+  if (body['method'] == 'resolveTarget') {
+    final live =
+        body['environmentTargetId'] == 32 || body['runtimePlane'] == 'live';
+    return http.Response(
+      jsonEncode({
+        'organizationId': 11,
+        'organizationSlug': 'checkout',
+        'projectSlug': body['projectSlug'],
+        'appId': 12,
+        'appSlug': 'app',
+        'target': {
+          'environmentTargetId': live ? 32 : 31,
+          'namedEnvironmentId': live ? 42 : 41,
+          'environmentSlug': live ? 'production' : 'staging',
+          'runtimePlane': live ? 'live' : 'sandbox',
+        },
+      }),
+      200,
+    );
+  }
+  if (body['method'] == 'reviewRouteRollback') {
+    return http.Response(
+      jsonEncode(
+        wire(
+          currentReview(body['expectedRevisionOrdinal'] as int).canonicalBytes,
+        ),
+      ),
+      200,
+    );
+  }
+  if (body['method'] != 'listEnvironmentTargets') return handler(request);
+  return http.Response(
+    jsonEncode([
+      {
+        'environmentTargetId': 31,
+        'namedEnvironmentId': 41,
+        'environmentSlug': 'staging',
+        'runtimePlane': 'sandbox',
+      },
+      {
+        'environmentTargetId': 32,
+        'namedEnvironmentId': 42,
+        'environmentSlug': 'production',
+        'runtimePlane': 'live',
+      },
+    ]),
+    200,
+  );
+});

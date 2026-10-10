@@ -90,6 +90,7 @@ final class PlacementMountRequestV1 extends _PlacementValue {
     required this.key,
     required this.hostContractHash,
     this.defaultSurface,
+    this.surfaceType,
   }) {
     _requireContentHash(hostContractHash, 'hostContractHash');
     if (key.isGeneratedDefault &&
@@ -100,18 +101,34 @@ final class PlacementMountRequestV1 extends _PlacementValue {
         'A generated placement must name its exact default surface locator.',
       );
     }
+    if (surfaceType != null &&
+        ((key.isGeneratedDefault && key.surfaceType != surfaceType) ||
+            (defaultSurface != null &&
+                defaultSurface!.surfaceType != surfaceType))) {
+      throw const CanonicalFormatException(
+        'A declared surface type must match the placement and its default.',
+      );
+    }
   }
 
   /// Decodes one closed mount request with an explicit nullable default.
   factory PlacementMountRequestV1.fromJson(Object? value) {
     final reader = _reader(value, _keys, 'mountRequest');
     final rawDefault = reader.requiredNullableValue('defaultSurface');
-    return PlacementMountRequestV1(
-      key: PlacementKeyV1.fromJson(reader.object('key')),
-      defaultSurface: rawDefault == null
-          ? null
-          : DeliverySurfaceLocatorV1.fromJson(rawDefault),
-      hostContractHash: reader.string('hostContractHash'),
+    final rawType = reader.requiredNullableValue('surfaceType');
+    if (rawType != null && rawType is! String) {
+      throw const CanonicalFormatException('surfaceType must be null or text.');
+    }
+    return _construct(
+      () => PlacementMountRequestV1(
+        key: PlacementKeyV1.fromJson(reader.object('key')),
+        defaultSurface: rawDefault == null
+            ? null
+            : DeliverySurfaceLocatorV1.fromJson(rawDefault),
+        hostContractHash: reader.string('hostContractHash'),
+        surfaceType:
+            rawType == null ? null : DeliverySurfaceTypeId(rawType as String),
+      ),
     );
   }
 
@@ -119,7 +136,12 @@ final class PlacementMountRequestV1 extends _PlacementValue {
   factory PlacementMountRequestV1.fromCanonicalBytes(List<int> bytes) =>
       _decode(bytes, PlacementMountRequestV1.fromJson);
 
-  static const _keys = {'key', 'defaultSurface', 'hostContractHash'};
+  static const _keys = {
+    'key',
+    'defaultSurface',
+    'hostContractHash',
+    'surfaceType',
+  };
 
   /// Namespace-qualified placement name.
   final PlacementKeyV1 key;
@@ -130,11 +152,15 @@ final class PlacementMountRequestV1 extends _PlacementValue {
   /// Exact content hash of the host contract this mount supplies.
   final String hostContractHash;
 
+  /// The only surface type this mount hosts; null when it hosts any type.
+  final DeliverySurfaceTypeId? surfaceType;
+
   @override
   Map<String, Object?> toJson() => {
         'key': key.toJson(),
         'defaultSurface': defaultSurface?.toJson(),
         'hostContractHash': hostContractHash,
+        'surfaceType': surfaceType?.value,
       };
 }
 
@@ -2722,7 +2748,7 @@ List<PlacementMountRequestV1> _canonicalMounts(
     final previous = declarations[identity];
     if (previous != null && previous != mount) {
       throw const CanonicalFormatException(
-        'A key and host contract cannot declare conflicting default surfaces.',
+        'A key and host contract cannot declare conflicting mounts.',
       );
     }
     declarations[identity] = mount;

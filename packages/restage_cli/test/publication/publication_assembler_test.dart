@@ -41,6 +41,17 @@ void main() {
     expect(SurfacePayload.decode(assembled.request.payload), assembled.payload);
     expect(assembled.artifactBytes.keys, entry.artifacts.map((a) => a.path));
     expect(
+      assembled.request.artifactManifest!.publications.single.publication,
+      entry.publication,
+    );
+    expect(assembled.request.artifactBytesByPath, assembled.artifactBytes);
+    final decoded = SurfacePublicationUploadRequestV1Codec.decodeJson(
+      SurfacePublicationUploadRequestV1Codec.encodeCanonicalJson(
+        assembled.request,
+      ),
+    );
+    expect(decoded.artifactBytesByPath, assembled.artifactBytes);
+    expect(
       assembled.selectedBundleFiles.map((file) => file.path).toSet(),
       <String>{
         for (final artifact in entry.artifacts)
@@ -100,6 +111,14 @@ void main() {
       payload.contentHash,
     );
     expect(assembled.measurementUpload, isNotNull);
+    // Root files use the bound envelope's existing declared closure once.
+    expect(assembled.request.artifactBytesByPath, isEmpty);
+    expect(assembled.request.artifactManifest!.publications, hasLength(1));
+    expect({
+      for (final artifact
+          in assembled.measurementUpload!.declaredArtifactClosure)
+        artifact.path: artifact.bytes,
+    }, assembled.artifactBytes);
   });
 
   test('assembles the largest generated flow and its draft', () async {

@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart'
     show BuildContext, View, WidgetsBinding, WidgetsFlutterBinding;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
+import '../runtime/first_launch_store.dart';
 import 'platform_app_build_stub.dart'
     if (dart.library.io) 'platform_app_build_io.dart' as app_build;
 import 'platform_os_version_stub.dart'
@@ -16,6 +17,76 @@ const _osVersionPlatforms = {'android', 'ios', 'macos'};
 
 final _twoLetterSubtag = RegExp(r'^[a-zA-Z]{2}$');
 final _buildOrdinal = RegExp(r'^(0|[1-9][0-9]*)$');
+
+String? _channel;
+FirstLaunchStore _firstLaunchStore = FirstLaunchStore();
+DateTime? _firstLaunchUtc;
+Future<void>? _firstLaunchRead;
+DateTime Function() _utcNow = () => DateTime.now().toUtc();
+int _firstLaunchGeneration = 0;
+bool _firstLaunchEnabled = false;
+
+String? normalizeDeliveryChannel(String? value) {
+  if (value == null || value.isEmpty || utf8.encode(value).length > 128) {
+    return null;
+  }
+  try {
+    CanonicalJsonCodec.encode(value);
+  } on CanonicalFormatException {
+    return null;
+  }
+  return value;
+}
+
+/// Configures optional build observations without waiting for local storage.
+@internal
+void configureSurfaceDeliveryObservations({
+  String? channel,
+  bool initializeFirstLaunch = true,
+}) {
+  _channel = normalizeDeliveryChannel(channel);
+  _firstLaunchEnabled = initializeFirstLaunch;
+  _scheduleFirstLaunchRead();
+}
+
+void _scheduleFirstLaunchRead() {
+  if (!_firstLaunchEnabled) return;
+  final nowUtc = _utcNow();
+  final generation = _firstLaunchGeneration;
+  scheduleMicrotask(() {
+    if (generation != _firstLaunchGeneration ||
+        _firstLaunchUtc != null ||
+        _firstLaunchRead != null) {
+      return;
+    }
+    _firstLaunchRead = _firstLaunchStore.readOrCreate(nowUtc).then((origin) {
+      if (generation == _firstLaunchGeneration) _firstLaunchUtc = origin;
+    }).whenComplete(() {
+      if (generation == _firstLaunchGeneration) _firstLaunchRead = null;
+    });
+    unawaited(_firstLaunchRead);
+  });
+}
+
+(String?, int?) _installObservationStamp() => (
+      _channel,
+      daysSinceInstall(nowUtc: _utcNow(), firstLaunchUtc: _firstLaunchUtc),
+    );
+
+/// Replaces optional storage and clock sources without deleting persisted data.
+@visibleForTesting
+void debugResetInstallObservations({
+  FirstLaunchStore? store,
+  DateTime Function()? nowUtc,
+}) {
+  _firstLaunchGeneration += 1;
+  _firstLaunchEnabled = false;
+  _channel = null;
+  _firstLaunchUtc = null;
+  _firstLaunchRead = null;
+  _firstLaunchStore = store ?? FirstLaunchStore();
+  _utcNow = nowUtc ?? () => DateTime.now().toUtc();
+}
 
 String? normalizePresentationCountry(String? value) {
   final trimmed = value?.trim();
@@ -88,6 +159,8 @@ final class SurfaceDeliveryObservations {
     required this.deviceClass,
     required this.osVersion,
     required this.sdkApiLevel,
+    this.channel,
+    this.daysSinceInstall,
   });
 
   final String? presentationCountry;
@@ -97,6 +170,21 @@ final class SurfaceDeliveryObservations {
   final String? deviceClass;
   final int? osVersion;
   final int sdkApiLevel;
+  final String? channel;
+  final int? daysSinceInstall;
+
+  SurfaceDeliveryObservations _withInstallFacts((String?, int?) stamp) =>
+      SurfaceDeliveryObservations(
+        presentationCountry: presentationCountry,
+        presentationLanguage: presentationLanguage,
+        platform: platform,
+        appBuildOrdinal: appBuildOrdinal,
+        deviceClass: deviceClass,
+        osVersion: osVersion,
+        sdkApiLevel: sdkApiLevel,
+        channel: stamp.$1,
+        daysSinceInstall: stamp.$2,
+      );
 
   String? canonicalBuiltInsBase64() {
     if (platform == null) return null;
@@ -105,6 +193,11 @@ final class SurfaceDeliveryObservations {
     return base64UrlEncode(CanonicalJsonCodec.encode({
       if (appBuildOrdinal != null) 'appBuildOrdinal': appBuildOrdinal,
       if (country != null) 'country': country,
+      if (normalizeDeliveryChannel(channel) case final channel?)
+        'channel': channel,
+      if (daysSinceInstall case final age?
+          when age >= 0 && age <= kMaximumPortableJsonInteger)
+        'daysSinceInstall': age,
       if (deviceClass != null) 'deviceClass': deviceClass,
       if (presentationLanguage != null) 'language': presentationLanguage,
       if (osVersion != null) 'osVersion': osVersion,
@@ -122,7 +215,9 @@ final class SurfaceDeliveryObservations {
       appBuildOrdinal == other.appBuildOrdinal &&
       deviceClass == other.deviceClass &&
       osVersion == other.osVersion &&
-      sdkApiLevel == other.sdkApiLevel;
+      sdkApiLevel == other.sdkApiLevel &&
+      channel == other.channel &&
+      daysSinceInstall == other.daysSinceInstall;
 
   @override
   int get hashCode => Object.hash(
@@ -133,6 +228,8 @@ final class SurfaceDeliveryObservations {
         deviceClass,
         osVersion,
         sdkApiLevel,
+        channel,
+        daysSinceInstall,
       );
 
   @override
@@ -140,7 +237,8 @@ final class SurfaceDeliveryObservations {
       'SurfaceDeliveryObservations(presentationCountry: $presentationCountry, '
       'presentationLanguage: $presentationLanguage, platform: $platform, '
       'appBuildOrdinal: $appBuildOrdinal, deviceClass: $deviceClass, '
-      'osVersion: $osVersion, sdkApiLevel: $sdkApiLevel)';
+      'osVersion: $osVersion, sdkApiLevel: $sdkApiLevel, '
+      'channel: $channel, daysSinceInstall: $daysSinceInstall)';
 }
 
 Future<int?>? _appBuildOrdinalRead;
@@ -164,9 +262,40 @@ Future<int?> _appBuildOrdinal(Future<String?> Function()? source) =>
       }
     }();
 
-/// Forgets the process-wide build ordinal so a test can read it again.
+/// Reads the same process build facts used by hosted delivery without identity.
+@internal
+Future<({String? platform, int? buildOrdinal, String? appVersion})>
+    readDeliveryBuildInputs() async => (
+          platform: normalizeDeliveryPlatform(
+              isWeb: kIsWeb, targetPlatform: defaultTargetPlatform),
+          buildOrdinal: await _appBuildOrdinal(null),
+          appVersion: await _appVersion(),
+        );
+
+Future<String?>? _appVersionRead;
+
+/// The display version for this process; a failed read is asked again later.
+Future<String?> _appVersion() => _appVersionRead ??= () async {
+      try {
+        final version = (await app_build.readPlatformAppVersion())?.trim();
+        return version == null ||
+                version.isEmpty ||
+                version.length > 64 ||
+                version.codeUnits.any((unit) => unit < 0x20 || unit == 0x7f)
+            ? null
+            : version;
+      } on Object {
+        _appVersionRead = null;
+        return null;
+      }
+    }();
+
+/// Forgets the process-wide build ordinal and version so a test reads again.
 @visibleForTesting
-void debugResetAppBuildOrdinal() => _appBuildOrdinalRead = null;
+void debugResetAppBuildOrdinal() {
+  _appBuildOrdinalRead = null;
+  _appVersionRead = null;
+}
 
 /// The operating-system version a platform reports as one ordinal, from the
 /// implementation the runtime selects. A runtime without `dart:io` has none.
@@ -230,6 +359,8 @@ Future<SurfaceDeliveryObservations> readSurfaceDeliveryObservations({
   Future<String?> Function()? buildNumberSource,
   Future<int?> Function(String platform)? osVersionSource,
 }) async {
+  _scheduleFirstLaunchRead();
+  final (channel, installAge) = _installObservationStamp();
   WidgetsFlutterBinding.ensureInitialized();
   final web = isWeb ?? kIsWeb;
   final platform = normalizeDeliveryPlatform(
@@ -257,6 +388,8 @@ Future<SurfaceDeliveryObservations> readSurfaceDeliveryObservations({
     ),
     osVersion: osVersion,
     sdkApiLevel: assignmentSdkApiLevel,
+    channel: channel,
+    daysSinceInstall: installAge,
   );
 }
 
@@ -271,7 +404,7 @@ double? requestingViewShortestLogicalSide(BuildContext context) {
   return side.isFinite && side > 0 ? side : null;
 }
 
-/// Reads one presentation's observations at most once, on first use.
+/// Captures presentation facts once and refreshes install facts on request reuse.
 @internal
 final class SurfaceDeliveryObservationCell {
   SurfaceDeliveryObservationCell(this._read);
@@ -279,17 +412,34 @@ final class SurfaceDeliveryObservationCell {
   final Future<SurfaceDeliveryObservations> Function() _read;
   Future<SurfaceDeliveryObservations>? _resolution;
   SurfaceDeliveryObservations? _value;
+  (String?, int?)? _installStamp;
 
   /// The observations already read for this presentation, if any.
   SurfaceDeliveryObservations? get valueIfRead => _value;
 
+  /// Current request inputs without changing an earlier immutable observation.
+  String? get currentBuiltInsBase64 {
+    final existing = _value;
+    if (existing == null) return null;
+    return existing
+        ._withInstallFacts(_installObservationStamp())
+        .canonicalBuiltInsBase64();
+  }
+
   Future<SurfaceDeliveryObservations> read() {
+    _scheduleFirstLaunchRead();
+    final stamp = _installObservationStamp();
     final existing = _value;
     if (existing != null) {
-      return Future<SurfaceDeliveryObservations>.value(existing);
+      if (_installStamp != stamp) {
+        _value = existing._withInstallFacts(stamp);
+        _installStamp = stamp;
+      }
+      return Future<SurfaceDeliveryObservations>.value(_value);
     }
     return _resolution ??= _read().then((observations) {
       _value = observations;
+      _installStamp = stamp;
       _resolution = null;
       return observations;
     });

@@ -31,12 +31,13 @@ Tool _toolFor(PageRead read) => Tool(
             'End of the window, exclusive, in microseconds since the epoch. '
             'The read runs to the end of that UTC day. Defaults to now.',
       ),
-      for (final param in read.params) param.key: _schemaFor(param),
+      for (final param in read.params)
+        if (!param.cliOnly) param.key: _schemaFor(param),
     },
     required: [
       ...exactTargetRequired,
       for (final param in read.params)
-        if (param.required) param.key,
+        if (param.required && !param.cliOnly) param.key,
     ],
     additionalProperties: false,
   ),
@@ -102,6 +103,7 @@ Map<String, Object?> _valuesOf(PageRead read, CallToolRequest request) {
   final arguments = request.arguments ?? const <String, Object?>{};
   final values = <String, Object?>{};
   for (final param in read.params) {
+    if (param.cliOnly) continue;
     final raw = arguments[param.key];
     if (raw == null) {
       if (param.required) throw FormatException('${param.key} is required');
@@ -127,7 +129,7 @@ Map<String, Object?> _valuesOf(PageRead read, CallToolRequest request) {
         if (raw is! String || (param.allowed?.contains(raw) == false)) {
           throw FormatException('${param.key} is not a valid value.');
         }
-        values[param.key] = raw;
+        values[param.key] = param.parse?.call(raw) ?? raw;
     }
   }
   return values;

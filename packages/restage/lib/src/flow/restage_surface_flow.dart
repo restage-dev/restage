@@ -20,6 +20,8 @@ import '../events/restage_event.dart'
 import '../measurement/measurement_event_sanitizer.dart';
 import '../delivery/surface_race.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/placement_mount_attribution.dart';
+import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart'
     show measurementExperimentAssignmentFor;
 import '../resolver/surface_delivery_observations.dart'
@@ -33,12 +35,17 @@ import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
 import '../runtime/context_data.dart';
 import '../runtime/first_paint_lease_guard.dart';
+import '../runtime/placement_event_scope.dart';
+import '../runtime/placement_mount.dart';
+import '../runtime/surface_vocabulary.dart';
 import '../runtime/restage.dart';
 import 'compiled_flow.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_mount.dart';
 import 'flow_resolver.dart';
+import '../resolver/placement_mount_resolver.dart';
+import '../runtime/placement_presentation.dart';
 import 'flow_runtime_support.dart' show normalizeEventArgs;
 import 'flow_seed.dart';
 import 'flow_transitions.dart';
@@ -88,11 +95,13 @@ enum _FlowUnavailablePolicyKind { fallback, hide }
 /// Loads a generated [SurfaceFlowRef], resolves its pinned artifacts, runs
 /// typed app-owned actions when declared, and calls [onComplete] only after the
 /// terminal result has been filtered and decoded.
-class RestageFlowGraph<R> extends StatefulWidget {
+class RestageFlowGraph<R> extends StatefulWidget
+    implements RestagePlacementMount {
   /// Creates a flow surface.
   const RestageFlowGraph({
     super.key,
     required this.flow,
+    this.placementBinding,
     this.screenBuilders = const {},
     this.initialState,
     required this.unavailable,
@@ -108,8 +117,33 @@ class RestageFlowGraph<R> extends StatefulWidget {
     this.context,
   });
 
+  /// Creates the generated host facts without requiring new authored imports.
+  static GeneratedPlacementDefinition generatedPlacementDefinition({
+    required RestageSurfaceRef defaultSurface,
+    required Map<String, Object?> defaultSurfaceLocatorJson,
+    required Map<String, Object?> hostContractJson,
+    required SurfaceVocabulary vocabulary,
+  }) =>
+      GeneratedPlacementDefinition.generated(
+        defaultSurface: defaultSurface,
+        defaultSurfaceLocatorJson: defaultSurfaceLocatorJson,
+        hostContractJson: hostContractJson,
+        vocabulary: vocabulary,
+      );
+
+  /// Creates the inert binding forwarded by a generated mount.
+  static PlacementMountBinding generatedPlacementBinding({
+    required GeneratedPlacementDefinition Function() definition,
+    String? name,
+  }) =>
+      PlacementMountBinding(definition: definition, name: name);
+
   /// Generated flow descriptor to load.
   final SurfaceFlowRef<R> flow;
+
+  /// The generated default definition and optional named placement.
+  @override
+  final PlacementMountBinding? placementBinding;
 
   /// App-owned native constructors captured when the flow starts.
   /// Rebuilding with new builders does not restart a running flow. Remount
@@ -203,6 +237,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   final Map<RestageFlowController<R>, MeasurementHostSessionController>
       _measurementSessions =
       <RestageFlowController<R>, MeasurementHostSessionController>{};
+  final Map<RestageFlowController<R>, MountAttributionSnapshotV1>
+      _mountAttributions = {};
+  final Map<RestageFlowController<R>, SurfaceDeliveryReceiptHandle?>
+      _rootDeliveryReceipts = {};
   final Expando<SurfaceEventHandler> _authoredEventHandlers =
       Expando<SurfaceEventHandler>();
 
@@ -279,7 +317,49 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       },
       renderedVersion: () =>
           _isCurrentRefreshHandle(handle) ? _controller?.resolvedVersion : null,
-      stampable: widget.resolver == null && Restage.activeRpcClient != null,
+      stampable: widget.placementBinding == null &&
+          widget.resolver == null &&
+          Restage.activeRpcClient != null,
+      localValidity: widget.placementBinding == null
+          ? null
+          : () => _renderedPlacementAdmission?.isCurrent ?? true,
+      localBoundary: () => _renderedPlacementAdmission?.nextBoundary,
+      placementState: () => _renderedPlacementAdmission == null
+          ? placementFallbackFor(_placementResolver)?.refreshState
+          : _renderedPlacementAdmission?.refreshState,
+      placementWatch: () => _renderedPlacementAdmission == null
+          ? placementFallbackFor(_placementResolver)?.watch
+          : _renderedPlacementAdmission?.decision.watch,
+      renderedSurface: () =>
+          _renderedPlacementAdmission?.renderedSurface ??
+          SurfaceRef(
+              surfaceType: widget.flow.surfaceType.wireName,
+              slug: widget.flow.id),
+      invalidatePlacement: () async {
+        final accepted = _renderedPlacementAdmission;
+        await accepted?.invalidateCache();
+      },
+      probePlacement: (rendered) => probeRenderedPlacement(
+          _renderedPlacementAdmission, _placementResolver, rendered),
+      invalidateLocal: () async {
+        final resolver = _placementResolver;
+        if (resolver is! PlacementFlowResolver || !_canSwap()) return;
+        final original = await resolver.original();
+        if (!mounted || !_canSwap()) return;
+        if (original != null) {
+          await _refresh(adoptedRoot: original);
+        } else {
+          _disposeOwnedController(_controller!, _transaction, _presentation);
+          setState(() {
+            _controller = null;
+            _unavailableError = FlowUnavailableError(
+                flowId: widget.flow.id,
+                flowVersion: widget.flow.version,
+                reason: 'placement_expired',
+                message: 'The placement is no longer available.');
+          });
+        }
+      },
     );
     _refreshHandle = handle;
     SurfaceRefreshRegistry.instance.register(handle);
@@ -299,6 +379,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   /// (no user-contributed state), idle (no transition/action in flight), and
   /// not yet complete.
   bool _canSwap() =>
+      !(_renderedPlacementAdmission?.isAssigned ?? false) &&
       !(_controller?.hasUserContributedState ?? false) &&
       !(_controller?.isBusy ?? false) &&
       !(_controller?.isComplete ?? false);
@@ -378,7 +459,12 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       if (pending.currentScreenEntryId != null && !_pendingIsStaged) {
         final current = _controller;
         if (current != null &&
-            RootAnalyticsArtifactRegistry.isSameArtifact(current, pending)) {
+            RootAnalyticsArtifactRegistry.isSameArtifact(current, pending) &&
+            ((_controllerPlacementAdmissions[current] == null &&
+                    _controllerPlacementAdmissions[pending] == null) ||
+                (_controllerPlacementAdmissions[current]?.matchesDecision(
+                        _controllerPlacementAdmissions[pending]) ??
+                    false))) {
           _scheduleDiscardPending(pending);
           return;
         }
@@ -550,6 +636,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
             (oldWidget.resolver == null) != (widget.resolver == null);
     final restartController = !identical(oldWidget.flow, widget.flow) ||
         !identical(oldWidget.resolver, widget.resolver) ||
+        !(oldWidget.placementBinding
+                ?.sameDeclarationAs(widget.placementBinding) ??
+            widget.placementBinding == null) ||
         !identical(oldWidget.actions, widget.actions) ||
         !identical(
           oldWidget.installedSignalNames,
@@ -686,6 +775,52 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   /// Constructs a flow controller from the widget's configuration. Shared by the
   /// mount/restart path ([_start]) and the live-refresh path ([_refresh]); only
   /// the lifecycle callbacks differ.
+  final _controllerPlacementAdmissions = Expando<PlacementDeliveryAdmission>();
+  PlacementDeliveryAdmission? get _renderedPlacementAdmission =>
+      _controller == null ? null : _controllerPlacementAdmissions[_controller!];
+  FlowResolver? _placementResolver;
+  PlacementMountBinding? _capturedBinding;
+  int _placementGeneration = -1;
+  late final _placementDiscovery = PlacementHostDiscovery(
+      configurationGeneration: () => Restage.configurationGeneration,
+      discovery: () => Restage.placementDiscovery);
+
+  FlowResolver _resolver() {
+    final original = widget.resolver ?? Restage.defaultFlowResolver;
+    final binding = widget.placementBinding;
+    final declaration = _placementDiscovery.capture(binding, widget, context);
+    final registry = Restage.placementRegistry;
+    if (widget.resolver == null &&
+        Restage.placementFlowsEnabled &&
+        (binding?.isExplicit ?? false) &&
+        registry == null) {
+      return const UnavailablePlacementFlowResolver();
+    }
+    if (widget.resolver != null ||
+        !Restage.placementFlowsEnabled ||
+        binding == null ||
+        registry == null) {
+      return original;
+    }
+    if (_placementResolver == null ||
+        !binding.sameDeclarationAs(_capturedBinding) ||
+        _placementGeneration != Restage.configurationGeneration) {
+      _capturedBinding = binding;
+      _placementGeneration = Restage.configurationGeneration;
+      _placementResolver = PlacementFlowResolver(
+          registry: registry,
+          declaration: declaration!,
+          flow: widget.flow as SurfaceFlowRef<Object?>,
+          originalResolver: const AssetFlowResolver())
+        ..onFallbackChanged = () {
+          if (_refreshHandle case final handle?) {
+            SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+          }
+        };
+    }
+    return _placementResolver!;
+  }
+
   RestageFlowController<R> _buildController({
     ResolvedFlow? adoptedRoot,
     required void Function(RestageEvent) onEvent,
@@ -695,12 +830,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final boundFlow = widget.screenBuilders.isEmpty
         ? widget.flow
         : widget.flow.withScreenBuilders(widget.screenBuilders);
-    final configuredResolver = widget.resolver ?? Restage.defaultFlowResolver;
+    final configuredResolver = _resolver();
     final FlowResolver resolver;
     final experimentFactory = configuredResolver is FlowExperimentMountFactory
         ? configuredResolver as FlowExperimentMountFactory
         : null;
-    if (_forceUnassignedFallback &&
+    if (adoptedRoot != null && configuredResolver is PlacementFlowResolver) {
+      resolver = _AdoptedRootResolver(
+          adoptedRoot, configuredResolver.originalResolver);
+    } else if (_forceUnassignedFallback &&
         (experimentFactory?.experimentMountsEnabled ?? false)) {
       resolver = experimentFactory!.createUnassignedFallbackResolver();
     } else if (experimentFactory?.experimentMountsEnabled ?? false) {
@@ -782,6 +920,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           mounted &&
           isCurrent() &&
           canCommitPresentation() &&
+          (_controllerPlacementAdmissions[controller]?.isCurrent ?? true) &&
           !presentation.isInvalidatedByIdentityReset &&
           (experimentResolver?.revalidate(
                 FlowMountRevalidationBoundary.firstPaint,
@@ -795,6 +934,11 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         commitPresentation?.call();
       },
       onPainted: () {
+        _placementDiscovery.markPainted();
+        _rootDeliveryReceipts[controller]?.paintedSinceOpened();
+        if (_refreshHandle case final handle?) {
+          SurfaceRefreshRegistry.instance.localValidityChanged(handle);
+        }
         presentation.activate();
         experimentResolver?.publishHostedLastGood();
         onPainted?.call();
@@ -865,6 +1009,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   ) {
     _finalizeMeasurementSessionFor(controller);
     _ownedControllers.remove(controller);
+    _mountAttributions.remove(controller);
+    _rootDeliveryReceipts.remove(controller);
     if (identical(_activeMeasurementController, controller)) {
       _activeMeasurementController = null;
     }
@@ -919,17 +1065,23 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     } else {
       presentation = null;
     }
-    if (presentation == null) {
+    void dispatch() {
       Restage.fireEvent(event);
+      if (!mounted) return;
+      PlacementEventScope.callbackFor(context, widget)?.call(event);
+    }
+
+    if (presentation == null) {
+      dispatch();
       return;
     }
     if (event is FlowStarted || event is OnboardingStepViewed) {
       presentation.captureDeferredContextOnActivation((attribution) {
-        attribution.runWithEventContext(() => Restage.fireEvent(event));
+        attribution.runWithEventContext(dispatch);
       });
       return;
     }
-    presentation.runWithEventContext(() => Restage.fireEvent(event));
+    presentation.runWithEventContext(dispatch);
   }
 
   bool _isPagerPresentationCurrent(
@@ -949,8 +1101,18 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     RestageFlowController<R> controller,
     Object resolvedOrPayload,
   ) async {
+    _controllerPlacementAdmissions[controller] =
+        placementAdmissionFor(resolvedOrPayload);
+    final snapshot = captureMountAttribution(
+        _placementDiscovery.declaration?.mount,
+        resolved: resolvedOrPayload);
+    if (snapshot != null) _mountAttributions[controller] = snapshot;
+    bindSurfaceDeliveryMountAttribution(resolvedOrPayload, snapshot);
+    _rootDeliveryReceipts[controller] =
+        surfaceDeliveryReceiptFor(placementResolvedLeaf(resolvedOrPayload));
     final session = MeasurementHostSessionController.openDeferred(
       resolvedOrPayload,
+      mountAttribution: snapshot,
       presentationObservations: _observationCell?.read,
     );
     if (!_ownedControllers.contains(controller)) {
@@ -975,6 +1137,12 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 
   void _activateMeasurementOwner(RestageFlowController<R> controller) {
     if (!_ownedControllers.contains(controller)) return;
+    final handle = _refreshHandle;
+    if (handle != null &&
+        identical(_controller, controller) &&
+        (_transaction?.isPaintAcknowledged ?? false)) {
+      SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+    }
     final previous = _activeMeasurementController;
     if (previous != null && !identical(previous, controller)) {
       _finalizeMeasurementSessionFor(previous);
@@ -1015,7 +1183,19 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     RestageFlowController<R> controller,
   ) =>
       _authoredEventHandlers[controller] ??= (eventId, value) {
-        _handleAuthoredEvent(controller, eventId, value);
+        final snapshot = _mountAttributions[controller];
+        if (snapshot == null) {
+          _handleAuthoredEvent(controller, eventId, value);
+        } else {
+          MountAttributionEventContext(
+                  snapshot: snapshot,
+                  isCurrent: () =>
+                      mounted &&
+                      identical(_controller, controller) &&
+                      (_transaction?.isPaintAcknowledged ??
+                          controller.hasRenderedContent))
+              .run(() => _handleAuthoredEvent(controller, eventId, value));
+        }
       };
 
   bool _isAuthoredEventHandlerCurrent(
@@ -1030,6 +1210,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 
   @override
   void dispose() {
+    _placementDiscovery.dispose();
     final controller = _controller;
     if (controller != null &&
         identical(controller, _activeMeasurementController) &&
@@ -1052,10 +1233,19 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   Widget build(BuildContext context) {
     final error = _unavailableError;
     if (error != null) {
-      if (widget.unavailable.isFallback) {
-        return widget.unavailable.fallbackBuilder!(context, error);
-      }
-      return const SizedBox.shrink();
+      final fallback = widget.unavailable.isFallback
+          ? widget.unavailable.fallbackBuilder!(context, error)
+          : const SizedBox.shrink();
+      // A refresh stages its candidate beside the fallback until it paints.
+      final staged = _pendingIsStaged ? _pendingController : null;
+      if (staged == null) return fallback;
+      return RestageContextSnapshotScope(
+        snapshot: _context,
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [fallback, _buildFlowLayer(staged, staged: true)],
+        ),
+      );
     }
     final controller = _controller;
     if (controller == null) {

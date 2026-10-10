@@ -11,12 +11,14 @@ import 'package:stream_channel/stream_channel.dart';
 
 import 'api_runner.dart';
 import 'build_tools.dart';
+import 'delivery_tools.dart';
 import 'experimental_gate.dart';
 import 'measurement_page_tools.dart';
 import 'in_flight_gate.dart';
 import 'library_check_tool.dart';
 import 'operation_tools.dart';
 import 'project_tools.dart';
+import 'placement_sample_tools.dart';
 import 'surface_funnel_tool.dart';
 import 'surface_routing_tool.dart';
 import 'surface_tools.dart';
@@ -149,6 +151,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       ...buildTools(tools),
       ...projectTools(tools),
       ...measurementPageTools(tools),
+      ...placementSampleTools(tools),
+      ...deliveryTools(tools),
       (
         readSurfaceFunnelTool,
         (request) => handleReadSurfaceFunnel(tools, request),

@@ -715,6 +715,8 @@ final class MeasurementRuntimeCaptureSession
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
     MeasurementExperimentAssignmentV1? experimentAssignment,
+    MountSelectionAttributionV1? attribution,
+    PresentationAssignmentCarrierV2? assignment,
   }) : this._(
           bounds: bounds,
           captureSessionNonce: captureSessionNonce,
@@ -722,6 +724,8 @@ final class MeasurementRuntimeCaptureSession
           routeTable: routeTable,
           sequence: sequence,
           experimentAssignment: experimentAssignment,
+          attribution: attribution,
+          assignment: assignment,
           monotonicMicrosSource: null,
           successfulRootPresentation: false,
         );
@@ -739,6 +743,8 @@ final class MeasurementRuntimeCaptureSession
     required MeasurementRuntimeRouteTable routeTable,
     required int sequence,
     MeasurementExperimentAssignmentV1? experimentAssignment,
+    MountSelectionAttributionV1? attribution,
+    PresentationAssignmentCarrierV2? assignment,
     int Function()? monotonicMicrosSource,
   }) : this._(
           bounds: bounds,
@@ -747,6 +753,8 @@ final class MeasurementRuntimeCaptureSession
           routeTable: routeTable,
           sequence: sequence,
           experimentAssignment: experimentAssignment,
+          attribution: attribution,
+          assignment: assignment,
           monotonicMicrosSource: monotonicMicrosSource,
           successfulRootPresentation: true,
         );
@@ -759,14 +767,18 @@ final class MeasurementRuntimeCaptureSession
     required int sequence,
     required bool successfulRootPresentation,
     required this.experimentAssignment,
+    required this.attribution,
+    required this.assignment,
     required int Function()? monotonicMicrosSource,
   })  : _monotonicMicrosSource = monotonicMicrosSource,
-        _presentationWitnesses = experimentAssignment == null
-            ? null
-            : List<int?>.filled(routeTable._routeCount, null),
-        _interactionWitnesses = experimentAssignment == null
-            ? null
-            : List<int?>.filled(routeTable._routeCount, null),
+        _presentationWitnesses =
+            experimentAssignment == null && assignment == null
+                ? null
+                : List<int?>.filled(routeTable._routeCount, null),
+        _interactionWitnesses =
+            experimentAssignment == null && assignment == null
+                ? null
+                : List<int?>.filled(routeTable._routeCount, null),
         _routeTable = routeTable,
         _nextSequence = sequence,
         _slotStates = Uint32List(routeTable._routeCount),
@@ -776,6 +788,9 @@ final class MeasurementRuntimeCaptureSession
           growable: false,
         ) {
     _successfulRootPresentation = successfulRootPresentation;
+    if (assignment != null && experimentAssignment != null) {
+      throw ArgumentError('A frame must retain one assignment carrier.');
+    }
     for (final route in routeTable._orderedCaptureV1?.routes ??
         <MeasurementOrderedCaptureRouteV1>[]) {
       final index = routeTable._routes.indexWhere((candidate) =>
@@ -821,6 +836,9 @@ final class MeasurementRuntimeCaptureSession
 
   /// Server-issued assignment retained unchanged for this capture session.
   final MeasurementExperimentAssignmentV1? experimentAssignment;
+  final MountSelectionAttributionV1? attribution;
+  final PresentationAssignmentCarrierV2? assignment;
+  bool get _isAssigned => experimentAssignment != null || assignment != null;
 
   /// Sequence that the next emitted snapshot will carry.
   int get sequence => _nextSequence;
@@ -958,9 +976,8 @@ final class MeasurementRuntimeCaptureSession
     }
     final index = route._index;
     final originalSlotState = slotStates[index];
-    final witness = experimentAssignment == null && _orderedRoutes.isEmpty
-        ? null
-        : _readElapsedMicros();
+    final witness =
+        !_isAssigned && _orderedRoutes.isEmpty ? null : _readElapsedMicros();
     var slotState = originalSlotState;
     _beginNewSnapshotAfterCheckpoint();
     if ((slotState & _measurementSlotPresentedFlag) == 0) {
@@ -1179,10 +1196,12 @@ final class MeasurementRuntimeCaptureSession
             'incomplete': _orderedIncomplete
           },
         'captureSessionNonce': captureSessionNonce._value,
+        if (attribution != null) 'attribution': attribution!.toJson(),
+        if (assignment != null) 'assignment': assignment!.toJson(),
         if (experimentAssignment != null)
           'experimentAssignment': experimentAssignment!.toJson(),
         'facts': [for (final fact in facts) fact.toJson()],
-        if (experimentAssignment != null || _orderedRoutes.isNotEmpty)
+        if (_isAssigned || _orderedRoutes.isNotEmpty)
           'frameElapsedMicros': _readElapsedMicros(),
         'finality': {'kind': isFinal ? 'final' : 'pending'},
         'kind': 'measurementFactFrame',

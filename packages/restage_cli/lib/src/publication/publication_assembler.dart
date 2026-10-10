@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/flow_experiment.dart' as flow;
 
 import '../api/surface_publication_api.dart';
 import '../commands/surface_payload.dart';
@@ -96,6 +97,126 @@ final class SurfacePublicationAssembler {
 
   /// Assemble [entry] from the fixed project root in [loaded].
   Future<AssembledSurfacePublication> assemble({
+    required LoadedSurfacePublicationManifest loaded,
+    required SurfacePublicationManifestEntry entry,
+  }) async {
+    final root = await _assembleEntry(loaded: loaded, entry: entry);
+    final available = <AssembledSurfacePublication>[root];
+    final rootPayload = root.payload;
+    if (rootPayload is FlowSurfacePayload) {
+      for (final candidate in loaded.manifest.publications) {
+        if ((candidate.publication.surface == entry.publication.surface &&
+                candidate.publication.slug == entry.publication.slug) ||
+            candidate.publication.surface != entry.publication.surface ||
+            candidate.publication.payloadKind != SurfacePayloadKind.flow ||
+            candidate.publication.deliveryMode !=
+                rootPayload.flowDocument.deliveryMode)
+          continue;
+        available.add(await _assembleEntry(loaded: loaded, entry: candidate));
+      }
+    }
+    List<AssembledSurfacePublication> selected = [root];
+    if (rootPayload is FlowSurfacePayload) {
+      final byIdentity =
+          <(Surface, String, int), AssembledSurfacePublication>{};
+      final documents = <flow.FlowExperimentDocumentContract>[];
+      for (final assembled in available) {
+        final payload = assembled.payload as FlowSurfacePayload;
+        final document = payload.flowDocument;
+        byIdentity[(
+              assembled.entry.publication.surface,
+              document.flow,
+              document.version,
+            )] =
+            assembled;
+        documents.add(
+          flow.FlowExperimentDocumentContract(
+            surfaceType: assembled.entry.publication.surface,
+            flowId: document.flow,
+            version: document.version,
+            schemaVersion: document.schemaVersion,
+            minClient: document.minClient,
+            contentHash: FlowContentHash.compute(
+              FlowDocumentCodec.encodeCanonicalJson(document),
+            ),
+            requiredLibraries: payload.requiredLibraries,
+            flowDocument: document,
+          ),
+        );
+      }
+      try {
+        selected =
+            flow.FlowExperimentDocumentContract.selectCompleteClosure(
+                  surfaceType: entry.publication.surface,
+                  deliveryMode: rootPayload.flowDocument.deliveryMode,
+                  descriptor: flow.FlowExperimentDescriptor(
+                    id: rootPayload.flowDocument.flow,
+                    version: rootPayload.flowDocument.version,
+                    minClient: rootPayload.minClient,
+                  ),
+                  documents: documents,
+                )
+                .map(
+                  (node) =>
+                      byIdentity[(
+                        node.surfaceType,
+                        node.flowId,
+                        node.version,
+                      )]!,
+                )
+                .toList();
+      } on FormatException catch (error) {
+        throw PublicationAssemblyException(
+          'The generated flow publication closure is incomplete: ${error.message}',
+        );
+      }
+    }
+    final bytes = <String, Uint8List>{};
+    final bundleFiles = <String, File>{};
+    for (final assembled in selected) {
+      for (final item in assembled.artifactBytes.entries) {
+        final previous = bytes[item.key];
+        if (previous != null && !_sameBytes(previous, item.value)) {
+          throw PublicationAssemblyException(
+            'Conflicting generated artifact bytes for "${item.key}".',
+          );
+        }
+        bytes[item.key] = item.value;
+      }
+      bundleFiles.addAll(assembled._selectedBundleFilesByAssetPath);
+    }
+    var request = SurfacePublicationUploadRequest(
+      publication: entry.publication,
+      payload: rootPayload.canonicalBytes,
+      artifactManifest: SurfacePublicationManifest(
+        publications: selected.map((value) => value.entry).toList(),
+      ),
+      artifactBytesByPath: bytes,
+    );
+    final measurementUpload = await MeasurementPublicationCandidateAssembler()
+        .assemble(
+          loaded: loaded,
+          entry: entry,
+          request: request,
+          artifactBytes: root.artifactBytes,
+        );
+    if (measurementUpload != null) {
+      request = SurfacePublicationUploadRequestV1Codec.decodeJson(
+        utf8.decode(measurementUpload.publicationUploadCanonicalBytes),
+      );
+    }
+    return AssembledSurfacePublication(
+      entry: entry,
+      payload: rootPayload,
+      request: request,
+      artifactBytes: bytes,
+      selectedBundleFilesByAssetPath: bundleFiles,
+      measurementUpload: measurementUpload,
+      capabilityWarning: root.capabilityWarning,
+    );
+  }
+
+  Future<AssembledSurfacePublication> _assembleEntry({
     required LoadedSurfacePublicationManifest loaded,
     required SurfacePublicationManifestEntry entry,
   }) async {
@@ -225,20 +346,12 @@ final class SurfacePublicationAssembler {
         payload: payload.canonicalBytes,
       );
       closure.validateAssembledPayload(payload.canonicalBytes);
-      final measurementUpload = await MeasurementPublicationCandidateAssembler()
-          .assemble(
-            loaded: loaded,
-            entry: entry,
-            request: request,
-            artifactBytes: bytesByPath,
-          );
       return AssembledSurfacePublication(
         entry: entry,
         payload: payload,
         request: request,
         artifactBytes: bytesByPath,
         selectedBundleFilesByAssetPath: bundleFilesByAssetPath,
-        measurementUpload: measurementUpload,
         capabilityWarning: publishCapabilityWarning(capabilityManifest),
       );
     } on PublicationException {
@@ -373,4 +486,12 @@ void _validateBlob(Uint8List blob) {
       'A generated screen artifact is not a publishable render blob.',
     );
   }
+}
+
+bool _sameBytes(List<int> first, List<int> second) {
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
 }

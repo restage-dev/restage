@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:build/build.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_builder.dart';
 import 'package:test/test.dart';
@@ -11,18 +11,9 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 import 'index_probe_helpers.dart';
 
-/// A package that opts into a source-index consumer must stay buildable under
-/// every placement mode.
-///
-/// The source-index chain validates authored `part` directives, so it needs
-/// the same resolved placement the compiler uses. Where it fell back to the
-/// default instead, the two demanded different URIs and no directive could
-/// satisfy both — the package became unbuildable rather than merely
-/// misplaced, and only under a non-default mode, which is why the default-mode
-/// suites never saw it.
-///
-/// The divergence registry cannot catch this: the loader is not a builder and
-/// never registers.
+/// Checks that source-index consumers share the compiler's output locations.
+/// Different plans require incompatible `part` URIs under non-default modes.
+/// The loader is outside the builder divergence registry.
 void main() {
   for (final mode in _modes.entries) {
     test('a widgetbook-enabled package builds under ${mode.key}', () async {
@@ -59,13 +50,13 @@ void main() {
     // configuration error instead of serving whichever builder populated the
     // cache first — exercised directly, since no builder pair can express it.
     final readerWriter = await _readerWriter(
-      RestageOutputPlacementPlan.defaults,
+      RestageOutputLocationPlan.defaults,
     );
     final result = await runWithNativeScreenPackageGraphForTesting(
       packageGraphSource: _packageGraph,
       body: () => testBuilder(
         const _TwoPlacementProbe(),
-        _sources(RestageOutputPlacementPlan.defaults),
+        _sources(RestageOutputLocationPlan.defaults),
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         flattenOutput: true,
@@ -87,23 +78,23 @@ final class _TwoPlacementProbe implements Builder {
   @override
   Future<void> build(BuildStep buildStep) async {
     final cache = WidgetbookCatalogIndexCache();
-    await cache.getOrLoad(buildStep, RestageOutputPlacementPlan.defaults);
+    await cache.getOrLoad(buildStep, RestageOutputLocationPlan.defaults);
     await cache.getOrLoad(
       buildStep,
-      RestageOutputPlacementPlan.fromBuilderOptions(
+      RestageOutputLocationPlan.fromBuilderOptions(
         const BuilderOptions({'source_output_layout': 'adjacent'}),
       ),
     );
   }
 }
 
-final Map<String, RestageOutputPlacementPlan> _modes = {
-  'default': RestageOutputPlacementPlan.defaults,
-  'adjacent': RestageOutputPlacementPlan.fromBuilderOptions(
+final Map<String, RestageOutputLocationPlan> _modes = {
+  'default': RestageOutputLocationPlan.defaults,
+  'adjacent': RestageOutputLocationPlan.fromBuilderOptions(
     BuilderOptions(_configFor('adjacent')),
   ),
   'a centralized dart output root':
-      RestageOutputPlacementPlan.fromBuilderOptions(
+      RestageOutputLocationPlan.fromBuilderOptions(
     BuilderOptions(_configFor('a centralized dart output root')),
   ),
 };
@@ -118,7 +109,7 @@ Map<String, dynamic> _configFor(String mode) => switch (mode) {
 
 /// A temp `lib/` holding the fixture, so the story census sees the same
 /// source the build does.
-Directory _storyLibDirectory(RestageOutputPlacementPlan plan) {
+Directory _storyLibDirectory(RestageOutputLocationPlan plan) {
   final temp = Directory.systemTemp.createTempSync('restage-placement-');
   addTearDown(() => temp.deleteSync(recursive: true));
   final lib = Directory('${temp.path}/lib')..createSync(recursive: true);
@@ -133,7 +124,7 @@ Directory _storyLibDirectory(RestageOutputPlacementPlan plan) {
 
 Future<TestBuilderResult> _build(
   List<Builder> builders,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) async {
   final readerWriter = await _readerWriter(plan);
   return runWithNativeScreenPackageGraphForTesting(
@@ -153,7 +144,7 @@ final String _packageGraph = nativeScreenPackageGraph(
 );
 
 Future<TestReaderWriter> _readerWriter(
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
@@ -165,7 +156,7 @@ Future<TestReaderWriter> _readerWriter(
 }
 
 /// One authored screen declaring the `part` URI [plan] resolves for it.
-Map<String, String> _sources(RestageOutputPlacementPlan plan) {
+Map<String, String> _sources(RestageOutputLocationPlan plan) {
   const path = 'lib/onboarding/screens/welcome.dart';
   final placement = plan.forLibrary(path);
   final partUri = placement.partUriFor(placement.neutralPartPath);

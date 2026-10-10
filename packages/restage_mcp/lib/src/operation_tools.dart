@@ -7,8 +7,35 @@ import 'tool_support.dart';
 /// The operations the CLI shares, as tools bound to [ctx].
 List<ToolEntry> operationTools(ToolContext ctx) => [
   for (final operation in sharedOperations)
-    (toolOf(operation), (request) => _call(ctx, operation, request)),
+    if (operation.reviewMeasurementImpact != null)
+      liveGuarded(ctx, (
+        toolOf(operation),
+        (request) => _call(ctx, operation, request),
+      ), planeOf: (request) => _allTargetsPlane(ctx, request))
+    else
+      (toolOf(operation), (request) => _call(ctx, operation, request)),
 ];
+
+Future<RuntimePlane> _allTargetsPlane(
+  ToolContext ctx,
+  CallToolRequest request,
+) async {
+  final discovery = DiscoveryApi(await ctx.api());
+  final app = await discovery.resolveTarget(
+    projectSlug: request.str('projectSlug'),
+    appSlug: request.str('appSlug'),
+    organizationId: request.optInt('organizationId'),
+  );
+  final targets = await discovery.listEnvironmentTargets(
+    organizationId: app.organizationId,
+    projectSlug: app.projectSlug,
+    appSlug: app.appSlug,
+    appId: app.appId,
+  );
+  return targets.any((target) => target.runtimePlane == RuntimePlane.live)
+      ? RuntimePlane.live
+      : RuntimePlane.sandbox;
+}
 
 /// The MCP tool for [operation].
 Tool toolOf(Operation operation) {
@@ -45,6 +72,9 @@ Tool toolOf(Operation operation) {
     description: operation.mcpDescription,
     inputSchema: Schema.object(
       properties: properties,
+      additionalProperties: operation.reviewMeasurementImpact == null
+          ? null
+          : false,
       required: [
         if (operation.surface && scope == OperationScope.target)
           ...(operation.readsSurface
@@ -89,6 +119,17 @@ Future<CallToolResult> _call(
   CallToolRequest request,
 ) => ctx.authed('running ${operation.mcpName}', (api) async {
   final arguments = request.arguments ?? const <String, Object?>{};
+  if (operation.reviewMeasurementImpact != null) {
+    final accepted = {
+      ...toolOf(operation).inputSchema.properties!.keys,
+      'confirmLive',
+    };
+    if (arguments.keys.any((key) => !accepted.contains(key))) {
+      return mcpError(
+        'Archive reviews every app target. Environment and family selectors are not accepted.',
+      );
+    }
+  }
   final args = OperationArgs({
     for (final param in operation.params)
       if (!param.cliOnly && arguments.containsKey(param.key))
@@ -108,18 +149,59 @@ Future<CallToolResult> _call(
   final ToolTarget? at = operation.scope == OperationScope.target
       ? targetSelector(request)
       : null;
+  final selectedApp = operation.reviewMeasurementImpact == null
+      ? null
+      : await DiscoveryApi(api).resolveTarget(
+          projectSlug: request.str('projectSlug'),
+          appSlug: request.str('appSlug'),
+          organizationId: request.optInt('organizationId'),
+        );
   final target = OperationTarget(
     api: api,
     syntax: SelectorSyntax.mcp,
-    organizationId: at?.organizationId ?? request.optInt('organizationId'),
-    project: request.optStr('projectSlug'),
-    app: request.optStr('appSlug'),
+    organizationId:
+        selectedApp?.organizationId ??
+        at?.organizationId ??
+        request.optInt('organizationId'),
+    project: selectedApp?.projectSlug ?? request.optStr('projectSlug'),
+    app: selectedApp?.appSlug ?? request.optStr('appSlug'),
+    appId: selectedApp?.appId,
     environment: at?.environment,
     environmentTargetId: at?.environmentTargetId,
     runtimePlane: at?.runtimePlane,
     identity: identity,
   );
-  final json = operation.json(await operation.call(target, args));
+  var callArgs = args;
+  if (operation.reviewMeasurementImpact case final reviewImpact?) {
+    final review = await reviewImpact(target);
+    if ((args.optBool('reviewOnly') ?? false) ||
+        review.refusalCodes.isNotEmpty) {
+      final result = jsonResult({
+        'measurementReview': review.toJson(),
+        'reviewDigest': review.digest.hex,
+      });
+      return CallToolResult(
+        content: result.content,
+        structuredContent: result.structuredContent,
+        isError: review.refusalCodes.isEmpty ? null : true,
+      );
+    }
+    try {
+      callArgs = OperationArgs(
+        args.values,
+        measurementProceed: reviewedDeliveryMeasurementProceed(
+          review: review,
+          reviewedDigest: args.optStr('reviewedDigest'),
+          operationId: args.optStr('operationId'),
+        ),
+      );
+    } on DeliveryMeasurementReviewRequired {
+      rethrow;
+    } on FormatException catch (error) {
+      throw TargetSelectionException(error.message);
+    }
+  }
+  final json = operation.json(await operation.call(target, callArgs));
   return jsonResult(switch (operation.resultKey) {
     final key? => <String, Object?>{key: json},
     null => json! as Map<String, Object?>,

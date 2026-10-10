@@ -4,10 +4,14 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/api.dart'
+    show encodeByteDataWire, decodeByteDataWire, SurfacePublicationUploadResult;
 import 'package:restage_cli/src/commands/surface_push_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as m;
 import 'package:test/test.dart';
 
 import '../_helpers/publication_fixtures.dart';
@@ -19,6 +23,43 @@ void main() {
   late FileCredentialStore store;
   late StringBuffer out;
   late StringBuffer err;
+
+  m.DeliveryPublicationReferenceV1 pushedReference() =>
+      m.DeliveryPublicationReferenceV1(
+        surface: m.DeliverySurfaceReferenceV1(
+          surfaceIdentity: m.PublishedSurfaceIdentityV1(
+            target: m.TargetCoordinate(
+              organizationId: m.OrganizationId(7),
+              appId: m.ApplicationId(5),
+              environmentTargetId: m.EnvironmentTargetId(12),
+              namedEnvironmentId: m.NamedEnvironmentId(22),
+              runtimePlane: m.RuntimePlane.sandbox,
+            ),
+            surfaceId: m.SurfaceId('opaque-stored-surface-id'),
+          ),
+          family: const m.DeliveryFamilySelectorV1.general(),
+        ),
+        publishedVersion: 3,
+        payloadFormatVersion: 2,
+        contentHash: m.CanonicalDigest('a' * 64),
+      );
+
+  http.Response pushWithReference(m.DeliveryPublicationReferenceV1 reference) {
+    final wire =
+        jsonDecode(
+              publishSucceeded(
+                'pro_upgrade',
+                storedRevision: 3,
+                activeRevision: 1,
+                identityFrozen: true,
+              ).body,
+            )
+            as Map<String, dynamic>;
+    wire['deliveryPublicationBytes'] = encodeByteDataWire(
+      reference.canonicalBytes,
+    );
+    return http.Response(jsonEncode(wire), 200);
+  }
 
   /// A backend that accepts the push and answers coverage against a build
   /// registering [registered], or no build when it is null.
@@ -91,6 +132,253 @@ void main() {
     app.deleteSync(recursive: true);
     home.deleteSync(recursive: true);
   });
+
+  test(
+    'plain push reports inverse fit for the exact newly stored revision while the active pointer is frozen',
+    () async {
+      await seedGeneratedPaywall(app);
+      final reference = pushedReference();
+      final methods = <String>[];
+      final client = mockHttpClient((request) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        methods.add(body['method'] as String);
+        if (body['method'] == 'publishPublication') {
+          return pushWithReference(reference);
+        }
+        expect(request.url.path, '/deliveryPolicy');
+        expect(body['method'], 'readFit');
+        final fit = m.DeliveryPolicyFitReadRequestV1.fromCanonicalBytes(
+          decodeByteDataWire(
+            body['requestBytes'],
+            malformed: FormatException.new,
+          ),
+        );
+        expect(fit.publication, reference);
+        expect(fit.publication!.publishedVersion, 3);
+        expect(fit.scope, isNull);
+        expect(body['environmentTargetId'], 12);
+        expect(body['organizationId'], 7);
+        final result = m.DeliveryPolicyFitReadV1(
+          request: fit,
+          authorityDigest: m.CanonicalDigest('b' * 64),
+          entries: [
+            for (final key in ['named:welcome', 'default:paywall:welcome'])
+              m.DeliveryPolicyFitEntryV1(
+                scope: m.DeliveryPolicyScopeV1(
+                  root: m.DeliveryRootIdentityV1.placement(
+                    m.PlacementIdentityV1(
+                      target: reference.surface.target,
+                      key: m.PlacementKeyV1.parse(key),
+                    ),
+                  ),
+                  family: const m.DeliveryFamilySelectorV1.none(),
+                ),
+                publication: reference,
+                verdictCanonicalBytes: m.CanonicalJsonCodec.encode({
+                  'accepted': true,
+                  'failures': <Object>[],
+                  'appBuildContractHash': 'sha256:${'c' * 64}',
+                }),
+              ),
+          ],
+        );
+        return http.Response(
+          jsonEncode(encodeByteDataWire(result.canonicalBytes)),
+          200,
+        );
+      });
+      expect(
+        await push(['pro_upgrade'], client: client),
+        0,
+        reason: err.toString(),
+      );
+      expect(methods, ['publishPublication', 'readFit']);
+      expect(out.toString(), contains('stored revision 3; active revision 1'));
+      expect(out.toString(), contains('Placement fit for stored revision 3'));
+      expect(out.toString(), contains('named:welcome'));
+      expect(out.toString(), contains('default:paywall:welcome'));
+      expect(out.toString(), contains('appBuildContractHash'));
+    },
+  );
+
+  test(
+    'old-server absent reference reports unavailable without a head lookup and keeps push success',
+    () async {
+      await seedGeneratedPaywall(app);
+      final methods = <String>[];
+      expect(await push(['pro_upgrade'], client: backend(methods: methods)), 0);
+      expect(methods, ['publishPublication']);
+      expect(
+        out.toString(),
+        contains('Placement fit report unavailable for stored revision 3'),
+      );
+    },
+  );
+
+  test(
+    'push follows exact inverse fit continuations without changing immutable coordinates',
+    () async {
+      await seedGeneratedPaywall(app);
+      final reference = pushedReference();
+      final cursors = <String?>[];
+      final client = mockHttpClient((request) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (body['method'] == 'publishPublication') {
+          return pushWithReference(reference);
+        }
+        expect(body['method'], 'readFit');
+        final fit = m.DeliveryPolicyFitReadRequestV1.fromCanonicalBytes(
+          decodeByteDataWire(
+            body['requestBytes'],
+            malformed: FormatException.new,
+          ),
+        );
+        expect(fit.publication, reference);
+        expect(fit.pageSize, 200);
+        cursors.add(fit.cursor);
+        final first = cursors.length == 1;
+        final result = m.DeliveryPolicyFitReadV1(
+          request: fit,
+          authorityDigest: m.CanonicalDigest('b' * 64),
+          nextCursor: first ? 'opaque-fit-page-two' : null,
+          entries: [
+            m.DeliveryPolicyFitEntryV1(
+              scope: m.DeliveryPolicyScopeV1(
+                root: m.DeliveryRootIdentityV1.placement(
+                  m.PlacementIdentityV1(
+                    target: reference.surface.target,
+                    key: m.PlacementKeyV1.named(
+                      slug: first ? 'first' : 'second',
+                    ),
+                  ),
+                ),
+                family: const m.DeliveryFamilySelectorV1.none(),
+              ),
+              publication: reference,
+              verdictCanonicalBytes: m.CanonicalJsonCodec.encode({
+                'accepted': true,
+              }),
+            ),
+          ],
+        );
+        return http.Response(
+          jsonEncode(encodeByteDataWire(result.canonicalBytes)),
+          200,
+        );
+      });
+      expect(await push(['pro_upgrade'], client: client), 0);
+      expect(cursors, [null, 'opaque-fit-page-two']);
+      expect(out.toString(), contains('named:first'));
+      expect(out.toString(), contains('named:second'));
+    },
+  );
+
+  test(
+    'authority changes between inverse pages mark the whole report unavailable and preserve push success',
+    () async {
+      await seedGeneratedPaywall(app);
+      final reference = pushedReference();
+      var reads = 0;
+      final client = mockHttpClient((request) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (body['method'] == 'publishPublication') {
+          return pushWithReference(reference);
+        }
+        final fit = m.DeliveryPolicyFitReadRequestV1.fromCanonicalBytes(
+          decodeByteDataWire(
+            body['requestBytes'],
+            malformed: FormatException.new,
+          ),
+        );
+        reads++;
+        final result = m.DeliveryPolicyFitReadV1(
+          request: fit,
+          authorityDigest: m.CanonicalDigest((reads == 1 ? 'b' : 'c') * 64),
+          nextCursor: reads == 1 ? 'opaque-fit-page-two' : null,
+          entries: [
+            m.DeliveryPolicyFitEntryV1(
+              scope: m.DeliveryPolicyScopeV1(
+                root: m.DeliveryRootIdentityV1.placement(
+                  m.PlacementIdentityV1(
+                    target: reference.surface.target,
+                    key: m.PlacementKeyV1.named(slug: 'first'),
+                  ),
+                ),
+                family: const m.DeliveryFamilySelectorV1.none(),
+              ),
+              publication: reference,
+              verdictCanonicalBytes: m.CanonicalJsonCodec.encode({
+                'accepted': true,
+              }),
+            ),
+          ],
+        );
+        return http.Response(
+          jsonEncode(encodeByteDataWire(result.canonicalBytes)),
+          200,
+        );
+      });
+      expect(await push(['pro_upgrade'], client: client), 0);
+      expect(reads, 2);
+      expect(out.toString(), contains('Placement fit report unavailable'));
+      expect(
+        out.toString(),
+        isNot(contains('Placement fit for stored revision')),
+      );
+    },
+  );
+
+  test(
+    'unavailable inverse read preserves the successful stored push',
+    () async {
+      await seedGeneratedPaywall(app);
+      final methods = <String>[];
+      final client = mockHttpClient((request) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        methods.add(body['method'] as String);
+        return body['method'] == 'publishPublication'
+            ? pushWithReference(pushedReference())
+            : http.Response('temporarily unavailable', 503);
+      });
+      expect(
+        await push(['pro_upgrade'], client: client),
+        0,
+        reason: err.toString(),
+      );
+      expect(methods, ['publishPublication', 'readFit']);
+      expect(out.toString(), contains('Pushed pro_upgrade'));
+      expect(out.toString(), contains('Placement fit report unavailable'));
+    },
+  );
+
+  test(
+    'nullable additive publication reference decodes strictly and binds stored revision',
+    () {
+      final reference = pushedReference();
+      final oldWire = jsonDecode(
+        publishSucceeded('pro_upgrade', storedRevision: 3).body,
+      );
+      expect(
+        SurfacePublicationUploadResult.fromWire(oldWire).deliveryPublication,
+        isNull,
+      );
+      final result = SurfacePublicationUploadResult.fromWire(
+        jsonDecode(pushWithReference(reference).body),
+      );
+      expect(result.deliveryPublication, reference);
+      expect(
+        SurfacePublicationUploadResult.fromWire(
+          result.toJson(),
+        ).deliveryPublication,
+        reference,
+      );
+      final wrong = {...result.toJson(), 'storedPublishedRevision': 4};
+      expect(
+        () => SurfacePublicationUploadResult.fromWire(wrong),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('a push says when the dashboard has no build for its widgets', () async {
     final code = await push(['pro_upgrade'], client: backend());

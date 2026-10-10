@@ -9,13 +9,13 @@ import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_output_validation.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Removes recognized obsolete artifacts after their replacement is emitted.
 Future<void> cleanLegacyRestageOutputs(
   String package,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) async {
   final root = await restagePackageRoot(package);
   if (root == null) {
@@ -28,7 +28,7 @@ Future<void> cleanLegacyRestageOutputs(
 void cleanLegacyRestageOutputsInDirectory(
   Directory root,
   String package,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) {
   const indexPath = 'lib/generated/restage.outputs.json';
   const manifestPath = 'lib/generated/restage.publication.json';

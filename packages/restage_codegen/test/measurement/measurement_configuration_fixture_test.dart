@@ -11,7 +11,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
@@ -500,7 +500,7 @@ final class _MeasurementConfigurationConsumer implements Builder {
   Future<void> build(BuildStep buildStep) async {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
-      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      plan: RestageOutputLocationPlan.fromBuilderOptions(options),
       measurementPolicy:
           MeasurementCompilerPolicyInput.fromBuilderOptions(options),
       builderKey: _cacheConsumerKey,

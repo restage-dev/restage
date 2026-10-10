@@ -68,6 +68,16 @@ const _cases =
         args: {'experimentId': 'experiment.checkout'},
         flags: ['--experiment=experiment.checkout'],
       ),
+      'delivery map': (
+        tool: 'restage_read_delivery_map',
+        args: {'allEnvironments': true, 'placement': 'named:home'},
+        flags: ['--all-environments', '--placement=named:home'],
+      ),
+      'where': (
+        tool: 'restage_where',
+        args: {'surface': 'daily-check-in@2'},
+        flags: ['daily-check-in@2'],
+      ),
     };
 
 const _directoryTarget = {

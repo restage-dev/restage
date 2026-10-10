@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:dart_mcp/client.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:restage_cli/api.dart';
+import 'package:restage_cli/api.dart' hide RuntimePlane;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:test/test.dart';
 
@@ -694,6 +694,84 @@ void main() {
       );
 
       expect(server.methods, ['discoverTargetsAndCapabilities']);
+      final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
+        requests.single,
+      );
+      expect(sent.payload, payload);
+    });
+
+    test('opens a draft at its candidate surface root', () async {
+      final requests = <Uint8List>[];
+      final server = await connect(requests: requests);
+      final surfaceId = '$kMintedSurfaceIdPrefix${List.filled(64, 'a').join()}';
+      final candidate = {
+        'kind': 'exactSurfaceReference',
+        'surfaceId': surfaceId,
+        'surfaceRevisionId':
+            '$kMintedSurfaceRevisionIdPrefix${List.filled(64, 'b').join()}',
+      };
+
+      final result = await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'openDraft',
+            payload: {'initialCandidate': candidate},
+            idempotencyKey: 'open-key',
+          ),
+        ),
+      );
+
+      expect(server.methods, ['openDraft'], reason: _errorText(result));
+      final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
+        requests.single,
+      );
+      expect(sent.payload, {
+        'initialCandidate': candidate,
+        'root': DeliveryRootIdentityV1.surface(
+          PublishedSurfaceIdentityV1(
+            target: TargetCoordinate(
+              organizationId: OrganizationId(11),
+              appId: ApplicationId(23),
+              environmentTargetId: EnvironmentTargetId(31),
+              namedEnvironmentId: NamedEnvironmentId(37),
+              runtimePlane: RuntimePlane.live,
+            ),
+            surfaceId: SurfaceId(surfaceId),
+          ),
+        ).toJson(),
+      });
+    });
+
+    test('keeps an explicit opening root untouched', () async {
+      final requests = <Uint8List>[];
+      final server = await connect(requests: requests);
+      final payload = <String, Object?>{
+        'root': DeliveryRootIdentityV1.placement(
+          PlacementIdentityV1(
+            target: TargetCoordinate(
+              organizationId: OrganizationId(11),
+              appId: ApplicationId(23),
+              environmentTargetId: EnvironmentTargetId(31),
+              namedEnvironmentId: NamedEnvironmentId(37),
+              runtimePlane: RuntimePlane.live,
+            ),
+            key: PlacementKeyV1.named(slug: 'checkout'),
+          ),
+        ).toJson(),
+      };
+
+      await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'openDraft',
+            payload: payload,
+            idempotencyKey: 'open-key',
+          ),
+        ),
+      );
+
       final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
         requests.single,
       );

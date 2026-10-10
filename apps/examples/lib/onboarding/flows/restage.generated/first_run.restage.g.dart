@@ -116,9 +116,92 @@ final class FirstRunActions implements FlowActionRegistry {
   );
 }
 
+final _firstRunFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: firstRunFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'first_run',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{
+        'requestNotifications': <String, Object?>{
+          'actionName': 'requestNotifications',
+          'contractVersion': 1,
+          'argsSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{}
+          },
+          'resultSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{
+              'granted': <String, Object?>{
+                'required': true,
+                'schema': <String, Object?>{'kind': 'bool'}
+              }
+            }
+          },
+          'minClient': 6,
+          'idempotent': false
+        }
+      },
+      'signals': <Object?>['skip'],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{'completed': 'bool'},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{'skip': <String, Object?>{}}
+      }
+    }
+  },
+  vocabulary: firstRunFlowRef.vocabulary,
+);
+
+final firstRunFlowPlacementDefinition =
+    () => _firstRunFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class FirstRunFlowSurface extends RestageFlowGraph<FirstRunResult> {
   const FirstRunFlowSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: firstRunFlowRef);
+
+  const FirstRunFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -132,5 +215,14 @@ final class FirstRunFlowSurface extends RestageFlowGraph<FirstRunResult> {
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: firstRunFlowRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: firstRunFlowRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: firstRunFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

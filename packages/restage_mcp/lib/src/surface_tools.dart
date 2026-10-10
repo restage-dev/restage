@@ -2,6 +2,10 @@ import 'dart:io';
 
 import 'package:dart_mcp/server.dart';
 import 'package:restage_cli/api.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        DeliveryMeasurementMutationReviewV1,
+        DeliveryMeasurementMutationProceedV1;
 
 import 'api_runner.dart';
 import 'tool_support.dart';
@@ -16,6 +20,21 @@ final _reasonProperty = Schema.string(
 
 /// The audit reason recorded when a caller does not supply one.
 const kDefaultMcpPublishReason = 'Published from the MCP server';
+
+final _measurementReviewProperties = <String, Schema>{
+  'reviewOnly': Schema.bool(
+    description:
+        'Return the complete measurement impact review without changing the surface.',
+  ),
+  'reviewedDigest': Schema.string(
+    description:
+        'The exact aggregate digest whose complete measurement warning set the user reviewed.',
+  ),
+  'operationId': Schema.string(
+    description:
+        'Canonical lowercase UUIDv4 for this retry. Generated when omitted.',
+  ),
+};
 
 /// The surface tools, bound to [ctx].
 List<ToolEntry> surfaceTools(ToolContext ctx) => [
@@ -172,6 +191,7 @@ final _publishSurfaceTool = Tool(
   inputSchema: Schema.object(
     properties: {
       ...surfaceTargetProperties(family: true),
+      ..._measurementReviewProperties,
       'revision': Schema.int(
         description:
             'The pushed revision to publish. Defaults to the latest one '
@@ -230,6 +250,7 @@ final _rollbackSurfaceTool = Tool(
   inputSchema: Schema.object(
     properties: {
       ...surfaceTargetProperties(family: true),
+      ..._measurementReviewProperties,
       'toVersion': Schema.int(
         description: 'The published version to roll back to.',
       ),
@@ -254,6 +275,7 @@ final _killSurfaceTool = Tool(
   inputSchema: Schema.object(
     properties: {
       ...surfaceTargetProperties(),
+      ..._measurementReviewProperties,
       'reason': _reasonProperty,
       'frozen': Schema.bool(
         description:
@@ -272,7 +294,11 @@ final _freezeSurfaceTool = Tool(
       'it is unfrozen. Requires an admin role and a reason for the audit '
       'trail.',
   inputSchema: Schema.object(
-    properties: {...surfaceTargetProperties(), 'reason': _reasonProperty},
+    properties: {
+      ...surfaceTargetProperties(),
+      ..._measurementReviewProperties,
+      'reason': _reasonProperty,
+    },
     required: [...surfaceTargetRequired, 'reason'],
   ),
 );
@@ -283,7 +309,11 @@ final _unfreezeSurfaceTool = Tool(
       'Unfreeze a surface in an environment so versions can be published '
       'again. Requires an admin role and a reason for the audit trail.',
   inputSchema: Schema.object(
-    properties: {...surfaceTargetProperties(), 'reason': _reasonProperty},
+    properties: {
+      ...surfaceTargetProperties(),
+      ..._measurementReviewProperties,
+      'reason': _reasonProperty,
+    },
     required: [...surfaceTargetRequired, 'reason'],
   ),
 );
@@ -440,13 +470,26 @@ Future<CallToolResult> _publishSurface(
   }
 
   return ctx.authed('publishing the surface', (api) async {
+    final identity = lifecycleIdentityOf(request);
+    final impact = await _reviewSurfaceMeasurement(
+      api,
+      request,
+      identity: identity,
+      operation: 'surfaceActivate',
+      reason: reason,
+      publishedRevision: explicitRevision,
+    );
+    if (impact.proceed == null) {
+      return _measurementReviewResult(impact.review);
+    }
     final output = StringBuffer();
     final (:publication, :recorded) = await publishSurface(
       api: SurfaceApi(api),
-      identity: lifecycleIdentityOf(request),
-      at: familyOf(targetSelector(request)),
+      identity: identity,
+      at: impact.at,
       revision: explicitRevision,
       reason: reason,
+      measurementProceed: impact.proceed,
       record: recorder == null
           ? null
           : (recorder: recorder, target: await resolveToolTarget(api, request)),
@@ -506,9 +549,19 @@ Future<CallToolResult> _rollbackSurface(
   if (reason == null) return mcpError(_reasonRequired);
   return ctx.authed('rolling back the surface', (api) async {
     final identity = lifecycleIdentityOf(request);
-    final target = targetSelector(request);
     final toVersion = request.reqInt('toVersion');
     final freeze = request.optBool('freeze') ?? false;
+    final impact = await _reviewSurfaceMeasurement(
+      api,
+      request,
+      identity: identity,
+      operation: 'surfaceRollback',
+      reason: reason,
+      publishedRevision: toVersion,
+      frozen: freeze,
+    );
+    if (impact.proceed == null) return _measurementReviewResult(impact.review);
+    final target = impact.at;
     final result = await SurfaceApi(api).rollback(
       project: target.project,
       app: target.app,
@@ -523,6 +576,7 @@ Future<CallToolResult> _rollbackSurface(
       organizationId: target.organizationId,
       contractVersion: identity.contractVersion,
       sourceKind: identity.sourceKind,
+      measurementProceed: impact.proceed,
     );
     return jsonResult(<String, Object?>{
       'rolledBackTo': toVersion,
@@ -539,8 +593,18 @@ Future<CallToolResult> _killSurface(
   final reason = _reasonOf(request);
   if (reason == null) return mcpError(_reasonRequired);
   return ctx.authed('killing the surface', (api) async {
-    final target = targetSelector(request);
     final frozen = request.optBool('frozen') ?? false;
+    final identity = lifecycleIdentityOf(request);
+    final impact = await _reviewSurfaceMeasurement(
+      api,
+      request,
+      identity: identity,
+      operation: 'surfaceKill',
+      reason: reason,
+      frozen: frozen,
+    );
+    if (impact.proceed == null) return _measurementReviewResult(impact.review);
+    final target = impact.at;
     final result = await SurfaceApi(api).kill(
       project: target.project,
       app: target.app,
@@ -552,6 +616,7 @@ Future<CallToolResult> _killSurface(
       environmentTargetId: target.environmentTargetId,
       runtimePlane: target.runtimePlane,
       organizationId: target.organizationId,
+      measurementProceed: impact.proceed,
     );
     return jsonResult(<String, Object?>{
       'killed': true,
@@ -571,7 +636,19 @@ Future<CallToolResult> _setLock(
   return ctx.authed(
     locked ? 'freezing the surface' : 'unfreezing the surface',
     (api) async {
-      final target = targetSelector(request);
+      final identity = lifecycleIdentityOf(request);
+      final impact = await _reviewSurfaceMeasurement(
+        api,
+        request,
+        identity: identity,
+        operation: 'surfaceFreeze',
+        reason: reason,
+        frozen: locked,
+      );
+      if (impact.proceed == null) {
+        return _measurementReviewResult(impact.review);
+      }
+      final target = impact.at;
       final result = await SurfaceApi(api).setLock(
         project: target.project,
         app: target.app,
@@ -583,11 +660,95 @@ Future<CallToolResult> _setLock(
         environmentTargetId: target.environmentTargetId,
         runtimePlane: target.runtimePlane,
         organizationId: target.organizationId,
+        measurementProceed: impact.proceed,
       );
       return jsonResult(<String, Object?>{
         'frozen': locked,
         'result': ?result?.toJson(),
       });
     },
+  );
+}
+
+typedef _SurfaceMeasurementReview = ({
+  FamilyTarget at,
+  DeliveryMeasurementMutationReviewV1 review,
+  DeliveryMeasurementMutationProceedV1? proceed,
+});
+
+Future<_SurfaceMeasurementReview> _reviewSurfaceMeasurement(
+  RestageApi api,
+  CallToolRequest request, {
+  required SurfaceLifecycleIdentity identity,
+  required String operation,
+  required String reason,
+  int? publishedRevision,
+  bool? frozen,
+}) async {
+  final coordinate = await exactTargetCoordinate(api, request);
+  if (coordinate == null) {
+    throw const TargetSelectionException(exactTargetError);
+  }
+  final at = (
+    project: request.str('projectSlug'),
+    app: request.str('appSlug'),
+    environment: request.str('environmentSlug'),
+    environmentTargetId: coordinate.environmentTargetId.value,
+    runtimePlane: RuntimePlane.fromWireName(coordinate.runtimePlane.name),
+    organizationId: coordinate.organizationId.value,
+  );
+  final familyOperation = const {
+    'surfaceActivate',
+    'surfaceRollback',
+  }.contains(operation);
+  final review = await SurfaceApi(api).reviewDeliveryImpact(
+    project: at.project,
+    app: at.app,
+    surfaceType: identity.surface,
+    surfaceSlug: identity.slug,
+    environment: at.environment,
+    operation: operation,
+    reason: reason,
+    publishedRevision: publishedRevision,
+    contractVersion: familyOperation ? identity.contractVersion : null,
+    sourceKind: familyOperation ? identity.sourceKind : null,
+    frozen: frozen,
+    environmentTargetId: at.environmentTargetId,
+    runtimePlane: at.runtimePlane,
+    organizationId: at.organizationId,
+    expectedTarget: coordinate,
+  );
+  if ((request.optBool('reviewOnly') ?? false) ||
+      review.refusalCodes.isNotEmpty) {
+    return (at: at, review: review, proceed: null);
+  }
+  try {
+    return (
+      at: at,
+      review: review,
+      proceed: reviewedDeliveryMeasurementProceed(
+        review: review,
+        reviewedDigest: request.optStr('reviewedDigest'),
+        operationId: request.optStr('operationId'),
+      ),
+    );
+  } on DeliveryMeasurementReviewRequired {
+    rethrow;
+  } on FormatException catch (error) {
+    throw TargetSelectionException(error.message);
+  }
+}
+
+CallToolResult _measurementReviewResult(
+  DeliveryMeasurementMutationReviewV1 review,
+) {
+  final result = jsonResult({
+    'measurementReview': review.toJson(),
+    'reviewDigest': review.digest.hex,
+  });
+  return CallToolResult(
+    content: result.content,
+    structuredContent: result.structuredContent,
+    isError: review.refusalCodes.isEmpty ? null : true,
   );
 }

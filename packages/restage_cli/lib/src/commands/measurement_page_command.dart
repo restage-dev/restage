@@ -64,6 +64,7 @@ class MeasurementPageCommand extends Command<int> {
             'Defaults to now.',
       );
     for (final param in read.params) {
+      if (param.positional) continue;
       switch (param.kind) {
         case PageParamKind.stringList:
           argParser.addMultiOption(
@@ -101,7 +102,12 @@ class MeasurementPageCommand extends Command<int> {
   String get description => read.summary;
 
   @override
-  String get invocation => 'restage ${read.cliPath} [options]';
+  String get invocation => [
+    'restage ${read.cliPath}',
+    for (final param in read.params)
+      if (param.positional) '<${param.cli}>',
+    '[options]',
+  ].join(' ');
 
   @override
   Future<int> run() async {
@@ -135,7 +141,13 @@ class MeasurementPageCommand extends Command<int> {
         if (asJson) {
           _io.stdout.writeln(reply);
         } else {
-          renderPageReply(_io.stdout, reply, chosen.render);
+          renderPageReply(
+            _io.stdout,
+            reply,
+            chosen.renderFor == null
+                ? chosen.render
+                : (out, document) => chosen.renderFor!(out, document, values),
+          );
         }
         return 0;
       } on MeasurementPageMismatchException catch (error) {
@@ -147,7 +159,24 @@ class MeasurementPageCommand extends Command<int> {
 
   Map<String, Object?> _values() {
     final values = <String, Object?>{};
+    final rest = argResults?.rest ?? const <String>[];
+    final positional = [
+      for (final param in read.params)
+        if (param.positional) param,
+    ];
+    if (rest.length > positional.length) {
+      throw FormatException('Unexpected argument: ${rest.last}.');
+    }
     for (final param in read.params) {
+      if (param.positional) {
+        final index = positional.indexOf(param);
+        if (index < rest.length) {
+          values[param.key] = param.parse?.call(rest[index]) ?? rest[index];
+        } else if (param.required) {
+          throw FormatException('Required: <${param.cli}>.');
+        }
+        continue;
+      }
       switch (param.kind) {
         case PageParamKind.stringList:
           final list = argResults?[param.cli] as List<String>? ?? const [];
@@ -156,7 +185,7 @@ class MeasurementPageCommand extends Command<int> {
           if (argResults?[param.cli] == true) values[param.key] = true;
         case PageParamKind.string:
           if (argResults?[param.cli] case final String value) {
-            values[param.key] = value;
+            values[param.key] = param.parse?.call(value) ?? value;
           }
         case PageParamKind.integer:
           if (argResults?[param.cli] case final String text) {

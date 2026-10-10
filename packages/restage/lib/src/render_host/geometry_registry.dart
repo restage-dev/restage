@@ -2,7 +2,7 @@ import 'dart:async' show Stream, StreamController, unawaited;
 
 import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 import 'package:flutter/rendering.dart'
-    show MatrixUtils, Offset, Rect, RenderBox, RenderObject;
+    show MatrixUtils, Offset, Rect, RenderBox, RenderObject, RenderView;
 import 'package:flutter/scheduler.dart' show FrameCallback, SchedulerBinding;
 import 'document_path_codec.dart';
 
@@ -185,10 +185,7 @@ final class GeometryRegistry {
         for (final marker in entry.value)
           if (marker.box.attached && marker.box.hasSize)
             GeometryInstance(
-              MatrixUtils.transformRect(
-                marker.box.getTransformTo(frame),
-                Offset.zero & marker.box.size,
-              ),
+              geometryBoundsInFrame(marker.box, frame),
               item: marker.item,
             ),
       ];
@@ -201,13 +198,7 @@ final class GeometryRegistry {
 
   /// Orders each repeated path's instances as a depth-first walk meets them.
   void _sortByDrawnOrder(RenderBox frame) {
-    final order = <RenderObject, int>{};
-    void visit(RenderObject node) {
-      order[node] = order.length;
-      node.visitChildren(visit);
-    }
-
-    visit(frame);
+    final order = geometryDrawnOrder(frame);
     for (final instances in _markers.values) {
       if (instances.length < 2) continue;
       instances.sort(
@@ -215,6 +206,79 @@ final class GeometryRegistry {
             .compareTo(order[b.box] ?? order.length),
       );
     }
+  }
+}
+
+/// Logical frame-relative bounds using the render tree's paint transforms.
+Rect geometryBoundsInFrame(RenderBox box, RenderObject frame) {
+  var transform = box.getTransformTo(frame);
+  if (frame is RenderView) {
+    final logicalTransform = frame.configuration.toMatrix();
+    if (logicalTransform.invert() == 0) {
+      throw const FormatException('The Flutter view transform is singular.');
+    }
+    logicalTransform.multiply(transform);
+    transform = logicalTransform;
+  }
+  return MatrixUtils.transformRect(transform, Offset.zero & box.size);
+}
+
+/// Depth-first render order, retaining every drawn occurrence.
+Map<RenderObject, int> geometryDrawnOrder(RenderObject frame) {
+  final order = <RenderObject, int>{};
+  void visit(RenderObject node) {
+    order[node] = order.length;
+    node.visitChildren(visit);
+  }
+
+  visit(frame);
+  return order;
+}
+
+/// Resolves a component's render box without inserting a render object.
+final class GeometryRenderBoxBinding {
+  /// Starts observing the current descendant after each painted frame.
+  GeometryRenderBoxBinding({
+    required RenderObject? Function() renderObject,
+    required void Function(RenderBox? previous, RenderBox? next) onChanged,
+    void Function(RenderBox? box)? onFrame,
+    GeometryPostFrameScheduler schedulePostFrameCallback =
+        _defaultSchedulePostFrameCallback,
+  })  : _renderObject = renderObject,
+        _onChanged = onChanged,
+        _onFrame = onFrame,
+        _schedulePostFrameCallback = schedulePostFrameCallback {
+    _schedulePostFrameCallback(_resolve);
+  }
+
+  final RenderObject? Function() _renderObject;
+  final void Function(RenderBox? previous, RenderBox? next) _onChanged;
+  final void Function(RenderBox? box)? _onFrame;
+  final GeometryPostFrameScheduler _schedulePostFrameCallback;
+  RenderBox? _box;
+  bool _disposed = false;
+
+  void _resolve(Duration _) {
+    if (_disposed) return;
+    final candidate = _renderObject();
+    final next =
+        candidate is RenderBox && candidate.attached ? candidate : null;
+    if (!identical(next, _box)) {
+      final previous = _box;
+      _box = next;
+      _onChanged(previous, next);
+    }
+    _onFrame?.call(next);
+    if (!_disposed) _schedulePostFrameCallback(_resolve);
+  }
+
+  /// Unregisters the current box and stops observing future frames.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    final previous = _box;
+    _box = null;
+    if (previous != null) _onChanged(previous, null);
   }
 }
 

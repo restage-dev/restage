@@ -8,13 +8,13 @@ import 'dart:isolate';
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 
 /// Reads a package's previously generated outputs, keyed by package-relative
 /// path.
 typedef PriorGeneratedOutputReader = Future<Map<String, List<int>>> Function(
   String package,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 );
 
 /// The prior outputs captured by this build, shared by every builder in it.
@@ -47,7 +47,7 @@ Future<void> restorePreservedOutput(BuildStep buildStep, String path) async {
   );
 }
 
-/// Suffixes of the per-library generated files, across every placement.
+/// Suffixes of the per-library generated files, across every output location.
 const List<String> _kPreservedSuffixes = <String>[
   '.restage.g.dart',
   '.rsbundle',
@@ -58,7 +58,7 @@ const List<String> _kPreservedSuffixes = <String>[
 /// which the build system leaves in place until each owning step re-runs.
 Future<Map<String, List<int>>> readPriorGeneratedOutputs(
   String package,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) async {
   final packageLib = await Isolate.resolvePackageUri(
     Uri.parse('package:$package/'),
@@ -71,7 +71,7 @@ Future<Map<String, List<int>>> readPriorGeneratedOutputs(
 /// Captures the previous valid files under the selected package directory.
 Map<String, List<int>> readPriorGeneratedOutputsFromDirectory(
   Directory root,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
 ) {
   if (!root.existsSync()) return const {};
   final outputs = <String, List<int>>{};

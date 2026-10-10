@@ -600,6 +600,44 @@ void main() {
       },
     );
 
+    test('create sends the surface root with its initial candidate', () async {
+      ExperimentAuthoringRequestV1? sent;
+      final surfaceId = fixtureMintedSurfaceId('checkout');
+      final surfaceRevisionId = fixtureMintedSurfaceRevisionId('checkout.r3');
+      final result = await run(
+        [
+          'create',
+          '--surface-id=$surfaceId',
+          '--surface-revision-id=$surfaceRevisionId',
+        ],
+        reply: (method, request) {
+          sent = request;
+          return refusalFor(
+            method,
+            ExperimentAuthoringRefusalCodeV1.capabilityUnavailable,
+            correlationId: request.correlationId,
+          );
+        },
+      );
+
+      expect(result.err, isNot(contains('explicit root')), reason: result.err);
+      expect(sent, isNotNull, reason: result.err);
+      expect(sent!.operation, ExperimentAuthoringOperationV1.openDraft);
+      expect(sent!.payload, {
+        'initialCandidate': {
+          'kind': 'exactSurfaceReference',
+          'surfaceId': surfaceId,
+          'surfaceRevisionId': surfaceRevisionId,
+        },
+        'root': DeliveryRootIdentityV1.surface(
+          PublishedSurfaceIdentityV1(
+            target: fixtureTarget,
+            surfaceId: SurfaceId(surfaceId),
+          ),
+        ).toJson(),
+      });
+    });
+
     test('sends the selectors as the payload for that operation', () async {
       late ExperimentAuthoringRequestV1 sent;
       final stdout = StringBuffer();

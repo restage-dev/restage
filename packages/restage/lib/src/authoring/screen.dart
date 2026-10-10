@@ -2,6 +2,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
     show Surface, kBaselineCatalogVersion;
 
+import '../runtime/placement_mount.dart' show SurfacePresentationRequirement;
+
 /// Marks a Flutter widget class as a Restage screen.
 ///
 /// A screen without [surface] is reusable inside a flow and inherits the
@@ -14,6 +16,7 @@ final class Screen {
     this.surface,
     this.version = 1,
     this.minClient = kBaselineCatalogVersion,
+    this.presentation = SurfacePresentationRequirement.infer,
   });
 
   /// Optional stable source identity.
@@ -27,4 +30,7 @@ final class Screen {
 
   /// Minimum catalog version required to render the screen.
   final int minClient;
+
+  /// Narrows the presentation modes the complete compiled screen must prove.
+  final SurfacePresentationRequirement presentation;
 }

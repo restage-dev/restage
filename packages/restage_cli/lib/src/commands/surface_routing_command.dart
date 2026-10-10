@@ -7,13 +7,18 @@ import 'dart:typed_data';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/delivery_management_api.dart';
 import 'package:restage_cli/src/api/surface_routing_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
+import 'package:restage_cli/src/commands/measurement_page_command.dart'
+    show targetCoordinateOf;
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/delivery/policy_review.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_cli/src/output/held_count.dart';
@@ -21,20 +26,9 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 typedef _RoutingContext = CommandIo;
 
-/// Parent of the `surface routing` subcommands.
-///
-/// Routing decides which published version of a surface a request receives:
-/// an ordered list of rules over audiences, each naming a destination, with a
-/// default when none matches. It applies to every surface — onboarding,
-/// messages, surveys, paywalls — not one kind.
-///
-/// The routing document is authored in Dart and compiled; these commands
-/// carry the compiled canonical document, they do not author it. Its bytes
-/// are opaque here and the service is their only decoder, so a malformed
-/// document is reported in the service's own terms.
-///
-/// Audiences are written through the canonical mutation route, not here: one
-/// artifact keeps one writer.
+/// Manages ordered audience-routing rules and defaults for any surface type.
+/// Reads preserve policy bytes. Writes use whole-policy requests and retained
+/// server reviews; audience mutations use their own route.
 class SurfaceRoutingCommand extends Command<int> {
   /// Construct the routing command group.
   SurfaceRoutingCommand({
@@ -58,6 +52,8 @@ class SurfaceRoutingCommand extends Command<int> {
     addSubcommand(_ReadDeliveryFlowCommand(context));
     addSubcommand(_ReadRevisionCommand(context));
     addSubcommand(_PreviewCommand(context));
+    addSubcommand(_ReviewCommand(context));
+    addSubcommand(_ReviewRollbackCommand(context));
     addSubcommand(_PublishCommand(context));
     addSubcommand(_RollbackCommand(context));
   }
@@ -93,7 +89,7 @@ abstract class _RoutingSubcommand extends Command<int> {
           help: 'Follow every cursor and print the accumulated rows.',
         );
     }
-    if (writes) {
+    if (acceptsOperationId) {
       argParser.addOption(
         'operation-id',
         help:
@@ -129,6 +125,9 @@ abstract class _RoutingSubcommand extends Command<int> {
 
   /// Whether this operation changes stored routing state.
   bool get writes => false;
+
+  /// Whether this operation submits a replayable publication.
+  bool get acceptsOperationId => false;
 
   /// Registers the selectors this operation needs beyond the shared set.
   void addOptions(ArgParser parser) {}
@@ -173,6 +172,7 @@ abstract class _RoutingSubcommand extends Command<int> {
         surfaceType: surfaceType,
         surfaceSlug: surfaceSlug,
         contractVersion: contractVersion,
+        coordinate: targetCoordinateOf(context),
       );
 
       if (this is LiveGuardedCommand &&
@@ -195,6 +195,9 @@ abstract class _RoutingSubcommand extends Command<int> {
       } on RoutingDocumentBytesException catch (error) {
         _stderr.writeln(error);
         return 1;
+      } on DeliveryManagementResponseException catch (error) {
+        _stderr.writeln(error);
+        return 2;
       } on RestageApiException catch (error) {
         return _reportApiFailure(error);
       } on CanonicalFormatException catch (error) {
@@ -307,11 +310,89 @@ abstract class _RoutingSubcommand extends Command<int> {
       return null;
     }
     try {
+      final length = await file.length();
+      if (length == 0) {
+        writeError(
+          'The --$option file must be between 1 and $kMaximumRoutingResponseBytes bytes.',
+        );
+        return null;
+      }
+      if (length > kMaximumRoutingResponseBytes) {
+        writeError(
+          'The --$option file exceeds the delivery response byte budget.',
+        );
+        return null;
+      }
       return await file.readAsBytes();
     } on FileSystemException catch (error) {
       _stderr.writeln('Could not read `$path`: ${error.message}');
       return null;
     }
+  }
+
+  /// Reads one strict public authoring document without sending malformed input.
+  Future<T?> readDocument<T>(
+    String option,
+    T Function(List<int>) decode,
+  ) async {
+    final bytes = await readBytes(option);
+    if (bytes == null) return null;
+    try {
+      return decode(bytes);
+    } on CanonicalFormatException catch (error) {
+      writeError('Invalid --$option: ${error.message}');
+      return null;
+    } on FormatException catch (error) {
+      writeError('Invalid --$option: ${error.message}');
+      return null;
+    }
+  }
+
+  bool requireScope(DeliveryPolicyScopeV1 scope, _RoutingTarget target) {
+    try {
+      requireSurfaceRoutingScope(
+        scope,
+        organizationId: target.organizationId,
+        environmentId: target.environmentId,
+        contractVersion: target.contractVersion,
+        expectedTarget: target.coordinate,
+      );
+      return true;
+    } on FormatException catch (error) {
+      writeError(error.message.toString());
+      return false;
+    }
+  }
+
+  Future<DeliveryPolicyPublishRequestV1?> reviewedPublish(
+    DeliveryPolicyReviewV1 review,
+  ) async {
+    try {
+      return await confirmDeliveryPolicyPublish(
+        review: review,
+        interactive: _io.interactive,
+        stdout: _stdout,
+        reviewedDigest: argResults?['reviewed-digest'] as String?,
+        operationId: argResults?['operation-id'] as String?,
+      );
+    } on DeliveryPolicyReviewRequired {
+      writeError(
+        'Supply --reviewed-digest ${review.digest.hex} after reviewing every warning.',
+      );
+      return null;
+    } on FormatException catch (error) {
+      writeError(error.message.toString());
+      return null;
+    }
+  }
+
+  Future<int> reportReview(DeliveryPolicyReviewV1 review) async {
+    final out = argResults?['out'] as String?;
+    if (out != null && out.isNotEmpty) {
+      await File(out).writeAsBytes(review.canonicalBytes);
+    }
+    report(review.toJson(), [formatDeliveryPolicyReview(review)]);
+    return review.refusalCodes.isEmpty ? 0 : 1;
   }
 
   /// Whether `--all-pages` was requested.
@@ -346,6 +427,7 @@ class _RoutingTarget {
     required this.surfaceType,
     required this.surfaceSlug,
     required this.contractVersion,
+    required this.coordinate,
   });
 
   final String projectSlug;
@@ -355,6 +437,7 @@ class _RoutingTarget {
   final String? surfaceType;
   final String? surfaceSlug;
   final int? contractVersion;
+  final TargetCoordinate coordinate;
 
   String get requiredSurfaceType => surfaceType!;
   String get requiredSurfaceSlug => surfaceSlug!;
@@ -840,60 +923,21 @@ class _PreviewCommand extends _RoutingSubcommand {
 
   @override
   String get description =>
-      'Evaluate a routing document against a request context without '
-      'publishing, drawing a percentage branch, or allocating an identity.';
+      'Simulate a current complete policy request using retained server authority.';
 
   @override
-  void addOptions(ArgParser parser) => parser
-    ..addOption(
-      'document',
-      help: 'File holding the canonical routing document (required).',
-    )
-    ..addOption(
-      'schema',
-      help: 'File holding the canonical context schema revision (required).',
-    )
-    ..addOption(
-      'request-context',
-      help: 'File holding the canonical request context (required).',
-    )
-    ..addMultiOption(
-      'audience',
-      help:
-          'File holding one canonical audience revision the document '
-          'references. Repeat once per referenced audience.',
-    )
-    ..addOption(
-      'sdk-built-ins',
-      help: 'File holding the canonical SDK request built-ins, when supplied.',
-    );
+  void addOptions(ArgParser parser) => parser.addOption(
+    'document',
+    help: 'Canonical DeliveryPolicySimulationRequestV1 file (required).',
+  );
 
   @override
   Future<int> invoke(SurfaceRoutingApi api, _RoutingTarget target) async {
-    final document = await readBytes('document');
-    if (document == null) return 1;
-    final schema = await readBytes('schema');
-    if (schema == null) return 1;
-    final requestContext = await readBytes('request-context');
-    if (requestContext == null) return 1;
-
-    final audiencePaths = argResults?['audience'] as List<String>? ?? const [];
-    final audiences = <Uint8List>[];
-    for (final path in audiencePaths) {
-      final file = File(path);
-      if (!file.existsSync()) {
-        writeError('No file at `$path` for --audience.');
-        return 1;
-      }
-      audiences.add(await file.readAsBytes());
-    }
-
-    Uint8List? builtIns;
-    if ((argResults?['sdk-built-ins'] as String?)?.isNotEmpty ?? false) {
-      builtIns = await readBytes('sdk-built-ins');
-      if (builtIns == null) return 1;
-    }
-
+    final request = await readDocument(
+      'document',
+      DeliveryPolicySimulationRequestV1.fromCanonicalBytes,
+    );
+    if (request == null || !requireScope(request.scope, target)) return 1;
     final preview = await api.previewRouting(
       projectSlug: target.projectSlug,
       appSlug: target.appSlug,
@@ -901,24 +945,60 @@ class _PreviewCommand extends _RoutingSubcommand {
       surfaceSlug: target.requiredSurfaceSlug,
       environmentId: target.environmentId,
       organizationId: target.organizationId,
-      documentBytes: document,
-      schemaBytes: schema,
-      requestContextBytes: requestContext,
-      audienceBytes: audiences,
-      sdkBuiltInsBytes: builtIns,
+      documentBytes: request.canonicalBytes,
+      expectedTarget: target.coordinate,
+    );
+    return report(preview.toJson(), [
+      const JsonEncoder.withIndent('  ').convert(preview.simulation!.toJson()),
+    ]);
+  }
+}
+
+class _ReviewCommand extends _RoutingSubcommand implements LiveGuardedCommand {
+  _ReviewCommand(super.context);
+
+  @override
+  String get name => 'review';
+
+  @override
+  String get description =>
+      'Freeze one complete candidate policy and its original source impact review.';
+
+  @override
+  bool get writes => true;
+
+  @override
+  void addOptions(ArgParser parser) => parser
+    ..addOption(
+      'request',
+      help:
+          'Canonical DeliveryPolicyReviewRequestV1 file (required). A rule '
+          'may carry an optional name of 1 to 60 characters.',
+    )
+    ..addOption(
+      'out',
+      help: 'Write the complete original server review here (required).',
     );
 
-    return report(preview.toJson(), [
-      for (final rule in preview.rules)
-        '${rule.routeId}\t${rule.matches ? "match" : "no match"}\t'
-            '${rule.reason?.name ?? "unknown"}',
-      if (preview.deliveryBytes == null)
-        'No rule selected a destination.'
-      else
-        'Selected destination: ${preview.deliveryBytes!.length} bytes.',
-      if (preview.usesActivePointer)
-        'The selection follows the surface default.',
-    ]);
+  @override
+  Future<int> invoke(SurfaceRoutingApi api, _RoutingTarget target) async {
+    if (requireOption('out') == null) return 1;
+    final request = await readDocument(
+      'request',
+      DeliveryPolicyReviewRequestV1.fromCanonicalBytes,
+    );
+    if (request == null || !requireScope(request.scope, target)) return 1;
+    final review = await api.reviewRouting(
+      projectSlug: target.projectSlug,
+      appSlug: target.appSlug,
+      surfaceType: target.requiredSurfaceType,
+      surfaceSlug: target.requiredSurfaceSlug,
+      environmentId: target.environmentId,
+      organizationId: target.organizationId,
+      request: request,
+      expectedTarget: target.coordinate,
+    );
+    return reportReview(review);
   }
 }
 
@@ -930,55 +1010,66 @@ class _PublishCommand extends _RoutingSubcommand implements LiveGuardedCommand {
 
   @override
   String get description =>
-      'Publish a whole routing document, replacing what is stored.';
+      'Publish only an original server review and its exact acknowledged warning set.';
 
   @override
   bool get writes => true;
 
   @override
+  bool get acceptsOperationId => true;
+
+  @override
   void addOptions(ArgParser parser) => parser
     ..addOption(
-      'document',
-      help: 'File holding the canonical routing document (required).',
+      'review',
+      aliases: ['document'],
+      help: 'Canonical original DeliveryPolicyReviewV1 file (required).',
+    )
+    ..addOption(
+      'reviewed-digest',
+      help:
+          'Exact digest of the complete review whose measurement warnings you approved.',
     )
     ..addOption(
       'expected-revision-ordinal',
-      help:
-          'Revision ordinal this write expects, read with the document '
-          '(required unless --expect-no-revision).',
+      help: 'Optional expected head; must match the original server review.',
     )
     ..addFlag(
       'expect-no-revision',
       negatable: false,
       help:
-          'This write expects no stored document. Use for the first publish '
-          'at a target.',
+          'Optional first-publication assertion; must match the original review.',
     );
 
   @override
   Future<int> invoke(SurfaceRoutingApi api, _RoutingTarget target) async {
+    final review = await readDocument(
+      'review',
+      DeliveryPolicyReviewV1.fromCanonicalBytes,
+    );
+    if (review == null || !requireScope(review.scope, target)) return 1;
     final expectNone = argResults?['expect-no-revision'] as bool? ?? false;
-    final suppliedOrdinal = argResults?['expected-revision-ordinal'] as String?;
-    final hasOrdinal = suppliedOrdinal != null && suppliedOrdinal.isNotEmpty;
-    if (expectNone == hasOrdinal) {
-      writeError(
-        'Pass exactly one of --expected-revision-ordinal or '
-        '--expect-no-revision.',
-      );
+    final ordinal = argResults?['expected-revision-ordinal'] as String?;
+    if (expectNone && ordinal != null) {
+      writeError('Pass only one expected-head assertion.');
       return 1;
     }
-
-    int? expected;
-    if (hasOrdinal) {
-      expected = requirePositiveInt('expected-revision-ordinal');
-      if (expected == null) return 1;
+    if (expectNone && review.expectedHeadOrdinal != null) {
+      writeError('The server review expects an existing revision.');
+      return 1;
     }
-
-    final document = await readBytes('document');
-    if (document == null) return 1;
-    final operationId = resolveOperationId();
-    if (operationId == null) return 1;
-
+    if (ordinal != null) {
+      final expected = requirePositiveInt('expected-revision-ordinal');
+      if (expected == null) return 1;
+      if (expected != review.expectedHeadOrdinal) {
+        writeError(
+          'The expected revision differs from the original server review.',
+        );
+        return 1;
+      }
+    }
+    final request = await reviewedPublish(review);
+    if (request == null) return 1;
     final result = await api.publishRouting(
       projectSlug: target.projectSlug,
       appSlug: target.appSlug,
@@ -986,16 +1077,15 @@ class _PublishCommand extends _RoutingSubcommand implements LiveGuardedCommand {
       surfaceSlug: target.requiredSurfaceSlug,
       environmentId: target.environmentId,
       organizationId: target.organizationId,
-      documentBytes: document,
-      expectedRevisionOrdinal: expected,
-      operationId: operationId,
+      documentBytes: request.canonicalBytes,
+      expectedRevisionOrdinal: review.expectedHeadOrdinal,
+      operationId: request.operationId,
+      expectedTarget: target.coordinate,
     );
-
     return report(
-      {...result.toJson(), 'operationId': operationId},
+      {...result.toJson(), 'operationId': request.operationId},
       [
-        '${result.outcome?.name ?? "unknown"} at revision '
-            '${result.revisionOrdinal}.',
+        '${result.outcome?.name ?? "unknown"} at revision ${result.revisionOrdinal}.',
       ],
     );
   }
@@ -1010,22 +1100,40 @@ class _RollbackCommand extends _RoutingSubcommand
 
   @override
   String get description =>
-      'Restore one route to an earlier revision, leaving the rest of the '
-      'document as stored.';
+      'Review and restore only the selected route. Structured schedules require a whole-policy review.';
 
   @override
   bool get writes => true;
 
   @override
+  bool get acceptsOperationId => true;
+
+  bool get onlyReview => argResults?['review-only'] as bool? ?? false;
+
+  @override
   void addOptions(ArgParser parser) => parser
-    ..addOption('route-id', help: 'The route to restore (required).')
+    ..addOption('route-id', help: 'The original route to restore (required).')
     ..addOption(
       'prior-revision-ordinal',
       help: 'Revision to restore the route from (required).',
     )
     ..addOption(
       'expected-revision-ordinal',
-      help: 'Revision ordinal this write expects (required).',
+      help: 'Expected current whole-policy ordinal (required).',
+    )
+    ..addOption(
+      'reviewed-digest',
+      help:
+          'Digest of the complete returned review whose warnings you approved.',
+    )
+    ..addFlag(
+      'review-only',
+      negatable: false,
+      help: 'Return the original route-restoration review without publishing.',
+    )
+    ..addOption(
+      'out',
+      help: 'Write the original route-restoration review here.',
     );
 
   @override
@@ -1036,9 +1144,26 @@ class _RollbackCommand extends _RoutingSubcommand
     if (prior == null) return 1;
     final expected = requirePositiveInt('expected-revision-ordinal');
     if (expected == null) return 1;
-    final operationId = resolveOperationId();
-    if (operationId == null) return 1;
-
+    final review = await api.reviewRouteRollback(
+      projectSlug: target.projectSlug,
+      appSlug: target.appSlug,
+      surfaceType: target.requiredSurfaceType,
+      surfaceSlug: target.requiredSurfaceSlug,
+      environmentId: target.environmentId,
+      organizationId: target.organizationId,
+      routeId: routeId,
+      priorRevisionOrdinal: prior,
+      expectedRevisionOrdinal: expected,
+      contractVersion: target.contractVersion,
+      expectedTarget: target.coordinate,
+    );
+    final out = argResults?['out'] as String?;
+    if (out != null && out.isNotEmpty) {
+      await File(out).writeAsBytes(review.canonicalBytes);
+    }
+    if (onlyReview) return reportReview(review);
+    final request = await reviewedPublish(review);
+    if (request == null) return 1;
     final result = await api.rollbackRoute(
       projectSlug: target.projectSlug,
       appSlug: target.appSlug,
@@ -1050,17 +1175,47 @@ class _RollbackCommand extends _RoutingSubcommand
       priorRevisionOrdinal: prior,
       expectedRevisionOrdinal: expected,
       contractVersion: target.contractVersion,
-      operationId: operationId,
+      operationId: request.operationId,
+      reviewedPublishRequest: request,
+      expectedTarget: target.coordinate,
     );
-
     return report(
-      {...result.toJson(), 'operationId': operationId},
+      {...result.toJson(), 'operationId': request.operationId},
       [
-        '${result.outcome?.name ?? "unknown"} at revision '
-            '${result.revisionOrdinal}.',
+        '${result.outcome?.name ?? "unknown"} at revision ${result.revisionOrdinal}.',
       ],
     );
   }
+}
+
+class _ReviewRollbackCommand extends _RollbackCommand {
+  _ReviewRollbackCommand(super.context);
+
+  @override
+  String get name => 'review-rollback';
+
+  @override
+  String get description =>
+      'Read the complete server review for restoring only one original route.';
+
+  @override
+  bool get onlyReview => true;
+
+  @override
+  bool get acceptsOperationId => false;
+
+  @override
+  void addOptions(ArgParser parser) => parser
+    ..addOption('route-id', help: 'The original route to review (required).')
+    ..addOption(
+      'prior-revision-ordinal',
+      help: 'Revision to restore the route from (required).',
+    )
+    ..addOption(
+      'expected-revision-ordinal',
+      help: 'Expected current whole-policy ordinal (required).',
+    )
+    ..addOption('out', help: 'Write the complete original server review here.');
 }
 
 final _operationIdShape = RegExp(
@@ -1070,9 +1225,11 @@ final _operationIdShape = RegExp(
 final _random = Random.secure();
 
 /// Whether [value] is the canonical version 4 UUID the service accepts.
+@experimental
 bool isCanonicalOperationId(String value) => _operationIdShape.hasMatch(value);
 
 /// Mint one retry identity as a canonical version 4 UUID.
+@experimental
 String newOperationId() {
   final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;

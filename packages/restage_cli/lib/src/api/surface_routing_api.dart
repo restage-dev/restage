@@ -3,12 +3,18 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/byte_data_wire.dart';
+import 'package:restage_cli/src/api/delivery_management_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
-/// Largest routing document, preview input, or delivery blob the client will
-/// put on, or accept from, the wire.
-const kMaximumRoutingDocumentBytes = 1 << 20;
+/// Largest retained policy or review the routing client accepts from the wire.
+const kMaximumRoutingDocumentBytes = kMaximumRoutingResponseBytes;
+
+/// Largest current routing request accepted by the service.
+const kMaximumRoutingRequestBytes = 512 * 1024;
+
+/// Largest complete routing policy, simulation, or review response.
+const kMaximumRoutingResponseBytes = 32 * 1024 * 1024;
 
 /// Whether a consumer of an audience is using it now.
 @experimental
@@ -610,6 +616,11 @@ class RoutingPreview {
   /// Canonical bytes of the selected delivery, or null when nothing matched.
   final Uint8List? deliveryBytes;
 
+  /// The complete current simulation, including validation and selection evidence.
+  DeliveryPolicySimulationV1? get simulation => deliveryBytes == null
+      ? null
+      : DeliveryPolicySimulationV1.fromCanonicalBytes(deliveryBytes!);
+
   /// Decode one wire object.
   factory RoutingPreview.fromJson(Map<String, dynamic> json) => RoutingPreview(
     rules: _objects(
@@ -628,6 +639,7 @@ class RoutingPreview {
     'deliveryBase64': deliveryBytes == null
         ? null
         : base64Encode(deliveryBytes!),
+    'simulation': simulation?.toJson(),
   };
 }
 
@@ -735,10 +747,8 @@ SurfaceRoutingTypedException? decodeSurfaceRoutingException(String body) {
 
 /// Typed client for the surface routing operations.
 ///
-/// Documents, schemas, request contexts and audiences travel as opaque
-/// canonical bytes: the routing contracts are not part of the public SDK, so
-/// this client validates the byte envelope and lets the service decode. Every
-/// call carries the complete target on its arguments.
+/// Stored complete policies travel as original opaque bytes. Review,
+/// simulation, and publish requests use the strict public delivery codecs.
 @experimental
 class SurfaceRoutingApi {
   /// Create a client over the shared RPC transport.
@@ -846,11 +856,27 @@ class SurfaceRoutingApi {
     required int environmentId,
     required int organizationId,
     required List<int> documentBytes,
-    required List<int> schemaBytes,
-    required List<int> requestContextBytes,
-    required List<List<int>> audienceBytes,
+    List<int>? schemaBytes,
+    List<int>? requestContextBytes,
+    List<List<int>> audienceBytes = const [],
     List<int>? sdkBuiltInsBytes,
+    TargetCoordinate? expectedTarget,
   }) async {
+    if (schemaBytes != null ||
+        requestContextBytes != null ||
+        audienceBytes.isNotEmpty ||
+        sdkBuiltInsBytes != null) {
+      throw const FormatException('Use one current simulation request.');
+    }
+    final request = DeliveryPolicySimulationRequestV1.fromCanonicalBytes(
+      documentBytes,
+    );
+    requireSurfaceRoutingScope(
+      request.scope,
+      organizationId: organizationId,
+      environmentId: environmentId,
+      expectedTarget: expectedTarget,
+    );
     final raw = await _call('previewRouting', <String, dynamic>{
       'projectSlug': projectSlug,
       'appSlug': appSlug,
@@ -858,17 +884,27 @@ class SurfaceRoutingApi {
       'surfaceSlug': surfaceSlug,
       'environmentId': environmentId,
       'documentBytes': _wire(documentBytes, 'document'),
-      'schemaBytes': _wire(schemaBytes, 'context schema'),
-      'requestContextBytes': _wire(requestContextBytes, 'request context'),
-      'audienceBytes': [
-        for (final bytes in audienceBytes) _wire(bytes, 'audience'),
-      ],
-      'sdkBuiltInsBytes': sdkBuiltInsBytes == null
-          ? null
-          : _wire(sdkBuiltInsBytes, 'SDK built-ins'),
+      'schemaBytes': null,
+      'requestContextBytes': null,
+      'audienceBytes': <Object>[],
+      'sdkBuiltInsBytes': null,
       'organizationId': organizationId,
     });
-    return RoutingPreview.fromJson(_object(raw));
+    try {
+      final preview = RoutingPreview.fromJson(_object(raw));
+      if (preview.deliveryBytes == null ||
+          DeliveryPolicySimulationV1.fromCanonicalBytes(
+                preview.deliveryBytes!,
+              ).scope !=
+              request.scope) {
+        throw const DeliveryManagementResponseException();
+      }
+      return preview;
+    } on CanonicalFormatException {
+      throw const DeliveryManagementResponseException();
+    } on FormatException {
+      throw const DeliveryManagementResponseException();
+    }
   }
 
   /// Publish [documentBytes] as the whole routing document at the target.
@@ -887,7 +923,20 @@ class SurfaceRoutingApi {
     required List<int> documentBytes,
     required int? expectedRevisionOrdinal,
     required String operationId,
+    TargetCoordinate? expectedTarget,
   }) async {
+    final request = DeliveryPolicyPublishRequestV1.fromCanonicalBytes(
+      documentBytes,
+    );
+    requireSurfaceRoutingScope(
+      request.reviewRef.scope,
+      organizationId: organizationId,
+      environmentId: environmentId,
+      expectedTarget: expectedTarget,
+    );
+    if (request.operationId != operationId) {
+      throw const FormatException('The operation id differs from the request.');
+    }
     final raw = await _call('publishRouting', <String, dynamic>{
       'projectSlug': projectSlug,
       'appSlug': appSlug,
@@ -916,7 +965,22 @@ class SurfaceRoutingApi {
     required int expectedRevisionOrdinal,
     required String operationId,
     int? contractVersion,
+    DeliveryPolicyPublishRequestV1? reviewedPublishRequest,
+    TargetCoordinate? expectedTarget,
   }) async {
+    if (reviewedPublishRequest == null) {
+      throw const FormatException('A server-issued route review is required.');
+    }
+    requireSurfaceRoutingScope(
+      reviewedPublishRequest.reviewRef.scope,
+      organizationId: organizationId,
+      environmentId: environmentId,
+      contractVersion: contractVersion,
+      expectedTarget: expectedTarget,
+    );
+    if (reviewedPublishRequest.operationId != operationId) {
+      throw const FormatException('The operation id differs from the review.');
+    }
     final raw = await _call('rollbackRoute', <String, dynamic>{
       'projectSlug': projectSlug,
       'appSlug': appSlug,
@@ -929,8 +993,92 @@ class SurfaceRoutingApi {
       'contractVersion': contractVersion,
       'operationId': operationId,
       'organizationId': organizationId,
+      'reviewedPublishRequestBytes': _wire(
+        reviewedPublishRequest.canonicalBytes,
+        'reviewed publish request',
+      ),
     });
     return RoutingPublication.fromJson(_object(raw));
+  }
+
+  /// Freezes one complete candidate policy under its exact expected head.
+  Future<DeliveryPolicyReviewV1> reviewRouting({
+    required String projectSlug,
+    required String appSlug,
+    required String surfaceType,
+    required String surfaceSlug,
+    required int environmentId,
+    required int organizationId,
+    required DeliveryPolicyReviewRequestV1 request,
+    TargetCoordinate? expectedTarget,
+  }) async {
+    requireSurfaceRoutingScope(
+      request.scope,
+      organizationId: organizationId,
+      environmentId: environmentId,
+      expectedTarget: expectedTarget,
+    );
+    final raw = await _call('reviewRouting', <String, dynamic>{
+      'projectSlug': projectSlug,
+      'appSlug': appSlug,
+      'surfaceType': surfaceType,
+      'surfaceSlug': surfaceSlug,
+      'environmentId': environmentId,
+      'organizationId': organizationId,
+      'requestBytes': _wire(request.canonicalBytes, 'review request'),
+    });
+    final review = _routingReview(raw);
+    if (review.scope != request.scope ||
+        review.expectedHeadOrdinal != request.expectedHeadOrdinal ||
+        review.candidatePlan != request.candidatePlan ||
+        review.reason != request.reason) {
+      throw const DeliveryManagementResponseException();
+    }
+    return review;
+  }
+
+  /// Reviews restoration of the selected route using retained server authority.
+  Future<DeliveryPolicyReviewV1> reviewRouteRollback({
+    required String projectSlug,
+    required String appSlug,
+    required String surfaceType,
+    required String surfaceSlug,
+    required int environmentId,
+    required int organizationId,
+    required String routeId,
+    required int priorRevisionOrdinal,
+    required int expectedRevisionOrdinal,
+    int? contractVersion,
+    TargetCoordinate? expectedTarget,
+  }) async {
+    final raw = await _call('reviewRouteRollback', <String, dynamic>{
+      'projectSlug': projectSlug,
+      'appSlug': appSlug,
+      'surfaceType': surfaceType,
+      'surfaceSlug': surfaceSlug,
+      'environmentId': environmentId,
+      'organizationId': organizationId,
+      'routeId': routeId,
+      'priorRevisionOrdinal': priorRevisionOrdinal,
+      'expectedRevisionOrdinal': expectedRevisionOrdinal,
+      'contractVersion': contractVersion,
+    });
+    final review = _routingReview(raw);
+    try {
+      requireSurfaceRoutingScope(
+        review.scope,
+        organizationId: organizationId,
+        environmentId: environmentId,
+        contractVersion: contractVersion,
+        expectedTarget: expectedTarget,
+      );
+      if (review.expectedHeadOrdinal != expectedRevisionOrdinal) {
+        throw const DeliveryManagementResponseException();
+      }
+    } on FormatException {
+      throw const DeliveryManagementResponseException();
+    }
+    return review;
   }
 
   /// Reads bounded, target-resolved delivery diagnostics for one UTC window.
@@ -1078,11 +1226,11 @@ class RoutingDocumentBytesException implements Exception {
 
   @override
   String toString() =>
-      'The $role must be between 1 and $kMaximumRoutingDocumentBytes bytes.';
+      'The $role must be between 1 and $kMaximumRoutingRequestBytes bytes.';
 }
 
 String _wire(List<int> bytes, String role) {
-  if (bytes.isEmpty || bytes.length > kMaximumRoutingDocumentBytes) {
+  if (bytes.isEmpty || bytes.length > kMaximumRoutingRequestBytes) {
     throw RoutingDocumentBytesException(role);
   }
   return encodeByteDataWire(bytes);
@@ -1090,10 +1238,39 @@ String _wire(List<int> bytes, String role) {
 
 Uint8List _routingBytes(Object? raw) => decodeByteDataWire(
   raw,
-  maximumBytes: kMaximumRoutingDocumentBytes,
+  maximumBytes: kMaximumRoutingResponseBytes,
   malformed: (detail) =>
       FormatException('The routing response byte field $detail.'),
 );
+
+DeliveryPolicyReviewV1 _routingReview(Object? raw) {
+  try {
+    return DeliveryPolicyReviewV1.fromCanonicalBytes(_routingBytes(raw));
+  } on CanonicalFormatException {
+    throw const DeliveryManagementResponseException();
+  } on FormatException {
+    throw const DeliveryManagementResponseException();
+  }
+}
+
+/// Requires the reviewed public scope to name this exact admitted surface target.
+@experimental
+void requireSurfaceRoutingScope(
+  DeliveryPolicyScopeV1 scope, {
+  required int organizationId,
+  required int environmentId,
+  int? contractVersion,
+  TargetCoordinate? expectedTarget,
+}) {
+  if (scope.root.surface == null ||
+      scope.target.organizationId.value != organizationId ||
+      scope.target.environmentTargetId.value != environmentId ||
+      (contractVersion != null &&
+          scope.family.contractVersion != contractVersion) ||
+      (expectedTarget != null && scope.target != expectedTarget)) {
+    throw const FormatException('The policy names another surface target.');
+  }
+}
 
 Map<String, dynamic> _object(Object? raw) {
   if (raw is! Map<String, dynamic>) {

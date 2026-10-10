@@ -82,14 +82,61 @@ GeneralStatusEvent _decodeValidatedGeneralStatusEvent(
   throw FormatException('Invalid GeneralStatus event "$name".');
 }
 
+final _generalStatusPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: generalStatusRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'general',
+    'slug': 'general_status',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'finish',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: generalStatusRef.provenance.vocabulary,
+);
+
+final generalStatusPlacementDefinition =
+    () => _generalStatusPlacementDefinitionValue;
+
 final class GeneralStatusSurface extends StatelessWidget {
   const GeneralStatusSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const GeneralStatusSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<GeneralStatusEvent>? onEvent;
 
@@ -103,6 +150,10 @@ final class GeneralStatusSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<GeneralStatusEvent>(
       screen: generalStatusRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: generalStatusPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => GeneralStatus(),
       ),
@@ -194,14 +245,61 @@ MessageNoticeEvent _decodeValidatedMessageNoticeEvent(
   throw FormatException('Invalid MessageNotice event "$name".');
 }
 
+final _messageNoticePlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: messageNoticeRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'message',
+    'slug': 'message_notice',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'open_offer',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: messageNoticeRef.provenance.vocabulary,
+);
+
+final messageNoticePlacementDefinition =
+    () => _messageNoticePlacementDefinitionValue;
+
 final class MessageNoticeSurface extends StatelessWidget {
   const MessageNoticeSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const MessageNoticeSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<MessageNoticeEvent>? onEvent;
 
@@ -215,6 +313,10 @@ final class MessageNoticeSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<MessageNoticeEvent>(
       screen: messageNoticeRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: messageNoticePlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => MessageNotice(),
       ),
@@ -305,14 +407,61 @@ OnboardingWelcomeEvent _decodeValidatedOnboardingWelcomeEvent(
   throw FormatException('Invalid OnboardingWelcome event "$name".');
 }
 
+final _onboardingWelcomePlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: onboardingWelcomeRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'onboarding_welcome',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'continue',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: onboardingWelcomeRef.provenance.vocabulary,
+);
+
+final onboardingWelcomePlacementDefinition =
+    () => _onboardingWelcomePlacementDefinitionValue;
+
 final class OnboardingWelcomeSurface extends StatelessWidget {
   const OnboardingWelcomeSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const OnboardingWelcomeSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<OnboardingWelcomeEvent>? onEvent;
 
@@ -326,6 +475,10 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<OnboardingWelcomeEvent>(
       screen: onboardingWelcomeRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: onboardingWelcomePlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => OnboardingWelcome(),
       ),

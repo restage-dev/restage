@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:test/test.dart';
 
@@ -10,7 +10,7 @@ void main() {
     test('captures bundles from configured hidden root $outputRoot', () {
       final root = Directory.systemTemp.createTempSync('restage-preserved-');
       addTearDown(() => root.deleteSync(recursive: true));
-      final plan = RestageOutputPlacementPlan.fromBuilderOptions(
+      final plan = RestageOutputLocationPlan.fromBuilderOptions(
         BuilderOptions({'output_root': outputRoot, 'inspection_report': true}),
       );
       final source = plan.forLibrary('lib/features/screen.dart');

@@ -17,7 +17,7 @@ Map<String, dynamic> withoutSupportedPolicyRevisions(
   expect(base64UrlEncode(bytes).replaceAll('=', ''), carrier);
   final document = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
   expect(document['kind'], 'sdkSupportedPolicyRevisions');
-  expect(document['assignmentApiLevel'], 3);
+  expect(document['assignmentApiLevel'], 4);
   final rest = Map<String, dynamic>.of(map)
     ..remove('sdkSupportedPolicyRevisions');
   return rest;

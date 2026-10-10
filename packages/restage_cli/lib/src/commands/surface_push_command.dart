@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/delivery_management_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/build_command.dart';
@@ -26,6 +28,8 @@ import 'package:restage_cli/src/receipts/receipt_location.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/release_receipt.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    hide RuntimePlane;
 
 /// Push one generated surface from its exact manifest artifact closure.
 class SurfacePushCommand extends Command<int> {
@@ -460,54 +464,59 @@ class SurfacePushCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
         declareAssets: declareAssets,
-        onPushed: recorder == null && versionName == null
-            ? null
-            : (publication, result) async {
-                if (versionName != null) {
-                  await SurfaceApi(api).renameVersion(
-                    project: project,
-                    app: app,
-                    surfaceType: publication.entry.publication.surface,
-                    surfaceSlug: publication.entry.publication.slug,
-                    environment: environment,
-                    version: result.storedRevision,
-                    label: versionName,
-                    environmentTargetId: target.target.environmentTargetId,
-                    runtimePlane: target.target.runtimePlane,
-                    organizationId: target.organizationId,
-                    contractVersion: result.family.contractVersion,
-                  );
-                }
-                if (recorder == null) return;
-                recordedPushes.add(
-                  '${result.family.surfaceSlug} r${result.storedRevision}',
-                );
-                final written = await recorder.write(
-                  receipt: _pushReceipt(
-                    publication: publication,
-                    result: result,
-                    target: target,
-                    source: recordedSource!,
-                    project: project,
-                    app: app,
-                    environment: environment,
-                    organization: preferredOrganizationSlug,
-                    generationFingerprint: generationFingerprint,
-                  ),
-                  relativePath: surfacePushReceiptPath(
-                    organization: target.organizationSlug,
-                    project: project,
-                    app: app,
-                    surfaceType: result.family.surfaceType,
-                    surfaceId: result.family.surfaceSlug,
-                    environment: environment,
-                    revision: result.storedRevision,
-                  ),
-                  stdout: _stdout,
-                  stderr: _stderr,
-                );
-                if (!written) recordFailed = true;
-              },
+        onPushed: (publication, result) async {
+          await _reportPublicationFit(
+            api: api,
+            result: result,
+            target: target,
+            project: project,
+            app: app,
+          );
+          if (versionName != null) {
+            await SurfaceApi(api).renameVersion(
+              project: project,
+              app: app,
+              surfaceType: publication.entry.publication.surface,
+              surfaceSlug: publication.entry.publication.slug,
+              environment: environment,
+              version: result.storedRevision,
+              label: versionName,
+              environmentTargetId: target.target.environmentTargetId,
+              runtimePlane: target.target.runtimePlane,
+              organizationId: target.organizationId,
+              contractVersion: result.family.contractVersion,
+            );
+          }
+          if (recorder == null) return;
+          recordedPushes.add(
+            '${result.family.surfaceSlug} r${result.storedRevision}',
+          );
+          final written = await recorder.write(
+            receipt: _pushReceipt(
+              publication: publication,
+              result: result,
+              target: target,
+              source: recordedSource!,
+              project: project,
+              app: app,
+              environment: environment,
+              organization: preferredOrganizationSlug,
+              generationFingerprint: generationFingerprint,
+            ),
+            relativePath: surfacePushReceiptPath(
+              organization: target.organizationSlug,
+              project: project,
+              app: app,
+              surfaceType: result.family.surfaceType,
+              surfaceId: result.family.surfaceSlug,
+              environment: environment,
+              revision: result.storedRevision,
+            ),
+            stdout: _stdout,
+            stderr: _stderr,
+          );
+          if (!written) recordFailed = true;
+        },
       );
       // A failed build is reported on its own, after the push.
       if (pushCode == 0 && !buildFailed) {
@@ -535,6 +544,89 @@ class SurfacePushCommand extends Command<int> {
       return committed && !recordFailed ? 0 : 2;
     } finally {
       if (_httpClient == null) api.close();
+    }
+  }
+
+  Future<void> _reportPublicationFit({
+    required RestageApi api,
+    required SurfacePublicationUploadResult result,
+    required ResolvedEnvironmentTargetContext target,
+    required String project,
+    required String app,
+  }) async {
+    final publication = result.deliveryPublication;
+    void unavailable([String? reason]) => _stdout.writeln(
+      'Placement fit report unavailable for stored revision ${result.storedRevision}'
+      '${reason == null ? '.' : ': $reason.'}',
+    );
+    if (publication == null) {
+      unavailable();
+      return;
+    }
+    final coordinate = publication.surface.target;
+    if (coordinate.organizationId.value != target.organizationId ||
+        coordinate.appId.value != target.appId ||
+        coordinate.environmentTargetId.value !=
+            target.target.environmentTargetId ||
+        coordinate.namedEnvironmentId.value !=
+            target.target.namedEnvironmentId ||
+        coordinate.runtimePlane.name != target.target.runtimePlane.wireName) {
+      unavailable();
+      return;
+    }
+    try {
+      final reader = DeliveryManagementApi(api);
+      final entries = <DeliveryPolicyFitEntryV1>[];
+      final continuations = <String>{};
+      CanonicalDigest? authorityDigest;
+      String? cursor;
+      do {
+        final report = await reader.readFit(
+          projectSlug: project,
+          appSlug: app,
+          environmentTargetId: target.target.environmentTargetId,
+          runtimePlane: target.target.runtimePlane,
+          organizationId: target.organizationId,
+          request: DeliveryPolicyFitReadRequestV1.forPublication(
+            publication: publication,
+            pageSize: 200,
+            cursor: cursor,
+          ),
+        );
+        if (report.refusalCode != null) {
+          unavailable(report.refusalCode);
+          return;
+        }
+        if ((authorityDigest != null &&
+                authorityDigest != report.authorityDigest) ||
+            (report.nextCursor != null &&
+                !continuations.add(report.nextCursor!))) {
+          unavailable();
+          return;
+        }
+        authorityDigest = report.authorityDigest;
+        entries.addAll(report.entries);
+        cursor = report.nextCursor;
+      } while (cursor != null);
+      _stdout.writeln(
+        'Placement fit for stored revision ${result.storedRevision}; '
+        'authority ${authorityDigest.hex}:',
+      );
+      for (final entry in entries) {
+        final root = entry.scope.root;
+        final label =
+            root.placement?.key.value ??
+            'surface:${root.surface!.surfaceId.value} '
+                '${jsonEncode(entry.scope.family.toJson())}';
+        _stdout.writeln(
+          '  $label: ${utf8.decode(entry.verdictCanonicalBytes)}',
+        );
+      }
+      if (entries.isEmpty) {
+        _stdout.writeln('  No qualified placement fit entries.');
+      }
+    } on Exception {
+      unavailable();
     }
   }
 

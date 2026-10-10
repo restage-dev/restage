@@ -7,6 +7,10 @@ import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/refresh/surface_refresh_registry.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart';
+
+import '../support/placement_delivery_fixture.dart';
 
 final class _RecordingChannel implements SurfaceUpdateChannel {
   final controller = StreamController<SurfaceUpdate>.broadcast(sync: true);
@@ -42,6 +46,167 @@ final class _ThrowingChannel implements SurfaceUpdateChannel {
     throw StateError('broken channel');
   }
 }
+
+final class _RecordingDeliveryChannel implements DeliveryUpdateChannel {
+  final controller =
+      StreamController<DeliveryPolicyScopeV1>.broadcast(sync: true);
+  final surfaceChannel = _RecordingChannel();
+  final activity = <({bool opened, DeliveryPolicyScopeV1 scope})>[];
+  final bindings = <({
+    DeliveryPolicyScopeV1 scope,
+    PlacementDeliveryWatchV1? watch,
+    Future<PlacementRefreshProbeV1> Function()? probe,
+  })>[];
+  final _active = <DeliveryPolicyScopeV1, int>{};
+
+  Set<DeliveryPolicyScopeV1> get activeScopes => _active.keys.toSet();
+
+  @override
+  Stream<SurfaceUpdate> watch(SurfaceRef surface) =>
+      surfaceChannel.watch(surface);
+
+  @override
+  Stream<DeliveryPolicyScopeV1> watchDelivery(
+    DeliveryPolicyScopeV1 scope, {
+    PlacementDeliveryWatchV1? watch,
+    Future<PlacementRefreshProbeV1> Function()? reconnectProbe,
+  }) {
+    activity.add((opened: true, scope: scope));
+    bindings.add((scope: scope, watch: watch, probe: reconnectProbe));
+    late final StreamController<DeliveryPolicyScopeV1> out;
+    StreamSubscription<DeliveryPolicyScopeV1>? sub;
+    out = StreamController<DeliveryPolicyScopeV1>(onListen: () {
+      _active.update(scope, (count) => count + 1, ifAbsent: () => 1);
+      sub = controller.stream
+          .where((changed) => changed == scope)
+          .listen(out.add);
+    }, onCancel: () {
+      activity.add((opened: false, scope: scope));
+      final remaining = _active[scope]! - 1;
+      if (remaining == 0) {
+        _active.remove(scope);
+      } else {
+        _active[scope] = remaining;
+      }
+      return sub?.cancel();
+    });
+    return out.stream;
+  }
+
+  Future<void> close() async {
+    await controller.close();
+    await surfaceChannel.controller.close();
+  }
+}
+
+DeliveryPolicyScopeV1 _surfaceScope(
+  PublicPlacementDeliveryV1 base,
+  String id, {
+  DeliveryFamilySelectorV1 family = const DeliveryFamilySelectorV1.general(),
+}) =>
+    DeliveryPolicyScopeV1(
+      root: DeliveryRootIdentityV1.surface(PublishedSurfaceIdentityV1(
+          target: base.mount.placement.target, surfaceId: SurfaceId(id))),
+      family: family,
+    );
+
+PublicPlacementDeliveryV1 _delivery({
+  String surfaceId = 'surface.v1.a',
+  int version = 1,
+  int policyRevision = 1,
+  String? bindingDigest,
+  Iterable<DeliveryPolicyScopeV1> extraDependencies = const [],
+}) {
+  final base = (readPlacementDeliveryFixture().response.decisions.first
+          as PlacementBatchAvailableV1)
+      .publicDelivery;
+  final child =
+      _surfaceScope(base, surfaceId, family: base.selectedSurface.family);
+  final surface = DeliverySurfaceReferenceV1(
+      surfaceIdentity: child.root.surface!, family: child.family);
+  final publication = DeliveryPublicationReferenceV1(
+      surface: surface,
+      publishedVersion: version,
+      payloadFormatVersion: base.actualPublication.payloadFormatVersion,
+      contentHash: base.actualPublication.contentHash,
+      publicationBindingRef:
+          bindingDigest == null ? null : _binding(bindingDigest));
+  final path = PublicDeliveryDecisionPathV1(steps: [
+    base.path.steps.first,
+    PublicDeliveryDecisionStepV1(
+        scope: child, source: PublicDeliverySelectionSourceV1.ownerDefault),
+  ], actualPublication: publication);
+  final policyDigest =
+      CanonicalDigest(policyRevision.toString().padLeft(64, '0'));
+  final validity = DeliveryCacheValidityV1.fromJson({
+    ...base.cacheValidity.toJson(),
+    'selectionIdentityDigest': path.selectionIdentityDigest.hex,
+    'policySelections': [
+      DeliveryPolicyDocumentSelectionV1(
+              policyRevision: DeliveryPolicyRevisionRefV1(
+                  scope: child,
+                  ordinal: policyRevision,
+                  canonicalPolicyDigest: policyDigest,
+                  revisionId: 'policy.v1.child-$policyRevision'),
+              documentRef: ExactRoutingDocumentRefV1(
+                  schemaVersion: 2, canonicalDigest: policyDigest))
+          .toJson(),
+    ],
+  });
+  return PublicPlacementDeliveryV1(
+      mount: base.mount,
+      path: path,
+      selectedSurface: surface,
+      actualPublication: publication,
+      fitRequirement: base.fitRequirement,
+      cacheValidity: validity,
+      dependencyClosure: {
+        ...path.steps.map((step) => step.scope),
+        ...extraDependencies,
+      });
+}
+
+MeasurementPublicationBindingReferenceV1 _binding(String digest) {
+  final declaredBytes = CanonicalDigest('a' * 64);
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId:
+          MeasurementPublicationAuthorityId('restage-surface-publication.v1'),
+      externalPublicationAuthorityRef: 'mpa1.${'e' * 32}',
+      candidateReference: MeasurementPublicationCandidateReferenceV1(
+        candidateDigest: CanonicalDigest('1' * 64),
+        selectedPublicationManifestDigest: CanonicalDigest('2' * 64),
+        declaredArtifactBytesDigest: declaredBytes,
+        assembledPublicationUploadDigest: CanonicalDigest('3' * 64),
+        measurementPublicationDraftDigest: CanonicalDigest('4' * 64),
+      ),
+      immutablePublicationDigest: CanonicalDigest('5' * 64),
+      declaredArtifactBytesDigest: declaredBytes,
+    ),
+    bindingDigest: CanonicalDigest(digest * 64),
+  );
+}
+
+PlacementRefreshStateV1 _state(PublicPlacementDeliveryV1 delivery) => (
+      mount: delivery.mount,
+      decisionIdentityDigest: delivery.publicProjectionDigest,
+      dependencies: delivery.dependencyClosure,
+    );
+
+PlacementDeliveryWatchV1 _watchFor(PublicPlacementDeliveryV1 delivery,
+        {String digest = 'a', String tag = 'first'}) =>
+    PlacementDeliveryWatchV1(
+      decisionIdentityDigest: CanonicalDigest(digest * 64),
+      channels: [
+        for (final (index, scope) in delivery.dependencyClosure.indexed)
+          PlacementDeliveryWatchChannelV1(
+            scope: scope,
+            token: 'v2.ABCDEFGH.2000000000000.'
+                '${base64UrlEncode(utf8.encode('$tag-$index')).replaceAll('=', '')}.'
+                '${base64UrlEncode(List.filled(32, 1)).replaceAll('=', '')}',
+          ),
+      ],
+    );
 
 SurfaceRefreshHandle _handle(
   String slug, {
@@ -97,6 +262,585 @@ void main() {
   tearDown(() {
     SurfaceRefreshRegistry.instance.debugReset();
     Restage.debugReset();
+  });
+
+  test('accepted watch associations and reconnect inputs remain per decision',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final delivery = _delivery();
+    final firstWatch = _watchFor(delivery);
+    final secondWatch = _watchFor(delivery, digest: 'b', tag: 'second');
+    var pendingDigest = firstWatch.decisionIdentityDigest;
+    PlacementRefreshStateV1? probed;
+    SurfaceRefreshRegistry.instance.register(SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => (
+        mount: delivery.mount,
+        decisionIdentityDigest: pendingDigest,
+        dependencies: delivery.dependencyClosure,
+      ),
+      placementWatch: () => firstWatch,
+      probePlacement: (state) async {
+        probed = state;
+        return PlacementRefreshProbeV1.unchanged(state.decisionIdentityDigest,
+            watch: firstWatch);
+      },
+      refresh: () async {},
+    ));
+    SurfaceRefreshRegistry.instance.register(SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => (
+        mount: delivery.mount,
+        decisionIdentityDigest: secondWatch.decisionIdentityDigest,
+        dependencies: delivery.dependencyClosure,
+      ),
+      placementWatch: () => secondWatch,
+      refresh: () async {},
+    ));
+    final count = delivery.dependencyClosure.length;
+    expect(channel.bindings.take(count).map((binding) => binding.watch),
+        everyElement(firstWatch));
+    expect(channel.bindings.skip(count).map((binding) => binding.watch),
+        everyElement(secondWatch));
+    pendingDigest = CanonicalDigest('c' * 64);
+    final renewed =
+        await channel.bindings.first.probe!() as PlacementRefreshUnchangedV1;
+    expect(probed!.decisionIdentityDigest, firstWatch.decisionIdentityDigest);
+    expect(probed!.dependencies, delivery.dependencyClosure);
+    expect(renewed.watch, firstWatch);
+  });
+
+  test('watch digest and complete closure must match the accepted decision',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final original = _delivery();
+    final skipped = _surfaceScope(original, 'surface.v1.skipped');
+    final accepted = _delivery(extraDependencies: [skipped]);
+    var supplied = _watchFor(original);
+    var digest = supplied.decisionIdentityDigest;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => (
+        mount: accepted.mount,
+        decisionIdentityDigest: digest,
+        dependencies: accepted.dependencyClosure,
+      ),
+      placementWatch: () => supplied,
+      refresh: () async {},
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    expect(
+        channel.bindings.map((binding) => binding.watch), everyElement(isNull));
+    supplied = _watchFor(accepted, digest: 'b');
+    digest = CanonicalDigest('c' * 64);
+    SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+    expect(
+        channel.bindings.map((binding) => binding.watch), everyElement(isNull));
+    expect(channel.activeScopes, accepted.dependencyClosure);
+  });
+
+  test(
+      'resume compares dependency and held-authority digest beyond public projection',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final delivery = _delivery();
+    var acceptedWatch = _watchFor(delivery);
+    final updatedWatch = _watchFor(delivery, digest: 'b', tag: 'updated');
+    var refreshes = 0;
+    late final SurfaceRefreshHandle handle;
+    handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {
+        SurfaceRefreshTrigger.appResume,
+        SurfaceRefreshTrigger.updateChannel
+      },
+      canSwap: () => true,
+      placementState: () => (
+        mount: delivery.mount,
+        decisionIdentityDigest: acceptedWatch.decisionIdentityDigest,
+        dependencies: delivery.dependencyClosure,
+      ),
+      placementWatch: () => acceptedWatch,
+      probePlacement: (_) async => PlacementRefreshProbeV1.unchanged(
+          updatedWatch.decisionIdentityDigest,
+          watch: updatedWatch),
+      refresh: () async {
+        refreshes++;
+        acceptedWatch = updatedWatch;
+        SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+      },
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    final publicDigest = delivery.publicProjectionDigest;
+    SurfaceRefreshRegistry.instance.onAppBackgrounded();
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(refreshes, 1);
+    expect(delivery.publicProjectionDigest, publicDigest);
+    expect(acceptedWatch.decisionIdentityDigest,
+        updatedWatch.decisionIdentityDigest);
+    expect(channel.bindings.last.watch, updatedWatch);
+    expect(channel.activeScopes, delivery.dependencyClosure);
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(refreshes, 1);
+  });
+
+  test(
+      'every canonical dependency invalidates and resolves the accepted decision',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final base = _delivery();
+    final skipped = _surfaceScope(base, 'surface.v1.skipped');
+    final skippedScreen = _surfaceScope(base, 'surface.v1.skipped',
+        family: DeliveryFamilySelectorV1.screenContract(contractVersion: 7));
+    final future = _surfaceScope(base, 'surface.v1.future');
+    final extras = [skipped, skippedScreen, future];
+    var accepted = _delivery(extraDependencies: extras);
+    var invalidations = 0;
+    late final SurfaceRefreshHandle handle;
+    handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      invalidatePlacement: () async => invalidations++,
+      refresh: () async {
+        accepted = _delivery(
+            version: accepted.actualPublication.publishedVersion + 1,
+            extraDependencies: extras);
+        SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+      },
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    expect(channel.activeScopes, accepted.dependencyClosure);
+    expect(channel.surfaceChannel.watched, isEmpty);
+    for (final dependency in List.of(accepted.dependencyClosure)) {
+      final before = accepted.publicProjectionDigest;
+      channel.controller.add(dependency);
+      await Future<void>.delayed(Duration.zero);
+      expect(accepted.publicProjectionDigest, isNot(before));
+      expect(channel.activeScopes, accepted.dependencyClosure);
+    }
+    expect(invalidations, 5);
+    expect(accepted.actualPublication.publishedVersion, 6);
+  });
+
+  test('resume follows A v1 to B v1 to B v2 while default A remains v1',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    _configureStampRpc({'original': 1});
+    final a = _delivery();
+    final b1 = _delivery(surfaceId: 'surface.v1.b');
+    final b2 = _delivery(surfaceId: 'surface.v1.b', version: 2);
+    var accepted = a;
+    var remote = b1;
+    final resolved = <PublicPlacementDeliveryV1>[];
+    late final SurfaceRefreshHandle handle;
+    handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      stampable: true,
+      renderedVersion: () => accepted.actualPublication.publishedVersion,
+      placementState: () => _state(accepted),
+      probePlacement: (rendered) async {
+        expect(
+            rendered.decisionIdentityDigest, accepted.publicProjectionDigest);
+        return PlacementRefreshProbeV1.unchanged(remote.publicProjectionDigest);
+      },
+      refresh: () async {
+        accepted = remote;
+        resolved.add(accepted);
+        SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+      },
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    SurfaceRefreshRegistry.instance.onAppBackgrounded();
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(accepted.actualPublication, b1.actualPublication);
+    expect(channel.activeScopes, b1.dependencyClosure);
+    expect(a.actualPublication.publishedVersion, 1);
+    remote = b2;
+    SurfaceRefreshRegistry.instance.onAppBackgrounded();
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(accepted.actualPublication, b2.actualPublication);
+    expect(channel.activeScopes, b2.dependencyClosure);
+    expect(resolved, [b1, b2]);
+    await SurfaceRefreshRegistry.instance.reload();
+    expect(resolved, [b1, b2]);
+  });
+
+  test(
+      'equal publication versions retain changed binding and child policy identity',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final original = _delivery(bindingDigest: 'b');
+    var accepted = original;
+    var remote = _delivery(bindingDigest: 'c');
+    late final SurfaceRefreshHandle handle;
+    handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.appResume},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      probePlacement: (_) async =>
+          PlacementRefreshProbeV1.unchanged(remote.publicProjectionDigest),
+      refresh: () async {
+        accepted = remote;
+        SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+      },
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(accepted.actualPublication.publishedVersion, 1);
+    expect(accepted.actualPublication.publicationBindingRef, _binding('c'));
+    final boundPublication = accepted.actualPublication;
+    remote = _delivery(bindingDigest: 'c', policyRevision: 2);
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(accepted.actualPublication, boundPublication);
+    expect(
+        accepted.cacheValidity.policySelections.single.policyRevision.ordinal,
+        2);
+    expect(accepted.publicProjectionDigest, remote.publicProjectionDigest);
+    expect(accepted.publicProjectionDigest,
+        isNot(original.publicProjectionDigest));
+  });
+
+  test('a skipped child becoming fitting replaces the previous winning child',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final base = _delivery();
+    final firstScope = _surfaceScope(base, 'surface.v1.first',
+        family: base.selectedSurface.family);
+    final second = _delivery(
+        surfaceId: 'surface.v1.second', extraDependencies: [firstScope]);
+    var accepted = second;
+    final first = _delivery(surfaceId: 'surface.v1.first');
+    late final SurfaceRefreshHandle handle;
+    handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      refresh: () async {
+        accepted = first;
+        SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+      },
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    expect(channel.activeScopes, second.dependencyClosure);
+    channel.controller.add(firstScope);
+    await Future<void>.delayed(Duration.zero);
+    expect(accepted.actualPublication, first.actualPublication);
+    expect(channel.activeScopes, first.dependencyClosure);
+  });
+
+  test('push invalidates cache before a locked presentation gate', () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final accepted = _delivery();
+    var cached = accepted;
+    var cacheAvailable = true;
+    var gateChecked = false;
+    var refreshes = 0;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      placementState: () => _state(accepted),
+      invalidatePlacement: () async {
+        expect(cached, accepted);
+        cacheAvailable = false;
+      },
+      canSwap: () {
+        expect(cacheAvailable, isFalse);
+        gateChecked = true;
+        return false;
+      },
+      refresh: () async => refreshes++,
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    channel.controller.add(accepted.dependencyClosure.first);
+    await Future<void>.delayed(Duration.zero);
+    expect(gateChecked, isTrue);
+    expect(cacheAvailable, isFalse);
+    expect(refreshes, 0);
+    expect(accepted.actualPublication, cached.actualPublication);
+  });
+
+  test('new dependencies open before old watches are retired', () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    var accepted = _delivery();
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      refresh: () async {},
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    final oldCount = channel.activity.length;
+    accepted = _delivery(surfaceId: 'surface.v1.b');
+    SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+    final transition = channel.activity.skip(oldCount).toList();
+    expect(
+        transition.take(accepted.dependencyClosure.length),
+        everyElement(predicate<({bool opened, DeliveryPolicyScopeV1 scope})>(
+            (event) => event.opened)));
+    expect(
+        transition.skip(accepted.dependencyClosure.length),
+        everyElement(predicate<({bool opened, DeliveryPolicyScopeV1 scope})>(
+            (event) => !event.opened)));
+    expect(channel.activeScopes, accepted.dependencyClosure);
+  });
+
+  test(
+      'pending decisions do not replace accepted watch state and inputs are frozen',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final accepted = _delivery();
+    final mutableScopes = accepted.dependencyClosure.toSet();
+    var pending = _delivery(surfaceId: 'surface.v1.pending');
+    PlacementRefreshStateV1? probed;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => (
+        mount: accepted.mount,
+        decisionIdentityDigest: accepted.publicProjectionDigest,
+        dependencies: mutableScopes,
+      ),
+      probePlacement: (state) async {
+        probed = state;
+        return PlacementRefreshProbeV1.unchanged(state.decisionIdentityDigest);
+      },
+      refresh: () async => pending = _delivery(surfaceId: 'surface.v1.other'),
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    mutableScopes.clear();
+    await SurfaceRefreshRegistry.instance.reload();
+    expect(probed!.dependencies, accepted.dependencyClosure);
+    expect(() => probed!.dependencies.clear(), throwsUnsupportedError);
+    expect(channel.activeScopes, accepted.dependencyClosure);
+    expect(pending.selectedSurface, isNot(accepted.selectedSurface));
+  });
+
+  test('a retired dependency callback cannot refresh the replacement decision',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final invalidating = Completer<void>();
+    var accepted = _delivery();
+    var refreshes = 0;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      invalidatePlacement: () => invalidating.future,
+      refresh: () async => refreshes++,
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    channel.controller.add(accepted.dependencyClosure.first);
+    await Future<void>.delayed(Duration.zero);
+    accepted = _delivery(surfaceId: 'surface.v1.b');
+    SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+    invalidating.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(refreshes, 0);
+    expect(channel.activeScopes, accepted.dependencyClosure);
+  });
+
+  test('a probe for an older decision cannot resolve after replacement',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final probe = Completer<PlacementRefreshProbeV1>();
+    var accepted = _delivery();
+    var refreshes = 0;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      probePlacement: (_) => probe.future,
+      refresh: () async => refreshes++,
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    final pending = SurfaceRefreshRegistry.instance.reload();
+    accepted = _delivery(surfaceId: 'surface.v1.b');
+    SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+    probe.complete(const PlacementRefreshProbeV1.requiresResolution());
+    await pending;
+    expect(refreshes, 0);
+    expect(channel.activeScopes, accepted.dependencyClosure);
+  });
+
+  test(
+      'placement probes resolve unknown authority and retain rate-limited render',
+      () async {
+    var accepted = _delivery();
+    final original = accepted;
+    var result = const PlacementRefreshProbeV1.unavailable();
+    var refreshes = 0;
+    late final SurfaceRefreshHandle handle;
+    handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {},
+      canSwap: () => true,
+      stampable: true,
+      renderedVersion: () => 1,
+      placementState: () => _state(accepted),
+      probePlacement: (_) async => result,
+      refresh: () async {
+        accepted = _delivery(surfaceId: 'surface.v1.b');
+        refreshes++;
+        SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+      },
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    result = const PlacementRefreshProbeV1.rateLimited(Duration(seconds: 7));
+    await SurfaceRefreshRegistry.instance.reload();
+    expect(accepted, original);
+    expect(refreshes, 0);
+    result = const PlacementRefreshProbeV1.unavailable();
+    await SurfaceRefreshRegistry.instance.reload();
+    expect(accepted.selectedSurface.surfaceIdentity.surfaceId.value,
+        'surface.v1.b');
+    expect(refreshes, 1);
+  });
+
+  test(
+      'legacy channels watch the accepted selected surface and still probe on resume',
+      () async {
+    final channel = _RecordingChannel();
+    addTearDown(channel.controller.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    var accepted = _delivery(surfaceId: 'surface.v1.b');
+    var selected = const SurfaceRef(surfaceType: 'general', slug: 'b');
+    var refreshes = 0;
+    var probes = 0;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      renderedSurface: () => selected,
+      probePlacement: (state) async {
+        probes++;
+        return PlacementRefreshProbeV1.unchanged(state.decisionIdentityDigest);
+      },
+      refresh: () async => refreshes++,
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    expect(channel.watched, [selected]);
+    channel.controller.add(SurfaceUpdate(selected));
+    await Future<void>.delayed(Duration.zero);
+    expect(refreshes, 1);
+    expect(probes, 0);
+    accepted = _delivery(surfaceId: 'surface.v1.c');
+    selected = const SurfaceRef(surfaceType: 'general', slug: 'c');
+    SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+    expect(channel.watched.last, selected);
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(probes, 1);
+    expect(refreshes, 1);
+  });
+
+  test(
+      'background and disposal fence pending dependency work and new registration',
+      () async {
+    final channel = _RecordingDeliveryChannel();
+    addTearDown(channel.close);
+    Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+    final accepted = _delivery();
+    final gate = Completer<void>();
+    var refreshes = 0;
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {SurfaceRefreshTrigger.updateChannel},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      invalidatePlacement: () => gate.future,
+      refresh: () async => refreshes++,
+    );
+    SurfaceRefreshRegistry.instance.register(handle);
+    channel.controller.add(accepted.dependencyClosure.first);
+    SurfaceRefreshRegistry.instance.onAppBackgrounded();
+    gate.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(refreshes, 0);
+    expect(channel.activeScopes, isEmpty);
+    SurfaceRefreshRegistry.instance.unregister(handle);
+    SurfaceRefreshRegistry.instance.register(handle);
+    expect(channel.activeScopes, isEmpty);
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    expect(channel.activeScopes, accepted.dependencyClosure);
+    expect(refreshes, 1);
+    SurfaceRefreshRegistry.instance.unregister(handle);
+    channel.controller.add(accepted.dependencyClosure.first);
+    await Future<void>.delayed(Duration.zero);
+    expect(refreshes, 1);
+  });
+
+  testWidgets(
+      'local validity alarm remains offline and handles one expired decision',
+      (tester) async {
+    var now = DateTime.utc(2026, 10, 4, 12);
+    final boundary = now.add(const Duration(seconds: 2));
+    final registry = SurfaceRefreshRegistry(now: () => now);
+    addTearDown(registry.debugReset);
+    var invalidations = 0;
+    var probes = 0;
+    final accepted = _delivery();
+    final handle = SurfaceRefreshHandle(
+      surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+      triggers: {},
+      canSwap: () => true,
+      placementState: () => _state(accepted),
+      probePlacement: (_) async {
+        probes++;
+        return const PlacementRefreshProbeV1.unavailable();
+      },
+      localValidity: () => now.isBefore(boundary),
+      localBoundary: () => boundary,
+      invalidateLocal: () async => invalidations++,
+      refresh: () async => fail('local expiry must use the existing callback'),
+    );
+    registry.register(handle);
+    now = boundary;
+    await tester.pump(const Duration(seconds: 2));
+    expect(invalidations, 1);
+    await registry.checkLocalValidity();
+    await tester.pump(const Duration(seconds: 30));
+    expect(invalidations, 1);
+    expect(probes, 0);
   });
 
   test('reload() hits all swappable handles regardless of triggers', () async {

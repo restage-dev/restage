@@ -4,9 +4,13 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage_cli/src/api/byte_data_wire.dart'
+    show encodeByteDataWire;
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show DeliveryMeasurementMutationReviewV1, CanonicalDigest;
 import 'package:restage_shared/rfw_formats.dart' as rfw_formats;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -334,10 +338,15 @@ Future<String> seedSurfaceFlow(
 http.Client mockHttpClient(
   http.Response Function(http.Request request) handler, {
   bool withDefaultTargetDiscovery = true,
+  bool withDefaultSurfaceReview = true,
 }) => MockClient((request) async {
   if (withDefaultTargetDiscovery) {
     final discovery = _defaultTargetDiscoveryResponse(request);
     if (discovery != null) return discovery;
+  }
+  if (withDefaultSurfaceReview) {
+    final review = _defaultSurfaceReviewResponse(request);
+    if (review != null) return review;
   }
   return handler(request);
 });
@@ -371,12 +380,17 @@ http.Response activeAppDiscoveryResponse(
 http.Client scriptedHttpClient(
   List<ScriptStep> steps, {
   bool withDefaultTargetDiscovery = true,
+  bool withDefaultSurfaceReview = true,
 }) {
   var index = 0;
   return MockClient((request) async {
     if (withDefaultTargetDiscovery) {
       final discovery = _defaultTargetDiscoveryResponse(request);
       if (discovery != null) return discovery;
+    }
+    if (withDefaultSurfaceReview) {
+      final review = _defaultSurfaceReviewResponse(request);
+      if (review != null) return review;
     }
     if (index >= steps.length) {
       fail('Unexpected backend call ${index + 1}: ${request.url}');
@@ -386,6 +400,23 @@ http.Client scriptedHttpClient(
     index++;
     return response;
   });
+}
+
+/// Ordinary fixtures have no measurement sources to lose. Warning tests supply
+/// their own complete review and disable this default response.
+http.Response? _defaultSurfaceReviewResponse(http.Request request) {
+  if (request.url.pathSegments.last != 'surface') return null;
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  if (body['method'] != 'reviewDeliveryImpact') return null;
+  final review = DeliveryMeasurementMutationReviewV1(
+    operation: body['operation'] as String,
+    reviews: const [],
+    dependencyDigest: CanonicalDigest('a' * 64),
+  );
+  return http.Response(
+    jsonEncode(encodeByteDataWire(review.canonicalBytes)),
+    200,
+  );
 }
 
 /// The targets the default fake backend exposes.

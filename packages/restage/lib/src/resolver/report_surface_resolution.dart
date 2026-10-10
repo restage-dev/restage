@@ -4,6 +4,7 @@ import 'package:restage_shared/restage_shared.dart' show Surface;
 import '../delivery/surface_delivery_receipt.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
+import '../measurement/placement_mount_attribution.dart';
 import '../runtime/restage.dart';
 import 'surface_resolution_report.dart';
 
@@ -50,6 +51,7 @@ T reportSurfaceResolution<T extends Object>(
         source: source,
         reason: reason,
         routeId: selection?.selectedRouteId ?? '',
+        recordAsLatest: resolvedPlacementDeliveryFor(resolved) == null,
       ),
     );
   } on Object {

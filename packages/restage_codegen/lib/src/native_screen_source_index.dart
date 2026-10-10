@@ -16,7 +16,7 @@ import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
@@ -182,7 +182,7 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
   BuildStep buildStep, {
   required NativeScreenSourceConsumer consumer,
   bool validateA2uiNamespace = false,
-  RestageOutputPlacementPlan? plan,
+  RestageOutputLocationPlan? plan,
 }) async {
   // Resolve only what can contribute. This index admits on three grounds —
   // surface tokens, widget tokens, and a deprecated screen path regardless of

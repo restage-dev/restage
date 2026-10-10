@@ -69,6 +69,42 @@ void main() {
       );
     });
 
+    test('a declared surface type round trips and must agree with the mount',
+        () {
+      final paywall = DeliverySurfaceTypeId('paywall');
+      final declared = _mount(
+        key: PlacementKeyV1.named(slug: 'upsell'),
+        useDefault: false,
+        surfaceType: paywall,
+      );
+      expect(declared.toJson()['surfaceType'], 'paywall');
+      expect(
+        PlacementMountRequestV1.fromCanonicalBytes(declared.canonicalBytes),
+        declared,
+      );
+      expect(_mount().toJson(), containsPair('surfaceType', null));
+      expect(_mount(surfaceType: _screenType).surfaceType, _screenType);
+      for (final build in [
+        () => _mount(surfaceType: paywall),
+        () => _mount(
+              key: PlacementKeyV1.named(slug: 'upsell'),
+              surfaceType: paywall,
+            ),
+      ]) {
+        expect(build, throwsA(_refusal));
+      }
+      final json = declared.toJson();
+      for (final invalid in [
+        {...json}..remove('surfaceType'),
+        {...json, 'surfaceType': 1},
+      ]) {
+        expect(
+          () => PlacementMountRequestV1.fromJson(invalid),
+          throwsA(_refusal),
+        );
+      }
+    });
+
     test('locator refuses none, malformed slug, and a missing exact version',
         () {
       final json = _locator().toJson();
@@ -273,6 +309,7 @@ void main() {
       for (final other in [
         _mount(key: key, useDefault: false),
         _mount(key: key, defaultSurface: _locator(slug: 'other')),
+        _mount(key: key, surfaceType: _screenType),
         _mount(
           key: key,
           defaultSurface: _locator(
@@ -828,6 +865,7 @@ PlacementMountRequestV1 _mount({
   SurfaceHostContractV1? host,
   DeliverySurfaceLocatorV1? defaultSurface,
   bool useDefault = true,
+  DeliverySurfaceTypeId? surfaceType,
 }) =>
     PlacementMountRequestV1(
       key: key ??
@@ -837,6 +875,7 @@ PlacementMountRequestV1 _mount({
           ),
       defaultSurface: defaultSurface ?? (useDefault ? _locator() : null),
       hostContractHash: (host ?? _host).contentHash,
+      surfaceType: surfaceType,
     );
 
 PlacementMountDescriptorV1 _descriptor(

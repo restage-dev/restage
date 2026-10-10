@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart'
-    show WidgetsBinding, WidgetsBindingObserver;
+    show BuildContext, Widget, WidgetsBinding, WidgetsBindingObserver;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_core/restage_core.dart'
     show InstalledIconTable, RestageIconTable;
@@ -31,6 +31,7 @@ import '../measurement/governed_measurement_rpc_transport.dart';
 import '../measurement/measurement_assignment_transport.dart';
 import '../measurement/measurement_host_construction_owner.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/placement_mount_attribution.dart';
 import '../measurement/measurement_worker_delivery.dart'
     show
         measurementWorkerDeliverySupported,
@@ -44,7 +45,6 @@ import '../restage_rpc_client/surface_delivery_evidence.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/render_deadline.dart';
 import '../delivery/surface_artifact_store.dart';
-import '../delivery/surface_ref.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../delivery/surface_delivery_receipt_uploader.dart';
@@ -68,6 +68,7 @@ import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_assignment_credential_store.dart';
 import '../resolver/surface_assignment_persistence.dart';
 import '../resolver/surface_assignment_built_ins.dart';
+import '../resolver/surface_delivery_observations.dart';
 import '../resolver/surface_canonical_carrier_provider.dart';
 import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
@@ -81,6 +82,12 @@ import 'restage_identity.dart';
 import 'restage_paywall.dart';
 import 'restage_widget_factory.dart';
 import 'restage_widget_library_registration.dart';
+import 'placement_mount.dart';
+import 'placement_discovery.dart';
+import 'placement_registry.dart';
+import 'installed_widget_vocabulary.dart' show currentInstalledCapability;
+import 'placement_presentation.dart' as placement_presentation;
+import '../resolver/placement_mount_resolver.dart';
 
 /// Restage SDK static facade.
 ///
@@ -89,6 +96,15 @@ import 'restage_widget_library_registration.dart';
 /// also be rendered directly with `AssetVariantResolver` and
 /// `AssetFlowResolver`.
 abstract final class Restage {
+  /// Presents exactly one placement mount in an SDK-owned Flutter route.
+  static Future<void> presentPlacement(BuildContext context,
+          {required Widget Function(
+                  BuildContext context,
+                  placement_presentation.PlacementPresentationController
+                      presentation)
+              builder}) =>
+      placement_presentation.presentPlacement(context, builder: builder);
+
   /// App-wide commerce operations and state.
   static final RestageCommerce commerce = restageCommerceInstance;
 
@@ -202,9 +218,16 @@ abstract final class Restage {
       const {};
   static SurfaceUpdateChannel? _updateChannel;
 
-  static StreamController<RestageEvent>? _events;
+  static StreamController<_RestageEventDispatch>? _events;
+  static Stream<RestageEvent>? _eventStream;
   static MeteringTokenStore? _meteringTokenStore;
   static RestageRpcClient? _rpcClient;
+  static PlacementRegistry? _placementRegistry;
+  static bool _placementDiscoveryConfigured = false;
+  static DateTime Function()? _placementNow;
+  static bool _placementPaywallsEnabled = false;
+  static bool _placementScreensEnabled = false;
+  static bool _placementFlowsEnabled = false;
   static _RestageLifecycleObserver? _lifecycleObserver;
 
   // The behavioral-analytics transport. Active only when [configure] is given a
@@ -218,120 +241,83 @@ abstract final class Restage {
   // stream and the recording path be reasoned about — and retired — separately.
   static ({String apiKey, RestageEnvironment environment})? _analyticsAuthority;
 
-  /// Configure the SDK at app startup.
+  /// Configures the SDK at app startup.
   ///
-  /// With no [apiKey], or an empty or whitespace-only key, default resolvers
-  /// use bundled artifacts and hosted clients, analytics, metering, and governed
-  /// Measurement remain inactive. Reconfiguring without a key clears any prior
-  /// hosted configuration. Explicit resolver overrides and local settings still
-  /// apply. Generated typed screens can fall back to their authored widget.
+  /// Without a nonblank [apiKey], default resolvers use bundled artifacts;
+  /// hosted clients, analytics, metering and governed Measurement are inactive.
+  /// Reconfiguring without a key clears prior hosted configuration. Explicit
+  /// resolvers and local settings still apply; typed screens can use their
+  /// compiled fallback. Omitting [baseUrl] disables hosted operations.
   ///
-  /// Pass [resolver] to choose the paywall delivery source. When omitted, the
-  /// default is a [RestageVariantResolver] wired to [baseUrl] for Restage-hosted
-  /// delivery (fetch the active version, hold-last-good, then fall back to a
-  /// bundled `assets/paywalls/<id>.rfw`). With no [baseUrl] the hosted tier is
-  /// inactive and resolution uses the bundled asset directly. Apps shipping only
-  /// bundled `.rfw` paywalls can pass [AssetVariantResolver] here or on each
-  /// `RestagePaywall`.
+  /// [resolver] defaults to [RestageVariantResolver]: active hosted content,
+  /// last accepted content, then bundled `assets/paywalls/<id>.rfw`.
+  /// Use [AssetVariantResolver] for bundled paywalls. [onSurfaceResolution]
+  /// reports hosted paywall resolution sources; callback errors are ignored.
+  /// [flowResolver] defaults to [ServerFlowResolver] when [apiKey] and
+  /// [baseUrl] are set, and [AssetFlowResolver] otherwise.
+  /// [surfaceScreenResolver] defaults to the generated manifest-aware resolver
+  /// with the exact bundled screen closure as fallback.
   ///
-  /// [onSurfaceResolution] reports each public hosted paywall resolution source.
-  /// Exceptions thrown by this optional callback are ignored.
+  /// [channel] names the build channel. Empty values and values over 128 UTF-8
+  /// bytes are omitted. Requests report whole days since the first observed
+  /// launch when local storage confirms that date. They also report platform,
+  /// app build, region, device class, language and OS version when available.
+  /// Web requests omit app build and OS version. These facts are sent regardless
+  /// of analytics or measurement settings, and stored only for Measurement
+  /// sessions when measurement is enabled.
   ///
-  /// Pass [flowResolver] to choose the onboarding flow source. When omitted,
-  /// flows use [AssetFlowResolver]; this method does not enable hosted flow
-  /// delivery.
+  /// [analyticsEnabled] controls anonymous identity and assignment credentials.
+  /// Disabling it leaves hosted delivery, governed operations and metering
+  /// available. [measurementEnabled] controls new Measurement sessions;
+  /// disabled sessions neither load publications nor submit data.
   ///
-  /// Pass [surfaceScreenResolver] to choose the independently published screen
-  /// source. When omitted, the generated manifest-aware hosted resolver is
-  /// installed and falls back only to the exact bundled screen closure.
+  /// [deliveryReceiptsEnabled] reports surface type, slug, version, content
+  /// source and reason, paint result, platform, app build, selected route and
+  /// mount-to-paint latency in minute buckets. Receipts carry no device,
+  /// install or user identifier. Batches send every 30 seconds and on app
+  /// pause. Lost batches are not retried, so counts are lower bounds.
+  /// This option also controls placement declarations and painted bounds.
+  /// Local capture remains available when reporting is off. Renderless screen
+  /// and flow fallbacks report declarations and explicit capture geometry,
+  /// but do not claim painted runtime bounds.
   ///
-  /// [baseUrl] is the hosted service origin (e.g.
-  /// `'https://api.example.com'`). When omitted, hosted delivery, metering, and
-  /// governed operations remain inactive.
+  /// [surfaces] prefetches generated references at startup. Previously stored
+  /// paywalls and listed surfaces are also refreshed. [renderDeadline]
+  /// (default 300 ms) limits a mount's wait for fresh content. At the deadline,
+  /// the last accepted content, bundled asset or compiled widget renders;
+  /// the fetch continues for the next mount.
   ///
-  /// [analyticsEnabled] (default `true`) gates local anonymous identity and
-  /// automatic assignment credential registration. When `false`, no identifier
-  /// is minted; hosted delivery and governed operations remain available.
+  /// [liveRefreshEdgeUrl] enables hosted refresh with [baseUrl]. An explicit
+  /// [updateChannel] takes precedence. Surfaces remain mounted if refresh is
+  /// unavailable. [identity] is an experimental hook with no runtime effect:
+  /// its callback is not invoked or attached to requests or analytics.
   ///
-  /// [measurementEnabled] (default `true`) controls new Measurement sessions.
-  /// When `false`, new sessions do not load publications or submit data.
+  /// [governedMeasurementTransportEnabled] installs the canonical transport
+  /// over [baseUrl]; configure the host/IDP proof source first. An explicit
+  /// [governedMeasurementTransport] takes precedence. With neither option,
+  /// governed Measurement and privacy calls refuse the request; legacy
+  /// analytics identity is unaffected.
   ///
-  /// Hosted surface requests describe the device so the service can choose a
-  /// published version of a surface for it, such as a version for one country
-  /// or for tablets. Without that description it can only serve the default.
-  /// Every request carries the platform (e.g. `ios`); it also carries the app
-  /// build ordinal (e.g. `412`), the device region (e.g. `se`), the device
-  /// class (e.g. `phone`), the device language (e.g. `sv`) and the
-  /// operating-system version (e.g. `17` on iOS, the API level `34` on
-  /// Android) whenever the device can supply them, and omits any it cannot. A
-  /// web build reads neither an app build ordinal nor an operating-system
-  /// version and sends the rest. These facts travel regardless of
-  /// [analyticsEnabled] and [measurementEnabled].
+  /// With no explicit catalog selection, core and the families selected by
+  /// [includeMaterial] and [includeCupertino] are installed. Both default to
+  /// true. Explicit and generated-required entries remain available when a
+  /// family is disabled, including the shared Material Icon builder.
   ///
-  /// With analytics disabled, hosted requests carry no analytics identifier and
-  /// no assignment credential. The metering token that counts use of the hosted
-  /// service is separate and is unaffected by that flag; the package README
-  /// describes it in full. The device facts above are stored only when
-  /// measurement is enabled and a session is created.
+  /// Pass generated `kRestageWidgetRegistration` as [registerWidgets]. It runs
+  /// once after shared configuration and before catalog bootstrap, forwarding
+  /// the family options. Built-in entries preserve existing entries on
+  /// collisions; custom libraries replace registrations in the same namespace.
+  /// Registration errors propagate after configuration takes effect. Regenerate
+  /// older outputs for this registration object; no-argument registration
+  /// always includes all families.
   ///
-  /// [deliveryReceiptsEnabled] (default `true`) reports what each hosted
-  /// presentation showed. A receipt carries the surface type and slug, the
-  /// published version shown, where the content came from (fresh, held or
-  /// bundled) and why, whether it painted or failed, the platform and app
-  /// build, the selected route and a mount-to-paint latency bucket, bucketed
-  /// to the minute. It carries no device, install or user identifier. Receipts
-  /// batch in memory and post every 30 seconds and on app pause; a batch lost
-  /// with the process is never resent, so the counts are lower bounds. Pass
-  /// `false` to send none.
-  ///
-  /// [surfaces] lists generated surface references whose latest content is
-  /// fetched in the background at startup, so a first mount can render it.
-  /// Paywalls already stored on the device, and stored surfaces listed here,
-  /// are refreshed the same way.
-  ///
-  /// [renderDeadline] (default 300 ms) bounds how long a mounted surface waits
-  /// for fresh content. At the deadline it renders the last content this
-  /// install accepted, the bundled asset, or the compiled widget, and the
-  /// fetch continues in the background for the next mount.
-  ///
-  /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
-  /// update signals. A custom [updateChannel] takes precedence when both are
-  /// provided. If hosted refresh is unavailable, mounted surfaces continue
-  /// without realtime refresh.
-  ///
-  /// [identity] is an **experimental, not-yet-active** hook (see
-  /// [RestageIdentity]). The callback is accepted but is not currently invoked,
-  /// and the identity it would return is not yet attached to resolver requests
-  /// or analytics. Wiring it has no runtime effect today; it is accepted now so
-  /// the integration shape can stabilize.
-  ///
-  /// Set [governedMeasurementTransportEnabled] only after the host has
-  /// configured its direct host/IDP proof source. It installs the SDK's
-  /// authenticated canonical transport over [baseUrl]. Supplying
-  /// [governedMeasurementTransport] installs an explicit alternate transport
-  /// instead. With neither option, governed Measurement and privacy calls fail
-  /// closed and legacy analytics identity remains unaffected.
-  /// With no explicit catalog selection, installs core and the complete widget
-  /// and icon families selected by [includeMaterial] and [includeCupertino].
-  /// Both default to true. False omits a complete family contribution; explicit
-  /// and generated-required entries remain available, including the shared
-  /// Material Icon builder that can render Cupertino icons.
-  ///
-  /// Pass generated `kRestageWidgetRegistration` as [registerWidgets] to forward
-  /// the same options. It runs once after shared configuration and before catalog
-  /// bootstrap. The generated registration adds built-in widget and icon entries,
-  /// preserving existing entries on collisions. Custom library registration
-  /// retains its existing replacement behavior for the same namespace.
-  /// Registration errors propagate after configuration has taken effect.
-  /// Regenerate older outputs to obtain this registration object. A separate
-  /// no-argument full registration stays inclusive and cannot be narrowed here.
-  ///
-  /// Without [registerWidgets], existing selections, including explicitly empty
-  /// selections, are preserved independently for widgets and icons. Use
-  /// [configureWithInstalledCatalog] for configuration without catalog bootstrap.
+  /// Without [registerWidgets], existing widget and icon selections, including
+  /// empty selections, are preserved independently. Use
+  /// [configureWithInstalledCatalog] to skip catalog bootstrap.
   static void configure({
     String? apiKey,
     String? baseUrl,
+    String? channel,
     bool analyticsEnabled = true,
     bool measurementEnabled = true,
     bool includeMaterial = true,
@@ -357,6 +343,7 @@ abstract final class Restage {
     configureWithInstalledCatalog(
       apiKey: apiKey,
       baseUrl: baseUrl,
+      channel: channel,
       analyticsEnabled: analyticsEnabled,
       measurementEnabled: measurementEnabled,
       environment: environment,
@@ -418,6 +405,7 @@ abstract final class Restage {
   static void configureWithInstalledCatalog({
     String? apiKey,
     String? baseUrl,
+    String? channel,
     bool analyticsEnabled = true,
     bool measurementEnabled = true,
     RestageEnvironment environment = RestageEnvironment.production,
@@ -450,11 +438,15 @@ abstract final class Restage {
       baseUrl = null;
     }
     _configurationGeneration += 1;
+    _placementPaywallsEnabled = resolver == null;
+    _placementScreensEnabled = surfaceScreenResolver == null;
+    _placementFlowsEnabled = flowResolver == null;
     _measurementEnabled = measurementEnabled;
     _renderDeadline = renderDeadline;
     _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
+    configureSurfaceDeliveryObservations(channel: channel);
     SurfaceDeliveryReceiptUploader.instance.configure(
       baseUrl: baseUrl,
       apiKey: apiKey,
@@ -463,6 +455,8 @@ abstract final class Restage {
     // A reconfiguration must never retain a client bound to the previous
     // origin or credential. Test clients can be reinstalled after configure.
     _rpcClient = null;
+    _placementRegistry = null;
+    _configurePlacementDiscovery(surfaces, report: deliveryReceiptsEnabled);
     _installIttAssignmentTransport();
     if (apiKey == null) {
       GovernedMeasurementPortRegistry.install(null);
@@ -485,7 +479,16 @@ abstract final class Restage {
                 environment: environment,
                 baseUrl: baseUrl,
               ));
-    _defaultFlowResolver = flowResolver ?? const AssetFlowResolver();
+    _defaultFlowResolver = flowResolver ??
+        (apiKey != null && baseUrl != null
+            ? ServerFlowResolver(
+                apiKey: apiKey,
+                baseUrl: baseUrl,
+                environment: environment,
+                active: true,
+                rpcClientProvider: _requireRpcClient,
+              )
+            : const AssetFlowResolver());
     _defaultSurfaceScreenResolver = surfaceScreenResolver ??
         (apiKey == null
             ? const AssetSurfaceScreenResolver()
@@ -563,13 +566,18 @@ abstract final class Restage {
     final apiKey = _apiKey;
     if (apiKey == null) return;
     final generation = _configurationGeneration;
+    final placements = placementRegistry;
+    // Freeze persisted discovery before a first-frame mount can add itself.
+    final knownPlacements = placements?.loadKnownMounts();
     final scope = SurfaceStoreKey.scopeFor(
       apiKey: apiKey,
       environment: _environment.name,
     );
     // Registers every listed reference with its resolver before revalidating.
     final listed = <SurfaceStoreKey>{
-      for (final ref in surfaces) _storeKeyFor(scope, ref),
+      for (final ref
+          in surfaces.where((ref) => ref is! GeneratedPlacementDefinition))
+        _storeKeyFor(scope, ref),
     };
     final keys = <SurfaceStoreKey>{...listed};
     try {
@@ -592,6 +600,19 @@ abstract final class Restage {
       // No binding yet: nothing to render, so nothing to stay off.
     }
     if (generation != _configurationGeneration) return;
+    _installSurfaceVocabularies(surfaces);
+    if (placements != null) {
+      final generated = placements
+          .configure(surfaces.whereType<GeneratedPlacementDefinition>());
+      try {
+        await placements.prefetch([
+          ...generated,
+          ...await knownPlacements!,
+        ]);
+      } on Object {
+        // A refused startup batch leaves each mount's original available.
+      }
+    }
     final queue = keys.toList();
     Future<void> worker() async {
       while (queue.isNotEmpty) {
@@ -612,11 +633,35 @@ abstract final class Restage {
     ]);
   }
 
+  static void _installSurfaceVocabularies(List<RestageSurfaceRef> surfaces) {
+    final installedFlows = <SurfaceFlowRef<Object?>>{};
+    void installFlow(SurfaceFlowRef<Object?> flow) {
+      if (!installedFlows.add(flow)) return;
+      flow.vocabulary.addToInstalled();
+      for (final child in flow.subFlows) {
+        installFlow(child);
+      }
+    }
+
+    for (final ref in surfaces) {
+      switch (ref) {
+        case GeneratedPlacementDefinition():
+          ref.vocabulary.addToInstalled();
+          _installSurfaceVocabularies([ref.defaultSurface]);
+        case SurfaceFlowRef<Object?>():
+          installFlow(ref);
+        case SurfaceScreenRef<Object?>():
+          ref.provenance.vocabulary.addToInstalled();
+      }
+    }
+  }
+
   /// The store key for [ref] under the configured credential, using
   /// [resolver]'s own key when it is a built-in hosted resolver.
   @internal
   static SurfaceStoreKey storeKeyFor(RestageSurfaceRef ref,
       {Object? resolver}) {
+    if (resolver is PlacementBoundResolver) return resolver.storeKey;
     final apiKey = _apiKey;
     final scope = apiKey == null
         ? ''
@@ -844,32 +889,38 @@ abstract final class Restage {
     if (previous != null) _measurementRetiringOwners.add(previous);
     final previousBarrier = _measurementHostBarrier;
     if (!admitted && privacyReset) {
-      final completed = Completer<void>();
-      final owners = _measurementRetiringOwners.toList();
-      final cancellations = [
-        for (final owner in owners)
-          owner.cancelCollection(purgeCompletion: completed.future),
-      ];
-      final cleanup = () async {
-        // A new cleanup attempt may recover from an earlier failed deletion.
-        await previousBarrier.catchError((Object _) {});
-        await Future.wait(cancellations);
-        await MeasurementWorkerOwnedDeliveryRuntime.purgePersisted();
-        _measurementRetiringOwners.removeAll(owners);
-      }();
-      _measurementHostBarrier = completed.future;
-      unawaited(
-          cleanup.then(completed.complete, onError: completed.completeError));
-      // Keep the failure on the startup barrier while avoiding an unobserved
-      // asynchronous error when collection remains disabled.
-      unawaited(completed.future.catchError((Object _) {}));
+      // Detached cleanup must not inherit the caller's zone.
+      Zone.root.run(() {
+        final completed = Completer<void>();
+        final owners = _measurementRetiringOwners.toList();
+        final cancellations = [
+          for (final owner in owners)
+            owner.cancelCollection(purgeCompletion: completed.future),
+        ];
+        final cleanup = () async {
+          // A new cleanup attempt may recover from an earlier failed deletion.
+          await previousBarrier.catchError((Object _) {});
+          await Future.wait(cancellations);
+          await MeasurementWorkerOwnedDeliveryRuntime.purgePersisted();
+          _measurementRetiringOwners.removeAll(owners);
+        }();
+        _measurementHostBarrier = completed.future;
+        unawaited(
+            cleanup.then(completed.complete, onError: completed.completeError));
+        // Keep the failure on the startup barrier while avoiding an unobserved
+        // asynchronous error when collection remains disabled.
+        unawaited(completed.future.catchError((Object _) {}));
+      });
       return;
     }
     if (previous != null) {
-      final retirement = previous.close();
-      _measurementHostBarrier = Future.wait<void>([previousBarrier, retirement])
-          .then((_) => _measurementRetiringOwners.remove(previous));
-      unawaited(_measurementHostBarrier.catchError((Object _) {}));
+      Zone.root.run(() {
+        final retirement = previous.close();
+        _measurementHostBarrier =
+            Future.wait<void>([previousBarrier, retirement])
+                .then((_) => _measurementRetiringOwners.remove(previous));
+        unawaited(_measurementHostBarrier.catchError((Object _) {}));
+      });
     }
     if (!admitted) return;
     final generation = _configurationGeneration;
@@ -899,13 +950,14 @@ abstract final class Restage {
     );
   }
 
-  /// App-wide event stream. Receives presentation and interaction events.
-  ///
-  /// Broadcast — multiple listeners supported; events are not buffered for
-  /// late subscribers.
+  /// Broadcasts app presentation and interaction events without replay.
+  /// Purchases in `.listen(...)` or `.where(...).listen(...)` callbacks retain
+  /// painted placement attribution, including after `await` in that callback.
+  /// Other transformations do not preserve it; use a host action or event
+  /// callback for attributed purchases in those cases.
   static Stream<RestageEvent> get events {
-    _events ??= StreamController<RestageEvent>.broadcast();
-    return _events!.stream;
+    _events ??= StreamController<_RestageEventDispatch>.broadcast();
+    return _eventStream ??= _RestageEventStream(_events!.stream);
   }
 
   /// Rotates the local pseudonymous actor and session.
@@ -981,7 +1033,16 @@ abstract final class Restage {
   static void fireEvent(RestageEvent event) {
     final controller = _events;
     if (controller != null && controller.hasListener) {
-      controller.add(event);
+      final generation = _configurationGeneration;
+      final identity = _analyticsIdentity;
+      final identityGeneration = identity?.generation;
+      final attribution = MountAttributionEventContext.bound?.capture(
+          authorityCheck: () =>
+              generation == _configurationGeneration &&
+              (identity == null ||
+                  (identical(_analyticsIdentity, identity) &&
+                      identity.generation == identityGeneration)));
+      controller.add(_RestageEventDispatch(event, attribution));
     }
   }
 
@@ -1030,8 +1091,8 @@ abstract final class Restage {
   /// Resolver used when `RestageFlowGraph` is constructed without an explicit
   /// `resolver:` parameter.
   ///
-  /// The default is [AssetFlowResolver]; hosted flow delivery is not installed
-  /// by [configure].
+  /// With a credential and origin, the default serves the active hosted flow.
+  /// Otherwise it uses [AssetFlowResolver].
   static FlowResolver get defaultFlowResolver => _defaultFlowResolver;
 
   /// Resolver used when [RestageScreen] has no explicit resolver.
@@ -1045,6 +1106,98 @@ abstract final class Restage {
   /// Monotonic identity of mutable SDK configuration used by hosted mounts.
   @internal
   static int get configurationGeneration => _configurationGeneration;
+
+  @internal
+  static bool get placementPaywallsEnabled => _placementPaywallsEnabled;
+  @internal
+  static bool get placementScreensEnabled => _placementScreensEnabled;
+  @internal
+  static bool get placementFlowsEnabled => _placementFlowsEnabled;
+
+  @internal
+  static PlacementDiscovery? get placementDiscovery {
+    if (!_placementDiscoveryConfigured) {
+      _configurePlacementDiscovery(const [], report: false);
+    }
+    return _placementDiscoveryConfigured ? PlacementDiscovery.instance : null;
+  }
+
+  static void _configurePlacementDiscovery(List<RestageSurfaceRef> surfaces,
+      {required bool report}) {
+    final platform = normalizeDeliveryPlatform(
+        isWeb: kIsWeb, targetPlatform: defaultTargetPlatform);
+    PlacementDiscovery.instance.reset();
+    _placementDiscoveryConfigured = platform != null;
+    if (platform == null) return;
+    final generation = _configurationGeneration;
+    final declarations = [
+      for (final definition
+          in surfaces.whereType<GeneratedPlacementDefinition>())
+        PlacementMountRequestV1(
+            key: definition.key,
+            hostContractHash: definition.hostContract.contentHash,
+            defaultSurface: definition.defaultSurfaceLocator)
+    ];
+    PlacementDiscovery.instance.configure(
+        installedCapability: currentInstalledCapability,
+        platform: platform,
+        mounts: declarations,
+        contractsByHash: {
+          for (final definition
+              in surfaces.whereType<GeneratedPlacementDefinition>())
+            definition.hostContract.contentHash: definition.hostContract
+        },
+        report: report && _apiKey != null && _baseUrl != null
+            ? (declaration) async {
+                if (generation != _configurationGeneration) return false;
+                return _requireRpcClient()!.reportPlacementMounts(declaration,
+                    publicationGuard: () =>
+                        generation == _configurationGeneration);
+              }
+            : null);
+    unawaited(() async {
+      final inputs = await readDeliveryBuildInputs();
+      if (generation != _configurationGeneration || inputs.platform == null) {
+        return;
+      }
+      PlacementDiscovery.instance.updateBuildInputs(
+          platform: inputs.platform!,
+          buildOrdinal: inputs.buildOrdinal,
+          appVersion: inputs.appVersion);
+    }());
+  }
+
+  /// The current authenticated placement delivery configuration.
+  @internal
+  static PlacementRegistry? get placementRegistry {
+    final apiKey = _apiKey;
+    final origin = _baseUrl;
+    if (apiKey == null || origin == null) return null;
+    final generation = _configurationGeneration;
+    return _placementRegistry ??= PlacementRegistry(
+      scope: SurfaceStoreKey.scopeFor(
+          apiKey: apiKey, environment: _environment.name, baseUrl: origin),
+      configurationFingerprint: SurfaceStoreKey.configurationFingerprintFor(
+          apiKey: apiKey, environment: _environment.name, baseUrl: origin),
+      client: () => _requireRpcClient()!,
+      onBuildInputs: (platform, ordinal) => placementDiscovery
+          ?.updateBuildInputs(platform: platform, buildOrdinal: ordinal),
+      onDeclarations: (declarations) => placementDiscovery
+          ?.rememberDeclarations(
+              mounts:
+                  declarations.map((declaration) => declaration.mount).toList(),
+              contractsByHash: {
+            for (final declaration in declarations)
+              declaration.host.contentHash: declaration.host
+          }),
+      now: _placementNow,
+      isCurrent: () => generation == _configurationGeneration,
+    );
+  }
+
+  /// The delivery clock placement deadlines and their alarms share.
+  @internal
+  static DateTime placementNow() => (_placementNow ?? DateTime.now)();
 
   @internal
   static bool get isMeasurementEnabled => _measurementEnabled;
@@ -1123,6 +1276,13 @@ abstract final class Restage {
 
   // --- Debug / test API (visible for testing) ---
 
+  /// Injects the local delivery clock for lifecycle tests.
+  @visibleForTesting
+  static set debugPlacementNow(DateTime Function()? value) {
+    _placementNow = value;
+    _placementRegistry = null;
+  }
+
   /// Test-only — exposes the API key passed to [configure].
   @internal
   static String? get debugApiKey => _apiKey;
@@ -1163,12 +1323,14 @@ abstract final class Restage {
   @visibleForTesting
   static void debugReset() {
     _configurationGeneration += 1;
+    _placementNow = null;
     _configureMeasurementHost(enabled: false, privacyReset: false);
     _onSurfaceResolution = null;
     _apiKey = null;
     _reportedDeliveryConfiguration = null;
     _baseUrl = null;
     _environment = RestageEnvironment.production;
+    configureSurfaceDeliveryObservations(initializeFirstLaunch: false);
     _defaultResolver = const AssetVariantResolver();
     _defaultFlowResolver = const AssetFlowResolver();
     _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
@@ -1180,7 +1342,11 @@ abstract final class Restage {
     _updateChannel = null;
     _events?.close();
     _events = null;
+    _eventStream = null;
     _rpcClient = null;
+    _placementRegistry = null;
+    PlacementDiscovery.instance.reset();
+    _placementDiscoveryConfigured = false;
     MeasurementAssignmentTransportRegistry.debugReset();
     RootAnalyticsRuntime.clear();
     _analyticsIdentity = null;
@@ -1234,6 +1400,72 @@ abstract final class Restage {
         }
     }
   }
+}
+
+final class _RestageEventDispatch {
+  const _RestageEventDispatch(this.event, this.attribution);
+  final RestageEvent event;
+  final MountAttributionEventContext? attribution;
+}
+
+final class _RestageEventStream extends Stream<RestageEvent> {
+  _RestageEventStream(this._source);
+  final Stream<_RestageEventDispatch> _source;
+
+  @override
+  bool get isBroadcast => _source.isBroadcast;
+
+  @override
+  Stream<RestageEvent> where(bool Function(RestageEvent) test) =>
+      _RestageEventStream(_source.where((dispatch) =>
+          MountAttributionEventContext.runCaptured(
+              dispatch.attribution, () => test(dispatch.event))));
+
+  @override
+  StreamSubscription<RestageEvent> listen(
+    void Function(RestageEvent)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) =>
+      _RestageEventSubscription(_source, onData,
+          onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+}
+
+final class _RestageEventSubscription
+    implements StreamSubscription<RestageEvent> {
+  _RestageEventSubscription(
+      Stream<_RestageEventDispatch> source, void Function(RestageEvent)? onData,
+      {Function? onError, void Function()? onDone, bool? cancelOnError})
+      : _source = source.listen(_bind(onData),
+            onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+
+  final StreamSubscription<_RestageEventDispatch> _source;
+
+  static void Function(_RestageEventDispatch)? _bind(
+          void Function(RestageEvent)? callback) =>
+      callback == null
+          ? null
+          : (dispatch) => MountAttributionEventContext.runCaptured(
+              dispatch.attribution, () => callback(dispatch.event));
+
+  @override
+  void onData(void Function(RestageEvent)? handleData) =>
+      _source.onData(_bind(handleData));
+  @override
+  void onError(Function? handleError) => _source.onError(handleError);
+  @override
+  void onDone(void Function()? handleDone) => _source.onDone(handleDone);
+  @override
+  void pause([Future<void>? resumeSignal]) => _source.pause(resumeSignal);
+  @override
+  void resume() => _source.resume();
+  @override
+  bool get isPaused => _source.isPaused;
+  @override
+  Future<void> cancel() => _source.cancel();
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => _source.asFuture(futureValue);
 }
 
 /// Lifecycle observer for refresh and analytics work. Registered on

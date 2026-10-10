@@ -15,7 +15,7 @@ import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
@@ -189,9 +189,8 @@ final class WidgetbookCatalogSourceIndex {
   final List<PropertyExclusion> exclusions;
 
   /// Genuine custom-widget analyzer identities, including target-disabled
-  /// classes. Each is `<library uri>#<class name>`, so story placement can be
-  /// resolved from the declaring library rather than from the class name
-  /// alone.
+  /// classes. Each is `<library uri>#<class name>`, so story output location
+  /// can be resolved from the declaring library rather than the class name.
   final Set<String> restageWidgetDeclarations;
 
   /// Genuine custom-widget class names, including target-disabled classes.
@@ -221,17 +220,11 @@ final class WidgetbookCatalogIndexCache {
         Future<WidgetbookCatalogSourceIndex> index,
       })> _byPackage = {};
 
-  /// Returns the current package index, resolving it once in this build pass.
-  ///
-  /// The index carries placement-derived diagnostics, so it is only reusable
-  /// across builders that resolved the same placement. Every
-  /// placement-affected builder key in a package is required to resolve an
-  /// identical plan, so sharing is the normal case — but a disagreement is
-  /// reported rather than silently served from whichever builder happened to
-  /// populate the cache first.
+  /// Caches the package index for builders sharing one output-location plan.
+  /// Conflicting plans report an error instead of reusing the cached index.
   Future<WidgetbookCatalogSourceIndex> getOrLoad(
     BuildStep buildStep,
-    RestageOutputPlacementPlan plan,
+    RestageOutputLocationPlan plan,
   ) async {
     final assets = await buildStep
         .findAssets(Glob('lib/**.dart'))
@@ -251,7 +244,7 @@ final class WidgetbookCatalogIndexCache {
         )
         .toString();
     final packageName = buildStep.inputId.package;
-    final placement = restagePlacementSignature(plan);
+    final placement = restageOutputLocationSignature(plan);
     final cached = _byPackage[packageName];
     if (cached != null && cached.placement != placement) {
       throw StateError(
@@ -280,7 +273,7 @@ final class WidgetbookCatalogIndexCache {
 /// index without applying RFW factory admission.
 Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   BuildStep buildStep, {
-  RestageOutputPlacementPlan? plan,
+  RestageOutputLocationPlan? plan,
 }) async {
   // Only the assets that can carry a custom widget are worth resolving.
   // Scanning still covers the whole package, so a token in a file this index

@@ -81,21 +81,40 @@ Future<CallToolResult> handleExperimentApply(
     return Future.value(mcpError('The declared runtime plane is invalid.'));
   }
 
-  final measurement.ExperimentAuthoringRequestV1 semanticRequest;
-  try {
-    final idempotencyKey = request.optStr('idempotencyKey');
-    final correlationId = idempotencyKey == null
+  final idempotencyKey = request.optStr('idempotencyKey');
+  measurement.ExperimentAuthoringRequestV1 semanticRequestFor(
+    Map<String, Object?> payload,
+  ) => experimentRequest(
+    operation: operation,
+    correlationId: idempotencyKey == null
         ? _newCorrelationId()
         : experimentRetryCorrelationId(
             operation: operation,
             payload: payload,
             idempotencyKey: idempotencyKey,
-          );
-    semanticRequest = experimentRequest(
-      operation: operation,
-      correlationId: correlationId,
-      payload: payload,
-      idempotencyKey: idempotencyKey,
+          ),
+    payload: payload,
+    idempotencyKey: idempotencyKey,
+  );
+
+  // An opening candidate without a root opens under its own surface, which
+  // needs the resolved target; everything else is checked before transport.
+  final candidate =
+      operation == measurement.ExperimentAuthoringOperationV1.openDraft &&
+          !payload.containsKey('root')
+      ? payload['initialCandidate']
+      : null;
+  final measurement.ExperimentExactSurfaceReferenceV1? opening;
+  final measurement.ExperimentAuthoringRequestV1 checked;
+  try {
+    opening = candidate is Map<String, Object?>
+        ? measurement.ExperimentExactSurfaceReferenceV1.fromJson(
+            candidate,
+            path: 'experimentAuthoringRequest.payload.initialCandidate',
+          )
+        : null;
+    checked = semanticRequestFor(
+      opening == null ? payload : ({...payload}..remove('initialCandidate')),
     );
   } on measurement.CanonicalFormatException catch (error) {
     // The schema's message names the offending field, which is what the caller
@@ -106,6 +125,17 @@ Future<CallToolResult> handleExperimentApply(
   return ctx.authed('applying the experiment operation', (api) async {
     final target = await exactTargetCoordinate(api, request);
     if (target == null) return mcpError(exactTargetError);
+    final semanticRequest = opening == null
+        ? checked
+        : semanticRequestFor({
+            ...payload,
+            'root': measurement.DeliveryRootIdentityV1.surface(
+              measurement.PublishedSurfaceIdentityV1(
+                target: target,
+                surfaceId: opening.surfaceId,
+              ),
+            ).toJson(),
+          });
 
     try {
       final result = await ExperimentApi(

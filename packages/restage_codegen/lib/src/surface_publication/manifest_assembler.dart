@@ -92,6 +92,9 @@ final class SurfacePublicationAssemblyInput {
     this.flowFacts,
     this.screenContractFacts,
     this.mountName,
+    this.compiledScreenContracts = const {},
+    this.declaredPresentation,
+    this.fitRequirement,
   })  : artifacts = List.unmodifiable(artifacts),
         // Ordered by the same rule as every other generated-path list in
         // this manifest family, so `sources` cannot be the one member whose
@@ -121,6 +124,31 @@ final class SurfacePublicationAssemblyInput {
   /// The generated widget that mounts this publication, when one is emitted.
   final String? mountName;
 
+  final Map<String, SurfaceCompiledScreenContractV1> compiledScreenContracts;
+  final SurfacePresentationV1? declaredPresentation;
+  final SurfaceFitRequirementV1? fitRequirement;
+
+  /// Carries final compiler contracts and a reproduced requirement.
+  SurfacePublicationAssemblyInput withCompiledContracts({
+    required Map<String, SurfaceCompiledScreenContractV1> contracts,
+    SurfacePresentationV1? presentation,
+    SurfaceFitRequirementV1? requirement,
+  }) =>
+      SurfacePublicationAssemblyInput(
+        surface: surface,
+        slug: slug,
+        sourceKind: sourceKind,
+        payloadKind: payloadKind,
+        artifacts: artifacts,
+        sources: sources,
+        flowFacts: flowFacts,
+        screenContractFacts: screenContractFacts,
+        mountName: mountName,
+        compiledScreenContracts: contracts,
+        declaredPresentation: presentation,
+        fitRequirement: requirement,
+      );
+
   /// This input with [artifacts] in place of its own, every other fact kept.
   SurfacePublicationAssemblyInput withArtifacts(
     Iterable<SurfacePublicationArtifactInput> artifacts,
@@ -135,6 +163,9 @@ final class SurfacePublicationAssemblyInput {
         flowFacts: flowFacts,
         screenContractFacts: screenContractFacts,
         mountName: mountName,
+        compiledScreenContracts: compiledScreenContracts,
+        declaredPresentation: declaredPresentation,
+        fitRequirement: fitRequirement,
       );
 }
 
@@ -475,6 +506,10 @@ abstract final class SurfacePublicationManifestAssembler {
       hostDataContract: contractFacts?.publishedHostDataContract,
       hostDataContractHash: contractFacts?.hostDataContractHash,
       mountName: input.mountName,
+      compiledScreenContracts: input.compiledScreenContracts,
+      declaredPresentation: input.declaredPresentation,
+      fitRequirement: input.fitRequirement,
+      fitRequirementHash: input.fitRequirement?.contentHash,
     );
 
     artifacts.sort(_compareArtifacts);

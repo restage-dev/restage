@@ -1339,7 +1339,24 @@ const secondJourney = FlowDefinition(
       bundle.ownedOutputs['lib/restage.generated/native_flow.restage.g.dart']!,
     );
     await _expectAnalyzesClean({
-      'apps_examples|lib/native_flow.dart': source,
+      'apps_examples|lib/native_flow.dart': '''
+$source
+const originalNotice = NativeNoticeSurface('original', 3);
+const defaultNotice = NativeNoticeSurface('default');
+const namedNotice = NativeNoticeSurface.atPlacement('notice_card', 'named', 4);
+const originalOffer = NativeOfferSurface();
+const namedOffer = NativeOfferSurface.atPlacement('offer_card');
+
+Future<void> presentNotice(BuildContext context) => Restage.presentPlacement(
+  context,
+  builder: (_, presentation) => originalNotice,
+);
+
+Future<void> presentOffer(BuildContext context) => Restage.presentPlacement(
+  context,
+  builder: (_, presentation) => namedOffer,
+);
+''',
       'apps_examples|lib/restage.generated/native_flow.restage.g.dart':
           generated,
     });
@@ -1359,6 +1376,7 @@ const secondJourney = FlowDefinition(
     expect(generated, contains('class NativeWelcomeFlowSurface'));
     expect(generated, contains('NativeWelcome.new'));
     expect(generated, contains('NativeOffer.new'));
+    expect(generated, contains('class NativeNoticeSurface'));
   });
 
   test('generates a typed paywall mount with its authored constructor',

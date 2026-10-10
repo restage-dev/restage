@@ -1,15 +1,89 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:nocterm/nocterm.dart';
+import 'package:restage_cli/api.dart'
+    show FileCredentialStore, encodeByteDataWire, decodeByteDataWire;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_app.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
+import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:test/test.dart' hide isEmpty;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show DeliveryPolicyHistoryV1, DeliveryPolicyHistoryRequestV1;
+
+import '../_helpers/test_fixtures.dart';
+import '../commands/delivery_command_test.dart' show placementScope, policyRead;
 
 void main() {
+  test(
+    'console runner executes delivery history with unchanged scope cursor and status',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'console-delivery-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final store = FileCredentialStore('${directory.path}/credentials');
+      await seedCredential(store);
+      final scope = placementScope();
+      final history = DeliveryPolicyHistoryV1(
+        scope: scope,
+        revisions: [policyRead(scope, 5), policyRead(scope, 4)],
+        nextBeforeOrdinal: 4,
+      );
+      var calls = 0;
+      final executor = ConsoleCommandExecutor(
+        credentialStore: store,
+        directory: directory,
+        httpClient: mockHttpClient((request) {
+          expect(request.url.path, '/deliveryPolicy');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['method'], 'readHistory');
+          final decoded = DeliveryPolicyHistoryRequestV1.fromCanonicalBytes(
+            decodeByteDataWire(
+              body['requestBytes'],
+              malformed: FormatException.new,
+            ),
+          );
+          expect(decoded.scope, scope);
+          expect(decoded.pageSize, 2);
+          calls++;
+          return http.Response(
+            jsonEncode(encodeByteDataWire(history.canonicalBytes)),
+            200,
+          );
+        }),
+      );
+      final result = await executor.runCommand([
+        'delivery',
+        'plan',
+        'history',
+        '--placement',
+        'named:welcome',
+        '--page-size',
+        '2',
+        '--json',
+        '--project',
+        'p',
+        '--app',
+        'a',
+        '--env',
+        'staging',
+        '--plane',
+        'sandbox',
+      ]);
+      expect(result.exitCode, 0);
+      expect(result.stdout, '${utf8.decode(history.canonicalBytes)}\n');
+      expect(result.stderr, '');
+      expect(calls, 1);
+    },
+  );
+
   test('console renders the primary panels', () async {
     await testNocterm('console renders the primary panels', (tester) async {
       final controller = ConsoleController(repository: FakeConsoleRepository());

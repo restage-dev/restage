@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_builder.dart';
 import 'package:test/test.dart';
@@ -15,14 +15,14 @@ import 'package:yaml/yaml.dart';
 
 import 'helpers.dart';
 
-/// The three placement modes the frozen contract names, with the exact
+/// The three output location modes the frozen contract names, with the exact
 /// generated-Dart path each produces for one authored library.
 const String _library = 'lib/features/welcome.dart';
 
-RestageOutputPlacementPlan _plan(Map<String, dynamic> config) =>
-    RestageOutputPlacementPlan.fromBuilderOptions(BuilderOptions(config));
+RestageOutputLocationPlan _plan(Map<String, dynamic> config) =>
+    RestageOutputLocationPlan.fromBuilderOptions(BuilderOptions(config));
 
-final Map<String, RestageOutputPlacementPlan> _plans = {
+final Map<String, RestageOutputLocationPlan> _plans = {
   'default': _plan(const {}),
   'adjacent': _plan(const {'source_output_layout': 'adjacent'}),
   'centralized': _plan(const {'dart_output_root': 'lib/generated/restage'}),
@@ -300,7 +300,7 @@ const launch = FlowDefinition(
 
 /// The `part of` URI a generated part must declare to point back at its
 /// authored library, resolved relative to the part's own directory.
-String _partOfUri(RestageOutputPlacementPlan plan, String libraryPath) {
+String _partOfUri(RestageOutputLocationPlan plan, String libraryPath) {
   final part = neutralPartPath(plan, libraryPath);
   final relative = p.posix.relative(
     libraryPath,
@@ -320,7 +320,7 @@ Map<String, dynamic> _configFor(String mode) => switch (mode) {
 
 String _withPart(
   String source,
-  RestageOutputPlacementPlan plan,
+  RestageOutputLocationPlan plan,
   String libraryPath,
 ) {
   final lines = source.split('\n');

@@ -5,6 +5,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// The generated list of every surface reference a package compiles.
@@ -50,10 +51,48 @@ final class RestageSurfaceListBuilder implements Builder {
       final id = AssetId(package, path);
       if (!await buildStep.resolver.isLibrary(id)) continue;
       final library = await buildStep.resolver.libraryFor(id);
+      final providers = generatedPlacementDefinitionProviderNames(library);
+      for (final name in providers) {
+        refs.add(
+          SurfaceListReference(
+            libraryPath: path,
+            name: name,
+            isProvider: true,
+          ),
+        );
+      }
       for (final name in generatedSurfaceRefNames(library)) {
+        if (name.endsWith('Ref') &&
+            providers.contains(
+              placementDefinitionProviderName(
+                name.substring(0, name.length - 'Ref'.length),
+              ),
+            )) {
+          continue;
+        }
         refs.add(SurfaceListReference(libraryPath: path, name: name));
       }
     }
+    paywallIds.removeWhere(
+      (slug) => manifest.publications.any((entry) {
+        final mount = entry.publication.mountName;
+        if (entry.publication.surface != Surface.paywall ||
+            entry.publication.slug != slug ||
+            mount == null ||
+            !mount.endsWith('Surface')) {
+          return false;
+        }
+        final provider = placementDefinitionProviderName(
+          mount.substring(0, mount.length - 'Surface'.length),
+        );
+        return refs.any(
+          (ref) =>
+              ref.isProvider &&
+              ref.name == provider &&
+              entry.sources.contains(ref.libraryPath),
+        );
+      }),
+    );
 
     await buildStep.writeAsString(
       AssetId(package, kRestageSurfaceListPath),
@@ -72,10 +111,38 @@ final class RestageSurfaceListBuilder implements Builder {
 /// One generated reference, named [name], declared by the library at
 /// [libraryPath].
 final class SurfaceListReference {
-  const SurfaceListReference({required this.libraryPath, required this.name});
+  const SurfaceListReference({
+    required this.libraryPath,
+    required this.name,
+    this.isProvider = false,
+  });
 
   final String libraryPath;
   final String name;
+  final bool isProvider;
+}
+
+/// Generated default-definition providers declared by this library's part.
+List<String> generatedPlacementDefinitionProviderNames(
+  LibraryElement library,
+) =>
+    [
+      for (final variable in library.topLevelVariables)
+        if (variable.name case final name?
+            when !name.startsWith('_') &&
+                variable.firstFragment.libraryFragment.source.uri.path
+                    .endsWith(_kGeneratedPartSuffix) &&
+                _isPlacementDefinitionProvider(variable.type))
+          name,
+    ]..sort();
+
+bool _isPlacementDefinitionProvider(DartType type) {
+  if (type is! FunctionType) return false;
+  final result = type.returnType;
+  return result is InterfaceType &&
+      result.element.name == 'GeneratedPlacementDefinition' &&
+      result.element.library.identifier.startsWith('package:restage/') &&
+      _isSurfaceRef(result);
 }
 
 /// The public top-level references [library]'s generated part declares whose
@@ -143,7 +210,10 @@ String emitRestageSurfaceList({
       return library != 0 ? library : left.name.compareTo(right.name);
     });
   for (final ref in sorted) {
-    buffer.writeln('    ${prefixes[ref.libraryPath]}.${ref.name},');
+    buffer.writeln(
+      '    ${prefixes[ref.libraryPath]}.${ref.name}'
+      '${ref.isProvider ? '()' : ''},',
+    );
   }
   buffer
     ..writeln('  ],')

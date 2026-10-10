@@ -132,10 +132,10 @@ void main() {
       expect(copy.surfaceVersion, 'sha256:full');
       expect(copy.paywallVersion, '0.0.1');
       expect(copy.paywallPublishedVersion, 7);
-      // A public copy can alter the payload identity, so it must never carry
-      // an exact delivery binding by implication.
-      expect(measurementPublicationBindingReferenceFor(copy), isNull);
-      expect(measurementExperimentAssignmentFor(copy), isNull);
+      expect(measurementPublicationBindingReferenceFor(copy),
+          measurementPublicationBindingReferenceFor(full));
+      expect(measurementExperimentAssignmentFor(copy),
+          measurementExperimentAssignmentFor(full));
       expect(copy.cacheHit, isFalse);
     });
 
@@ -148,11 +148,14 @@ void main() {
       expect(hit.surfaceVersion, 'sha256:full');
       expect(hit.paywallVersion, '0.0.1');
       expect(hit.paywallPublishedVersion, 7);
-      expect(measurementPublicationBindingReferenceFor(hit), isNull);
-      expect(measurementExperimentAssignmentFor(hit), isNull);
+      expect(measurementPublicationBindingReferenceFor(hit),
+          measurementPublicationBindingReferenceFor(full));
+      expect(measurementExperimentAssignmentFor(hit),
+          measurementExperimentAssignmentFor(full));
     });
 
-    test('changed identity never inherits assignment', () {
+    test('changed identity never inherits publication binding or assignment',
+        () {
       for (final copy in [
         full.copyWith(paywallId: 'other'),
         full.copyWith(surfaceVersion: 'next'),
@@ -160,6 +163,7 @@ void main() {
         full.copyWith(paywallPublishedVersion: 9),
         full.copyWith(bytes: Uint8List.fromList([9]), surfaceVersion: 'next'),
       ]) {
+        expect(measurementPublicationBindingReferenceFor(copy), isNull);
         expect(measurementExperimentAssignmentFor(copy), isNull);
       }
       expect(measurementExperimentAssignmentFor(full),

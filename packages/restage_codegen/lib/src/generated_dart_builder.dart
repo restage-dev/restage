@@ -1,28 +1,23 @@
-// The single owner of per-library generated Dart.
-//
-// Exactly one builder declares and writes the `<stem>.restage.g.dart` family,
-// so a library holding a screen, a flow, or both never has two builders
-// claiming one output. Content comes from the same fixed compiler handoff the
-// portable-output builder reads; this builder only decides placement and
-// materialization.
+// Owns each library's `<stem>.restage.g.dart` output once.
+// Uses the shared compiler result and the resolved output location.
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
-import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 
 /// Writes each authored library's one generated Dart part.
 final class RestageGeneratedDartBuilder implements Builder {
-  /// Creates the builder, resolving and validating placement options once.
+  /// Creates the builder, resolving and validating output location options once.
   RestageGeneratedDartBuilder(BuilderOptions options)
-      : plan = RestageOutputPlacementPlan.fromBuilderOptions(options);
+      : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
 
-  /// The resolved placement authority for this builder invocation.
-  final RestageOutputPlacementPlan plan;
+  /// The resolved output location authority for this builder invocation.
+  final RestageOutputLocationPlan plan;
 
   @override
   Map<String, List<String>> get buildExtensions =>
@@ -30,7 +25,7 @@ final class RestageGeneratedDartBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(
+    await registerRestageOutputLocationSignature(
       buildStep,
       plan,
       builderKey: 'restage_codegen:generated_dart',
@@ -48,12 +43,8 @@ final class RestageGeneratedDartBuilder implements Builder {
       return;
     }
 
-    // The compiler keys generated parts by the same plan-resolved path this
-    // builder declares, so agreement is by construction rather than by a
-    // second derivation — provided both builders were configured with the
-    // same placement options. When they were not, the part exists in the
-    // handoff at a path this builder cannot write, and the developer sees an
-    // unexplained missing output. Name the real cause instead.
+    // Both builders must resolve the same output location. Report a mismatch
+    // here before it causes an unexplained missing generated part.
     final partPath = neutralPartPath(plan, libraryPath);
     final source = bundle.ownedOutputs[partPath];
     if (source == null) {
@@ -68,7 +59,7 @@ final class RestageGeneratedDartBuilder implements Builder {
   }
 
   /// Fails loudly when the handoff carries this library's generated part at a
-  /// path this builder's placement does not resolve to.
+  /// path this builder's output location does not resolve to.
   void _rejectPlacementDivergence(
     RestageSurfacePublicationBundle bundle, {
     required String libraryPath,
@@ -87,7 +78,7 @@ final class RestageGeneratedDartBuilder implements Builder {
       'Placement options divergence between Restage builder targets: the '
       'generated part for $libraryPath was compiled at ${elsewhere.join(', ')} '
       'but this builder resolved ${neutralPartPath(plan, libraryPath)} from '
-      '[${restagePlacementSignature(plan)}]. Every placement-affected Restage '
+      '[${restageOutputLocationSignature(plan)}]. Every placement-affected Restage '
       'builder key must carry identical placement options. In build.yaml, set '
       'the same options on each restage_codegen builder key under targets; a '
       'YAML anchor lets you write the values once. Do not set them under '

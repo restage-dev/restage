@@ -106,3 +106,14 @@ final class NativeClassFlow extends RestageFlow {
     );
   }
 }
+
+@Screen(id: 'native_notice', surface: Surface.general)
+final class NativeNotice extends StatelessWidget {
+  const NativeNotice(this.title, [this.count = 2]);
+
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Text(title);
+}

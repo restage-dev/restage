@@ -14,8 +14,8 @@ import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/restage_sdk_compatibility.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
-import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_shared/restage_shared.dart'
     show FlowDeliveryMode, Surface, kBaselineCatalogVersion;
 
@@ -62,15 +62,15 @@ final class RestageSourceRosterBuilder implements Builder {
   const RestageSourceRosterBuilder(this.options);
 
   /// Builder options are otherwise reserved for a later frontend; the
-  /// resolved placement plan they yield only informs which physical paths
+  /// resolved output location plan they yield only informs which physical paths
   /// the fixed output-ownership claim below records.
   final BuilderOptions options;
 
-  /// The resolved placement plan used to claim the unified outputs
+  /// The resolved output location plan used to claim the unified outputs
   /// builder's package-wide physical outputs, so this roster's collision
   /// bookkeeping reflects the same physical paths that builder writes.
-  RestageOutputPlacementPlan get _plan =>
-      RestageOutputPlacementPlan.fromBuilderOptions(options);
+  RestageOutputLocationPlan get _plan =>
+      RestageOutputLocationPlan.fromBuilderOptions(options);
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -82,7 +82,7 @@ final class RestageSourceRosterBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(
+    await registerRestageOutputLocationSignature(
       buildStep,
       _plan,
       builderKey: 'restage_codegen:restage_source_roster',
@@ -172,7 +172,7 @@ String _canonicalMigrationReplacement(RestageSourceDeclaration source) {
 RestageSourceRoster _withFixedPublicationManifest({
   required String packageName,
   required RestageSourceRoster roster,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
 }) {
   RestageOwnedOutput fixedOutput({
     required String path,
@@ -224,10 +224,10 @@ RestageSourceRoster _withFixedPublicationManifest({
 @visibleForTesting
 Future<RestageSourceRoster> collectRestageSourceRoster(
   BuildStep buildStep, {
-  RestageOutputPlacementPlan? plan,
+  RestageOutputLocationPlan? plan,
   List<AssetId>? candidates,
 }) async {
-  final effectivePlan = plan ?? RestageOutputPlacementPlan.defaults;
+  final effectivePlan = plan ?? RestageOutputLocationPlan.defaults;
   final sourceAssets =
       candidates ?? await selectRestageSurfaceCandidates(buildStep);
 
@@ -442,7 +442,7 @@ Future<bool> _collectCanonicalDeclarations({
   required BuildStep buildStep,
   required AssetId assetId,
   required LibraryElement library,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
   required Map<AssetId, String> sourceTexts,
   required List<RestageSourceDeclaration> declarations,
   required List<NormalizedFlowSource> normalizedFlows,
@@ -745,7 +745,7 @@ Future<List<Issue>> _neutralPartIssues({
   required BuildStep buildStep,
   required AssetId assetId,
   required Map<AssetId, String> sourceTexts,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
 }) async {
   final sourceText = sourceTexts[assetId] ??= await buildStep.readAsString(
     assetId,
@@ -789,7 +789,7 @@ List<RestageOutputClaim> _canonicalOutputClaims({
   required String id,
   required String libraryIdentity,
   required String libraryPath,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
   bool includePaywallMount = false,
 }) {
   final surfaceKey = surface?.wireName ?? 'neutral';
@@ -1100,7 +1100,7 @@ List<Issue> _legacyAdmissionIssues({
   required AssetId assetId,
   required String sourceText,
   required RestageRosterSourceKind kind,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
   required List<ClassElement> annotatedClasses,
   required bool checkNeutralPart,
 }) {
@@ -1153,7 +1153,7 @@ List<Issue> _legacyAdmissionIssues({
 List<RestageOutputClaim>? _legacyOutputClaims(
   RestageRosterSourceKind kind,
   AssetId assetId, {
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
 }) {
   final path = assetId.path;
   switch (kind) {

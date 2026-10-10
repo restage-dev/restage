@@ -1,8 +1,11 @@
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MountSelectionAttributionV1, PresentationAssignmentCarrierV2;
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../flow/flow_resolver.dart' show ResolvedFlow;
 import '../resolver/resolved_variant.dart';
+import '../measurement/placement_mount_attribution.dart';
 import '../resolver/surface_delivery_observations.dart';
 import '../resolver/surface_resolution_report.dart';
 import '../surface_screen/surface_screen_types.dart' show ResolvedSurfaceScreen;
@@ -93,6 +96,21 @@ final class SurfaceDeliveryReceiptHandle {
 
   bool get isClosed => _open?.closed ?? true;
 
+  /// Freezes the mount facts before this handle reports a paint or failure.
+  void bindMountAttribution(MountAttributionSnapshotV1 snapshot) {
+    final open = _open;
+    if (open == null || open.closed) return;
+    if (open.mountAttribution != null &&
+        !identical(open.mountAttribution, snapshot)) {
+      throw StateError('A receipt cannot change its mount attribution.');
+    }
+    open.mountAttribution = snapshot;
+  }
+
+  /// Closes this exact root after the host's paint acknowledgement.
+  void paintedSinceOpened() =>
+      painted(_open?._sinceOpen.elapsed ?? Duration.zero);
+
   /// The content painted [elapsed] after its mount.
   void painted(Duration elapsed) => _close(
         SurfaceDeliveryReceiptOutcome.painted,
@@ -139,6 +157,8 @@ final class _OpenReceipt {
   final String routeId;
   final DateTime openedAt;
   bool closed = false;
+  final Stopwatch _sinceOpen = Stopwatch()..start();
+  MountAttributionSnapshotV1? mountAttribution;
 }
 
 final class _Refusal {
@@ -224,6 +244,7 @@ final class SurfaceDeliveryReceiptBatch {
     required SurfaceResolutionSource source,
     required SurfaceDeliveryReceiptReason reason,
     required String routeId,
+    bool recordAsLatest = true,
   }) {
     if (!enabled) return SurfaceDeliveryReceiptHandle._inert();
     if (_open.length + _closed.length >= kSurfaceDeliveryReceiptCapacity) {
@@ -243,7 +264,9 @@ final class SurfaceDeliveryReceiptBatch {
     _open.add(open);
     _device ??= _readDevice();
     final handle = SurfaceDeliveryReceiptHandle._(this, open);
-    _latestBySurface[_surfaceKey(surfaceType, surfaceSlug)] = handle;
+    if (recordAsLatest) {
+      _latestBySurface[_surfaceKey(surfaceType, surfaceSlug)] = handle;
+    }
     onAppended?.call();
     return handle;
   }
@@ -303,6 +326,9 @@ final class SurfaceDeliveryReceiptBatch {
       reason: reason,
       outcome: outcome,
       routeId: open.routeId,
+      attribution: open.mountAttribution?.attribution,
+      routingSelectionReceipt: open.mountAttribution?.routingSelectionReceipt,
+      assignment: open.mountAttribution?.assignment,
       latencyBucket: latency,
       minute: DateTime.utc(
         open.openedAt.year,
@@ -362,6 +388,9 @@ final class _Key {
     required this.routeId,
     required this.latencyBucket,
     required this.minute,
+    this.attribution,
+    this.routingSelectionReceipt,
+    this.assignment,
   });
 
   final Surface surfaceType;
@@ -373,6 +402,9 @@ final class _Key {
   final String routeId;
   final SurfaceDeliveryLatencyBucket latencyBucket;
   final DateTime minute;
+  final MountSelectionAttributionV1? attribution;
+  final String? routingSelectionReceipt;
+  final PresentationAssignmentCarrierV2? assignment;
 
   SurfaceDeliveryReceipt toReceipt(String platform, int appBuild) =>
       SurfaceDeliveryReceipt(
@@ -387,6 +419,9 @@ final class _Key {
         routeId: routeId,
         latencyBucket: latencyBucket,
         minuteBucketUtc: minute,
+        attribution: attribution,
+        routingSelectionReceipt: routingSelectionReceipt,
+        assignment: assignment,
       );
 
   @override
@@ -400,7 +435,10 @@ final class _Key {
       outcome == other.outcome &&
       routeId == other.routeId &&
       latencyBucket == other.latencyBucket &&
-      minute == other.minute;
+      minute == other.minute &&
+      attribution == other.attribution &&
+      routingSelectionReceipt == other.routingSelectionReceipt &&
+      assignment == other.assignment;
 
   @override
   int get hashCode => Object.hash(
@@ -413,6 +451,9 @@ final class _Key {
         routeId,
         latencyBucket,
         minute,
+        attribution,
+        routingSelectionReceipt,
+        assignment,
       );
 }
 
@@ -428,6 +469,16 @@ void attachSurfaceDeliveryReceipt(
   _handles[resolved] = handle;
 }
 
+/// Binds one accepted staging snapshot to its already opened delivery receipt.
+@internal
+void bindSurfaceDeliveryMountAttribution(
+    Object resolved, MountAttributionSnapshotV1? snapshot) {
+  if (snapshot != null) {
+    surfaceDeliveryReceiptFor(placementResolvedLeaf(resolved))
+        ?.bindMountAttribution(snapshot);
+  }
+}
+
 /// The receipt opened for [resolved], if any.
 @internal
 SurfaceDeliveryReceiptHandle? surfaceDeliveryReceiptFor(Object resolved) =>
@@ -435,7 +486,11 @@ SurfaceDeliveryReceiptHandle? surfaceDeliveryReceiptFor(Object resolved) =>
 
 /// The served published version [resolved] carries, or 0 when it has none.
 @internal
-int surfaceDeliveryPublishedVersionOf(Object resolved) => switch (resolved) {
+int surfaceDeliveryPublishedVersionOf(Object resolved) =>
+    resolvedPlacementDeliveryFor(resolved)
+        ?.actualPublication
+        .publishedVersion ??
+    switch (resolved) {
       ResolvedVariant(:final paywallPublishedVersion) =>
         paywallPublishedVersion ?? 0,
       ResolvedSurfaceScreen(:final publishedRevision) => publishedRevision ?? 0,

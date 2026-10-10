@@ -101,14 +101,68 @@ LumenCancelNoteScreenEvent _decodeValidatedLumenCancelNoteScreenEvent(
   throw FormatException('Invalid LumenCancelNoteScreen event "$name".');
 }
 
+final _lumenCancelNoteScreenPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: lumenCancelNoteScreenRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'survey',
+    'slug': 'lumen_cancel_note',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'send',
+          'arguments': <String, Object?>{
+            'encoding': 'value',
+            'shape': <String, Object?>{'kind': 'string'}
+          }
+        },
+        <String, Object?>{
+          'id': 'skip',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: lumenCancelNoteScreenRef.provenance.vocabulary,
+);
+
+final lumenCancelNoteScreenPlacementDefinition =
+    () => _lumenCancelNoteScreenPlacementDefinitionValue;
+
 final class LumenCancelNoteScreenSurface extends StatelessWidget {
   const LumenCancelNoteScreenSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const LumenCancelNoteScreenSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<LumenCancelNoteScreenEvent>? onEvent;
 
@@ -122,6 +176,10 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<LumenCancelNoteScreenEvent>(
       screen: lumenCancelNoteScreenRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: lumenCancelNoteScreenPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => LumenCancelNoteScreen(),
       ),
@@ -245,14 +303,68 @@ LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
   throw FormatException('Invalid LumenCancelReasonScreen event "$name".');
 }
 
+final _lumenCancelReasonScreenPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: lumenCancelReasonScreenRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'survey',
+    'slug': 'lumen_cancel_reason',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'reason',
+          'arguments': <String, Object?>{
+            'encoding': 'value',
+            'shape': <String, Object?>{'kind': 'string'}
+          }
+        },
+        <String, Object?>{
+          'id': 'skip',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: lumenCancelReasonScreenRef.provenance.vocabulary,
+);
+
+final lumenCancelReasonScreenPlacementDefinition =
+    () => _lumenCancelReasonScreenPlacementDefinitionValue;
+
 final class LumenCancelReasonScreenSurface extends StatelessWidget {
   const LumenCancelReasonScreenSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const LumenCancelReasonScreenSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<LumenCancelReasonScreenEvent>? onEvent;
 
@@ -266,6 +378,10 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<LumenCancelReasonScreenEvent>(
       screen: lumenCancelReasonScreenRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: lumenCancelReasonScreenPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => LumenCancelReasonScreen(),
       ),
@@ -374,14 +490,61 @@ LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(
   throw FormatException('Invalid LumenCancelThanksScreen event "$name".');
 }
 
+final _lumenCancelThanksScreenPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: lumenCancelThanksScreenRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'survey',
+    'slug': 'lumen_cancel_thanks',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'finish',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: lumenCancelThanksScreenRef.provenance.vocabulary,
+);
+
+final lumenCancelThanksScreenPlacementDefinition =
+    () => _lumenCancelThanksScreenPlacementDefinitionValue;
+
 final class LumenCancelThanksScreenSurface extends StatelessWidget {
   const LumenCancelThanksScreenSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const LumenCancelThanksScreenSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<LumenCancelThanksScreenEvent>? onEvent;
 
@@ -395,6 +558,10 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<LumenCancelThanksScreenEvent>(
       screen: lumenCancelThanksScreenRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: lumenCancelThanksScreenPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => LumenCancelThanksScreen(),
       ),

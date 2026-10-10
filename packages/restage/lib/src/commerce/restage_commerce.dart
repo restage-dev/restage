@@ -12,6 +12,7 @@ import 'package:restage_shared/commerce.dart'
 
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/uuid_v4.dart';
+import '../measurement/placement_mount_attribution.dart';
 import 'commerce_report_queue.dart';
 import 'commerce_store_adapter.dart';
 
@@ -558,7 +559,11 @@ final class _RestageCommerce implements RestageCommerce {
   Future<void> _retired = Future<void>.value();
 
   Future<void> debugReset() {
-    _retired = Future.wait<void>(<Future<void>>[_retired, _engine.dispose()]);
+    final engine = _engine;
+    // Detached retirement must not inherit the caller's zone.
+    _retired = Zone.root.run(
+      () => Future.wait<void>(<Future<void>>[_retired, engine.dispose()]),
+    );
     final unavailable = _unavailableCommerceState();
     if (_currentState != unavailable) _setState(unavailable);
     _engine = _InactiveCommerceEngine(_currentState);
@@ -954,72 +959,90 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   }
 
   @override
-  Future<CommerceActionResult> purchase(CommercePurchaseRequest request) =>
-      _run(() async {
-        if (_disposed || !adapter.store.isKnown) {
-          return _unavailableAction(CommerceFailureCode.unsupportedCapability);
-        }
-        try {
-          await _queue();
-        } on Object {
-          return _unavailableAction(CommerceFailureCode.unsupportedCapability);
-        }
+  Future<CommerceActionResult> purchase(CommercePurchaseRequest request) {
+    final mountContext = MountAttributionEventContext.bound?.capture();
+    final capturedCommerceContext =
+        mountContext == null ? null : _currentContext();
+    return _run(() async {
+      if (_disposed || !adapter.store.isKnown) {
+        return _unavailableAction(CommerceFailureCode.unsupportedCapability);
+      }
+      try {
+        await _queue();
+      } on Object {
+        return _unavailableAction(CommerceFailureCode.unsupportedCapability);
+      }
 
-        final context = _currentContext();
-        final token = await _applicationAnonymousToken(context);
-        final client = _rpcClientProvider();
-        if (context == null ||
-            !context.isCurrent ||
-            token == null ||
-            !isValidUuidV4(token) ||
-            client == null) {
-          return _failedAction(CommerceFailureCode.unsupportedResponse);
-        }
-        final intentId = generateUuidV4();
-        final response = await client
-            .createCommerceIntent(
-              CommerceIntentRequest(
-                intentId: intentId,
-                offerId: request.offerId.value,
-                store: adapter.store.value,
-                appAnonymousToken: token,
-              ),
-            )
-            .within(_attemptDeadline);
-        if (response == null ||
-            response.intentId != intentId ||
-            response.status != 'ready' ||
-            !context.isCurrent) {
-          return _failedAction(CommerceFailureCode.unsupportedResponse);
-        }
-        final resolved = response.resolved;
-        if (resolved.productKind != _subscriptionProductKind ||
-            resolved.offerSignature != null) {
-          return _failedAction(CommerceFailureCode.unsupportedCapability);
-        }
+      final context =
+          mountContext == null ? _currentContext() : capturedCommerceContext;
+      final token = await _applicationAnonymousToken(context);
+      final client = _rpcClientProvider();
+      if (context == null ||
+          !context.isCurrent ||
+          token == null ||
+          !isValidUuidV4(token) ||
+          client == null) {
+        return _failedAction(CommerceFailureCode.unsupportedResponse);
+      }
+      final intentId = generateUuidV4();
+      if (mountContext != null && !mountContext.isAdmitted) {
+        return _failedAction(CommerceFailureCode.unsupportedResponse);
+      }
+      final mount = mountContext?.snapshot;
+      final selectedSurface = mount?.attribution.actualSurface;
+      final response = await client
+          .createCommerceIntent(
+            CommerceIntentRequest(
+              intentId: intentId,
+              offerId: request.offerId.value,
+              store: adapter.store.value,
+              appAnonymousToken: token,
+              surfaceId: selectedSurface?.surfaceIdentity.surfaceId.value,
+              surfaceKind: mount?.selectedDocument?.surfaceType.wireName,
+              variantSlug: mount?.selectedDocument?.surfaceSlug,
+              publishedVersion:
+                  mount?.attribution.actualPublication?.publishedVersion,
+              attribution: mount?.attribution,
+              routingSelectionReceipt: mount?.routingSelectionReceipt,
+              assignment: mount?.assignment,
+            ),
+          )
+          .within(_attemptDeadline);
+      if (response == null ||
+          response.intentId != intentId ||
+          response.status != 'ready' ||
+          !context.isCurrent) {
+        return _failedAction(CommerceFailureCode.unsupportedResponse);
+      }
+      final resolved = response.resolved;
+      if (resolved.productKind != _subscriptionProductKind ||
+          resolved.offerSignature != null) {
+        return _failedAction(CommerceFailureCode.unsupportedCapability);
+      }
 
-        final products = await adapter.queryProducts({resolved.storeProductId});
-        if (!context.isCurrent) {
-          return _failedAction(CommerceFailureCode.unsupportedResponse);
-        }
-        final product = _matchingProduct(products, response);
-        if (product == null) {
-          return _failedAction(CommerceFailureCode.unsupportedResponse);
-        }
-        final presented = await adapter.startPurchase(
-          CommerceStorePurchasable(
-            product: product,
-            applicationAccountToken: resolved.appAccountToken,
-          ),
-        );
-        return CommerceActionResult._(
-          status: presented
-              ? CommerceActionStatusCode.pending
-              : CommerceActionStatusCode.notPresented,
-        );
-      }).catchError(
-        (Object _) => _failedAction(CommerceFailureCode.unsupportedResponse),
+      final products = await adapter.queryProducts({resolved.storeProductId});
+      if (!context.isCurrent) {
+        return _failedAction(CommerceFailureCode.unsupportedResponse);
+      }
+      final product = _matchingProduct(products, response);
+      if (product == null) {
+        return _failedAction(CommerceFailureCode.unsupportedResponse);
+      }
+      final presented = await adapter.startPurchase(
+        CommerceStorePurchasable(
+          product: product,
+          applicationAccountToken: resolved.appAccountToken,
+        ),
       );
+      return CommerceActionResult._(
+        status: presented
+            ? CommerceActionStatusCode.pending
+            : CommerceActionStatusCode.notPresented,
+      );
+    }).catchError(
+      (Object _) => _failedAction(CommerceFailureCode.unsupportedResponse),
+    );
+  }
 
   @override
   Future<CommerceActionResult> restore() => _run(() async {

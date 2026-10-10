@@ -20,6 +20,7 @@ import 'package:restage/restage.dart';
 // The installed built-in catalog content version is the resolver's capability
 // ceiling (internal; the resolver's own tests reach it via the src path).
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage/src/runtime/library_runtime_registry.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
@@ -223,7 +224,11 @@ void main() {
       expect(requests, hasLength(1));
       expect(
         withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)),
-        {'surfaceType': 'paywall', 'surfaceSlug': 'pro_upgrade'},
+        {
+          'surfaceType': 'paywall',
+          'surfaceSlug': 'pro_upgrade',
+          'sdkInstalledLibraries': installedLibrariesCarrier(),
+        },
       );
       expect(variant.bytes, blob);
     });

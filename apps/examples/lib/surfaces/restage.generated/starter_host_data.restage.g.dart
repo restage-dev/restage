@@ -93,8 +93,73 @@ StarterChecklistEvent _decodeValidatedStarterChecklistEvent(
   throw FormatException('Invalid StarterChecklist event "$name".');
 }
 
+final _starterChecklistPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: starterChecklistRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'general',
+    'slug': 'starter_checklist',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{
+        'items': <String, Object?>{
+          'items': <String, Object?>{
+            'fields': <String, Object?>{
+              'id': <String, Object?>{'kind': 'string'},
+              'status': <String, Object?>{'kind': 'string'},
+              'title': <String, Object?>{'kind': 'string'}
+            },
+            'kind': 'object'
+          },
+          'kind': 'list'
+        },
+        'owner': <String, Object?>{'kind': 'string'}
+      },
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'toggle',
+          'arguments': <String, Object?>{
+            'encoding': 'value',
+            'shape': <String, Object?>{'kind': 'string'}
+          }
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: starterChecklistRef.provenance.vocabulary,
+);
+
+final starterChecklistPlacementDefinition =
+    () => _starterChecklistPlacementDefinitionValue;
+
 final class StarterChecklistSurface extends StatelessWidget {
   const StarterChecklistSurface({
+    required String owner,
+    required List<ChecklistItem> items,
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  })  : _restageArgument0 = owner,
+        _restageArgument1 = items,
+        _restagePlacementName = placement;
+
+  const StarterChecklistSurface.atPlacement(
+    String restagePlacementId, {
     required String owner,
     required List<ChecklistItem> items,
     super.key,
@@ -103,11 +168,13 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
   })  : _restageArgument0 = owner,
-        _restageArgument1 = items;
+        _restageArgument1 = items,
+        _restagePlacementName = restagePlacementId;
 
   final String _restageArgument0;
 
   final List<ChecklistItem> _restageArgument1;
+  final String? _restagePlacementName;
 
   final ValueChanged<StarterChecklistEvent>? onEvent;
 
@@ -121,6 +188,10 @@ final class StarterChecklistSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<StarterChecklistEvent>(
       screen: starterChecklistRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: starterChecklistPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       context: <String, Object?>{
         'owner': _restageArgument0,
         'items': <Object?>[

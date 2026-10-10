@@ -1,6 +1,6 @@
-// Single resolved placement authority for generated Restage build output.
+// Single resolved output location authority for generated Restage build output.
 //
-// Every generated-output producer and consumer resolves physical placement
+// Every generated-output producer and consumer resolves physical output location
 // through this one plan so that a package's `build.yaml` options are parsed
 // and validated exactly once, in one place, before any output is declared.
 
@@ -16,11 +16,11 @@ import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart
 /// layout. Never admitted as a builder input.
 const String kRestageGeneratedDirectoryName = 'restage.generated';
 
-/// Every builder-options key [RestageOutputPlacementPlan.fromBuilderOptions]
-/// recognizes. Shared across every builder that resolves a placement plan
+/// Every builder-options key [RestageOutputLocationPlan.fromBuilderOptions]
+/// recognizes. Shared across every builder that resolves an output location plan
 /// from its own [BuilderOptions], so each stays option-key-complete without
 /// hand-copying the list.
-const Set<String> kRestagePlacementOptionNames = <String>{
+const Set<String> kRestageOutputLocationOptionNames = <String>{
   'source_output_layout',
   'inspection_report',
   'bundled_runtime',
@@ -44,7 +44,7 @@ enum RestageSourceOutputLayout {
   /// default.
   generatedDirectory,
 
-  /// Flat placement beside the authored source.
+  /// Flat output location beside the authored source.
   adjacent;
 
   static RestageSourceOutputLayout _parse(Object? value) {
@@ -65,19 +65,19 @@ enum RestageSourceOutputLayout {
   }
 }
 
-/// Rejects any builder option outside [kRestagePlacementOptionNames].
+/// Rejects any builder option outside [kRestageOutputLocationOptionNames].
 ///
-/// For a builder whose only options are placement options — the whole
+/// For a builder whose only options are output location options — the whole
 /// package's annotated source is its input — an unrecognized key would
 /// otherwise be silently ignored and the output would land somewhere the
 /// developer did not ask for. [featureLabel] names the generation feature in
 /// the message, for example `A2UI catalog generation`.
-void requireOnlyRestagePlacementOptions(
+void requireOnlyRestageOutputLocationOptions(
   BuilderOptions options, {
   required String featureLabel,
 }) {
   final unsupported = options.config.keys
-      .where((key) => !kRestagePlacementOptionNames.contains(key))
+      .where((key) => !kRestageOutputLocationOptionNames.contains(key))
       .toList()
     ..sort();
   if (unsupported.isNotEmpty) {
@@ -91,19 +91,19 @@ void requireOnlyRestagePlacementOptions(
 /// Whether a package-relative authored source path is reserved because it
 /// lives inside a `restage.generated/` collection directory.
 ///
-/// Such paths are never admitted as builder input regardless of placement
+/// Such paths are never admitted as builder input regardless of output location
 /// mode.
 bool isReservedRestageGeneratedPath(String packageRelativePath) =>
     p.posix.split(packageRelativePath).contains(kRestageGeneratedDirectoryName);
 
-/// The one resolved placement authority for a package's generated Restage
+/// The one resolved output location authority for a package's generated Restage
 /// output.
 ///
 /// Constructed once from a builder's fully merged [BuilderOptions]. Every
 /// value it exposes is statically knowable at construction time: it never
 /// reads the filesystem and never depends on which sources currently exist.
-final class RestageOutputPlacementPlan {
-  RestageOutputPlacementPlan._({
+final class RestageOutputLocationPlan {
+  RestageOutputLocationPlan._({
     required this.sourceOutputLayout,
     required this.inspectionReport,
     required this.bundledRuntime,
@@ -111,10 +111,10 @@ final class RestageOutputPlacementPlan {
     required this.outputRoot,
   });
 
-  /// Resolves and validates every placement option from a builder's merged
+  /// Resolves and validates every output location option from a builder's merged
   /// [BuilderOptions]. Throws [FormatException] before any output is
   /// declared if an option is malformed.
-  factory RestageOutputPlacementPlan.fromBuilderOptions(
+  factory RestageOutputLocationPlan.fromBuilderOptions(
     BuilderOptions options,
   ) {
     final config = options.config;
@@ -144,7 +144,7 @@ final class RestageOutputPlacementPlan {
           rejectHiddenSegments: false,
         ) ??
         '.restage/build';
-    return RestageOutputPlacementPlan._(
+    return RestageOutputLocationPlan._(
       sourceOutputLayout: layout,
       inspectionReport: inspectionReport,
       bundledRuntime: bundledRuntime,
@@ -159,10 +159,10 @@ final class RestageOutputPlacementPlan {
   /// Shared by every caller that has no [BuilderOptions] of its own to
   /// resolve. A plan is immutable and depends on nothing outside its options,
   /// so one instance serves them all.
-  static final RestageOutputPlacementPlan defaults =
-      RestageOutputPlacementPlan.fromBuilderOptions(BuilderOptions.empty);
+  static final RestageOutputLocationPlan defaults =
+      RestageOutputLocationPlan.fromBuilderOptions(BuilderOptions.empty);
 
-  /// The source-owned placement layout in effect when neither
+  /// The source-owned output location layout in effect when neither
   /// [dartOutputRoot] nor [outputRoot] overrides it.
   final RestageSourceOutputLayout sourceOutputLayout;
 
@@ -254,7 +254,7 @@ final class RestageOutputPlacementPlan {
   ///
   /// `dart_output_root` never shares its capture-group family with
   /// [portableBuildExtensions]'s bundle/report templates — each resolves
-  /// independently, matching [RestageSourceOutputPlacement.neutralPartPath].
+  /// independently, matching [RestageSourceOutputLocation.neutralPartPath].
   Map<String, List<String>> get generatedDartBuildExtensions {
     final root = dartOutputRoot;
     if (root != null) {
@@ -307,9 +307,9 @@ final class RestageOutputPlacementPlan {
         : '{{dir}}/$kRestageGeneratedDirectoryName/{{file}}.restage.md';
   }
 
-  /// Resolves per-source-library placement for one authored Dart library
+  /// Resolves per-source-library output location for one authored Dart library
   /// path, for example `lib/features/onboarding/welcome.dart`.
-  RestageSourceOutputPlacement forLibrary(String dartLibraryPath) {
+  RestageSourceOutputLocation forLibrary(String dartLibraryPath) {
     if (!dartLibraryPath.endsWith('.dart')) {
       throw FormatException(
         'Expected an authored Dart library path, got "$dartLibraryPath".',
@@ -321,24 +321,24 @@ final class RestageOutputPlacementPlan {
         '$kRestageGeneratedDirectoryName/ directory.',
       );
     }
-    return RestageSourceOutputPlacement._(
+    return RestageSourceOutputLocation._(
       plan: this,
       dartPath: dartLibraryPath,
     );
   }
 }
 
-/// Resolved physical placement for one authored Dart library.
-final class RestageSourceOutputPlacement {
-  RestageSourceOutputPlacement._({
-    required RestageOutputPlacementPlan plan,
+/// Resolved physical output location for one authored Dart library.
+final class RestageSourceOutputLocation {
+  RestageSourceOutputLocation._({
+    required RestageOutputLocationPlan plan,
     required String dartPath,
   })  : _plan = plan,
         _dartPath = dartPath,
         _dir = p.posix.dirname(dartPath),
         _stem = p.posix.basenameWithoutExtension(dartPath);
 
-  final RestageOutputPlacementPlan _plan;
+  final RestageOutputLocationPlan _plan;
   final String _dartPath;
   final String _dir;
   final String _stem;
@@ -346,15 +346,15 @@ final class RestageSourceOutputPlacement {
   String get _dartPathWithoutExtension => p.posix.withoutExtension(_dartPath);
 
   /// The source-layout directory ignoring any configured
-  /// [RestageOutputPlacementPlan.dartOutputRoot]. Used for bundle and report
-  /// fallback placement, which `dart_output_root` never affects.
+  /// [RestageOutputLocationPlan.dartOutputRoot]. Used for bundle and report
+  /// fallback output location, which `dart_output_root` never affects.
   String get _sourceLayoutDir =>
       _plan.sourceOutputLayout == RestageSourceOutputLayout.adjacent
           ? _dir
           : p.posix.join(_dir, kRestageGeneratedDirectoryName);
 
   /// The directory holding this library's generated Dart, honoring
-  /// [RestageOutputPlacementPlan.dartOutputRoot] when configured.
+  /// [RestageOutputLocationPlan.dartOutputRoot] when configured.
   String get _dartOutputDir {
     final root = _plan.dartOutputRoot;
     if (root == null) return _sourceLayoutDir;
@@ -392,7 +392,7 @@ final class RestageSourceOutputPlacement {
   }
 
   /// This library's optional `.restage.md` inspection report path, or `null`
-  /// when [RestageOutputPlacementPlan.inspectionReport] is disabled.
+  /// when [RestageOutputLocationPlan.inspectionReport] is disabled.
   String? get inspectionReportPath {
     if (!_plan.inspectionReport) return null;
     final root = _plan.outputRoot;

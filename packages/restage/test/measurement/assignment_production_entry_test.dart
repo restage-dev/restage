@@ -55,8 +55,8 @@ void main() {
     }
   });
 
-  test('the compiled assignment API level is 3', () {
-    expect(assignmentSdkApiLevel, 3);
+  test('the compiled assignment API level is 4', () {
+    expect(assignmentSdkApiLevel, 4);
   });
 
   test(
@@ -140,7 +140,7 @@ void main() {
     expect(
       jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
           surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
-      containsPair('sdkApiLevel', 3),
+      containsPair('sdkApiLevel', 4),
     );
     expect(surfaceRequests.single.containsKey('assignmentCanonicalBase64'),
         isFalse);
@@ -247,7 +247,7 @@ void main() {
       expect(observations.containsKey('appBuildOrdinal'), isFalse,
           reason: buildNumber);
       expect(observations['platform'], 'android', reason: buildNumber);
-      expect(observations['sdkApiLevel'], 3, reason: buildNumber);
+      expect(observations['sdkApiLevel'], 4, reason: buildNumber);
     }
   });
 
@@ -333,7 +333,7 @@ void main() {
     expect(
       jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
           surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
-      containsPair('sdkApiLevel', 3),
+      containsPair('sdkApiLevel', 4),
     );
     expect(surfaceRequests.single.containsKey('assignmentKey'), isFalse);
   });
@@ -378,7 +378,7 @@ void main() {
     expect(
       jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
           surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
-      containsPair('sdkApiLevel', 3),
+      containsPair('sdkApiLevel', 4),
     );
     expect(surfaceRequests.single.containsKey('assignmentKey'), isFalse);
   });

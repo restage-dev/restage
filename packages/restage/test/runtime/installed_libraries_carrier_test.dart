@@ -7,6 +7,9 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 // ignore: implementation_imports
 import 'package:restage/src/runtime/library_runtime_registry.dart';
+import 'package:restage/src/runtime/installed_widget_vocabulary.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show InstalledCapability, InstalledLibrary;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show SdkInstalledLibrariesV1, sdkInstalledLibrariesMaximumLibraries;
 
@@ -50,6 +53,35 @@ void main() {
         ('app.widgets', 2, null),
         ('zeta.widgets', null, null),
       ],
+    );
+  });
+
+  test('a supplied snapshot keeps its libraries after the registry changes',
+      () {
+    _register('app.widgets', version: 2);
+    final snapshot = currentInstalledCapability();
+    _register('app.widgets', version: 3, compatibleSince: 3);
+    _register('later.widgets', version: 1);
+
+    final libraries =
+        _decode(installedLibrariesCarrier(snapshot: snapshot)!).libraries;
+    expect(libraries, hasLength(1));
+    expect(libraries.single.namespace, 'app.widgets');
+    expect(libraries.single.version, 2);
+    expect(
+        snapshot.contentHash, isNot(currentInstalledCapability().contentHash));
+  });
+
+  test('an invalid supplied snapshot is unknown even with an empty registry',
+      () {
+    expect(
+      installedLibrariesCarrier(
+        snapshot: InstalledCapability(
+          builtInCatalogVersion: 1,
+          installedLibraries: const [InstalledLibrary(namespace: 'has space')],
+        ),
+      ),
+      isNull,
     );
   });
 
