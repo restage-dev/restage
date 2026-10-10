@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/paywall_flow_builder.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_publication/surface_list_builder.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
@@ -73,6 +74,11 @@ Builder restageSourceRosterBuilder(BuilderOptions options) =>
 /// build_runner factory entry point for canonical package compilation.
 Builder restagePackageSurfaceCompilerBuilder(BuilderOptions options) =>
     _rootOnly(options, PackageSurfaceCompilerBuilder(options));
+
+/// build_runner factory entry point for `lib/restage_surfaces.g.dart`, the
+/// list of every surface the package compiles.
+Builder restageSurfaceListBuilder(BuilderOptions options) =>
+    _rootOnly(options, const RestageSurfaceListBuilder());
 
 /// Build config enables every builder a target configures, so a dependency's
 /// placement options switch on its root-only builders in the consuming app's

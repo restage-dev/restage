@@ -35,16 +35,8 @@ const int _zipUnixRegularFile0644 = 0x81A40000;
 const int _zipMaxFilenameBytes = 0xFFFF;
 const int _zipMaxEntries = 0xFFFF;
 
-/// The role of one [RestageBundleEntry].
-///
-/// A bundle carries every one of a library's delivery artifacts (the same
-/// three roles [SurfacePublicationArtifactRole] carries in the strict
-/// publication manifest) plus its canonical `.rfwtxt` inspection text, which
-/// is never part of the delivery manifest closure. This is therefore a
-/// separate, bundle-scoped role vocabulary rather than a reuse of the
-/// manifest's: the manifest's role enum is switched exhaustively wherever
-/// delivery artifacts are validated, and a bundle-only role must never be
-/// mistaken for one.
+/// Bundle entry roles include delivery artifacts and `.rfwtxt` inspection text.
+/// Inspection text is excluded from the publication manifest.
 enum RestageBundleEntryRole {
   /// A canonical flow document. Wire-identical to
   /// [SurfacePublicationArtifactRole.flowDocument].
@@ -57,6 +49,14 @@ enum RestageBundleEntryRole {
   /// A capability sidecar. Wire-identical to
   /// [SurfacePublicationArtifactRole.capabilitySidecar].
   capabilitySidecar('capabilitySidecar'),
+
+  /// A subset icon font. Wire-identical to
+  /// [SurfacePublicationArtifactRole.iconFont].
+  iconFont('iconFont'),
+
+  /// Initial screen-local values. Wire-identical to
+  /// [SurfacePublicationArtifactRole.localSeeds].
+  localSeeds('localSeeds'),
 
   /// The canonical human-readable `.rfwtxt` sibling of a compiled screen
   /// blob. Bundle-only; never a delivery-manifest artifact role.
@@ -72,6 +72,8 @@ enum RestageBundleEntryRole {
         SurfacePublicationArtifactRole.flowDocument => flowDocument,
         SurfacePublicationArtifactRole.screenBlob => screenBlob,
         SurfacePublicationArtifactRole.capabilitySidecar => capabilitySidecar,
+        SurfacePublicationArtifactRole.iconFont => iconFont,
+        SurfacePublicationArtifactRole.localSeeds => localSeeds,
       };
 
   /// The exact wire spelling, frozen to match the pre-refactor corpus.
@@ -95,6 +97,8 @@ enum RestageBundleEntryRole {
         flowDocument => SurfacePublicationArtifactRole.flowDocument,
         screenBlob => SurfacePublicationArtifactRole.screenBlob,
         capabilitySidecar => SurfacePublicationArtifactRole.capabilitySidecar,
+        iconFont => SurfacePublicationArtifactRole.iconFont,
+        localSeeds => SurfacePublicationArtifactRole.localSeeds,
         rfwText => throw StateError(
             'rfw-text is a bundle-only role and has no manifest-role '
             'counterpart.',

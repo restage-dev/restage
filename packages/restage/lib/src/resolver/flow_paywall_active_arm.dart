@@ -12,6 +12,7 @@ import 'package:restage_shared/restage_shared.dart'
         FlowSurfacePayload,
         LibraryRequirement;
 
+import '../delivery/surface_sections_carrier.dart';
 import '../flow/flow_resolver.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
@@ -93,13 +94,16 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
   if (!verdict.accepted) return const FlowPaywallActiveRejected('render_gate');
 
   final resolvedFlow = attachMeasurementPublicationBindingReference(
-    ResolvedFlow(
-      document: active,
-      screenBlobs: activePayload.screenBlobs,
-      contentHash: FlowContentHash.compute(
-        FlowDocumentCodec.encodeCanonicalJson(active),
+    attachSurfaceSections(
+      ResolvedFlow(
+        document: active,
+        screenBlobs: activePayload.screenBlobs,
+        contentHash: FlowContentHash.compute(
+          FlowDocumentCodec.encodeCanonicalJson(active),
+        ),
+        cacheHit: cacheHit,
       ),
-      cacheHit: cacheHit,
+      surfaceSectionsOf(activePayload),
     ),
     publicationBindingReference,
     canonicalExperimentAssignment: canonicalExperimentAssignment,

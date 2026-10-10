@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'document_path_codec.dart';
+import 'geometry_registry.dart' show GeometryInstance;
 import 'geometry_validation.dart';
 import 'manifest.dart';
 import 'protocol.dart';
@@ -20,6 +22,9 @@ typedef BundleSnapshotHandler = Future<Uint8List> Function(
   int epoch,
   String path,
 );
+
+/// Scrolls the [index]th drawn instance of the marked node at [path] into view.
+typedef BundleRevealHandler = void Function(String path, int index);
 
 /// Latest accepted logical frame and font prewarm request from the shell.
 final class BundleInitialization {
@@ -39,15 +44,26 @@ final class BundleRenderResult {
   BundleRenderResult({
     Iterable<RenderDiagnostic> diagnostics = const <RenderDiagnostic>[],
     Map<String, Rect> geometry = const <String, Rect>{},
+    Map<String, List<GeometryInstance>>? instances,
     Map<String, Object?>? timings,
   })  : diagnostics = List<RenderDiagnostic>.unmodifiable(diagnostics),
         geometry = snapshotGeometry(geometry, argumentName: 'geometry'),
+        instances = snapshotInstances(
+          geometry,
+          instances,
+          argumentName: 'instances',
+        ),
         timings = timings == null
             ? null
             : snapshotWireMap(timings, argumentName: 'timings');
 
   final List<RenderDiagnostic> diagnostics;
+
+  /// Each path's first drawn instance.
   final Map<String, Rect> geometry;
+
+  /// Every drawn instance of each path, in drawn order.
+  final Map<String, List<GeometryInstance>> instances;
   final Map<String, Object?>? timings;
 }
 
@@ -83,7 +99,9 @@ final class RenderProtocolServer {
     required BundleRenderHandler render,
     BundleSnapshotHandler? snapshot,
     BundleMountHandler? mount,
+    BundleRevealHandler? reveal,
   })  : _transport = transport,
+        _revealHandler = reveal,
         _supportedVersions = _snapshotSupportedVersions(supportedVersions),
         _scheduleFrame = scheduleFrame,
         _initialize = initialize,
@@ -100,6 +118,7 @@ final class RenderProtocolServer {
   final BundleRenderHandler _render;
   final BundleSnapshotHandler? _snapshot;
   final BundleMountHandler? _mount;
+  final BundleRevealHandler? _revealHandler;
 
   StreamSubscription<RenderTransportMessage>? _subscription;
   String? _lockedOrigin;
@@ -108,6 +127,8 @@ final class RenderProtocolServer {
   final Set<int> _settledEpochs = <int>{};
   final Set<int> _terminatedEpochs = <int>{};
   final Map<int, int> _geometryGenerations = <int, int>{};
+  final Map<int, Map<String, List<GeometryInstance>>> _pendingInstances =
+      <int, Map<String, List<GeometryInstance>>>{};
   final Map<int, Map<String, Rect>> _pendingGeometry =
       <int, Map<String, Rect>>{};
   final Set<int> _scheduledGeometry = <int>{};
@@ -133,6 +154,7 @@ final class RenderProtocolServer {
     final capabilities = <String>[
       if (_snapshot != null) renderSnapshotCapability,
       if (_mount != null) renderMountCapability,
+      if (_revealHandler != null) renderRevealCapability,
     ];
     _transport.send(
       <String, Object?>{
@@ -156,10 +178,29 @@ final class RenderProtocolServer {
     if (type != 'init' &&
         type != 'render' &&
         type != 'mount' &&
-        type != 'snapshotRequest') {
+        type != 'snapshotRequest' &&
+        type != 'reveal') {
       return;
     }
     try {
+      if (type == 'reveal') {
+        final reveal = _revealHandler;
+        if (reveal == null || message.origin != _lockedOrigin) return;
+        final epoch = payload['epoch'];
+        final path = payload['path'];
+        final index = payload['index'];
+        if (path is! String || index is! int || index < 0) {
+          throw const FormatException('reveal needs a path and an index.');
+        }
+        DocumentPathCodec.decode(path);
+        if (epoch != _currentEpoch ||
+            !_settledEpochs.contains(epoch) ||
+            _terminatedEpochs.contains(epoch)) {
+          return;
+        }
+        reveal(path, index);
+        return;
+      }
       if (type == 'snapshotRequest') {
         final snapshot = _snapshot;
         if (snapshot == null) return;
@@ -374,7 +415,13 @@ final class RenderProtocolServer {
               .toList(),
         },
       );
-      _sendGeometry(request.epoch, 0, result.geometry, version);
+      _sendGeometry(
+        request.epoch,
+        0,
+        result.geometry,
+        result.instances,
+        version,
+      );
     } on BundleRenderFailure catch (error) {
       _fail(request.epoch, version, error.message, error.path);
     } on Object {
@@ -386,6 +433,7 @@ final class RenderProtocolServer {
     if (epoch != _currentEpoch || _terminatedEpochs.contains(epoch)) return;
     _terminatedEpochs.add(epoch);
     _pendingGeometry.remove(epoch);
+    _pendingInstances.remove(epoch);
     _send(
       <String, Object?>{
         'v': version,
@@ -445,7 +493,11 @@ final class RenderProtocolServer {
   }
 
   /// Publishes the latest geometry, coalesced to one emission per frame.
-  void publishGeometry(int epoch, Map<String, Rect> rects) {
+  void publishGeometry(
+    int epoch,
+    Map<String, Rect> rects, {
+    Map<String, List<GeometryInstance>>? instances,
+  }) {
     if (_disposed) return;
     if (epoch != _currentEpoch ||
         !_settledEpochs.contains(epoch) ||
@@ -453,11 +505,14 @@ final class RenderProtocolServer {
       return;
     }
     final snapshot = snapshotGeometry(rects, argumentName: 'rects');
+    _pendingInstances[epoch] =
+        snapshotInstances(snapshot, instances, argumentName: 'instances');
     _pendingGeometry[epoch] = snapshot;
     if (!_scheduledGeometry.add(epoch)) return;
     _scheduleFrame(() {
       _scheduledGeometry.remove(epoch);
       final pending = _pendingGeometry.remove(epoch);
+      final pendingInstances = _pendingInstances.remove(epoch);
       if (pending == null ||
           epoch != _currentEpoch ||
           _terminatedEpochs.contains(epoch)) {
@@ -471,14 +526,23 @@ final class RenderProtocolServer {
         epoch,
         generation,
         pending,
+        pendingInstances,
         version,
       );
     });
   }
 
   void _sendGeometry(
-      int epoch, int generation, Map<String, Rect> rects, int version) {
+    int epoch,
+    int generation,
+    Map<String, Rect> rects,
+    Map<String, List<GeometryInstance>>? instances,
+    int version,
+  ) {
     validateGeometry(rects, argumentName: 'rects');
+    final repeated = instances == null
+        ? const <String, Object?>{}
+        : encodeGeometryInstances(instances);
     _send(
       <String, Object?>{
         'v': version,
@@ -494,6 +558,7 @@ final class RenderProtocolServer {
               entry.value.height,
             ],
         },
+        if (repeated.isNotEmpty) 'instances': repeated,
       },
     );
   }

@@ -1361,7 +1361,7 @@ void main() {
       );
       final source = emitFactoryFunction(entry);
       expect(source, isNotNull);
-      expect(source, contains('return Icon('));
+      expect(source, contains('return restageIcon('));
       // Required iconData synthetic routes through the throw-on-missing
       // fallback (same contract as required scalar properties) so a
       // malformed blob fails loudly instead of rendering a
@@ -1370,10 +1370,10 @@ void main() {
       expect(
         source,
         contains(
-          'resolveInstalledIcon(source.v<int>(const '
+          'restageIcon(\n    context,\n    codePoint: source.v<int>(const '
           "<Object>['iconCodepoint']) ?? "
           "(throw ArgumentError('IconLike.iconCodepoint is required.')), "
-          "fontFamily: 'MaterialIcons')",
+          "fontFamily: 'MaterialIcons',",
         ),
       );
       // No `IconData` construction — that is what retains the whole font.
@@ -1420,11 +1420,11 @@ void main() {
       expect(
         source,
         contains(
-          'resolveInstalledIcon(source.v<int>(const '
+          'codePoint: source.v<int>(const '
           "<Object>['iconCodepoint']) ?? "
           "(throw ArgumentError('IconLike.iconCodepoint is required.')), "
           "fontFamily: source.v<String>(const <Object>['iconFontFamily']) ?? "
-          "'MaterialIcons')",
+          "'MaterialIcons',",
         ),
       );
       // Flutter's `Icon` has no `iconFontFamily` parameter — the family is
@@ -1476,12 +1476,12 @@ void main() {
       expect(
         source,
         contains(
-          'resolveInstalledIcon(source.v<int>(const '
+          'codePoint: source.v<int>(const '
           "<Object>['iconCodepoint']) ?? "
           "(throw ArgumentError('IconLike.iconCodepoint is required.')), "
           "fontFamily: source.v<String>(const <Object>['iconFontFamily']) ?? "
           "'MaterialIcons', matchTextDirection: "
-          "source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false)",
+          "source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false,",
         ),
       );
       // Flutter's `Icon` has no `iconMatchTextDirection` parameter — the
@@ -1528,7 +1528,7 @@ void main() {
         emitFactoryFunction(entry),
         contains(
           "fontFamily: 'MaterialIcons', matchTextDirection: "
-          "source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false)",
+          "source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false,",
         ),
       );
     });
@@ -1560,9 +1560,9 @@ void main() {
         expect(
           source,
           contains(
-            'resolveInstalledIcon(source.v<int>(const '
+            'codePoint: source.v<int>(const '
             "<Object>['iconCodepoint']) "
-            "?? 0, fontFamily: 'MaterialIcons')",
+            "?? 0, fontFamily: 'MaterialIcons',",
           ),
         );
         expect(source, isNot(contains('IconData(')));

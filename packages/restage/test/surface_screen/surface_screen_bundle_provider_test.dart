@@ -36,6 +36,31 @@ void main() {
     fixture.ref.provenance.validateResolved(resolved);
   });
 
+  test('refuses packaged local seeds it cannot use', () async {
+    final fixture = stringScreenFixture(
+      capabilities: CapabilityManifest(
+        builtInFloor: kSurfaceFeatureClientFloor,
+        requiredLibraries: const <LibraryRequirement>[],
+      ),
+    );
+    final resolver = AssetSurfaceScreenResolver(
+      bundleProvider: AssetSurfaceScreenBundleProvider(
+        assetBundle: fixture.assetBundle(
+          bytes: fixture.bundleBytes(
+            localSeeds: Uint8List.fromList(
+              utf8.encode('{"OnboardingScreen": {"answer": {"nested": 1}}}'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      resolver.resolve(fixture.ref),
+      throwsUnavailable(SurfaceScreenUnavailableReason.invalidPayload),
+    );
+  });
+
   test('refuses when the application packages no bundles at all', () async {
     final fixture = stringScreenFixture(packagesBundle: false);
     const resolver = AssetSurfaceScreenResolver();

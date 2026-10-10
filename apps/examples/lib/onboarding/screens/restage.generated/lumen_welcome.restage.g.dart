@@ -1,10 +1,12 @@
 part of '../lumen_welcome.dart';
 
+// ignore_for_file: type=lint
+
 const lumenWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'lumen_welcome',
   artifactPath: 'lumen_welcome.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use lumenWelcomeScreenRef')

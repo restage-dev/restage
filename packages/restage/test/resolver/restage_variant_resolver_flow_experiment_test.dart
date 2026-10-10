@@ -12,10 +12,15 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 // ignore: implementation_imports
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import '../support/hosted_artifact_delivery.dart';
+import '../support/canonical_assignment_fixture.dart';
 import '../support/supported_policy_revisions_body.dart';
 
 /// The stub delivery for this file: it describes surfaces AND answers for
@@ -27,6 +32,70 @@ void main() {
 
   setUp(Restage.debugReset);
   tearDown(Restage.debugReset);
+
+  test('first experiment paywall confirms the tuple on its own presentation',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'cold-paywall',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
+    );
+    SurfaceCanonicalCarrierProvider.enableAssignmentRetention('cold-paywall');
+    SurfaceAssignmentKeyProvider.install(
+      key: store.resolve,
+      localKey: store.resolveLocal,
+      identityGeneration: () => store.generation,
+      registration: store.capture,
+      confirmedKey: () => store.currentHandle,
+      confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+          store.confirm(
+        attempt: attempt,
+        localRequestStartMicros: start,
+        credentialHandle: handle,
+        expiresAtMicros: expiry,
+        serverNowMicros: serverNow,
+      ),
+      refuseRegistration: store.refuse,
+    );
+    final bundledScreen = _screen('Bundled');
+    final candidateScreen = _screen('Assigned paywall');
+    final server = _ControlledSurfaceServer();
+    final resolver = RestageVariantResolver(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'https://surfaces.example.com',
+      httpClient: server.client,
+      assetFallback: AssetVariantResolver(
+          bundle: _ControlledPaywallBundle()
+            ..writeFlow(_flowDocument(screen: bundledScreen))
+            ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen)),
+    );
+    final pending = resolver.resolvePayloadForPresentation('pro_upgrade');
+    await _waitUntil(() => server.requests.isNotEmpty);
+    final request = _requestBody(server.requests.single.request);
+    expect(request['registrationNonce'], isA<String>());
+    expect(request, isNot(contains('assignmentKey')));
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final handle = 'ic1.${'a' * 64}';
+    server.requests.single.complete(http.Response(
+        jsonEncode({
+          ..._delivery.describeEnvelope(
+              _flowEnvelope(screen: candidateScreen, publishedVersion: 2)),
+          'credentialHandle': handle,
+          'expiresAtMicros': now + 30 * Duration.microsecondsPerDay,
+          'serverNowMicros': now,
+          'assignment': canonicalAssignmentFixture().toJson(),
+        }),
+        200));
+    final payload = await pending as FlowPaywallPayload;
+    expect(payload.flow.screenBlobs['welcome'], candidateScreen);
+    expect(payload.hasHostedExperimentAuthority, isTrue);
+    expect(measurementRegistrationFingerprintFor(payload.flow),
+        (await store.capture())!.fingerprint);
+    expect(store.currentHandle, handle);
+  });
 
   test(
       'missing flow preflight preserves the ordinary blob request body and still '
@@ -113,12 +182,14 @@ void main() {
     expect(payload.pinnedFlowResolver, isNotNull);
     expect(payload.flow.screenBlobs['welcome'], bundledScreen);
     expect(payload.hasHostedExperimentAuthority, isFalse);
+    // The fresh attempt and the local candidate each freeze the baseline.
     expect(
-      bundle.loadedKeys,
-      orderedEquals(<String>[
+      bundle.loadedKeys.toSet(),
+      <String>{
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/paywalls/screens/paywall_pro_upgrade.rfw',
-      ]),
+        'assets/paywalls/pro_upgrade.local.json',
+      },
     );
   });
 
@@ -313,6 +384,7 @@ void main() {
       orderedEquals(<String>[
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/paywalls/screens/paywall_pro_upgrade.rfw',
+        'assets/paywalls/pro_upgrade.local.json',
       ]),
     );
   });

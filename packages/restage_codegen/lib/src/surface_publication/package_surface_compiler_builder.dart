@@ -31,6 +31,8 @@ import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
+import 'package:restage_codegen/src/rfw_emitter.dart'
+    show paywallRootWidgetName;
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -43,6 +45,8 @@ import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show CanonicalJsonCodec;
 import 'package:restage_shared/restage_shared.dart'
     show
         CapabilityManifest,
@@ -54,7 +58,8 @@ import 'package:restage_shared/restage_shared.dart'
         SurfacePayloadKind,
         SurfacePublicationArtifactRole,
         SurfacePublicationManifest,
-        SurfaceSourceKind;
+        SurfaceSourceKind,
+        decodeLocalSeedsArtifact;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -278,6 +283,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             flowArtifactPath: '${screen.input.id}.rfw',
             vocabulary: screen.vocabulary,
             rfwText: utf8.encode(screen.text),
+            localSeeds: screen.localSeeds,
             rfwCatalogOccurrenceSetsByOutputRole:
                 _rfwCatalogOccurrenceSetsForSourceOutputRoles(
               source: source,
@@ -406,6 +412,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           packageWidgetNames:
               legacyCompilation.screens.single.vocabulary.widgetNames,
           rfwText: text,
+          localSeeds: legacyCompilation.screens.single.localSeeds,
           rfwCatalogOccurrenceSetsByOutputRole:
               _rfwCatalogOccurrenceSetsForSourceOutputRoles(
             source: source,
@@ -461,10 +468,13 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           buildStep,
           paywall,
         );
+        final seeds = await _legacyPaywallLocalSeeds(buildStep, facts);
         rendered.add(
           CompiledSurfaceArtifact.fromPaywallAdapter(
             declaration: declaration,
             facts: facts,
+            localSeeds: seeds,
+            standaloneLocalSeeds: seeds,
             flowArtifactPath: p.posix.basename(facts.adapter.blob.path),
             packageWidgetNames: _paywallWidgetNames(
               facts,
@@ -649,6 +659,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     appFactoryNotices.emit(buildNoticeKeys);
     return _invalidCompilation(issues);
   }
+  // Durable state read off disk does not invalidate a cached build when edited.
+  final untrackedState = await untrackedDurableRestageState(
+    package: buildStep.inputId.package,
+    canRead: buildStep.canRead,
+    packageRoot: await restagePackageRoot(buildStep.inputId.package),
+    paths: const [
+      kRestageMeasurementCompilerLedgerSourcePath,
+      '.restage/wire-ids.events.jsonl',
+    ],
+  );
+  if (untrackedState.isNotEmpty) log.warning(kUntrackedDurableStateAdvice);
   final catalog = await mergedCatalog();
   final discoveries = await _discoverMeasurementSources(
     buildStep,
@@ -690,7 +711,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       for (final error in measurementAssembly.errors)
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: error,
+          message: withUntrackedStateAdvice(
+            error,
+            untracked: untrackedState.isNotEmpty,
+          ),
           location: kRestageMeasurementCompilerOutputPath,
         ),
     ];
@@ -1150,6 +1174,24 @@ typedef MeasurementCompilerLedgerWriter = Future<void> Function({
   required RestageMeasurementCompilerOutputV1 output,
 });
 
+/// The initial local values a legacy paywall's builder wrote beside its
+/// standalone blob, or none.
+Future<Map<String, Object>> _legacyPaywallLocalSeeds(
+  BuildStep buildStep,
+  PaywallArtifactFacts facts,
+) async {
+  final blobPath = facts.standalone?.blob.path;
+  if (blobPath == null) return const {};
+  final dot = blobPath.indexOf('.', blobPath.lastIndexOf('/') + 1);
+  final seedsId = AssetId(
+    buildStep.inputId.package,
+    '${blobPath.substring(0, dot)}.local.json',
+  );
+  if (!await buildStep.canRead(seedsId)) return const {};
+  final seeds = decodeLocalSeedsArtifact(await buildStep.readAsBytes(seedsId));
+  return seeds[paywallRootWidgetName] ?? const {};
+}
+
 /// Fixed aggregate builder consumed by the outputs builder, which owns bundle
 /// and artifact placement.
 @internal
@@ -1291,7 +1333,11 @@ Future<RestageMeasurementCompilerOutputV1?> _readPriorMeasurementOutput(
       legacyPath: kLegacyRestageMeasurementCompilerLedgerSourcePath,
     );
     if (bytes == null) return RestageMeasurementCompilerOutputV1.empty();
-    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(bytes);
+    // An author may edit the state by hand; the next valid build writes the
+    // canonical form back.
+    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+      CanonicalJsonCodec.encode(jsonDecode(utf8.decode(bytes))),
+    );
     if (!output.valid) {
       throw const FormatException(
         'The committed Measurement ledger source must be a valid compiler '
@@ -1901,6 +1947,7 @@ Future<void> _appendResolvedScreens(
         flowArtifactPath: '${screen.input.id}.rfw',
         vocabulary: screen.vocabulary,
         rfwText: utf8.encode(screen.text),
+        localSeeds: screen.localSeeds,
         rfwCatalogOccurrenceSetsByOutputRole:
             _rfwCatalogOccurrenceSetsForSourceOutputRoles(
           source: source,
@@ -2589,6 +2636,8 @@ Future<void> _compilePaywalls(
             adapterOccurrenceSet: compiled.adapterRfwCatalogOccurrenceSet,
             standaloneOccurrenceSet: compiled.standaloneRfwCatalogOccurrenceSet,
           ),
+          localSeeds: compiled.adapterLocalSeeds,
+          standaloneLocalSeeds: compiled.standaloneLocalSeeds,
         ),
       );
     } on Object catch (error) {

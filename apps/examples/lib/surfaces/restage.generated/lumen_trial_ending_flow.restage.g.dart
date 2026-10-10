@@ -1,16 +1,18 @@
 part of '../lumen_trial_ending_flow.dart';
 
+// ignore_for_file: type=lint
+
 const lumenTrialOfferRef = SurfaceFlowRef<
     LumenTrialOfferResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'lumen_trial_offer',
   version: 1,
-  minClient: 6,
+  minClient: 9,
   surface: Surface.message,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeLumenTrialOfferResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"lumen_trial_offer","initial":"lumen_trial_ending","minClient":6,"outbound":{},"schemaVersion":1,"screenArtifacts":{"lumen_trial_ending":{"contentHash":"sha256:65db54b015813542bfc70247dbfabe5bafb284e41a1cfde03c326604d6291d2b","minClient":6,"path":"measurement/82345ebf39848dea/lumen_trial_ending.rfw","schemaVersion":1,"version":1},"paywall_lumen_welcome_offer":{"contentHash":"sha256:efee39056ad3742910c00a091dc4a111bda214218a6ec00501b73bd39284c2e4","minClient":6,"path":"measurement/82345ebf39848dea/paywall_lumen_welcome_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_trial_ending":{"kind":"screen","on":{"later":{"target":"done","type":"goto"},"open_offer":{"target":"paywall_lumen_welcome_offer","type":"goto"}},"screen":"lumen_trial_ending"},"paywall_lumen_welcome_offer":{"kind":"screen","on":{"close":{"target":"done","type":"goto"},"continue":{"target":"done","type":"goto"}},"screen":"paywall_lumen_welcome_offer"}},"version":1}',
+        '{"flow":"lumen_trial_offer","initial":"lumen_trial_ending","minClient":9,"outbound":{},"schemaVersion":1,"screenArtifacts":{"lumen_trial_ending":{"contentHash":"sha256:65db54b015813542bfc70247dbfabe5bafb284e41a1cfde03c326604d6291d2b","minClient":9,"path":"measurement/82345ebf39848dea/lumen_trial_ending.rfw","schemaVersion":1,"version":1},"paywall_lumen_welcome_offer":{"contentHash":"sha256:efee39056ad3742910c00a091dc4a111bda214218a6ec00501b73bd39284c2e4","minClient":9,"path":"measurement/82345ebf39848dea/paywall_lumen_welcome_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_trial_ending":{"kind":"screen","on":{"later":{"target":"done","type":"goto"},"open_offer":{"target":"paywall_lumen_welcome_offer","type":"goto"}},"screen":"lumen_trial_ending"},"paywall_lumen_welcome_offer":{"kind":"screen","on":{"close":{"target":"done","type":"goto"},"continue":{"target":"done","type":"goto"}},"screen":"paywall_lumen_welcome_offer"}},"version":1}',
     screens: {
       'lumen_trial_ending': LumenTrialEndingScreen.new,
       'paywall_lumen_welcome_offer': LumenWelcomeOfferPaywall.new,
@@ -18,7 +20,7 @@ const lumenTrialOfferRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '7104a437e82cb841cf4a18dc61f1d50a5b95f8f88d4747f970da0af1620bc07d',
+      '0ac394124470458ca56b2d05813c9f602ac139caf14926ca80662c00b37375aa',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

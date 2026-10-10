@@ -1,5 +1,7 @@
 part of '../general_flow.dart';
 
+// ignore_for_file: type=lint
+
 const generalJourneyRef = SurfaceFlowRef<
     GeneralJourneyResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'general_journey',

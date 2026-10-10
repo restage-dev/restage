@@ -18,9 +18,13 @@ import 'package:restage_shared/src/surface_document/surface_document.dart';
 /// libraries to the empty list.
 const int kSurfaceEnvelopeFormatVersion = 2;
 
+/// The envelope format version written for a payload that carries icon-font or
+/// local-seed sections. Older envelope versions never carry them.
+const int kSurfaceEnvelopeSectionsFormatVersion = 3;
+
 /// The highest envelope format version this build can decode. An envelope
 /// declaring a higher version is rejected (fail-closed), never guessed.
-const int kMaxSupportedSurfaceEnvelopeVersion = 2;
+const int kMaxSupportedSurfaceEnvelopeVersion = 3;
 
 /// Codec for the self-contained surface document envelope.
 abstract final class SurfaceDocumentCodec {
@@ -33,7 +37,9 @@ abstract final class SurfaceDocumentCodec {
     final headerBytes = utf8.encode(
       jsonEncode({
         'contentHash': document.contentHash,
-        'formatVersion': kSurfaceEnvelopeFormatVersion,
+        'formatVersion': document.payload.carriesSections
+            ? kSurfaceEnvelopeSectionsFormatVersion
+            : kSurfaceEnvelopeFormatVersion,
         'minClient': document.minClient,
         'publishedAtMicros':
             document.publishedAt.toUtc().microsecondsSinceEpoch,
@@ -101,6 +107,7 @@ abstract final class SurfaceDocumentCodec {
       final payload = SurfacePayload.decode(
         payloadBytes,
         requireRequiredLibraries: requiresManifest,
+        allowSections: formatVersion >= kSurfaceEnvelopeSectionsFormatVersion,
       );
       final minClient = _requiredInt(header, 'minClient');
       if (minClient != payload.minClient) {

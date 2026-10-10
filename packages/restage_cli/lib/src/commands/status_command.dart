@@ -102,8 +102,12 @@ class StatusCommand extends Command<int> {
       if (config.organization != null) {
         _stdout.writeln('organization: ${config.organization}');
       }
-      _stdout.writeln('project: ${config.project}');
-      _stdout.writeln('app: ${config.app}');
+      if (config.project != null) {
+        _stdout.writeln('project: ${config.project}');
+      }
+      if (config.app != null) {
+        _stdout.writeln('app: ${config.app}');
+      }
       if (config.defaultEnvironment != null) {
         _stdout.writeln('environment: ${config.defaultEnvironment}');
       }
@@ -191,6 +195,14 @@ class StatusCommand extends Command<int> {
     ProgrammaticScopeSnapshot scope,
     RestageConfig config,
   ) {
+    final project = config.project;
+    final app = config.app;
+    if (project == null || app == null) {
+      return [
+        if (project == null) missingConfigKeySentence('project'),
+        if (app == null) missingConfigKeySentence('app'),
+      ];
+    }
     final organizations = scope.organizations;
     final configured = config.organization;
     if (configured != null &&
@@ -218,7 +230,7 @@ class StatusCommand extends Command<int> {
       ];
     }
     final problems = <String>[];
-    final appSlugs = scope.apps(config.project).map((app) => app.slug).toList();
+    final appSlugs = scope.apps(project).map((app) => app.slug).toList();
     if (!appSlugs.contains(config.app)) {
       problems.add(
         'restage_config.yaml names app `${config.app}`, which does not exist in '
@@ -229,7 +241,7 @@ class StatusCommand extends Command<int> {
     if (config.defaultEnvironment case final environment?) {
       final environmentSlugs =
           scope
-              .environments(config.project)
+              .environments(project)
               .map((environment) => environment.slug)
               .toSet()
               .toList()

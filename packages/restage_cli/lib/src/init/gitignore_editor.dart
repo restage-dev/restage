@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
 /// Portable generated files that Restage's starter configuration does not
-/// track by default.
+/// track by default. The final negation keeps bundled app assets tracked.
 const List<String> restagePortableOutputIgnorePatterns = <String>[
   '.restage/build/',
   '*.rsbundle',
@@ -9,14 +9,37 @@ const List<String> restagePortableOutputIgnorePatterns = <String>[
   'restage.outputs.json',
   'restage.publication.json',
   'restage_a2ui_catalog.a2ui.json',
+  '!$restageBundledAssetsPattern',
 ];
 
-const String _legacyPortableOutputHeader =
-    '# Restage portable generated output. Remove or negate individual rules '
-    'to track it.';
+/// Bundled runtime assets, which the app ships and the repository tracks.
+const String restageBundledAssetsPattern = 'assets/restage/bundles/**';
+
+// Earlier generated headers, each with the rules it already wrote. Rules added
+// since are appended; rules it wrote and the user removed stay removed.
+const Map<String, List<String>> _earlierHeaders = <String, List<String>>{
+  '# Restage portable generated output. Remove or negate individual rules '
+      'to track it.': <String>[
+    '*.rsbundle',
+    '*.restage.md',
+    'restage.outputs.json',
+    'restage.publication.json',
+    'restage_a2ui_catalog.a2ui.json',
+  ],
+  '# Restage portable generated output. Build cache and portable artifacts; '
+      'remove or negate individual rules to track them.': <String>[
+    '.restage/build/',
+    '*.rsbundle',
+    '*.restage.md',
+    'restage.outputs.json',
+    'restage.publication.json',
+    'restage_a2ui_catalog.a2ui.json',
+  ],
+};
+
 const String _portableOutputHeader =
-    '# Restage portable generated output. Build cache and portable artifacts; '
-    'remove or negate individual rules to track them.';
+    '# Restage build output (bundled surfaces under assets/restage/bundles/ '
+    'stay tracked)';
 final _lineBreak = RegExp(r'\r?\n');
 
 /// The result of planning an update to a project's `.gitignore`.
@@ -45,29 +68,24 @@ class PortableOutputIgnorePlan {
 /// Restage section exists, a missing rule is treated as a deliberate deletion,
 /// so a later `restage init` cannot undo a team's tracking choice.
 PortableOutputIgnorePlan planPortableOutputIgnores(String source) {
-  final present = <String>{};
-  for (final line in source.split(_lineBreak)) {
-    final trimmed = line.trim();
-    if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+  final lines = [for (final line in source.split(_lineBreak)) line.trim()];
+  final present = <String>{
+    for (final line in lines)
+      if (line.isNotEmpty && !line.startsWith('#')) _ruleBody(line),
+  };
+  final written = <String>{
+    if (lines.contains(_portableOutputHeader))
+      ...restagePortableOutputIgnorePatterns,
+    for (final MapEntry(key: header, value: rules) in _earlierHeaders.entries)
+      if (lines.contains(header)) ...rules,
+  };
 
-    final rule = trimmed.startsWith('!')
-        ? trimmed.substring(1).trim()
-        : trimmed;
-    if (restagePortableOutputIgnorePatterns.contains(rule)) {
-      present.add(rule);
-    }
-  }
-
-  final hasLegacyHeader = source
-      .split(_lineBreak)
-      .any((line) => line.trim() == _legacyPortableOutputHeader);
   final missing = <String>[
     for (final pattern in restagePortableOutputIgnorePatterns)
-      if (!present.contains(pattern) &&
-          (!hasLegacyHeader || pattern == '.restage/build/'))
+      if (!present.contains(_ruleBody(pattern)) && !written.contains(pattern))
         pattern,
   ];
-  if (missing.isEmpty || _hasPortableOutputHeader(source)) {
+  if (missing.isEmpty) {
     return PortableOutputIgnorePlan(
       source: source,
       addedPatterns: const <String>[],
@@ -82,11 +100,8 @@ PortableOutputIgnorePlan planPortableOutputIgnores(String source) {
   );
 }
 
-bool _hasPortableOutputHeader(String source) {
-  return source
-      .split(_lineBreak)
-      .any((line) => line.trim() == _portableOutputHeader);
-}
+String _ruleBody(String rule) =>
+    rule.startsWith('!') ? rule.substring(1).trim() : rule;
 
 String _lineEndingFor(String source) {
   final crlfCount = '\r\n'.allMatches(source).length;

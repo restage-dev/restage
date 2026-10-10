@@ -284,7 +284,7 @@ The build uses the Flutter your app uses, whatever version it is. The CLI
 takes the SDK from `--flutter-root`, then `flutterRoot` in
 `restage_config.yaml` (relative to that file), then the project's FVM link or
 the version its `.fvmrc` or `.flutter-version` names in the FVM cache, then
-`FLUTTER_ROOT`, then `PATH`. The push prints which Flutter it used and where
+the SDK its last `flutter pub get` used, then `FLUTTER_ROOT`, then `PATH`. The push prints which Flutter it used and where
 it found it:
 
 ```

@@ -41,6 +41,10 @@ automatically and write their outputs next to the sources they read. No
 `build.yaml` is needed. Add `--verbose` to the build to print a summary of
 the surfaces it compiled.
 
+A surface that draws icons ships a subset of their icon font, cut with the
+Flutter SDK's `font-subset` tool. Run the build with the Flutter SDK's Dart,
+or set `FLUTTER_ROOT` to the SDK.
+
 ## Annotations
 
 - `@Screen(surface: Surface.<type>)` publishes one screen.
@@ -67,6 +71,10 @@ From one annotated source file:
 - **Generated Dart** (`restage.generated/<name>.restage.g.dart`): typed
   `SurfaceScreenRef<E>` and `SurfaceFlowRef<R>` accessors, plus typed
   `<Screen>Surface` widgets for eligible screens.
+- **A surface list** (`lib/restage_surfaces.g.dart`): `restageSurfaces`, every
+  surface the package compiles. Pass it to
+  `Restage.configure(surfaces: restageSurfaces)` to fetch their latest content
+  in the background at startup.
 - **A publication manifest** (`.restage/build/metadata/restage.publication.json`):
   the generated files for each surface id. `restage surface push` reads it.
 
@@ -149,7 +157,7 @@ package**, such as a shared package that exports
 itself, or declare the alias in the same package.
 
 A syntax error in a file with no Restage annotation is not reported by
-these seven builders, because they skip that file. The Dart analyzer still
+these eight builders, because they skip that file. The Dart analyzer still
 reports it.
 
 If a package will never declare a custom widget or a surface (a data layer or
@@ -169,12 +177,15 @@ targets:
         enabled: false
       restage_codegen:restage_package_surface_compiler:
         enabled: false
+      restage_codegen:restage_surfaces:
+        enabled: false
 ```
 
 Use `enabled: false` rather than `generate_for`. These builders take a
 placeholder as their input: `$package$` for the source roster and surface
-compiler, and `lib/$lib$` for the catalog JSON, catalog Dart, and factory Dart
-builders. A `generate_for` glob either stops them entirely or has no effect.
+compiler, and `lib/$lib$` for the catalog JSON, catalog Dart, factory Dart
+and surface list builders. A `generate_for` glob either stops them entirely or
+has no effect.
 
 ## License
 

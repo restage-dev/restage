@@ -314,6 +314,22 @@ abstract final class SurfacePublicationManifestAssembler {
       );
     }
 
+    final iconFonts = [
+      for (final entry in _artifactsById(
+        artifacts,
+        SurfacePublicationArtifactRole.iconFont,
+      ).entries)
+        decodeIconFontArtifact(entry.key, entry.value.bytes),
+    ];
+    final seedArtifacts = _artifactsById(
+      artifacts,
+      SurfacePublicationArtifactRole.localSeeds,
+    );
+    final localSeeds = <String, Map<String, Object>>{
+      for (final artifact in seedArtifacts.values)
+        ...decodeLocalSeedsArtifact(artifact.bytes),
+    };
+
     final decodedSidecars = <String, _DecodedSidecar>{};
     for (final entry in sidecars.entries) {
       final blob = blobs[entry.key];
@@ -396,6 +412,8 @@ abstract final class SurfacePublicationManifestAssembler {
               entry.key: _copyBytes(entry.value.bytes),
           },
           requiredLibraries: capabilities.requiredLibraries,
+          iconFonts: iconFonts,
+          localSeeds: localSeeds,
         );
       } on Object catch (error) {
         if (error is ArgumentError) {
@@ -430,6 +448,8 @@ abstract final class SurfacePublicationManifestAssembler {
           minClient: capabilities.builtInFloor,
           blob: _copyBytes(blobs[input.slug]!.bytes),
           requiredLibraries: capabilities.requiredLibraries,
+          iconFonts: iconFonts,
+          localSeeds: localSeeds,
         );
       } on Object catch (error) {
         if (error is ArgumentError) {
@@ -740,6 +760,8 @@ int _roleOrder(SurfacePublicationArtifactRole role) => switch (role) {
       SurfacePublicationArtifactRole.flowDocument => 0,
       SurfacePublicationArtifactRole.screenBlob => 1,
       SurfacePublicationArtifactRole.capabilitySidecar => 2,
+      SurfacePublicationArtifactRole.iconFont => 3,
+      SurfacePublicationArtifactRole.localSeeds => 4,
     };
 
 bool _sameArtifactDeclaration(

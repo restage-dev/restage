@@ -2,6 +2,7 @@ import 'package:flutter/services.dart' show AssetBundle;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_sections_carrier.dart';
 import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_artifact_metadata.dart';
@@ -176,11 +177,14 @@ final class _AssetPaywallFlowPreflightLoader {
     if (existing != null) return existing;
 
     final resolved = attachMeasurementBundledGeneratedArtifactClosureCarrier(
-      ResolvedFlow(
-        document: artifacts.document,
-        screenBlobs: artifacts.screenBlobs,
-        contentHash: canonicalHash,
-        cacheHit: false,
+      attachSurfaceSections(
+        ResolvedFlow(
+          document: artifacts.document,
+          screenBlobs: artifacts.screenBlobs,
+          contentHash: canonicalHash,
+          cacheHit: false,
+        ),
+        artifacts.sections,
       ),
       bundledMeasurementGeneratedArtifactClosureForFlowArtifacts(artifacts),
     );

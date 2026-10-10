@@ -10,6 +10,7 @@ export 'registry.dart';
 export 'src/runtime/decoders.dart';
 export 'src/runtime/icon_table.dart';
 export 'src/runtime/theme_binding_resolver.dart';
+export 'src/widgets/delivered_icon_fonts.dart';
 export 'src/widgets/restage_align.dart' show RestageAlign, RestageCenter;
 export 'src/widgets/restage_animated_align.dart' show RestageAnimatedAlign;
 export 'src/widgets/restage_padding.dart'
@@ -17,6 +18,7 @@ export 'src/widgets/restage_padding.dart'
 export 'src/widgets/restage_stack.dart' show RestageStack;
 export 'src/widgets/restage_animated_size.dart' show RestageAnimatedSize;
 export 'src/widgets/restage_aspect_ratio.dart' show RestageAspectRatio;
+export 'src/widgets/restage_delivered_icon.dart';
 export 'src/widgets/restage_fade_in.dart';
 export 'src/widgets/restage_fitted_box.dart' show RestageFittedBox;
 export 'src/widgets/restage_flex.dart' show RestageRow, RestageColumn;

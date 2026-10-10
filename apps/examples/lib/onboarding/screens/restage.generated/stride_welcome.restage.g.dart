@@ -1,10 +1,12 @@
 part of '../stride_welcome.dart';
 
+// ignore_for_file: type=lint
+
 const strideWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'stride_welcome',
   artifactPath: 'stride_welcome.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use strideWelcomeScreenRef')

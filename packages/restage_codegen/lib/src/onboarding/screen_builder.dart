@@ -89,9 +89,11 @@ final class CompiledResolvedScreen {
     required this.rfwCatalogOccurrenceSet,
     required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
     this.vocabulary = SurfaceVocabularyReferences.empty,
+    Map<String, Object> localSeeds = const {},
   })  : blob = Uint8List.fromList(blob),
         capabilitySidecar = Uint8List.fromList(capabilitySidecar),
-        analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations);
+        analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
+        localSeeds = Map.unmodifiable(localSeeds);
 
   final ResolvedScreenCompilationInput input;
   final String text;
@@ -108,6 +110,9 @@ final class CompiledResolvedScreen {
 
   /// Labels extracted before validation and canonical encoding.
   final List<AnalyticsIdDeclaration> analyticsIdDeclarations;
+
+  /// Initial screen-local values, keyed by value name.
+  final Map<String, Object> localSeeds;
 }
 
 @immutable
@@ -391,6 +396,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           ),
           rfwCatalogOccurrenceSet: resolvedOccurrenceSet,
           analyticsIdDeclarations: lowering.declarations,
+          localSeeds: translation.localSeeds,
         ),
       );
     } on fmt.ParserException catch (error) {

@@ -1,10 +1,12 @@
 part of '../stride_reminders.dart';
 
+// ignore_for_file: type=lint
+
 const strideRemindersScreenRef = NeutralFlowScreenRef(
   id: 'stride_reminders',
   artifactPath: 'stride_reminders.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use strideRemindersScreenRef')

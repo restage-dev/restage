@@ -186,6 +186,10 @@ final class HostedArtifactFixture {
           content: document.payload.canonicalBytes,
           declaredContentHash: declaredContentHash,
           payloadKind: SurfacePayloadKind.blob.wireName,
+          payloadFormatVersion: document.payload.iconFonts.isEmpty &&
+                  document.payload.localSeeds.isEmpty
+              ? kSurfaceArtifactPayloadFormatVersion
+              : kSurfaceArtifactSectionsPayloadFormatVersion,
         ),
         sourceKind: SurfaceSourceKind.screen,
         contractVersion: contractVersion,

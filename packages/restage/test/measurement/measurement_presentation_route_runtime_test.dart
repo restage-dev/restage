@@ -40,6 +40,64 @@ void main() {
     expect(finalFrame.experimentAssignment, isNull);
   });
 
+  test('interaction items record only on routes that declare them', () {
+    List<String?> itemsFor({required bool items}) {
+      final fixture = _fixture(ordered: true, items: items);
+      var micros = 10;
+      final session = _session(fixture,
+          bounds: MeasurementFactFrameBounds(
+              maximumCounterValue: 8,
+              maximumPresentedPoints: 2,
+              maximumInteractionCounters: 2,
+              maximumMissingnessEntries: 1),
+          monotonicMicrosSource: () => micros++);
+      session
+        ..recordInteraction(fixture.interaction, itemValueV1: 'plan.yearly')
+        ..recordInteraction(fixture.interaction)
+        ..recordInteraction(fixture.interaction, itemValueV1: 'not valid');
+      final fact = session.teardown().validatedIngestFrameV1.facts.single;
+      expect(fact.interactionCount!.value, 3);
+      return [
+        for (final occurrence in fact.timedOccurrencesV1!)
+          if (occurrence.channel == MeasurementOccurrenceChannelV1.interaction)
+            occurrence.itemValueV1
+      ];
+    }
+
+    expect(itemsFor(items: true), ['plan.yearly', null, null]);
+    expect(itemsFor(items: false), [null, null, null]);
+  });
+
+  test('the capture edge forwards a portable item and drops an invalid one',
+      () {
+    final fixture = _fixture(ordered: true, items: true);
+    final compact = 'routeRuntimeInteraction'.padRight(32, '_');
+    final identities = MeasurementPointIdentityTable.fromPreboundTokens(
+      tokens: [
+        MeasurementPreboundPointToken(
+            compactToken: compact, route: fixture.interaction),
+      ],
+    );
+    final records = <MeasurementWorkerAppendRecord>[];
+    final edge = MeasurementCaptureEdge(
+      pointIdentityTable: identities,
+      workerSession: MeasurementWorkerSession.internal(
+          _RecordingWorkerSession(records), 'session.items'),
+      monotonicClock: _IncrementingClock(),
+    );
+    final identity = identities.resolve(compact)!;
+
+    edge
+      ..appendInteractionIdentity(identity, item: 'plan.yearly')
+      ..appendInteractionIdentity(identity, item: 'not valid')
+      ..appendInteractionIdentity(identity);
+
+    expect(records.map((record) => record.value),
+        everyElement(MeasurementWorkerAppendValue.interaction));
+    expect(records.map((record) => record.itemV1?.value),
+        ['plan.yearly', null, null]);
+  });
+
   test('capture retains the opaque assignment through cumulative snapshots',
       () {
     final fixture = _fixture();
@@ -335,6 +393,106 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a deferred binder binds probes in place when it resolves',
+    (tester) async {
+      final fixture = _dualRouteFixture();
+      late final MeasurementWorkerRuntime worker;
+      late final MeasurementWorkerSession workerSession;
+      await tester.runAsync(() async {
+        final started = await MeasurementWorkerRuntime.start(
+          configuration: const MeasurementWorkerRuntimeConfiguration(
+            maximumSessions: 1,
+            maximumInFlightAppends: 8,
+            maximumRetainedPreparedBatches: 1,
+          ),
+        );
+        worker = started.runtime!;
+        final opened = await worker.openSession(
+          _dualRouteWorkerRegistration(fixture),
+        );
+        workerSession = opened.session!;
+      });
+      final target = _DualRouteBinder(
+        mountedContext: fixture.mountedContext,
+        routeTable: fixture.table,
+        workerSession: workerSession,
+      );
+      final deferred = MeasurementDeferredPresentationBinder();
+      final runtime = Runtime()
+        ..update(
+          const LibraryName(<String>['restage', 'core']),
+          restage_core.buildCoreWidgetLibrary(),
+        )
+        ..update(
+          kMeasurementRfwPresentationLibrary,
+          buildMeasurementRfwPresentationLocalWidgetLibrary(),
+        )
+        ..update(
+          _dualRouteLibrary,
+          parseLibraryFile(_dualRouteSource(fixture)),
+        );
+
+      try {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: MeasurementRfwPresentationBinderScope(
+              binder: deferred,
+              child: RemoteWidget(
+                runtime: runtime,
+                data: DynamicContent(),
+                widget: const FullyQualifiedWidgetName(
+                  _dualRouteLibrary,
+                  'Root',
+                ),
+                onEvent: (_, arguments) {
+                  final carrier = arguments[_measurementRouteArgumentKey];
+                  if (carrier is String) {
+                    target.recordInteractionCarrier(carrier);
+                  }
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 1));
+        final before = tester.element(find.text('dual-routed'));
+        expect(target.calls, isEmpty);
+
+        deferred.resolve(target);
+        await tester.pump(const Duration(milliseconds: 1));
+
+        expect(identical(tester.element(find.text('dual-routed')), before),
+            isTrue);
+        expect(target.calls, hasLength(2));
+
+        await tester.tap(find.text('dual-routed'));
+        await tester.pump(const Duration(milliseconds: 1));
+        late final MeasurementWorkerBatchResult finalization;
+        await tester.runAsync(() async {
+          finalization = await workerSession.teardown();
+        });
+        final frame = decodeCanonicalObject(
+          finalization.batch!.canonicalFrameBytes,
+        );
+        final facts = frame['facts']! as List<Object?>;
+        final source = _factFor(facts, fixture.sourceRoute.lineageId.value);
+        expect(
+          source['interactionCount'],
+          const {'saturated': false, 'value': 1},
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 1));
+        runtime.dispose();
+        await tester.runAsync(() async {
+          await worker.shutdown();
+        });
+      }
+    },
+  );
+
   test('shared route capacity accepts 1024 and rejects every 1025 mix', () {
     final fixture = _fixture();
     final table = MeasurementRuntimeRouteTable(
@@ -380,7 +538,7 @@ MeasurementRuntimePresentationRouteDeclaration _presentationRoute(int index) =>
       lineageId: PointLineageId('lineage.runtime.presentation.$index'),
     );
 
-_RouteFixture _fixture({bool ordered = false}) {
+_RouteFixture _fixture({bool ordered = false, bool items = false}) {
   final mountedContext = MeasurementMountedArtifactContext(
     artifactGraphHash: CanonicalDigest('a' * 64),
     artifactId: ArtifactId('artifact.runtime'),
@@ -402,6 +560,7 @@ _RouteFixture _fixture({bool ordered = false}) {
               occurrenceId: CanonicalDigest('c' * 64),
               lineageId: PointLineageId('lineage.runtime.interaction'),
               channels: MeasurementOccurrenceChannelV1.values,
+              interactionItemsV1: items,
             )
           ])
         : null,
@@ -741,4 +900,24 @@ final class _IncrementingClock implements MeasurementCaptureMonotonicClock {
 
   @override
   int readMicros() => _micros++;
+}
+
+final class _RecordingWorkerSession implements MeasurementWorkerSessionState {
+  _RecordingWorkerSession(this._records);
+
+  final List<MeasurementWorkerAppendRecord> _records;
+
+  @override
+  MeasurementWorkerAppendOutcome append(MeasurementWorkerAppendRecord record) {
+    _records.add(record);
+    return MeasurementWorkerAppendOutcome.accepted;
+  }
+
+  @override
+  Future<MeasurementWorkerBatchResult> checkpoint({int? frameElapsedMicros}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<MeasurementWorkerBatchResult> teardown({int? frameElapsedMicros}) =>
+      throw UnimplementedError();
 }

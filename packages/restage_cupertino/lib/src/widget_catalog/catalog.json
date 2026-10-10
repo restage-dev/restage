@@ -699,6 +699,22 @@
           }
         },
         {
+          "wireId": "p0179",
+          "name": "textInputAction",
+          "type": "enumValue",
+          "description": "The type of action button to use for the keyboard.",
+          "enumType": "TextInputAction",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/services/text_input.dart",
+              "symbolName": "TextInputAction"
+            }
+          }
+        },
+        {
           "wireId": "p0036",
           "name": "obscureText",
           "type": "boolean",
@@ -788,13 +804,32 @@
           }
         },
         {
+          "wireId": "p0180",
+          "name": "keyboardType",
+          "type": "string",
+          "description": "Keyboard to show: text, multiline, number, phone, emailAddress, url or name.",
+          "synthetic": "textInputType",
+          "constraints": {
+            "enum": [
+              "text",
+              "multiline",
+              "number",
+              "phone",
+              "emailAddress",
+              "url",
+              "name"
+            ]
+          }
+        },
+        {
           "wireId": "p0166",
           "name": "analyticsId",
           "type": "string",
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 9
     },
     {
       "wireId": "w0011",

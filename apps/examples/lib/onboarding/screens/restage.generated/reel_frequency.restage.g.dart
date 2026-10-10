@@ -1,10 +1,12 @@
 part of '../reel_frequency.dart';
 
+// ignore_for_file: type=lint
+
 const reelFrequencyScreenRef = NeutralFlowScreenRef(
   id: 'reel_frequency',
   artifactPath: 'reel_frequency.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use reelFrequencyScreenRef')

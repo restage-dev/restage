@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart'
     show AssetBundle, ByteData, CachingAssetBundle;
 import 'package:restage/restage.dart';
+import 'package:restage/src/delivery/surface_sections_carrier.dart';
+import 'package:restage/src/runtime/local_values.dart' show SurfaceSections;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
@@ -43,7 +45,8 @@ final class ScreenFixture<E> {
   ///
   /// The bundle also carries the screen's inspection text, which no locator
   /// entry names — a real bundle carries more than one screen's closure.
-  Uint8List bundleBytes({Uint8List? blobOverride}) => RestageBundleCodec.encode(
+  Uint8List bundleBytes({Uint8List? blobOverride, Uint8List? localSeeds}) =>
+      RestageBundleCodec.encode(
         RestageBundle(
           packageName: kFixturePackageName,
           authoredLibraryPath: kFixtureAuthoredLibrary,
@@ -53,6 +56,13 @@ final class ScreenFixture<E> {
               role: RestageBundleEntryRole.screenBlob,
               bytes: blobOverride ?? blob,
             ),
+            if (localSeeds != null)
+              RestageBundleEntry(
+                logicalPath:
+                    localSeedSidecarPath(locator.screenBlob.logicalPath),
+                role: RestageBundleEntryRole.localSeeds,
+                bytes: localSeeds,
+              ),
             RestageBundleEntry(
               logicalPath: locator.capabilitySidecar.logicalPath,
               role: RestageBundleEntryRole.capabilitySidecar,
@@ -72,20 +82,26 @@ final class ScreenFixture<E> {
         <String, Uint8List>{locator.assetKey: bytes ?? bundleBytes()},
       );
 
-  ResolvedSurfaceScreen bundled({Uint8List? blobOverride}) {
+  ResolvedSurfaceScreen bundled({
+    Uint8List? blobOverride,
+    SurfaceSections sections = SurfaceSections.none,
+  }) {
     final bytes = blobOverride ?? blob;
-    return ResolvedSurfaceScreen.bundled(
-      surface: ref.surface,
-      slug: ref.slug,
-      contractVersion: ref.contractVersion,
-      sourceKind: ref.sourceKind,
-      payloadKind: ref.payloadKind,
-      capabilities: capabilities,
-      contractFingerprint: ref.contractFingerprint,
-      eventContractHash: ref.eventContract.hash,
-      blob: bytes,
-      contentHash: _payloadHash(bytes, capabilities),
-      bundledEntryHash: CapabilitySidecar.hashBlob(bytes),
+    return attachSurfaceSections(
+      ResolvedSurfaceScreen.bundled(
+        surface: ref.surface,
+        slug: ref.slug,
+        contractVersion: ref.contractVersion,
+        sourceKind: ref.sourceKind,
+        payloadKind: ref.payloadKind,
+        capabilities: capabilities,
+        contractFingerprint: ref.contractFingerprint,
+        eventContractHash: ref.eventContract.hash,
+        blob: bytes,
+        contentHash: _payloadHash(bytes, capabilities, sections),
+        bundledEntryHash: CapabilitySidecar.hashBlob(bytes),
+      ),
+      sections,
     );
   }
 
@@ -120,12 +136,14 @@ final class ScreenFixture<E> {
     Uint8List? hostedBlob,
     int publishedRevision = 7,
     int? contractVersion,
+    Map<String, Map<String, Object>> localSeeds = const {},
   }) {
     final blob = hostedBlob ?? this.blob;
     final payload = BlobSurfacePayload(
       minClient: capabilities.builtInFloor,
       blob: blob,
       requiredLibraries: capabilities.requiredLibraries,
+      localSeeds: localSeeds,
     );
     final document = SurfaceDocument(
       surfaceType: ref.surface,
@@ -355,9 +373,15 @@ final class TestAssetBundle extends CachingAssetBundle {
   }
 }
 
-String _payloadHash(Uint8List blob, CapabilityManifest capabilities) =>
+String _payloadHash(
+  Uint8List blob,
+  CapabilityManifest capabilities, [
+  SurfaceSections sections = SurfaceSections.none,
+]) =>
     BlobSurfacePayload(
       minClient: capabilities.builtInFloor,
       blob: blob,
       requiredLibraries: capabilities.requiredLibraries,
+      iconFonts: sections.iconFonts,
+      localSeeds: sections.localSeeds,
     ).contentHash;

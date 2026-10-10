@@ -5949,6 +5949,44 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0058'),
+      name: 'Semantics',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description:
+          'A widget that annotates the widget tree with a description of the meaning of the widgets.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#Semantics',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0646'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0647'),
+          name: 'label',
+          type: PropertyType.string,
+          description: '',
+          constructorNullable: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0648'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+      sinceVersion: 7,
+    ),
+    WidgetEntry(
       wireId: WireId('w0029'),
       name: 'SizedBox',
       library: WidgetLibrary.core,
@@ -9408,4 +9446,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.core` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCoreCatalogContentVersion = 5;
+const int kCoreCatalogContentVersion = 7;

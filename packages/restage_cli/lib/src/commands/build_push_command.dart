@@ -264,7 +264,12 @@ final class BuildPushCommand extends Command<int> {
         app = keyTarget.appSlug;
       }
       if (project == null || project.isEmpty || app == null || app.isEmpty) {
-        _stderr.writeln(noProjectContextSentence());
+        _stderr.writeln(
+          missingProjectContextSentence(
+            hasConfig: loaded != null,
+            projectMissing: project == null || project.isEmpty,
+          ),
+        );
         return 1;
       }
       return await _push(

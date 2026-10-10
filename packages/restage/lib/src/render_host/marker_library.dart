@@ -27,8 +27,11 @@ LocalWidgetLibrary buildMarkerWidgetLibrary(GeometryRegistry registry) {
       } on FormatException catch (error) {
         throw ArgumentError.value(path, 'path', error.message);
       }
+      final item = source.v<String>(const <Object>['item']) ??
+          source.v<int>(const <Object>['item'])?.toString();
       return _RenderlessGeometryMarker(
         path: path,
+        item: item,
         registry: registry,
         child: source.child(const <Object>['child']),
       );
@@ -75,11 +78,15 @@ class GeometryMarker extends SingleChildRenderObjectWidget {
 final class _RenderlessGeometryMarker extends StatefulWidget {
   const _RenderlessGeometryMarker({
     required this.path,
+    required this.item,
     required this.registry,
     required this.child,
   });
 
   final String path;
+
+  /// The data item this instance draws, when the marker names one.
+  final String? item;
   final GeometryRegistry registry;
   final Widget child;
 
@@ -104,6 +111,7 @@ final class _RenderlessGeometryMarkerState
   void didUpdateWidget(_RenderlessGeometryMarker oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path == widget.path &&
+        oldWidget.item == widget.item &&
         identical(oldWidget.registry, widget.registry)) {
       return;
     }
@@ -154,7 +162,7 @@ final class _RenderlessGeometryMarkerState
         widget.registry.unregister(widget.path, previous);
       }
       if (next != null) {
-        widget.registry.register(widget.path, next);
+        widget.registry.register(widget.path, next, item: widget.item);
       }
       _registeredRenderBox = next;
     }

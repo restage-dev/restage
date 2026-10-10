@@ -158,6 +158,8 @@ Widget buildCupertinoSwitch(BuildContext context, DataSource source) {
 Widget buildCupertinoTextField(BuildContext context, DataSource source) {
   return CupertinoTextField(
     placeholder: source.v<String>(const <Object>['placeholder']),
+    textInputAction: RestageDecoders.enumByName<TextInputAction>(
+        TextInputAction.values, source, <Object>['textInputAction']),
     obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
     maxLines: source.v<int>(const <Object>['maxLines']) ?? 1,
     maxLength: source.v<int>(const <Object>['maxLength']),
@@ -168,6 +170,8 @@ Widget buildCupertinoTextField(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
+    keyboardType:
+        RestageDecoders.textInputType(source, const <Object>['keyboardType']),
   );
 }
 

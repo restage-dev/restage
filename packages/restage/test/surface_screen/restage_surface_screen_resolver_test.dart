@@ -4,10 +4,13 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
+import 'package:restage/src/delivery/raced_surface_resolver.dart';
+import 'package:restage/src/delivery/surface_store_key.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/delivery_input_budget.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
@@ -26,6 +29,167 @@ void main() {
   setUp(resetSurfaceScreenTestState);
 
   tearDown(Restage.debugReset);
+
+  test(
+      'typed request drops held assignment when optional input outlives the render deadline',
+      () async {
+    final deadline = Completer<void>();
+    final heldReady = Completer<void>();
+    final inputStarted = Completer<void>();
+    final optionalInput = Completer<String?>();
+    var keyReads = 0;
+    final readyKey = 'ic1.${'a' * 64}';
+    SurfaceAssignmentKeyProvider.install(
+      key: () => readyKey,
+      identityGeneration: () => 0,
+      confirmedKey: () => readyKey,
+      registration: () async {
+        keyReads++;
+        return SurfaceRegistrationAttempt(
+          registrationNonce: 'b' * 64,
+          registrationCreatedAtMicros: 1000,
+          generation: 0,
+          fingerprint: 'c' * 64,
+          credentialHandle: readyKey,
+        );
+      },
+    );
+    final assignment = canonicalAssignmentFixture();
+    final carrier = base64UrlEncode(
+      utf8.encode(
+          CanonicalSurfaceExperimentAssignmentV1Codec.encodeCanonicalJson(
+              assignment)),
+    ).replaceAll('=', '');
+    SurfaceCanonicalCarrierProvider.installHeldAssignment(() {
+      heldReady.complete();
+      return carrier;
+    });
+    SurfaceAnalyticsIdentityProvider.install(() {
+      inputStarted.complete();
+      return optionalInput.future;
+    });
+    final fixture = stringScreenFixture();
+    final bodies = <Map<String, dynamic>>[];
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async {
+          expect(request.url.path, '/sdk/v1/surface');
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response('', 204);
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+    final pending = resolver.fresh(
+      resolver.storeKeyFor(fixture.ref),
+      sendAssignmentKey: true,
+      keyDeadline: deadline.future,
+    );
+    await inputStarted.future;
+    await heldReady.future;
+    expect(keyReads, 1);
+    expect(bodies, isEmpty);
+    deadline.complete();
+    await Future<void>.value();
+    optionalInput.complete('12345678-1234-4234-8234-123456789abc');
+    expect(await pending, isNull);
+
+    expect(bodies, hasLength(1));
+    expect(bodies.single['surface'], fixture.ref.surface.wireName);
+    expect(bodies.single['slug'], fixture.ref.slug);
+    expect(bodies.single['contractVersion'], fixture.ref.contractVersion);
+    for (final key in [
+      'assignmentKey',
+      'assignmentCanonicalBase64',
+      'registrationNonce',
+      'registrationCreatedAtMicros',
+    ]) {
+      expect(bodies.single, isNot(contains(key)), reason: key);
+    }
+  });
+
+  test('a screen key issued no ref is not fetched', () async {
+    final fixture = stringScreenFixture();
+    final requests = <http.Request>[];
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async {
+          requests.add(request);
+          return http.Response('', 204);
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+    const key = SurfaceStoreKey(
+      scope: '0123456789abcdef',
+      surfaceType: 'screen',
+      slug: 'unknown',
+      contractVersion: 1,
+    );
+
+    final fresh = await racedResolverOf<ResolvedSurfaceScreen>(resolver)!
+        .fresh(key, sendAssignmentKey: false);
+
+    expect(fresh, isNull);
+    expect(requests, isEmpty);
+  });
+
+  test('screens are stored under the screen kind and report their surface',
+      () async {
+    final reports = <SurfaceResolutionReport>[];
+    Restage.configure(
+      apiKey: _apiKey,
+      analyticsEnabled: false,
+      measurementEnabled: false,
+      onSurfaceResolution: reports.add,
+    );
+    final fixture = stringScreenFixture();
+    final hostedBlob = rfwScreenBlob(text: 'Hosted screen', event: 'tap');
+    var online = true;
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async => online
+            ? http.Response(
+                jsonEncode(SurfaceScreenDeliveryDescriptorV1Codec.encode(
+                  fixture.delivery(
+                      hostedBlob: hostedBlob, publishedRevision: 8),
+                )),
+                200,
+              )
+            : http.Response('unavailable', 503)),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    final key = resolver.storeKeyFor(fixture.ref);
+    final first = await resolver.resolve(fixture.ref);
+    online = false;
+    final held = await resolver.resolve(fixture.ref);
+
+    expect(key.surfaceType, SurfaceSourceKind.screen.wireName);
+    expect(key.contractVersion, fixture.ref.contractVersion);
+    expect(await resolver.store.read(key), isNotNull);
+    expect(first.cacheHit, isFalse);
+    expect(held.origin, SurfaceScreenOrigin.hosted);
+    expect(held.cacheHit, isTrue);
+    expect(reports.map((report) => report.surfaceType),
+        everyElement(fixture.ref.surface));
+    expect(reports.map((report) => report.source), [
+      SurfaceResolutionSource.fresh,
+      SurfaceResolutionSource.holdLastGood,
+    ]);
+
+    final raced = racedResolverOf<ResolvedSurfaceScreen>(resolver)!;
+    await raced.forgetStored(key);
+    final bundled = await resolver.resolve(fixture.ref);
+    expect(bundled.origin, SurfaceScreenOrigin.bundled);
+  });
 
   test('an in-flight typed resolve omits the identifier after analytics is off',
       () async {
@@ -530,6 +694,40 @@ void main() {
 
     expect(resolved.origin, SurfaceScreenOrigin.hosted);
     expect(resolved.capabilities.requiredLibraries, hasLength(1));
+  });
+
+  test('accepts hosted content whose payload carries local seeds', () async {
+    final fixture = stringScreenFixture(
+      capabilities: CapabilityManifest(
+        builtInFloor: kSurfaceFeatureClientFloor,
+        requiredLibraries: const <LibraryRequirement>[],
+      ),
+    );
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client(
+          (_) async => http.Response(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              fixture.delivery(
+                localSeeds: const {
+                  'OnboardingScreen': {'note': ''},
+                },
+              ),
+            ),
+            200,
+          ),
+        ),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    final resolved = await resolver.resolve(fixture.ref);
+
+    expect(resolved.origin, SurfaceScreenOrigin.hosted);
+    // The mount validates the same result before rendering it.
+    fixture.ref.provenance.validateResolved(resolved);
   });
 
   test('serves hosted content when the application packages no bundles',

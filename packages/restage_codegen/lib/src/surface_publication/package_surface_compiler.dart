@@ -19,6 +19,7 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
+import 'package:restage_codegen/src/icon_font_subsetter.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
@@ -29,6 +30,8 @@ import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
+import 'package:restage_codegen/src/rfw_emitter.dart'
+    show onboardingScreenRootWidgetName, paywallRootWidgetName;
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
@@ -40,6 +43,7 @@ import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
+import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
 
 const String _restageSdkOrigin = 'package:restage';
 
@@ -66,7 +70,11 @@ final class CompiledSurfaceArtifact {
         rfwCatalogOccurrenceSetsByOutputRole = const {},
     List<int>? rfwText,
     List<int>? navigationPlan,
+    Map<String, Object> localSeeds = const {},
+    Map<String, Object> standaloneLocalSeeds = const {},
   })  : _blob = Uint8List.fromList(blob),
+        localSeeds = Map.unmodifiable(localSeeds),
+        standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
         _capabilitySidecar = Uint8List.fromList(capabilitySidecar),
         packageWidgetNames = List.unmodifiable(
           packageWidgetNames.toSet().toList()..sort(),
@@ -92,6 +100,8 @@ final class CompiledSurfaceArtifact {
     List<int>? navigationPlan,
     Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByOutputRole = const {},
+    Map<String, Object> localSeeds = const {},
+    Map<String, Object> standaloneLocalSeeds = const {},
   }) =>
       CompiledSurfaceArtifact(
         declaration: declaration,
@@ -107,10 +117,18 @@ final class CompiledSurfaceArtifact {
         navigationPlan: navigationPlan,
         rfwCatalogOccurrenceSetsByOutputRole:
             rfwCatalogOccurrenceSetsByOutputRole,
+        localSeeds: localSeeds,
+        standaloneLocalSeeds: standaloneLocalSeeds,
       );
 
   /// The resolved authored `@Screen` or `@Paywall` class.
   final ClassElement declaration;
+
+  /// Initial screen-local values of the rendered root, keyed by value name.
+  final Map<String, Object> localSeeds;
+
+  /// Initial screen-local values of a paywall's standalone form.
+  final Map<String, Object> standaloneLocalSeeds;
 
   final Uint8List _blob;
   final Uint8List _capabilitySidecar;
@@ -189,7 +207,10 @@ final class PackageSurfaceCompilationInput {
     Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey =
         const {},
     AppWidgetMountFactories? appWidgets,
+    IconFontSubsetter? iconFontSubsetter,
   })  : appWidgets = appWidgets ?? AppWidgetMountFactories.none,
+        iconFontSubsetter =
+            iconFontSubsetter ?? FlutterIconFontSubsetter.shared,
         flows = List.unmodifiable(flows),
         renderedSources = List.unmodifiable(renderedSources),
         standaloneScreens = List.unmodifiable(standaloneScreens),
@@ -213,6 +234,9 @@ final class PackageSurfaceCompilationInput {
 
   /// The package's app widget factories, installed by generated mounts.
   final AppWidgetMountFactories appWidgets;
+
+  /// Subsets the icon font each publication ships.
+  final IconFontSubsetter iconFontSubsetter;
 
   /// Flattened flow definitions accepted by the analyzer frontend.
   final List<NormalizedFlowSource> flows;
@@ -686,6 +710,17 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
   }
 }
 
+int _precompiledFlowMinClient(
+  NormalizedFlowSource flow,
+  Map<String, MeasurementDeclaredAnswerV1> measurementAnswers,
+) =>
+    flowDocumentMinClient(
+      declared: flow.minClient,
+      surface: flow.surface,
+      delivery: flow.delivery,
+      measuresAnswers: measurementAnswers.isNotEmpty,
+    );
+
 NormalizedFlowGraph _withEffectiveScreenFloor(
   NormalizedFlowGraph graph,
   Iterable<ScreenArtifact> artifacts,
@@ -713,6 +748,7 @@ NormalizedFlowGraph _withMinimumClientFloor(
     states: graph.states,
     flowState: graph.flowState,
     outbound: graph.outbound,
+    measurementAnswers: graph.measurementAnswers,
     actions: graph.actions,
     screens: graph.screens,
     childFlows: graph.childFlows,
@@ -803,6 +839,7 @@ NormalizedFlowGraph? _withResolvedSubflowHashes(
     states: states,
     flowState: graph.flowState,
     outbound: graph.outbound,
+    measurementAnswers: graph.measurementAnswers,
     actions: graph.actions,
     screens: graph.screens,
     childFlows: graph.childFlows,
@@ -1707,6 +1744,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         artifactsByIdentity: artifactsByIdentity,
         flowDocumentPath: flowDocumentPath,
         flowDocumentBytes: precompiled.flowDocumentBytes,
+        measurementAnswers: precompiled.measurementAnswers,
         mountName: switch (_flowMountName(flow)) {
           final name?
               when precompiled.generatedTopLevelSymbols.contains(
@@ -1932,6 +1970,32 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
 
   if (issues.isNotEmpty) return _invalidResult(issues);
 
+  final sourcesByOutputPath = <String, RestageSourceDeclaration>{
+    for (final source in sourcesByIdentity.values)
+      for (final output in source.outputs) output.path: source,
+  };
+  _attachIconFonts(
+    manifestInputs,
+    subsetter: input.iconFontSubsetter,
+    fontPackages: _iconFontPackages(input.renderedSources, issues),
+    sourcesByOutputPath: sourcesByOutputPath,
+    outputFiles: outputFiles,
+    artifactLibraryPaths: artifactLibraryPaths,
+    issues: issues,
+  );
+  _attachLocalSeeds(
+    manifestInputs,
+    seedsByBlobPath: _localSeedsByBlobPath(
+      input.renderedSources,
+      artifactsByIdentity.values.expand((artifacts) => artifacts),
+    ),
+    sourcesByOutputPath: sourcesByOutputPath,
+    outputFiles: outputFiles,
+    artifactLibraryPaths: artifactLibraryPaths,
+    issues: issues,
+  );
+  if (issues.isNotEmpty) return _invalidResult(issues);
+
   final measurementPublications = <MeasurementCompilerPublication>[];
   final measurementPresentationMaterializations =
       <MeasurementRfwPresentationArtifactMaterialization>[];
@@ -1944,10 +2008,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
             input.measurementPresentationPlansByPublicationKey,
         rfwCatalogOccurrenceSetsByArtifactPath:
             input.rfwCatalogOccurrenceSetsByArtifactPath,
-        sourcesByOutputPath: {
-          for (final source in sourcesByIdentity.values)
-            for (final output in source.outputs) output.path: source,
-        },
+        sourcesByOutputPath: sourcesByOutputPath,
       );
       final unplannedPaths = <String>{
         for (final assembly in manifestInputs)
@@ -2032,6 +2093,12 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   }
   if (issues.isNotEmpty) return _invalidResult(issues);
 
+  // Section artifacts are written only by the package-wide outputs.
+  aggregateOwnedOutputPaths.addAll([
+    for (final assembly in manifestInputs)
+      for (final artifact in assembly.artifacts)
+        if (artifact.role.isPayloadSection) artifact.path,
+  ]);
   final manifest = _buildManifest(
     manifestInputs,
     issues: issues,
@@ -2626,7 +2693,8 @@ Map<NormalizedFlowIdentity, Uint8List> _indexPrecompiledClassFlowDocuments(
       FlowDocumentValidation.checkValid(document);
       if (document.flow != flow.id ||
           document.version != flow.version ||
-          document.minClient != flow.minClient ||
+          document.minClient <
+              _precompiledFlowMinClient(flow, entry.value.measurementAnswers) ||
           document.deliveryMode != flow.delivery) {
         throw StateError(
           'Precompiled flow identity, version, minimum client, or delivery '
@@ -2791,6 +2859,7 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
   required Map<String, List<_ResolvedArtifact>> artifactsByIdentity,
   required String flowDocumentPath,
   required List<int> flowDocumentBytes,
+  required Map<String, MeasurementDeclaredAnswerV1> measurementAnswers,
   required String? mountName,
   required List<Issue> issues,
 }) {
@@ -2800,7 +2869,8 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
     FlowDocumentValidation.checkValid(document);
     if (document.flow != flow.id ||
         document.version != flow.version ||
-        document.minClient != flow.minClient ||
+        document.minClient <
+            _precompiledFlowMinClient(flow, measurementAnswers) ||
         document.deliveryMode != flow.delivery) {
       throw StateError(
         'Precompiled flow identity, version, minimum client, or delivery '
@@ -2954,6 +3024,227 @@ bool _matchesFlowReference({
     return false;
   }
   return true;
+}
+
+/// The package each icon font family comes from, from the icons the
+/// compiled surfaces resolved; null for the app or the Flutter SDK.
+Map<String, String?> _iconFontPackages(
+  Iterable<CompiledSurfaceArtifact> rendered,
+  List<Issue> issues,
+) {
+  final packages = <String, String?>{};
+  for (final artifact in rendered) {
+    for (final byFamily in [
+      artifact.vocabulary.icons,
+      artifact.vocabulary.mirroredIcons,
+    ]) {
+      for (final MapEntry(key: family, value: icons) in byFamily.entries) {
+        for (final icon in icons.values) {
+          if (!packages.containsKey(family)) {
+            packages[family] = icon.fontPackage;
+          } else if (packages[family] != icon.fontPackage) {
+            _addIssue(
+              issues,
+              code: IssueCode.collidingIconCodePoints,
+              message: "Icon font family '$family' comes from more than one "
+                  'package, so its delivered font is ambiguous.',
+              location: artifact.declaration.name ?? family,
+            );
+          }
+        }
+      }
+    }
+  }
+  return packages;
+}
+
+/// Adds to each publication the subset font of every icon family its blobs
+/// name by a literal code point.
+void _attachIconFonts(
+  List<SurfacePublicationAssemblyInput> inputs, {
+  required IconFontSubsetter subsetter,
+  required Map<String, String?> fontPackages,
+  required Map<String, RestageSourceDeclaration> sourcesByOutputPath,
+  required Map<String, Uint8List> outputFiles,
+  required Map<String, String> artifactLibraryPaths,
+  required List<Issue> issues,
+}) {
+  for (var index = 0; index < inputs.length; index += 1) {
+    final input = inputs[index];
+    final codePoints = <String, Set<int>>{};
+    for (final artifact in input.artifacts) {
+      if (artifact.role != SurfacePublicationArtifactRole.screenBlob) continue;
+      final fmt.RemoteWidgetLibrary library;
+      try {
+        library = fmt.decodeLibraryBlob(Uint8List.fromList(artifact.bytes));
+      } on FormatException {
+        // Bytes that are not a widget library name no icons.
+        continue;
+      }
+      for (final entry in literalIconCodePoints(library).entries) {
+        (codePoints[entry.key] ??= <int>{}).addAll(entry.value);
+      }
+    }
+    if (codePoints.isEmpty) continue;
+    final primary = _primaryArtifactPath(input);
+    final owner = sourcesByOutputPath[primary];
+    if (owner == null) {
+      _addIssue(
+        issues,
+        code: IssueCode.annotationEvaluationFailed,
+        message: 'Publication ${input.slug} has no roster owner for $primary.',
+        location: primary,
+      );
+      continue;
+    }
+    final fonts = <SurfacePublicationArtifactInput>[];
+    for (final family in codePoints.keys.toList()..sort()) {
+      final fontPackage = fontPackages[family];
+      try {
+        final bytes = subsetter.subset(
+          family: family,
+          fontPackage: fontPackage,
+          codePoints: codePoints[family]!,
+        );
+        final id = iconFontArtifactId(family, fontPackage);
+        final path = '${_artifactStem(primary)}.icon-fonts/$id'
+            '${subsetter.extension(family: family, fontPackage: fontPackage)}';
+        _putOutputFile(
+          outputFiles,
+          path: path,
+          bytes: bytes,
+          source: owner,
+          issues: issues,
+          libraryPaths: artifactLibraryPaths,
+        );
+        sourcesByOutputPath[path] = owner;
+        fonts.add(
+          SurfacePublicationArtifactInput(
+            path: path,
+            role: SurfacePublicationArtifactRole.iconFont,
+            id: id,
+            bytes: bytes,
+          ),
+        );
+      } on Object catch (error) {
+        _addIssue(
+          issues,
+          code: IssueCode.annotationEvaluationFailed,
+          message: 'Could not build the $family icon font for '
+              '${input.slug}: $error',
+          location: owner.span.location,
+        );
+      }
+    }
+    inputs[index] = input.withArtifacts([...input.artifacts, ...fonts]);
+  }
+}
+
+/// Each compiled blob's initial local values, keyed by the blob's path.
+Map<String, Map<String, Object>> _localSeedsByBlobPath(
+  Iterable<CompiledSurfaceArtifact> rendered,
+  Iterable<_ResolvedArtifact> resolved,
+) {
+  final seeds = <String, Map<String, Object>>{
+    for (final artifact in resolved)
+      if (artifact.rendered.paywallFacts == null &&
+          artifact.rendered.localSeeds.isNotEmpty)
+        artifact.blobPath: artifact.rendered.localSeeds,
+  };
+  for (final artifact in rendered) {
+    final facts = artifact.paywallFacts;
+    if (facts == null) continue;
+    if (artifact.localSeeds.isNotEmpty) {
+      seeds[facts.adapter.blob.path] = artifact.localSeeds;
+    }
+    if (facts.standalone case final standalone?
+        when artifact.standaloneLocalSeeds.isNotEmpty) {
+      seeds[standalone.blob.path] = artifact.standaloneLocalSeeds;
+    }
+  }
+  return seeds;
+}
+
+/// Adds to each publication whose blobs declare initial local values one
+/// seeds artifact beside its primary artifact: by screen id for a flow, by
+/// root widget for a blob.
+void _attachLocalSeeds(
+  List<SurfacePublicationAssemblyInput> inputs, {
+  required Map<String, Map<String, Object>> seedsByBlobPath,
+  required Map<String, RestageSourceDeclaration> sourcesByOutputPath,
+  required Map<String, Uint8List> outputFiles,
+  required Map<String, String> artifactLibraryPaths,
+  required List<Issue> issues,
+}) {
+  if (seedsByBlobPath.isEmpty) return;
+  for (var index = 0; index < inputs.length; index += 1) {
+    final input = inputs[index];
+    final seeds = <String, Map<String, Object>>{};
+    for (final artifact in input.artifacts) {
+      if (artifact.role != SurfacePublicationArtifactRole.screenBlob) continue;
+      final values = seedsByBlobPath[artifact.path];
+      if (values == null) continue;
+      final root = input.payloadKind == SurfacePayloadKind.flow
+          ? artifact.id!
+          : input.sourceKind == SurfaceSourceKind.paywall
+              ? paywallRootWidgetName
+              : onboardingScreenRootWidgetName;
+      seeds[root] = values;
+    }
+    if (seeds.isEmpty) continue;
+    final primary = _primaryArtifactPath(input);
+    final owner = sourcesByOutputPath[primary];
+    if (owner == null) {
+      _addIssue(
+        issues,
+        code: IssueCode.annotationEvaluationFailed,
+        message: 'Publication ${input.slug} has no roster owner for $primary.',
+        location: primary,
+      );
+      continue;
+    }
+    final path = '${_artifactStem(primary)}.local.json';
+    final bytes = encodeLocalSeedsArtifact(seeds);
+    _putOutputFile(
+      outputFiles,
+      path: path,
+      bytes: bytes,
+      source: owner,
+      issues: issues,
+      libraryPaths: artifactLibraryPaths,
+    );
+    sourcesByOutputPath[path] = owner;
+    inputs[index] = input.withArtifacts([
+      ...input.artifacts,
+      SurfacePublicationArtifactInput(
+        path: path,
+        role: SurfacePublicationArtifactRole.localSeeds,
+        id: input.slug,
+        bytes: bytes,
+      ),
+    ]);
+  }
+}
+
+/// The artifact a publication's section artifacts sit beside: its flow
+/// document, else its blob.
+String _primaryArtifactPath(SurfacePublicationAssemblyInput input) {
+  for (final role in [
+    SurfacePublicationArtifactRole.flowDocument,
+    SurfacePublicationArtifactRole.screenBlob,
+  ]) {
+    for (final artifact in input.artifacts) {
+      if (artifact.role == role) return artifact.path;
+    }
+  }
+  throw StateError('Publication ${input.slug} has no primary artifact.');
+}
+
+/// [path] without its extensions.
+String _artifactStem(String path) {
+  final slash = path.lastIndexOf('/');
+  final dot = path.indexOf('.', slash + 1);
+  return dot < 0 ? path : path.substring(0, dot);
 }
 
 SurfacePublicationAssemblyResult? _buildManifest(
@@ -3976,6 +4267,7 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
           source: source,
         ),
       );
+      if (artifact.role.isPayloadSection) continue;
       final artifactId = measurementArtifactIdForPublicationArtifactV1(
         selector,
         SurfacePublicationArtifact(
@@ -4642,7 +4934,9 @@ String? _sdkPrefixFor(
 
 String _withoutPartHeader(String source) {
   var trimmed = source.trim();
-  while (trimmed.startsWith('// @dart=') || trimmed.startsWith('part of ')) {
+  while (trimmed.startsWith('// @dart=') ||
+      trimmed.startsWith(_kGeneratedPartLintOptOut) ||
+      trimmed.startsWith('part of ')) {
     final lineEnd = trimmed.indexOf('\n');
     if (lineEnd == -1) return '';
     trimmed = trimmed.substring(lineEnd + 1).trim();
@@ -4655,8 +4949,8 @@ String _classIdentity(ClassElement element) =>
 
 /// The header a generated part at [partPath] must declare to reach the
 /// authored library at [libraryPath]: the library's `// @dart=` override, if
-/// any, since a part must match it, then the `part of` directive with a URI
-/// relative to the part's own directory.
+/// any, since a part must match it, the `part of` directive with a URI
+/// relative to the part's own directory, then the lint opt-out.
 String _partOfHeader({
   required String partPath,
   required String libraryPath,
@@ -4667,8 +4961,11 @@ String _partOfHeader({
       override == null ? '' : '// @dart=${override.major}.${override.minor}\n';
   return '${version}part of ${dartStringLiteral(
     p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
-  )};';
+  )};\n\n$_kGeneratedPartLintOptOut';
 }
+
+// Generated parts follow the generator's names, not the app's lint rules.
+const String _kGeneratedPartLintOptOut = '// ignore_for_file: type=lint';
 
 // Both name derivations live in generated_handle_names.dart so the screen and
 // flow frontends spell one rule. These aliases keep the call sites unchanged.

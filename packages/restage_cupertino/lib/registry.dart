@@ -636,6 +636,19 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
         ),
         PropertyEntry(
+          wireId: WireId('p0179'),
+          name: 'textInputAction',
+          type: PropertyType.enumValue,
+          description: 'The type of action button to use for the keyboard.',
+          enumType: 'TextInputAction',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/services/text_input.dart',
+                  symbolName: 'TextInputAction')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0036'),
           name: 'obscureText',
           type: PropertyType.boolean,
@@ -701,6 +714,23 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
         ),
         PropertyEntry(
+          wireId: WireId('p0180'),
+          name: 'keyboardType',
+          type: PropertyType.string,
+          description:
+              'Keyboard to show: text, multiline, number, phone, emailAddress, url or name.',
+          synthetic: 'textInputType',
+          constraints: RestageConstraints(allowedValues: [
+            'text',
+            'multiline',
+            'number',
+            'phone',
+            'emailAddress',
+            'url',
+            'name'
+          ]),
+        ),
+        PropertyEntry(
           wireId: WireId('p0166'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -708,6 +738,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 9,
     ),
     WidgetEntry(
       wireId: WireId('w0011'),
@@ -2352,4 +2383,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.cupertino` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCupertinoCatalogContentVersion = 1;
+const int kCupertinoCatalogContentVersion = 9;

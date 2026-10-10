@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_sections_carrier.dart';
 import '../runtime/surface_vocabulary.dart';
 import 'surface_screen_types.dart';
 
@@ -296,12 +298,23 @@ final class SurfaceScreenRuntimeProvenance {
             'The resolved screen contract does not match generated provenance.',
       );
     }
-    final payload = BlobSurfacePayload(
-      minClient: capabilities.builtInFloor,
-      blob: resolved.blob,
-      requiredLibraries: capabilities.requiredLibraries,
-    );
-    if (payload.contentHash != resolved.contentHash) {
+    // Hash the frame the screen was read from; rebuild it only for a screen
+    // the host constructed itself.
+    final sections = surfaceSectionsFor(resolved);
+    final payload = surfacePayloadFor(resolved) ??
+        BlobSurfacePayload(
+          minClient: capabilities.builtInFloor,
+          blob: resolved.blob,
+          requiredLibraries: capabilities.requiredLibraries,
+          iconFonts: sections.iconFonts,
+          localSeeds: sections.localSeeds,
+        );
+    if (payload is! BlobSurfacePayload ||
+        payload.minClient != capabilities.builtInFloor ||
+        !listEquals(
+            payload.requiredLibraries, capabilities.requiredLibraries) ||
+        !listEquals(payload.blob, resolved.blob) ||
+        payload.contentHash != resolved.contentHash) {
       throw const SurfaceScreenUnavailableError(
         reason: SurfaceScreenUnavailableReason.invalidPayload,
         message: 'The resolved screen content hash does not match its bytes.',

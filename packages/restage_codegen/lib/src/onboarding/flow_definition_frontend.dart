@@ -739,7 +739,12 @@ final class _FlowDefinitionGraphParser {
     final graph = NormalizedFlowGraph(
       flow: flow,
       version: version,
-      minClient: minClient,
+      minClient: flowDocumentMinClient(
+        declared: minClient,
+        surface: surface,
+        delivery: delivery,
+        measuresAnswers: _measurementAnswers.isNotEmpty,
+      ),
       delivery: delivery,
       initial: _screenStateId(initial),
       states: _states,
@@ -870,6 +875,11 @@ final class _FlowDefinitionGraphParser {
   bool _parseMeasurementAnswers(
       Expression? expression, FlowOutboundPayloadDeclaration survey) {
     if (expression == null) return true;
+    if (delivery == FlowDeliveryMode.general) {
+      _issue(IssueCode.buildMethodTooComplex,
+          kGeneralFlowMeasurementAnswersRefusal);
+      return false;
+    }
     if (expression is! SetOrMapLiteral || !expression.isMap) {
       _issue(IssueCode.buildMethodTooComplex,
           'measurementAnswers must be a literal question map.');
@@ -2350,6 +2360,28 @@ final class _ChildFlow {
   final String declarationIdentity;
   final String referenceName;
 }
+
+/// The minimum client a flow document declares: [declared], raised to the
+/// feature floor when a typed flow outside the survey surface measures answers.
+int flowDocumentMinClient({
+  required int declared,
+  required Surface surface,
+  required FlowDeliveryMode delivery,
+  required bool measuresAnswers,
+}) {
+  if (!measuresAnswers ||
+      delivery != FlowDeliveryMode.typed ||
+      surface == Surface.survey ||
+      declared >= kSurfaceFeatureClientFloor) {
+    return declared;
+  }
+  return kSurfaceFeatureClientFloor;
+}
+
+/// The refusal for a general flow that declares measured answers.
+const String kGeneralFlowMeasurementAnswersRefusal =
+    'A general flow cannot declare measurementAnswers. Measured answers need '
+    'a typed flow.';
 
 /// The answers a flow declares for measurement, keyed by a question in
 /// [survey]. Throws on a declaration it cannot read.

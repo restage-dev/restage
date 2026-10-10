@@ -73,7 +73,12 @@ final class BuildListCommand extends Command<int> {
           (argResults?['project'] as String?) ?? ctx.config?.project;
       final app = (argResults?['app'] as String?) ?? ctx.config?.app;
       if (project == null || app == null) {
-        _stderr.writeln(noProjectContextSentence());
+        _stderr.writeln(
+          missingProjectContextSentence(
+            hasConfig: ctx.config != null,
+            projectMissing: project == null,
+          ),
+        );
         return 1;
       }
       final organizationId = await resolveRequiredOrganizationId(

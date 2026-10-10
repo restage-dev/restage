@@ -924,6 +924,7 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
                 scale
               ],
           },
+        if (record.itemV1 != null) ['item', record.itemV1!.value],
       ];
 
   static List<Object?> checkpoint({
@@ -1189,10 +1190,17 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
     if (values.length != 6 && values.length != 7)
       throw const MeasurementWorkerOwnedDeliveryProtocolException(
           'invalid_append_length');
+    final item = switch (values.length == 6 ? null : values[6]) {
+      ['item', final String value] =>
+        MeasurementWorkerAppendItem.tryCreate(value) ??
+            (throw const MeasurementWorkerOwnedDeliveryProtocolException(
+                'invalid_item_value')),
+      _ => null,
+    };
     return MeasurementWorkerOwnedDeliveryAppendMessage(
       sessionId: _requireString(values[2]),
       record: MeasurementWorkerAppendRecord(
-        answerValueV1: values.length == 6
+        answerValueV1: values.length == 6 || item != null
             ? null
             : switch (values[6]) {
                 ['category', final String value] =>
@@ -1206,6 +1214,7 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
                   throw const MeasurementWorkerOwnedDeliveryProtocolException(
                       'invalid_answer_value'),
               },
+        itemV1: item,
         routeIndex: _requireInt(values[3]),
         monotonicTimestampMicros: _requireInt(values[4]),
         value: _requireAppendValue(_requireInt(values[5])),

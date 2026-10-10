@@ -10,6 +10,7 @@ import '../flow/flow_test_support.dart' show StaticFlowResolver;
 import '../surface_screen/surface_screen_test_support.dart';
 
 const _routeKey = '__restage_measurement_route_v1';
+const _itemKey = '__restage_measurement_item_v1';
 const _reservedPrefix = '__restage_measurement_';
 const _carrier =
     'mrv1.ZWRnZS5jaGVja291dC1yb290.AAECAwQFBgcICQoLDA0ODxAREhMUFRYX';
@@ -415,7 +416,8 @@ widget OnboardingScreen = Column(children: [
     onTap: event "object" {
       cta: "primary",
       nested: { $_routeKey: "top-level-only business data" },
-      $_routeKey: "$_carrier"
+      $_routeKey: "$_carrier",
+      $_itemKey: "item-1"
     },
     child: Text(text: "object value"),
   ),
@@ -466,7 +468,8 @@ widget Paywall = Column(children: [
   TextButton(
     onPressed: event "customExact" {
       business: "exact",
-      $_routeKey: "$_carrier"
+      $_routeKey: "$_carrier",
+      $_itemKey: "item-1"
     },
     child: Text(text: "custom exact"),
   ),

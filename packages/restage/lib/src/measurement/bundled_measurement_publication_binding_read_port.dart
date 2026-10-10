@@ -385,7 +385,8 @@ final class BundledMeasurementPublicationBindingReadPort {
         ..removeWhere(
           (artifact) =>
               artifact.manifestRole ==
-              SurfacePublicationArtifactRole.capabilitySidecar,
+                  SurfacePublicationArtifactRole.capabilitySidecar ||
+              artifact.manifestRole.isPayloadSection,
         )
         ..sort((left, right) => left.identity.compareTo(right.identity));
       if (declared.length != carrier.artifacts.length) return false;

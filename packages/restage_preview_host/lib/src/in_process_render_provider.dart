@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show ValueNotifier, mapEquals;
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter/scheduler.dart' show FrameCallback, SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' show RestageWidgetLibraryRegistration;
@@ -20,7 +20,8 @@ final class InProcessRenderProvider implements SurfaceRenderProvider {
           _frameKey.currentContext?.findRenderObject() as RenderBox?,
       schedulePostFrameCallback: schedulePostFrameCallback,
     );
-    _registrySubscription = geometryRegistry.snapshots.listen(_handleSnapshot);
+    _registrySubscription =
+        geometryRegistry.instanceSnapshots.listen(_handleSnapshot);
   }
 
   /// Registry supplied to the corresponding render surface.
@@ -34,11 +35,12 @@ final class InProcessRenderProvider implements SurfaceRenderProvider {
     null,
   );
   final GlobalKey _frameKey = GlobalKey();
-  late final StreamSubscription<Map<String, Rect>> _registrySubscription;
+  late final StreamSubscription<Map<String, List<GeometryInstance>>>
+      _registrySubscription;
 
   int? _epoch;
   int _generation = -1;
-  Map<String, Rect>? _lastEmittedRects;
+  Map<String, List<GeometryInstance>>? _lastEmitted;
   bool _settled = false;
   bool _terminal = false;
   bool _disposed = false;
@@ -62,7 +64,7 @@ final class InProcessRenderProvider implements SurfaceRenderProvider {
     }
     _epoch = request.epoch;
     _generation = -1;
-    _lastEmittedRects = null;
+    _lastEmitted = null;
     _settled = false;
     _terminal = false;
     _request.value = request;
@@ -75,7 +77,7 @@ final class InProcessRenderProvider implements SurfaceRenderProvider {
         if (!_isCurrent(epoch) || _settled || _terminal) return;
         _settled = true;
         _events.add(event);
-        _emitGeometry(geometryRegistry.capture());
+        _emitGeometry(geometryRegistry.captureInstances());
       case RenderError(epoch: final epoch):
         if (!_isCurrent(epoch) || _terminal) return;
         _terminal = true;
@@ -85,21 +87,27 @@ final class InProcessRenderProvider implements SurfaceRenderProvider {
     }
   }
 
-  void _handleSnapshot(Map<String, Rect> rects) {
+  void _handleSnapshot(Map<String, List<GeometryInstance>> instances) {
     if (!_settled || _terminal) return;
-    _emitGeometry(rects);
+    _emitGeometry(instances);
   }
 
-  void _emitGeometry(Map<String, Rect> rects) {
+  void _emitGeometry(Map<String, List<GeometryInstance>> instances) {
     final epoch = _epoch;
-    if (epoch == null || mapEquals(rects, _lastEmittedRects)) return;
+    if (epoch == null || geometryInstancesEqual(instances, _lastEmitted)) {
+      return;
+    }
     _generation += 1;
-    _lastEmittedRects = Map<String, Rect>.unmodifiable(rects);
+    _lastEmitted = instances;
     _geometry.add(
       GeometrySnapshot(
         epoch: epoch,
         generation: _generation,
-        rects: _lastEmittedRects!,
+        rects: <String, Rect>{
+          for (final entry in instances.entries)
+            entry.key: entry.value.first.rect,
+        },
+        instances: instances,
       ),
     );
   }

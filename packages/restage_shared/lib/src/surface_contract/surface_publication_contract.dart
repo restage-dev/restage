@@ -25,11 +25,22 @@ const int _surfacePublicationSchemaVersion = 1;
 enum SurfacePublicationArtifactRole {
   flowDocument('flowDocument'),
   screenBlob('screenBlob'),
-  capabilitySidecar('capabilitySidecar');
+  capabilitySidecar('capabilitySidecar'),
+
+  /// A subset icon font; the id is [iconFontArtifactId].
+  iconFont('iconFont'),
+
+  /// Initial screen-local values by root widget or flow screen; one per
+  /// publication, identified by its slug.
+  localSeeds('localSeeds');
 
   const SurfacePublicationArtifactRole(this.wireName);
 
   final String wireName;
+
+  /// Whether this artifact is a payload section: delivered data that is not
+  /// rendered content and carries no measurement occurrences.
+  bool get isPayloadSection => this == iconFont || this == localSeeds;
 
   static SurfacePublicationArtifactRole fromWireName(String value) {
     for (final role in values) {
@@ -642,6 +653,64 @@ void _validateAuthoringSources(List<String> sources, String path) {
   }
 }
 
+/// The artifact id of the icon font for [family], owned by [fontPackage].
+String iconFontArtifactId(String family, String? fontPackage) {
+  if (family.isEmpty || family.contains('@')) {
+    throw FormatException('Icon font family "$family" cannot be an id.');
+  }
+  return fontPackage == null ? family : '$family@$fontPackage';
+}
+
+/// Decodes the icon font artifact [id] holding [bytes].
+DeliveredIconFont decodeIconFontArtifact(String id, List<int> bytes) {
+  final at = id.indexOf('@');
+  return DeliveredIconFont(
+    family: at < 0 ? id : id.substring(0, at),
+    fontPackage: at < 0 ? null : id.substring(at + 1),
+    bytes: Uint8List.fromList(bytes),
+  );
+}
+
+/// The bytes of a local seeds artifact, `{root: {key: value}}` with a root per
+/// widget or screen id, keys sorted at both levels.
+Uint8List encodeLocalSeedsArtifact(Map<String, Map<String, Object>> seeds) =>
+    Uint8List.fromList(
+      utf8.encode(
+        jsonEncode(<String, Object>{
+          for (final root in seeds.keys.toList()..sort())
+            root: <String, Object>{
+              for (final key in seeds[root]!.keys.toList()..sort())
+                key: seeds[root]![key]!,
+            },
+        }),
+      ),
+    );
+
+/// Decodes a local seeds artifact into its values by root or screen id.
+Map<String, Map<String, Object>> decodeLocalSeedsArtifact(List<int> bytes) {
+  const path = 'localSeeds';
+  final json = SurfaceContractJson.requireObject(
+    SurfaceContractJson.decode(utf8.decode(bytes), label: path),
+    path,
+  );
+  return <String, Map<String, Object>>{
+    for (final MapEntry(key: root, value: raw) in json.entries)
+      root: <String, Object>{
+        for (final entry
+            in SurfaceContractJson.requireObject(raw, '$path.$root').entries)
+          entry.key: switch (entry.value) {
+            final String value => value,
+            final num value => value,
+            final bool value => value,
+            _ => throw FormatException(
+                'Expected "$path.$root.${entry.key}" to be a string, number '
+                'or bool.',
+              ),
+          },
+      },
+  };
+}
+
 @immutable
 final class SurfacePublicationArtifactClosure {
   SurfacePublicationArtifactClosure._({
@@ -649,19 +718,35 @@ final class SurfacePublicationArtifactClosure {
     required Map<String, Uint8List> screenBlobs,
     required Map<String, CapabilityManifest> sidecarCapabilities,
     required this.flowDocument,
+    required List<DeliveredIconFont> iconFonts,
+    required Map<String, Map<String, Object>> localSeeds,
   })  : _screenBlobs = Map.unmodifiable(screenBlobs),
-        _sidecarCapabilities = Map.unmodifiable(sidecarCapabilities);
+        _sidecarCapabilities = Map.unmodifiable(sidecarCapabilities),
+        iconFonts = List.unmodifiable(iconFonts),
+        localSeeds = Map.unmodifiable(localSeeds);
 
   final SurfacePublication publication;
   final Map<String, Uint8List> _screenBlobs;
   final Map<String, CapabilityManifest> _sidecarCapabilities;
   final FlowDocument? flowDocument;
 
+  /// The icon fonts the publication declares.
+  final List<DeliveredIconFont> iconFonts;
+
+  /// The local seeds the publication declares, by root or screen id.
+  final Map<String, Map<String, Object>> localSeeds;
+
   List<String> get screenIds => List.unmodifiable(_screenBlobs.keys);
 
   void validateAssembledPayload(List<int> payloadBytes) {
     final payload = _decodeCanonicalPayload(payloadBytes);
     publication.validatePayload(payload);
+    if (!_sameIconFonts(iconFonts, payload.iconFonts) ||
+        !_sameLocalSeeds(localSeeds, payload.localSeeds)) {
+      throw const FormatException(
+        'Assembled payload sections do not match declared artifacts.',
+      );
+    }
     switch (payload) {
       case BlobSurfacePayload():
         final blob = _screenBlobs[publication.slug];
@@ -1838,6 +1923,8 @@ void _validateArtifactShape(
   final flowDocuments = <SurfacePublicationArtifact>[];
   final blobs = <String, SurfacePublicationArtifact>{};
   final sidecars = <String, SurfacePublicationArtifact>{};
+  final fontIds = <String>{};
+  final seedIds = <String>{};
   for (final artifact in artifacts) {
     switch (artifact.role) {
       case SurfacePublicationArtifactRole.flowDocument:
@@ -1854,6 +1941,18 @@ void _validateArtifactShape(
           throw FormatException('Duplicate capability sidecar id "$id".');
         }
         sidecars[id] = artifact;
+      case SurfacePublicationArtifactRole.iconFont:
+        final id = artifact.id!;
+        if (!fontIds.add(id)) {
+          throw FormatException('Duplicate icon font artifact id "$id".');
+        }
+      case SurfacePublicationArtifactRole.localSeeds:
+        if (artifact.id != publication.slug || !seedIds.add(artifact.id!)) {
+          throw const FormatException(
+            'A publication declares at most one local seeds artifact, '
+            'identified by its slug.',
+          );
+        }
     }
   }
   if (flowDocuments.length > 1 ||
@@ -1969,7 +2068,40 @@ SurfacePublicationArtifactClosure _validateEntryBytes(
     },
     sidecarCapabilities: sidecars,
     flowDocument: flowDocument,
+    iconFonts: <DeliveredIconFont>[
+      for (final artifact
+          in artifactsByRole[SurfacePublicationArtifactRole.iconFont] ??
+              const <SurfacePublicationArtifact>[])
+        decodeIconFontArtifact(artifact.id!, bytesByPath[artifact.path]!),
+    ],
+    localSeeds: switch (
+        artifactsByRole[SurfacePublicationArtifactRole.localSeeds]) {
+      [final artifact] => decodeLocalSeedsArtifact(bytesByPath[artifact.path]!),
+      _ => const <String, Map<String, Object>>{},
+    },
   );
+}
+
+bool _sameIconFonts(
+  List<DeliveredIconFont> declared,
+  List<DeliveredIconFont> assembled,
+) =>
+    declared.length == assembled.length &&
+    declared.toSet().containsAll(assembled);
+
+bool _sameLocalSeeds(
+  Map<String, Map<String, Object>> declared,
+  Map<String, Map<String, Object>> assembled,
+) {
+  if (declared.length != assembled.length) return false;
+  for (final MapEntry(key: id, value: values) in declared.entries) {
+    final other = assembled[id];
+    if (other == null || other.length != values.length) return false;
+    for (final MapEntry(:key, :value) in values.entries) {
+      if (other[key] != value) return false;
+    }
+  }
+  return true;
 }
 
 CapabilitySidecar _decodeStrictSidecar(Uint8List bytes,

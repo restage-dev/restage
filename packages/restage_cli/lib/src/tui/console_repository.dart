@@ -7,6 +7,7 @@ import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
@@ -52,6 +53,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final loaded = await _loadConfig();
     _manifestIdentities = await _loadManifestIdentities(loaded.source.parent);
     final config = loaded.config;
+    _requireProjectAndApp(config);
     final environment = _requireEnvironment(config);
     final endpoint = _resolveEndpoint(config, credential);
     final api = _buildApi(endpoint, credential);
@@ -73,7 +75,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
           .firstOrNull;
       if (match == null) {
         throw ConsoleLoadException(
-          'No organization found for `$configuredOrganization`.',
+          'restage_config.yaml names organization `$configuredOrganization`, '
+          'which is not one of yours. Your organizations: '
+          '${scope.organizations.map((o) => '${o.slug} (id ${o.organizationId})').join(', ')}.',
         );
       }
       scope = await readProgrammaticScope(
@@ -89,7 +93,10 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final selectedApp = apps.singleWhere((app) => app.slug == config.app);
     final environmentSelection = _loadEnvironments(
       scope,
-      config,
+      config.withConfirmedAppIds(
+        organization.organizationId,
+        selectedApp.appId,
+      ),
       selectedApp,
       environment,
     );
@@ -105,9 +112,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
     _context = ConsoleContext(
       organizationSlug: organization.slug,
-      project: config.project,
+      project: config.project!,
       appId: selectedApp.appId,
-      app: config.app,
+      app: config.app!,
       environmentTargetId: selectedEnvironment.environmentTargetId,
       namedEnvironmentId: selectedEnvironment.namedEnvironmentId,
       environment: selectedEnvironment.slug,
@@ -285,6 +292,17 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
+  void _requireProjectAndApp(RestageConfig config) {
+    for (final (key, value) in [
+      ('project', config.project),
+      ('app', config.app),
+    ]) {
+      if (value == null) {
+        throw ConsoleLoadException(missingConfigKeySentence(key));
+      }
+    }
+  }
+
   String _requireEnvironment(RestageConfig config) {
     final environment = config.defaultEnvironment?.trim();
     if (environment == null || environment.isEmpty) {
@@ -341,7 +359,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
   ) {
     if (!scope.projects.any((project) => project.slug == config.project)) {
       throw ConsoleLoadException(
-        'No project found for restage_config.yaml project: ${config.project}.',
+        'restage_config.yaml names project `${config.project}`, which does '
+        'not exist in `${_resolveOrganization(scope, config).slug}`. '
+        'Projects: ${_slugList(scope.projects.map((p) => p.slug))}.',
       );
     }
     return [
@@ -360,8 +380,8 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final bundles = RenderBundleApi(rpc: api, uploadClient: _httpClient);
     try {
       final heads = await bundles.listHeads(
-        project: config.project,
-        app: config.app,
+        project: config.project!,
+        app: config.app!,
         organizationId: organization.organizationId,
       );
       return [
@@ -386,10 +406,13 @@ class DefaultConsoleRepository implements ConsoleRepository {
     ProgrammaticScopeSnapshot scope,
     RestageConfig config,
   ) {
-    final apps = scope.apps(config.project);
+    final apps = scope.apps(config.project!);
     if (!apps.any((app) => app.slug == config.app)) {
       throw ConsoleLoadException(
-        'No app found for restage_config.yaml app: ${config.app}.',
+        'restage_config.yaml names app `${config.app}`, which does not '
+        'exist in project `${config.project}` of '
+        '`${_resolveOrganization(scope, config).slug}`. '
+        'Apps there: ${_slugList(apps.map((a) => a.slug))}.',
       );
     }
     return [
@@ -410,7 +433,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
   ) {
     final targets = [
       for (final target in scope.targets(
-        projectSlug: config.project,
+        projectSlug: config.project!,
         appSlug: app.slug,
       ))
         ConsoleEnvironmentTarget(
@@ -445,6 +468,13 @@ class DefaultConsoleRepository implements ConsoleRepository {
         : matching.length == 1
         ? matching.single
         : null;
+    if (matching.isEmpty) {
+      throw ConsoleLoadException(
+        'restage_config.yaml names environment `$environment`, which does '
+        'not exist in project `${config.project}`. Environments there: '
+        '${_slugList(targets.map((target) => target.slug).toSet().toList()..sort())}.',
+      );
+    }
     if (selected == null) {
       throw ConsoleLoadException(
         'No unambiguous environment found for defaultEnvironment: '
@@ -527,3 +557,6 @@ typedef _ConsoleEnvironmentSelection = ({
   List<ConsoleEnvironmentTarget> targets,
   ConsoleEnvironmentTarget selected,
 });
+
+String _slugList(Iterable<String> slugs) =>
+    slugs.isEmpty ? 'none' : slugs.map((slug) => '`$slug`').join(', ');

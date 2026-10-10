@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_sections_carrier.dart';
 import '../assets/bundled_asset_source.dart';
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
@@ -106,7 +107,7 @@ final class ResolvedFlow {
       measurementBundledGeneratedSourceCarrierFor(this),
     );
     return attachMeasurementBundledGeneratedArtifactClosureCarrier(
-      sourceCarrier,
+      copySurfaceSections(this, sourceCarrier),
       measurementBundledGeneratedArtifactClosureCarrierFor(this),
     );
   }
@@ -513,11 +514,14 @@ final class AssetFlowResolver
     }
 
     final resolved = attachMeasurementBundledGeneratedSourceCarrier(
-      ResolvedFlow(
-        document: resolvedDocument,
-        screenBlobs: artifacts.screenBlobs,
-        contentHash: artifacts.documentHash,
-        cacheHit: false,
+      attachSurfaceSections(
+        ResolvedFlow(
+          document: resolvedDocument,
+          screenBlobs: artifacts.screenBlobs,
+          contentHash: artifacts.documentHash,
+          cacheHit: false,
+        ),
+        artifacts.sections,
       ),
       measurementBundledGeneratedSourceCarrierFor(flow),
     );

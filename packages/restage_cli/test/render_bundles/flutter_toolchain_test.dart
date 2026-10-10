@@ -128,6 +128,53 @@ void main() {
     expect(toolchain.source, 'FLUTTER_ROOT');
   });
 
+  test('the SDK the app was resolved with wins over FLUTTER_ROOT', () async {
+    final resolved = sdk('resolved_flutter', '3.47.7');
+    final root = sdk('flutter_root', '3.47.0');
+    final config =
+        File(p.join(project.path, '.dart_tool', 'package_config.json'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            jsonEncode({'flutterRoot': Uri.directory(resolved).toString()}),
+          );
+
+    final toolchain = await resolve(
+      environment: {'HOME': temp.path, 'FLUTTER_ROOT': root},
+    );
+
+    expect(toolchain.executable, p.join(resolved, 'bin', 'flutter'));
+    expect(toolchain.source, config.path);
+    expect(toolchain.version, '3.47.7');
+  });
+
+  test('a resolved SDK that is not a local path falls through', () async {
+    final root = sdk('flutter_root', '3.47.7');
+    File(p.join(project.path, '.dart_tool', 'package_config.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(jsonEncode({'flutterRoot': 'file://host/flutter'}));
+
+    final toolchain = await resolve(
+      environment: {'HOME': temp.path, 'FLUTTER_ROOT': root},
+    );
+
+    expect(toolchain.source, 'FLUTTER_ROOT');
+  });
+
+  test('a pin wins over the SDK the app was resolved with', () async {
+    File(p.join(project.path, '.flutter-version')).writeAsStringSync('3.49.0');
+    final cached = sdk(p.join('fvm', 'versions', '3.49.0'), '3.49.0');
+    final resolved = sdk('resolved_flutter', '3.47.7');
+    File(p.join(project.path, '.dart_tool', 'package_config.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        jsonEncode({'flutterRoot': Uri.directory(resolved).toString()}),
+      );
+
+    final toolchain = await resolve(environment: {'HOME': temp.path});
+
+    expect(toolchain.executable, p.join(cached, 'bin', 'flutter'));
+  });
+
   test('a pin naming a path is ignored', () async {
     File(
       p.join(project.path, '.flutter-version'),

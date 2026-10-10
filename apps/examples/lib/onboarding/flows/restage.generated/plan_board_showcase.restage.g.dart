@@ -1,23 +1,25 @@
 part of '../plan_board_showcase.dart';
 
+// ignore_for_file: type=lint
+
 const planBoardShowcaseFlowRef = SurfaceFlowRef<
     PlanBoardShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'plan_board_showcase',
   version: 1,
-  minClient: 6,
+  minClient: 9,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":6,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:1e28ee3181174cacc5fd0d5c4cf9067e98d2e5795facce0b4672f50ea23386d9","minClient":6,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
+        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":9,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:1e28ee3181174cacc5fd0d5c4cf9067e98d2e5795facce0b4672f50ea23386d9","minClient":9,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
     screens: {
       'plan_board_showcase': PlanBoardShowcaseScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '52f1389decde2748da42a96fdb8e9e9206d94b9293adfc339a7192c040cfdde0',
+      'a4306d93dd051222d5c8aafed66cfb2cbe05b410df7779df9e224e44bbb4092c',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

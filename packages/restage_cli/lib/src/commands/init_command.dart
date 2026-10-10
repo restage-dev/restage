@@ -13,6 +13,7 @@ import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
+import 'package:restage_cli/src/init/build_yaml_editor.dart';
 import 'package:restage_cli/src/init/gitignore_editor.dart';
 import 'package:restage_cli/src/init/pubspec_editor.dart'
     show
@@ -34,25 +35,13 @@ const Map<String, String> _defaultDevDeps = {
   'restage_codegen': '^2.0.0',
 };
 
-/// Bootstrap a Flutter project for Restage.
+/// Initializes Restage configuration, dependencies and a starter paywall.
+/// Also adds portable-output ignore rules and state inputs in `build.yaml`.
 ///
-/// The wizard prompts for project, app, and (default) environment
-/// slugs, then writes four artifacts:
-///
-///   1. `restage_config.yaml` at the project root.
-///   2. A starter `@Paywall` under `lib/paywalls/`.
-///   3. Edits to `pubspec.yaml` adding the SDK + codegen dependencies.
-///   4. Portable generated-output rules in the project's `.gitignore`.
-///
-/// The starter and dependency edits have opt-out flags
-/// (`--no-starter`, `--no-add-deps`); portable-output rules are additive,
-/// idempotent, and can be removed or negated in `.gitignore`. The wizard can
-/// be skipped end-to-end with `--non-interactive` + the per-value flags.
-/// `--dry-run` prints the planned changes without writing.
-///
-/// Re-running is idempotent: existing artifacts are preserved (the
-/// wizard prompts before overwriting; non-interactive mode keeps the
-/// existing artifact).
+/// `--no-starter` and `--no-add-deps` skip those changes. Use
+/// `--non-interactive` with explicit values, or `--dry-run` to preview writes.
+/// Existing artifacts are retained; configuration updates require confirmation
+/// or `--force`. Added `.gitignore` rules can be removed or negated.
 class InitCommand extends Command<int> {
   /// Construct an init command.
   InitCommand({
@@ -97,6 +86,11 @@ class InitCommand extends Command<int> {
             'Add `restage` (dependencies) plus `restage_codegen` '
             'and `build_runner` (dev_dependencies) to pubspec.yaml.',
         defaultsTo: true,
+      )
+      ..addFlag(
+        'force',
+        negatable: false,
+        help: 'Update an existing restage_config.yaml without asking.',
       )
       ..addFlag(
         'dry-run',
@@ -153,6 +147,7 @@ class InitCommand extends Command<int> {
     final wantsStarter = results['starter'] as bool;
     final wantsDeps = results['add-deps'] as bool;
     final dryRun = results['dry-run'] as bool;
+    final force = results['force'] as bool;
 
     // Read the pubspec once; both the dry-run plan and the apply path
     // consume the same source.
@@ -175,37 +170,68 @@ class InitCommand extends Command<int> {
         ? await gitignoreFile.readAsString()
         : '';
     final gitignorePlan = planPortableOutputIgnores(gitignoreSource);
+    final buildYamlFile = File(p.join(root.path, 'build.yaml'));
+    final buildYamlPlan = planStateBuildInputs(
+      buildYamlFile.existsSync() ? await buildYamlFile.readAsString() : null,
+    );
+
+    final configAction = !configFile.existsSync()
+        ? 'create'
+        : force
+        ? 'update'
+        : _interactive.isInteractive
+        ? 'ask to update'
+        : 'keep';
 
     _printPlan(
       configFile: configFile,
+      configAction: configAction,
       wantsStarter: wantsStarter,
       starterFile: starterFile,
       pubspecPlan: pubspecPlan,
       gitignoreFile: gitignoreFile,
       gitignoreExists: gitignoreExists,
       gitignorePlan: gitignorePlan,
+      buildYamlFile: buildYamlFile,
+      buildYamlPlan: buildYamlPlan,
     );
 
     if (dryRun) return 0;
 
     // Apply.
     if (gitignorePlan.isNoOp) {
-      _stdout.writeln('Kept existing .gitignore portable-output rules.');
+      _stdout.writeln(
+        'Kept the existing .gitignore rule for Restage build output.',
+      );
     } else {
       await gitignoreFile.writeAsString(gitignorePlan.source);
       _stdout.writeln(
-        '${gitignoreExists ? 'Updated' : 'Wrote'} .gitignore with '
-        'portable-output rules.',
+        '${gitignoreExists ? 'Updated' : 'Wrote'} .gitignore to ignore '
+        'Restage build output.',
       );
     }
 
-    if (configFile.existsSync()) {
-      _stdout.writeln(
-        'Kept existing restage_config.yaml (delete it to regenerate).',
-      );
-    } else {
+    await _applyBuildYaml(buildYamlFile, buildYamlPlan);
+
+    if (!configFile.existsSync()) {
       await writeRestageConfig(configFile, config);
       _stdout.writeln('Wrote restage_config.yaml.');
+      _reportEndpoint(context);
+    } else if (force ||
+        (_interactive.isInteractive &&
+            await _interactive.confirm(
+              'restage_config.yaml already exists. Update it with these '
+              'values?',
+            ))) {
+      await _updateConfig(configFile, config);
+      _stdout.writeln('Updated restage_config.yaml.');
+      _reportEndpoint(context);
+    } else if (_interactive.isInteractive) {
+      _stdout.writeln('Kept existing restage_config.yaml.');
+    } else {
+      _stdout.writeln(
+        'Kept existing restage_config.yaml. Pass --force to update it.',
+      );
     }
 
     if (wantsStarter) {
@@ -266,6 +292,70 @@ class InitCommand extends Command<int> {
       );
     }
     return 0;
+  }
+
+  Future<void> _applyBuildYaml(File file, StateBuildInputsPlan plan) async {
+    switch (plan.action) {
+      case StateBuildInputsAction.create:
+        await file.writeAsString(plan.source);
+        _stdout.writeln(
+          "Wrote build.yaml so builds track Restage's state files.",
+        );
+      case StateBuildInputsAction.update:
+        await file.writeAsString(plan.source);
+        _stdout.writeln(
+          "Updated build.yaml so builds track Restage's state files.",
+        );
+      case StateBuildInputsAction.keep:
+        _stdout.writeln(
+          "Kept build.yaml; it already tracks Restage's state files.",
+        );
+      case StateBuildInputsAction.manual:
+        _stdout.writeln(
+          'Could not update build.yaml safely. Add these entries to its '
+          'additional_public_assets list:',
+        );
+        for (final entry in restageStateBuildInputs) {
+          _stdout.writeln('  - $entry');
+        }
+    }
+  }
+
+  void _reportEndpoint(_InitContext context) {
+    final endpoint = context.endpoint;
+    if (endpoint == null) return;
+    _stdout.writeln('Set endpoint: $endpoint (from your stored sign-in).');
+  }
+
+  /// Writes [config] over [file], keeping the settings init does not ask
+  /// about when the existing file parses.
+  Future<void> _updateConfig(File file, RestageConfig config) async {
+    final RestageConfig existing;
+    try {
+      existing = RestageConfig.fromYaml(await file.readAsString());
+    } on RestageConfigFormatException {
+      await writeRestageConfig(file, config);
+      return;
+    }
+    final merged = RestageConfig(
+      project: config.project,
+      app: config.app,
+      defaultEnvironment: config.defaultEnvironment,
+      organization: config.organization,
+      endpoint: config.endpoint,
+      plane: config.plane,
+      organizationId: config.organizationId,
+      appId: config.appId,
+      environmentTargetId: config.environmentTargetId,
+      namedEnvironmentId: config.namedEnvironmentId,
+      recordGit: existing.recordGit,
+      declareAssets: existing.declareAssets,
+    );
+    final flutterRoot = existing.flutterRoot;
+    await file.writeAsString(
+      '${merged.toYaml()}'
+      '${flutterRoot == null ? '' : 'flutterRoot: $flutterRoot\n'}',
+    );
   }
 
   Future<_InitContext?> _resolveInitContext(ArgResults results) async {
@@ -468,16 +558,19 @@ class InitCommand extends Command<int> {
 
   void _printPlan({
     required File configFile,
+    required String configAction,
     required bool wantsStarter,
     required File starterFile,
     required AddDependenciesPlan? pubspecPlan,
     required File gitignoreFile,
     required bool gitignoreExists,
     required PortableOutputIgnorePlan gitignorePlan,
+    required File buildYamlFile,
+    required StateBuildInputsPlan buildYamlPlan,
   }) {
     _stdout.writeln('Planned changes:');
     _stdout.writeln(
-      '  ${configFile.existsSync() ? 'keep' : 'create'} ${configFile.path} '
+      '  $configAction ${configFile.path} '
       '(restage_config.yaml)',
     );
     if (wantsStarter) {
@@ -513,7 +606,16 @@ class InitCommand extends Command<int> {
           ? 'keep'
           : gitignoreExists
           ? 'update'
-          : 'create'} ${gitignoreFile.path} (.gitignore portable-output rules)',
+          : 'create'} ${gitignoreFile.path} (.gitignore build-output rule)',
+    );
+    final buildYamlAction = switch (buildYamlPlan.action) {
+      StateBuildInputsAction.create => 'create',
+      StateBuildInputsAction.update ||
+      StateBuildInputsAction.manual => 'update',
+      StateBuildInputsAction.keep => 'keep',
+    };
+    _stdout.writeln(
+      '  $buildYamlAction ${buildYamlFile.path} (track Restage state files)',
     );
     _stdout.writeln();
   }

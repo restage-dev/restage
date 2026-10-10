@@ -1,10 +1,12 @@
 part of '../tally_goal.dart';
 
+// ignore_for_file: type=lint
+
 const tallyGoalScreenRef = NeutralFlowScreenRef(
   id: 'tally_goal',
   artifactPath: 'tally_goal.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use tallyGoalScreenRef')

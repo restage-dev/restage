@@ -22,7 +22,7 @@ void main() {
     expect(v1.version, 1);
     expect(v2.version, 2);
     expect(v1.minClient, 1);
-    expect(v2.minClient, 6);
+    expect(v2.minClient, kSurfaceFeatureClientFloor);
     expect(v1.screenArtifacts.containsKey('stride_goals'), isFalse);
     expect(v2.screenArtifacts.containsKey('stride_goals'), isTrue);
   });

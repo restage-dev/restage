@@ -106,9 +106,12 @@ final class MeasurementCaptureEdge {
   }
 
   /// Appends one action observation selected before host composition.
+  ///
+  /// An invalid [item] is dropped and the tap still appends.
   MeasurementWorkerAppendOutcome appendInteractionIdentity(
-    MeasurementPointIdentity identity,
-  ) {
+    MeasurementPointIdentity identity, {
+    String? item,
+  }) {
     try {
       if (!_available) return MeasurementWorkerAppendOutcome.unavailable;
       if (!_pointIdentityTable.accepts(identity)) {
@@ -121,6 +124,8 @@ final class MeasurementCaptureEdge {
       return _appendAcceptedIdentity(
         identity,
         MeasurementWorkerAppendValue.interaction,
+        itemV1:
+            item == null ? null : MeasurementWorkerAppendItem.tryCreate(item),
       );
     } on Object {
       _available = false;
@@ -165,11 +170,13 @@ final class MeasurementCaptureEdge {
     MeasurementPointIdentity identity,
     MeasurementWorkerAppendValue value, {
     MeasurementAnswerValueV1? answerValueV1,
+    MeasurementWorkerAppendItem? itemV1,
   }) {
     try {
       final outcome = _workerSession.append(
         MeasurementWorkerAppendRecord(
           answerValueV1: answerValueV1,
+          itemV1: itemV1,
           routeIndex: identity.routeIndex,
           monotonicTimestampMicros: _monotonicClock.readMicros(),
           value: value,

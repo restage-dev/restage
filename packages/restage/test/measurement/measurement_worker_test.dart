@@ -181,6 +181,116 @@ void main() {
           MeasurementWorkerAppendAcknowledgementOutcome.rejected);
     });
 
+    test('item values round-trip and record only on routes that declare items',
+        () async {
+      final itemRecord = MeasurementWorkerAppendRecord(
+          routeIndex: 0,
+          monotonicTimestampMicros: 10,
+          value: MeasurementWorkerAppendValue.interaction,
+          itemV1: MeasurementWorkerAppendItem.tryCreate('plan.yearly'));
+      final owned = MeasurementWorkerOwnedDeliveryProtocol.decodeInbound(
+              MeasurementWorkerOwnedDeliveryProtocol.append(
+                  sessionId: 'session.items', record: itemRecord))
+          as MeasurementWorkerOwnedDeliveryAppendMessage;
+      expect(owned.record.itemV1?.value, 'plan.yearly');
+      expect(owned.record.answerValueV1, isNull);
+      final capture = MeasurementWorkerProtocol.decodeInbound(
+          MeasurementWorkerProtocol.append(
+              sessionId: 'session.items',
+              record: itemRecord)) as MeasurementWorkerAppendMessage;
+      expect(capture.record.itemV1?.value, 'plan.yearly');
+      expect(capture.record.answerValueV1, isNull);
+      for (final invalid in ['', 'has space', 'a' * 65]) {
+        expect(MeasurementWorkerAppendItem.tryCreate(invalid), isNull,
+            reason: invalid);
+      }
+      expect(
+          () => MeasurementWorkerAppendRecord(
+              routeIndex: 0,
+              monotonicTimestampMicros: 1,
+              value: MeasurementWorkerAppendValue.presentation,
+              itemV1: MeasurementWorkerAppendItem.tryCreate('item')),
+          throwsArgumentError);
+      expect(
+          () => MeasurementWorkerProtocol.decodeInbound([
+                ...MeasurementWorkerProtocol.append(
+                    sessionId: 'session.items',
+                    record: MeasurementWorkerAppendRecord(
+                        routeIndex: 0,
+                        monotonicTimestampMicros: 1,
+                        value: MeasurementWorkerAppendValue.interaction)),
+                ['item', 'has space'],
+              ]),
+          throwsA(isA<MeasurementWorkerProtocolException>()));
+
+      final runtime = await _startRuntime();
+      addTearDown(runtime.shutdown);
+      final config = MeasurementOrderedCaptureV1(routes: [
+        for (var index = 0; index < 2; index += 1)
+          MeasurementOrderedCaptureRouteV1(
+              occurrenceId: CanonicalDigest(_occurrence(index)),
+              lineageId: PointLineageId('lineage.session.items.$index'),
+              channels: [
+                MeasurementOccurrenceChannelV1.presentation,
+                MeasurementOccurrenceChannelV1.interaction
+              ],
+              interactionItemsV1: index == 0)
+      ]);
+      final fingerprint = 'd' * 64;
+      final registration = _registration(
+        sessionId: 'session.items',
+        orderedCaptureCanonicalBytesV1: config.canonicalBytes,
+        experimentAssignmentCanonicalBytes: CanonicalJsonCodec.encode(
+            const MeasurementExperimentAssignmentV1(outcomeLinkCarrier: 'YWJj')
+                .toJson()),
+        registrationFingerprint: fingerprint,
+      );
+      final wire = registration.toWire();
+      expect(wire, hasLength(13));
+      expect(wire[12], fingerprint);
+      expect(
+          MeasurementWorkerSessionRegistration.fromWire(wire)
+              .registrationFingerprint,
+          fingerprint);
+      final refusalWire =
+          MeasurementWorkerOwnedDeliveryProtocol.registrationRefused(
+              fingerprint);
+      expect(refusalWire.first, 111);
+      final refusal =
+          MeasurementWorkerOwnedDeliveryProtocol.decodeOutbound(refusalWire)
+              as MeasurementWorkerOwnedDeliveryRegistrationRefusedMessage;
+      expect(refusal.fingerprint, fingerprint);
+      final session = await _open(runtime, registration);
+      final acknowledgements = runtime.appendAcknowledgements.take(2).toList();
+      for (final routeIndex in [0, 1]) {
+        session.append(MeasurementWorkerAppendRecord(
+            routeIndex: routeIndex,
+            monotonicTimestampMicros: 10 + routeIndex,
+            value: MeasurementWorkerAppendValue.interaction,
+            itemV1: MeasurementWorkerAppendItem.tryCreate('plan.yearly')));
+      }
+      expect((await acknowledgements).map((ack) => ack.outcome), [
+        MeasurementWorkerAppendAcknowledgementOutcome.recorded,
+        MeasurementWorkerAppendAcknowledgementOutcome.recorded,
+      ]);
+      final frame =
+          _frame((await session.teardown(frameElapsedMicros: 20)).batch!);
+      expect(frame.experimentAssignment!.outcomeLinkCarrier, 'YWJj');
+      final items = {
+        for (final fact in frame.facts)
+          fact.lineageId: [
+            for (final occurrence in fact.timedOccurrencesV1!)
+              if (occurrence.channel ==
+                  MeasurementOccurrenceChannelV1.interaction)
+                occurrence.itemValueV1
+          ],
+      };
+      expect(items, {
+        'lineage.session.items.0': ['plan.yearly'],
+        'lineage.session.items.1': [null],
+      });
+    });
+
     test('retains an opaque assignment through worker frames and retries',
         () async {
       final runtime = await _startRuntime();
@@ -875,6 +985,7 @@ MeasurementWorkerSessionRegistration _registration({
   List<int>? orderedCaptureCanonicalBytesV1,
   String? sdkRuntimeSessionNonce,
   String? reportedSdkVersion,
+  String? registrationFingerprint,
 }) {
   final context = ExactMeasurementPublicationContextRefV1(
     bindingReference: _bindingReference,
@@ -899,6 +1010,7 @@ MeasurementWorkerSessionRegistration _registration({
     sessionId: sessionId,
     captureSessionNonce: 'nonce.$sessionId',
     experimentAssignmentCanonicalBytes: experimentAssignmentCanonicalBytes,
+    registrationFingerprint: registrationFingerprint,
     publicationContextCanonicalBytes: context.canonicalBytes,
     routes: [
       for (var index = 0; index < routeCount; index += 1)

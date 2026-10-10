@@ -3,12 +3,13 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/mood_check.restage.g.dart';
 
-/// A one-question survey. The selection lives in the surface's own state.
+/// A one-question survey. The selection and the typed note live in the
+/// surface's own state.
 @Screen(id: 'mood_check', surface: Surface.survey)
 final class MoodCheck extends StatefulWidget {
   const MoodCheck({super.key});
 
-  static const submit = SurfaceEvent<String>('submit');
+  static const submit = SurfaceEvent<Map<String, Object?>>('submit');
   static const remindMe = SurfaceEvent<bool>('remind_me');
 
   @override
@@ -17,6 +18,7 @@ final class MoodCheck extends StatefulWidget {
 
 class _MoodCheckState extends State<MoodCheck> {
   bool good = true;
+  String note = '';
 
   void pickGood() => setState(() => good = true);
   void pickBad() => setState(() => good = false);
@@ -41,13 +43,23 @@ class _MoodCheckState extends State<MoodCheck> {
           ),
           onTap: pickBad,
         ),
+        TextField(
+          decoration: const InputDecoration(
+            hintText: 'Anything else?',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) => setState(() => note = value),
+        ),
         SwitchListTile(
           title: const Text('Remind me next week'),
           value: false,
           onChanged: surfaceEvent(MoodCheck.remindMe),
         ),
         FilledButton(
-          onPressed: surfaceEvent(MoodCheck.submit, good ? 'good' : 'bad'),
+          onPressed: surfaceEvent(
+            MoodCheck.submit,
+            {'mood': good ? 'good' : 'bad', 'note': note},
+          ),
           child: const Text('Send'),
         ),
       ],

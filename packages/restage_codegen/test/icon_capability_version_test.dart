@@ -30,8 +30,9 @@ void main() {
     'iconCodepoint: 57490, iconMatchTextDirection: false',
     'iconCodepoint: 57490',
   ]) {
-    test('old global ceiling rejects and version 6 accepts Icon($properties)',
-        () {
+    test(
+        'a literal Icon($properties) ships its font, so only the feature '
+        'floor accepts it', () {
       final result = deriveCapabilityManifest(
         parseLibraryFile('''
 import restage.material;
@@ -41,12 +42,12 @@ widget Paywall = Icon($properties);
       );
       expect(result.issues, isEmpty);
       final manifest = result.manifest!;
-      expect(manifest.builtInFloor, 6);
+      expect(manifest.builtInFloor, kSurfaceFeatureClientFloor);
       expect(
         BlobRenderCapabilityGate.evaluate(
           required: manifest,
           installed: InstalledCapability(
-            builtInCatalogVersion: 5,
+            builtInCatalogVersion: kSurfaceFeatureClientFloor - 1,
             installedLibraries: const [],
           ),
         ),
@@ -56,7 +57,7 @@ widget Paywall = Icon($properties);
         BlobRenderCapabilityGate.evaluate(
           required: manifest,
           installed: InstalledCapability(
-            builtInCatalogVersion: 6,
+            builtInCatalogVersion: kSurfaceFeatureClientFloor,
             installedLibraries: const [],
           ),
         ),

@@ -502,33 +502,38 @@ final class HabitNotice extends StatelessWidget {
           "<String, Object?>{'city': _restageArgument0.address.city} },",
         ),
       );
+      // Loop and pattern locals must pass no_leading_underscores_for_local_identifiers.
+      expect(
+        RegExp(r'for \(final _|final _\w+\?').allMatches(compact),
+        isEmpty,
+      );
       expect(
         compact,
         contains(
-          "'habits': <Object?>[ for (final _restageValue0 in "
+          "'habits': <Object?>[ for (final restageValue0 in "
           "_restageArgument1) <String, Object?>{ 'id': "
-          "_restageValue0.id, 'name': _restageValue0.name, 'address': "
-          "<String, Object?>{'city': _restageValue0.address.city} } ],",
+          "restageValue0.id, 'name': restageValue0.name, 'address': "
+          "<String, Object?>{'city': restageValue0.address.city} } ],",
         ),
       );
       expect(
         compact,
         contains(
-          "'byId': <String, Object?>{ for (final _restageEntry0 in "
-          '_restageArgument2.entries) _restageEntry0.key: '
-          'switch (_restageEntry0.value) { final _restagePresent1? => '
-          "<String, Object?>{ 'id': _restagePresent1.id, 'name': "
-          "_restagePresent1.name, 'address': <String, Object?>{ 'city': "
-          '_restagePresent1.address.city } }, null => null } },',
+          "'byId': <String, Object?>{ for (final restageEntry0 in "
+          '_restageArgument2.entries) restageEntry0.key: '
+          'switch (restageEntry0.value) { final restagePresent1? => '
+          "<String, Object?>{ 'id': restagePresent1.id, 'name': "
+          "restagePresent1.name, 'address': <String, Object?>{ 'city': "
+          'restagePresent1.address.city } }, null => null } },',
         ),
       );
       expect(
         compact,
         contains(
           "'selected': switch (_restageArgument3) { final "
-          "_restagePresent0? => <String, Object?>{ 'id': "
-          "_restagePresent0.id, 'name': _restagePresent0.name, 'address': "
-          "<String, Object?>{ 'city': _restagePresent0.address.city } }, "
+          "restagePresent0? => <String, Object?>{ 'id': "
+          "restagePresent0.id, 'name': restagePresent0.name, 'address': "
+          "<String, Object?>{'city': restagePresent0.address.city} }, "
           'null => null },',
         ),
       );

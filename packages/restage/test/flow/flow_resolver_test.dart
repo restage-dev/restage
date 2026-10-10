@@ -41,6 +41,7 @@ void main() {
     expect(bundle.loadedKeys, [
       'assets/onboarding/flows/first_run.flow.json',
       'assets/onboarding/screens/welcome.rfw',
+      'assets/onboarding/flows/first_run.local.json',
     ]);
     expect(resolved.cacheHit, isFalse);
     expect(resolved.document.flow, flowRef.id);
@@ -128,6 +129,7 @@ void main() {
       expect(bundle.loadedKeys, [
         'assets/${surfaceType.wireName}/flows/first_run.flow.json',
         'assets/${surfaceType.wireName}/screens/welcome.rfw',
+        'assets/${surfaceType.wireName}/flows/first_run.local.json',
       ]);
     });
   }

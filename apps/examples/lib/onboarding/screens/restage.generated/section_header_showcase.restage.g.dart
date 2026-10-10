@@ -1,10 +1,12 @@
 part of '../section_header_showcase.dart';
 
+// ignore_for_file: type=lint
+
 const sectionHeaderShowcaseScreenRef = NeutralFlowScreenRef(
   id: 'section_header_showcase',
   artifactPath: 'section_header_showcase.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use sectionHeaderShowcaseScreenRef')

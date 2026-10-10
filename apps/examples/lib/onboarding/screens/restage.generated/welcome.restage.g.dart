@@ -1,10 +1,12 @@
 part of '../welcome.dart';
 
+// ignore_for_file: type=lint
+
 const welcomeScreenRef = NeutralFlowScreenRef(
   id: 'welcome',
   artifactPath: 'welcome.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use welcomeScreenRef')

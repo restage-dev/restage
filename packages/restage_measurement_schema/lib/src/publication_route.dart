@@ -13,6 +13,19 @@ const String kMeasurementPublicationReservedArgumentPrefixV1 =
 const String kMeasurementPublicationRouteArgumentKeyV1 =
     '__restage_measurement_route_v1';
 
+/// Private argument key carrying which rendered item of a tap was tapped.
+/// Hosts accept it only beside [kMeasurementPublicationRouteArgumentKeyV1].
+const String kMeasurementPublicationItemArgumentKeyV1 =
+    '__restage_measurement_item_v1';
+
+/// Key each map element of a host-supplied list carries with its 1-based
+/// position; a tap inside a loop over that list reads its item from it.
+const String kHostListItemPositionKey = '__restage_index';
+
+/// Reserved event a value callback fires to write a screen-local value. Hosts
+/// handle it before measurement and never deliver it.
+const String kLocalValueSetEventName = 'restage.local.set';
+
 /// Event name that carries a route for a tap with no business event, such as
 /// one that only changes screen state. Hosts record it and never deliver it.
 const String kMeasurementPublicationTapEventNameV1 =

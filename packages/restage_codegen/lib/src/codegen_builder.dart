@@ -30,7 +30,7 @@ import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show CapabilitySidecar, kPaywallScreensAssetDir;
+    show CapabilitySidecar, encodeLocalSeedsArtifact, kPaywallScreensAssetDir;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -111,7 +111,11 @@ final class CompiledPaywallArtifacts {
     required Iterable<AnalyticsIdDeclaration> standaloneAnalyticsIdDeclarations,
     required Iterable<AnalyticsIdDeclaration> adapterAnalyticsIdDeclarations,
     this.standaloneRfwCatalogOccurrenceSet,
+    Map<String, Object> standaloneLocalSeeds = const {},
+    Map<String, Object> adapterLocalSeeds = const {},
   })  : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+        standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
+        adapterLocalSeeds = Map.unmodifiable(adapterLocalSeeds),
         standaloneBlob =
             standaloneBlob == null ? null : Uint8List.fromList(standaloneBlob),
         standaloneCapabilitySidecar = standaloneCapabilitySidecar == null
@@ -153,6 +157,12 @@ final class CompiledPaywallArtifacts {
 
   /// Labels extracted from the flow-screen artifact.
   final List<AnalyticsIdDeclaration> adapterAnalyticsIdDeclarations;
+
+  /// Initial screen-local values of the standalone form, by value name.
+  final Map<String, Object> standaloneLocalSeeds;
+
+  /// Initial screen-local values of the flow-screen form, by value name.
+  final Map<String, Object> adapterLocalSeeds;
 }
 
 @immutable
@@ -393,6 +403,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         standaloneAnalyticsIdDeclarations:
             standaloneForm?.analyticsIdDeclarations ?? const [],
         adapterAnalyticsIdDeclarations: adapterForm.analyticsIdDeclarations,
+        standaloneLocalSeeds: standaloneForm?.localSeeds ?? const {},
+        adapterLocalSeeds: adapterForm.localSeeds,
         navigationPlan: standalone.navigation == null
             ? null
             : utf8.encode(
@@ -502,7 +514,11 @@ _CompiledPaywallForm? _compilePaywallForm({
     issues.addAll(validationIssues);
     return null;
   }
-  final derivation = deriveCapabilityManifest(library, catalog);
+  final derivation = deriveCapabilityManifest(
+    library,
+    catalog,
+    requiresSurfaceFeatureFloor: translation.requiresSurfaceFeatureFloor,
+  );
   if (derivation.issues.isNotEmpty) {
     issues.addAll(derivation.issues);
     return null;
@@ -525,6 +541,7 @@ _CompiledPaywallForm? _compilePaywallForm({
       SurfaceVocabularyReferences(icons: translation.iconReferences),
     ),
     analyticsIdDeclarations: lowering.declarations,
+    localSeeds: translation.localSeeds,
   );
 }
 
@@ -561,7 +578,9 @@ final class _CompiledPaywallForm {
     required this.rfwCatalogOccurrenceSet,
     required this.vocabulary,
     required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
-  }) : analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations);
+    Map<String, Object> localSeeds = const {},
+  })  : analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
+        localSeeds = Map.unmodifiable(localSeeds);
 
   final String text;
   final Uint8List blob;
@@ -569,6 +588,7 @@ final class _CompiledPaywallForm {
   final fmt.ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
   final SurfaceVocabularyReferences vocabulary;
   final List<AnalyticsIdDeclaration> analyticsIdDeclarations;
+  final Map<String, Object> localSeeds;
 }
 
 String _rfwOccurrenceSetKey({
@@ -622,6 +642,7 @@ final class RestageCodegenBuilder implements Builder {
           '$_kOutputDir/{{name}}.rfw',
           '$_kOutputDir/{{name}}.capability.json',
           '$_kOutputDir/{{name}}.navplan.json',
+          '$_kOutputDir/{{name}}.local.json',
           '$_kPaywallScreenOutputDir/paywall_{{name}}.rfw',
           '$_kPaywallScreenOutputDir/paywall_{{name}}.capability.json',
         ],
@@ -828,7 +849,12 @@ final class RestageCodegenBuilder implements Builder {
             rootLabels: {paywallRootWidgetName: src.className},
           );
           if (validationIssues.isEmpty) {
-            final derivation = deriveCapabilityManifest(rfwLibrary, catalog);
+            final derivation = deriveCapabilityManifest(
+              rfwLibrary,
+              catalog,
+              requiresSurfaceFeatureFloor:
+                  standaloneTranslation.requiresSurfaceFeatureFloor,
+            );
             if (derivation.issues.isNotEmpty) {
               // A surface referencing a custom library that declares no
               // capability version fails the build (fail-when-referenced) — the
@@ -836,6 +862,15 @@ final class RestageCodegenBuilder implements Builder {
               _addIssues(state.issues, derivation.issues);
             } else {
               final paywallBytes = fmt.encodeLibraryBlob(rfwLibrary);
+              final seeds = standaloneTranslation.localSeeds;
+              if (seeds.isNotEmpty) {
+                writes.add(
+                  buildStep.writeAsBytes(
+                    AssetId(assetId.package, '$_kOutputDir/$stem.local.json'),
+                    encodeLocalSeedsArtifact({paywallRootWidgetName: seeds}),
+                  ),
+                );
+              }
               writes
                 ..add(
                   buildStep.writeAsString(
@@ -1011,6 +1046,7 @@ final class RestageCodegenBuilder implements Builder {
       'assets/paywalls/$id.navplan.json',
       'assets/paywalls/$stem.navplan.json',
     );
+    add('assets/paywalls/$id.local.json', 'assets/paywalls/$stem.local.json');
     add(
       'assets/paywalls/screens/paywall_$id.rfw',
       'assets/paywalls/screens/paywall_$stem.rfw',

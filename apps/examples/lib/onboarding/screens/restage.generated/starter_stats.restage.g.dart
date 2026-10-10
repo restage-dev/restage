@@ -1,5 +1,7 @@
 part of '../starter_stats.dart';
 
+// ignore_for_file: type=lint
+
 const starterStatsScreenRef = NeutralFlowScreenRef(
   id: 'starter_stats',
   artifactPath: 'starter_stats.rfw',

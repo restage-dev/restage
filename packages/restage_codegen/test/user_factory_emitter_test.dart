@@ -154,6 +154,11 @@ void main() {
       ]);
       expect(src, isNotNull);
       expect(src, contains('GENERATED CODE - DO NOT MODIFY BY HAND'));
+      expect(src, contains('// ignore_for_file: type=lint'));
+      expect(
+        emitEmptyUserFactoriesDart(),
+        contains('// ignore_for_file: type=lint'),
+      );
       expect(src, contains('public unnamed generative constructors'));
       expect(src, isNot(contains('@RestageProperty annotations')));
       expect(src, isNot(contains('edit the @RestageWidget /')));

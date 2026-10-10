@@ -10,27 +10,48 @@ const lumenCancelReason = FlowStateRef<String>(
   classification: FlowStateClassification.exportable,
 );
 
-/// A two-screen exit survey: one captured answer, then an acknowledgement.
-///
-/// Every reason card fires the same event with its own value, so the capture
-/// records the chosen answer without forking the graph. The answer reaches the
-/// host twice — as the terminal result and as the survey answer payload.
-/// Skipping completes the survey with no answer captured.
+/// The optional note the user types, returned with the result only.
+const lumenCancelNote = FlowStateRef<String>(
+  'note',
+  classification: FlowStateClassification.exportable,
+);
+
+/// Exit survey with a measured answer and an optional unmeasured note.
+/// Both reach the terminal result. Skipping completes without a captured answer.
 @FlowGraph(id: 'lumen_cancel', surface: Surface.survey)
 const lumenCancel = FlowDefinition(
   start: LumenCancelReasonScreen,
-  state: [lumenCancelReason],
+  state: [lumenCancelReason, lumenCancelNote],
   transitions: [
     Transition(
       LumenCancelReasonScreen.reason,
       capture: lumenCancelReason,
-      to: LumenCancelThanksScreen,
+      to: LumenCancelNoteScreen,
     ),
     Transition.complete(LumenCancelReasonScreen.skip),
+    Transition(
+      LumenCancelNoteScreen.send,
+      capture: lumenCancelNote,
+      to: LumenCancelThanksScreen,
+    ),
+    Transition(LumenCancelNoteScreen.skip, to: LumenCancelThanksScreen),
     Transition.complete(LumenCancelThanksScreen.finish),
   ],
   outbound: FlowOutboundPolicy(
-    terminalResult: {'reason': lumenCancelReason},
+    terminalResult: {'reason': lumenCancelReason, 'note': lumenCancelNote},
     surveyAnswers: {'reason': lumenCancelReason},
+    measurementAnswers: {
+      'reason': FlowAnswerMeasurement.category(
+        outcomeKey: 'survey.cancel_reason',
+        propertyName: 'reason',
+        categoryLabels: {
+          'too_expensive': 'It costs too much',
+          'not_used_enough': 'I did not use it enough',
+          'found_better': 'I found something better',
+          'content_not_for_me': 'The content was not for me',
+          'something_else': 'Something else',
+        },
+      ),
+    },
   ),
 );

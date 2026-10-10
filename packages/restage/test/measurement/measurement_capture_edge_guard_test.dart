@@ -177,7 +177,10 @@ void main() {
     expect(end, greaterThan(start));
     final callbackEdge = source.substring(start, end);
     expect(callbackEdge, contains('_routesByCarrier[rawCarrier]'));
-    expect(callbackEdge, contains('appendInteractionIdentity(route.identity)'));
+    expect(
+      callbackEdge,
+      contains('appendInteractionIdentity(route.identity, item: item)'),
+    );
     for (final prohibited in <String>[
       'resolveOpaqueRoute',
       'MeasurementPublicationRouteCarrierV1',

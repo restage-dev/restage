@@ -32,8 +32,10 @@ final class RenderCompletionTracker {
   void completeSuccess(
     int epoch, {
     Map<String, Rect> geometry = const <String, Rect>{},
+    Map<String, List<GeometryInstance>>? instances,
   }) {
-    _pending.remove(epoch)?.complete(BundleRenderResult(geometry: geometry));
+    _pending.remove(epoch)?.complete(
+        BundleRenderResult(geometry: geometry, instances: instances));
   }
 
   /// Completes [epoch] with a controlled render failure when still pending.

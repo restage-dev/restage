@@ -1,10 +1,12 @@
 part of '../lumen_goal.dart';
 
+// ignore_for_file: type=lint
+
 const lumenGoalScreenRef = NeutralFlowScreenRef(
   id: 'lumen_goal',
   artifactPath: 'lumen_goal.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use lumenGoalScreenRef')

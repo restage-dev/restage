@@ -57,7 +57,7 @@ void main() {
       environment: RestageEnvironment.sandbox,
     );
     expect(Restage.debugApiKey, 'rs_pk_test');
-    expect(Restage.debugEnvironment, RestageEnvironment.sandbox);
+    expect(Restage.configuredEnvironment, RestageEnvironment.sandbox);
   });
 
   test('commerce is stable across runtime resets', () {

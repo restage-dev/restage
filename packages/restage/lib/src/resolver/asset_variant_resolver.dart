@@ -9,6 +9,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfacePublicationArtifactRole,
         kPaywallScreensAssetDir;
 
+import '../delivery/surface_sections_carrier.dart';
 import '../assets/bundled_asset_source.dart';
 import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_resolver.dart';
@@ -94,11 +95,14 @@ final class AssetVariantResolver
       );
       return FlowPaywallPayload(
         flow: attachMeasurementBundledGeneratedArtifactClosureCarrier(
-          ResolvedFlow(
-            document: artifacts.document,
-            screenBlobs: artifacts.screenBlobs,
-            contentHash: artifacts.documentHash,
-            cacheHit: false,
+          attachSurfaceSections(
+            ResolvedFlow(
+              document: artifacts.document,
+              screenBlobs: artifacts.screenBlobs,
+              contentHash: artifacts.documentHash,
+              cacheHit: false,
+            ),
+            artifacts.sections,
           ),
           bundledMeasurementGeneratedArtifactClosureForFlowArtifacts(artifacts),
         ),
@@ -130,11 +134,15 @@ final class AssetVariantResolver
         data.offsetInBytes,
         data.lengthInBytes,
       );
+      final sections = await loadLocalSeedSidecar(_effectiveBundle, path);
       return await attachMeasurementBundledGeneratedArtifactClosureCarrier(
-        ResolvedVariant(
-          bytes: bytes,
-          paywallId: id,
-          surfaceVersion: FlowContentHash.compute(bytes).value,
+        attachSurfaceSections(
+          ResolvedVariant(
+            bytes: bytes,
+            paywallId: id,
+            surfaceVersion: FlowContentHash.compute(bytes).value,
+          ),
+          sections,
         ),
         MeasurementBundledGeneratedArtifactClosureCarrier(
           artifacts: <MeasurementBundledGeneratedArtifact>[

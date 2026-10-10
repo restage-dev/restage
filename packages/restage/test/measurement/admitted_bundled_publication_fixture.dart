@@ -14,7 +14,24 @@ final class AdmittedBundledPublicationFixture {
   /// The one authored screen mounted under the fixture's root.
   static const childScreenId = 'child_screen';
 
-  factory AdmittedBundledPublicationFixture.build() {
+  /// With [completingTap], the child route is a tap that completes the
+  /// surface. With [lifecycleEnds], the root also declares completion and
+  /// dismiss routes. [artifact] replaces the default artifact bytes.
+  /// [extraArtifacts] adds declared publication artifacts beside the root
+  /// blob, each also present in the verified bundle.
+  factory AdmittedBundledPublicationFixture.build({
+    bool completingTap = false,
+    bool lifecycleEnds = false,
+    List<int> artifact = artifactBytes,
+    List<
+            ({
+              String path,
+              SurfacePublicationArtifactRole role,
+              String? id,
+              List<int> bytes,
+            })>
+        extraArtifacts = const [],
+  }) {
     final target = TargetCoordinate(
       organizationId: OrganizationId(101),
       appId: ApplicationId(202),
@@ -27,7 +44,7 @@ final class AdmittedBundledPublicationFixture {
         SurfaceRevisionId('$kMintedSurfaceRevisionIdPrefix${'b' * 64}');
     final artifactId = ArtifactId('artifact.bundled-root');
     final artifactContentHash =
-        CanonicalDigest(crypto.sha256.convert(artifactBytes).toString());
+        CanonicalDigest(crypto.sha256.convert(artifact).toString());
     final artifactIdentity = PublishedArtifactIdentityV1(
       surfaceRevisionId: surfaceRevisionId,
       artifactId: artifactId,
@@ -81,6 +98,17 @@ final class AdmittedBundledPublicationFixture {
       lineageId: 'lineage.bundled-right',
       displayRef: 'display.bundled-right',
     );
+    final endOccurrences = [
+      if (lifecycleEnds)
+        for (final end in ['complete', 'dismiss'])
+          occurrence(
+            nodeToken: 'node.bundled-$end',
+            lineageId: 'lineage.bundled-$end',
+            displayRef: 'display.bundled-$end',
+          ),
+    ];
+    String endName(MeasurementPointOccurrenceV1 point) =>
+        point.lineageId.value.split('-').last;
     final localManifest = LocalMeasurementManifestV1(
       manifestId: MeasurementManifestId('manifest.bundled-local'),
       target: target,
@@ -89,7 +117,7 @@ final class AdmittedBundledPublicationFixture {
       artifactId: artifactId,
       artifactContentHash: artifactContentHash,
       childArtifactIds: const [],
-      points: [leftOccurrence, rightOccurrence],
+      points: [leftOccurrence, rightOccurrence, ...endOccurrences],
       generatedReferences: [
         GeneratedPointReferenceV1(
           referenceId: GeneratedReferenceId('reference.bundled-left'),
@@ -111,6 +139,18 @@ final class AdmittedBundledPublicationFixture {
           sourceEventIdentity: rightOccurrence.sourceEventIdentity!,
           dartSymbol: GeneratedDartSymbol('rightOnPressed'),
         ),
+        for (final point in endOccurrences)
+          GeneratedPointReferenceV1(
+            referenceId:
+                GeneratedReferenceId('reference.bundled-${endName(point)}'),
+            target: target,
+            surfaceRevisionId: surfaceRevisionId,
+            artifactGraphHash: graph.canonicalDigest,
+            occurrenceId: point.occurrenceId,
+            lineageId: point.lineageId,
+            sourceEventIdentity: point.sourceEventIdentity!,
+            dartSymbol: GeneratedDartSymbol('${endName(point)}OnPressed'),
+          ),
       ],
       generatedPresentationReferences: const [],
       privacyPolicyRevisionId: AuthorityRevisionId('privacy.fixture.v1'),
@@ -139,6 +179,14 @@ final class AdmittedBundledPublicationFixture {
         directParentEdges: [
           CanonicalNodeParentEdgeV1(node: leftNode),
           CanonicalNodeParentEdgeV1(node: rightNode, parent: leftNode),
+          for (final point in endOccurrences)
+            CanonicalNodeParentEdgeV1(
+              node: AncestryNodeRefV1(
+                artifactOccurrenceEdgeToken: rootEdgeToken,
+                canonicalNodeToken: point.canonicalNodeToken,
+              ),
+              parent: leftNode,
+            ),
         ],
       ),
       privacyPolicyRevisionId: AuthorityRevisionId('privacy.fixture.v1'),
@@ -199,6 +247,11 @@ final class AdmittedBundledPublicationFixture {
           codeIdentityId: CodeIdentityId('code.bundled-right'),
           canonicalNodeTokenId: rightOccurrence.canonicalNodeToken,
         ),
+        for (final point in endOccurrences)
+          CodeIdentityBindingV1(
+            codeIdentityId: CodeIdentityId('code.bundled-${endName(point)}'),
+            canonicalNodeTokenId: point.canonicalNodeToken,
+          ),
       ],
       nodes: [
         MeasurementPublicationDraftNodeV1(
@@ -210,6 +263,12 @@ final class AdmittedBundledPublicationFixture {
           artifactOccurrenceEdgeToken: rootEdgeToken,
           parentCodeIdentityId: CodeIdentityId('code.bundled-left'),
         ),
+        for (final point in endOccurrences)
+          MeasurementPublicationDraftNodeV1(
+            codeIdentityId: CodeIdentityId('code.bundled-${endName(point)}'),
+            artifactOccurrenceEdgeToken: rootEdgeToken,
+            parentCodeIdentityId: CodeIdentityId('code.bundled-left'),
+          ),
       ],
       events: [
         MeasurementPublicationDraftEventV1(
@@ -236,6 +295,21 @@ final class AdmittedBundledPublicationFixture {
           semanticValueClass: SemanticValueClass.activityOnly,
           collectionClass: MeasurementCollectionClass.tier1KeepAll,
         ),
+        for (final point in endOccurrences)
+          MeasurementPublicationDraftEventV1(
+            nodeCodeIdentityId:
+                CodeIdentityId('code.bundled-${endName(point)}'),
+            sourceEventIdentity: point.sourceEventIdentity!,
+            lineageId: point.lineageId,
+            generatedReferenceId:
+                GeneratedReferenceId('reference.bundled-${endName(point)}'),
+            dartSymbol: GeneratedDartSymbol('${endName(point)}OnPressed'),
+            displayMetadataRef: point.displayMetadataRef,
+            normalizedInteractionKind: NormalizedInteractionKind.activate,
+            privacyClass: MeasurementPrivacyClass.nonSensitive,
+            semanticValueClass: SemanticValueClass.activityOnly,
+            collectionClass: MeasurementCollectionClass.tier1KeepAll,
+          ),
       ],
       routeSeeds: [
         MeasurementPublicationDraftRouteSeedV1(
@@ -246,6 +320,12 @@ final class AdmittedBundledPublicationFixture {
           generatedReferenceId: GeneratedReferenceId('reference.bundled-right'),
           artifactOccurrenceEdgeToken: rootEdgeToken,
         ),
+        for (final point in endOccurrences)
+          MeasurementPublicationDraftRouteSeedV1(
+            generatedReferenceId:
+                GeneratedReferenceId('reference.bundled-${endName(point)}'),
+            artifactOccurrenceEdgeToken: rootEdgeToken,
+          ),
       ],
       presentations: const [],
       presentationRouteSeeds: const [],
@@ -274,6 +354,20 @@ final class AdmittedBundledPublicationFixture {
             ),
           ],
         ),
+        for (final point in endOccurrences)
+          MeasurementPublicationLineageIntentV1(
+            transitionId: LineageTransitionId(
+                'transition.bundled-draft-${endName(point)}'),
+            operation: LineageOperation.create,
+            authority: LineageTransitionAuthority.exactToken,
+            next: [
+              MeasurementPublicationCurrentEndpointIntentV1(
+                generatedReferenceId:
+                    GeneratedReferenceId('reference.bundled-${endName(point)}'),
+                lineageId: point.lineageId,
+              ),
+            ],
+          ),
       ],
     );
     final publicationDraft = MeasurementPublicationDraftV1(
@@ -281,31 +375,58 @@ final class AdmittedBundledPublicationFixture {
       artifacts: publicationArtifacts,
     );
 
-    final tuple = MeasurementPublicationCandidateArtifactTupleV1(
-      canonicalTupleBytes: CanonicalJsonCodec.encode({
-        'byteLength': artifactBytes.length,
-        'id': 'fixture-artifact',
-        'kind': 'restageSurfacePublicationDeclaredArtifactTuple',
-        'path': 'screen.rfw',
-        'role': SurfacePublicationArtifactRole.screenBlob.wireName,
-        'schemaVersion': 1,
-        'sha256': crypto.sha256.convert(artifactBytes).toString(),
-      }),
-    );
+    MeasurementPublicationCandidateArtifactTupleV1 tupleOf({
+      required String path,
+      required SurfacePublicationArtifactRole role,
+      required String? id,
+      required List<int> bytes,
+    }) =>
+        MeasurementPublicationCandidateArtifactTupleV1(
+          canonicalTupleBytes: CanonicalJsonCodec.encode({
+            'byteLength': bytes.length,
+            if (id != null) 'id': id,
+            'kind': 'restageSurfacePublicationDeclaredArtifactTuple',
+            'path': path,
+            'role': role.wireName,
+            'schemaVersion': 1,
+            'sha256': crypto.sha256.convert(bytes).toString(),
+          }),
+        );
+    final tuples = [
+      tupleOf(
+        path: 'screen.rfw',
+        role: SurfacePublicationArtifactRole.screenBlob,
+        id: 'fixture-artifact',
+        bytes: artifact,
+      ),
+      for (final extra in extraArtifacts)
+        tupleOf(
+          path: extra.path,
+          role: extra.role,
+          id: extra.id,
+          bytes: extra.bytes,
+        ),
+    ]..sort(
+        (left, right) =>
+            _compareBytes(left.canonicalTupleBytes, right.canonicalTupleBytes),
+      );
     final preimage = BytesBuilder(copy: false)
       ..add(utf8.encode(
           'restage-surface-publication-declared-artifact-bytes-v1\u0000'))
       ..add(CanonicalJsonCodec.encode({
         'kind': 'restageSurfacePublicationDeclaredArtifactBytes',
         'schemaVersion': 1,
-        'tuples': [CanonicalJsonCodec.decode(tuple.canonicalTupleBytes)],
+        'tuples': [
+          for (final tuple in tuples)
+            CanonicalJsonCodec.decode(tuple.canonicalTupleBytes),
+        ],
       }));
     final proof = MeasurementPublicationCandidateProofV1(
       selectedPublicationManifestCanonicalBytes: CanonicalJsonCodec.encode({
         'kind': 'fixtureSelectedManifest',
         'schemaVersion': 1,
       }),
-      declaredArtifactTuples: [tuple],
+      declaredArtifactTuples: tuples,
       declaredArtifactBytesDigest: CanonicalDigest(
         crypto.sha256.convert(preimage.takeBytes()).toString(),
       ),
@@ -315,8 +436,11 @@ final class AdmittedBundledPublicationFixture {
       }),
       measurementPublicationDraft: publicationDraft,
     );
-    String carrier(bool left) =>
-        'mrv1.${base64UrlEncode(utf8.encode(rootEdgeToken.value)).replaceAll('=', '')}.${(left ? 'A' : 'B') * 32}';
+    String carrierOf(String letter) =>
+        'mrv1.${base64UrlEncode(utf8.encode(rootEdgeToken.value)).replaceAll('=', '')}.${letter * 32}';
+    String carrier(bool left) => carrierOf(left ? 'A' : 'B');
+    String letterOf(MeasurementPointOccurrenceV1 point) =>
+        endName(point) == 'complete' ? 'C' : 'D';
     // The root's own presentation and one child screen's, so a test can drive a
     // child screen under a mounted root.
     final orderedCapture = MeasurementOrderedCaptureV1(routes: [
@@ -329,22 +453,50 @@ final class AdmittedBundledPublicationFixture {
           channel: MeasurementOccurrenceChannelV1.presentation,
         ),
       ),
-      MeasurementOrderedCaptureRouteV1(
-        occurrenceId: rightOccurrence.occurrenceId,
-        lineageId: rightOccurrence.lineageId,
-        channels: const [MeasurementOccurrenceChannelV1.presentation],
-        breakdownPointV1: MeasurementBreakdownPointV1(
-          kindV1: MeasurementBreakdownPointKindV1.pageIndex,
-          reference: childScreenId,
-          label: childScreenId,
-          authoredOrder: 0,
+      if (completingTap)
+        MeasurementOrderedCaptureRouteV1(
+          occurrenceId: rightOccurrence.occurrenceId,
+          lineageId: rightOccurrence.lineageId,
+          channels: const [
+            MeasurementOccurrenceChannelV1.presentation,
+            MeasurementOccurrenceChannelV1.interaction,
+          ],
+          completesSurfaceV1: true,
+        )
+      else
+        MeasurementOrderedCaptureRouteV1(
+          occurrenceId: rightOccurrence.occurrenceId,
+          lineageId: rightOccurrence.lineageId,
+          channels: const [MeasurementOccurrenceChannelV1.presentation],
+          breakdownPointV1: MeasurementBreakdownPointV1(
+            kindV1: MeasurementBreakdownPointKindV1.pageIndex,
+            reference: childScreenId,
+            label: childScreenId,
+            authoredOrder: 0,
+          ),
+          lifecycle: MeasurementLifecycleCaptureRouteV1(
+            carrier: carrier(false),
+            channel: MeasurementOccurrenceChannelV1.presentation,
+            screenId: childScreenId,
+          ),
         ),
-        lifecycle: MeasurementLifecycleCaptureRouteV1(
-          carrier: carrier(false),
-          channel: MeasurementOccurrenceChannelV1.presentation,
-          screenId: childScreenId,
+      for (final point in endOccurrences)
+        MeasurementOrderedCaptureRouteV1(
+          occurrenceId: point.occurrenceId,
+          lineageId: point.lineageId,
+          channels: [
+            MeasurementOccurrenceChannelV1.presentation,
+            endName(point) == 'complete'
+                ? MeasurementOccurrenceChannelV1.completion
+                : MeasurementOccurrenceChannelV1.dismiss,
+          ],
+          lifecycle: MeasurementLifecycleCaptureRouteV1(
+            carrier: carrierOf(letterOf(point)),
+            channel: endName(point) == 'complete'
+                ? MeasurementOccurrenceChannelV1.completion
+                : MeasurementOccurrenceChannelV1.dismiss,
+          ),
         ),
-      ),
     ]);
     final binding = MeasurementPublicationBindingV1(
       orderedCaptureV1: orderedCapture,
@@ -369,11 +521,19 @@ final class AdmittedBundledPublicationFixture {
         MeasurementPublicationMountedArtifactRoutesV1(
           artifactOccurrenceEdgeToken: rootEdgeToken,
           routes: [
-            for (final point in [leftOccurrence, rightOccurrence])
+            for (final point in [
+              leftOccurrence,
+              rightOccurrence,
+              ...endOccurrences
+            ])
               MeasurementPublicationRouteV1(
                 opaqueRouteToken:
                     OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
-                  'mrv1.${base64UrlEncode(utf8.encode(rootEdgeToken.value)).replaceAll('=', '')}.${(point == leftOccurrence ? 'A' : 'B') * 32}',
+                  carrierOf(point == leftOccurrence
+                      ? 'A'
+                      : point == rightOccurrence
+                          ? 'B'
+                          : letterOf(point)),
                 ),
                 occurrenceId: point.occurrenceId,
                 lineageId: point.lineageId,
@@ -417,8 +577,14 @@ final class AdmittedBundledPublicationFixture {
               RestageBundleEntry(
                 logicalPath: 'screen.rfw',
                 role: RestageBundleEntryRole.screenBlob,
-                bytes: artifactBytes,
-              )
+                bytes: artifact,
+              ),
+              for (final extra in extraArtifacts)
+                RestageBundleEntry(
+                  logicalPath: extra.path,
+                  role: RestageBundleEntryRole.fromManifestRole(extra.role),
+                  bytes: extra.bytes,
+                ),
             ],
           )
         ],
@@ -439,4 +605,13 @@ final class AdmittedBundledPublicationFixture {
         measurementManifestHash:
             binding.completeMeasurementManifest.canonicalDigest,
       );
+}
+
+int _compareBytes(List<int> left, List<int> right) {
+  final length = left.length < right.length ? left.length : right.length;
+  for (var index = 0; index < length; index += 1) {
+    final difference = left[index] - right[index];
+    if (difference != 0) return difference;
+  }
+  return left.length - right.length;
 }

@@ -158,50 +158,27 @@ void main() {
     );
   });
 
-  test('a callback in a collection-for body refuses before event lowering',
+  test('a callback in a collection-for body lowers once per iteration',
       () async {
-    const source = '''
-void Function() paywallEvent(String name) => () {};
+    final expression = await parseExpressionFromSourceForTest('''
+      void Function() paywallEvent(String name) => () {};
 
-Object x() => Column(
-  children: [
-    for (final name in const ['first', 'second'])
-      GestureDetector(
-        child: Text(text: name),
-        onTap: paywallEvent(name),
-      ),
-  ],
-);''';
-    final expression = await parseExpressionFromSourceForTest(source);
+      Object x() => Column(
+        children: [
+          for (final name in const ['first', 'second'])
+            GestureDetector(
+              child: Text(text: name),
+              onTap: paywallEvent(name),
+            ),
+        ],
+      );
+    ''');
     final helpers = HelperRegistry()..registerAll([_eventHelper]);
-    final result = _widgetTranslator(helpers).translate(
-      expression,
-      sourcePath: 'lib/collection_callback_location.dart',
-      lineInfo: LineInfo.fromContent(source),
-    );
+    final result = _widgetTranslator(helpers).translate(expression);
 
-    expect(result.issues, hasLength(1));
-    final issue = result.issues.single;
-    expect(issue.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      issue.message,
-      allOf(
-        contains('is unsupported'),
-        contains('bind the list to host-supplied data where supported'),
-      ),
-    );
-    expect(
-      issue.location,
-      startsWith('lib/collection_callback_location.dart:5:'),
-    );
-    expect(
-      issue.location,
-      isNot(startsWith('lib/collection_callback_location.dart:4:')),
-    );
-    expect(result.dsl, 'Column(children: [])');
-    expect(result.dsl, isNot(contains('event "first"')));
-    expect(result.dsl, isNot(contains('event "second"')));
-    expect(result.dsl, isNot(contains('GestureDetector')));
+    expect(result.issues, isEmpty);
+    expect(result.dsl, contains('event "first"'));
+    expect(result.dsl, contains('event "second"'));
   });
 
   test('a constant-false collection branch skips callback inspection',
@@ -251,8 +228,7 @@ Object x() => Column(
     expect(result.dsl, isNot(contains('event ')));
   });
 
-  test('a constant-true collection branch refuses a repeated callback',
-      () async {
+  test('a constant-true collection branch repeats its callback', () async {
     final expression = await parseExpressionFromSourceForTest('''
       void Function() paywallEvent(String name) => () {};
 
@@ -270,17 +246,12 @@ Object x() => Column(
     final helpers = HelperRegistry()..registerAll([_eventHelper]);
     final result = _widgetTranslator(helpers).translate(expression);
 
-    expect(result.dsl, 'Column(children: [])');
-    expect(result.dsl, isNot(contains('event ')));
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      result.issues.single.message,
-      contains('share one callback identity'),
-    );
+    expect(result.issues, isEmpty);
+    expect(result.dsl, contains('event "first"'));
+    expect(result.dsl, contains('event "second"'));
   });
 
-  test('a loop-bound true branch refuses a repeated callback', () async {
+  test('a loop-bound true branch repeats its callback', () async {
     final expression = await parseExpressionFromSourceForTest('''
       void Function() paywallEvent(String name) => () {};
 
@@ -298,14 +269,8 @@ Object x() => Column(
     final helpers = HelperRegistry()..registerAll([_eventHelper]);
     final result = _widgetTranslator(helpers).translate(expression);
 
-    expect(result.dsl, 'Column(children: [])');
-    expect(result.dsl, isNot(contains('event ')));
-    expect(result.issues, hasLength(1));
-    expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(
-      result.issues.single.message,
-      contains('share one callback identity'),
-    );
+    expect(result.issues, isEmpty);
+    expect('event "tap"'.allMatches(result.dsl), hasLength(2));
   });
 
   test('a hand-unrolled callback body still lowers', () async {
@@ -1294,8 +1259,7 @@ class Probe extends Widget {
     expect(traversal.entries, everyElement(isA<CollectionListElement>()));
   });
 
-  test('a callback behind a local alias refuses before repeated emission',
-      () async {
+  test('a callback behind a local alias repeats per iteration', () async {
     final result = await _translateInlinedProbe('''
   Widget build(BuildContext context) {
     final tile = GestureDetector(
@@ -1308,11 +1272,10 @@ class Probe extends Widget {
   }
 ''');
 
-    _expectCallbackRefusal(result);
+    _expectRepeatedCallback(result);
   });
 
-  test('a callback in a loop-bound widget refuses before repeated emission',
-      () async {
+  test('a callback in a loop-bound widget repeats per iteration', () async {
     final result = await _translateInlinedProbe('''
   Widget build(BuildContext context) {
     final tile = GestureDetector(
@@ -1325,11 +1288,10 @@ class Probe extends Widget {
   }
 ''');
 
-    _expectCallbackRefusal(result);
+    _expectRepeatedCallback(result);
   });
 
-  test('a callback in an inlined helper body refuses before repetition',
-      () async {
+  test('a callback in an inlined helper body repeats per iteration', () async {
     final result = await _translateInlinedProbe('''
   Widget tile(String name) => GestureDetector(
     child: Text(text: name),
@@ -1343,11 +1305,43 @@ class Probe extends Widget {
   );
 ''');
 
-    _expectCallbackRefusal(result);
+    _expectRepeatedCallback(result);
   });
 
-  test('a helper body containing a callback refuses repeated emission',
-      () async {
+  for (final (order, children) in [
+    (
+      'loop first',
+      "for (final name in const ['first', 'second']) tile(name), "
+          "tile('third'),",
+    ),
+    (
+      'loop last',
+      "tile('third'), "
+          "for (final name in const ['first', 'second']) tile(name),",
+    ),
+  ]) {
+    test(
+        'a callback reused inside and outside a static loop refuses '
+        '($order)', () async {
+      final result = await _translateInlinedProbe('''
+  Widget tile(String name) => GestureDetector(
+    child: Text(text: name),
+    onTap: paywallEvent(name),
+  );
+
+  Widget build(BuildContext context) => Column(
+    children: [$children],
+  );
+''');
+
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.unsupportedCollectionFlow),
+      );
+    });
+  }
+
+  test('a helper body containing a callback repeats per iteration', () async {
     final expression = await parseExpressionFromSourceForTest('''
       Object x() => [for (final index in const [0, 1]) tile(index)];
     ''');
@@ -1365,14 +1359,12 @@ class Probe extends Widget {
       semantics: semantics,
     );
 
-    expect(result, isA<CollectionUnrollRefused>());
-    expect(
-      (result as CollectionUnrollRefused).reason,
-      CollectionUnrollRefusal.callbackInRepeatedBody,
-    );
+    expect(result, isA<CollectionUnrollExpansion>());
+    expect((result as CollectionUnrollExpansion).occurrences, hasLength(2));
   });
 
-  test('a callback behind an inlined helper parameter refuses', () async {
+  test('a callback behind an inlined helper parameter repeats per iteration',
+      () async {
     final result = await _translateInlinedProbe('''
   Widget identity(Widget child) => child;
 
@@ -1389,10 +1381,10 @@ class Probe extends Widget {
   }
 ''');
 
-    _expectCallbackRefusal(result);
+    _expectRepeatedCallback(result);
   });
 
-  test('a callback behind a const source refuses before repetition', () async {
+  test('a callback behind a const source repeats per iteration', () async {
     final result = await _translateInlinedProbe('''
   static void handleTap() {}
   static const tile = GestureDetector(
@@ -1405,10 +1397,10 @@ class Probe extends Widget {
   );
 ''');
 
-    _expectCallbackRefusal(result);
+    _expectNoCollectionRefusal(result);
   });
 
-  test('a callback behind a nested const source refuses before repetition',
+  test('a callback behind a nested const source repeats per iteration',
       () async {
     final result = await _translateInlinedProbe('''
   static void handleTap() {}
@@ -1424,7 +1416,7 @@ class Probe extends Widget {
   );
 ''');
 
-    _expectCallbackRefusal(result);
+    _expectNoCollectionRefusal(result);
   });
 
   test('semantic callback resolution terminates through a binding cycle',
@@ -1446,11 +1438,8 @@ class Probe extends Widget {
       semantics: semantics,
     );
 
-    expect(result, isA<CollectionUnrollRefused>());
-    expect(
-      (result as CollectionUnrollRefused).reason,
-      CollectionUnrollRefusal.callbackInRepeatedBody,
-    );
+    expect(result, isA<CollectionUnrollExpansion>());
+    expect((result as CollectionUnrollExpansion).occurrences, hasLength(2));
   });
 
   test('numeric-list refusal follows a leading local alias', () async {
@@ -2923,12 +2912,20 @@ $members
   ];
 }
 
-void _expectCallbackRefusal(TranslationResult result) {
-  expect(result.issues, hasLength(1));
-  expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-  expect(result.issues.single.message, contains('share one callback identity'));
-  expect(result.widgetDefinitions['Probe'], 'Column(children: [])');
-  expect(result.widgetDefinitions['Probe'], isNot(contains('event "tap"')));
+// The tear-off itself does not lower in this probe; the loop is admitted.
+void _expectNoCollectionRefusal(TranslationResult result) {
+  expect(
+    result.issues.map((issue) => issue.code),
+    isNot(contains(IssueCode.unsupportedCollectionFlow)),
+  );
+}
+
+void _expectRepeatedCallback(TranslationResult result) {
+  expect(result.issues, isEmpty);
+  expect(
+    'GestureDetector('.allMatches(result.widgetDefinitions['Probe']!),
+    hasLength(2),
+  );
 }
 
 void _expectShadowedLoopOutput(String dsl) {

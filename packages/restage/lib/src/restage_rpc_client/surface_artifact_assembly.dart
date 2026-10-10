@@ -40,6 +40,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/delivered_fonts.dart';
+
 /// What the artifact half of one delivery produced.
 @internal
 sealed class SurfaceArtifactOutcome {
@@ -104,7 +106,10 @@ enum SurfaceArtifactFetchFailure {
   status('status'),
 
   /// Bytes arrived and are not the ones the description named.
-  contentHashMismatch('content_hash_mismatch');
+  contentHashMismatch('content_hash_mismatch'),
+
+  /// An icon font delivered with the surface could not be loaded.
+  iconFontLoad('icon_font_load');
 
   const SurfaceArtifactFetchFailure(this.wireName);
 
@@ -152,6 +157,9 @@ SurfaceArtifactOutcome assembleSurfaceArtifact({
       requireRequiredLibraries: surfaceArtifactFrameRequiresManifest(
         descriptor.payloadFormatVersion,
       ),
+      allowSections: surfaceArtifactFrameAllowsSections(
+        descriptor.payloadFormatVersion,
+      ),
     );
   } on FormatException catch (error) {
     return SurfaceArtifactUndecodable(error);
@@ -195,4 +203,21 @@ SurfaceArtifactOutcome assembleSurfaceArtifact({
       FormatException('Invalid surface payload: ${error.message}'),
     );
   }
+}
+
+/// Loads the icon fonts an assembled [outcome] carries before it can mount.
+///
+/// A font that fails to load makes the surface unavailable, so the caller takes
+/// its fallback.
+@internal
+Future<SurfaceArtifactOutcome> loadSurfaceArtifactIconFonts(
+  SurfaceArtifactOutcome outcome,
+) async {
+  if (outcome is! SurfaceArtifactAssembled) return outcome;
+  final fonts = outcome.document.payload.iconFonts;
+  if (fonts.isEmpty) return outcome;
+  if (await DeliveredIconFontLoader.loadAll(fonts)) return outcome;
+  return const SurfaceArtifactUnavailable(
+    SurfaceArtifactFetchFailure.iconFontLoad,
+  );
 }

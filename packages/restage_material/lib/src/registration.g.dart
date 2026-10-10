@@ -402,14 +402,14 @@ Widget buildFloatingActionButton(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Icon` widget from [source].
 Widget buildIcon(BuildContext context, DataSource source) {
-  return Icon(
-    resolveInstalledIcon(
-        source.v<int>(const <Object>['iconCodepoint']) ??
-            (throw ArgumentError('Icon.iconCodepoint is required.')),
-        fontFamily: source.v<String>(const <Object>['iconFontFamily']) ??
-            'MaterialIcons',
-        matchTextDirection:
-            source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false),
+  return restageIcon(
+    context,
+    codePoint: source.v<int>(const <Object>['iconCodepoint']) ??
+        (throw ArgumentError('Icon.iconCodepoint is required.')),
+    fontFamily:
+        source.v<String>(const <Object>['iconFontFamily']) ?? 'MaterialIcons',
+    matchTextDirection:
+        source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false,
     size: RestageDecoders.constraintScalar(source, <Object>['size']) ??
         resolveThemeBinding(context, path: 'iconTheme.size') as double?,
     color: ArgumentDecoders.color(source, <Object>['color']) ??
@@ -811,6 +811,29 @@ Widget buildTab(BuildContext context, DataSource source) {
 /// Builds the catalog's `TextField` widget from [source].
 Widget buildTextField(BuildContext context, DataSource source) {
   return TextField(
+    decoration: InputDecoration(
+      hintText: source.v<String>(const <Object>['hintText']),
+      labelText: source.v<String>(const <Object>['labelText']),
+      helperText: source.v<String>(const <Object>['helperText']),
+      prefixIcon: source.v<int>(const <Object>['prefixIconCodepoint']) == null
+          ? null
+          : restageIcon(context,
+              codePoint: source.v<int>(const <Object>['prefixIconCodepoint'])!,
+              fontFamily:
+                  source.v<String>(const <Object>['prefixIconFontFamily']) ??
+                      'MaterialIcons',
+              matchTextDirection: source.v<bool>(
+                      const <Object>['prefixIconMatchTextDirection']) ??
+                  false),
+      border: switch (source.v<String>(const <Object>['border'])) {
+        'none' => InputBorder.none,
+        'underline' => const UnderlineInputBorder(),
+        'outline' => const OutlineInputBorder(),
+        _ => null
+      },
+    ),
+    textInputAction: RestageDecoders.enumByName<TextInputAction>(
+        TextInputAction.values, source, <Object>['textInputAction']),
     obscureText: source.v<bool>(const <Object>['obscureText']) ?? false,
     maxLines: source.v<int>(const <Object>['maxLines']) ?? 1,
     maxLength: source.v<int>(const <Object>['maxLength']),
@@ -821,6 +844,8 @@ Widget buildTextField(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
+    keyboardType:
+        RestageDecoders.textInputType(source, const <Object>['keyboardType']),
   );
 }
 

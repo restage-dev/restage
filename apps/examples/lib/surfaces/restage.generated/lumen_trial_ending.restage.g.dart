@@ -1,5 +1,7 @@
 part of '../lumen_trial_ending.dart';
 
+// ignore_for_file: type=lint
+
 sealed class LumenTrialEndingScreenEvent {
   const LumenTrialEndingScreenEvent();
 }
@@ -27,7 +29,7 @@ final _lumenTrialEndingScreenProvenance =
   slug: 'lumen_trial_ending',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 6,
+    builtInFloor: 9,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -51,7 +53,7 @@ final _lumenTrialEndingScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            'sha256:03b437be3cd0f286b415a2c6aceb1608b53a1b67af51f3c54d218c513a60ca7c',
+            'sha256:71fbdf23d1ab1e0d3e03ab3146543190d1d97a77576ce6c07801b4ddf2a65ccc',
       ),
     ],
   ),
@@ -90,7 +92,7 @@ final lumenTrialEndingScreenRef = SurfaceScreenRef<
   provenance: _lumenTrialEndingScreenProvenance,
   eventContract: _lumenTrialEndingScreenEvents,
   measurementPublicationDraftDigest:
-      '04ffa274048c29d76f022157d462a52f0c0ad73e7a011cbb09d9f323cc9866ae',
+      'f676e8ac5dca209f82cf5d2cc045f97a26938a007a9ebd3937614d193df8e33b',
 );
 
 LumenTrialEndingScreenEvent _decodeValidatedLumenTrialEndingScreenEvent(

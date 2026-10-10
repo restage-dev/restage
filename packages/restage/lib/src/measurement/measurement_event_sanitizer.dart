@@ -4,7 +4,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 const String _reservedMeasurementPrefix = '__restage_measurement_';
-const String _measurementRouteV1Key = '__restage_measurement_route_v1';
+const String _measurementRouteV1Key = kMeasurementPublicationRouteArgumentKeyV1;
+const String _measurementItemV1Key = kMeasurementPublicationItemArgumentKeyV1;
 const String _measurementRouteV1Prefix = 'mrv1.';
 
 /// Whether [name] is the measure-only tap event, which a host records and
@@ -44,6 +45,7 @@ final class MeasurementSanitizedEventValue {
     required this.businessValue,
     required this.carrierStatus,
     this.rawV1CarrierForResolution,
+    this.itemValueForResolution,
   });
 
   /// The event payload safe for ordinary SDK business processing.
@@ -54,6 +56,9 @@ final class MeasurementSanitizedEventValue {
 
   /// The raw exact V1 carrier, retained only for a future private resolver.
   final String? rawV1CarrierForResolution;
+
+  /// A portable item value sent beside an exact V1 carrier, else null.
+  final String? itemValueForResolution;
 }
 
 /// Removes Measurement's reserved top-level event namespace before host logic.
@@ -72,36 +77,43 @@ abstract final class MeasurementEventSanitizer {
     }
 
     final businessArguments = <String, Object?>{};
-    String? reservedKey;
-    Object? reservedValue;
-    var reservedKeyCount = 0;
+    Object? routeValue;
+    Object? itemValue;
+    var hasRoute = false;
+    var hasItem = false;
+    var hasOtherReservedKey = false;
     for (final entry in rawValue.entries) {
       final key = entry.key;
       if (key is String && key.startsWith(_reservedMeasurementPrefix)) {
-        reservedKeyCount += 1;
-        if (reservedKeyCount == 1) {
-          reservedKey = key;
-          reservedValue = entry.value;
+        if (key == _measurementRouteV1Key) {
+          hasRoute = true;
+          routeValue = entry.value;
+        } else if (key == _measurementItemV1Key) {
+          hasItem = true;
+          itemValue = entry.value;
+        } else {
+          hasOtherReservedKey = true;
         }
         continue;
       }
       businessArguments[key as String] = entry.value;
     }
 
-    if (reservedKeyCount == 0) {
+    if (!hasRoute && !hasItem && !hasOtherReservedKey) {
       return MeasurementSanitizedEventValue._(
         businessValue: businessArguments,
         carrierStatus: MeasurementEventCarrierStatus.noCarrier,
       );
     }
-    if (reservedKeyCount != 1 || reservedKey != _measurementRouteV1Key) {
+    // Only {route} or {route, item} is a carrier; an item never stands alone.
+    if (!hasRoute || hasOtherReservedKey) {
       return MeasurementSanitizedEventValue._(
         businessValue: businessArguments,
         carrierStatus:
             MeasurementEventCarrierStatus.unknownFutureOrMultipleReservedKeys,
       );
     }
-    if (reservedValue is! String || !_isExactV1Carrier(reservedValue)) {
+    if (routeValue is! String || !_isExactV1Carrier(routeValue)) {
       return MeasurementSanitizedEventValue._(
         businessValue: businessArguments,
         carrierStatus: MeasurementEventCarrierStatus.malformedOrWrongType,
@@ -110,7 +122,11 @@ abstract final class MeasurementEventSanitizer {
     return MeasurementSanitizedEventValue._(
       businessValue: businessArguments,
       carrierStatus: MeasurementEventCarrierStatus.exactV1Carrier,
-      rawV1CarrierForResolution: reservedValue,
+      rawV1CarrierForResolution: routeValue,
+      itemValueForResolution:
+          itemValue is String && measurementInteractionItemIsValidV1(itemValue)
+              ? itemValue
+              : null,
     );
   }
 
@@ -136,7 +152,7 @@ abstract final class MeasurementEventSanitizer {
     }
 
     try {
-      final edgeBytes = base64Url.decode(encodedEdge);
+      final edgeBytes = base64Url.decode(base64Url.normalize(encodedEdge));
       final edge = utf8.decode(edgeBytes);
       if (_unpaddedBase64Url(utf8.encode(edge)) != encodedEdge) return false;
       ArtifactOccurrenceEdgeToken(edge);

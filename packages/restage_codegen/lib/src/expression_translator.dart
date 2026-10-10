@@ -34,6 +34,7 @@ import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
 import 'package:restage_codegen/src/number_format_recognition.dart';
+import 'package:restage_codegen/src/paywall_completion.dart';
 import 'package:restage_codegen/src/preferred_heights.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
@@ -66,7 +67,10 @@ import 'package:restage_shared/restage_shared.dart'
         kThemeContractTextThemeFieldKinds,
         kThemeContractTextThemeStyles;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
-    show kMeasurementPublicationTapEventNameV1;
+    show
+        kHostListItemPositionKey,
+        kLocalValueSetEventName,
+        kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
     show
@@ -136,6 +140,15 @@ const Set<String> _kAsymmetricBorderRadiusCtors = {
 
 const String _kBorderRadiusCornerSentinel = kBorderRadiusCornerSentinel;
 
+const String _kInputDecorationText = 'inputDecorationText';
+const String _kInputDecorationPrefixIcon = 'inputDecorationPrefixIcon';
+const String _kInputDecorationPrefixIconFontFamily =
+    'inputDecorationPrefixIconFontFamily';
+const String _kInputDecorationPrefixIconMatchTextDirection =
+    'inputDecorationPrefixIconMatchTextDirection';
+const String _kInputBorderSynthetic = 'inputBorder';
+const String _kTextInputTypeSynthetic = 'textInputType';
+
 /// The `synthetic` strategy of the codepoint property an icon slot carries.
 const String _kIconDataSynthetic = 'iconData';
 
@@ -179,7 +192,12 @@ final class TranslationResult {
     Iterable<IconDataReference> iconReferences = const [],
     Iterable<fmt.RfwCatalogConstructorProvenance> rfwCatalogConstructorOrigins =
         const [],
+    Map<String, Object> localSeeds = const {},
+    this.usesLocalValues = false,
+    this.emitsInteractionItems = false,
+    this.completesSurface = false,
   })  : issues = List.unmodifiable(issues),
+        localSeeds = Map.unmodifiable(localSeeds),
         iconReferences = List.unmodifiable(iconReferences),
         widgetDefinitions = Map.unmodifiable(widgetDefinitions),
         widgetDefinitionStates = Map.unmodifiable(widgetDefinitionStates),
@@ -232,6 +250,23 @@ final class TranslationResult {
 
   /// Typed catalog origins for RFW calls emitted during this translation.
   final List<fmt.RfwCatalogConstructorProvenance> rfwCatalogConstructorOrigins;
+
+  /// Initial screen-local values, keyed by the value's name. Empty when the
+  /// surface writes no local value.
+  final Map<String, Object> localSeeds;
+
+  /// Whether a value callback writes a screen-local value.
+  final bool usesLocalValues;
+
+  /// Whether any measured tap carries an item identity.
+  final bool emitsInteractionItems;
+
+  /// Whether the paywall declares events that complete it.
+  final bool completesSurface;
+
+  /// Whether the surface needs the client floor for these features.
+  bool get requiresSurfaceFeatureFloor =>
+      usesLocalValues || emitsInteractionItems || completesSurface;
 
   /// Creates the closed typed input used to resolve emitted RFW calls.
   fmt.RfwCatalogOccurrenceResolutionInput rfwCatalogOccurrenceResolutionInput({
@@ -562,6 +597,12 @@ final class ExpressionTranslator {
   // Closure-wrapped event notices, reported only when the translation succeeds.
   List<Issue>? _currentEventClosureNotices;
 
+  // Whether this translation attached an item to a measured tap.
+  bool _currentEmitsInteractionItems = false;
+
+  // Root State fields written by value callbacks; read as `data.local.*`.
+  Set<String> _currentLocalFields = const {};
+
   // Lowered coalesce fallbacks discovered while translating a definition body,
   // keyed by classKey then property name: the value a call site that omits (or
   // passes explicit null) the property is completed with. Populated once per
@@ -739,11 +780,23 @@ final class ExpressionTranslator {
     _currentSourcePath = sourcePath;
     _currentLineInfo = lineInfo;
     _currentSourceUnit = expr.root;
+    final savedLocalFields = _currentLocalFields;
+    final localFields = rootState == null
+        ? const <String>{}
+        : _localValueFields(
+            expr,
+            rootInlined,
+            {for (final field in rootState) field.name},
+          );
+    _currentLocalFields = localFields;
     _walk = _walk.copyWith(
       argNames: const {},
       stateFields: rootState == null
           ? null
-          : {for (final field in rootState) field.name: field},
+          : {
+              for (final field in rootState)
+                if (!localFields.contains(field.name)) field.name: field,
+            },
       rootParams: {for (final p in rootParams) p.name: p},
       eventHandlers: rootEventHandlers,
       rootStateContext: rootState != null,
@@ -762,6 +815,7 @@ final class ExpressionTranslator {
     final widgetDefinitions = <String, String>{};
     final widgetDefinitionStates = <String, Map<String, String>>{};
     final rootWidgetState = <String, String>{};
+    final localSeeds = <String, Object>{};
     final definitionOwners = <String, String>{};
     final referencedCustomLibraries = <String>{};
     final iconReferences = IconReferenceCollector();
@@ -784,6 +838,9 @@ final class ExpressionTranslator {
     final savedEventClosureNotices = _currentEventClosureNotices;
     final eventClosureNotices = <Issue>[];
     _currentEventClosureNotices = eventClosureNotices;
+    final savedEmitsInteractionItems = _currentEmitsInteractionItems;
+    _currentEmitsInteractionItems = false;
+    var emitsInteractionItems = false;
     var dsl = '';
     var suppressed = false;
     NavigationLowering? navigationLowering;
@@ -813,8 +870,17 @@ final class ExpressionTranslator {
         if (rootState != null) {
           rootWidgetState.addAll({
             for (final field in rootState)
-              field.name: _stateInitialLiteral(field),
+              if (!localFields.contains(field.name))
+                field.name: _stateInitialLiteral(field),
           });
+          _collectLocalSeeds(
+            rootState,
+            rootEventHandlers,
+            localFields,
+            localSeeds,
+            issues,
+            expr,
+          );
         }
         if (modalSheet != null) {
           final flag = _mintModalSheetFlag(rootState);
@@ -881,6 +947,9 @@ final class ExpressionTranslator {
       _currentCustomWidgetFactoryRoutes = null;
       _forcedCustomWidgetFactoryRoutes = savedForcedCustomWidgetFactoryRoutes;
       _currentEventClosureNotices = savedEventClosureNotices;
+      emitsInteractionItems = _currentEmitsInteractionItems;
+      _currentEmitsInteractionItems = savedEmitsInteractionItems;
+      _currentLocalFields = savedLocalFields;
       // Clear the per-call source context so it never lingers past this call —
       // a helper invoked directly (not through `translate`) would otherwise
       // read a stale source path / line info from a previous translation.
@@ -908,6 +977,10 @@ final class ExpressionTranslator {
         rootWidgetState: rootWidgetState,
         referencedCustomLibraries: referencedCustomLibraries,
         iconReferences: iconReferences.references,
+        emitsInteractionItems: emitsInteractionItems,
+        completesSurface: _declaresCompletion(expr),
+        localSeeds: localSeeds,
+        usesLocalValues: localFields.isNotEmpty,
         rfwCatalogConstructorOrigins:
             rfwCatalogConstructorOrigins.values.toList()
               ..sort(
@@ -1373,6 +1446,9 @@ final class ExpressionTranslator {
         // non-null (we are inside a stateful walk) and the name being a
         // declared State field, so identifiers outside a stateful walk and
         // accidental name collisions outside that scope fall through.
+        if (_walk.rootStateContext && _currentLocalFields.contains(expr.name)) {
+          return 'data.local${_rfwPathPart(expr.name)}';
+        }
         final stateFields = _walk.stateFields;
         if (stateFields != null && stateFields.containsKey(expr.name)) {
           return 'state${_rfwPathPart(expr.name)}';
@@ -1913,7 +1989,15 @@ final class ExpressionTranslator {
       semantics: _collectionSemanticProbe(),
       session: _collectionSession,
     );
+    String? previousIteration;
     for (final entry in traversal.entries) {
+      final iteration = switch (entry) {
+        CollectionListElement(:final occurrence) =>
+          measurementStaticIterationKey(occurrence),
+        CollectionListRefusal() => null,
+      };
+      if (iteration != null && iteration == previousIteration) ordinal--;
+      previousIteration = iteration;
       switch (entry) {
         case CollectionListElement(:final occurrence):
           parts.add(
@@ -6784,6 +6868,22 @@ final class ExpressionTranslator {
       final name = a.name.lexeme;
       if (isDiscardedWidgetKeyArgument(a)) continue;
 
+      if (name == 'decoration' && _hasSynthetic(entry, _kInputDecorationText)) {
+        final lowered = _inputDecoration(entry, a.argumentExpression, issues);
+        if (lowered == null) return '';
+        emitted.addAll(lowered);
+        continue;
+      }
+      final keyboard = entry.properties.firstWhereOrNull(
+        (p) => p.name == name && p.synthetic == _kTextInputTypeSynthetic,
+      );
+      if (keyboard != null) {
+        final value = _textInputType(keyboard, a.argumentExpression, issues);
+        if (value == null) return '';
+        emitted.add('${_rfwMapKey(name)}: $value');
+        continue;
+      }
+
       // Structured-type decomposition. If this argument matches one of the
       // entry's native recipes, hoist mapped structured fields to flat
       // properties on the outer widget. Inner values route back through
@@ -6868,6 +6968,166 @@ final class ExpressionTranslator {
 
     return '${entry.name}(${emitted.join(', ')})';
   }
+
+  bool _hasSynthetic(WidgetEntry entry, String strategy) =>
+      entry.properties.any((p) => p.synthetic == strategy);
+
+  /// The flat properties an `InputDecoration` lowers to, or null after an
+  /// issue.
+  List<String>? _inputDecoration(
+    WidgetEntry entry,
+    Expression source,
+    List<Issue> issues,
+  ) {
+    final decoration = _stripParens(source);
+    if (decoration is! InstanceCreationExpression ||
+        decoration.constructorName.type.name.lexeme != 'InputDecoration' ||
+        decoration.constructorName.name != null) {
+      issues.add(_inputDecorationIssue('decoration', source));
+      return null;
+    }
+    final emitted = <String>[];
+    for (final argument in decoration.argumentList.arguments) {
+      if (argument is! NamedArgument) {
+        issues.add(_inputDecorationIssue('decoration', argument));
+        return null;
+      }
+      final name = argument.name.lexeme;
+      final value = argument.argumentExpression;
+      final text = entry.properties.firstWhereOrNull(
+        (p) => p.name == name && p.synthetic == _kInputDecorationText,
+      );
+      if (text != null) {
+        final before = issues.length;
+        final lowered =
+            _translateSlotValue(value, text.type, issues, property: text);
+        if (issues.length > before) return null;
+        emitted.add('${_rfwMapKey(name)}: $lowered');
+        continue;
+      }
+      if (name == 'border') {
+        final border = _inputBorderName(value);
+        final slot = entry.properties.firstWhereOrNull(
+          (p) => p.synthetic == _kInputBorderSynthetic,
+        );
+        if (border == null || slot == null) {
+          issues.add(_inputDecorationIssue('border', value));
+          return null;
+        }
+        emitted.add('${_rfwMapKey(slot.name)}: ${_stringLiteral(border)}');
+        continue;
+      }
+      if (name == 'prefixIcon') {
+        final prefix = _prefixIcon(entry, value, issues);
+        if (prefix == null) return null;
+        emitted.addAll(prefix);
+        continue;
+      }
+      issues.add(_inputDecorationIssue(name, argument));
+      return null;
+    }
+    return emitted;
+  }
+
+  // Bare `InputBorder.none`, `UnderlineInputBorder()` or
+  // `OutlineInputBorder()`.
+  String? _inputBorderName(Expression source) {
+    final border = _stripParens(source);
+    if (border is PrefixedIdentifier &&
+        border.prefix.name == 'InputBorder' &&
+        border.identifier.name == 'none') {
+      return 'none';
+    }
+    if (border is InstanceCreationExpression &&
+        border.constructorName.name == null &&
+        border.argumentList.arguments.isEmpty) {
+      return switch (border.constructorName.type.name.lexeme) {
+        'UnderlineInputBorder' => 'underline',
+        'OutlineInputBorder' => 'outline',
+        _ => null,
+      };
+    }
+    return null;
+  }
+
+  // `Icon(<icon>)`, lowered with the family and mirroring beside it.
+  List<String>? _prefixIcon(
+    WidgetEntry entry,
+    Expression source,
+    List<Issue> issues,
+  ) {
+    final icon = _stripParens(source);
+    final codepoint = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == _kInputDecorationPrefixIcon,
+    );
+    if (icon is! InstanceCreationExpression ||
+        icon.constructorName.type.name.lexeme != 'Icon' ||
+        icon.argumentList.arguments.length != 1 ||
+        icon.argumentList.arguments.single is NamedArgument ||
+        codepoint == null) {
+      issues.add(_inputDecorationIssue('prefixIcon', source));
+      return null;
+    }
+    _resetResolvedIcon();
+    final before = issues.length;
+    final value = _translateSlotValue(
+      icon.argumentList.arguments.single.argumentExpression,
+      PropertyType.integer,
+      issues,
+      property: codepoint,
+    );
+    if (issues.length > before) return null;
+    final emitted = ['${_rfwMapKey(codepoint.name)}: $value'];
+    final family = _resolvedIconFontFamily;
+    final mirrors = _resolvedIconMatchTextDirection;
+    _resetResolvedIcon();
+    final familySlot = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == _kInputDecorationPrefixIconFontFamily,
+    );
+    if (family != null && familySlot != null) {
+      emitted.add('${_rfwMapKey(familySlot.name)}: ${_stringLiteral(family)}');
+    }
+    final mirrorSlot = entry.properties.firstWhereOrNull(
+      (p) => p.synthetic == _kInputDecorationPrefixIconMatchTextDirection,
+    );
+    if (mirrors && mirrorSlot != null) {
+      emitted.add('${_rfwMapKey(mirrorSlot.name)}: true');
+    }
+    return emitted;
+  }
+
+  // A named `TextInputType` constant from the property's allowed values.
+  String? _textInputType(
+    PropertyEntry property,
+    Expression source,
+    List<Issue> issues,
+  ) {
+    final keyboard = _stripParens(source);
+    final allowed = property.constraints.allowedValues ?? const <String>[];
+    if (keyboard is PrefixedIdentifier &&
+        keyboard.prefix.name == 'TextInputType' &&
+        allowed.contains(keyboard.identifier.name)) {
+      return _stringLiteral(keyboard.identifier.name);
+    }
+    issues.add(
+      Issue(
+        code: IssueCode.unknownProperty,
+        message: "keyboardType must be one of TextInputType's named keyboards: "
+            '${allowed.join(', ')}.',
+        location: _locationOf(source),
+      ),
+    );
+    return null;
+  }
+
+  Issue _inputDecorationIssue(String name, AstNode anchor) => Issue(
+        code: IssueCode.unknownProperty,
+        message: "InputDecoration's $name is unsupported here. Supported: "
+            'hintText, labelText and helperText as text, border as '
+            'InputBorder.none, UnderlineInputBorder() or '
+            'OutlineInputBorder(), and prefixIcon as Icon(<icon>).',
+        location: _locationOf(anchor),
+      );
 
   /// Forgets what the last icon slot resolved to, before the next one runs.
   void _resetResolvedIcon() {
@@ -7756,7 +8016,12 @@ final class ExpressionTranslator {
     final marker = eventOccurrence == null
         ? null
         : measurementRouteEmissionPlan?.markerFor(eventOccurrence);
-    if (marker == null) return value;
+    if (marker == null) {
+      if (eventOccurrence != null && measurementRouteEmissionPlan != null) {
+        _noteUnavailableItem(eventOccurrence, expr, measured: false);
+      }
+      return value;
+    }
     if (value.isEmpty) {
       issues.add(
         Issue(
@@ -7768,7 +8033,13 @@ final class ExpressionTranslator {
       );
       return '';
     }
-    return _measuredEventHandler(value, marker, expr, issues);
+    return _measuredEventHandler(
+      value,
+      marker,
+      eventOccurrence!,
+      expr,
+      issues,
+    );
   }
 
   /// Attaches [marker] to a lowered event, or pairs a state update with the
@@ -7776,14 +8047,24 @@ final class ExpressionTranslator {
   String _measuredEventHandler(
     String value,
     String marker,
+    MeasurementEventOccurrence occurrence,
     Expression expression,
     List<Issue> issues,
   ) {
+    final item = _measurementItem(occurrence, expression);
     final handler = value.trimLeft();
-    if (handler.startsWith('event ')) {
-      return _attachMeasurementRouteMarker(value, marker, expression, issues);
+    final localSet =
+        handler.startsWith('event ${_stringLiteral(kLocalValueSetEventName)}');
+    if (handler.startsWith('event ') && !localSet) {
+      return _attachMeasurementRouteMarker(
+        value,
+        marker,
+        expression,
+        issues,
+        item: item,
+      );
     }
-    if (!handler.startsWith('set ')) {
+    if (!handler.startsWith('set ') && !localSet) {
       issues.add(
         Issue(
           code: IssueCode.invalidEventConfiguration,
@@ -7800,21 +8081,138 @@ final class ExpressionTranslator {
       marker,
       expression,
       issues,
+      item: item,
     );
     if (tap.isEmpty) return '';
     return '[$value, $tap]';
+  }
+
+  Set<String> _localValueFields(
+    Expression root,
+    InlinedDefinitions inlined,
+    Set<String> stateFields,
+  ) {
+    final scanner = _LocalValueWriteScanner(stateFields);
+    root.accept(scanner);
+    for (final binding in inlined.localBindings.values) {
+      binding.accept(scanner);
+    }
+    for (final helper in inlined.helpers.values) {
+      helper.body.accept(scanner);
+    }
+    return scanner.fields;
+  }
+
+  void _collectLocalSeeds(
+    List<CustomWidgetStateField> rootState,
+    Map<String, RecognisedSetState> handlers,
+    Set<String> localFields,
+    Map<String, Object> seeds,
+    List<Issue> issues,
+    Expression anchor,
+  ) {
+    for (final entry in handlers.entries) {
+      // A literal write (a "Clear" or "Reset") lowers to a local set.
+      final written = switch (entry.value) {
+        SetStateBoolFlip(:final fieldName) => fieldName,
+        SetStateLiteral() || SetStateUnrecognised() => null,
+      };
+      if (written != null && localFields.contains(written)) {
+        issues.add(
+          Issue(
+            code: IssueCode.stateShapeUnsupported,
+            message: "'$written' is set by a value callback and by "
+                "'${entry.key}'. Only literal values can also be set.",
+            location: _locationOf(anchor),
+          ),
+        );
+      }
+    }
+    for (final field in rootState) {
+      if (!localFields.contains(field.name)) continue;
+      final value = field.initialValue;
+      if (value is String || value is bool || value is int || value is double) {
+        seeds[field.name] =
+            field.isNumeric && value is int ? value.toDouble() : value!;
+      } else {
+        issues.add(
+          Issue(
+            code: IssueCode.stateShapeUnsupported,
+            message: "'${field.name}' is set by a value callback, so it needs "
+                'a string, number or bool initial value.',
+            location: _locationOf(anchor),
+          ),
+        );
+      }
+    }
+  }
+
+  bool _declaresCompletion(Expression root) {
+    final owner = root
+        .thisOrAncestorOfType<ClassDeclaration>()
+        ?.declaredFragment
+        ?.element;
+    return owner != null && paywallCompletionEvents(owner).isNotEmpty;
+  }
+
+  /// Notes why a plain tap in a loop records no item.
+  void _noteUnavailableItem(
+    MeasurementEventOccurrence occurrence,
+    Expression expression, {
+    required bool measured,
+  }) {
+    final identity = occurrence.itemIdentity;
+    final slot = occurrence.sourceEventIdentity.value;
+    if (identity is! MeasurementUnavailableItem ||
+        (slot != 'onTap' && slot != 'onPressed')) {
+      return;
+    }
+    final location = _locationOf(expression);
+    _currentEventClosureNotices?.add(
+      Issue(
+        code: IssueCode.interactionItemUnavailable,
+        message: measured
+            ? 'Taps in this loop share one count: no item because '
+                '${identity.reason}.'
+            : 'Taps here are not measured: ${identity.reason}.',
+        location: location,
+        buildNoticeIdentity: 'interaction-item\u0000$location',
+      ),
+    );
+  }
+
+  /// The item DSL a plain tap records, or null. Notes a loop without one.
+  String? _measurementItem(
+    MeasurementEventOccurrence occurrence,
+    Expression expression,
+  ) {
+    if (occurrence.itemIdentity is MeasurementUnavailableItem) {
+      _noteUnavailableItem(occurrence, expression, measured: true);
+      return null;
+    }
+    final item = occurrence.tapItem;
+    if (item == null) return null;
+    _currentEmitsInteractionItems = true;
+    return switch (item) {
+      MeasurementStaticItem(:final value) => _stringLiteral(value),
+      MeasurementLoopItem(:final loopIdentifier) =>
+        '$loopIdentifier${_rfwPathPart(kHostListItemPositionKey)}',
+      MeasurementUnavailableItem() => null,
+    };
   }
 
   String _attachMeasurementRouteMarker(
     String value,
     String marker,
     Expression expression,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    String? item,
+  }) {
     try {
       return MeasurementRouteEventMarkerEmitter.attach(
         value,
         marker: marker,
+        item: item,
       );
     } on ArgumentError catch (error) {
       issues.add(
@@ -7983,6 +8381,12 @@ final class ExpressionTranslator {
     AstNode anchor,
   ) {
     switch (verdict) {
+      case SetStateLiteral(:final fieldName, :final value)
+          when _walk.rootStateContext &&
+              _currentLocalFields.contains(fieldName):
+        return 'event ${_stringLiteral(kLocalValueSetEventName)} '
+            '{ key: ${_stringLiteral(fieldName)}, '
+            'value: ${_foldedLiteral(value)} }';
       case SetStateLiteral(:final fieldName, :final value):
         final field = _walk.stateFields?[fieldName];
         final literal = _foldedLiteral(value);
@@ -9013,8 +9417,19 @@ final class ExpressionTranslator {
       }
       return value;
     }
-    if (marker == null) return value;
-    return _measuredEventHandler(value, marker, expr, issues);
+    if (marker == null) {
+      if (eventOccurrence != null && measurementRouteEmissionPlan != null) {
+        _noteUnavailableItem(eventOccurrence, expr, measured: false);
+      }
+      return value;
+    }
+    return _measuredEventHandler(
+      value,
+      marker,
+      eventOccurrence!,
+      expr,
+      issues,
+    );
   }
 
   String _translateSlotValueCore(
@@ -9024,6 +9439,13 @@ final class ExpressionTranslator {
     PropertyEntry? property,
     bool coerce = true,
   }) {
+    if (type == PropertyType.event && _walk.rootStateContext) {
+      final local = recogniseLocalValueWrite(rawExpr);
+      if (local != null && _currentLocalFields.contains(local)) {
+        return 'event ${_stringLiteral(kLocalValueSetEventName)} '
+            '{ key: ${_stringLiteral(local)} }';
+      }
+    }
     // A value-callback closure `(v) => <event>` carries only the event on the
     // wire; any other closure stays intact for the recognisers that match it.
     final expr = type == PropertyType.event
@@ -11026,6 +11448,20 @@ final class _ClosureParameterCensus extends RecursiveAstVisitor<void> {
   void visitSimpleIdentifier(SimpleIdentifier node) {
     if (parameters.contains(node.element)) found = true;
     super.visitSimpleIdentifier(node);
+  }
+}
+
+final class _LocalValueWriteScanner extends RecursiveAstVisitor<void> {
+  _LocalValueWriteScanner(this.stateFields);
+
+  final Set<String> stateFields;
+  final Set<String> fields = {};
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    final field = recogniseLocalValueWrite(node);
+    if (field != null && stateFields.contains(field)) fields.add(field);
+    super.visitFunctionExpression(node);
   }
 }
 

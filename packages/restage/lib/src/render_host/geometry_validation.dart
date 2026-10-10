@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'document_path_codec.dart';
+import 'geometry_registry.dart' show GeometryInstance;
 
 void validatePositiveFrame(Size frame, {required String argumentName}) {
   if (!frame.width.isFinite ||
@@ -62,3 +63,56 @@ void validateGeometry(
     }
   }
 }
+
+/// Every instance of every path in [rects]; a path [instances] omits has its
+/// one rect. Each listed path must lead with its rect in [rects].
+Map<String, List<GeometryInstance>> snapshotInstances(
+  Map<String, Rect> rects,
+  Map<String, List<GeometryInstance>>? instances, {
+  required String argumentName,
+}) {
+  final result = <String, List<GeometryInstance>>{
+    for (final entry in rects.entries)
+      entry.key: List<GeometryInstance>.unmodifiable(
+        <GeometryInstance>[GeometryInstance(entry.value)],
+      ),
+  };
+  for (final entry in (instances ?? const {}).entries) {
+    final list = entry.value;
+    if (list.isEmpty || rects[entry.key] != list.first.rect) {
+      throw ArgumentError.value(
+        entry.key,
+        argumentName,
+        'instances must lead with the rect their path reports',
+      );
+    }
+    for (final instance in list) {
+      validateGeometry(
+        <String, Rect>{entry.key: instance.rect},
+        argumentName: argumentName,
+      );
+    }
+    result[entry.key] = List<GeometryInstance>.unmodifiable(list);
+  }
+  return Map<String, List<GeometryInstance>>.unmodifiable(result);
+}
+
+/// The wire form of every path drawn more than once or naming an item.
+Map<String, Object?> encodeGeometryInstances(
+  Map<String, List<GeometryInstance>> instances,
+) =>
+    <String, Object?>{
+      for (final entry in instances.entries)
+        if (entry.value.length > 1 ||
+            entry.value.any((instance) => instance.item != null))
+          entry.key: <Object?>[
+            for (final instance in entry.value)
+              <Object?>[
+                instance.rect.left,
+                instance.rect.top,
+                instance.rect.width,
+                instance.rect.height,
+                if (instance.item != null) instance.item,
+              ],
+          ],
+    };

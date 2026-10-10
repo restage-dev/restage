@@ -18,6 +18,17 @@ Future<ConfigTargetCheck> checkConfigTarget(
   SelectorSyntax? syntax,
 }) async {
   syntax ??= currentSelectorSyntax;
+  final project = config.project;
+  final app = config.app;
+  if (project == null || app == null) {
+    return (
+      problems: [
+        if (project == null) missingConfigKeySentence('project', syntax),
+        if (app == null) missingConfigKeySentence('app', syntax),
+      ],
+      organization: null,
+    );
+  }
   final organizations = await discovery.listOrganizations();
   if (organizations.isEmpty) {
     return (
@@ -54,7 +65,7 @@ Future<ConfigTargetCheck> checkConfigTarget(
     projectsByOrganization[organization] = [
       for (final project in projects) project.slug,
     ];
-    if (projects.any((project) => project.slug == config.project)) {
+    if (projects.any((candidate) => candidate.slug == project)) {
       withProject.add(organization);
     }
   }
@@ -64,7 +75,7 @@ Future<ConfigTargetCheck> checkConfigTarget(
   }
   if (withProject.isEmpty) {
     problems.add(
-      'restage_config.yaml names project `${config.project}`, which does not '
+      'restage_config.yaml names project `$project`, which does not '
       'exist in ${_where(candidates)}. Projects: '
       '${_perOrganization(projectsByOrganization)}.',
     );
@@ -75,12 +86,12 @@ Future<ConfigTargetCheck> checkConfigTarget(
   final organization = withProject.single;
   final apps = await discovery.listApps(
     organizationId: organization.organizationId,
-    projectSlug: config.project,
+    projectSlug: project,
   );
-  if (!apps.any((app) => app.slug == config.app)) {
+  if (!apps.any((candidate) => candidate.slug == app)) {
     problems.add(
-      'restage_config.yaml names app `${config.app}`, which does not exist in '
-      'project `${config.project}` of `${organization.slug}`. Apps there: '
+      'restage_config.yaml names app `$app`, which does not exist in '
+      'project `$project` of `${organization.slug}`. Apps there: '
       '${_list([for (final app in apps) app.slug])}.',
     );
   }
@@ -88,13 +99,13 @@ Future<ConfigTargetCheck> checkConfigTarget(
   if (environment != null && environment.isNotEmpty) {
     final environments = await discovery.listEnvironments(
       organizationId: organization.organizationId,
-      projectSlug: config.project,
+      projectSlug: project,
     );
     final slugs = {for (final environment in environments) environment.slug};
     if (!slugs.contains(environment)) {
       problems.add(
         'restage_config.yaml names environment `$environment`, which does '
-        'not exist in project `${config.project}`. Environments there: '
+        'not exist in project `$project`. Environments there: '
         '${_list(slugs.toList()..sort())}.',
       );
     }

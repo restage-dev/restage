@@ -1,5 +1,138 @@
 part of '../lumen_cancel.dart';
 
+// ignore_for_file: type=lint
+
+sealed class LumenCancelNoteScreenEvent {
+  const LumenCancelNoteScreenEvent();
+}
+
+final class LumenCancelNoteScreenSendEvent extends LumenCancelNoteScreenEvent {
+  const LumenCancelNoteScreenSendEvent(this.value);
+
+  final String value;
+}
+
+final class LumenCancelNoteScreenSkipEvent extends LumenCancelNoteScreenEvent {
+  const LumenCancelNoteScreenSkipEvent();
+}
+
+final _lumenCancelNoteScreenEvents =
+    SurfaceScreenEventContract<LumenCancelNoteScreenEvent>.generated(
+  hash:
+      'sha256:845ed8018eaa74aee9fc9d2480d99f931510601bb1109f245111ef3237614ca1',
+  decodeValidated: _decodeValidatedLumenCancelNoteScreenEvent,
+);
+
+final _lumenCancelNoteScreenProvenance =
+    SurfaceScreenRuntimeProvenance.generated(
+  surface: Surface.survey,
+  slug: 'lumen_cancel_note',
+  contractVersion: 1,
+  capabilities: CapabilityManifest(
+    builtInFloor: 9,
+    requiredLibraries: const [],
+  ),
+  eventSchemaJson:
+      '{"schemaVersion":1,"events":[{"id":"send","arguments":{"encoding":"value","shape":{"kind":"string"}}},{"id":"skip","arguments":{"encoding":"none"}}]}',
+  bundle: SurfaceScreenBundleLocator(
+    assetKey: 'assets/restage/bundles/lib/surfaces/lumen_cancel.rsbundle',
+    packageName: 'restage_example',
+    authoredLibraryPath: 'lib/surfaces/lumen_cancel.dart',
+    entries: [
+      SurfaceScreenBundleEntryReference(
+        logicalPath:
+            'assets/survey/screens/measurement/69385e84f6569c7c/lumen_cancel_note.rfw',
+        role: RestageBundleEntryRole.screenBlob,
+        byteLength: 15247,
+        sha256:
+            'sha256:a93f2c562a28062e9a558545cbffc06de75f458ce976891d232a7d1574621d17',
+      ),
+      SurfaceScreenBundleEntryReference(
+        logicalPath:
+            'assets/survey/screens/measurement/69385e84f6569c7c/lumen_cancel_note.capability.json',
+        role: RestageBundleEntryRole.capabilitySidecar,
+        byteLength: 141,
+        sha256:
+            'sha256:0f2d8643b397802065649971ea0d8505f1db202e1b1333c8600aeb66722001f8',
+      ),
+    ],
+  ),
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Scaffold': buildScaffold,
+        'TextField': buildTextField,
+      },
+    ),
+  ),
+);
+
+final lumenCancelNoteScreenRef = SurfaceScreenRef<
+    LumenCancelNoteScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
+  provenance: _lumenCancelNoteScreenProvenance,
+  eventContract: _lumenCancelNoteScreenEvents,
+  measurementPublicationDraftDigest:
+      'a8203581300236856fdad8ce10d80d2efb797e2e0650315617f16f2544275b6f',
+);
+
+LumenCancelNoteScreenEvent _decodeValidatedLumenCancelNoteScreenEvent(
+  String name,
+  Map<String, Object?> arguments,
+) {
+  switch (name) {
+    case 'send':
+      return LumenCancelNoteScreenSendEvent(arguments['value'] as String);
+    case 'skip':
+      return const LumenCancelNoteScreenSkipEvent();
+  }
+  throw FormatException('Invalid LumenCancelNoteScreen event "$name".');
+}
+
+final class LumenCancelNoteScreenSurface extends StatelessWidget {
+  const LumenCancelNoteScreenSurface({
+    super.key,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  });
+
+  final ValueChanged<LumenCancelNoteScreenEvent>? onEvent;
+
+  final SurfaceScreenResolver? resolver;
+
+  final ValueChanged<SurfaceScreenUnavailableError>? onUnavailable;
+
+  final WidgetBuilder? loadingBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return RestageScreen<LumenCancelNoteScreenEvent>(
+      screen: lumenCancelNoteScreenRef,
+      unavailable: SurfaceScreenUnavailablePolicy.fallback(
+        builder: (context, error) => LumenCancelNoteScreen(),
+      ),
+      onEvent: onEvent,
+      resolver: resolver,
+      onUnavailable: onUnavailable,
+      loadingBuilder: loadingBuilder,
+    );
+  }
+}
+
 sealed class LumenCancelReasonScreenEvent {
   const LumenCancelReasonScreenEvent();
 }
@@ -29,7 +162,7 @@ final _lumenCancelReasonScreenProvenance =
   slug: 'lumen_cancel_reason',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 6,
+    builtInFloor: 9,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -43,9 +176,9 @@ final _lumenCancelReasonScreenProvenance =
         logicalPath:
             'assets/survey/screens/measurement/7986973e7d641fcd/lumen_cancel_reason.rfw',
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 31033,
+        byteLength: 31032,
         sha256:
-            'sha256:77035f814368eac249350e9ef013a66d09cbadf2beb4df30e0400b9100e3f1d4',
+            'sha256:34621e861ea691c3923984c36e286fe70963b2121db1c81001b150d698320f9d',
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -53,7 +186,7 @@ final _lumenCancelReasonScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            'sha256:842945bf0edd5e37793f969646542b1a45f231d4159359075f7aa507d8e42562',
+            'sha256:d17ade863d32009dabbc6a17f4f6ae320cd1473bca5ffe037ce8e28acb1c4589',
       ),
     ],
   ),
@@ -96,7 +229,7 @@ final lumenCancelReasonScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelReasonScreenProvenance,
   eventContract: _lumenCancelReasonScreenEvents,
   measurementPublicationDraftDigest:
-      '52c2ecfca9418be09334ede0343458cc5e8883268dcd711f8effd57c056ae03c',
+      '7f25bb1f9c2084c8408ff13d82cb48baa7b980e071c7e375f16ad6ccafdf23f9',
 );
 
 LumenCancelReasonScreenEvent _decodeValidatedLumenCancelReasonScreenEvent(
@@ -166,7 +299,7 @@ final _lumenCancelThanksScreenProvenance =
   slug: 'lumen_cancel_thanks',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 6,
+    builtInFloor: 9,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -190,7 +323,7 @@ final _lumenCancelThanksScreenProvenance =
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            'sha256:5558712cf4051dde71973c8129f1302cabae214a26df5d741e734842eaf555c4',
+            'sha256:b6ca1c4aabcc1114d251b5ecfaa00d954bb4659b0a8e1bdd72d332f05975065e',
       ),
     ],
   ),
@@ -227,7 +360,7 @@ final lumenCancelThanksScreenRef = SurfaceScreenRef<
   provenance: _lumenCancelThanksScreenProvenance,
   eventContract: _lumenCancelThanksScreenEvents,
   measurementPublicationDraftDigest:
-      'f43a599344d8d51cb7bfa9c8a09b0272a9711773902091c7f1dc5d6f41dfaee0',
+      'dc98d64b521bed9a74b1b275605619ed5cf354de63c8181b882dabe360db576c',
 );
 
 LumenCancelThanksScreenEvent _decodeValidatedLumenCancelThanksScreenEvent(

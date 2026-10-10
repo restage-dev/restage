@@ -204,7 +204,32 @@ const List<BuiltinWidgetCuration> kCuration = [
   // a bare-VoidCallback signature otherwise, and the factory emitter
   // silently drops non-void event properties without a callbackSignature).
   BuiltinWidgetCuration<CupertinoTextField>(
+    // The keyboard and input-action properties change the rendering
+    // capability. Core and material took 7 and 8 in the same change, so
+    // this takes 9.
+    sinceVersion: 9,
     category: WidgetCategory.input,
+    synthetics: [
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'keyboardType',
+        type: PropertyType.string,
+        description: 'Keyboard to show: text, multiline, number, phone, '
+            'emailAddress, url or name.',
+        synthetic: 'textInputType',
+        constraints: RestageConstraints(
+          allowedValues: [
+            'text',
+            'multiline',
+            'number',
+            'phone',
+            'emailAddress',
+            'url',
+            'name',
+          ],
+        ),
+      ),
+    ],
     propertyOverrides: {
       'onChanged': PropertyOverride(
         callbackSignature: 'ValueChanged<String>',
@@ -234,7 +259,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'clearButtonMode',
       'clearButtonSemanticLabel',
       'keyboardType',
-      'textInputAction',
       'textCapitalization',
       'strutStyle',
       'textAlign',

@@ -64,6 +64,7 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'RotatedBox': buildRotatedBox,
   'SafeArea': buildSafeArea,
   'SingleChildScrollView': buildSingleChildScrollView,
+  'Semantics': buildSemantics,
   'SizedBox': buildSizedBox,
   'Spacer': buildSpacer,
   'Stack': buildStack,
@@ -987,6 +988,14 @@ Widget buildSingleChildScrollView(BuildContext context, DataSource source) {
             ScrollViewKeyboardDismissBehavior.values,
             source,
             <Object>['keyboardDismissBehavior']),
+    child: source.optionalChild(const <Object>['child']),
+  );
+}
+
+/// Builds the catalog's `Semantics` widget from [source].
+Widget buildSemantics(BuildContext context, DataSource source) {
+  return Semantics(
+    label: source.v<String>(const <Object>['label']),
     child: source.optionalChild(const <Object>['child']),
   );
 }

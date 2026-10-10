@@ -174,7 +174,8 @@ void main() {
     expect(live.keys, old.keys);
     expect(old.values.fold<int>(0, (sum, map) => sum + map.length), 119);
     for (final key in old.keys) {
-      expect(live[key]!.keys, old[key]!.keys);
+      // Later catalog additions are allowed; no frozen entry may go missing.
+      expect(live[key]!.keys, containsAll(old[key]!.keys));
     }
   });
 

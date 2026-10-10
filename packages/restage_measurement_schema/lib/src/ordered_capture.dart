@@ -78,6 +78,17 @@ final class MeasurementBreakdownPointV1 extends CanonicalValue
       };
 }
 
+/// Longest item value an interaction occurrence can carry.
+const kMeasurementInteractionItemLimitV1 = 64;
+
+final _interactionItemPattern = RegExp(r'^[A-Za-z0-9._:-]+$');
+
+/// Whether [value] is a portable interaction item value.
+bool measurementInteractionItemIsValidV1(String value) =>
+    value.isNotEmpty &&
+    value.length <= kMeasurementInteractionItemLimitV1 &&
+    _interactionItemPattern.hasMatch(value);
+
 /// One same-clock occurrence, ordered across every point in a capture session.
 final class MeasurementTimedOccurrenceV1 extends CanonicalValue
     implements ImmutableCanonicalDocument {
@@ -86,9 +97,14 @@ final class MeasurementTimedOccurrenceV1 extends CanonicalValue
     required this.channel,
     required this.elapsedMicros,
     this.answerValueV1,
+    this.itemValueV1,
   }) {
     if ((answerValueV1 != null &&
             channel != MeasurementOccurrenceChannelV1.interaction) ||
+        (itemValueV1 != null &&
+            (channel != MeasurementOccurrenceChannelV1.interaction ||
+                answerValueV1 != null ||
+                !measurementInteractionItemIsValidV1(itemValueV1!))) ||
         ordinal <= 0 ||
         ordinal > measurementMaximumTimedOccurrencesPerRoot ||
         elapsedMicros < 0 ||
@@ -103,7 +119,8 @@ final class MeasurementTimedOccurrenceV1 extends CanonicalValue
           'ordinal',
           'channel',
           'elapsedMicros',
-          'answerValueV1'
+          'answerValueV1',
+          'itemValueV1'
         },
         requiredKeys: const {'ordinal', 'channel', 'elapsedMicros'},
         path: 'measurementTimedOccurrenceV1');
@@ -111,6 +128,7 @@ final class MeasurementTimedOccurrenceV1 extends CanonicalValue
       answerValueV1: reader.optionalObject('answerValueV1') == null
           ? null
           : MeasurementAnswerValueV1.fromJson(reader.object('answerValueV1')),
+      itemValueV1: reader.optionalString('itemValueV1'),
       ordinal: reader.integer('ordinal'),
       channel: MeasurementOccurrenceChannelV1.values
           .byName(reader.string('channel')),
@@ -119,6 +137,9 @@ final class MeasurementTimedOccurrenceV1 extends CanonicalValue
   }
 
   final MeasurementAnswerValueV1? answerValueV1;
+
+  /// Which rendered item of a plain tap handler was tapped.
+  final String? itemValueV1;
   final int ordinal;
   final MeasurementOccurrenceChannelV1 channel;
   final int elapsedMicros;
@@ -126,6 +147,7 @@ final class MeasurementTimedOccurrenceV1 extends CanonicalValue
   @override
   Map<String, Object?> toJson() => {
         if (answerValueV1 != null) 'answerValueV1': answerValueV1!.toJson(),
+        if (itemValueV1 != null) 'itemValueV1': itemValueV1,
         'ordinal': ordinal,
         'channel': channel.name,
         'elapsedMicros': elapsedMicros,
@@ -143,8 +165,15 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
     this.declaredAnswerV1,
     this.answerCarrier,
     this.breakdownPointV1,
+    this.interactionItemsV1 = false,
+    this.completesSurfaceV1 = false,
   }) : channels = List.unmodifiable(channels) {
-    if ((declaredAnswerV1 != null &&
+    if (((interactionItemsV1 || completesSurfaceV1) &&
+            (declaredAnswerV1 != null ||
+                lifecycle != null ||
+                !channels
+                    .contains(MeasurementOccurrenceChannelV1.interaction))) ||
+        (declaredAnswerV1 != null &&
             (answerCarrier == null ||
                 answerCarrier!.isEmpty ||
                 answerCarrier!.length > 1024 ||
@@ -168,7 +197,9 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
           'lifecycle',
           'declaredAnswerV1',
           'answerCarrier',
-          'breakdownPointV1'
+          'breakdownPointV1',
+          'interactionItemsV1',
+          'completesSurfaceV1'
         },
         requiredKeys: const {'occurrenceId', 'lineageId', 'channels'},
         path: 'measurementOrderedCaptureRouteV1');
@@ -182,6 +213,8 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
           : MeasurementDeclaredAnswerV1.fromJson(
               reader.object('declaredAnswerV1')),
       answerCarrier: reader.optionalString('answerCarrier'),
+      interactionItemsV1: _readTrueFlag(reader, 'interactionItemsV1'),
+      completesSurfaceV1: _readTrueFlag(reader, 'completesSurfaceV1'),
       lifecycle: reader.optionalObject('lifecycle') == null
           ? null
           : MeasurementLifecycleCaptureRouteV1.fromJson(
@@ -200,6 +233,12 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
   final String? answerCarrier;
   final MeasurementBreakdownPointV1? breakdownPointV1;
   final MeasurementLifecycleCaptureRouteV1? lifecycle;
+
+  /// Whether this route's plain tap occurrences may carry an item value.
+  final bool interactionItemsV1;
+
+  /// Whether a tap on this route completes the surface.
+  final bool completesSurfaceV1;
   final CanonicalDigest occurrenceId;
   final PointLineageId lineageId;
   final List<MeasurementOccurrenceChannelV1> channels;
@@ -211,8 +250,10 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
         if (breakdownPointV1 != null)
           'breakdownPointV1': breakdownPointV1!.toJson(),
         'channels': [for (final channel in channels) channel.name]..sort(),
+        if (completesSurfaceV1) 'completesSurfaceV1': true,
         if (declaredAnswerV1 != null)
           'declaredAnswerV1': declaredAnswerV1!.toJson(),
+        if (interactionItemsV1) 'interactionItemsV1': true,
         if (lifecycle != null) 'lifecycle': lifecycle!.toJson(),
         'lineageId': lineageId.value,
         'occurrenceId': occurrenceId.hex,
@@ -295,8 +336,15 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
     this.screenId,
     this.declaredAnswerV1,
     this.breakdownPointV1,
+    this.interactionItemsV1 = false,
+    this.completesSurfaceV1 = false,
   }) : channels = List.unmodifiable(channels) {
     if (channels.isEmpty ||
+        ((interactionItemsV1 || completesSurfaceV1) &&
+            (declaredAnswerV1 != null ||
+                lifecycleChannel != null ||
+                !channels
+                    .contains(MeasurementOccurrenceChannelV1.interaction))) ||
         channels.toSet().length != channels.length ||
         !channels.contains(MeasurementOccurrenceChannelV1.presentation) ||
         (lifecycleChannel != null && !channels.contains(lifecycleChannel)) ||
@@ -325,7 +373,9 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
           'lifecycleChannel',
           'screenId',
           'declaredAnswerV1',
-          'breakdownPointV1'
+          'breakdownPointV1',
+          'interactionItemsV1',
+          'completesSurfaceV1'
         },
         requiredKeys: const {'channels'},
         path: 'orderedCaptureDeclarationV1');
@@ -338,6 +388,8 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
           ? null
           : MeasurementDeclaredAnswerV1.fromJson(
               reader.object('declaredAnswerV1')),
+      interactionItemsV1: _readTrueFlag(reader, 'interactionItemsV1'),
+      completesSurfaceV1: _readTrueFlag(reader, 'completesSurfaceV1'),
       channels: [
         for (final value in reader.list('channels'))
           MeasurementOccurrenceChannelV1.values
@@ -359,6 +411,12 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
   /// The drop-off band this route contributes to, absent when it names none.
   final MeasurementBreakdownPointV1? breakdownPointV1;
 
+  /// Whether this route's plain tap occurrences may carry an item value.
+  final bool interactionItemsV1;
+
+  /// Whether a tap on this route completes the surface.
+  final bool completesSurfaceV1;
+
   @override
   Map<String, Object?> toJson() => {
         if (breakdownPointV1 != null)
@@ -366,10 +424,21 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
         if (declaredAnswerV1 != null)
           'declaredAnswerV1': declaredAnswerV1!.toJson(),
         'channels': [for (final channel in channels) channel.name]..sort(),
+        if (completesSurfaceV1) 'completesSurfaceV1': true,
+        if (interactionItemsV1) 'interactionItemsV1': true,
         if (lifecycleChannel != null)
           'lifecycleChannel': lifecycleChannel!.name,
         if (screenId != null) 'screenId': screenId,
       };
+}
+
+/// A route flag is written only when true, so an explicit false is refused.
+bool _readTrueFlag(CanonicalObjectReader reader, String key) {
+  final value = reader.optionalBoolean(key);
+  if (value == false) {
+    throw CanonicalFormatException('Non-canonical route flag $key');
+  }
+  return value ?? false;
 }
 
 /// Whether a point's kind and reference match the route that declares it.

@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 void main() {
+  untrackedStateTests();
   for (final paths in [
     ('.restage/measurement-state.json', 'restage_measurement.compiler.json'),
     ('.restage/wire-ids.events.jsonl', 'wire_ids.events.jsonl'),
@@ -113,4 +114,74 @@ class _ReadState implements Builder {
       legacyPath: legacyPath,
     ));
   }
+}
+
+void untrackedStateTests() {
+  group('untracked durable state', () {
+    late Directory root;
+
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('restage_untracked_');
+      File('${root.path}/.restage/measurement-state.json')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+    });
+
+    tearDown(() => root.deleteSync(recursive: true));
+
+    Future<List<String>> untracked(Set<String> inputs) =>
+        untrackedDurableRestageState(
+          package: 'app',
+          canRead: (asset) async => inputs.contains(asset.path),
+          packageRoot: root.uri,
+          paths: const [
+            '.restage/measurement-state.json',
+            '.restage/wire-ids.events.jsonl',
+          ],
+        );
+
+    test('a state file on disk that is not a build input is untracked',
+        () async {
+      expect(await untracked({}), ['.restage/measurement-state.json']);
+    });
+
+    test('a state file build.yaml admits is tracked even when absent at start',
+        () async {
+      File('${root.path}/build.yaml').writeAsStringSync('''
+additional_public_assets:
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+''');
+      expect(await untracked({}), isEmpty);
+    });
+
+    test('a state file a target source glob admits is tracked', () async {
+      for (final sources in [
+        '[lib/**, .restage/**]',
+        '{include: [lib/**, .restage/**]}',
+      ]) {
+        File('${root.path}/build.yaml').writeAsStringSync(
+          'targets:\n  \$default:\n    sources: $sources\n',
+        );
+        expect(await untracked({}), isEmpty, reason: sources);
+      }
+    });
+
+    test('a state file admitted as a build input is tracked', () async {
+      expect(await untracked({'.restage/measurement-state.json'}), isEmpty);
+    });
+
+    test('an untracked refusal gains the build.yaml advice', () {
+      const refusal = 'This build cannot decide. Then rebuild.';
+      expect(withUntrackedStateAdvice(refusal, untracked: false), refusal);
+      expect(
+        withUntrackedStateAdvice(refusal, untracked: true),
+        '$refusal $kUntrackedDurableStateAdvice',
+      );
+      expect(
+        withUntrackedStateAdvice('Other error.', untracked: true),
+        'Other error.',
+      );
+    });
+  });
 }

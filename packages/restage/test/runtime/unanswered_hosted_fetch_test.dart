@@ -62,9 +62,15 @@ void main() {
     }
   }
 
-  Future<void> passTimeout(WidgetTester tester) async {
-    await tester.pump(BoundedHttpClient.defaultTimeout);
+  Future<void> passDeadline(WidgetTester tester) async {
+    await tester.pump(Restage.renderDeadline);
     await tester.pump();
+  }
+
+  // Lets the stalled background fetch time out before the test ends.
+  Future<void> unmount(WidgetTester tester) async {
+    await tester.pump(BoundedHttpClient.defaultTimeout);
+    await tester.pumpWidget(const SizedBox());
   }
 
   Widget screenHost(RestageRpcClient client) {
@@ -86,7 +92,7 @@ void main() {
     );
   }
 
-  testWidgets('a screen falls back when the server never answers',
+  testWidgets('a screen renders its bundled copy at the render deadline',
       (tester) async {
     final paths = <String>[];
     await tester.pumpWidget(screenHost(RestageRpcClient(
@@ -98,14 +104,15 @@ void main() {
     expect(paths, [_surfacePath]);
     expect(find.text('Bundled screen'), findsNothing);
 
-    await passTimeout(tester);
+    await passDeadline(tester);
 
     expect(find.text('Bundled screen'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
+    await unmount(tester);
   });
 
-  testWidgets('a screen falls back when its content never arrives',
-      (tester) async {
+  testWidgets(
+      'a screen renders its bundled copy at the render deadline when its '
+      'content never arrives', (tester) async {
     final fixture = stringScreenFixture();
     final paths = <String>[];
     final client = RestageRpcClient(
@@ -131,15 +138,16 @@ void main() {
     expect(paths, hasLength(2));
     expect(find.text('Bundled screen'), findsNothing);
 
-    await passTimeout(tester);
+    await passDeadline(tester);
 
     expect(find.text('Bundled screen'), findsOneWidget);
     expect(find.text('Hosted screen'), findsNothing);
-    await tester.pumpWidget(const SizedBox());
+    await unmount(tester);
   });
 
-  testWidgets('a paywall renders its original when the server never answers',
-      (tester) async {
+  testWidgets(
+      'a paywall renders its original at the render deadline when the server '
+      'never answers', (tester) async {
     final paths = <String>[];
     await tester.pumpWidget(MaterialApp(
       home: NativeOfferSurface(
@@ -156,19 +164,19 @@ void main() {
     expect(paths, [_surfacePath]);
     expect(find.text('Offer original'), findsNothing);
 
-    await passTimeout(tester);
+    await passDeadline(tester);
     await settle(
       tester,
       () => find.text('Offer original').evaluate().isNotEmpty,
     );
 
     expect(find.text('Offer original'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
+    await unmount(tester);
   });
 
   testWidgets(
-      'a flow renders its bundled baseline when the server never '
-      'answers', (tester) async {
+      'a flow renders its bundled baseline at the render deadline when the '
+      'server never answers', (tester) async {
     final paths = <String>[];
     final controller = RestageFlowController<flows.FirstRunResult>(
       flow: flows.firstRunFlowRef,
@@ -196,10 +204,10 @@ void main() {
     expect(paths, [_surfacePath]);
     expect(find.text('Welcome'), findsNothing);
 
-    await passTimeout(tester);
+    await passDeadline(tester);
     await settle(tester, () => find.text('Welcome').evaluate().isNotEmpty);
 
     expect(find.text('Welcome'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
+    await unmount(tester);
   });
 }

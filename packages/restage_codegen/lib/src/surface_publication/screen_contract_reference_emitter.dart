@@ -1509,7 +1509,7 @@ String _mountHostDataValue(
   if (!shape.requiresEncoding) return source;
   final nullable = shape.type.nullabilitySuffix == NullabilitySuffix.question;
   if (nullable) {
-    final present = '_restagePresent$depth';
+    final present = 'restagePresent$depth';
     return 'switch ($source) { final $present? => '
         '${_mountNonNullHostDataValue(shape, present, depth)}, '
         'null => null }';
@@ -1522,8 +1522,8 @@ String _mountNonNullHostDataValue(
   String source,
   int depth,
 ) {
-  final value = '_restageValue$depth';
-  final entry = '_restageEntry$depth';
+  final value = 'restageValue$depth';
+  final entry = 'restageEntry$depth';
   return switch (shape) {
     HostDataObjectShape() => _mountObjectValue(shape, source, depth),
     HostDataListShape(:final elementShape) =>

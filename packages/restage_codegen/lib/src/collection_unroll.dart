@@ -26,10 +26,6 @@ enum CollectionUnrollRefusal {
   /// Static expansion exceeds [kCollectionUnrollWorkCeiling].
   workLimitExceeded,
 
-  /// A repeated loop body binds a callback, which cannot carry one identity
-  /// per repetition.
-  callbackInRepeatedBody,
-
   /// A callback-bearing semantic source reached two structural occurrences.
   callbackSourceReused,
 }
@@ -628,6 +624,8 @@ final class CollectionSemanticTraversalSession {
   final Map<Expression, CollectionSemanticOccurrence>
       _firstOccurrenceByCallbackSource =
       HashMap<Expression, CollectionSemanticOccurrence>.identity();
+  final Map<Expression, ForElement> _repeatingLoopByCallbackSource =
+      HashMap<Expression, ForElement>.identity();
   final Set<Expression> _convergentCallbackSources =
       HashSet<Expression>.identity();
 
@@ -689,15 +687,12 @@ final class CollectionSemanticTraversalSession {
     );
     switch (callbacks.result) {
       case CollectionCallbackProbeResult.present:
-        if (repeatedBy != null) {
-          return CollectionUnrollRefused(
-            reason: CollectionUnrollRefusal.callbackInRepeatedBody,
-            detail: _kCallbackInRepeatedBodyDetail,
-            location: repeatedBy,
-          );
-        }
         for (final callback in callbacks.occurrences) {
-          final duplicate = _admitCallbackSource(callback, occurrence);
+          final duplicate = _admitCallbackSource(
+            callback,
+            occurrence,
+            repeatedBy: repeatedBy,
+          );
           if (duplicate != null) return duplicate;
         }
       case CollectionCallbackProbeResult.workLimitExceeded:
@@ -712,11 +707,23 @@ final class CollectionSemanticTraversalSession {
 
   CollectionUnrollRefused? _admitCallbackSource(
     _CollectionCallbackOccurrence callback,
-    CollectionSemanticOccurrence occurrence,
-  ) {
+    CollectionSemanticOccurrence occurrence, {
+    required ForElement? repeatedBy,
+  }) {
     final priorOccurrence = _firstOccurrenceByCallbackSource[callback.source];
     if (priorOccurrence == null) {
       _firstOccurrenceByCallbackSource[callback.source] = occurrence;
+      if (repeatedBy != null) {
+        _repeatingLoopByCallbackSource[callback.source] = repeatedBy;
+      }
+      return null;
+    }
+    // Every iteration of a static loop reuses its body's callbacks, including
+    // those in lists nested inside that body; a use outside the loop refuses.
+    final loop = _repeatingLoopByCallbackSource[callback.source];
+    if (loop != null &&
+        (identical(loop, repeatedBy) ||
+            _isWithin(occurrence.authoredExpression, loop))) {
       return null;
     }
     if (_convergentCallbackSources.remove(callback.source)) {
@@ -733,6 +740,13 @@ final class CollectionSemanticTraversalSession {
               : occurrence.structuralPath.first.node,
     );
   }
+}
+
+bool _isWithin(AstNode node, AstNode ancestor) {
+  for (AstNode? current = node; current != null; current = current.parent) {
+    if (identical(current, ancestor)) return true;
+  }
+  return false;
 }
 
 /// Shared emitted-child and traversal-work accounting for one list literal.
@@ -814,6 +828,7 @@ final class CollectionStructuralOccurrenceStep {
     required this.kind,
     required this.node,
     required this.ordinal,
+    this.iterableSteps = 0,
   });
 
   /// The collection construct represented by this step.
@@ -824,6 +839,9 @@ final class CollectionStructuralOccurrenceStep {
 
   /// The authored or expansion ordinal within that construct.
   final int ordinal;
+
+  /// For a loop iteration, how many steps just before it walk the iterable.
+  final int iterableSteps;
 }
 
 /// One admitted collection leaf resolved to its complete semantic context.
@@ -1239,10 +1257,6 @@ const String _kUnsupportedCollectionElementDetail =
     'This collection element is unsupported. Use a list literal element, a '
     'spread of a list literal, a constant collection-if, or a for-each over a '
     'list literal.';
-const String _kCallbackInRepeatedBodyDetail =
-    'A collection-for body that binds a callback is unsupported because its '
-    'repeated elements would share one callback identity. Write the repeated '
-    'elements out, or bind the list to host-supplied data where supported.';
 const String _kCallbackSourceReusedDetail =
     'A callback-bearing static collection source is reused, so its '
     'occurrences would share one callback identity. Write distinct elements, '
@@ -1482,6 +1496,8 @@ final class _CollectionUnroller {
               kind: CollectionStructuralOccurrenceKind.loopIteration,
               node: element,
               ordinal: currentOrdinal,
+              iterableSteps:
+                  iteration.structuralPath.length - structuralPath.length,
             ),
           ],
           emit,

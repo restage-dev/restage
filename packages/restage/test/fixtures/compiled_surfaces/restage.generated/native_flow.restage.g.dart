@@ -1,5 +1,7 @@
 part of '../native_flow.dart';
 
+// ignore_for_file: type=lint
+
 final class NativeOfferSurface extends StatelessWidget {
   const NativeOfferSurface({
     super.key,

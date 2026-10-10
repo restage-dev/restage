@@ -128,6 +128,10 @@ The generated Dart part holds the typed reference. The `.rsbundle` holds the
 exact bytes the SDK renders. The bundles are committed so the gallery runs from
 a fresh clone.
 
+The subset icon fonts in the bundles come from the Flutter SDK that ran the
+build, so a Flutter upgrade changes their bytes. Rebuild the example after
+one.
+
 Flutter does not hot-reload bundled assets. After a rebuild, hot-restart the
 app (press `R` in `flutter run`).
 

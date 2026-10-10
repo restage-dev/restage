@@ -859,9 +859,13 @@ final class MeasurementRuntimeCaptureSession
       );
 
   /// O(1) handle lookup and one bounded interaction update.
+  ///
+  /// [itemValueV1] is kept only when the route declares items and the value
+  /// is portable; otherwise the tap records without it.
   MeasurementCaptureWriteDisposition recordInteraction(
-    MeasurementCaptureRouteHandle route,
-  ) {
+    MeasurementCaptureRouteHandle route, {
+    String? itemValueV1,
+  }) {
     if (route.capabilityKind != MeasurementCapabilityKind.sourceInteraction) {
       throw ArgumentError.value(
         route,
@@ -869,7 +873,10 @@ final class MeasurementRuntimeCaptureSession
         'Only source-interaction routes accept interaction observations',
       );
     }
-    return _record(route, true);
+    final admitsItem = itemValueV1 != null &&
+        (_orderedRoutes[route._index]?.interactionItemsV1 ?? false) &&
+        measurementInteractionItemIsValidV1(itemValueV1);
+    return _record(route, true, itemValueV1: admitsItem ? itemValueV1 : null);
   }
 
   MeasurementCaptureWriteDisposition recordAnswer(
@@ -908,7 +915,7 @@ final class MeasurementRuntimeCaptureSession
 
   void _appendTimed(
       int index, MeasurementOccurrenceChannelV1 channel, int micros,
-      {MeasurementAnswerValueV1? answerValueV1}) {
+      {MeasurementAnswerValueV1? answerValueV1, String? itemValueV1}) {
     final route = _orderedRoutes[index];
     if (route == null ||
         !route.channels.contains(channel) ||
@@ -923,7 +930,8 @@ final class MeasurementRuntimeCaptureSession
         ordinal: ++_orderedCount,
         channel: channel,
         elapsedMicros: micros,
-        answerValueV1: answerValueV1));
+        answerValueV1: answerValueV1,
+        itemValueV1: itemValueV1));
   }
 
   MeasurementCaptureWriteDisposition _record(
@@ -931,6 +939,7 @@ final class MeasurementRuntimeCaptureSession
     bool recordsInteraction, {
     MeasurementOccurrenceChannelV1? channel,
     MeasurementAnswerValueV1? answerValueV1,
+    String? itemValueV1,
   }) {
     if (_finalFrame != null) {
       return MeasurementCaptureWriteDisposition.finalized;
@@ -994,7 +1003,8 @@ final class MeasurementRuntimeCaptureSession
                   ? MeasurementOccurrenceChannelV1.interaction
                   : MeasurementOccurrenceChannelV1.presentation),
           witness,
-          answerValueV1: answerValueV1);
+          answerValueV1: answerValueV1,
+          itemValueV1: itemValueV1);
     }
     if (recordsInteraction &&
         (slotState & _measurementSlotHasInteractionCounterFlag) != 0) {

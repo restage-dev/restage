@@ -370,6 +370,7 @@ void main() {
     await _waitUntil(() => server.requests.length == 1);
 
     final mutatedBaseline = screenBlob('Mutated bundled baseline', 'finish');
+    final loadedBeforeMutation = bundle.loadedKeys.length;
     bundle.replace(
       document: _strictFlowDocument(screen: mutatedBaseline),
       screens: <String, Uint8List>{
@@ -416,12 +417,16 @@ void main() {
 
     expect(observed.requests, 3);
     expect(
-      observed.loadedKeys,
-      orderedEquals(<String>[
+      observed.loadedKeys.toSet(),
+      <String>{
         'assets/paywalls/pro_upgrade.flow.json',
+        'assets/paywalls/pro_upgrade.local.json',
         'assets/paywalls/screens/paywall_pro_upgrade.rfw',
-      ]),
+      },
     );
+    // The baseline is read only before the bundle changes: local candidates
+    // and the hosted preflight load it in parallel at mount.
+    expect(observed.loadedKeys, hasLength(loadedBeforeMutation));
     expect(observed.original, 1);
     expect(observed.mutated, 0);
     expect(observed.candidates, 0);
@@ -466,6 +471,7 @@ void main() {
 
     final mutatedBaseline =
         screenBlob('Mutated resolver-gap baseline', 'finish');
+    final loadedBeforeMutation = bundle.loadedKeys.length;
     bundle.replace(
       document: _strictFlowDocument(screen: mutatedBaseline),
       screens: <String, Uint8List>{
@@ -521,12 +527,16 @@ void main() {
 
     expect(observed.requests, 3);
     expect(
-      observed.loadedKeys,
-      orderedEquals(<String>[
+      observed.loadedKeys.toSet(),
+      <String>{
         'assets/paywalls/pro_upgrade.flow.json',
+        'assets/paywalls/pro_upgrade.local.json',
         'assets/paywalls/screens/paywall_pro_upgrade.rfw',
-      ]),
+      },
     );
+    // The baseline is read only before the bundle changes: local candidates
+    // and the hosted preflight load it in parallel at mount.
+    expect(observed.loadedKeys, hasLength(loadedBeforeMutation));
     expect(observed.original, 1);
     expect(observed.mutated, 0);
     expect(observed.candidates, 0);
@@ -633,6 +643,7 @@ void main() {
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
     await tester.idle();
     await _waitUntil(() => server.requests.length == 2);
+    final loadedBeforeUnmount = bundle.loadedKeys.length;
 
     await tester.pumpWidget(const SizedBox.shrink());
     server.requests[1].complete(_hostedResponse(
@@ -645,7 +656,7 @@ void main() {
     await tester.pump();
 
     expect(server.requests, hasLength(2));
-    expect(bundle.loadedKeys, hasLength(2));
+    expect(bundle.loadedKeys, hasLength(loadedBeforeUnmount));
     expect(events.whereType<PaywallLoadCompleted>(), isEmpty);
     expect(events.whereType<PaywallViewed>(), isEmpty);
     expect(events.whereType<PaywallLoadFailed>(), isEmpty);
@@ -731,7 +742,6 @@ void main() {
       home: RestagePaywall(
         id: 'pro_upgrade',
         resolver: resolver,
-        cacheLastRender: true,
         onEvent: events.add,
         loadingBuilder: (_) => const Text('Still loading'),
         errorBuilder: (_, __) => const Text('Terminal error'),
@@ -810,7 +820,6 @@ void main() {
       home: RestagePaywall(
         id: 'pro_upgrade',
         resolver: resolver,
-        cacheLastRender: true,
         onEvent: events.add,
         loadingBuilder: (_) => const Text('Still loading'),
         errorBuilder: (_, __) => const Text('Terminal error'),
@@ -1154,7 +1163,6 @@ void main() {
         home: RestagePaywall(
           id: 'pro_upgrade',
           resolver: hosted,
-          cacheLastRender: true,
         ),
       ),
     );
@@ -1176,7 +1184,6 @@ void main() {
         home: RestagePaywall(
           id: 'pro_upgrade',
           resolver: failing,
-          cacheLastRender: true,
           errorBuilder: (_, __) => const Text('Current actor error'),
         ),
       ),
@@ -1202,7 +1209,7 @@ void main() {
   });
 
   testWidgets(
-      'a build-throwing fresh hosted blob never replaces resolver last-good',
+      'a build-throwing stored blob is removed and the next mount falls back',
       (tester) async {
     registerThrowingWidget();
     final server = _ControlledHostedServer();
@@ -1243,6 +1250,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Resolver last-good'), findsOneWidget);
     expect(events.whereType<PaywallLoadFailed>(), isEmpty);
+    expect(await Restage.surfaceArtifactStore.keys(), isEmpty);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -1266,9 +1274,9 @@ void main() {
           .whereType<PaywallViewed>()
           .map((event) => event.publishedVersion)
           .toList(),
-      loadCacheHits: events
-          .whereType<PaywallLoadCompleted>()
-          .map((event) => event.cacheHit)
+      failureCodes: events
+          .whereType<PaywallLoadFailed>()
+          .map((event) => event.errorCode)
           .toList(),
     );
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1277,12 +1285,13 @@ void main() {
     expect(
       (lastGood: observed.lastGood, error: observed.error),
       (
-        lastGood: 1,
-        error: 0,
+        lastGood: 0,
+        error: 1,
       ),
     );
-    expect(observed.viewedVersions, orderedEquals(<int?>[1]));
-    expect(observed.loadCacheHits, orderedEquals(<bool>[true]));
+    expect(observed.viewedVersions, isEmpty);
+    expect(observed.failureCodes,
+        orderedEquals(<String>[RestageErrorCodes.deliveryUnavailable]));
   });
 
   testWidgets(

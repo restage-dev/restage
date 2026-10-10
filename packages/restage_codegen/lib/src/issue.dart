@@ -511,7 +511,11 @@ enum IssueCode {
 
   /// A general-mode flow egresses a host-seeded flow-state key through
   /// `terminalResult`; host-supplied state is branch-only.
-  generalHostSeededResultRef;
+  generalHostSeededResultRef,
+
+  /// Taps in a repeated element share one count because the element has no
+  /// identity to record.
+  interactionItemUnavailable;
 
   /// Whether this code annotates a complete, correct translation without
   /// blocking its output.
@@ -524,7 +528,8 @@ enum IssueCode {
   bool get isBuildNotice => switch (this) {
         IssueCode.idiomAutoSubstituted ||
         IssueCode.navigationStandaloneArtifactSkipped ||
-        IssueCode.customWidgetAppFactoryUsed =>
+        IssueCode.customWidgetAppFactoryUsed ||
+        IssueCode.interactionItemUnavailable =>
           true,
         _ => false,
       };
@@ -571,7 +576,8 @@ enum IssueCode {
         // trail, never a failure.
         IssueCode.idiomAutoSubstituted ||
         IssueCode.navigationStandaloneArtifactSkipped ||
-        IssueCode.customWidgetAppFactoryUsed =>
+        IssueCode.customWidgetAppFactoryUsed ||
+        IssueCode.interactionItemUnavailable =>
           true,
         // Everything below is a real codegen error the author must resolve.
         IssueCode.annotationEvaluationFailed ||

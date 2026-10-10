@@ -47,6 +47,7 @@ void main() {
       'user_factories': userFactoryBuilder,
       'user_a2ui_catalog': userA2uiCatalogBuilder,
       'widgetbook_stories': widgetbookStoryBuilder,
+      'restage_surfaces': restageSurfaceListBuilder,
     };
 
     // The factory FUNCTION each build.yaml entry must point at. build.yaml's
@@ -74,6 +75,7 @@ void main() {
       'user_factories': 'userFactoryBuilder',
       'user_a2ui_catalog': 'userA2uiCatalogBuilder',
       'widgetbook_stories': 'widgetbookStoryBuilder',
+      'restage_surfaces': 'restageSurfaceListBuilder',
     };
 
     late Map<String, Map<String, List<String>>> declared;

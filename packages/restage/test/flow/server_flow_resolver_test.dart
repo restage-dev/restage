@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 // ignore: implementation_imports
+import 'package:restage/src/delivery/raced_surface_resolver.dart';
+import 'package:restage/src/delivery/surface_store_key.dart';
 import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 // The installed built-in catalog content version is the resolver's capability
@@ -860,6 +862,51 @@ void main() {
         throwsA(_flowUnavailable('unsupported_required_library')),
       );
     });
+  });
+
+  test('a flow key issued no ref is not fetched and not reported', () async {
+    final requests = <http.Request>[];
+    final resolver = ServerFlowResolver(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_test',
+      active: true,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('unavailable', 503);
+      }),
+    );
+    const key = SurfaceStoreKey(
+      scope: '0123456789abcdef',
+      surfaceType: 'onboarding',
+      slug: 'unknown',
+      contractVersion: 0,
+    );
+
+    final fresh = await racedResolverOf<ResolvedFlow>(resolver)!
+        .fresh(key, sendAssignmentKey: false);
+
+    expect(fresh, isNull);
+    expect(requests, isEmpty);
+  });
+
+  test('a flow resolver without an environment keys under the configured one',
+      () {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      analyticsEnabled: false,
+      measurementEnabled: false,
+    );
+    addTearDown(Restage.debugReset);
+    final resolver = ServerFlowResolver(
+      baseUrl: 'https://surfaces.example.com',
+      apiKey: 'rs_pk_test',
+    );
+
+    expect(
+      resolver.storeKeyFor(flowRef).scope,
+      SurfaceStoreKey.scopeFor(apiKey: 'rs_pk_test', environment: 'sandbox'),
+    );
   });
 }
 

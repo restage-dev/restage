@@ -49,6 +49,10 @@ restage surface freeze weekly_recap --reason "..."   # keep the current version
 which one. `--reason "..."` records why in the audit log. Pass `--non-interactive` (or
 `-y`) in scripts; a missing required value then fails with the flag's name.
 
+Known limit: after you add or remove a measured tap or answer on a surface that is
+already live, build once, then push and publish. A second build before the publish can
+make the server refuse it.
+
 App builds, needed so the dashboard can show surfaces that use custom widgets. The CLI
 generates everything it needs under `.restage/build/`; don't add files to the app for it.
 

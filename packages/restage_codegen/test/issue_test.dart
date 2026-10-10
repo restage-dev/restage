@@ -25,6 +25,7 @@ void main() {
       IssueCode.idiomAutoSubstituted,
       IssueCode.navigationStandaloneArtifactSkipped,
       IssueCode.customWidgetAppFactoryUsed,
+      IssueCode.interactionItemUnavailable,
     };
 
     test('classifies exactly the informational set as informational', () {
@@ -85,6 +86,7 @@ void main() {
           IssueCode.idiomAutoSubstituted,
           IssueCode.navigationStandaloneArtifactSkipped,
           IssueCode.customWidgetAppFactoryUsed,
+          IssueCode.interactionItemUnavailable,
         }),
       );
 

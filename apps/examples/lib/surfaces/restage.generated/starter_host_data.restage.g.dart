@@ -1,5 +1,7 @@
 part of '../starter_host_data.dart';
 
+// ignore_for_file: type=lint
+
 sealed class StarterChecklistEvent {
   const StarterChecklistEvent();
 }
@@ -22,7 +24,7 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
   slug: 'starter_checklist',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 9,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -37,16 +39,16 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
       SurfaceScreenBundleEntryReference(
         logicalPath: 'assets/general/screens/starter_checklist.rfw',
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 7269,
+        byteLength: 7347,
         sha256:
-            'sha256:2e7c3d2ecae6516be1196ec18b54e172e6d06174131c8f128cac1b6c293232ba',
+            'sha256:27510da1ae5d62e181baaa66bef848c73c8de7369d860ab22d0e75adbdb96577',
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath: 'assets/general/screens/starter_checklist.capability.json',
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            'sha256:af3085588b6d80e78109b3da17779f5f8ab0ba5b41e1ebf160d4c7421af0d690',
+            'sha256:198d7880f40c4036212f7078fbc19a359bf7cadcf24d5b3cc97f3e880be7196e',
       ),
     ],
   ),
@@ -77,7 +79,7 @@ final starterChecklistRef = SurfaceScreenRef<
   provenance: _starterChecklistProvenance,
   eventContract: _starterChecklistEvents,
   measurementPublicationDraftDigest:
-      'bc51c428e3fa0151ac854fc45b68ffd8bfab22a9adadfdb40454e70b56607ff2',
+      'e9e783e3f132de5897bf76153c94a31a376cdbe389e56900a820e67364fd39ab',
 );
 
 StarterChecklistEvent _decodeValidatedStarterChecklistEvent(
@@ -122,11 +124,11 @@ final class StarterChecklistSurface extends StatelessWidget {
       context: <String, Object?>{
         'owner': _restageArgument0,
         'items': <Object?>[
-          for (final _restageValue0 in _restageArgument1)
+          for (final restageValue0 in _restageArgument1)
             <String, Object?>{
-              'id': _restageValue0.id,
-              'title': _restageValue0.title,
-              'status': _restageValue0.status
+              'id': restageValue0.id,
+              'title': restageValue0.title,
+              'status': restageValue0.status
             }
         ],
       },

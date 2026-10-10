@@ -1,23 +1,25 @@
 part of '../minimal_notice.dart';
 
+// ignore_for_file: type=lint
+
 const minimalNoticeFlowRef = SurfaceFlowRef<
     MinimalNoticeResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_notice',
   version: 1,
-  minClient: 6,
+  minClient: 9,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalNoticeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_notice","initial":"starter_notice","minClient":6,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:036fad8ac7f265dcef0ebe8b266809a210f1f517996c04ed8d80196c986057c8","minClient":6,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
+        '{"flow":"minimal_notice","initial":"starter_notice","minClient":9,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:036fad8ac7f265dcef0ebe8b266809a210f1f517996c04ed8d80196c986057c8","minClient":9,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
     screens: {
       'starter_notice': StarterNoticeScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'a2045dc4a833c2beb55d78ad6c7e46af23f7061da31ade1416c6bea19c8068ee',
+      'ef21c42f55d43ea452e54454ba96eee2c59795734dd9619bc38665facf8c6f26',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

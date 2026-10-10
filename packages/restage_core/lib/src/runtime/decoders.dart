@@ -44,6 +44,7 @@ import 'package:flutter/painting.dart'
         TextStyle;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/rendering.dart' show BoxConstraints;
+import 'package:flutter/services.dart' show TextInputType;
 import 'package:flutter/widgets.dart' show PreferredSizeWidget, Widget;
 import 'package:restage_core/src/runtime/preferred_size_slot.dart';
 import 'package:restage_shared/restage_shared.dart' show kMaxInlineSpanDepth;
@@ -244,6 +245,20 @@ abstract final class RestageDecoders {
   /// and other callers that need to present or validate curve wire names.
   static final Set<String> supportedCurveNames = Set.unmodifiable(
     _supportedCurvesByName.keys,
+  );
+
+  /// Decodes a keyboard type from its wire name.
+  ///
+  /// `TextInputType` is not a Dart enum, so this uses a closed lookup table.
+  /// Unknown names decode to `null` and the field keeps Flutter's default.
+  static TextInputType? textInputType(DataSource source, List<Object> path) {
+    final name = source.v<String>(path);
+    return name == null ? null : _supportedTextInputTypesByName[name];
+  }
+
+  /// The keyboard type wire names [textInputType] decodes.
+  static final Set<String> supportedTextInputTypeNames = Set.unmodifiable(
+    _supportedTextInputTypesByName.keys,
   );
 
   /// Decodes a concrete `Alignment` from `{x, y}` at [path].
@@ -935,6 +950,16 @@ List<RestageSelectionOption> dedupeSelectionOptionsByValue(
   }
   return result;
 }
+
+const Map<String, TextInputType> _supportedTextInputTypesByName = {
+  'text': TextInputType.text,
+  'multiline': TextInputType.multiline,
+  'number': TextInputType.number,
+  'phone': TextInputType.phone,
+  'emailAddress': TextInputType.emailAddress,
+  'url': TextInputType.url,
+  'name': TextInputType.name,
+};
 
 const Map<String, Curve> _supportedCurvesByName = {
   'linear': Curves.linear,

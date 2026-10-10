@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -35,12 +36,16 @@ void main() {
         httpClient: mock,
       );
 
-  tearDown(SurfaceCanonicalCarrierProvider.clear);
+  tearDown(() {
+    SurfaceCanonicalCarrierProvider.clear();
+    SurfaceAssignmentKeyProvider.clear();
+  });
 
   group('the carriers a hosted surface request sends', () {
     test('sends both when this build holds both', () async {
       final observations = _carrier('{"platform":"ios"}');
       final held = _carrier('{"armId":"arm-1"}');
+      SurfaceAssignmentKeyProvider.current = () => 'assignment-a';
       SurfaceCanonicalCarrierProvider.installBuiltIns(() => observations);
       SurfaceCanonicalCarrierProvider.installHeldAssignment(() => held);
       final sent = <Map<String, dynamic>>[];
@@ -57,8 +62,25 @@ void main() {
       expect(sent, hasLength(2));
       for (final request in sent) {
         expect(request['sdkBuiltInsCanonicalBase64'], observations);
+        expect(request['assignmentKey'], 'assignment-a');
         expect(request['assignmentCanonicalBase64'], held);
       }
+    });
+
+    test('omits a held assignment without a ready key', () async {
+      final held = _carrier('{"armId":"arm-1"}');
+      SurfaceCanonicalCarrierProvider.installHeldAssignment(() => held);
+      late Map<String, dynamic> sent;
+
+      await clientFor(
+        delivery.client((request) async {
+          sent = (jsonDecode(request.body) as Map).cast();
+          return http.Response(jsonEncode(body()), 200);
+        }),
+      ).fetchSurface(surfaceType: 'paywall', surfaceSlug: 'pro_upgrade');
+
+      expect(sent, isNot(contains('assignmentKey')));
+      expect(sent, isNot(contains('assignmentCanonicalBase64')));
     });
 
     test('omits the assignment this build does not hold', () async {
@@ -95,6 +117,7 @@ void main() {
     });
 
     test('never sends a carrier that is not canonical base64url', () async {
+      SurfaceAssignmentKeyProvider.current = () => 'assignment-a';
       SurfaceCanonicalCarrierProvider.installBuiltIns(() => 'not base64!');
       SurfaceCanonicalCarrierProvider.installHeldAssignment(() => 'AAAA=');
       late Map<String, dynamic> sent;
@@ -106,6 +129,7 @@ void main() {
         }),
       ).fetchSurface(surfaceType: 'paywall', surfaceSlug: 'pro_upgrade');
 
+      expect(sent['assignmentKey'], 'assignment-a');
       expect(sent.containsKey('sdkBuiltInsCanonicalBase64'), isFalse);
       expect(sent.containsKey('assignmentCanonicalBase64'), isFalse);
     });
