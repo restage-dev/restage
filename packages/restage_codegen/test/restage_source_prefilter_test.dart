@@ -590,23 +590,29 @@ class ProductCard {}
 
     test('scans a file that is not valid UTF-8', () async {
       // A library saved as latin-1: one byte that is not valid UTF-8, sitting
-      // in a comment above an annotated declaration. Reading it as a string
-      // throws a FormatException that names an offset and no file, which
-      // fails the build with nothing to act on. The scan reads bytes and
-      // tolerates the damage, so the file keeps its place in the walk and any
-      // real complaint comes from the resolver, which names it.
+      // in a comment above an annotated declaration. The scan reads bytes and
+      // tolerates the damage, so the file keeps its place in the walk, and the
+      // one complaint about it names it.
       final bytes = utf8
           .encode("// Copyright (c) 2026\n@rs.Screen(id: 'legacy')\n"
               'class LegacyScreen {}\n')
           .toList();
       bytes[13] = 0xA9;
 
-      final selected = await _selectSurfaceLane({
-        'lib/legacy_encoded.dart': bytes,
-        'lib/plain.dart': 'class Plain {}',
-      });
+      final result = await _runLane(
+        selectRestageSurfaceCandidates,
+        {
+          'lib/legacy_encoded.dart': bytes,
+          'lib/plain.dart': 'class Plain {}',
+        },
+        expectSuccess: false,
+      );
 
-      expect(selected, ['lib/legacy_encoded.dart']);
+      expect(result.paths, ['lib/legacy_encoded.dart']);
+      expect(
+        result.logs.where((log) => log.startsWith('SEVERE')),
+        [contains('lib/legacy_encoded.dart')],
+      );
     });
 
     test('returns a deterministic, duplicate-free, path-sorted selection',
@@ -687,8 +693,9 @@ class M {}
 /// same question, so they share one probe rather than one probe each.
 Future<({List<String> paths, List<String> logs})> _runLane(
   Future<List<AssetId>> Function(BuildStep) select,
-  Map<String, Object> sources,
-) async {
+  Map<String, Object> sources, {
+  bool expectSuccess = true,
+}) async {
   var selected = <AssetId>[];
   final logs = <String>[];
   final result = await testBuilder(
@@ -706,7 +713,9 @@ Future<({List<String> paths, List<String> logs})> _runLane(
     rootPackage: 'apps_examples',
     onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
   );
-  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  if (expectSuccess) {
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  }
   return (paths: [for (final asset in selected) asset.path], logs: logs);
 }
 

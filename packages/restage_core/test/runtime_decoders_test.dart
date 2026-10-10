@@ -648,6 +648,601 @@ void main() {
       expect(RestageDecoders.curve(source, const ['c']), isNull);
     });
   });
+
+  group('RestageDecoders.alignment repairs', () {
+    test('repairs non-finite components and preserves both subtypes', () {
+      final source = _MapDataSource({
+        'cartesian': {'x': double.nan, 'y': 2.0},
+        'directional': {'start': double.infinity, 'y': -1.0},
+      });
+
+      final cartesian = RestageDecoders.alignment(source, const ['cartesian']);
+      expect(cartesian, isA<Alignment>());
+      expect(cartesian, const Alignment(0, 2));
+
+      final directional =
+          RestageDecoders.alignment(source, const ['directional']);
+      expect(directional, isA<AlignmentDirectional>());
+      final value = directional! as AlignmentDirectional;
+      expect(value.start, 0.0);
+      expect(value.y, -1.0);
+    });
+
+    test('preserves negative, large, and ordinary finite components', () {
+      final source = _MapDataSource({
+        'negative': {'x': -4.0, 'y': -3.0},
+        'large': {'x': 1e100, 'y': -1e100},
+        'ordinary': {'start': 0.25, 'y': 0.75},
+      });
+
+      expect(
+        RestageDecoders.alignment(source, const ['negative']),
+        const Alignment(-4, -3),
+      );
+      expect(
+        RestageDecoders.alignment(source, const ['large']),
+        const Alignment(1e100, -1e100),
+      );
+      final ordinary = RestageDecoders.alignment(source, const ['ordinary']);
+      expect(ordinary, isA<AlignmentDirectional>());
+      final ordinaryValue = ordinary! as AlignmentDirectional;
+      expect(ordinaryValue.start, 0.25);
+      expect(ordinaryValue.y, 0.75);
+    });
+
+    test('prefers start when both coordinate keys are present', () {
+      final source = _MapDataSource({
+        'alignment': {'x': 10.0, 'start': 0.25, 'y': 0.75},
+      });
+
+      final decoded = RestageDecoders.alignment(source, const ['alignment']);
+      expect(decoded, isA<AlignmentDirectional>());
+      final value = decoded! as AlignmentDirectional;
+      expect(value.start, 0.25);
+      expect(value.y, 0.75);
+    });
+
+    test('returns null for an absent, non-map, or incomplete slot', () {
+      final source = _MapDataSource({
+        'notMap': 'center',
+        'incomplete': {'x': 1.0},
+      });
+
+      expect(RestageDecoders.alignment(source, const ['missing']), isNull);
+      expect(RestageDecoders.alignment(source, const ['notMap']), isNull);
+      expect(RestageDecoders.alignment(source, const ['incomplete']), isNull);
+    });
+  });
+
+  group('RestageDecoders.alignmentXY repairs', () {
+    test('zeroes only a non-finite component', () {
+      final source = _MapDataSource({
+        'x': {'x': double.nan, 'y': 3.0},
+        'y': {'x': -2.0, 'y': double.negativeInfinity},
+      });
+
+      expect(
+        RestageDecoders.alignmentXY(source, const ['x']),
+        const Alignment(0, 3),
+      );
+      expect(
+        RestageDecoders.alignmentXY(source, const ['y']),
+        const Alignment(-2, 0),
+      );
+    });
+
+    test('preserves negative and large finite components', () {
+      final source = _MapDataSource({
+        'negative': {'x': -4.0, 'y': -3.0},
+        'large': {'x': 1e100, 'y': -1e100},
+      });
+
+      expect(
+        RestageDecoders.alignmentXY(source, const ['negative']),
+        const Alignment(-4, -3),
+      );
+      expect(
+        RestageDecoders.alignmentXY(source, const ['large']),
+        const Alignment(1e100, -1e100),
+      );
+    });
+  });
+
+  group('RestageDecoders border width repairs', () {
+    test('floors non-finite and negative side widths at zero', () {
+      final source = _MapDataSource({
+        'nan': {'width': double.nan},
+        'infinite': {'width': double.infinity},
+        'negative': {'width': -4.0},
+      });
+
+      expect(
+        RestageDecoders.borderSide(source, const ['nan'])!.width,
+        0.0,
+      );
+      expect(
+        RestageDecoders.borderSide(source, const ['infinite'])!.width,
+        0.0,
+      );
+      expect(
+        RestageDecoders.borderSide(source, const ['negative'])!.width,
+        0.0,
+      );
+    });
+
+    test('preserves ordinary and large finite non-negative widths', () {
+      final source = _MapDataSource({
+        'ordinary': {'width': 2.5},
+        'large': {'width': 2e100},
+      });
+
+      expect(
+        RestageDecoders.borderSide(source, const ['ordinary'])!.width,
+        2.5,
+      );
+      expect(
+        RestageDecoders.borderSide(source, const ['large'])!.width,
+        2e100,
+      );
+    });
+
+    test('repairs a directional border and preserves the fallback chain', () {
+      final source = _MapDataSource({
+        'border': [
+          {'color': 0xFF112233, 'width': double.nan},
+          {'width': 2.0},
+          null,
+        ],
+      });
+
+      final decoded = RestageDecoders.border(source, const ['border']);
+      expect(decoded, isA<BorderDirectional>());
+      final border = decoded! as BorderDirectional;
+      expect(border.start.width, 0.0);
+      expect(border.start.color, const Color(0xFF112233));
+      expect(border.top.width, 2.0);
+      expect(border.end, border.start);
+      expect(border.bottom, border.top);
+    });
+
+    test('repairs the side used by a shape border', () {
+      final source = _MapDataSource({
+        'shape': {
+          'type': 'rounded',
+          'side': {'width': double.nan},
+        },
+      });
+
+      final decoded = RestageDecoders.shapeBorder(source, const ['shape']);
+      expect(decoded, isA<RoundedRectangleBorder>());
+      expect((decoded! as RoundedRectangleBorder).side.width, 0.0);
+    });
+
+    test('returns null when a side or border is absent', () {
+      final source = _MapDataSource(<String, Object?>{});
+      expect(RestageDecoders.borderSide(source, const ['side']), isNull);
+      expect(RestageDecoders.border(source, const ['border']), isNull);
+    });
+  });
+
+  group('RestageDecoders.constraintScalar', () {
+    test('nulls non-finite values', () {
+      final source = _MapDataSource({
+        'nan': double.nan,
+        'infinite': double.infinity,
+      });
+
+      expect(
+        RestageDecoders.constraintScalar(source, const ['nan']),
+        isNull,
+      );
+      expect(
+        RestageDecoders.constraintScalar(source, const ['infinite']),
+        isNull,
+      );
+    });
+
+    test('preserves negative, ordinary, and large finite values', () {
+      final source = _MapDataSource({
+        'negative': -4.0,
+        'ordinary': 24,
+        'large': 2e100,
+      });
+
+      expect(
+        RestageDecoders.constraintScalar(source, const ['negative']),
+        -4.0,
+      );
+      expect(
+        RestageDecoders.constraintScalar(source, const ['ordinary']),
+        24.0,
+      );
+      expect(
+        RestageDecoders.constraintScalar(source, const ['large']),
+        2e100,
+      );
+    });
+
+    test('returns null when absent', () {
+      expect(
+        RestageDecoders.constraintScalar(
+          _MapDataSource(null),
+          const ['missing'],
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('RestageDecoders.requiredLayoutScalar', () {
+    test('throws a named error for absent, malformed, and non-finite values',
+        () {
+      const slot = 'LimitedBox.maxWidth';
+      final source = _MapDataSource({
+        'malformed': 'wide',
+        'nan': double.nan,
+        'infinite': double.infinity,
+      });
+      final namedError = isA<ArgumentError>().having(
+        (error) => error.message,
+        'message',
+        contains(slot),
+      );
+
+      for (final path in ['missing', 'malformed', 'nan', 'infinite']) {
+        expect(
+          () => RestageDecoders.requiredLayoutScalar(
+            source,
+            <Object>[path],
+            slot: slot,
+          ),
+          throwsA(namedError),
+          reason: path,
+        );
+      }
+    });
+
+    test('throws a named error for a non-positive positive-only slot', () {
+      const slot = 'AspectRatio.aspectRatio';
+      final source = _MapDataSource({
+        'zero': 0.0,
+        'negative': -2.0,
+      });
+      final namedError = isA<ArgumentError>().having(
+        (error) => error.message,
+        'message',
+        contains(slot),
+      );
+
+      for (final path in ['zero', 'negative']) {
+        expect(
+          () => RestageDecoders.requiredLayoutScalar(
+            source,
+            <Object>[path],
+            slot: slot,
+            mustBePositive: true,
+          ),
+          throwsA(namedError),
+          reason: path,
+        );
+      }
+    });
+
+    test('accepts both number shapes and every permitted finite magnitude', () {
+      final source = _MapDataSource({
+        'integer': 24,
+        'negative': -4.0,
+        'zero': 0.0,
+        'large': 2e100,
+      });
+
+      expect(
+        RestageDecoders.requiredLayoutScalar(
+          source,
+          const ['integer'],
+          slot: 'LimitedBox.maxWidth',
+        ),
+        24.0,
+      );
+      expect(
+        RestageDecoders.requiredLayoutScalar(
+          source,
+          const ['negative'],
+          slot: 'LimitedBox.maxWidth',
+        ),
+        -4.0,
+      );
+      expect(
+        RestageDecoders.requiredLayoutScalar(
+          source,
+          const ['zero'],
+          slot: 'LimitedBox.maxWidth',
+        ),
+        0.0,
+      );
+      expect(
+        RestageDecoders.requiredLayoutScalar(
+          source,
+          const ['large'],
+          slot: 'AspectRatio.aspectRatio',
+          mustBePositive: true,
+        ),
+        2e100,
+      );
+    });
+  });
+
+  group('RestageDecoders.textMetric', () {
+    test('nulls absent, malformed, and non-finite values', () {
+      final source = _MapDataSource({
+        'malformed': 'large',
+        'nan': double.nan,
+        'infinite': double.infinity,
+      });
+
+      expect(RestageDecoders.textMetric(source, const ['missing']), isNull);
+      expect(RestageDecoders.textMetric(source, const ['malformed']), isNull);
+      expect(RestageDecoders.textMetric(source, const ['nan']), isNull);
+      expect(RestageDecoders.textMetric(source, const ['infinite']), isNull);
+    });
+
+    test('accepts both number shapes and preserves every finite value', () {
+      final source = _MapDataSource({
+        'integer': 24,
+        'negative': -4.0,
+        'large': 2e100,
+      });
+
+      expect(RestageDecoders.textMetric(source, const ['integer']), 24.0);
+      expect(RestageDecoders.textMetric(source, const ['negative']), -4.0);
+      expect(RestageDecoders.textMetric(source, const ['large']), 2e100);
+    });
+  });
+
+  group('RestageDecoders.layoutFactor', () {
+    test('nulls non-finite and negative factors', () {
+      final source = _MapDataSource({
+        'nan': double.nan,
+        'infinite': double.infinity,
+        'negative': -2.0,
+      });
+
+      expect(RestageDecoders.layoutFactor(source, const ['nan']), isNull);
+      expect(RestageDecoders.layoutFactor(source, const ['infinite']), isNull);
+      expect(RestageDecoders.layoutFactor(source, const ['negative']), isNull);
+    });
+
+    test('preserves ordinary and large finite non-negative factors', () {
+      final source = _MapDataSource({
+        'ordinary': 2,
+        'large': 2e100,
+      });
+
+      expect(RestageDecoders.layoutFactor(source, const ['ordinary']), 2.0);
+      expect(RestageDecoders.layoutFactor(source, const ['large']), 2e100);
+    });
+
+    test('returns null when absent', () {
+      expect(
+        RestageDecoders.layoutFactor(
+          _MapDataSource(null),
+          const ['missing'],
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('RestageDecoders.derivedSpacing', () {
+    test('defaults an absent value to zero', () {
+      expect(
+        RestageDecoders.derivedSpacing(
+          _MapDataSource(null),
+          const ['missing'],
+          4,
+        ),
+        0.0,
+      );
+    });
+
+    test('accepts both number shapes and preserves ordinary values', () {
+      final source = _MapDataSource({
+        'double': 12.5,
+        'integer': 12,
+      });
+
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['double'], 4),
+        12.5,
+      );
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['integer'], 4),
+        12.0,
+      );
+    });
+
+    test('preserves a large value when the derived spacing remains finite', () {
+      const spacing = 8e307;
+      final source = _MapDataSource({'spacing': spacing});
+
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['spacing'], 3),
+        spacing,
+      );
+    });
+
+    test('repairs an overflowing derived spacing to zero', () {
+      final source = _MapDataSource({'spacing': 1e308});
+
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['spacing'], 3),
+        0.0,
+      );
+    });
+
+    test('repairs non-finite authored spacing to zero', () {
+      final source = _MapDataSource({
+        'nan': double.nan,
+        'infinite': double.infinity,
+      });
+
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['nan'], 3),
+        0.0,
+      );
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['infinite'], 3),
+        0.0,
+      );
+    });
+
+    test('repairs negative spacing and preserves both signed zero values', () {
+      for (final value in [-1.0, -double.maxFinite]) {
+        expect(
+            RestageDecoders.derivedSpacing(
+              _MapDataSource({'spacing': value}),
+              const ['spacing'],
+              2,
+            ),
+            0.0);
+      }
+      for (final value in [0.0, -0.0]) {
+        final spacing = RestageDecoders.derivedSpacing(
+          _MapDataSource({'spacing': value}),
+          const ['spacing'],
+          2,
+        );
+        expect(spacing, 0.0);
+        expect(spacing.isNegative, value.isNegative);
+      }
+    });
+
+    test('preserves finite spacing with one child or no children', () {
+      const spacing = 1.7e308;
+      final source = _MapDataSource({'spacing': spacing});
+
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['spacing'], 1),
+        spacing,
+      );
+      expect(
+        RestageDecoders.derivedSpacing(source, const ['spacing'], 0),
+        spacing,
+      );
+    });
+  });
+
+  group('RestageDecoders.positiveLayoutScalar', () {
+    test('nulls non-finite and non-positive scalars', () {
+      final source = _MapDataSource({
+        'nan': double.nan,
+        'infinite': double.infinity,
+        'zero': 0.0,
+        'negative': -2.0,
+      });
+
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['nan']),
+        isNull,
+      );
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['infinite']),
+        isNull,
+      );
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['zero']),
+        isNull,
+      );
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['negative']),
+        isNull,
+      );
+    });
+
+    test('accepts both number shapes and preserves finite positive values', () {
+      final source = _MapDataSource({
+        'ordinary': 2.5,
+        'integer': 2,
+        'large': 2e100,
+      });
+
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['ordinary']),
+        2.5,
+      );
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['integer']),
+        2.0,
+      );
+      expect(
+        RestageDecoders.positiveLayoutScalar(source, const ['large']),
+        2e100,
+      );
+    });
+
+    test('returns null when absent', () {
+      expect(
+        RestageDecoders.positiveLayoutScalar(
+          _MapDataSource(null),
+          const ['missing'],
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('RestageDecoders.size repairs', () {
+    test('nulls the whole size when either component is non-finite', () {
+      final source = _MapDataSource({
+        'width': {'width': double.nan, 'height': 4.0},
+        'height': {'width': 4.0, 'height': double.infinity},
+      });
+
+      expect(RestageDecoders.size(source, const ['width']), isNull);
+      expect(RestageDecoders.size(source, const ['height']), isNull);
+    });
+
+    test('floors a negative component without disturbing its sibling', () {
+      final source = _MapDataSource({
+        'width': {'width': -4.0, 'height': 7.0},
+        'height': {'width': 7.0, 'height': -4.0},
+      });
+
+      expect(
+        RestageDecoders.size(source, const ['width']),
+        const Size(0, 7),
+      );
+      expect(
+        RestageDecoders.size(source, const ['height']),
+        const Size(7, 0),
+      );
+    });
+
+    test('preserves ordinary and large finite non-negative sizes', () {
+      final source = _MapDataSource({
+        'ordinary': {'width': 24, 'height': 48},
+        'large': {'width': 1e100, 'height': 2e100},
+      });
+
+      expect(
+        RestageDecoders.size(source, const ['ordinary']),
+        const Size(24, 48),
+      );
+      expect(
+        RestageDecoders.size(source, const ['large']),
+        const Size(1e100, 2e100),
+      );
+    });
+
+    test('returns null when absent or incomplete', () {
+      final source = _MapDataSource({
+        'incomplete': {'width': 4.0},
+      });
+
+      expect(RestageDecoders.size(source, const ['missing']), isNull);
+      expect(RestageDecoders.size(source, const ['incomplete']), isNull);
+    });
+  });
 }
 
 final class _MapDataSource implements DataSource {

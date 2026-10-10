@@ -197,18 +197,18 @@ DraggableSheetBuilderOutcome _proveControllerThread(
   Expression? controllerArg;
   Expression? childArg;
   for (final arg in construction.arguments.arguments) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const DraggableSheetDeferred(
         kDraggableSheetScrollViewArgUnsupportedReason,
       );
     }
-    switch (arg.name.label.name) {
+    switch (arg.name.lexeme) {
       case 'key':
         break;
       case 'controller':
-        controllerArg = arg.expression;
+        controllerArg = arg.argumentExpression;
       case 'child':
-        childArg = arg.expression;
+        childArg = arg.argumentExpression;
       default:
         return const DraggableSheetDeferred(
           kDraggableSheetScrollViewArgUnsupportedReason,

@@ -264,14 +264,14 @@ void main() {
 
       // The derived fact: the padded box laid out at the child's own width,
       // because a NaN inset was repaired to one that subtracts nothing.
-      expect(tester.getSize(find.byType(Padding)).width, 10.0);
+      expect(tester.getSize(find.byType(RestagePadding)).width, 10.0);
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('a negative inset floors at zero', (tester) async {
       await _pump(tester, _paddingInUnboundedAxis('[-40.0]'));
 
-      expect(tester.getSize(find.byType(Padding)).width, 10.0);
+      expect(tester.getSize(find.byType(RestagePadding)).width, 10.0);
       expect(tester.takeException(), isNull);
     });
 
@@ -297,12 +297,13 @@ void main() {
       // The disposition, asserted on the value the render object actually
       // holds: the axis that could not be represented is gone entirely, rather
       // than quietly rescaled to some number nobody asked for.
-      final render = tester.renderObject<RenderPadding>(find.byType(Padding));
+      final render =
+          tester.renderObject<RenderPadding>(find.byType(RestagePadding));
       expect(render.padding, EdgeInsetsDirectional.zero);
 
       // And what that derives: the child's own width, not a NaN constraint
       // handed down to it.
-      expect(tester.getSize(find.byType(Padding)).width, 10.0);
+      expect(tester.getSize(find.byType(RestagePadding)).width, 10.0);
       expect(tester.takeException(), isNull);
     });
 
@@ -319,12 +320,13 @@ void main() {
         data: <String, Object?>{'vast': 1.7e308},
       );
 
-      final render = tester.renderObject<RenderPadding>(find.byType(Padding));
+      final render =
+          tester.renderObject<RenderPadding>(find.byType(RestagePadding));
       expect(
         render.padding,
         const EdgeInsetsDirectional.fromSTEB(4, 0, 16, 0),
       );
-      expect(tester.getSize(find.byType(Padding)).width, 30.0);
+      expect(tester.getSize(find.byType(RestagePadding)).width, 30.0);
       expect(tester.takeException(), isNull);
     });
 
@@ -340,12 +342,16 @@ void main() {
       const inset = 2e6; // deliberately above the ceiling that used to exist
       await _pump(tester, _paddingInUnboundedAxis('[$inset]'));
 
-      final render = tester.renderObject<RenderPadding>(find.byType(Padding));
+      final render =
+          tester.renderObject<RenderPadding>(find.byType(RestagePadding));
       expect(
         render.padding,
         const EdgeInsetsDirectional.fromSTEB(inset, inset, inset, inset),
       );
-      expect(tester.getSize(find.byType(Padding)).width, 10.0 + 2 * inset);
+      expect(
+        tester.getSize(find.byType(RestagePadding)).width,
+        10.0 + 2 * inset,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -355,13 +361,14 @@ void main() {
       await _pump(tester, _paddingInUnboundedAxis('[4.0, 8.0, 16.0, 32.0]'));
 
       // What the render object was actually handed — every component intact.
-      final render = tester.renderObject<RenderPadding>(find.byType(Padding));
+      final render =
+          tester.renderObject<RenderPadding>(find.byType(RestagePadding));
       expect(
         render.padding,
         const EdgeInsetsDirectional.fromSTEB(4, 8, 16, 32),
       );
       // And what it derived from that: start 4 + child 10 + end 16.
-      expect(tester.getSize(find.byType(Padding)).width, 30.0);
+      expect(tester.getSize(find.byType(RestagePadding)).width, 30.0);
       expect(tester.takeException(), isNull);
     });
   });

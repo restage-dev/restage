@@ -101,12 +101,12 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
     final slots = <MeasurementResolvedOpaqueCustomWidgetEvent>[];
     final seenArgumentNames = <String>{};
     for (final argument in occurrence.argumentList.arguments) {
-      if (argument is! NamedExpression) {
+      if (argument is! NamedArgument) {
         throw ArgumentError(
           'An opaque measurement occurrence accepts only static named slots',
         );
       }
-      final argumentName = argument.name.label.name;
+      final argumentName = argument.name.lexeme;
       if (!seenArgumentNames.add(argumentName)) {
         throw ArgumentError(
           'An opaque measurement occurrence cannot repeat one named slot',
@@ -116,7 +116,7 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
       // authorize an event slot or contribute to compiler measurement identity.
       if (argumentName == 'key') continue;
 
-      final parameter = argument.name.label.element;
+      final parameter = argument.correspondingParameter;
       if (parameter is! FormalParameterElement ||
           parameter.enclosingElement is! ConstructorElement ||
           parameter.enclosingElement != constructor ||
@@ -138,7 +138,7 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
       final property = propertyCandidates.single;
       if (property.type != PropertyType.event) continue;
 
-      final staticType = argument.expression.staticType;
+      final staticType = argument.argumentExpression.staticType;
       if (staticType == null ||
           staticType is DynamicType ||
           staticType is InvalidType ||

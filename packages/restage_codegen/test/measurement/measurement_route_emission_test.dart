@@ -27,11 +27,9 @@ void main() {
     ''');
     final widget = root as InstanceCreationExpression;
     final eventParameter = widget.argumentList.arguments
-        .whereType<NamedExpression>()
+        .whereType<NamedArgument>()
         .single
-        .name
-        .label
-        .element! as FormalParameterElement;
+        .correspondingParameter!;
     final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
         .widget(widget.constructorName.type.element! as InterfaceElement)
         .event(eventParameter);
@@ -90,11 +88,9 @@ void main() {
     ''');
     final widget = root as InstanceCreationExpression;
     final eventParameter = widget.argumentList.arguments
-        .whereType<NamedExpression>()
+        .whereType<NamedArgument>()
         .single
-        .name
-        .label
-        .element! as FormalParameterElement;
+        .correspondingParameter!;
     final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
         .widget(widget.constructorName.type.element! as InterfaceElement)
         .event(eventParameter);

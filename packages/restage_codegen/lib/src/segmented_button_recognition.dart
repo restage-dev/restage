@@ -129,27 +129,27 @@ SegmentedButtonOutcome recogniseSegmentedButton(
   Expression? multiSelectionEnabled;
   Expression? emptySelectionAllowed;
   for (final arg in args) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const SegmentedButtonDeferred(
         'a positional argument has no declarative equivalent',
       );
     }
-    switch (arg.name.label.name) {
+    switch (arg.name.lexeme) {
       case 'key':
         break; // the universal super.key convention
       case 'segments':
-        segments = arg.expression;
+        segments = arg.argumentExpression;
       case 'selected':
-        selected = arg.expression;
+        selected = arg.argumentExpression;
       case 'onSelectionChanged':
-        onSelectionChanged = arg.expression;
+        onSelectionChanged = arg.argumentExpression;
       case 'multiSelectionEnabled':
-        multiSelectionEnabled = arg.expression;
+        multiSelectionEnabled = arg.argumentExpression;
       case 'emptySelectionAllowed':
-        emptySelectionAllowed = arg.expression;
+        emptySelectionAllowed = arg.argumentExpression;
       default:
         return SegmentedButtonDeferred(
-          "the '${arg.name.label.name}' argument has no "
+          "the '${arg.name.lexeme}' argument has no "
           'RestageSegmentedButton equivalent',
         );
     }
@@ -286,17 +286,17 @@ _SegmentOutcome _buttonSegment(Expression leaf) {
   Expression? value;
   Expression? label;
   for (final arg in creation.argumentList.arguments) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const _SegmentDeferred(
         'a positional argument on ButtonSegment has no declarative equivalent',
       );
     }
-    final name = arg.name.label.name;
+    final name = arg.name.lexeme;
     switch (name) {
       case 'value':
-        value = arg.expression;
+        value = arg.argumentExpression;
       case 'label':
-        label = arg.expression;
+        label = arg.argumentExpression;
       case 'key':
         break; // inert
       case 'icon':
@@ -423,7 +423,7 @@ Expression? _literalTextContent(Expression label) {
   // silently dropped by the string-only lowering, so reject (defer loud).
   if (args.length != 1) return null;
   final only = args.single;
-  if (only is NamedExpression) return null;
+  if (only is! Expression) return null;
   return only;
 }
 

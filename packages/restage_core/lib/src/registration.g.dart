@@ -76,22 +76,24 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
 
 /// Builds the catalog's `Align` widget from [source].
 Widget buildAlign(BuildContext context, DataSource source) {
-  return Align(
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+  return RestageAlign(
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
-    widthFactor: source.v<double>(const <Object>['widthFactor']),
-    heightFactor: source.v<double>(const <Object>['heightFactor']),
+    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+    heightFactor:
+        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
 
 /// Builds the catalog's `AnimatedAlign` widget from [source].
 Widget buildAnimatedAlign(BuildContext context, DataSource source) {
-  return AnimatedAlign(
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+  return RestageAnimatedAlign(
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
-    heightFactor: source.v<double>(const <Object>['heightFactor']),
-    widthFactor: source.v<double>(const <Object>['widthFactor']),
+    heightFactor:
+        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
+    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
     duration: RestageDecoders.duration(source, <Object>['duration']) ??
         (throw ArgumentError('AnimatedAlign.duration is required.')),
@@ -107,7 +109,7 @@ Widget buildAnimatedContainer(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         image: RestageDecoders.decorationImage(
             source, <Object>['decorationImage']),
-        border: ArgumentDecoders.border(source, <Object>['border']),
+        border: RestageDecoders.border(source, <Object>['border']),
         borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ??
                     source.v<double>(const <Object>['borderRadiusTopRight']) ??
                     source
@@ -134,10 +136,10 @@ Widget buildAnimatedContainer(BuildContext context, DataSource source) {
         minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
         maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
             double.infinity)),
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']),
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
@@ -158,16 +160,18 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: source.v<double>(const <Object>['fontSize']),
+        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing: source.v<double>(const <Object>['letterSpacing']),
-        wordSpacing: source.v<double>(const <Object>['wordSpacing']),
+        letterSpacing:
+            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+        wordSpacing:
+            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
-        height: source.v<double>(const <Object>['height']),
+        height: RestageDecoders.textMetric(source, <Object>['height']),
         leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
@@ -182,10 +186,9 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
             RestageDecoders.fontVariations(source, <Object>['fontVariations']),
         decoration:
             RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor:
-            ArgumentDecoders.color(source, <Object>['decorationColor']),
+        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: source.v<double>(const <Object>['decorationThickness']),
+        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
         debugLabel: source.v<String>(const <Object>['debugLabel']),
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
@@ -223,7 +226,7 @@ Widget buildAnimatedOpacity(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `AnimatedPadding` widget from [source].
 Widget buildAnimatedPadding(BuildContext context, DataSource source) {
-  return AnimatedPadding(
+  return RestageAnimatedPadding(
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
         (throw ArgumentError('AnimatedPadding.padding is required.')),
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
@@ -237,12 +240,12 @@ Widget buildAnimatedPadding(BuildContext context, DataSource source) {
 /// Builds the catalog's `AnimatedPositioned` widget from [source].
 Widget buildAnimatedPositioned(BuildContext context, DataSource source) {
   return AnimatedPositioned(
-    left: source.v<double>(const <Object>['left']),
-    top: source.v<double>(const <Object>['top']),
-    right: source.v<double>(const <Object>['right']),
-    bottom: source.v<double>(const <Object>['bottom']),
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    left: RestageDecoders.constraintScalar(source, <Object>['left']),
+    top: RestageDecoders.constraintScalar(source, <Object>['top']),
+    right: RestageDecoders.constraintScalar(source, <Object>['right']),
+    bottom: RestageDecoders.constraintScalar(source, <Object>['bottom']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
     duration: RestageDecoders.duration(source, <Object>['duration']) ??
         (throw ArgumentError('AnimatedPositioned.duration is required.')),
@@ -283,8 +286,8 @@ Widget buildAnimatedScale(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `AnimatedSize` widget from [source].
 Widget buildAnimatedSize(BuildContext context, DataSource source) {
-  return AnimatedSize(
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+  return RestageAnimatedSize(
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
     duration: RestageDecoders.duration(source, <Object>['duration']) ??
@@ -313,9 +316,10 @@ Widget buildAnimatedSlide(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `AspectRatio` widget from [source].
 Widget buildAspectRatio(BuildContext context, DataSource source) {
-  return AspectRatio(
-    aspectRatio: source.v<double>(const <Object>['aspectRatio']) ??
-        (throw ArgumentError('AspectRatio.aspectRatio is required.')),
+  return RestageAspectRatio(
+    aspectRatio: RestageDecoders.requiredLayoutScalar(
+        source, <Object>['aspectRatio'],
+        slot: 'AspectRatio.aspectRatio', mustBePositive: true),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -336,9 +340,10 @@ Widget buildBackdropFilter(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Center` widget from [source].
 Widget buildCenter(BuildContext context, DataSource source) {
-  return Center(
-    widthFactor: source.v<double>(const <Object>['widthFactor']),
-    heightFactor: source.v<double>(const <Object>['heightFactor']),
+  return RestageCenter(
+    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+    heightFactor:
+        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -401,7 +406,9 @@ Widget buildColoredBox(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Column` widget from [source].
 Widget buildColumn(BuildContext context, DataSource source) {
-  return Column(
+  final children = source.childList(<Object>['children']);
+
+  return RestageColumn(
     mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
             MainAxisAlignment.values, source, <Object>['mainAxisAlignment']) ??
         MainAxisAlignment.start,
@@ -413,8 +420,9 @@ Widget buildColumn(BuildContext context, DataSource source) {
             source,
             <Object>['crossAxisAlignment']) ??
         CrossAxisAlignment.center,
-    spacing: source.v<double>(const <Object>['spacing']) ?? 0.0,
-    children: source.childList(const <Object>['children']),
+    spacing: RestageDecoders.derivedSpacing(
+        source, <Object>['spacing'], children.length),
+    children: children,
   );
 }
 
@@ -439,7 +447,7 @@ Widget buildContainer(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         image: RestageDecoders.decorationImage(
             source, <Object>['decorationImage']),
-        border: ArgumentDecoders.border(source, <Object>['border']),
+        border: RestageDecoders.border(source, <Object>['border']),
         borderRadius: (source.v<double>(const <Object>['borderRadiusTopLeft']) ??
                     source.v<double>(const <Object>['borderRadiusTopRight']) ??
                     source
@@ -466,10 +474,10 @@ Widget buildContainer(BuildContext context, DataSource source) {
         minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
         maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
             double.infinity)),
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']),
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
@@ -498,16 +506,18 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: source.v<double>(const <Object>['fontSize']),
+        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing: source.v<double>(const <Object>['letterSpacing']),
-        wordSpacing: source.v<double>(const <Object>['wordSpacing']),
+        letterSpacing:
+            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+        wordSpacing:
+            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
-        height: source.v<double>(const <Object>['height']),
+        height: RestageDecoders.textMetric(source, <Object>['height']),
         leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
@@ -522,10 +532,9 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
             RestageDecoders.fontVariations(source, <Object>['fontVariations']),
         decoration:
             RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor:
-            ArgumentDecoders.color(source, <Object>['decorationColor']),
+        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: source.v<double>(const <Object>['decorationThickness']),
+        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
         debugLabel: source.v<String>(const <Object>['debugLabel']),
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
@@ -552,15 +561,17 @@ Widget buildExpanded(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `FadeInImageAssetNetwork` widget from [source].
 Widget buildFadeInImageAssetNetwork(BuildContext context, DataSource source) {
-  return FadeInImage.assetNetwork(
+  return RestageFadeInImage.assetNetwork(
     placeholder: source.v<String>(const <Object>['placeholder']) ??
         (throw ArgumentError(
             'FadeInImageAssetNetwork.placeholder is required.')),
     image: source.v<String>(const <Object>['image']) ??
         (throw ArgumentError('FadeInImageAssetNetwork.image is required.')),
-    imageScale: source.v<double>(const <Object>['imageScale']) ?? 1.0,
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    imageScale:
+        RestageDecoders.positiveLayoutScalar(source, <Object>['imageScale']) ??
+            1.0,
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     fit: RestageDecoders.enumByName<BoxFit>(
         BoxFit.values, source, <Object>['fit']),
     placeholderFit: RestageDecoders.enumByName<BoxFit>(
@@ -572,11 +583,11 @@ Widget buildFadeInImageAssetNetwork(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `FittedBox` widget from [source].
 Widget buildFittedBox(BuildContext context, DataSource source) {
-  return FittedBox(
+  return RestageFittedBox(
     fit: RestageDecoders.enumByName<BoxFit>(
             BoxFit.values, source, <Object>['fit']) ??
         BoxFit.contain,
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
@@ -598,11 +609,12 @@ Widget buildFlexible(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `FractionallySizedBox` widget from [source].
 Widget buildFractionallySizedBox(BuildContext context, DataSource source) {
-  return FractionallySizedBox(
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+  return RestageFractionallySizedBox(
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
-    widthFactor: source.v<double>(const <Object>['widthFactor']),
-    heightFactor: source.v<double>(const <Object>['heightFactor']),
+    widthFactor: RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
+    heightFactor:
+        RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -619,12 +631,12 @@ Widget buildGestureDetector(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Image` widget from [source].
 Widget buildImage(BuildContext context, DataSource source) {
-  return Image.network(
+  return RestageImage.network(
     source.v<String>(const <Object>['url']) ??
         (throw ArgumentError('Image.url is required.')),
     semanticLabel: source.v<String>(const <Object>['semanticLabel']),
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     color: ArgumentDecoders.color(source, <Object>['color']),
     colorBlendMode: RestageDecoders.enumByName<BlendMode>(
         BlendMode.values, source, <Object>['colorBlendMode']),
@@ -643,12 +655,12 @@ Widget buildImage(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `ImageAsset` widget from [source].
 Widget buildImageAsset(BuildContext context, DataSource source) {
-  return Image.asset(
+  return RestageImage.asset(
     source.v<String>(const <Object>['name']) ??
         (throw ArgumentError('ImageAsset.name is required.')),
     semanticLabel: source.v<String>(const <Object>['semanticLabel']),
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     color: ArgumentDecoders.color(source, <Object>['color']),
     colorBlendMode: RestageDecoders.enumByName<BlendMode>(
         BlendMode.values, source, <Object>['colorBlendMode']),
@@ -674,9 +686,9 @@ Widget buildIntrinsicHeight(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `IntrinsicWidth` widget from [source].
 Widget buildIntrinsicWidth(BuildContext context, DataSource source) {
-  return IntrinsicWidth(
-    stepWidth: source.v<double>(const <Object>['stepWidth']),
-    stepHeight: source.v<double>(const <Object>['stepHeight']),
+  return RestageIntrinsicWidth(
+    stepWidth: RestageDecoders.layoutFactor(source, <Object>['stepWidth']),
+    stepHeight: RestageDecoders.layoutFactor(source, <Object>['stepHeight']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -684,17 +696,18 @@ Widget buildIntrinsicWidth(BuildContext context, DataSource source) {
 /// Builds the catalog's `LimitedBox` widget from [source].
 Widget buildLimitedBox(BuildContext context, DataSource source) {
   return LimitedBox(
-    maxWidth: source.v<double>(const <Object>['maxWidth']) ??
-        (throw ArgumentError('LimitedBox.maxWidth is required.')),
-    maxHeight: source.v<double>(const <Object>['maxHeight']) ??
-        (throw ArgumentError('LimitedBox.maxHeight is required.')),
+    maxWidth: RestageDecoders.requiredLayoutScalar(source, <Object>['maxWidth'],
+        slot: 'LimitedBox.maxWidth', mustBePositive: false),
+    maxHeight: RestageDecoders.requiredLayoutScalar(
+        source, <Object>['maxHeight'],
+        slot: 'LimitedBox.maxHeight', mustBePositive: false),
     child: source.optionalChild(const <Object>['child']),
   );
 }
 
 /// Builds the catalog's `ListView` widget from [source].
 Widget buildListView(BuildContext context, DataSource source) {
-  return ListView(
+  return RestageListView(
     scrollDirection: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.vertical,
@@ -735,16 +748,18 @@ Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: source.v<double>(const <Object>['fontSize']),
+        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing: source.v<double>(const <Object>['letterSpacing']),
-        wordSpacing: source.v<double>(const <Object>['wordSpacing']),
+        letterSpacing:
+            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+        wordSpacing:
+            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
-        height: source.v<double>(const <Object>['height']),
+        height: RestageDecoders.textMetric(source, <Object>['height']),
         leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
@@ -759,10 +774,9 @@ Widget buildRestageFormattedNumber(BuildContext context, DataSource source) {
             RestageDecoders.fontVariations(source, <Object>['fontVariations']),
         decoration:
             RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor:
-            ArgumentDecoders.color(source, <Object>['decorationColor']),
+        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: source.v<double>(const <Object>['decorationThickness']),
+        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
         debugLabel: source.v<String>(const <Object>['debugLabel']),
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
@@ -802,16 +816,18 @@ Widget buildRestagePrice(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: source.v<double>(const <Object>['fontSize']),
+        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing: source.v<double>(const <Object>['letterSpacing']),
-        wordSpacing: source.v<double>(const <Object>['wordSpacing']),
+        letterSpacing:
+            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+        wordSpacing:
+            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
-        height: source.v<double>(const <Object>['height']),
+        height: RestageDecoders.textMetric(source, <Object>['height']),
         leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
@@ -826,10 +842,9 @@ Widget buildRestagePrice(BuildContext context, DataSource source) {
             RestageDecoders.fontVariations(source, <Object>['fontVariations']),
         decoration:
             RestageDecoders.textDecoration(source, <Object>['decoration']),
-        decorationColor:
-            ArgumentDecoders.color(source, <Object>['decorationColor']),
+        decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: source.v<double>(const <Object>['decorationThickness']),
+        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
         debugLabel: source.v<String>(const <Object>['debugLabel']),
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
@@ -892,7 +907,7 @@ Widget buildOpacity(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Padding` widget from [source].
 Widget buildPadding(BuildContext context, DataSource source) {
-  return Padding(
+  return RestagePadding(
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
         (throw ArgumentError('Padding.padding is required.')),
     child: source.optionalChild(const <Object>['child']),
@@ -902,19 +917,21 @@ Widget buildPadding(BuildContext context, DataSource source) {
 /// Builds the catalog's `Positioned` widget from [source].
 Widget buildPositioned(BuildContext context, DataSource source) {
   return Positioned(
-    left: source.v<double>(const <Object>['left']),
-    top: source.v<double>(const <Object>['top']),
-    right: source.v<double>(const <Object>['right']),
-    bottom: source.v<double>(const <Object>['bottom']),
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    left: RestageDecoders.constraintScalar(source, <Object>['left']),
+    top: RestageDecoders.constraintScalar(source, <Object>['top']),
+    right: RestageDecoders.constraintScalar(source, <Object>['right']),
+    bottom: RestageDecoders.constraintScalar(source, <Object>['bottom']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     child: source.child(const <Object>['child']),
   );
 }
 
 /// Builds the catalog's `Row` widget from [source].
 Widget buildRow(BuildContext context, DataSource source) {
-  return Row(
+  final children = source.childList(<Object>['children']);
+
+  return RestageRow(
     mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
             MainAxisAlignment.values, source, <Object>['mainAxisAlignment']) ??
         MainAxisAlignment.start,
@@ -926,8 +943,9 @@ Widget buildRow(BuildContext context, DataSource source) {
             source,
             <Object>['crossAxisAlignment']) ??
         CrossAxisAlignment.center,
-    spacing: source.v<double>(const <Object>['spacing']) ?? 0.0,
-    children: source.childList(const <Object>['children']),
+    spacing: RestageDecoders.derivedSpacing(
+        source, <Object>['spacing'], children.length),
+    children: children,
   );
 }
 
@@ -976,8 +994,8 @@ Widget buildSingleChildScrollView(BuildContext context, DataSource source) {
 /// Builds the catalog's `SizedBox` widget from [source].
 Widget buildSizedBox(BuildContext context, DataSource source) {
   return SizedBox(
-    width: source.v<double>(const <Object>['width']),
-    height: source.v<double>(const <Object>['height']),
+    width: RestageDecoders.constraintScalar(source, <Object>['width']),
+    height: RestageDecoders.constraintScalar(source, <Object>['height']),
     child: source.optionalChild(const <Object>['child']),
   );
 }
@@ -991,8 +1009,8 @@ Widget buildSpacer(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Stack` widget from [source].
 Widget buildStack(BuildContext context, DataSource source) {
-  return Stack(
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+  return RestageStack(
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.topStart,
     fit: RestageDecoders.enumByName<StackFit>(
             StackFit.values, source, <Object>['fit']) ??
@@ -1014,24 +1032,23 @@ Widget buildText(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: source.v<double>(const <Object>['fontSize']) ??
+        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
                 as double?,
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-                FontWeight.values, source, <Object>['fontWeight']) ??
+        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
                 as FontWeight?,
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing: source.v<double>(const <Object>['letterSpacing']),
-        wordSpacing: source.v<double>(const <Object>['wordSpacing']),
+        letterSpacing:
+            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+        wordSpacing:
+            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
-        height: source.v<double>(const <Object>['height']),
+        height: RestageDecoders.textMetric(source, <Object>['height']),
         leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values,
-            source,
-            <Object>['leadingDistribution']),
+            TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
@@ -1041,7 +1058,7 @@ Widget buildText(BuildContext context, DataSource source) {
         decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: source.v<double>(const <Object>['decorationThickness']),
+        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
         debugLabel: source.v<String>(const <Object>['debugLabel']),
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
@@ -1067,24 +1084,23 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         color: ArgumentDecoders.color(source, <Object>['color']),
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
-        fontSize: source.v<double>(const <Object>['fontSize']) ??
+        fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
                 as double?,
-        fontWeight: ArgumentDecoders.enumValue<FontWeight>(
-                FontWeight.values, source, <Object>['fontWeight']) ??
+        fontWeight: ArgumentDecoders.enumValue<FontWeight>(FontWeight.values, source, <Object>['fontWeight']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
                 as FontWeight?,
         fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
-        letterSpacing: source.v<double>(const <Object>['letterSpacing']),
-        wordSpacing: source.v<double>(const <Object>['wordSpacing']),
+        letterSpacing:
+            RestageDecoders.textMetric(source, <Object>['letterSpacing']),
+        wordSpacing:
+            RestageDecoders.textMetric(source, <Object>['wordSpacing']),
         textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
-        height: source.v<double>(const <Object>['height']),
+        height: RestageDecoders.textMetric(source, <Object>['height']),
         leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
-            TextLeadingDistribution.values,
-            source,
-            <Object>['leadingDistribution']),
+            TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
         locale: ArgumentDecoders.locale(source, <Object>['locale']),
         foreground: ArgumentDecoders.paint(source, <Object>['foreground']),
         background: ArgumentDecoders.paint(source, <Object>['background']),
@@ -1094,7 +1110,7 @@ Widget buildTextRich(BuildContext context, DataSource source) {
         decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
         decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
-        decorationThickness: source.v<double>(const <Object>['decorationThickness']),
+        decorationThickness: RestageDecoders.textMetric(source, <Object>['decorationThickness']),
         debugLabel: source.v<String>(const <Object>['debugLabel']),
         fontFamily: source.v<String>(const <Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
@@ -1116,7 +1132,7 @@ Widget buildTransformRotate(BuildContext context, DataSource source) {
     angle: source.v<double>(const <Object>['angle']) ??
         (throw ArgumentError('TransformRotate.angle is required.')),
     origin: RestageDecoders.offset(source, <Object>['origin']),
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
     transformHitTests:
         source.v<bool>(const <Object>['transformHitTests']) ?? true,
@@ -1138,18 +1154,19 @@ Widget buildVisibility(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Wrap` widget from [source].
 Widget buildWrap(BuildContext context, DataSource source) {
-  return Wrap(
+  return RestageWrap(
     direction: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['direction']) ??
         Axis.horizontal,
     alignment: RestageDecoders.enumByName<WrapAlignment>(
             WrapAlignment.values, source, <Object>['alignment']) ??
         WrapAlignment.start,
-    spacing: source.v<double>(const <Object>['spacing']) ?? 0.0,
+    spacing: RestageDecoders.layoutFactor(source, <Object>['spacing']) ?? 0.0,
     runAlignment: RestageDecoders.enumByName<WrapAlignment>(
             WrapAlignment.values, source, <Object>['runAlignment']) ??
         WrapAlignment.start,
-    runSpacing: source.v<double>(const <Object>['runSpacing']) ?? 0.0,
+    runSpacing:
+        RestageDecoders.layoutFactor(source, <Object>['runSpacing']) ?? 0.0,
     crossAxisAlignment: RestageDecoders.enumByName<WrapCrossAlignment>(
             WrapCrossAlignment.values,
             source,

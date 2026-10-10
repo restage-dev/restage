@@ -216,9 +216,9 @@ Map<Element, Set<Element>> _bindingDependencies(
     };
 
 /// Whether [argument] is a Flutter widget's runtime-only `key:` argument.
-bool isDiscardedWidgetKeyArgument(NamedExpression argument) {
-  if (argument.name.label.name != 'key') return false;
-  final parameter = argument.name.label.element;
+bool isDiscardedWidgetKeyArgument(NamedArgument argument) {
+  if (argument.name.lexeme != 'key') return false;
+  final parameter = argument.correspondingParameter;
   if (parameter is! FormalParameterElement ||
       !_isFlutterKeyType(parameter.type)) {
     return false;
@@ -254,9 +254,9 @@ final class _ReferencedBindingCollector extends RecursiveAstVisitor<void> {
   final Set<Element> elements = {};
 
   @override
-  void visitNamedExpression(NamedExpression node) {
+  void visitNamedArgument(NamedArgument node) {
     if (discardWidgetKeys && isDiscardedWidgetKeyArgument(node)) return;
-    super.visitNamedExpression(node);
+    super.visitNamedArgument(node);
   }
 
   @override

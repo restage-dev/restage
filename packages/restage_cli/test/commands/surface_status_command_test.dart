@@ -265,7 +265,7 @@ void main() {
       expect(err.toString(), contains('--type'));
     });
 
-    test('missing positional slug → exit 1', () async {
+    test('missing positional id → exit 1', () async {
       final err = StringBuffer();
       final runner = CommandRunner<int>('restage', '')
         ..addCommand(
@@ -288,7 +288,7 @@ void main() {
         'production',
       ]);
       expect(code, 1);
-      expect(err.toString().toLowerCase(), contains('slug'));
+      expect(err.toString(), contains('Missing positional argument: <id>.'));
     });
 
     test('not signed in → exit 1 with login hint', () async {

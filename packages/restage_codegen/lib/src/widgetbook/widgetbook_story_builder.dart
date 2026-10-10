@@ -4,6 +4,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/src/dart_source_parsing.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
@@ -82,6 +83,11 @@ final class WidgetbookStoryBuilder implements Builder {
     final cache = await buildStep.fetchResource(_widgetbookCatalogResource);
     final index = await cache.getOrLoad(buildStep, _placement);
     final packageName = buildStep.inputId.package;
+    final packageLanguage =
+        (await buildStep.packageConfig)[packageName]?.languageVersion;
+    final languageVersion = packageLanguage == null
+        ? null
+        : Version(packageLanguage.major, packageLanguage.minor, 0);
     final declaredOutputs =
         buildExtensions[r'$lib$']?.toSet() ?? const <String>{};
     final ownersByOutput = <String, List<WidgetbookWidgetSource>>{};
@@ -156,6 +162,7 @@ final class WidgetbookStoryBuilder implements Builder {
         plan: plan,
         packageName: packageName,
         sourcePath: widget.sourceAsset.path,
+        languageVersion: languageVersion,
       );
       await buildStep.writeAsString(
         AssetId(packageName, 'lib/$output'),

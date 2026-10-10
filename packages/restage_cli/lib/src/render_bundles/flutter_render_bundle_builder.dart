@@ -254,6 +254,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       loaderSource: loaderSource,
     );
     await _omitExpectedLastBuildId(output);
+    await _omitExpectedDebugSymbols(output);
     final fonts = Directory(p.join(output.path, 'assets', 'fonts', 'fallback'));
     await fonts.create(recursive: true);
     await File(
@@ -296,6 +297,26 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       throw const RenderBundleBuildException('service_worker_contract');
     }
     await worker.delete();
+  }
+
+  /// Removes the build's own symbol maps, which nothing fetches at runtime.
+  ///
+  /// Only these exact root outputs are dropped, so a bundled asset that
+  /// happens to end in the same suffix still ships.
+  Future<void> _omitExpectedDebugSymbols(Directory output) async {
+    const names = <String>{'main.dart.js.symbols', 'main.dart.wasm.symbols'};
+    for (final name in names) {
+      final symbols = File(p.join(output.path, name));
+      final type = await FileSystemEntity.type(
+        symbols.path,
+        followLinks: false,
+      );
+      if (type == FileSystemEntityType.notFound) continue;
+      if (type != FileSystemEntityType.file) {
+        throw const RenderBundleBuildException('debug_symbol_contract');
+      }
+      await symbols.delete();
+    }
   }
 
   Future<void> _omitExpectedLastBuildId(Directory output) async {

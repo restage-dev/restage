@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show gzip;
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -14,13 +15,94 @@ import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart'
 /// Exact media type accepted by the local render-bundle upload route.
 const renderBundleUploadMediaType = 'application/vnd.restage.render-bundle.v1';
 
-/// A fail-closed upload failure whose rendering contains no server detail.
+/// A size a bundle exceeded before anything was sent.
+@experimental
+final class RenderBundleOversize {
+  /// Records a measurement against a ceiling.
+  const RenderBundleOversize({
+    required this.measuredBytes,
+    required this.limitBytes,
+    required this.compressed,
+  });
+
+  /// The size that was measured.
+  final int measuredBytes;
+
+  /// The ceiling it exceeded.
+  final int limitBytes;
+
+  /// Whether both figures describe the compressed body rather than the archive.
+  final bool compressed;
+}
+
+/// What one organization already holds staged, and the ceiling it passed.
+@experimental
+final class RenderBundleStagedBytes {
+  /// Records a staging measurement against its ceiling.
+  const RenderBundleStagedBytes({
+    required this.heldBytes,
+    required this.limitBytes,
+  });
+
+  /// Staged bytes this organization would have been brought to.
+  final int heldBytes;
+
+  /// The most it may hold staged at once.
+  final int limitBytes;
+}
+
+/// A fail-closed upload failure.
+///
+/// [statusCode] carries the upload response status when a responder answered,
+/// and [oversize] the measurement when the refusal was local. No response
+/// body, header, or server message is ever retained.
 @experimental
 final class RenderBundleUploadException implements Exception {
-  const RenderBundleUploadException();
+  const RenderBundleUploadException({this.statusCode, this.transferBytes})
+    : oversize = null,
+      staged = null;
+
+  /// A refusal the client made itself, before anything went on the wire.
+  const RenderBundleUploadException.oversize(RenderBundleOversize this.oversize)
+    : statusCode = null,
+      transferBytes = null,
+      staged = null;
+
+  /// A refusal that names how much the organization already holds staged.
+  const RenderBundleUploadException.staged(
+    RenderBundleStagedBytes this.staged, {
+    this.statusCode,
+  }) : oversize = null,
+       transferBytes = null;
+
+  /// The upload response status, when the request reached a responder.
+  final int? statusCode;
+
+  /// Size of the compressed body that was put on the wire.
+  final int? transferBytes;
+
+  /// The measurement that refused the upload locally.
+  final RenderBundleOversize? oversize;
+
+  /// The staging measurement the service refused on, when it sent one.
+  final RenderBundleStagedBytes? staged;
 
   @override
-  String toString() => 'RenderBundleUploadException(upload_failed)';
+  String toString() {
+    final staging = staged;
+    if (staging != null) {
+      return 'RenderBundleUploadException(staged_bytes_exceeded, '
+          '${staging.heldBytes} of ${staging.limitBytes})';
+    }
+    final measurement = oversize;
+    if (measurement != null) {
+      return 'RenderBundleUploadException(oversize, '
+          '${measurement.measuredBytes} of ${measurement.limitBytes})';
+    }
+    return statusCode == null
+        ? 'RenderBundleUploadException(upload_failed)'
+        : 'RenderBundleUploadException(upload_failed, status: $statusCode)';
+  }
 }
 
 /// The status-safe part of one discovered channel head.
@@ -105,10 +187,17 @@ final class RenderBundleApi {
     required Uint8List archive,
     int? organizationId,
   }) async {
-    if (!isValidRenderBundleChannel(channel) ||
-        archive.isEmpty ||
-        archive.length > renderBundleMaxArchiveBytes) {
+    if (!isValidRenderBundleChannel(channel) || archive.isEmpty) {
       throw const RenderBundleUploadException();
+    }
+    if (archive.length > renderBundleMaxArchiveBytes) {
+      throw RenderBundleUploadException.oversize(
+        RenderBundleOversize(
+          measuredBytes: archive.length,
+          limitBytes: renderBundleMaxArchiveBytes,
+          compressed: false,
+        ),
+      );
     }
 
     try {
@@ -135,7 +224,19 @@ final class RenderBundleApi {
       // double-build comparison all remain defined on the raw bytes.
       final transfer = Uint8List.fromList(gzip.encode(archive));
       if (transfer.length > renderBundleMaxUploadTransferBytes) {
-        throw const RenderBundleUploadException();
+        // Past the single-request ceiling the stream is split into parts and
+        // reassembled server-side, which the whole-archive hash then has to
+        // match before anything is stored.
+        await _uploadInParts(
+          project: project,
+          channel: channel,
+          organizationId: organizationId,
+          uploadUri: uploadUri,
+          authorization: authorization,
+          transfer: transfer,
+          contentHash: 'sha256:${crypto.sha256.convert(archive)}',
+        );
+        return;
       }
       final request = http.Request('POST', uploadUri)
         ..followRedirects = false
@@ -155,12 +256,229 @@ final class RenderBundleApi {
       if (response.statusCode != 204 ||
           (response.contentLength != null && response.contentLength != 0) ||
           !empty) {
-        throw const RenderBundleUploadException();
+        throw RenderBundleUploadException(
+          statusCode: response.statusCode,
+          transferBytes: transfer.length,
+        );
       }
     } on RenderBundleUploadException {
       rethrow;
     } on Object {
       throw const RenderBundleUploadException();
+    }
+  }
+
+  /// Splits one compressed stream into parts and commits it by hash.
+  ///
+  /// Nothing is stored until the server reassembles the parts and agrees on
+  /// [contentHash]; a failure discards the staged parts.
+  Future<void> _uploadInParts({
+    required String project,
+    required String channel,
+    required int? organizationId,
+    required Uri uploadUri,
+    required String authorization,
+    required Uint8List transfer,
+    required String contentHash,
+  }) async {
+    final prepared = await _rpc.call(
+      'renderBundle',
+      'prepareChunkedUpload',
+      <String, dynamic>{
+        'projectSlug': project,
+        'channel': channel,
+        'organizationId': ?organizationId,
+      },
+    );
+    if (prepared is! Map<String, dynamic>) {
+      throw const RenderBundleUploadException();
+    }
+    final uploadId = prepared['uploadId'];
+    final nonce = prepared['nonce'];
+    final expiresAtSource = prepared['expiresAt'];
+    final partByteLimit = prepared['partByteLimit'];
+    final maxParts = prepared['maxParts'];
+    final expiresAt = expiresAtSource is String
+        ? DateTime.tryParse(expiresAtSource)
+        : null;
+    if (uploadId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(uploadId) ||
+        nonce is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(nonce) ||
+        expiresAt == null ||
+        partByteLimit is! int ||
+        partByteLimit < 1 ||
+        maxParts is! int ||
+        maxParts < 1) {
+      throw const RenderBundleUploadException();
+    }
+    // The prepared part URL must be the same authority the whole-archive URL
+    // was validated against; only the part coordinates may differ.
+    if (prepared['uploadUrl'] != uploadUri.toString()) {
+      throw const RenderBundleUploadException();
+    }
+
+    final partCount = (transfer.length + partByteLimit - 1) ~/ partByteLimit;
+    if (partCount > maxParts) {
+      // Chunking removes the single-request ceiling; what is left is the
+      // service's total, and it is still worth reporting with its figures.
+      throw RenderBundleUploadException.oversize(
+        RenderBundleOversize(
+          measuredBytes: transfer.length,
+          limitBytes: partByteLimit * maxParts,
+          compressed: true,
+        ),
+      );
+    }
+
+    for (var index = 0; index < partCount; index++) {
+      final start = index * partByteLimit;
+      final end = start + partByteLimit < transfer.length
+          ? start + partByteLimit
+          : transfer.length;
+      final body = Uint8List.sublistView(transfer, start, end);
+      // Re-staging a part with identical bytes is accepted, so a part that
+      // fails in transit is worth one more attempt before the whole upload is
+      // thrown away.
+      var sent = false;
+      RenderBundleUploadException? laneRefusal;
+      for (var attempt = 0; attempt < 2 && !sent; attempt++) {
+        try {
+          await _sendPart(
+            uploadUri: uploadUri,
+            authorization: authorization,
+            uploadId: uploadId,
+            nonce: nonce,
+            expiresAt: expiresAt,
+            partIndex: index,
+            partCount: partCount,
+            body: body,
+          );
+          sent = true;
+        } on RenderBundleUploadException catch (error) {
+          // A busy lane means the service wants this part to wait its turn.
+          // The upload is still sound, so it is retried like a transport
+          // failure.
+          if (error.statusCode == 429 || error.statusCode == 503) {
+            laneRefusal = error;
+            continue;
+          }
+          // Any other refusal is the server's answer.
+          await _discardParts(
+            project: project,
+            uploadId: uploadId,
+            organizationId: organizationId,
+          );
+          rethrow;
+        } on Object {
+          // Transport failure; the next attempt re-stages the same bytes.
+        }
+      }
+      if (!sent) {
+        // Every exit discards, including one the transport threw.
+        await _discardParts(
+          project: project,
+          uploadId: uploadId,
+          organizationId: organizationId,
+        );
+        throw laneRefusal ?? const RenderBundleUploadException();
+      }
+    }
+
+    try {
+      await _rpc.call('renderBundle', 'commitChunkedUpload', <String, dynamic>{
+        'projectSlug': project,
+        'uploadId': uploadId,
+        'nonce': nonce,
+        'expiresAt': expiresAt.toUtc().toIso8601String(),
+        'contentHash': contentHash,
+        'channel': channel,
+        'organizationId': ?organizationId,
+      });
+    } on Object {
+      await _discardParts(
+        project: project,
+        uploadId: uploadId,
+        organizationId: organizationId,
+      );
+      throw const RenderBundleUploadException();
+    }
+  }
+
+  /// Sends one part, applying the response checks the whole-archive path makes.
+  Future<void> _sendPart({
+    required Uri uploadUri,
+    required String authorization,
+    required String uploadId,
+    required String nonce,
+    required DateTime expiresAt,
+    required int partIndex,
+    required int partCount,
+    required Uint8List body,
+  }) async {
+    final request =
+        http.Request(
+            'POST',
+            _partUri(
+              uploadUri,
+              uploadId: uploadId,
+              nonce: nonce,
+              expiresAt: expiresAt,
+              partIndex: partIndex,
+              partCount: partCount,
+            ),
+          )
+          ..followRedirects = false
+          ..maxRedirects = 0
+          ..headers['authorization'] = authorization
+          ..headers['content-type'] = renderBundleUploadMediaType
+          ..bodyBytes = body;
+    final response = await _uploadClient.send(request);
+    final answer = await response.stream.toBytes();
+    if (response.statusCode != 204 ||
+        (response.contentLength != null && response.contentLength != 0) ||
+        answer.isNotEmpty) {
+      throw _partRefusal(response.statusCode, answer);
+    }
+  }
+
+  /// Reads a typed refusal, falling back to the status when there is none.
+  RenderBundleUploadException _partRefusal(int statusCode, Uint8List answer) {
+    if (answer.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(utf8.decode(answer));
+        if (decoded is Map<String, Object?> &&
+            decoded['reason'] == 'staged_bytes_exceeded') {
+          final held = decoded['heldBytes'];
+          final limit = decoded['limitBytes'];
+          if (held is int && limit is int) {
+            return RenderBundleUploadException.staged(
+              RenderBundleStagedBytes(heldBytes: held, limitBytes: limit),
+              statusCode: statusCode,
+            );
+          }
+        }
+      } on Object {
+        // A body that will not parse is no worse than none: the status stands.
+      }
+    }
+    return RenderBundleUploadException(statusCode: statusCode);
+  }
+
+  Future<void> _discardParts({
+    required String project,
+    required String uploadId,
+    required int? organizationId,
+  }) async {
+    try {
+      await _rpc.call('renderBundle', 'discardChunkedUpload', <String, dynamic>{
+        'projectSlug': project,
+        'uploadId': uploadId,
+        'organizationId': ?organizationId,
+      });
+    } on Object {
+      // The server discards staged parts on its own failure paths; a failed
+      // courtesy discard must not replace the original refusal.
     }
   }
 
@@ -461,3 +779,22 @@ bool _isExactTrustedBundleOrigin(Uri uri) {
   return _isDefaultHttps(uri) ||
       canDeriveMaxSignedRenderBundleExecutionOrigin(uri);
 }
+
+/// Adds the part coordinates to a validated upload URL in canonical order.
+Uri _partUri(
+  Uri uploadUri, {
+  required String uploadId,
+  required String nonce,
+  required DateTime expiresAt,
+  required int partIndex,
+  required int partCount,
+}) => uploadUri.replace(
+  queryParameters: <String, String>{
+    ...uploadUri.queryParameters,
+    'uploadId': uploadId,
+    'nonce': nonce,
+    'expiresAt': expiresAt.toUtc().toIso8601String(),
+    'partIndex': '$partIndex',
+    'partCount': '$partCount',
+  },
+);

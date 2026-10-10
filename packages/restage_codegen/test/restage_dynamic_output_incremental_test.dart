@@ -194,14 +194,28 @@ void main() {
           isNot(contains('InvalidOutputException')),
         ),
       );
-      expect(result.errors, hasLength(1));
-      final invalidBundle = jsonDecode(
+      // One cause: the build reports it, then repeats it as the failure that
+      // ended the build. Nothing else failed.
+      expect(
+        result.errors.where(
+          (error) => !error.contains('duplicate delivery identity "alpha"'),
+        ),
+        isEmpty,
+      );
+      // A failed build commits no output, so the bundle on the filesystem is
+      // still the last successful one. That the invalid bundle was written
+      // and read inside this build is what the trace below records.
+      final committedBundle = jsonDecode(
         fixture.readerWriter.testing.readString(
           AssetId(_package, _bundlePath),
         ),
       ) as Map<String, Object?>;
-      expect(invalidBundle['valid'], isFalse);
-      expect(invalidBundle['entries'], isEmpty);
+      expect(committedBundle['valid'], isTrue);
+      expect(
+        (committedBundle['entries']! as List<Object?>)
+            .map((entry) => (entry! as Map<String, Object?>)['sourcePath']),
+        isNot(contains('lib/restage_dynamic/duplicate.source')),
+      );
       expect(_allDynamicOutputs(fixture), isEmpty);
       expect(
         fixture.readerWriter.testing.exists(
@@ -485,12 +499,12 @@ final class _PersistentDynamicOutputBuild {
         '$_package:aggregate',
         package: _package,
         autoApply: build_config.AutoApply.none,
-        hideOutput: false,
+        outputsToArtifactTree: false,
       ),
       build_runner_internal.PostProcessBuilderDefinition(
         '$_package:dynamic',
         package: _package,
-        hideOutput: false,
+        outputsToArtifactTree: false,
       ),
     ].build();
     final buildConfig = build_config.BuildConfig.fromMap(
@@ -519,7 +533,7 @@ final class _PersistentDynamicOutputBuild {
       }.build(),
       buildPackages: buildPackages,
       checkBuilderFreshness: false,
-      flattenOutput: true,
+      forceToPackagePathsForTesting: true,
       readerWriter: readerWriter,
     );
     final builderFactories = build_runner_internal.BuilderFactories(
@@ -533,9 +547,11 @@ final class _PersistentDynamicOutputBuild {
       },
     );
     final buildPlan = await build_runner_internal.BuildPlan.load(
-      builderFactories: builderFactories,
-      buildOptions: build_runner_internal.BuildOptions.forTests(),
-      testingOverrides: testingOverrides,
+      await build_runner_internal.BuildSpec.load(
+        builderFactories: builderFactories,
+        buildOptions: build_runner_internal.BuildOptions.forTests(),
+        testingOverrides: testingOverrides,
+      ),
     );
     return _PersistentDynamicOutputBuild(
       readerWriter: readerWriter,

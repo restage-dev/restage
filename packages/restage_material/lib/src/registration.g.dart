@@ -111,8 +111,10 @@ Widget buildAppBar(BuildContext context, DataSource source) {
     primary: source.v<bool>(const <Object>['primary']) ?? true,
     centerTitle: source.v<bool>(const <Object>['centerTitle']) ?? true,
     titleSpacing: source.v<double>(const <Object>['titleSpacing']),
-    toolbarHeight: source.v<double>(const <Object>['toolbarHeight']),
-    leadingWidth: source.v<double>(const <Object>['leadingWidth']),
+    toolbarHeight:
+        RestageDecoders.layoutFactor(source, <Object>['toolbarHeight']),
+    leadingWidth:
+        RestageDecoders.layoutFactor(source, <Object>['leadingWidth']),
     forceMaterialTransparency:
         source.v<bool>(const <Object>['forceMaterialTransparency']) ?? false,
     clipBehavior: RestageDecoders.enumByName<Clip>(
@@ -129,7 +131,7 @@ Widget buildBadge(BuildContext context, DataSource source) {
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     textColor: ArgumentDecoders.color(source, <Object>['textColor']),
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']),
     offset: RestageDecoders.offset(source, <Object>['offset']),
     label: source.optionalChild(const <Object>['label']),
     isLabelVisible: source.v<bool>(const <Object>['isLabelVisible']) ?? true,
@@ -250,8 +252,9 @@ Widget buildCircularProgressIndicator(BuildContext context, DataSource source) {
 /// Builds the catalog's `Divider` widget from [source].
 Widget buildDivider(BuildContext context, DataSource source) {
   return Divider(
-    height: source.v<double>(const <Object>['height']) ?? 16.0,
-    thickness: source.v<double>(const <Object>['thickness']) ?? 1.0,
+    height: RestageDecoders.layoutFactor(source, <Object>['height']) ?? 16.0,
+    thickness:
+        RestageDecoders.layoutFactor(source, <Object>['thickness']) ?? 1.0,
     color: ArgumentDecoders.color(source, <Object>['color']),
   );
 }
@@ -407,7 +410,7 @@ Widget buildIcon(BuildContext context, DataSource source) {
             'MaterialIcons',
         matchTextDirection:
             source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false),
-    size: source.v<double>(const <Object>['size']) ??
+    size: RestageDecoders.constraintScalar(source, <Object>['size']) ??
         resolveThemeBinding(context, path: 'iconTheme.size') as double?,
     color: ArgumentDecoders.color(source, <Object>['color']) ??
         resolveThemeBinding(context, path: 'iconTheme.color') as Color?,
@@ -417,7 +420,8 @@ Widget buildIcon(BuildContext context, DataSource source) {
 /// Builds the catalog's `IconButton` widget from [source].
 Widget buildIconButton(BuildContext context, DataSource source) {
   return IconButton(
-    iconSize: source.v<double>(const <Object>['iconSize']) ?? 24.0,
+    iconSize:
+        RestageDecoders.constraintScalar(source, <Object>['iconSize']) ?? 24.0,
     color: ArgumentDecoders.color(source, <Object>['color']),
     onPressed: source.voidHandler(const <Object>['onPressed']),
     tooltip: source.v<String>(const <Object>['tooltip']),
@@ -441,7 +445,8 @@ Widget buildLinearProgressIndicator(BuildContext context, DataSource source) {
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    minHeight: source.v<double>(const <Object>['minHeight']),
+    minHeight:
+        RestageDecoders.positiveLayoutScalar(source, <Object>['minHeight']),
   );
 }
 
@@ -477,8 +482,8 @@ Widget buildRestageModalSheet(BuildContext context, DataSource source) {
         ArgumentDecoders.color(source, <Object>['dragHandleColor']),
     isScrollControlled:
         source.v<bool>(const <Object>['isScrollControlled']) ?? false,
-    scrollControlDisabledMaxHeightRatio: source
-            .v<double>(const <Object>['scrollControlDisabledMaxHeightRatio']) ??
+    scrollControlDisabledMaxHeightRatio: RestageDecoders.unitIntervalFactor(
+            source, <Object>['scrollControlDisabledMaxHeightRatio']) ??
         0.5625,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
@@ -509,8 +514,9 @@ Widget buildRestageModalSheet(BuildContext context, DataSource source) {
 Widget buildRestagePager(BuildContext context, DataSource source) {
   return RestagePager(
     initialPage: source.v<int>(const <Object>['initialPage']) ?? 0,
-    viewportFraction:
-        source.v<double>(const <Object>['viewportFraction']) ?? 1.0,
+    viewportFraction: RestageDecoders.unitIntervalFactor(
+            source, <Object>['viewportFraction']) ??
+        1.0,
     scrollDirection: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.horizontal,
@@ -797,7 +803,7 @@ Widget buildTab(BuildContext context, DataSource source) {
     text: source.v<String>(const <Object>['text']),
     icon: source.optionalChild(const <Object>['icon']),
     iconMargin: RestageDecoders.edgeInsets(source, <Object>['iconMargin']),
-    height: source.v<double>(const <Object>['height']),
+    height: RestageDecoders.layoutFactor(source, <Object>['height']),
     child: source.optionalChild(const <Object>['child']),
   );
 }

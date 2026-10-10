@@ -108,7 +108,7 @@ const Map<String, List<LoweringTarget>> kCallLowerings = {
 bool textLowersToRichText(InstanceCreationExpression expr) {
   if (instanceCreationMemberName(expr) == 'rich') return true;
   for (final argument in expr.argumentList.arguments) {
-    if (argument is NamedExpression) continue;
+    if (argument is NamedArgument) continue;
     return argument is StringInterpolation;
   }
   return false;

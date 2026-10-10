@@ -252,7 +252,7 @@ void main() {
       final args = _parseWith({});
       final slug = resolveSingleSlug(argResults: args, stderr: err);
       expect(slug, isNull);
-      expect(err.toString(), contains('<slug>'));
+      expect(err.toString(), contains('<id>'));
     });
 
     test(
@@ -270,7 +270,28 @@ void main() {
       final err = StringBuffer();
       final slug = resolveSingleSlug(argResults: null, stderr: err);
       expect(slug, isNull);
-      expect(err.toString(), contains('<slug>'));
+      expect(err.toString(), contains('<id>'));
+    });
+
+    test('refuses a slug outside the surface slug grammar', () {
+      for (final refused in const ['\u{1F600}', 'My-Surface', 'my surface']) {
+        final err = StringBuffer();
+        final args = _parseWith({}, rest: [refused]);
+        expect(
+          resolveSingleSlug(argResults: args, stderr: err),
+          isNull,
+          reason: 'expected `$refused` to be refused',
+        );
+        expect(err.toString(), contains(surfaceSlugRefusalMessage));
+      }
+    });
+
+    test('accepts an underscore slug', () {
+      final slug = resolveSingleSlug(
+        argResults: _parseWith({}, rest: ['capture_exit']),
+        stderr: StringBuffer(),
+      );
+      expect(slug, 'capture_exit');
     });
   });
 

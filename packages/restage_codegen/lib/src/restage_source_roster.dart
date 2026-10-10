@@ -8,7 +8,11 @@ import 'dart:convert';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show FlowDeliveryMode, Surface;
+    show
+        FlowDeliveryMode,
+        Surface,
+        isValidSurfaceSlug,
+        surfaceSlugRefusalMessage;
 
 /// The source kinds understood by the package roster.
 ///
@@ -641,6 +645,16 @@ RestageSourceRoster assembleRestageSourceRoster(
           code: IssueCode.annotationEvaluationFailed,
           message: 'A ${declaration.kind.wireName} source ID must not be '
               'empty.',
+          location: declaration.span.location,
+        ),
+      );
+    } else if (!isValidSurfaceSlug(declaration.effectiveId)) {
+      issues.add(
+        Issue(
+          code: IssueCode.annotationEvaluationFailed,
+          message: '`${declaration.effectiveId}` is not a usable '
+              '${declaration.kind.wireName} source ID. '
+              '$surfaceSlugRefusalMessage',
           location: declaration.span.location,
         ),
       );

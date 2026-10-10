@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -83,6 +84,43 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('rejects a source ID outside the published grammar', () {
+      for (final refused in const [
+        'WelcomeFlow',
+        'wel come',
+        'flows/welcome'
+      ]) {
+        final roster = assembleRestageSourceRoster([
+          _declaration(
+            libraryPath: 'lib/account_screens.dart',
+            declarationName: 'First',
+            explicitId: refused,
+            outputPath: 'assets/restage/first.rfw',
+            line: 4,
+          ),
+        ]);
+
+        expect(roster.isValid, isFalse, reason: 'expected `$refused` refused');
+        final message =
+            roster.issues.map((issue) => issue.toString()).join('\n');
+        expect(message, contains(surfaceSlugRefusalMessage));
+      }
+    });
+
+    test('accepts a source ID inside the published grammar', () {
+      final roster = assembleRestageSourceRoster([
+        _declaration(
+          libraryPath: 'lib/account_screens.dart',
+          declarationName: 'First',
+          explicitId: 'capture_exit-2',
+          outputPath: 'assets/restage/first.rfw',
+          line: 4,
+        ),
+      ]);
+
+      expect(roster.issues, isEmpty);
     });
 
     test('rejects duplicate explicit identities and names both source spans',

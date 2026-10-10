@@ -142,9 +142,9 @@ widget Paywall = Column(
 Type _flutterTypeFor(String entryName) {
   switch (entryName) {
     case 'Align':
-      return Align;
+      return RestageAlign;
     case 'AnimatedAlign':
-      return AnimatedAlign;
+      return RestageAnimatedAlign;
     case 'AnimatedContainer':
       return AnimatedContainer;
     case 'AnimatedDefaultTextStyle':
@@ -152,7 +152,7 @@ Type _flutterTypeFor(String entryName) {
     case 'AnimatedOpacity':
       return AnimatedOpacity;
     case 'AnimatedPadding':
-      return AnimatedPadding;
+      return RestageAnimatedPadding;
     case 'AnimatedPositioned':
       return AnimatedPositioned;
     case 'AnimatedRotation':
@@ -160,15 +160,15 @@ Type _flutterTypeFor(String entryName) {
     case 'AnimatedScale':
       return AnimatedScale;
     case 'AnimatedSize':
-      return AnimatedSize;
+      return RestageAnimatedSize;
     case 'AnimatedSlide':
       return AnimatedSlide;
     case 'AspectRatio':
-      return AspectRatio;
+      return RestageAspectRatio;
     case 'BackdropFilter':
       return BackdropFilter;
     case 'Center':
-      return Center;
+      return RestageCenter;
     case 'ClipOval':
       return ClipOval;
     case 'ClipRect':
@@ -178,7 +178,7 @@ Type _flutterTypeFor(String entryName) {
     case 'ColoredBox':
       return ColoredBox;
     case 'Column':
-      return Column;
+      return RestageColumn;
     case 'ConstrainedBox':
       return ConstrainedBox;
     case 'Container':
@@ -190,26 +190,28 @@ Type _flutterTypeFor(String entryName) {
     case 'Expanded':
       return Expanded;
     case 'FadeInImageAssetNetwork':
-      return FadeInImage;
+      return RestageFadeInImage;
     case 'FittedBox':
-      return FittedBox;
+      return RestageFittedBox;
     case 'FractionallySizedBox':
-      return FractionallySizedBox;
+      // The catalog name stays unchanged for authored source, while its runtime
+      // realization differs from the framework type an author writes.
+      return RestageFractionallySizedBox;
     case 'Flexible':
       return Flexible;
     case 'GestureDetector':
       return GestureDetector;
     case 'Image':
     case 'ImageAsset':
-      return Image;
+      return RestageImage;
     case 'IntrinsicHeight':
       return IntrinsicHeight;
     case 'IntrinsicWidth':
-      return IntrinsicWidth;
+      return RestageIntrinsicWidth;
     case 'LimitedBox':
       return LimitedBox;
     case 'ListView':
-      return ListView;
+      return RestageListView;
     case 'RestageFadeIn':
       return RestageFadeIn;
     case 'RestageFormattedNumber':
@@ -227,13 +229,13 @@ Type _flutterTypeFor(String entryName) {
     case 'Opacity':
       return Opacity;
     case 'Padding':
-      return Padding;
+      return RestagePadding;
     case 'Positioned':
       return Positioned;
     case 'RotatedBox':
       return RotatedBox;
     case 'Row':
-      return Row;
+      return RestageRow;
     case 'SafeArea':
       return SafeArea;
     case 'SingleChildScrollView':
@@ -243,7 +245,7 @@ Type _flutterTypeFor(String entryName) {
     case 'Spacer':
       return Spacer;
     case 'Stack':
-      return Stack;
+      return RestageStack;
     case 'Text':
     case 'TextRich':
       // `Text.rich` constructs a `Text` widget (Flutter has no distinct Type
@@ -254,7 +256,7 @@ Type _flutterTypeFor(String entryName) {
     case 'Visibility':
       return Visibility;
     case 'Wrap':
-      return Wrap;
+      return RestageWrap;
   }
   throw StateError(
     'rendering_smoke_test: no Flutter Type mapping for catalog entry '

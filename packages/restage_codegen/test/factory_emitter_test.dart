@@ -60,11 +60,17 @@ void main() {
       expect(source, contains('return Divider('));
       expect(
         source,
-        contains("source.v<double>(const <Object>['height']) ?? 16.0"),
+        contains(
+          'RestageDecoders.layoutFactor('
+          "source, <Object>['height']) ?? 16.0",
+        ),
       );
       expect(
         source,
-        contains("source.v<double>(const <Object>['thickness']) ?? 1.0"),
+        contains(
+          'RestageDecoders.layoutFactor('
+          "source, <Object>['thickness']) ?? 1.0",
+        ),
       );
       // Brand-token defaults pass through as null today (Flutter's
       // own theme resolution provides the runtime value).
@@ -181,7 +187,7 @@ void main() {
       expect(
         source,
         contains(
-          "ArgumentDecoders.alignment(source, <Object>['placement'])",
+          "RestageDecoders.alignment(source, <Object>['placement'])",
         ),
       );
       expect(
@@ -423,7 +429,8 @@ void main() {
       expect(
         source,
         contains(
-          "widthFactor: source.v<double>(const <Object>['widthFactor'])",
+          'widthFactor: RestageDecoders.layoutFactor(source, '
+          "<Object>['widthFactor'])",
         ),
       );
     });
@@ -3937,7 +3944,7 @@ void main() {
           expect(
             source,
             contains(
-              "border: ArgumentDecoders.border(source, <Object>['border'])",
+              "border: RestageDecoders.border(source, <Object>['border'])",
             ),
           );
         },

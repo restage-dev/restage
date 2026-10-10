@@ -191,6 +191,8 @@ String legibleApiError(
       return "No project '$projectSlug' was found.";
     case AppNotFound(:final appSlug, :final projectSlug):
       return "No app '$appSlug' was found in project '$projectSlug'.";
+    case SurfaceSlugRejected(:final slug, :final reason):
+      return "The id '$slug' was refused. $reason";
     case null:
       break;
   }

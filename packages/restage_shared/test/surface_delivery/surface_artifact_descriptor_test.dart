@@ -264,7 +264,7 @@ void main() {
     // bytes were decoded; the bytes now arrive elsewhere, so the claim has to
     // travel to meet them. These pin the three states it can be in.
 
-    test('an absent claim decodes as absent, not as some default kind', () {
+    test('an absent claim decodes to a null payload kind', () {
       // The shape-agnostic route makes no claim. Reading that as a kind would
       // invent a claim nobody made and start failing deliveries that are fine.
       final decoded = SurfaceArtifactDescriptorV1Codec.decode(_valid);
@@ -283,7 +283,7 @@ void main() {
       );
     });
 
-    test('an unrecognised claim is carried, not rejected here', () {
+    test('an unrecognised claim round-trips verbatim', () {
       // The claim is checked against the frame, not against a list this build
       // keeps. Rejecting an unknown spelling in the codec would turn what must
       // be a frame-level refusal into a descriptor-level one, and would make

@@ -612,8 +612,8 @@ Expression? _boundArgumentForField(
   if (fieldParam.isNamed) {
     final name = fieldParam.name;
     for (final arg in args) {
-      if (arg is NamedExpression && arg.name.label.name == name) {
-        return arg.expression;
+      if (arg is NamedArgument && arg.name.lexeme == name) {
+        return arg.argumentExpression;
       }
     }
     return null;
@@ -621,8 +621,7 @@ Expression? _boundArgumentForField(
   final positionalParams = params.where((p) => p.isPositional).toList();
   final index = positionalParams.indexOf(fieldParam);
   if (index < 0) return null;
-  final positionalArgs =
-      args.where((a) => a is! NamedExpression).toList(growable: false);
+  final positionalArgs = args.whereType<Expression>().toList(growable: false);
   if (index >= positionalArgs.length) return null;
   return positionalArgs[index];
 }

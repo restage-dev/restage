@@ -1,14 +1,19 @@
-import 'dart:ui' show FontFeature, FontVariation, Offset, Size;
+import 'dart:ui' show Color, FontFeature, FontVariation, Offset, Size;
 
 import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart'
     show
         Alignment,
+        AlignmentDirectional,
+        AlignmentGeometry,
         AssetImage,
         BeveledRectangleBorder,
+        BorderDirectional,
         BorderRadius,
         BorderRadiusGeometry,
         BorderSide,
+        BorderStyle,
+        BoxBorder,
         BoxFit,
         BoxShadow,
         CircleBorder,
@@ -43,6 +48,8 @@ import 'package:flutter/widgets.dart' show PreferredSizeWidget, Widget;
 import 'package:restage_core/src/runtime/preferred_size_slot.dart';
 import 'package:restage_shared/restage_shared.dart' show kMaxInlineSpanDepth;
 import 'package:rfw/rfw.dart';
+
+import '../widgets/restage_padding.dart';
 
 /// Decoders for property types that aren't covered by rfw's built-in
 /// [ArgumentDecoders].
@@ -112,45 +119,14 @@ abstract final class RestageDecoders {
   static double? number(DataSource source, List<Object> path) =>
       _number(source, path);
 
-  /// Repairs a `BoxConstraints` assembled from wire values into one that is
-  /// legal to hand to layout.
+  /// Repairs constraints before layout, including in release builds.
   ///
-  /// `BoxConstraints` does not validate itself — its `debugAssertIsValid` is
-  /// debug-only, and it is the *render object*, not the constructor, that calls
-  /// it. So an inverted (`maxWidth < minWidth`) or NaN constraint built from a
-  /// corrupt wire sails through a release build and only fails inside
-  /// `performLayout`, where the rendering pipeline catches the throw and merely
-  /// reports it: the user is left with a broken frame and no signal. Repair the
-  /// value instead of trusting it:
+  /// Invalid or infinite minima become zero; NaN maxima become unbounded.
+  /// Maxima below their minima rise to meet them. Infinite maxima and all
+  /// other legal constraints are preserved. Infinite minima are removed
+  /// because an unbounded parent would produce invalid layout geometry.
   ///
-  /// * a minimum that is not a finite, non-negative number floors at zero;
-  /// * a maximum that is not a number becomes unbounded — the same value an
-  ///   absent slot decodes to (`infinity` is a legal maximum and is preserved);
-  /// * a maximum below its minimum rises to meet it, so layout never receives
-  ///   an inverted constraint.
-  ///
-  /// **An infinite minimum floors at zero, and that asymmetry with the maximum
-  /// is deliberate.** An infinite *maximum* means "unbounded", which every box
-  /// already knows how to lay out. An infinite *minimum* means "you must be at
-  /// least infinitely large", which is only survivable while some ancestor
-  /// bounds the axis: hand it a box whose parent leaves that axis unbounded — a
-  /// `Row` gives its non-flex children exactly that — and the child is laid out
-  /// at an infinite extent, whose offset and overflow are then computed as
-  /// `Infinity` arithmetic that resolves to `NaN`, inside the layout phase, in
-  /// release. The build-time toolchain rejects a non-finite real *literal*, so
-  /// a compiled surface is unlikely to carry one — but that guard is not total:
-  /// authoring tools upstream have historically accepted non-finite numeric
-  /// input, and a corrupt or hostile wire can always carry one straight to that
-  /// `NaN`. Preserving an infinite minimum protects no legitimate surface, so
-  /// this repair floors it.
-  ///
-  /// A legal `BoxConstraints` passes through unchanged.
-  ///
-  /// **What this does not do.** It repairs the constraints slot, and only that
-  /// slot. A widget that also takes a raw `width` or `height` — `Container`,
-  /// `AnimatedContainer` — tightens its constraints against those separately,
-  /// and a non-finite one still reaches that arithmetic without passing through
-  /// here. This is a repair of one path, not of the class.
+  /// Raw widget width and height values use [constraintScalar] separately.
   static BoxConstraints safeConstraints(BoxConstraints constraints) {
     final minWidth = _safeConstraintMin(constraints.minWidth);
     final minHeight = _safeConstraintMin(constraints.minHeight);
@@ -231,8 +207,8 @@ abstract final class RestageDecoders {
     final top = source.v<double>([...path, 1]);
     final end = source.v<double>([...path, 2]);
     final bottom = source.v<double>([...path, 3]);
-    final horizontal = _safeInsetAxis(start, end ?? start);
-    final vertical = _safeInsetAxis(top ?? start, bottom ?? top ?? start);
+    final horizontal = restageSafeInsetAxis(start, end ?? start);
+    final vertical = restageSafeInsetAxis(top ?? start, bottom ?? top ?? start);
     return EdgeInsetsDirectional.fromSTEB(
       horizontal.$1,
       vertical.$1,
@@ -240,22 +216,6 @@ abstract final class RestageDecoders {
       vertical.$2,
     );
   }
-
-  /// The two components of one inset axis, repaired as a pair.
-  ///
-  /// Each component is individually made finite and non-negative; the pair is
-  /// then rejected wholesale if what layout subtracts — their sum — is still not
-  /// finite. Returned as a record because the second decision cannot be made one
-  /// component at a time.
-  static (double, double) _safeInsetAxis(double first, double second) {
-    final a = _safeInsetComponent(first);
-    final b = _safeInsetComponent(second);
-    if (!(a + b).isFinite) return (0, 0);
-    return (a, b);
-  }
-
-  static double _safeInsetComponent(double value) =>
-      value.isFinite && value > 0.0 ? value : 0.0;
 
   /// Decodes a `Duration` from a flat integer count of milliseconds at
   /// [path] in [source]. Returns `null` when the slot is missing so
@@ -286,64 +246,142 @@ abstract final class RestageDecoders {
     _supportedCurvesByName.keys,
   );
 
-  /// Decodes a concrete `Alignment` from a `{x, y}` map at [path].
-  ///
-  /// Distinct from rfw's `ArgumentDecoders.alignment` (which returns the
-  /// `AlignmentGeometry` base — it may yield an `AlignmentDirectional` for a
-  /// named-member string). Constructors typed with the concrete `Alignment`
-  /// subtype (e.g. `AnimatedScale.alignment` / `AnimatedRotation.alignment`)
-  /// can't accept an `AlignmentGeometry`, so the catalog routes their slot
-  /// through this decoder. The on-wire shape is `{x: double, y: double}` (the
-  /// same shape the codegen emits for an alignment value); both components
-  /// must be present or the slot decodes to `null` so the caller's contract
-  /// (literal default `Alignment.center` / the Flutter ctor default) applies.
+  /// Decodes a concrete `Alignment` from `{x, y}` at [path].
+  /// Missing components return null so the caller's default applies.
+  /// Each non-finite component becomes `0.0`; finite values, including negative
+  /// values, are preserved without a ceiling.
   static Alignment? alignmentXY(DataSource source, List<Object> path) {
     final x = _number(source, [...path, 'x']);
     final y = _number(source, [...path, 'y']);
     if (x == null || y == null) return null;
-    return Alignment(x, y);
+    return Alignment(_finiteOrZero(x), _finiteOrZero(y));
   }
 
-  /// Decodes an `Offset` from a `{x, y}` map at [path].
-  ///
-  /// The on-wire shape is `{x: double, y: double}` — the same shape rfw's
-  /// `offset` decoder reads and the codegen emits for an `Offset(x, y)`
-  /// value. Used for concrete `Offset` constructor parameters (e.g.
-  /// `AnimatedSlide.offset`). Both components must be present or the slot
-  /// decodes to `null` so the caller's contract (literal default
-  /// `Offset.zero` / the Flutter ctor default) applies.
+  /// Decodes `{x, y}` or `{start, y}`, preserving the rfw subtype choice and
+  /// replacing each non-finite component independently with zero.
+  static AlignmentGeometry? alignment(
+    DataSource source,
+    List<Object> path,
+  ) {
+    if (!source.isMap(path)) return null;
+    final x = source.v<double>([...path, 'x']);
+    final start = source.v<double>([...path, 'start']);
+    final y = source.v<double>([...path, 'y']);
+    if (x == null && start == null) return null;
+    if (y == null) return null;
+    if (start != null) {
+      return AlignmentDirectional(
+        _finiteOrZero(start),
+        _finiteOrZero(y),
+      );
+    }
+    return Alignment(_finiteOrZero(x!), _finiteOrZero(y));
+  }
+
+  /// Decodes `{x, y}`, replacing non-finite components independently with zero
+  /// while preserving finite negative offsets.
   static Offset? offset(DataSource source, List<Object> path) {
     final x = _number(source, [...path, 'x']);
     final y = _number(source, [...path, 'y']);
     if (x == null || y == null) return null;
-    return Offset(x, y);
+    return Offset(_finiteOrZero(x), _finiteOrZero(y));
   }
 
-  /// Decodes a `Size` from a `{width, height}` map at [path].
-  ///
-  /// The on-wire shape is `{width: double, height: double}` — the same shape
-  /// the codegen emits for a `Size(width, height)` value. Used for concrete
-  /// `Size` slots that surface as a registered structured value (e.g. a
-  /// button's `minimumSize` / `fixedSize`). Both components must be present
-  /// or the slot decodes to `null` so the caller's contract (literal default
-  /// / the Flutter ctor default) applies.
+  /// Decodes `{width, height}`, returning null for missing or non-finite
+  /// components and clamping finite negative components to zero.
   static Size? size(DataSource source, List<Object> path) {
     final width = _number(source, [...path, 'width']);
     final height = _number(source, [...path, 'height']);
     if (width == null || height == null) return null;
-    return Size(width, height);
+    if (!width.isFinite || !height.isFinite) return null;
+    return Size(
+      width < 0.0 ? 0.0 : width,
+      height < 0.0 ? 0.0 : height,
+    );
   }
 
-  /// Decodes a `BorderSide` from a `{color, width, style}` map at [path].
-  ///
-  /// The on-wire shape is the same `{color, width, style}` map the codegen
-  /// emits for a `BorderSide(...)` value (the shape rfw's own `borderSide`
-  /// decoder reads, with its color/width/style defaults). Used for concrete
-  /// `BorderSide` slots that surface as a registered structured value (e.g. a
-  /// button's `side`). Returns `null` when the map is absent so the caller's
-  /// contract (literal default / the Flutter ctor default) applies.
-  static BorderSide? borderSide(DataSource source, List<Object> path) {
-    return ArgumentDecoders.borderSide(source, path);
+  /// Decodes rfw's `{color, width, style}` shape, replacing non-finite or
+  /// negative widths with the zero-width border identity.
+  static BorderSide? borderSide(DataSource source, List<Object> path) =>
+      _repairedBorderSide(source, path);
+
+  /// Decodes a [BorderDirectional] through [borderSide], preserving rfw's side
+  /// fallback order and returning null when the first side is absent.
+  static BoxBorder? border(DataSource source, List<Object> path) {
+    final start = _repairedBorderSide(source, [...path, 0]);
+    if (start == null) return null;
+    final top = _repairedBorderSide(source, [...path, 1]);
+    final end = _repairedBorderSide(source, [...path, 2]);
+    final bottom = _repairedBorderSide(source, [...path, 3]);
+    return BorderDirectional(
+      start: start,
+      top: top ?? start,
+      end: end ?? start,
+      bottom: bottom ?? top ?? start,
+    );
+  }
+
+  /// Decodes a constraint scalar, dropping only non-finite values.
+  static double? constraintScalar(
+    DataSource source,
+    List<Object> path,
+  ) =>
+      _finiteNumber(source, path);
+
+  /// Decodes a required finite scalar, additionally requiring a positive value
+  /// when [mustBePositive] is set, and otherwise throws for [slot].
+  static double requiredLayoutScalar(
+    DataSource source,
+    List<Object> path, {
+    required String slot,
+    bool mustBePositive = false,
+  }) {
+    final value = _finiteNumber(source, path);
+    if (value == null || mustBePositive && value <= 0.0) {
+      final requirement = mustBePositive
+          ? 'a finite number greater than zero'
+          : 'a finite number';
+      throw ArgumentError('$slot is required and must be $requirement.');
+    }
+    return value;
+  }
+
+  /// Decodes a text metric, dropping non-finite values like nested text styles.
+  static double? textMetric(DataSource source, List<Object> path) =>
+      _finiteNumber(source, path);
+
+  /// Decodes a layout factor, dropping non-finite and negative values so the
+  /// consuming widget uses natural sizing.
+  static double? layoutFactor(DataSource source, List<Object> path) {
+    final value = _finiteNumber(source, path);
+    if (value == null || value < 0.0) return null;
+    return value;
+  }
+
+  /// Decodes non-negative finite spacing, replacing it with zero when its total
+  /// child-gap contribution would be non-finite.
+  static double derivedSpacing(
+    DataSource source,
+    List<Object> path,
+    int childCount,
+  ) {
+    final spacing = layoutFactor(source, path) ?? 0.0;
+    final derivedSpacing = spacing * (childCount - 1);
+    return derivedSpacing.isFinite ? spacing : 0.0;
+  }
+
+  /// Decodes an optional scalar, returning null unless it is finite and positive.
+  static double? positiveLayoutScalar(DataSource source, List<Object> path) {
+    final value = _finiteNumber(source, path);
+    if (value == null || value <= 0.0) return null;
+    return value;
+  }
+
+  /// Decodes an optional finite factor in the interval `(0, 1]`.
+  static double? unitIntervalFactor(DataSource source, List<Object> path) {
+    final value = _finiteNumber(source, path);
+    if (value == null || value <= 0.0 || value > 1.0) return null;
+    return value;
   }
 
   /// Decodes a `TextStyle` from its flat map shape at [path].
@@ -458,14 +496,9 @@ abstract final class RestageDecoders {
     return variations.isEmpty ? null : variations;
   }
 
-  /// Decodes Restage's shape-border map shape.
-  ///
-  /// The older rfw decoder covers a subset of the same family, but it
-  /// expects border radii in rfw's list-of-radius shape and does not
-  /// know Flutter's newer `RoundedSuperellipseBorder`, `LinearBorder`,
-  /// or `StarBorder` variants. Restage uses a compact, flat uniform
-  /// radius for the representable button/editor surface and decodes the
-  /// full supported variant set here.
+  /// Decodes shape-border maps using flat uniform radii.
+  /// Supports RoundedSuperellipseBorder, LinearBorder and StarBorder, with
+  /// [borderSide] applied while preserving each variant's subtype.
   static ShapeBorder? shapeBorder(DataSource source, List<Object> path) {
     final count = source.length(path);
     if (count > 0) {
@@ -479,8 +512,8 @@ abstract final class RestageDecoders {
     }
 
     final type = source.v<String>([...path, 'type']);
-    final side = ArgumentDecoders.borderSide(source, [...path, 'side']) ??
-        BorderSide.none;
+    final side =
+        _repairedBorderSide(source, [...path, 'side']) ?? BorderSide.none;
     switch (type) {
       case null:
         return null;
@@ -564,6 +597,29 @@ abstract final class RestageDecoders {
 
   static double? _number(DataSource source, List<Object> path) =>
       source.v<double>(path) ?? source.v<int>(path)?.toDouble();
+
+  static double _finiteOrZero(double value) => value.isFinite ? value : 0.0;
+
+  static BorderSide? _repairedBorderSide(
+    DataSource source,
+    List<Object> path,
+  ) {
+    if (!source.isMap(path)) return null;
+    final decodedWidth = source.v<double>([...path, 'width']) ?? 1.0;
+    final width =
+        decodedWidth.isFinite && decodedWidth >= 0.0 ? decodedWidth : 0.0;
+    return BorderSide(
+      color: ArgumentDecoders.color(source, [...path, 'color']) ??
+          const Color(0xFF000000),
+      width: width,
+      style: ArgumentDecoders.enumValue<BorderStyle>(
+            BorderStyle.values,
+            source,
+            [...path, 'style'],
+          ) ??
+          BorderStyle.solid,
+    );
+  }
 
   static InlineSpan _inlineSpan(
     DataSource source,

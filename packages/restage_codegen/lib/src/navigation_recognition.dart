@@ -380,7 +380,7 @@ NavigatorPopBackOutcome recogniseNavigatorPopBack(Expression slotValue) {
   }
   if (call.argumentList.arguments.length == 1) {
     final arg = call.argumentList.arguments.single;
-    if (arg is NamedExpression) return const NavigatorPopNotRecognised();
+    if (arg is! Expression) return const NavigatorPopNotRecognised();
     final context = _unwrapParens(arg);
     if (context is! SimpleIdentifier) {
       return const NavigatorPopNotRecognised();
@@ -490,12 +490,13 @@ _NavigatorPushOutcome _recogniseNavigatorPush(MethodInvocation invocation) {
     return const _NavigatorPushNotRecognised();
   }
 
-  final args = invocation.argumentList.arguments;
-  if (args.any((arg) => arg is NamedExpression)) {
+  final allArguments = invocation.argumentList.arguments;
+  if (allArguments.any((arg) => arg is NamedArgument)) {
     return const _NavigatorPushUnsupported(
       kNavigationNavigatorFormUnsupportedReason,
     );
   }
+  final args = allArguments.whereType<Expression>().toList();
 
   switch (receiver) {
     case _StaticNavigatorReceiver():
@@ -578,7 +579,7 @@ Expression? _navigatorOfContext(MethodInvocation invocation) {
   final args = invocation.argumentList.arguments;
   if (args.length != 1) return null;
   final arg = args.single;
-  if (arg is NamedExpression) return null;
+  if (arg is! Expression) return null;
   return arg;
 }
 
@@ -644,19 +645,19 @@ _RouteOutcome _recogniseRoute(
   final dispositions = kRouteArgumentDispositions[routeType]!;
   Expression? builder;
   for (final arg in route.argumentList.arguments) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const _RouteUnsupported(
         kNavigationRouteArgumentUnsupportedReason,
       );
     }
-    final name = arg.name.label.name;
+    final name = arg.name.lexeme;
     final disposition = dispositions[name];
     if (disposition == null) {
       return _RouteUnsupported(_routeArgumentReason(name));
     }
     switch (disposition) {
       case RouteArgumentDisposition.builder:
-        builder = arg.expression;
+        builder = arg.argumentExpression;
       case RouteArgumentDisposition.defer:
         return _RouteUnsupported(_routeArgumentReason(name));
     }

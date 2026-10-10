@@ -833,8 +833,8 @@ void main() {
     });
 
     test(
-        're-runs the capability gate on a cache hit (a library unregistered '
-        'after caching fails closed, not a stale render)', () async {
+        're-runs the capability gate on a cache hit (a library unregistered after caching fails closed)',
+        () async {
       Restage.registerWidgetLibrary(
         const WidgetLibrary.custom('acme.widgets'),
         widgets: const [],

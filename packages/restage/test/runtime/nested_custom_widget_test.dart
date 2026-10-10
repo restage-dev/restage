@@ -136,7 +136,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(failures, isEmpty);
     expect(find.byType(ErrorWidget), findsNothing);
-    expect(find.byType(Column), findsOneWidget);
+    expect(
+        find.byWidgetPredicate((widget) => widget is Column), findsOneWidget);
     expect(find.text('nested-leaf'), findsOneWidget);
     expect(find.text('after'), findsOneWidget);
   });
@@ -196,7 +197,8 @@ void main() {
     expect(failures, isEmpty);
     expect(find.byType(ErrorWidget), findsNothing);
     expect(find.byType(_AcmeStackFixture), findsOneWidget);
-    expect(find.byType(Column), findsOneWidget);
+    expect(
+        find.byWidgetPredicate((widget) => widget is Column), findsOneWidget);
     expect(find.byType(_AcmeBorderFixture), findsOneWidget);
     expect(find.text('deep-leaf'), findsOneWidget);
     expect(find.text('overlay'), findsOneWidget);

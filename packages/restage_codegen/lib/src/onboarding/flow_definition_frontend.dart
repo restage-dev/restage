@@ -2477,7 +2477,7 @@ Expression? _positional(AstNode node, int index) {
   final arguments = switch (node) {
     InstanceCreationExpression(:final argumentList) => argumentList.arguments,
     MethodInvocation(:final argumentList) => argumentList.arguments,
-    _ => const <Expression>[],
+    _ => const <Argument>[],
   };
   final positional = arguments.whereType<Expression>().toList();
   return index < positional.length ? positional[index] : null;
@@ -2782,8 +2782,8 @@ Expression? _named(
   String name,
 ) {
   for (final argument in expression.argumentList.arguments) {
-    if (argument is NamedExpression && argument.name.label.name == name) {
-      return argument.expression;
+    if (argument is NamedArgument && argument.name.lexeme == name) {
+      return argument.argumentExpression;
     }
   }
   return null;

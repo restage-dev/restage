@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
+import 'dart:io' show SocketException, gzip;
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
@@ -103,6 +104,248 @@ void main() {
       expect(uploadCalls, 0, reason: 'never put an oversize body on the wire');
     },
   );
+
+  test('honours the part limit the service advertises', () async {
+    // Splitting removes the single-request ceiling, so the only local refusal
+    // left is a body that needs more parts than the service will take.
+    final rpc = _FakeRestageApi(prepared, chunked: true, maxParts: 1);
+    var partUploads = 0;
+    final api = RenderBundleApi(
+      rpc: rpc,
+      apiEndpoint: endpoint,
+      credential: credential,
+      trustedBundleOrigin: localBundleOrigin,
+      uploadClient: MockClient((_) async {
+        partUploads++;
+        return http.Response('', 204);
+      }),
+    );
+    final random = Random(11);
+    final incompressible = Uint8List.fromList(
+      List<int>.generate(
+        renderBundleMaxUploadTransferBytes + 1024,
+        (_) => random.nextInt(256),
+      ),
+    );
+
+    await expectLater(
+      api.uploadMain(
+        project: 'demo',
+        organizationId: 7,
+        archive: incompressible,
+      ),
+      throwsA(
+        isA<RenderBundleUploadException>()
+            .having(
+              (e) => e.oversize?.measuredBytes,
+              'measuredBytes',
+              greaterThan(_FakeRestageApi.partByteLimit),
+            )
+            .having(
+              (e) => e.oversize?.limitBytes,
+              'limitBytes',
+              _FakeRestageApi.partByteLimit,
+            )
+            .having((e) => e.oversize?.compressed, 'compressed', isTrue),
+      ),
+    );
+    expect(partUploads, 0, reason: 'nothing goes on the wire past the limit');
+  });
+
+  test('splits an oversize body into parts and commits it by hash', () async {
+    final random = Random(3);
+    final archive = Uint8List.fromList(
+      List<int>.generate(
+        renderBundleMaxUploadTransferBytes + (4 * 1024 * 1024),
+        (_) => random.nextInt(256),
+      ),
+    );
+    final rpc = _FakeRestageApi(prepared, chunked: true);
+    final partBodies = <int, List<int>>{};
+    final partCounts = <int>{};
+    final api = RenderBundleApi(
+      rpc: rpc,
+      apiEndpoint: endpoint,
+      credential: credential,
+      trustedBundleOrigin: localBundleOrigin,
+      uploadClient: MockClient((request) async {
+        final query = request.url.queryParameters;
+        expect(query['uploadId'], _FakeRestageApi.uploadId);
+        expect(request.headers, isNot(contains('content-encoding')));
+        expect(
+          request.bodyBytes.length,
+          lessThanOrEqualTo(_FakeRestageApi.partByteLimit),
+        );
+        partCounts.add(int.parse(query['partCount']!));
+        partBodies[int.parse(query['partIndex']!)] = request.bodyBytes;
+        return http.Response('', 204);
+      }),
+    );
+
+    await api.uploadMain(project: 'demo', organizationId: 7, archive: archive);
+
+    expect(rpc.calls, <String>[
+      'prepareUpload',
+      'prepareChunkedUpload',
+      'commitChunkedUpload',
+    ]);
+    expect(partCounts, hasLength(1), reason: 'one declared part count');
+    expect(partBodies, hasLength(partCounts.single));
+    // The parts are byte ranges of one compressed stream: concatenating them
+    // in index order must reproduce exactly what a single request would send.
+    final reassembled = <int>[
+      for (var index = 0; index < partBodies.length; index++)
+        ...partBodies[index]!,
+    ];
+    expect(reassembled, gzip.encode(archive));
+    expect(gzip.decode(reassembled), archive);
+    // The commit names the hash of the raw container. The compressed
+    // transfer has its own, and the two differ.
+    expect(
+      rpc.lastCommit?['contentHash'],
+      'sha256:${crypto.sha256.convert(archive)}',
+    );
+  });
+
+  test(
+    'a busy lane on one part is retried once before the refusal stands',
+    () async {
+      final random = Random(29);
+      final archive = Uint8List.fromList(
+        List<int>.generate(
+          renderBundleMaxUploadTransferBytes + (4 * 1024 * 1024),
+          (_) => random.nextInt(256),
+        ),
+      );
+      final rpc = _FakeRestageApi(prepared, chunked: true);
+      var busyAnswers = 0;
+      final api = RenderBundleApi(
+        rpc: rpc,
+        apiEndpoint: endpoint,
+        credential: credential,
+        trustedBundleOrigin: localBundleOrigin,
+        uploadClient: MockClient((request) async {
+          // The first part is told the lane is busy, exactly once.
+          if (request.url.queryParameters['partIndex'] == '0' &&
+              busyAnswers == 0) {
+            busyAnswers++;
+            return http.Response('', 503);
+          }
+          return http.Response('', 204);
+        }),
+      );
+
+      await api.uploadMain(
+        project: 'demo',
+        organizationId: 7,
+        archive: archive,
+      );
+
+      expect(busyAnswers, 1);
+      expect(rpc.calls, contains('commitChunkedUpload'));
+      expect(
+        rpc.calls,
+        isNot(contains('discardChunkedUpload')),
+        reason: 'a busy lane leaves the upload intact',
+      );
+    },
+  );
+
+  test('carries the refusal status without any server detail', () async {
+    for (final status in <int>[413, 415, 429, 503]) {
+      final rpc = _FakeRestageApi(prepared);
+      final api = RenderBundleApi(
+        rpc: rpc,
+        apiEndpoint: endpoint,
+        credential: credential,
+        trustedBundleOrigin: localBundleOrigin,
+        uploadClient: MockClient(
+          (_) async =>
+              http.Response('request entity too large: secret', status),
+        ),
+      );
+
+      await expectLater(
+        api.uploadMain(
+          project: 'demo',
+          organizationId: 7,
+          archive: Uint8List.fromList(<int>[1, 2, 3]),
+        ),
+        throwsA(
+          isA<RenderBundleUploadException>()
+              .having((e) => e.statusCode, 'statusCode', status)
+              .having((e) => e.oversize, 'oversize', isNull)
+              .having(
+                (e) => e.transferBytes,
+                'transferBytes',
+                isA<int>().having((bytes) => bytes, 'sent', greaterThan(0)),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                isNot(contains('secret')),
+              ),
+        ),
+      );
+    }
+  });
+
+  test('a part that fails in transit is retried once', () async {
+    final random = Random(9);
+    final archive = Uint8List.fromList(
+      List<int>.generate(
+        renderBundleMaxUploadTransferBytes + (1024 * 1024),
+        (_) => random.nextInt(256),
+      ),
+    );
+    final rpc = _FakeRestageApi(prepared, chunked: true);
+    var attempts = 0;
+    final api = RenderBundleApi(
+      rpc: rpc,
+      apiEndpoint: endpoint,
+      credential: credential,
+      trustedBundleOrigin: localBundleOrigin,
+      uploadClient: MockClient((request) async {
+        attempts++;
+        // The first part's first attempt dies in transit, as a socket would.
+        if (attempts == 1) throw const SocketException('reset');
+        return http.Response('', 204);
+      }),
+    );
+
+    await api.uploadMain(project: 'demo', organizationId: 7, archive: archive);
+
+    expect(rpc.calls, contains('commitChunkedUpload'));
+    expect(rpc.calls, isNot(contains('discardChunkedUpload')));
+    expect(attempts, greaterThan(1), reason: 'the failed part was retried');
+  });
+
+  test('a part that keeps failing discards the staged parts', () async {
+    final random = Random(13);
+    final archive = Uint8List.fromList(
+      List<int>.generate(
+        renderBundleMaxUploadTransferBytes + (1024 * 1024),
+        (_) => random.nextInt(256),
+      ),
+    );
+    final rpc = _FakeRestageApi(prepared, chunked: true);
+    final api = RenderBundleApi(
+      rpc: rpc,
+      apiEndpoint: endpoint,
+      credential: credential,
+      trustedBundleOrigin: localBundleOrigin,
+      uploadClient: MockClient((_) async => throw const SocketException('x')),
+    );
+
+    await expectLater(
+      api.uploadMain(project: 'demo', organizationId: 7, archive: archive),
+      throwsA(isA<RenderBundleUploadException>()),
+    );
+
+    // A transport failure must not leave the staged parts behind.
+    expect(rpc.calls, contains('discardChunkedUpload'));
+    expect(rpc.calls, isNot(contains('commitChunkedUpload')));
+  });
 
   test('rejects oversize before RPC or upload network', () async {
     final rpc = _FakeRestageApi(prepared);
@@ -652,13 +895,20 @@ void main() {
 }
 
 final class _FakeRestageApi extends RestageApi {
-  _FakeRestageApi(this.prepared)
+  _FakeRestageApi(this.prepared, {this.chunked = false, this.maxParts = 8})
     : super(
         endpoint: Uri.parse('http://api.restage.localhost:8080'),
         httpClient: MockClient((_) async => http.Response('', 500)),
       );
 
+  static const uploadId = '0123456789abcdef0123456789abcdef';
+  static const nonce = 'fedcba9876543210fedcba9876543210';
+  static const partByteLimit = 8 * 1024 * 1024;
+
   final String prepared;
+  final bool chunked;
+  final int maxParts;
+  Map<String, dynamic>? lastCommit;
   Object? discoverResponse;
   Object? bootstrapResponse;
   Object? channelsResponse;
@@ -678,6 +928,21 @@ final class _FakeRestageApi extends RestageApi {
     if (methodName == 'discover') return discoverResponse;
     if (methodName == 'listChannels') return channelsResponse;
     if (methodName == 'prepareBrowserBootstrap') return bootstrapResponse;
+    if (chunked && methodName == 'prepareChunkedUpload') {
+      return <String, dynamic>{
+        'uploadId': uploadId,
+        'nonce': nonce,
+        'expiresAt': DateTime.utc(2030).toIso8601String(),
+        'uploadUrl': prepared,
+        'partByteLimit': partByteLimit,
+        'maxParts': maxParts,
+      };
+    }
+    if (chunked && methodName == 'discardChunkedUpload') return null;
+    if (chunked && methodName == 'commitChunkedUpload') {
+      lastCommit = args;
+      return null;
+    }
     throw StateError('unexpected method');
   }
 }

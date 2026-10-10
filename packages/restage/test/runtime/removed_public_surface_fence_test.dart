@@ -39,9 +39,8 @@ void main() {
         expect(
           runtimeSource.contains(entry.value),
           isFalse,
-          reason: 'Restage.${entry.key} was removed in the breaking release. '
-              'Re-introducing it changes the published surface and needs an '
-              'explicit decision, not a silent restore.',
+          reason:
+              'Restage.${entry.key} was removed in the breaking release. Re-introducing it changes the published surface and needs an explicit decision.',
         );
       });
     }

@@ -753,43 +753,45 @@ void main() {
       expect(out.toString(), contains('someFutureClassification'));
     });
 
-    test('--preview works against production without --yes (a read, not a '
-        'destructive op)', () async {
-      final calledMethods = <String>[];
-      final client = mockHttpClient((req) {
-        final body = jsonDecode(req.body) as Map<String, dynamic>;
-        calledMethods.add(body['method'] as String);
-        return switch (body['method']) {
-          'surfaceStatus' => statusResponse(),
-          'rollbackPreflight' => preflightResponse(),
-          _ => http.Response('', 500),
-        };
-      });
+    test(
+      '--preview works against production without --yes (a read-only operation)',
+      () async {
+        final calledMethods = <String>[];
+        final client = mockHttpClient((req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          calledMethods.add(body['method'] as String);
+          return switch (body['method']) {
+            'surfaceStatus' => statusResponse(),
+            'rollbackPreflight' => preflightResponse(),
+            _ => http.Response('', 500),
+          };
+        });
 
-      final out = StringBuffer();
-      final code =
-          await makeRunner(
-            stdout: out,
-            stderr: StringBuffer(),
-            httpClient: client,
-          ).run([
-            'rollback',
-            'pro',
-            '--to-version',
-            '1',
-            '--preview',
-            '--env',
-            'production',
-            '--project',
-            'p',
-            '--app',
-            'a',
-          ]);
+        final out = StringBuffer();
+        final code =
+            await makeRunner(
+              stdout: out,
+              stderr: StringBuffer(),
+              httpClient: client,
+            ).run([
+              'rollback',
+              'pro',
+              '--to-version',
+              '1',
+              '--preview',
+              '--env',
+              'production',
+              '--project',
+              'p',
+              '--app',
+              'a',
+            ]);
 
-      expect(code, 0);
-      expect(out.toString(), contains('Cohort impact'));
-      expect(calledMethods, isNot(contains('rollbackSurface')));
-    });
+        expect(code, 0);
+        expect(out.toString(), contains('Cohort impact'));
+        expect(calledMethods, isNot(contains('rollbackSurface')));
+      },
+    );
   });
 }
 

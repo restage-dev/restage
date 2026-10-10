@@ -5,6 +5,7 @@
 // ignore_for_file: type=lint
 // ignore_for_file: unused_import, prefer_relative_imports, directives_ordering, unused_element, strict_raw_type
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+
 import 'package:widgetbook/widgetbook.dart' as _widgetbook;
 import 'package:restage_widgetbook_example/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart' as _restage_widgetbook_example_onboarding_screens_restage_generated_opaque_screen_proof_stories;
 import 'package:restage_widgetbook_example/widgets/restage.generated/bare_catalog_card.stories.dart' as _restage_widgetbook_example_widgets_restage_generated_bare_catalog_card_stories;

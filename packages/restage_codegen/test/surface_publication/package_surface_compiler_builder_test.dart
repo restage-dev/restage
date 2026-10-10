@@ -235,7 +235,10 @@ const launch = FlowDefinition(
   });
 
   test('emits valid mount types for legacy callback formals', () async {
+    // `final` and `var` on a function-typed formal's parameter are illegal
+    // from Dart 3.13, so the modifiers this covers only exist below it.
     const screen = '''
+// @dart=3.12
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 

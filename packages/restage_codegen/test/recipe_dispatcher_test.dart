@@ -43,7 +43,7 @@ void main() {
       );
 
   // Parses a call expression and returns its argument list.
-  Future<List<Expression>> argsOf(String callSource) async {
+  Future<List<Argument>> argsOf(String callSource) async {
     final expr = await parseExpressionForTest(callSource);
     final argList = switch (expr) {
       MethodInvocation(:final argumentList) => argumentList,
@@ -1436,7 +1436,7 @@ void main() {
   });
 
   group('strict double-list child failures', () {
-    Future<NodeList<Expression>> gradientArgs(String source) async {
+    Future<NodeList<Argument>> gradientArgs(String source) async {
       final expression = await parseExpressionForTest(source);
       return switch (expression) {
         MethodInvocation(:final argumentList) => argumentList.arguments,

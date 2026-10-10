@@ -258,7 +258,10 @@ void main() {
                 'Widget buildDivider(BuildContext context, DataSource source)',
               ),
               contains('return Divider('),
-              contains("source.v<double>(const <Object>['thickness']) ?? 1.0"),
+              contains(
+                'RestageDecoders.layoutFactor('
+                "source, <Object>['thickness']) ?? 1.0",
+              ),
             ),
           ),
         },

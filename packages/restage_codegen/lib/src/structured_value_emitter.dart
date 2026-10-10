@@ -154,7 +154,7 @@ final class StructuredValueEmitter {
   /// location for diagnostics.
   String edgeInsets(
     String method,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -168,16 +168,15 @@ final class StructuredValueEmitter {
     // `24` or `24.0` in source.
     String namedOrZero(String name) {
       for (final a in args) {
-        if (a is NamedExpression && a.name.label.name == name) {
-          return _translateDoubleScalar(a.expression, issues);
+        if (a is NamedArgument && a.name.lexeme == name) {
+          return _translateDoubleScalar(a.argumentExpression, issues);
         }
       }
       return '0.0';
     }
 
     // Collects positional (non-named) args.
-    List<Expression> positional() =>
-        args.where((a) => a is! NamedExpression).toList();
+    List<Expression> positional() => args.whereType<Expression>().toList();
 
     switch (method) {
       case 'all':
@@ -238,11 +237,11 @@ final class StructuredValueEmitter {
   /// `Size.fromHeight(<height>)` -> the bare height, for a slot that
   /// surfaces the size as a height alone.
   String sizeFromHeight(
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
-    final positional = args.where((a) => a is! NamedExpression).toList();
+    final positional = args.whereType<Expression>().toList();
     if (positional.length != 1) {
       issues.add(
         Issue(
@@ -271,7 +270,7 @@ final class StructuredValueEmitter {
   /// partial or wrong emit.
   String borderRadius(
     String method,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -303,11 +302,11 @@ final class StructuredValueEmitter {
   /// string-level coercion cannot reach inside a `switch`'s arms (a bare-int
   /// branch would otherwise be silently nulled by `v<double>`).
   String _borderRadiusCircular(
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
-    final positional = args.where((a) => a is! NamedExpression).toList();
+    final positional = args.whereType<Expression>().toList();
     if (positional.length != 1) {
       issues.add(
         Issue(
@@ -340,11 +339,11 @@ final class StructuredValueEmitter {
   /// `borderRadius` slot. A non-circular (`Radius.elliptical`, `Radius.zero`,
   /// non-static) radius is not representable as a uniform scalar → loud defer.
   String _borderRadiusAll(
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
-    final positional = args.where((a) => a is! NamedExpression).toList();
+    final positional = args.whereType<Expression>().toList();
     final scalar =
         positional.length == 1 ? _radiusCircularScalar(positional.first) : null;
     if (scalar == null) {
@@ -369,14 +368,14 @@ final class StructuredValueEmitter {
   /// `Radius.circular(<finite, extractable>)` defers the whole value loudly.
   String _borderRadiusPerCorner(
     String method,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
     Expression? named(String name) {
       for (final a in args) {
-        if (a is NamedExpression && a.name.label.name == name) {
-          return a.expression;
+        if (a is NamedArgument && a.name.lexeme == name) {
+          return a.argumentExpression;
         }
       }
       return null;
@@ -448,7 +447,7 @@ final class StructuredValueEmitter {
     final stripped = _stripParens(radiusExpr);
     final String className;
     final String? ctorName;
-    final List<Expression> arguments;
+    final List<Argument> arguments;
     if (stripped is InstanceCreationExpression) {
       if (_isResolvedNonFrameworkCtor(stripped)) return null;
       final identity = _ctorIdentity(stripped);
@@ -466,7 +465,7 @@ final class StructuredValueEmitter {
       return null;
     }
     if (className != 'Radius' || ctorName != 'circular') return null;
-    final positional = arguments.where((a) => a is! NamedExpression).toList();
+    final positional = arguments.whereType<Expression>().toList();
     if (positional.length != 1) return null;
     // Extract against a scratch sink: a non-finite / unresolvable radius adds a
     // non-informational issue here, which the caller turns into a single
@@ -495,20 +494,21 @@ final class StructuredValueEmitter {
   /// reapply Flutter's own defaults for omitted keys, so the wire
   /// format stays compact and the catalog stays single-source-of-truth.
   String linearGradient(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
     final parts = <String>['type: "linear"'];
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'begin':
         case 'end':
-          parts.add('$name: ${alignmentGeometry(a.expression, issues, loc)}');
+          parts.add(
+              '$name: ${alignmentGeometry(a.argumentExpression, issues, loc)}');
         case 'colors':
           final value = _typedList(
-            a.expression,
+            a.argumentExpression,
             PropertyType.color,
             issues,
           );
@@ -519,7 +519,7 @@ final class StructuredValueEmitter {
           // double literals (the scalar slots already coerce via
           // `asDoubleLiteral`); `colors` are int ARGB values and stay as-is.
           final stops = emitDoubleList(
-            a.expression,
+            a.argumentExpression,
             _translate,
             _translateDoubleScalar,
             _resolveDoubleListSource,
@@ -554,23 +554,23 @@ final class StructuredValueEmitter {
   /// `[<sideMap>]`; rfw's `border` decoder fills the remaining three
   /// sides identically from the first entry.
   String borderAll(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
     String? colorDsl;
     String? widthDsl;
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'color':
           colorDsl = _translateSlotValue(
-            a.expression,
+            a.argumentExpression,
             PropertyType.color,
             issues,
           );
         case 'width':
-          widthDsl = _translateDoubleScalar(a.expression, issues);
+          widthDsl = _translateDoubleScalar(a.argumentExpression, issues);
         case 'style':
         case 'strokeAlign':
           _deferredArg('Border.all', name, issues, loc);
@@ -588,7 +588,7 @@ final class StructuredValueEmitter {
   /// `start` and `right` to `end` (LTR-correct; the host's
   /// `TextDirection` swaps them at render time).
   String borderDefault(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -596,8 +596,8 @@ final class StructuredValueEmitter {
     String? right;
     String? bottom;
     String? left;
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       // Route each side through `_borderSideExpression` (not the generic
       // `_translate`): it special-cases `BorderSide.none` to the framework
       // none-map and resolves a bound `final` local through to it, look-alike
@@ -607,7 +607,7 @@ final class StructuredValueEmitter {
       // catalog floor cannot catch. A `BorderSide(...)` construction still
       // lowers via the helper's `_translate` fall-through. Mirrors the
       // `RoundedRectangleBorder(side:)` arms.
-      final value = _borderSideExpression(a.expression, issues);
+      final value = _borderSideExpression(a.argumentExpression, issues);
       switch (name) {
         case 'top':
           top = value;
@@ -634,31 +634,31 @@ final class StructuredValueEmitter {
 
   /// `BorderSide(color:, width:, style:)` emits the rfw map shape.
   String borderSide(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
     String? colorDsl;
     String? widthDsl;
     String? styleDsl;
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'color':
           colorDsl = _translateSlotValue(
-            a.expression,
+            a.argumentExpression,
             PropertyType.color,
             issues,
           );
         case 'width':
-          widthDsl = _translateDoubleScalar(a.expression, issues);
+          widthDsl = _translateDoubleScalar(a.argumentExpression, issues);
         case 'style':
           // `BorderStyle.solid` / `BorderStyle.none` — emit the bare
           // member name as a DSL string so rfw's enumValue decoder
           // picks it up. Any other expression is an authoring error
           // worth surfacing rather than threading through `_translate`,
           // which would produce a DSL fragment the decoder rejects.
-          final e = a.expression;
+          final e = a.argumentExpression;
           if (e is PrefixedIdentifier && e.prefix.name == 'BorderStyle') {
             // Nested name-only gate: a resolved custom class named
             // `BorderStyle` must not emit a framework enum-string inside the
@@ -720,7 +720,7 @@ final class StructuredValueEmitter {
     required String? prefix,
     required String typeName,
     required String? constructorName,
-    required NodeList<Expression> args,
+    required NodeList<Argument> args,
     required List<Issue> issues,
     required String loc,
   }) {
@@ -818,7 +818,7 @@ final class StructuredValueEmitter {
 
   String _outlinedShape({
     required String wireType,
-    required NodeList<Expression> args,
+    required NodeList<Argument> args,
     required List<Issue> issues,
     required String loc,
     required String supported,
@@ -827,7 +827,7 @@ final class StructuredValueEmitter {
   }) {
     final parts = <String>['type: "$wireType"'];
     for (final a in args) {
-      if (a is! NamedExpression) {
+      if (a is! NamedArgument) {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
@@ -837,22 +837,23 @@ final class StructuredValueEmitter {
         );
         continue;
       }
-      final name = a.name.label.name;
+      final name = a.name.lexeme;
       switch (name) {
         case 'side':
-          parts.add('side: ${_borderSideExpression(a.expression, issues)}');
+          parts.add(
+              'side: ${_borderSideExpression(a.argumentExpression, issues)}');
         case 'borderRadius':
           if (supportsBorderRadius) {
             parts.add(
               'borderRadius: '
-              '${_translateDoubleScalar(a.expression, issues)}',
+              '${_translateDoubleScalar(a.argumentExpression, issues)}',
             );
           } else {
             _unknownNamedArg(wireType, name, supported, issues, loc);
           }
         default:
           if (numericFields.contains(name)) {
-            parts.add(_doubleShapePart(name, a.expression, issues));
+            parts.add(_doubleShapePart(name, a.argumentExpression, issues));
           } else {
             _unknownNamedArg(wireType, name, supported, issues, loc);
           }
@@ -863,7 +864,7 @@ final class StructuredValueEmitter {
 
   String _linearBorder(
     String? variant,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -873,15 +874,15 @@ final class StructuredValueEmitter {
       String? side;
       String? size;
       String? alignment;
-      for (final a in args.whereType<NamedExpression>()) {
-        final name = a.name.label.name;
+      for (final a in args.whereType<NamedArgument>()) {
+        final name = a.name.lexeme;
         switch (name) {
           case 'side':
-            side = _borderSideExpression(a.expression, issues);
+            side = _borderSideExpression(a.argumentExpression, issues);
           case 'size':
-            size = _translateDoubleScalar(a.expression, issues);
+            size = _translateDoubleScalar(a.argumentExpression, issues);
           case 'alignment':
-            alignment = _translateDoubleScalar(a.expression, issues);
+            alignment = _translateDoubleScalar(a.argumentExpression, issues);
           default:
             _unknownNamedArg(
               'LinearBorder.$variant',
@@ -911,16 +912,18 @@ final class StructuredValueEmitter {
     }
 
     final parts = <String>['type: "linear"'];
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'side':
-          parts.add('side: ${_borderSideExpression(a.expression, issues)}');
+          parts.add(
+              'side: ${_borderSideExpression(a.argumentExpression, issues)}');
         case 'start':
         case 'end':
         case 'top':
         case 'bottom':
-          parts.add('$name: ${_linearBorderEdge(a.expression, issues, loc)}');
+          parts.add(
+              '$name: ${_linearBorderEdge(a.argumentExpression, issues, loc)}');
         default:
           _unknownNamedArg(
             'LinearBorder',
@@ -947,7 +950,7 @@ final class StructuredValueEmitter {
     // `unrecognizedMethodCall`). Inert outside an inline. Mirrors
     // `alignmentGeometry`.
     final expr = _resolveBoundIdentifier(rawExpr);
-    NodeList<Expression>? args;
+    NodeList<Argument>? args;
     if (expr is InstanceCreationExpression) {
       final typeName = expr.constructorName.type.name.lexeme;
       if (typeName == 'LinearBorderEdge' && expr.constructorName.name == null) {
@@ -977,13 +980,13 @@ final class StructuredValueEmitter {
     }
     String? size;
     String? alignment;
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'size':
-          size = _translateDoubleScalar(a.expression, issues);
+          size = _translateDoubleScalar(a.argumentExpression, issues);
         case 'alignment':
-          alignment = _translateDoubleScalar(a.expression, issues);
+          alignment = _translateDoubleScalar(a.argumentExpression, issues);
         default:
           _unknownNamedArg(
             'LinearBorderEdge',
@@ -1006,7 +1009,7 @@ final class StructuredValueEmitter {
 
   String _starBorder(
     String? variant,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -1027,14 +1030,15 @@ final class StructuredValueEmitter {
         ? 'side, sides, pointRounding, rotation, squash'
         : 'side, points, innerRadiusRatio, pointRounding, valleyRounding, '
             'rotation, squash';
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'side':
-          parts.add('side: ${_borderSideExpression(a.expression, issues)}');
+          parts.add(
+              'side: ${_borderSideExpression(a.argumentExpression, issues)}');
         case 'sides':
           if (polygon) {
-            parts.add(_doubleShapePart('sides', a.expression, issues));
+            parts.add(_doubleShapePart('sides', a.argumentExpression, issues));
           } else {
             _unknownNamedArg('StarBorder', name, supported, issues, loc);
           }
@@ -1042,7 +1046,7 @@ final class StructuredValueEmitter {
         case 'innerRadiusRatio':
         case 'valleyRounding':
           if (!polygon) {
-            parts.add(_doubleShapePart(name, a.expression, issues));
+            parts.add(_doubleShapePart(name, a.argumentExpression, issues));
           } else {
             _unknownNamedArg(
               'StarBorder.polygon',
@@ -1055,7 +1059,7 @@ final class StructuredValueEmitter {
         case 'pointRounding':
         case 'rotation':
         case 'squash':
-          parts.add(_doubleShapePart(name, a.expression, issues));
+          parts.add(_doubleShapePart(name, a.argumentExpression, issues));
         default:
           _unknownNamedArg(
             polygon ? 'StarBorder.polygon' : 'StarBorder',
@@ -1110,24 +1114,24 @@ final class StructuredValueEmitter {
   /// `BoxShadow(color:, offset:, blurRadius:, spreadRadius:)` emits
   /// the rfw map shape consumed by `ArgumentDecoders.boxShadow`.
   String boxShadow(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
     final parts = <String>[];
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'color':
           final value = _translateSlotValue(
-            a.expression,
+            a.argumentExpression,
             PropertyType.color,
             issues,
           );
           parts.add('$name: $value');
         case 'offset':
           final value = _translateSlotValue(
-            a.expression,
+            a.argumentExpression,
             PropertyType.unknown,
             issues,
           );
@@ -1135,7 +1139,7 @@ final class StructuredValueEmitter {
         case 'blurRadius':
         case 'spreadRadius':
           parts.add(
-            '$name: ${_translateDoubleScalar(a.expression, issues)}',
+            '$name: ${_translateDoubleScalar(a.argumentExpression, issues)}',
           );
         case 'blurStyle':
           _deferredArg('BoxShadow', name, issues, loc);
@@ -1264,7 +1268,7 @@ final class StructuredValueEmitter {
   /// construction.
   String locale(
     String? constructorName,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -1320,28 +1324,28 @@ final class StructuredValueEmitter {
   }
 
   /// Emits the RFW DSL map for a `Shadow(...)` construction.
-  String shadow(NodeList<Expression> args, List<Issue> issues, String loc) {
+  String shadow(NodeList<Argument> args, List<Issue> issues, String loc) {
     final parts = <String>[];
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       switch (name) {
         case 'color':
           final value = _translateSlotValue(
-            a.expression,
+            a.argumentExpression,
             PropertyType.color,
             issues,
           );
           parts.add('$name: $value');
         case 'offset':
           final value = _translateSlotValue(
-            a.expression,
+            a.argumentExpression,
             PropertyType.unknown,
             issues,
           );
           parts.add('$name: $value');
         case 'blurRadius':
           parts.add(
-            '$name: ${_translateDoubleScalar(a.expression, issues)}',
+            '$name: ${_translateDoubleScalar(a.argumentExpression, issues)}',
           );
         default:
           _unknownNamedArg(
@@ -1359,7 +1363,7 @@ final class StructuredValueEmitter {
   /// Emits the RFW DSL map for a `FontFeature(...)` construction.
   String fontFeature(
     String? constructorName,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -1422,7 +1426,7 @@ final class StructuredValueEmitter {
 
   /// Emits the RFW DSL map for a `FontVariation(...)` construction.
   String fontVariation(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -1449,7 +1453,7 @@ final class StructuredValueEmitter {
   /// Emits the RFW DSL for a `TextDecoration.combine([...])` call — the
   /// merged-decoration value.
   String textDecorationCombine(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -1491,12 +1495,12 @@ final class StructuredValueEmitter {
     );
   }
 
-  List<Expression> _positionalArgs(Iterable<Expression> args) =>
-      args.where((a) => a is! NamedExpression).toList();
+  List<Expression> _positionalArgs(Iterable<Argument> args) =>
+      args.whereType<Expression>().toList();
 
-  Map<String, Expression> _namedArgs(Iterable<Expression> args) => {
-        for (final a in args.whereType<NamedExpression>())
-          a.name.label.name: a.expression,
+  Map<String, Expression> _namedArgs(Iterable<Argument> args) => {
+        for (final a in args.whereType<NamedArgument>())
+          a.name.lexeme: a.argumentExpression,
       };
 
   String? _stringValue(Expression? expr) {
@@ -1551,7 +1555,7 @@ final class StructuredValueEmitter {
       }
       return _alignmentMember(expr.identifier.name, issues, loc);
     }
-    NodeList<Expression>? ctorArgs;
+    NodeList<Argument>? ctorArgs;
     if (expr is InstanceCreationExpression &&
         expr.constructorName.type.name.lexeme == 'Alignment' &&
         expr.constructorName.name == null) {
@@ -1640,12 +1644,12 @@ final class StructuredValueEmitter {
   /// mismatch (the helper-with-diagnostic variant); when null the
   /// caller handles the mismatch (the optional-translation variant).
   String? _xyMap(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc, {
     required String? diagnoseHost,
   }) {
-    final positional = args.where((a) => a is! NamedExpression).toList();
+    final positional = args.whereType<Expression>().toList();
     if (positional.length != 2) {
       if (diagnoseHost != null) {
         issues.add(

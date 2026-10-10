@@ -429,7 +429,8 @@ Future<({Expression expression, Map<Element, Expression> bindings})>
     bindings: <Element, Expression>{
       ...helperBody.localBindings,
       for (var index = 0; index < parameters.length; index++)
-        parameters[index].declaredFragment!.element: arguments[index],
+        parameters[index].declaredFragment!.element:
+            arguments[index].argumentExpression,
     },
   );
 }

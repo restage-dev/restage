@@ -46,6 +46,22 @@ class AppNotFound extends GenericTypedException {
       'AppNotFound(appSlug: $appSlug, projectSlug: $projectSlug)';
 }
 
+/// A surface id did not match the published id grammar.
+@experimental
+class SurfaceSlugRejected extends GenericTypedException {
+  /// Construct with the refused [slug] and the [reason] it was refused.
+  const SurfaceSlugRejected({required this.slug, required this.reason});
+
+  /// The refused surface id.
+  final String slug;
+
+  /// The rule the id must satisfy.
+  final String reason;
+
+  @override
+  String toString() => 'SurfaceSlugRejected(slug: $slug, reason: $reason)';
+}
+
 /// The caller is not authorised to act on the named [resource]. Maps
 /// from the backend's `UnauthorizedException`.
 @experimental
@@ -94,6 +110,11 @@ GenericTypedException? decodeGenericTypedException(String body) {
       );
     case 'UnauthorizedException':
       return UnauthorizedAccess(resource: data['resource'] as String);
+    case 'SurfaceSlugRejectedException':
+      return SurfaceSlugRejected(
+        slug: data['slug'] as String,
+        reason: data['reason'] as String,
+      );
     default:
       return null;
   }

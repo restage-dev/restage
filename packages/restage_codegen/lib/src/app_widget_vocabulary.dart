@@ -207,7 +207,7 @@ final class _AppVocabularyVisitor extends RecursiveAstVisitor<void> {
   /// `intl` constructor picks which.
   List<LoweringTarget> _textLowerings(InstanceCreationExpression node) {
     final args = node.argumentList.arguments;
-    final first = args.firstWhereOrNull((a) => a is! NamedExpression);
+    final first = args.firstWhereOrNull((a) => a is! NamedArgument);
     final formats =
         first is MethodInvocation && numberFormatAdoptTarget(first) != null;
     return <LoweringTarget>[

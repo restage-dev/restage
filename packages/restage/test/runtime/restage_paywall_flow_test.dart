@@ -984,8 +984,8 @@ void main() {
   });
 
   testWidgets(
-      'a restageNav look-alike custom event (restageNavFoo) surfaces as a '
-      'PaywallCustomEvent, not a navigation event', (tester) async {
+      'a restageNav look-alike custom event (restageNavFoo) surfaces as a PaywallCustomEvent',
+      (tester) async {
     Restage.configure(apiKey: 'pk_test');
     final received = <RestageEvent>[];
 

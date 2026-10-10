@@ -10,6 +10,9 @@
 // every authored library by design and has its own pin below.
 
 import 'package:build/build.dart';
+import 'package:build_runner/src/build/build_state/glob_id.dart';
+import 'package:build_runner/src/internal.dart';
+import 'package:build_test/src/internal_test_reader_writer.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_builder.dart';
 import 'package:test/test.dart';
@@ -226,8 +229,11 @@ void main() {
       }
       // A new file has to invalidate the walk too.
       expect(
-        tracked.map((asset) => asset.path),
-        contains(startsWith('glob.')),
+        _globsEvaluatedFor(
+          readerWriter,
+          AssetId('apps_examples', r'lib/$lib$'),
+        ),
+        isNotEmpty,
       );
     });
 
@@ -264,12 +270,31 @@ void main() {
         contains(AssetId('apps_examples', 'lib/models/order.g.dart')),
       );
       expect(
-        tracked.map((asset) => asset.path),
-        contains(startsWith('glob.')),
+        _globsEvaluatedFor(
+          readerWriter,
+          AssetId('apps_examples', r'$package$'),
+        ),
+        isNotEmpty,
       );
     });
   });
 }
+
+/// The globs the step for [primaryInput] evaluated.
+///
+/// A walk depends on its glob as well as on the files it read, so that a file
+/// added later invalidates it. The build tracks that edge separately from the
+/// step's file inputs.
+Set<GlobId> _globsEvaluatedFor(
+  TestReaderWriter readerWriter,
+  AssetId primaryInput,
+) =>
+    {
+      for (final tracker in InputTracker.inputTrackersForTesting[
+              (readerWriter as InternalTestReaderWriter).filesystem] ??
+          const <InputTracker>[])
+        if (tracker.primaryInput == primaryInput) ...tracker.globsEvaluated,
+    };
 
 /// The annotated fixture a package walker has to reach, keyed by builder name:
 /// what to add on top of [_unannotatedPackage], and the path the walk must

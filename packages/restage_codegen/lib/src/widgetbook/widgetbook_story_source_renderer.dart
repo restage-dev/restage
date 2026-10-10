@@ -1,14 +1,20 @@
 import 'dart:convert';
 
 import 'package:dart_style/dart_style.dart';
+import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_native_value_plan.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_plan.dart';
 
-final _formatter = DartFormatter(
-  languageVersion: DartFormatter.latestLanguageVersion,
-);
+// Formatting follows the target package's language version so the output is
+// stable under that package's own `dart format`.
+final _formatters = <Version, DartFormatter>{};
+
+DartFormatter _formatterFor(Version languageVersion) => _formatters.putIfAbsent(
+      languageVersion,
+      () => DartFormatter(languageVersion: languageVersion),
+    );
 
 const _restageRuntimeUri = 'package:restage/restage.dart';
 const _restageRuntimePrefix = 'restage_runtime';
@@ -39,7 +45,10 @@ String renderWidgetbookStorySource({
   required WidgetbookStoryPlan plan,
   required String packageName,
   required String sourcePath,
+  Version? languageVersion,
 }) {
+  final formatter =
+      _formatterFor(languageVersion ?? DartFormatter.latestLanguageVersion);
   final widget = plan.widget.entry;
   final className = plan.widget.className;
   final storyStem = _snakeCase(className);
@@ -294,7 +303,7 @@ String renderWidgetbookStorySource({
   }
 
   _writeArgAdapters(out, plan.properties, renderer);
-  return _formatter.format(out.toString());
+  return formatter.format(out.toString());
 }
 
 typedef _RenderedPropertyNames = ({

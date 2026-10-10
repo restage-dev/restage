@@ -75,13 +75,13 @@ void main() {
     await tester.pumpWidget(
       _remote(_column(_conditional, extra: 'spacing: 12.0,')),
     );
-    final Size conditional = tester.getSize(find.byType(Column).first);
+    final Size conditional = tester.getSize(find.byType(RestageColumn).first);
     final Offset conditionalLast = tester.getTopLeft(find.text('c'));
 
     await tester.pumpWidget(
       _remote(_column(_absent, extra: 'spacing: 12.0,')),
     );
-    expect(tester.getSize(find.byType(Column).first), conditional);
+    expect(tester.getSize(find.byType(RestageColumn).first), conditional);
     expect(tester.getTopLeft(find.text('c')), conditionalLast);
   });
 
@@ -90,13 +90,15 @@ void main() {
     await tester.pumpWidget(
       _remote(_column(_conditional, extra: 'spacing: 12.0,')),
     );
-    final double falseHeight = tester.getSize(find.byType(Column).first).height;
+    final double falseHeight =
+        tester.getSize(find.byType(RestageColumn).first).height;
     final double childHeight = tester.getSize(find.text('a')).height;
 
     await tester.pumpWidget(
       _remote(_whenTrue(_column(_conditional, extra: 'spacing: 12.0,'))),
     );
-    final double trueHeight = tester.getSize(find.byType(Column).first).height;
+    final double trueHeight =
+        tester.getSize(find.byType(RestageColumn).first).height;
 
     expect(trueHeight - falseHeight, childHeight + 12.0);
   });

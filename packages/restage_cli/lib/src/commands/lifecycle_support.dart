@@ -315,23 +315,26 @@ Future<bool> confirmDestructive({
   return interactive.confirm('Proceed?');
 }
 
-/// Exactly-one positional `<slug>`, or null after a precise error.
+/// Exactly-one positional `<id>`, or null after a precise error.
 String? resolveSingleSlug({
   required ArgResults? argResults,
   required StringSink stderr,
 }) {
   final rest = argResults?.rest ?? const <String>[];
   if (rest.isEmpty) {
-    stderr.writeln('Missing positional argument: <slug>.');
+    stderr.writeln('Missing positional argument: <id>.');
     return null;
   }
   if (rest.length > 1) {
-    stderr.writeln(
-      'Too many positional arguments. Expected exactly one <slug>.',
-    );
+    stderr.writeln('Too many positional arguments. Expected exactly one <id>.');
     return null;
   }
-  return rest.first;
+  final slug = rest.first;
+  if (!isValidSurfaceSlug(slug)) {
+    stderr.writeln('Refusing the id `$slug`. $surfaceSlugRefusalMessage');
+    return null;
+  }
+  return slug;
 }
 
 /// Returns [fixedType] when set (paywall convenience); otherwise parses

@@ -102,6 +102,13 @@ class SurfacePushCommand extends Command<int> {
       return 1;
     }
     final selector = rest.single;
+    // A `.dart` path selects by file; anything else is the id itself.
+    if (!selector.endsWith('.dart') && !isValidSurfaceSlug(selector)) {
+      _stderr.writeln(
+        'Refusing the id `$selector`. $surfaceSlugRefusalMessage',
+      );
+      return 1;
+    }
 
     final type = _parseType(argResults?['type'] as String?);
     if (argResults?['type'] != null && type == null) return 1;

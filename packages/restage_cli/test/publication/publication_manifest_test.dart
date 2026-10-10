@@ -193,7 +193,7 @@ void main() {
   });
 
   test(
-    'a file that produced only another category says so, not "nothing"',
+    'a file that produced only another category names it in the error',
     () async {
       final flow = await seedGeneratedPaywall(
         tempDir,

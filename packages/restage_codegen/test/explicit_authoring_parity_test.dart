@@ -16,6 +16,7 @@ import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'shared_resolvers.dart';
 
 const _fixtureRoot = 'test/fixtures/explicit_authoring';
 
@@ -528,6 +529,7 @@ Future<TestBuilderResult> _compileScenario(
     sources,
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
+    resolvers: freshResolvers(),
     flattenOutput: true,
     onLog: logs.add,
   );

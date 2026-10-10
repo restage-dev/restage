@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -97,5 +99,19 @@ void main() {
         contains('project:demo'),
       );
     });
+  });
+
+  test('a refused surface id decodes and renders its rule', () {
+    const body =
+        '{"className":"SurfaceSlugRejectedException",'
+        '"data":{"slug":"WelcomeFlow","reason":"the rule"}}';
+    final typed = decodeGenericTypedException(body);
+    expect(typed, isA<SurfaceSlugRejected>());
+    final outcome = renderGenericTypedError(
+      const RestageApiException(400, body),
+    );
+    expect(outcome!.exitCode, 1);
+    expect(outcome.message, contains('WelcomeFlow'));
+    expect(outcome.message, contains('the rule'));
   });
 }

@@ -54,7 +54,7 @@ void main() {
     locationOf: (_) => 'decoration.dart@1:1',
   );
 
-  Future<NodeList<Expression>> argumentsOf(String source) async {
+  Future<NodeList<Argument>> argumentsOf(String source) async {
     final expression = await parseExpressionForTest(source);
     return (expression as MethodInvocation).argumentList.arguments;
   }

@@ -88,23 +88,23 @@ ToggleButtonsOutcome recogniseToggleButtons(
   Expression? isSelected;
   Expression? onPressed;
   for (final arg in creation.argumentList.arguments) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const ToggleButtonsDeferred(
         'a positional argument has no declarative equivalent',
       );
     }
-    switch (arg.name.label.name) {
+    switch (arg.name.lexeme) {
       case 'key':
         break; // the universal super.key convention
       case 'children':
-        children = arg.expression;
+        children = arg.argumentExpression;
       case 'isSelected':
-        isSelected = arg.expression;
+        isSelected = arg.argumentExpression;
       case 'onPressed':
-        onPressed = arg.expression;
+        onPressed = arg.argumentExpression;
       default:
         return ToggleButtonsDeferred(
-          "the '${arg.name.label.name}' argument has no "
+          "the '${arg.name.lexeme}' argument has no "
           'RestageToggleButtons equivalent',
         );
     }

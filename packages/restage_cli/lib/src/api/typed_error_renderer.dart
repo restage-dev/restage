@@ -38,6 +38,8 @@ TypedErrorOutcome? renderGenericTypedError(RestageApiException e) {
         1,
         'App `$appSlug` not found under project `$projectSlug`.',
       );
+    case SurfaceSlugRejected(:final slug, :final reason):
+      return TypedErrorOutcome(1, 'Refusing the id `$slug`. $reason');
     case UnauthorizedAccess():
       return const TypedErrorOutcome(
         1,
