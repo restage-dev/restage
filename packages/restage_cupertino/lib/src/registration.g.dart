@@ -38,7 +38,8 @@ Widget buildCupertinoActivityIndicator(
   return CupertinoActivityIndicator(
     color: ArgumentDecoders.color(source, <Object>['color']),
     animating: source.v<bool>(const <Object>['animating']) ?? true,
-    radius: source.v<double>(const <Object>['radius']) ?? 10.0,
+    radius: RestageDecoders.positiveLayoutScalar(source, <Object>['radius']) ??
+        10.0,
   );
 }
 
@@ -204,7 +205,9 @@ Widget buildCupertinoDatePicker(BuildContext context, DataSource source) {
     showDayOfWeek: source.v<bool>(const <Object>['showDayOfWeek']) ?? false,
     showTimeSeparator:
         source.v<bool>(const <Object>['showTimeSeparator']) ?? false,
-    itemExtent: source.v<double>(const <Object>['itemExtent']) ?? 32.0,
+    itemExtent:
+        RestageDecoders.positiveLayoutScalar(source, <Object>['itemExtent']) ??
+            32.0,
     changeReportingBehavior:
         RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
@@ -222,11 +225,13 @@ Widget buildCupertinoTimerPicker(BuildContext context, DataSource source) {
         CupertinoTimerPickerMode.hms,
     minuteInterval: source.v<int>(const <Object>['minuteInterval']) ?? 1,
     secondInterval: source.v<int>(const <Object>['secondInterval']) ?? 1,
-    alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
+    alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    itemExtent: source.v<double>(const <Object>['itemExtent']) ?? 32.0,
+    itemExtent:
+        RestageDecoders.positiveLayoutScalar(source, <Object>['itemExtent']) ??
+            32.0,
     onTimerDurationChanged: RestageDecoders.valueChanged<Duration>(
             source, const <Object>['onTimerDurationChanged']) ??
         (Duration _) {},
@@ -247,16 +252,21 @@ Widget buildCupertinoPicker(BuildContext context, DataSource source) {
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     offAxisFraction: source.v<double>(const <Object>['offAxisFraction']) ?? 0.0,
     useMagnifier: source.v<bool>(const <Object>['useMagnifier']) ?? false,
-    magnification: source.v<double>(const <Object>['magnification']) ?? 1.0,
-    squeeze: source.v<double>(const <Object>['squeeze']) ?? 1.45,
+    magnification: RestageDecoders.positiveLayoutScalar(
+            source, <Object>['magnification']) ??
+        1.0,
+    squeeze:
+        RestageDecoders.positiveLayoutScalar(source, <Object>['squeeze']) ??
+            1.45,
     changeReportingBehavior:
         RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
                 source,
                 <Object>['changeReportingBehavior']) ??
             ChangeReportingBehavior.onScrollUpdate,
-    itemExtent: source.v<double>(const <Object>['itemExtent']) ??
-        (throw ArgumentError('CupertinoPicker.itemExtent is required.')),
+    itemExtent: RestageDecoders.requiredLayoutScalar(
+        source, <Object>['itemExtent'],
+        slot: 'CupertinoPicker.itemExtent', mustBePositive: true),
     onSelectedItemChanged: RestageDecoders.valueChanged<int>(
         source, const <Object>['onSelectedItemChanged']),
     looping: source.v<bool>(const <Object>['looping']) ?? false,
@@ -274,7 +284,8 @@ Widget buildCupertinoSearchTextField(BuildContext context, DataSource source) {
     placeholder: source.v<String>(const <Object>['placeholder']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    itemSize: source.v<double>(const <Object>['itemSize']) ?? 20.0,
+    itemSize:
+        RestageDecoders.layoutFactor(source, <Object>['itemSize']) ?? 20.0,
   );
 }
 

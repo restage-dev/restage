@@ -94,6 +94,8 @@ _flutter.loader.load({
     String lastBuildIdPath = '.last_build_id',
     bool lastBuildIdIsDirectory = false,
     bool lastBuildIdIsLink = false,
+    Map<String, String> extraFiles = const <String, String>{},
+    bool symbolsIsDirectory = false,
     Uri? parentOrigin,
   }) async {
     final scenarioScratch = Directory(p.join(root.path, 'scenario_scratch'))
@@ -123,6 +125,16 @@ _flutter.loader.load({
           } else {
             File(workerPath).writeAsBytesSync(workerBytes);
           }
+        }
+        for (final extra in extraFiles.entries) {
+          File(p.join(output.path, extra.key))
+            ..createSync(recursive: true)
+            ..writeAsStringSync(extra.value);
+        }
+        if (symbolsIsDirectory) {
+          Directory(
+            p.join(output.path, 'main.dart.wasm.symbols'),
+          ).createSync(recursive: true);
         }
         if (lastBuildId != null ||
             lastBuildIdIsDirectory ||
@@ -425,6 +437,33 @@ _flutter.loader.load({
         throwsA(isA<RenderBundleBuildException>()),
       );
     }
+  });
+
+  test('omits the build symbol maps and keeps everything else', () async {
+    final archive = await buildCompatibilityWorkerScenario(
+      extraFiles: <String, String>{
+        'main.dart.wasm.symbols': 'wasm symbol map',
+        'main.dart.js.symbols': 'js symbol map',
+        'nested/main.dart.wasm.symbols': 'not the build output',
+        'assets/glyphs/math.symbols': 'a bundled asset',
+      },
+    );
+    final files = _archiveFiles(archive);
+
+    expect(files, isNot(contains('main.dart.wasm.symbols')));
+    expect(files, isNot(contains('main.dart.js.symbols')));
+    // Only the build's own root outputs go; anything else a project ships
+    // under the same suffix has to survive, or it 404s at runtime.
+    expect(files, contains('nested/main.dart.wasm.symbols'));
+    expect(files, contains('assets/glyphs/math.symbols'));
+    expect(files, contains('main.dart.wasm'));
+  });
+
+  test('refuses a symbol-map path that is not a regular file', () async {
+    await expectLater(
+      buildCompatibilityWorkerScenario(symbolsIsDirectory: true),
+      throwsA(isA<RenderBundleBuildException>()),
+    );
   });
 
   test('rejects nested or case-varied last-build metadata', () async {

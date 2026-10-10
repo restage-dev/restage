@@ -4871,6 +4871,8 @@ void _collectRichNodeLibraries(A2uiSchemaNode node, Set<String> into) {
   }
 }
 
+/// Returns the catalog framework constructor for application-compiled Dart;
+/// runtime realization overrides apply only to generated widget factories.
 String _ctorExpressionFor(WidgetEntry entry, Map<String, String> prefixes) {
   final hashIndex = entry.flutterType.indexOf('#');
   if (hashIndex < 0 || hashIndex == entry.flutterType.length - 1) {

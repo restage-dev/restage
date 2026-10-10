@@ -1125,7 +1125,7 @@ CollectionListTraversal traverseCollectionList(
 }
 
 bool _isCallback(Expression expression) {
-  if (expression is NamedExpression) return false;
+  if (expression is NamedArgument) return false;
   if (expression is FunctionExpression) return true;
   if (expression.staticType is! FunctionType) return false;
   final parent = expression.parent;

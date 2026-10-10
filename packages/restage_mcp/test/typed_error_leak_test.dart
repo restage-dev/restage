@@ -5,6 +5,7 @@ import 'package:dart_mcp/client.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/api.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import '_support/harness.dart';
@@ -69,4 +70,36 @@ void main() {
       expect(text, isNot(contains('SUPERSECRET')));
     },
   );
+
+  test('a refused surface id is reported with the id and the rule', () async {
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'className': 'SurfaceSlugRejectedException',
+            'data': {
+              'slug': 'WelcomeFlow',
+              'reason': surfaceSlugRefusalMessage,
+            },
+          }),
+          400,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_list_products',
+        arguments: {'projectSlug': 'mobile', 'appSlug': 'ios'},
+      ),
+    );
+
+    expect(result.isError, isTrue);
+    final text = (result.content.single as TextContent).text;
+    expect(text, contains('WelcomeFlow'));
+    expect(text, contains(surfaceSlugRefusalMessage));
+    expect(text, isNot(contains('package:restage')));
+  });
 }

@@ -171,8 +171,20 @@ final class BuildPushCommand extends Command<int> {
     } on FileSystemException {
       return _reportBuildFailure();
     }
-    if (archive.isEmpty || archive.length > renderBundleMaxArchiveBytes) {
-      return _reportBuildFailure();
+    if (archive.isEmpty) return _reportBuildFailure();
+    if (archive.length > renderBundleMaxArchiveBytes) {
+      _stderr.writeln(
+        _uploadFailureMessage(
+          RenderBundleUploadException.oversize(
+            RenderBundleOversize(
+              measuredBytes: archive.length,
+              limitBytes: renderBundleMaxArchiveBytes,
+              compressed: false,
+            ),
+          ),
+        ),
+      );
+      return 2;
     }
     final uploadArchive = Uint8List.fromList(archive).asUnmodifiableView();
     final uploadedContentHash = CapabilitySidecar.hashBlob(uploadArchive);
@@ -220,16 +232,33 @@ final class BuildPushCommand extends Command<int> {
         channel: channel,
         organizationId: configuredOrganization.organizationId,
       );
-      if (snapshot == null || snapshot.contentHash != uploadedContentHash) {
-        throw const RenderBundleUploadException();
+      if (snapshot == null) {
+        // The archive reached storage; only the read-back failed.
+        _stderr.writeln(
+          'Uploaded render bundle $channel ($uploadedContentHash), but the '
+          'channel head could not be read back, so what $channel points at is '
+          'unconfirmed. The bundle is stored; pushing again would upload the '
+          'same bytes.',
+        );
+        return 2;
+      }
+      if (snapshot.contentHash != uploadedContentHash) {
+        // The archive is stored; a concurrent push selected its own version
+        // after this one. Re-running would upload the same bytes again.
+        _stderr.writeln(
+          'Uploaded render bundle $channel ($uploadedContentHash), but '
+          '$channel now points at version ${snapshot.version} '
+          '(${snapshot.contentHash}) from another push.',
+        );
+        return 2;
       }
       _stdout.writeln(
         'Uploaded render bundle $channel version ${snapshot.version} '
         '(${snapshot.contentHash}).',
       );
       return 0;
-    } on RenderBundleUploadException {
-      _stderr.writeln('Could not upload the render bundle.');
+    } on RenderBundleUploadException catch (error) {
+      _stderr.writeln(_uploadFailureMessage(error));
       return 2;
     } on RestageApiException {
       _stderr.writeln('Could not upload the render bundle.');
@@ -250,3 +279,53 @@ final class BuildPushCommand extends Command<int> {
     return 2;
   }
 }
+
+/// Renders an upload failure as one line a reader can act on.
+String _uploadFailureMessage(RenderBundleUploadException error) {
+  final staged = error.staged;
+  if (staged != null) {
+    return 'Could not upload the render bundle: this organization would hold '
+        '${staged.heldBytes} bytes staged, over the ${staged.limitBytes} byte '
+        'limit (${staged.limitBytes ~/ (1024 * 1024)} MiB).';
+  }
+  final oversize = error.oversize;
+  if (oversize != null) {
+    final subject = oversize.compressed ? 'compressed to' : 'built';
+    return 'Could not upload the render bundle: $subject '
+        '${oversize.measuredBytes} bytes, over the ${oversize.limitBytes} byte '
+        'limit (${oversize.limitBytes ~/ (1024 * 1024)} MiB).';
+  }
+  final status = error.statusCode;
+  if (status == null) return 'Could not upload the render bundle.';
+  final reason = _uploadStatusReason(status, error.transferBytes);
+  return reason == null
+      ? 'Could not upload the render bundle (HTTP $status).'
+      : 'Could not upload the render bundle (HTTP $status: $reason).';
+}
+
+/// Reads a refusal status. A request crosses intermediaries the service does
+/// not control, so each reading must hold for either source.
+String? _uploadStatusReason(int status, int? transferBytes) => switch (status) {
+  400 =>
+    'the request was rejected before the bundle was stored; retry, and '
+        'rebuild only if it keeps happening',
+  401 =>
+    'the stored credential was not accepted, or this account is no longer a '
+        'member of the organization',
+  403 =>
+    'the request was refused; the organization may be suspended, or a network '
+        'policy in front of the service may be blocking it',
+  404 => 'the project or the upload address was not found',
+  408 =>
+    'the body did not arrive within the two-minute upload deadline; a faster '
+        'connection or a smaller bundle will finish in time',
+  409 => 'another version was selected for this channel concurrently',
+  413 =>
+    'something between this machine and the service refused the body size'
+        '${transferBytes == null ? '' : ', which was $transferBytes '
+                  'compressed bytes'}',
+  415 => 'the content type or encoding was not accepted',
+  429 => 'too many requests; an upload for this account may already be running',
+  503 => 'the service is unavailable or busy; retry shortly',
+  _ => null,
+};

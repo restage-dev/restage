@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart'
@@ -149,6 +150,18 @@ String? emitFactoryFunction(
   final ctor = _ctorExpressionFor(entry, aliases: customAliases);
   final canonicalChild = _canonicalChildPropertyOf(entry);
   final gatingProp = _gatingPropertyOf(entry);
+  final hoistedChildListSlots = <String>{};
+  for (final property in entry.properties) {
+    final route = _derivedPreflightRouteFor(
+      entry.library,
+      entry.name,
+      entry.flutterType,
+      property.name,
+    );
+    if (route != null) {
+      hoistedChildListSlots.add(route.childListSlot);
+    }
+  }
   final presencePlans = RfwConstructorPresenceFactoryPlan.forProperties(
     entry.properties,
   );
@@ -180,6 +193,8 @@ String? emitFactoryFunction(
               entry.name,
               index: nativeIndex,
               aliases: customAliases,
+              widgetLibrary: entry.library,
+              widgetFlutterType: entry.flutterType,
               customChildProperties: customChildProperties,
             )
           : _presenceAwareCanonicalChildrenValue(
@@ -249,6 +264,7 @@ String? emitFactoryFunction(
       entry,
       index: nativeIndex,
       aliases: customAliases,
+      widgetFlutterType: entry.flutterType,
       presence: presence,
       customChildProperties: customChildProperties,
     );
@@ -284,8 +300,20 @@ String? emitFactoryFunction(
     final yProp = entry.properties.firstWhere(
       (p) => p.synthetic == _imageFilterBlurSynthetic && p.name == 'blurSigmaY',
     );
-    final xExpr = _decodeExpression(xProp, entry.name, index: nativeIndex);
-    final yExpr = _decodeExpression(yProp, entry.name, index: nativeIndex);
+    final xExpr = _decodeExpression(
+      xProp,
+      entry.name,
+      index: nativeIndex,
+      widgetLibrary: entry.library,
+      widgetFlutterType: entry.flutterType,
+    );
+    final yExpr = _decodeExpression(
+      yProp,
+      entry.name,
+      index: nativeIndex,
+      widgetLibrary: entry.library,
+      widgetFlutterType: entry.flutterType,
+    );
     final xArg = xProp.required ? xExpr : '($xExpr ?? 0.0)';
     final yArg = yProp.required ? yExpr : '($yExpr ?? 0.0)';
     argLines.add(
@@ -301,6 +329,8 @@ String? emitFactoryFunction(
         entry.name,
         nullable: false,
         index: nativeIndex,
+        widgetLibrary: entry.library,
+        widgetFlutterType: entry.flutterType,
       );
       argLines.add('    ${p.name}: $value,');
       continue;
@@ -316,6 +346,8 @@ String? emitFactoryFunction(
         entry.name,
         nullable: false,
         index: nativeIndex,
+        widgetLibrary: entry.library,
+        widgetFlutterType: entry.flutterType,
       );
       // When the entry declares the four corner siblings, the uniform
       // expression becomes the fall-through arm of the per-corner
@@ -395,6 +427,9 @@ String? emitFactoryFunction(
       entry.name,
       index: nativeIndex,
       aliases: customAliases,
+      widgetLibrary: entry.library,
+      widgetFlutterType: entry.flutterType,
+      hoistedChildListSlots: hoistedChildListSlots,
       pathExpression: presence?.valuePathExpression,
       applyDefault: presence == null,
       customChildProperties: customChildProperties,
@@ -405,22 +440,26 @@ String? emitFactoryFunction(
 
   if (canonicalChild != null && !canonicalChild.positional) {
     final presence = presencePlans[canonicalChild.name];
-    final decoded = presence == null
-        ? _decodeExpression(
-            canonicalChild,
-            entry.name,
-            index: nativeIndex,
-            aliases: customAliases,
-            customChildProperties: customChildProperties,
-          )
-        : _presenceAwareCanonicalChildrenValue(
-            canonicalChild,
-            entry,
-            presence,
-            index: nativeIndex,
-            aliases: customAliases,
-            customChildProperties: customChildProperties,
-          );
+    final decoded = hoistedChildListSlots.contains(canonicalChild.name)
+        ? canonicalChild.name
+        : presence == null
+            ? _decodeExpression(
+                canonicalChild,
+                entry.name,
+                index: nativeIndex,
+                aliases: customAliases,
+                widgetLibrary: entry.library,
+                widgetFlutterType: entry.flutterType,
+                customChildProperties: customChildProperties,
+              )
+            : _presenceAwareCanonicalChildrenValue(
+                canonicalChild,
+                entry,
+                presence,
+                index: nativeIndex,
+                aliases: customAliases,
+                customChildProperties: customChildProperties,
+              );
     argLines.add('    ${canonicalChild.name}: $decoded,');
   }
 
@@ -431,6 +470,8 @@ String? emitFactoryFunction(
   final preambleLines = <String>[
     if (gatingDeclaration != null) gatingDeclaration,
     ...presencePlans.values.map((plan) => plan.declaration),
+    for (final slot in hoistedChildListSlots)
+      '  final $slot = source.childList(${_sourcePath(slot)});',
   ];
   final preamble =
       preambleLines.isEmpty ? '' : '${preambleLines.join('\n')}\n\n';
@@ -575,6 +616,8 @@ String _presenceAwareCanonicalChildrenValue(
     entry.name,
     index: index,
     aliases: aliases,
+    widgetLibrary: entry.library,
+    widgetFlutterType: entry.flutterType,
     pathExpression: presence.valuePathExpression,
     applyDefault: false,
     customChildProperties: customChildProperties,
@@ -611,10 +654,12 @@ String _positionalEmit(
   WidgetEntry entry, {
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
+  String? widgetFlutterType,
   RfwConstructorPresenceFactoryPlan? presence,
   bool customChildProperties = false,
 }) {
   final widgetName = entry.name;
+  final widgetLibrary = entry.library;
   if (prop.synthetic == _iconDataSynthetic) {
     final path = presence?.valuePathExpression ?? _sourcePath(prop.name);
     final read = 'source.v<int>(${_directSourcePath(prop.name, path)})';
@@ -632,6 +677,8 @@ String _positionalEmit(
     widgetName,
     index: index,
     aliases: aliases,
+    widgetLibrary: widgetLibrary,
+    widgetFlutterType: widgetFlutterType,
     pathExpression: presence?.valuePathExpression,
     applyDefault: presence == null,
     customChildProperties: customChildProperties,
@@ -1012,6 +1059,8 @@ String _nativeDecodedArgument(
       nullable: parameter.nullable,
       index: index,
       tolerantNumbers: tolerantNumbers,
+      widgetLibrary: entry.library,
+      widgetFlutterType: entry.flutterType,
     ),
     parameter: parameter,
     index: index,
@@ -1116,7 +1165,14 @@ String _transformBindingExpression(
   switch (binding) {
     case PropertyValueArgumentBinding():
       final path = _sourcePath(property.name);
-      final decoded = _decoderCallFor(property, path, index: index);
+      final decoded = _decoderCallFor(
+        property,
+        path,
+        index: index,
+        widgetName: entry.name,
+        widgetLibrary: entry.library,
+        widgetFlutterType: entry.flutterType,
+      );
       if (binding.nullPolicy == TransformNullPolicy.nullResult ||
           binding.missingPolicy == TransformMissingPolicy.nullResult) {
         nullGuards.add('$decoded == null');
@@ -1128,7 +1184,13 @@ String _transformBindingExpression(
             "(throw ArgumentError('${entry.name}.${property.name} is "
             "required.'))";
       }
-      return _decodeExpression(property, entry.name, index: index);
+      return _decodeExpression(
+        property,
+        entry.name,
+        index: index,
+        widgetLibrary: entry.library,
+        widgetFlutterType: entry.flutterType,
+      );
     case LiteralArgumentBinding(:final literal):
       return _literalExpression(literal);
     case NestedTransformArgumentBinding(:final nestedTransform):
@@ -1182,14 +1244,18 @@ String _wrappedValueFor(
   PropertyEntry prop,
   String widgetName, {
   required bool nullable,
+  required WidgetLibrary widgetLibrary,
   NativeCatalogIndex? index,
   bool tolerantNumbers = false,
+  String? widgetFlutterType,
 }) {
   final decoded = _decodeExpression(
     prop,
     widgetName,
     index: index,
     tolerantNumbers: tolerantNumbers,
+    widgetLibrary: widgetLibrary,
+    widgetFlutterType: widgetFlutterType,
   );
   switch (prop.synthetic) {
     case _sizeFromHeightSynthetic:
@@ -1996,16 +2062,19 @@ bool _isEmittableProperty(
   }
 }
 
-/// Returns the constructor expression to invoke for [entry], parsed from
-/// `flutterType`. The class portion (after `#`) may contain a
-/// `.factoryName` suffix (e.g. `Image.network`); the whole thing is the
-/// Dart constructor reference. A CUSTOM widget whose library is aliased in
-/// [aliases] is qualified (`s0.BadgeCard` / `s0.Image.network`) so it resolves
-/// through the uniform-prefix import; a built-in widget stays bare.
+/// Returns [entry]'s exact runtime realization or its qualified catalog
+/// constructor, including named factories.
 String _ctorExpressionFor(
   WidgetEntry entry, {
   Map<String, String> aliases = const {},
 }) {
+  final runtimeRealization = _runtimeRealizationByWidget[entry.name];
+  if (runtimeRealization != null &&
+      runtimeRealization.namespace == entry.library.namespace &&
+      runtimeRealization.flutterType == entry.flutterType) {
+    return runtimeRealization.className;
+  }
+
   final hashIndex = entry.flutterType.indexOf('#');
   if (hashIndex < 0 || hashIndex == entry.flutterType.length - 1) {
     throw StateError(
@@ -2024,9 +2093,12 @@ String _ctorExpressionFor(
 String _decodeExpression(
   PropertyEntry prop,
   String widgetName, {
+  required WidgetLibrary widgetLibrary,
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
   bool tolerantNumbers = false,
+  String? widgetFlutterType,
+  Set<String> hoistedChildListSlots = const {},
   String? pathExpression,
   bool applyDefault = true,
   bool customChildProperties = false,
@@ -2040,9 +2112,25 @@ String _decodeExpression(
     index: index,
     aliases: aliases,
     tolerantNumbers: tolerantNumbers,
+    widgetName: widgetName,
+    widgetLibrary: widgetLibrary,
+    widgetFlutterType: widgetFlutterType,
+    hoistedChildListSlots: hoistedChildListSlots,
     customChildProperties: customChildProperties,
     preferredSizeHeightPath: preferredSizeHeightPath,
   );
+  // A derived preflight owns the absent-value fallback because it returns a
+  // repaired, non-null value. Re-applying the catalog default here would add a
+  // dead `??` after the helper call.
+  final derivedPreflight = _derivedPreflightRouteFor(
+    widgetLibrary,
+    widgetName,
+    widgetFlutterType,
+    prop.name,
+  );
+  if (derivedPreflight != null) {
+    return decoded;
+  }
   // RFW's childList read turns a missing slot into an empty list. Guard the
   // nullable no-default constructor shape so omission/null remains null, while
   // an authored list (including an empty one) still uses the child decoder.
@@ -2094,6 +2182,13 @@ String _decodeExpression(
     return '$decoded ?? ($argType _) {}';
   }
   if (!prop.required) return decoded;
+  final scalarRoute = _scalarDecoderRouteFor(
+    widgetLibrary,
+    widgetName,
+    widgetFlutterType,
+    prop.name,
+  );
+  if (scalarRoute?.returnsNonNull ?? false) return decoded;
   // A registered structured-ref decoder returns a nullable Flutter value
   // (e.g. `Size?`), so a required slot can throw on a missing value just
   // like the other nullable-decoder scalar paths.
@@ -3111,12 +3206,560 @@ WireIdRef? _structuredRefOf(PropertyEntry prop) {
   return shape is StructuredShape ? shape.structuredRef : null;
 }
 
+typedef _RuntimeRealization = ({
+  String className,
+  String flutterType,
+  String namespace,
+});
+
+/// Runtime classes for built-ins that need guarded framework behavior, matched
+/// by namespace, widget name, and source type.
+const Map<String, _RuntimeRealization> _runtimeRealizationByWidget = {
+  'Align': (
+    className: 'RestageAlign',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Align',
+    namespace: 'restage.core',
+  ),
+  'AnimatedAlign': (
+    className: 'RestageAnimatedAlign',
+    flutterType:
+        'package:flutter/src/widgets/implicit_animations.dart#AnimatedAlign',
+    namespace: 'restage.core',
+  ),
+  'AnimatedPadding': (
+    className: 'RestageAnimatedPadding',
+    flutterType:
+        'package:flutter/src/widgets/implicit_animations.dart#AnimatedPadding',
+    namespace: 'restage.core',
+  ),
+  'AnimatedSize': (
+    className: 'RestageAnimatedSize',
+    flutterType: 'package:flutter/src/widgets/animated_size.dart#AnimatedSize',
+    namespace: 'restage.core',
+  ),
+  'AspectRatio': (
+    className: 'RestageAspectRatio',
+    flutterType: 'package:flutter/src/widgets/basic.dart#AspectRatio',
+    namespace: 'restage.core',
+  ),
+  'Center': (
+    className: 'RestageCenter',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Center',
+    namespace: 'restage.core',
+  ),
+  'Column': (
+    className: 'RestageColumn',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Column',
+    namespace: 'restage.core',
+  ),
+  'FittedBox': (
+    className: 'RestageFittedBox',
+    flutterType: 'package:flutter/src/widgets/basic.dart#FittedBox',
+    namespace: 'restage.core',
+  ),
+  'FadeInImageAssetNetwork': (
+    className: 'RestageFadeInImage.assetNetwork',
+    flutterType:
+        'package:flutter/src/widgets/fade_in_image.dart#FadeInImage.assetNetwork',
+    namespace: 'restage.core',
+  ),
+  'FractionallySizedBox': (
+    className: 'RestageFractionallySizedBox',
+    flutterType: 'package:flutter/src/widgets/basic.dart#FractionallySizedBox',
+    namespace: 'restage.core',
+  ),
+  'IntrinsicWidth': (
+    className: 'RestageIntrinsicWidth',
+    flutterType: 'package:flutter/src/widgets/basic.dart#IntrinsicWidth',
+    namespace: 'restage.core',
+  ),
+  'ListView': (
+    className: 'RestageListView',
+    flutterType: 'package:flutter/src/widgets/scroll_view.dart#ListView',
+    namespace: 'restage.core',
+  ),
+  'Image': (
+    className: 'RestageImage.network',
+    flutterType: 'package:flutter/src/widgets/image.dart#Image.network',
+    namespace: 'restage.core',
+  ),
+  'ImageAsset': (
+    className: 'RestageImage.asset',
+    flutterType: 'package:flutter/src/widgets/image.dart#Image.asset',
+    namespace: 'restage.core',
+  ),
+  'Padding': (
+    className: 'RestagePadding',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Padding',
+    namespace: 'restage.core',
+  ),
+  'Row': (
+    className: 'RestageRow',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Row',
+    namespace: 'restage.core',
+  ),
+  'Stack': (
+    className: 'RestageStack',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Stack',
+    namespace: 'restage.core',
+  ),
+  'Wrap': (
+    className: 'RestageWrap',
+    flutterType: 'package:flutter/src/widgets/basic.dart#Wrap',
+    namespace: 'restage.core',
+  ),
+};
+
+/// How one scalar slot is routed: the decoder to call, whether that decoder
+/// returns a non-null value, and whether it enforces a strictly-positive
+/// domain.
+typedef ScalarRoute = ({
+  String call,
+  bool returnsNonNull,
+  bool mustBePositive,
+});
+
+/// How one derived preflight slot is routed: the decoder to call and the
+/// child-list slot whose length supplies its derived operand.
+typedef DerivedPreflightRoute = ({
+  String call,
+  String childListSlot,
+  String flutterType,
+});
+
+const ScalarRoute _constraintScalarRoute = (
+  call: 'RestageDecoders.constraintScalar',
+  returnsNonNull: false,
+  mustBePositive: false,
+);
+const ScalarRoute _layoutFactorRoute = (
+  call: 'RestageDecoders.layoutFactor',
+  returnsNonNull: false,
+  mustBePositive: false,
+);
+const ScalarRoute _textMetricRoute = (
+  call: 'RestageDecoders.textMetric',
+  returnsNonNull: false,
+  mustBePositive: false,
+);
+// `mustBePositive` stays false because the positive domain is intrinsic to this
+// arm rather than a named argument it accepts.
+const ScalarRoute _positiveLayoutScalarRoute = (
+  call: 'RestageDecoders.positiveLayoutScalar',
+  returnsNonNull: false,
+  mustBePositive: false,
+);
+const ScalarRoute _unitIntervalFactorRoute = (
+  call: 'RestageDecoders.unitIntervalFactor',
+  returnsNonNull: false,
+  mustBePositive: false,
+);
+const ScalarRoute _requiredLayoutScalarRoute = (
+  call: 'RestageDecoders.requiredLayoutScalar',
+  returnsNonNull: true,
+  mustBePositive: false,
+);
+const ScalarRoute _requiredPositiveLayoutScalarRoute = (
+  call: 'RestageDecoders.requiredLayoutScalar',
+  returnsNonNull: true,
+  mustBePositive: true,
+);
+const DerivedPreflightRoute _rowDerivedSpacingRoute = (
+  call: 'RestageDecoders.derivedSpacing',
+  childListSlot: 'children',
+  flutterType: 'package:flutter/src/widgets/basic.dart#Row',
+);
+const DerivedPreflightRoute _columnDerivedSpacingRoute = (
+  call: 'RestageDecoders.derivedSpacing',
+  childListSlot: 'children',
+  flutterType: 'package:flutter/src/widgets/basic.dart#Column',
+);
+
+/// Built-in namespaces admitted to scalar decoder routing.
+const Set<String> _builtInScalarDecoderNamespaces = <String>{
+  'restage.core',
+  'restage.material',
+  'restage.cupertino',
+};
+
+/// Repairing decoder routes keyed by built-in widget and property name.
+const Map<(String, String), ScalarRoute> _scalarDecoderByWidgetProperty = {
+  ('Container', 'width'): _constraintScalarRoute,
+  ('Container', 'height'): _constraintScalarRoute,
+  ('AnimatedContainer', 'width'): _constraintScalarRoute,
+  ('AnimatedContainer', 'height'): _constraintScalarRoute,
+  ('SizedBox', 'width'): _constraintScalarRoute,
+  ('SizedBox', 'height'): _constraintScalarRoute,
+  ('Icon', 'size'): _constraintScalarRoute,
+  ('IconButton', 'iconSize'): _constraintScalarRoute,
+  ('Positioned', 'left'): _constraintScalarRoute,
+  ('Positioned', 'top'): _constraintScalarRoute,
+  ('Positioned', 'right'): _constraintScalarRoute,
+  ('Positioned', 'bottom'): _constraintScalarRoute,
+  ('Positioned', 'width'): _constraintScalarRoute,
+  ('Positioned', 'height'): _constraintScalarRoute,
+  ('AnimatedPositioned', 'left'): _constraintScalarRoute,
+  ('AnimatedPositioned', 'top'): _constraintScalarRoute,
+  ('AnimatedPositioned', 'right'): _constraintScalarRoute,
+  ('AnimatedPositioned', 'bottom'): _constraintScalarRoute,
+  ('AnimatedPositioned', 'width'): _constraintScalarRoute,
+  ('AnimatedPositioned', 'height'): _constraintScalarRoute,
+  ('Image', 'width'): _constraintScalarRoute,
+  ('Image', 'height'): _constraintScalarRoute,
+  ('ImageAsset', 'width'): _constraintScalarRoute,
+  ('ImageAsset', 'height'): _constraintScalarRoute,
+  ('FadeInImageAssetNetwork', 'width'): _constraintScalarRoute,
+  ('FadeInImageAssetNetwork', 'height'): _constraintScalarRoute,
+  ('FadeInImageAssetNetwork', 'imageScale'): _positiveLayoutScalarRoute,
+  ('IntrinsicWidth', 'stepWidth'): _layoutFactorRoute,
+  ('IntrinsicWidth', 'stepHeight'): _layoutFactorRoute,
+  ('LinearProgressIndicator', 'minHeight'): _positiveLayoutScalarRoute,
+  ('Align', 'widthFactor'): _layoutFactorRoute,
+  ('Align', 'heightFactor'): _layoutFactorRoute,
+  ('AnimatedAlign', 'widthFactor'): _layoutFactorRoute,
+  ('AnimatedAlign', 'heightFactor'): _layoutFactorRoute,
+  ('Center', 'widthFactor'): _layoutFactorRoute,
+  ('Center', 'heightFactor'): _layoutFactorRoute,
+  ('FractionallySizedBox', 'widthFactor'): _layoutFactorRoute,
+  ('FractionallySizedBox', 'heightFactor'): _layoutFactorRoute,
+  ('Wrap', 'spacing'): _layoutFactorRoute,
+  ('Wrap', 'runSpacing'): _layoutFactorRoute,
+  ('Text', 'fontSize'): _textMetricRoute,
+  ('Text', 'letterSpacing'): _textMetricRoute,
+  ('Text', 'wordSpacing'): _textMetricRoute,
+  ('Text', 'height'): _textMetricRoute,
+  ('Text', 'decorationThickness'): _textMetricRoute,
+  ('TextRich', 'fontSize'): _textMetricRoute,
+  ('TextRich', 'letterSpacing'): _textMetricRoute,
+  ('TextRich', 'wordSpacing'): _textMetricRoute,
+  ('TextRich', 'height'): _textMetricRoute,
+  ('TextRich', 'decorationThickness'): _textMetricRoute,
+  ('DefaultTextStyle', 'fontSize'): _textMetricRoute,
+  ('DefaultTextStyle', 'letterSpacing'): _textMetricRoute,
+  ('DefaultTextStyle', 'wordSpacing'): _textMetricRoute,
+  ('DefaultTextStyle', 'height'): _textMetricRoute,
+  ('DefaultTextStyle', 'decorationThickness'): _textMetricRoute,
+  ('AnimatedDefaultTextStyle', 'fontSize'): _textMetricRoute,
+  ('AnimatedDefaultTextStyle', 'letterSpacing'): _textMetricRoute,
+  ('AnimatedDefaultTextStyle', 'wordSpacing'): _textMetricRoute,
+  ('AnimatedDefaultTextStyle', 'height'): _textMetricRoute,
+  ('AnimatedDefaultTextStyle', 'decorationThickness'): _textMetricRoute,
+  ('RestagePrice', 'fontSize'): _textMetricRoute,
+  ('RestagePrice', 'letterSpacing'): _textMetricRoute,
+  ('RestagePrice', 'wordSpacing'): _textMetricRoute,
+  ('RestagePrice', 'height'): _textMetricRoute,
+  ('RestagePrice', 'decorationThickness'): _textMetricRoute,
+  ('RestageFormattedNumber', 'fontSize'): _textMetricRoute,
+  ('RestageFormattedNumber', 'letterSpacing'): _textMetricRoute,
+  ('RestageFormattedNumber', 'wordSpacing'): _textMetricRoute,
+  ('RestageFormattedNumber', 'height'): _textMetricRoute,
+  ('RestageFormattedNumber', 'decorationThickness'): _textMetricRoute,
+  ('AspectRatio', 'aspectRatio'): _requiredPositiveLayoutScalarRoute,
+  ('LimitedBox', 'maxWidth'): _requiredLayoutScalarRoute,
+  ('LimitedBox', 'maxHeight'): _requiredLayoutScalarRoute,
+  ('CupertinoPicker', 'itemExtent'): _requiredPositiveLayoutScalarRoute,
+  ('CupertinoPicker', 'squeeze'): _positiveLayoutScalarRoute,
+  ('CupertinoDatePicker', 'itemExtent'): _positiveLayoutScalarRoute,
+  ('CupertinoTimerPicker', 'itemExtent'): _positiveLayoutScalarRoute,
+  ('AppBar', 'toolbarHeight'): _layoutFactorRoute,
+  ('AppBar', 'leadingWidth'): _layoutFactorRoute,
+  ('Divider', 'height'): _layoutFactorRoute,
+  ('Divider', 'thickness'): _layoutFactorRoute,
+  ('RestageModalSheet', 'scrollControlDisabledMaxHeightRatio'):
+      _unitIntervalFactorRoute,
+  ('RestagePager', 'viewportFraction'): _unitIntervalFactorRoute,
+  ('Tab', 'height'): _layoutFactorRoute,
+  ('CupertinoActivityIndicator', 'radius'): _positiveLayoutScalarRoute,
+  ('CupertinoPicker', 'magnification'): _positiveLayoutScalarRoute,
+  ('CupertinoSearchTextField', 'itemSize'): _layoutFactorRoute,
+};
+
+ScalarRoute? _scalarDecoderRouteFor(
+  WidgetLibrary? widgetLibrary,
+  String? widgetName,
+  String? widgetFlutterType,
+  String propertyName,
+) {
+  if (widgetName == null ||
+      !_builtInScalarDecoderNamespaces.contains(widgetLibrary?.namespace)) {
+    return null;
+  }
+  if (widgetName == 'Wrap' &&
+      (propertyName == 'spacing' || propertyName == 'runSpacing') &&
+      (widgetLibrary?.namespace != 'restage.core' ||
+          widgetFlutterType != 'package:flutter/src/widgets/basic.dart#Wrap')) {
+    return null;
+  }
+  return _scalarDecoderByWidgetProperty[(widgetName, propertyName)];
+}
+
+/// Routes built-in slots whose safe value depends on another argument.
+const Map<(String, String), DerivedPreflightRoute>
+    _derivedPreflightByWidgetProperty = {
+  ('Row', 'spacing'): _rowDerivedSpacingRoute,
+  ('Column', 'spacing'): _columnDerivedSpacingRoute,
+};
+
+DerivedPreflightRoute? _derivedPreflightRouteFor(
+  WidgetLibrary? widgetLibrary,
+  String widgetName,
+  String? flutterType,
+  String propertyName,
+) {
+  if (widgetLibrary?.namespace != WidgetLibrary.core.namespace) return null;
+  final route = _derivedPreflightByWidgetProperty[(widgetName, propertyName)];
+  return route?.flutterType == flutterType ? route : null;
+}
+
+const String _assembledConstraintReason =
+    'the scalar is assembled into the BoxConstraints that safeConstraints '
+    'repairs before those same constraints reach layout';
+const String _typeLevelOffsetRepairReason =
+    'repaired by the shared offset decoder, which every offset slot is emitted '
+    'through, so each component is already finite before it reaches layout';
+const String _typeLevelAlignmentRepairReason =
+    'repaired by the shared alignment decoder, which every alignment slot is '
+    'emitted through, so each component is already finite before it reaches '
+    'layout';
+const String _typeLevelAlignmentXyRepairReason =
+    'repaired by the shared concrete-alignment decoder, which every slot of '
+    'that type is emitted through, so each component is already finite before '
+    'it reaches layout';
+const String _typeLevelEdgeInsetsRepairReason =
+    'repaired by the shared inset decoder, which every inset slot is emitted '
+    'through, so each component is already finite and non-negative and an '
+    'overflowing axis collapses before it reaches layout';
+const String _borderRadiusPaintReason =
+    'BoxDecoration layout padding comes from border dimensions; border radius '
+    'bypasses that mechanism and reaches decoration painting only';
+const String _clipRadiusPaintReason =
+    'the clip render object is a proxy box that overrides neither layout '
+    'method, so the radius reaches clipping during paint only';
+const String _elevationPaintReason =
+    'the material or physical-model shadow painter consumes elevation after '
+    'child layout, whose geometry does not depend on the scalar';
+const String _opacityPaintReason =
+    'the opacity render object is a proxy box that overrides neither layout '
+    'method, so layout does not depend on the value and it reaches paint';
+const String _transformPaintReason =
+    'the transform render object is a proxy box that overrides neither layout '
+    'method, so layout does not depend on the value and it reaches paint';
+const String _sliderAndProgressPaintReason =
+    'the slider render object does size itself, but from the incoming '
+    'constraints and its track and thumb constants only — the scalar appears '
+    'nowhere in that computation and reaches the painter instead; the '
+    'Cupertino slider is a constrained box built from two size constants, and '
+    'progress indicators size from a constraining box and pass the scalar to a '
+    'painter; the claim is that layout does not depend on the scalar, not that '
+    'these classes have no layout';
+const String _animationOpacityScaleReason =
+    'the scalar feeds an opacity or scale sink whose proxy render object '
+    'overrides neither layout method, so its reach ends in paint-time opacity '
+    'or transform and does not affect layout';
+const String _motionBounceReason =
+    'the scalar feeds only the spring simulation that controls animation '
+    'progression; no layout field consumes it, so a non-finite value is an '
+    'animation-quality concern outside this class';
+const String _backdropFilterLayoutReason =
+    'the proxy render object lays out only its child; blur sigma reaches the '
+    'paint filter, without qualifying paint behavior';
+const String _formattedValueLayoutReason =
+    'intl converts the value to text before Text layout, so no numeric value '
+    'reaches layout';
+const String _scrollbarThicknessLayoutReason =
+    'the child lays out independently; thickness reaches scrollbar paint and '
+    'hit testing, without qualifying either behavior';
+const String _pickerProjectionLayoutReason =
+    'the wheel lays out from constraints and item extent; this value reaches '
+    'paint projection only, without qualifying paint behavior';
+const String _rosterTailDeferredReason =
+    'inferred constraint scalar — verify then route';
+const Map<(String, String), String> _scalarDecoderExemptions = {
+  ('AnimatedSlide', 'offset'): _typeLevelOffsetRepairReason,
+  ('RestageFadeIn', 'fromOffset'): _typeLevelOffsetRepairReason,
+  ('RestageMotion', 'fromOffset'): _typeLevelOffsetRepairReason,
+  ('RestageStagger', 'fromOffset'): _typeLevelOffsetRepairReason,
+  ('TransformRotate', 'origin'): _typeLevelOffsetRepairReason,
+  ('Badge', 'offset'): _typeLevelOffsetRepairReason,
+  ('RestageModalSheet', 'anchorPoint'): _typeLevelOffsetRepairReason,
+  ('Align', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('AnimatedAlign', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('AnimatedContainer', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('AnimatedSize', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('Badge', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('Container', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('CupertinoTimerPicker', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('FittedBox', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('FractionallySizedBox', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('Stack', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('TransformRotate', 'alignment'): _typeLevelAlignmentRepairReason,
+  ('AnimatedRotation', 'alignment'): _typeLevelAlignmentXyRepairReason,
+  ('AnimatedScale', 'alignment'): _typeLevelAlignmentXyRepairReason,
+  ('Image', 'alignment'): _typeLevelAlignmentXyRepairReason,
+  ('ImageAsset', 'alignment'): _typeLevelAlignmentXyRepairReason,
+  ('AppBar', 'actionsPadding'): _typeLevelEdgeInsetsRepairReason,
+  ('ActionChip', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('AnimatedContainer', 'margin'): _typeLevelEdgeInsetsRepairReason,
+  ('AnimatedContainer', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('AnimatedPadding', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('Badge', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('Card', 'margin'): _typeLevelEdgeInsetsRepairReason,
+  ('CardFilled', 'margin'): _typeLevelEdgeInsetsRepairReason,
+  ('CardOutlined', 'margin'): _typeLevelEdgeInsetsRepairReason,
+  ('Chip', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('ChoiceChip', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('Container', 'margin'): _typeLevelEdgeInsetsRepairReason,
+  ('Container', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('CupertinoButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('CupertinoButtonFilled', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('ElevatedButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('FilledButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('FilledButtonTonal', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('FilterChip', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('ListView', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('OutlinedButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('OutlinedButtonIcon', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('Padding', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('SingleChildScrollView', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('Tab', 'iconMargin'): _typeLevelEdgeInsetsRepairReason,
+  ('TextButton', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('TextButtonIcon', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('Tooltip', 'margin'): _typeLevelEdgeInsetsRepairReason,
+  ('Tooltip', 'padding'): _typeLevelEdgeInsetsRepairReason,
+  ('AnimatedContainer', 'borderRadius'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusTopLeft'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusTopRight'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusBottomLeft'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'borderRadiusBottomRight'): _borderRadiusPaintReason,
+  ('ClipRRect', 'borderRadius'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusTopLeft'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusTopRight'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusBottomLeft'): _clipRadiusPaintReason,
+  ('ClipRRect', 'borderRadiusBottomRight'): _clipRadiusPaintReason,
+  ('Container', 'borderRadius'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusTopLeft'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusTopRight'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusBottomLeft'): _borderRadiusPaintReason,
+  ('Container', 'borderRadiusBottomRight'): _borderRadiusPaintReason,
+  ('AnimatedContainer', 'minWidth'): _assembledConstraintReason,
+  ('AnimatedContainer', 'maxWidth'): _assembledConstraintReason,
+  ('AnimatedContainer', 'minHeight'): _assembledConstraintReason,
+  ('AnimatedContainer', 'maxHeight'): _assembledConstraintReason,
+  ('ConstrainedBox', 'minWidth'): _assembledConstraintReason,
+  ('ConstrainedBox', 'maxWidth'): _assembledConstraintReason,
+  ('ConstrainedBox', 'minHeight'): _assembledConstraintReason,
+  ('ConstrainedBox', 'maxHeight'): _assembledConstraintReason,
+  ('Container', 'minWidth'): _assembledConstraintReason,
+  ('Container', 'maxWidth'): _assembledConstraintReason,
+  ('Container', 'minHeight'): _assembledConstraintReason,
+  ('Container', 'maxHeight'): _assembledConstraintReason,
+  ('AppBar', 'elevation'): _elevationPaintReason,
+  ('AppBar', 'scrolledUnderElevation'): _elevationPaintReason,
+  ('Card', 'elevation'): _elevationPaintReason,
+  ('CardFilled', 'elevation'): _elevationPaintReason,
+  ('CardOutlined', 'elevation'): _elevationPaintReason,
+  ('ElevatedButton', 'elevation'): _elevationPaintReason,
+  ('FilledButton', 'elevation'): _elevationPaintReason,
+  ('FloatingActionButton', 'elevation'): _elevationPaintReason,
+  ('RestageModalSheet', 'elevation'): _elevationPaintReason,
+  ('Opacity', 'opacity'): _opacityPaintReason,
+  ('AnimatedOpacity', 'opacity'): _opacityPaintReason,
+  ('AnimatedRotation', 'turns'): _transformPaintReason,
+  ('AnimatedScale', 'scale'): _transformPaintReason,
+  ('TransformRotate', 'angle'): _transformPaintReason,
+  ('Slider', 'value'): _sliderAndProgressPaintReason,
+  ('Slider', 'secondaryTrackValue'): _sliderAndProgressPaintReason,
+  ('Slider', 'min'): _sliderAndProgressPaintReason,
+  ('Slider', 'max'): _sliderAndProgressPaintReason,
+  ('CupertinoSlider', 'value'): _sliderAndProgressPaintReason,
+  ('CupertinoSlider', 'min'): _sliderAndProgressPaintReason,
+  ('CupertinoSlider', 'max'): _sliderAndProgressPaintReason,
+  ('CircularProgressIndicator', 'value'): _sliderAndProgressPaintReason,
+  ('CircularProgressIndicator', 'strokeWidth'): _sliderAndProgressPaintReason,
+  ('LinearProgressIndicator', 'value'): _sliderAndProgressPaintReason,
+  ('RestageFadeIn', 'fromOpacity'): _animationOpacityScaleReason,
+  ('RestageStagger', 'fromOpacity'): _animationOpacityScaleReason,
+  ('RestageStagger', 'fromScale'): _animationOpacityScaleReason,
+  ('RestageMotion', 'fromScale'): _animationOpacityScaleReason,
+  ('RestageMotion', 'fromOpacity'): _animationOpacityScaleReason,
+  ('RestagePulse', 'minScale'): _animationOpacityScaleReason,
+  ('RestagePulse', 'maxScale'): _animationOpacityScaleReason,
+  ('RestageMotion', 'bounce'): _motionBounceReason,
+  ('BackdropFilter', 'blurSigmaX'): _backdropFilterLayoutReason,
+  ('BackdropFilter', 'blurSigmaY'): _backdropFilterLayoutReason,
+  ('RestageFormattedNumber', 'value'): _formattedValueLayoutReason,
+  ('RestagePrice', 'value'): _formattedValueLayoutReason,
+  ('Scrollbar', 'thickness'): _scrollbarThicknessLayoutReason,
+  ('CupertinoPicker', 'diameterRatio'): _pickerProjectionLayoutReason,
+  ('CupertinoPicker', 'offAxisFraction'): _pickerProjectionLayoutReason,
+};
+
+const Map<(String, String), String> _scalarDecoderDeferred = {
+  ('AppBar', 'titleSpacing'): _rosterTailDeferredReason,
+  ('AppBar', 'bottomHeight'): _rosterTailDeferredReason,
+  ('Scaffold', 'appBarHeight'): _rosterTailDeferredReason,
+  ('PreferredSize', 'preferredSize'): _rosterTailDeferredReason,
+  ('RestageDraggableSheet', 'initialChildSize'): _rosterTailDeferredReason,
+  ('RestageDraggableSheet', 'minChildSize'): _rosterTailDeferredReason,
+  ('RestageDraggableSheet', 'maxChildSize'): _rosterTailDeferredReason,
+};
+
+/// Scalar decoder routes exposed for catalog completeness checks.
+@visibleForTesting
+Map<(String, String), ScalarRoute> get scalarDecoderRoutesForTesting =>
+    _scalarDecoderByWidgetProperty;
+
+/// Derived preflight routes exposed for catalog completeness checks.
+@visibleForTesting
+Map<(String, String), DerivedPreflightRoute>
+    get derivedPreflightRoutesForTesting => _derivedPreflightByWidgetProperty;
+
+/// Scalar decoder exemptions exposed for catalog completeness checks.
+@visibleForTesting
+Map<(String, String), String> get scalarDecoderExemptionsForTesting =>
+    _scalarDecoderExemptions;
+
+/// Deferred scalar decoder slots exposed for catalog completeness checks.
+@visibleForTesting
+Map<(String, String), String> get scalarDecoderDeferredForTesting =>
+    _scalarDecoderDeferred;
+
+/// All per-slot decoder classifications used by completeness checks.
+@visibleForTesting
+List<Map<(String, String), Object>>
+    get scalarDecoderClassificationTablesForTesting => [
+          scalarDecoderRoutesForTesting,
+          derivedPreflightRoutesForTesting,
+          scalarDecoderExemptionsForTesting,
+          scalarDecoderDeferredForTesting,
+        ];
+
+/// The derived union of every routed, exempt, and deferred scalar slot.
+@visibleForTesting
+Set<(String, String)> get scalarDecoderCoveredSlotsForTesting => {
+      for (final table in scalarDecoderClassificationTablesForTesting)
+        ...table.keys,
+    };
+
+/// Property types repaired uniformly by their type-level decoder.
+@visibleForTesting
+const Set<PropertyType> typeLevelRepairedPropertyTypes = <PropertyType>{
+  PropertyType.offset,
+  PropertyType.alignment,
+  PropertyType.alignmentXY,
+  PropertyType.edgeInsets,
+};
+
 String _decoderCallFor(
   PropertyEntry prop,
   String path, {
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
   bool tolerantNumbers = false,
+  String? widgetName,
+  WidgetLibrary? widgetLibrary,
+  String? widgetFlutterType,
+  Set<String> hoistedChildListSlots = const {},
   bool customChildProperties = false,
   String? preferredSizeHeightPath,
 }) {
@@ -3134,6 +3777,38 @@ String _decoderCallFor(
       return 'source.v<int>($directPath)';
     case PropertyType.real:
     case PropertyType.length:
+      final derivedRoute = widgetName == null
+          ? null
+          : _derivedPreflightRouteFor(
+              widgetLibrary,
+              widgetName,
+              widgetFlutterType,
+              prop.name,
+            );
+      if (derivedRoute != null) {
+        if (!hoistedChildListSlots.contains(derivedRoute.childListSlot)) {
+          throw StateError(
+            '$widgetName.${prop.name} requires the '
+            '${derivedRoute.childListSlot} child list to be hoisted.',
+          );
+        }
+        return '${derivedRoute.call}(source, $path, '
+            '${derivedRoute.childListSlot}.length)';
+      }
+      final route = _scalarDecoderRouteFor(
+        widgetLibrary,
+        widgetName,
+        widgetFlutterType,
+        prop.name,
+      );
+      if (route != null) {
+        if (route.returnsNonNull) {
+          return '${route.call}(source, $path, '
+              "slot: '$widgetName.${prop.name}', "
+              'mustBePositive: ${route.mustBePositive})';
+        }
+        return '${route.call}(source, $path)';
+      }
       // `source.v<double>` is a strict type check: an `int` on the wire reads
       // as null through it, indistinguishable from an absent slot, so the slot
       // silently takes its default. Slots feeding a repaired structured
@@ -3163,7 +3838,7 @@ String _decoderCallFor(
       // repair instead.
       return 'RestageDecoders.edgeInsets(source, $path)';
     case PropertyType.alignment:
-      return 'ArgumentDecoders.alignment(source, $path)';
+      return 'RestageDecoders.alignment(source, $path)';
     case PropertyType.alignmentXY:
       return 'RestageDecoders.alignmentXY(source, $path)';
     case PropertyType.offset:
@@ -3180,7 +3855,7 @@ String _decoderCallFor(
     case PropertyType.gradient:
       return 'ArgumentDecoders.gradient(source, $path)';
     case PropertyType.border:
-      return 'ArgumentDecoders.border(source, $path)';
+      return 'RestageDecoders.border(source, $path)';
     case PropertyType.boxShadowList:
       // rfw's `boxShadow` is a single-value decoder; pair with `list`
       // to read the list-of-maps wire shape. The result is

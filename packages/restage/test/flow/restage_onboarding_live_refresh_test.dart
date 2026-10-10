@@ -284,8 +284,7 @@ void main() {
   });
 
   testWidgets(
-      'a pristine live swap completes on the NEW version — FlowCompleted '
-      'carries the swapped-to resolvedVersion, not the stale one',
+      'a pristine live swap completes on the NEW version — FlowCompleted carries the swapped-to resolvedVersion',
       (tester) async {
     final completed = <FlowCompleted>[];
     final sub = Restage.events.listen((e) {

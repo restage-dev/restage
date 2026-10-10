@@ -748,7 +748,12 @@ class _Walk {
 
   /// Classifies [expr] (and, recursively, its sub-expressions), folding the
   /// outcome into this accumulator.
-  Future<void> classify(Expression? expr) async {
+  Future<void> classify(Argument? argument) async {
+    if (argument == null) return;
+    await _classifyExpression(argument.argumentExpression);
+  }
+
+  Future<void> _classifyExpression(Expression? expr) async {
     if (expr == null) return;
     // Resolve through the active element-keyed binding before classifying.
     if (expr is SimpleIdentifier) {
@@ -760,10 +765,6 @@ class _Walk {
     }
     if (expr is InstanceCreationExpression) {
       await _construction(expr);
-      return;
-    }
-    if (expr is NamedExpression) {
-      await classify(expr.expression);
       return;
     }
     if (expr is ListLiteral) {
@@ -959,7 +960,7 @@ class _Walk {
           constructorName: expr.constructorName.name?.name,
         );
     for (final arg in expr.argumentList.arguments) {
-      if (arg is NamedExpression && isDiscardedWidgetKeyArgument(arg)) {
+      if (arg is NamedArgument && isDiscardedWidgetKeyArgument(arg)) {
         continue;
       }
       if (isCatalogWidget && _tryClassifyNavigationTrigger(arg)) {
@@ -972,10 +973,10 @@ class _Walk {
     }
   }
 
-  bool _tryClassifyNavigationTrigger(Expression arg) {
-    if (arg is! NamedExpression) return false;
+  bool _tryClassifyNavigationTrigger(Argument arg) {
+    if (arg is! NamedArgument) return false;
 
-    final outcome = recogniseNavigationTrigger(arg.expression);
+    final outcome = recogniseNavigationTrigger(arg.argumentExpression);
     if (outcome is NavigationNotRecognised) return false;
     _unclassifiable(
       'screen navigation is only lowered from a paywall root in this '
@@ -985,12 +986,12 @@ class _Walk {
     return true;
   }
 
-  bool _tryClassifyModalSheetTrigger(Expression arg) {
-    if (arg is! NamedExpression) return false;
-    final slotName = arg.name.label.name;
+  bool _tryClassifyModalSheetTrigger(Argument arg) {
+    if (arg is! NamedArgument) return false;
+    final slotName = arg.name.lexeme;
     final isTriggerSlot = isModalSheetTriggerSlotName(slotName);
 
-    switch (recogniseModalSheetTrigger(arg.expression)) {
+    switch (recogniseModalSheetTrigger(arg.argumentExpression)) {
       case ModalSheetRecognised(:final sheet):
         if (!isTriggerSlot) {
           _unclassifiable(
@@ -1070,7 +1071,7 @@ class _Walk {
       _mechanisms.add(InliningMechanism.themeAsData);
       for (final argument in expr.argumentList.arguments) {
         await classify(
-          argument is NamedExpression ? argument.expression : argument,
+          argument is NamedArgument ? argument.argumentExpression : argument,
         );
       }
       return;

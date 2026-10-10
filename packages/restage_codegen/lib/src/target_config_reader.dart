@@ -627,8 +627,8 @@ bool _writesA2uiUsage(ElementAnnotation annotation) {
   ).unit;
   final declaration = parsed.declarations.whereType<ClassDeclaration>().first;
   final arguments = declaration.metadata.single.arguments?.arguments;
-  return arguments?.whereType<NamedExpression>().any(
-            (argument) => argument.name.label.name == 'usage',
+  return arguments?.whereType<NamedArgument>().any(
+            (argument) => argument.name.lexeme == 'usage',
           ) ??
       false;
 }

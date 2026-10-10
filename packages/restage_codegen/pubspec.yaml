@@ -28,7 +28,7 @@ dependencies:
   # soon as a stable Flutter pins `test_api` >= 0.7.12. Floor 10.0.0 is the
   # verified-compiling lower bound; earlier majors lack element-model APIs
   # this package uses (e.g. FormalParameterElement).
-  analyzer: ">=12.1.0 <13.0.0"
+  analyzer: ">=13.0.0 <15.0.0"
   build: ">=2.4.0 <5.0.0"
   collection: ^1.18.0
   crypto: ^3.0.7
@@ -37,6 +37,7 @@ dependencies:
   logging: ^1.3.0
   meta: ^1.16.0
   package_config: ">=2.0.0 <4.0.0"
+  pub_semver: ^2.2.0
   path: ^1.9.0
   restage_measurement_schema:
     path: ../restage_measurement_schema
@@ -57,9 +58,9 @@ dev_dependencies:
   # These are dev-dependencies, so nothing a consumer of this package
   # resolves is affected. Raising them means re-verifying the integration
   # tests. `build` itself is a regular dependency above and keeps its range.
-  build_config: 1.3.0
-  build_runner: 2.15.0
-  build_test: 3.5.15
+  build_config: ^1.3.3
+  build_runner: ^2.16.1
+  build_test: ^3.5.20
   built_collection: 5.1.1
   # Resolves `package:intl/` in the recognizer tests so NumberFormat
   # constructions parse as resolved InstanceCreationExpressions (the

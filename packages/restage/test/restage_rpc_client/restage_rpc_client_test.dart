@@ -975,8 +975,7 @@ void main() {
       );
     });
 
-    test('holding is bounded by size, not by how many artifacts there are',
-        () async {
+    test('holding is bounded by total artifact size', () async {
       // Eight entries sounds small and is eighty megabytes at the publish
       // ceiling. Two artifacts, each over half the bound, cannot both be held —
       // and the older one is what goes.

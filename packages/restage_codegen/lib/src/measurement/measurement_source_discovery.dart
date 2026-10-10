@@ -928,8 +928,8 @@ final class _MeasurementSourceDiscovery {
     var positionalIndex = 0;
     final arguments = <_ResolvedArgument>[];
     for (final argument in expression.argumentList.arguments) {
-      if (argument case final NamedExpression named) {
-        final parameter = named.name.label.element;
+      if (argument case final NamedArgument named) {
+        final parameter = named.correspondingParameter;
         if (parameter is! FormalParameterElement) {
           throw ArgumentError(
             'A measurement widget named slot requires a resolved parameter',
@@ -938,7 +938,7 @@ final class _MeasurementSourceDiscovery {
         arguments.add(
           _ResolvedArgument(
             parameter: parameter,
-            value: named.expression,
+            value: named.argumentExpression,
           ),
         );
         continue;
@@ -951,7 +951,7 @@ final class _MeasurementSourceDiscovery {
       arguments.add(
         _ResolvedArgument(
           parameter: positionalParameters[positionalIndex],
-          value: argument,
+          value: argument.argumentExpression,
         ),
       );
       positionalIndex++;
@@ -979,15 +979,15 @@ final class _MeasurementSourceDiscovery {
     for (final argument in expression.argumentList.arguments) {
       FormalParameterElement? parameter;
       Expression value;
-      if (argument case final NamedExpression named) {
-        final resolved = named.name.label.element;
+      if (argument case final NamedArgument named) {
+        final resolved = named.correspondingParameter;
         if (resolved is! FormalParameterElement) {
           throw ArgumentError(
             'A statically inlined custom-widget slot must resolve',
           );
         }
         parameter = resolved;
-        value = named.expression;
+        value = named.argumentExpression;
       } else {
         if (positionalIndex >= positionalParameters.length) {
           throw ArgumentError(
@@ -995,7 +995,7 @@ final class _MeasurementSourceDiscovery {
           );
         }
         parameter = positionalParameters[positionalIndex];
-        value = argument;
+        value = argument.argumentExpression;
         positionalIndex++;
       }
       if (parameter is FieldFormalParameterElement) {

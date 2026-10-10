@@ -55,7 +55,7 @@ Future<void> expectFullyVisible(WidgetTester tester, Finder leaf) async {
   expect(
     opacity,
     greaterThan(0.99),
-    reason: 'the revealed screen must be fully visible, not faded out '
+    reason: 'the revealed screen must be fully visible '
         '(effective opacity was $opacity)',
   );
 }
@@ -550,8 +550,7 @@ void main() {
     expect(StatefulProbe.initCount, 1);
   });
 
-  testWidgets(
-      'a multi-step back reveals the target, not an intermediate screen',
+  testWidgets('a multi-step back settles on the final target screen',
       (tester) async {
     final controller = threeScreenController();
     addTearDown(controller.dispose);
@@ -591,8 +590,7 @@ void main() {
     expect(controller.currentScreenId, 'one');
   });
 
-  testWidgets('back reveals the prior screen fully visible, not faded out',
-      (tester) async {
+  testWidgets('back reveals the prior screen at full opacity', (tester) async {
     // The Android shared-axis path: a screen covered by a push, then revealed
     // by a back, must settle at full opacity. (The persistent transition
     // element latched the revealed screen into its exit transition, fading it
@@ -1553,8 +1551,7 @@ void main() {
     expect(find.text('Profile'), findsOneWidget);
   }
 
-  testWidgets('the theme platform picks the page, not the host platform',
-      (tester) async {
+  testWidgets('the page transition follows the theme platform', (tester) async {
     final controller = loadedController();
     addTearDown(controller.dispose);
 
@@ -1853,8 +1850,8 @@ void main() {
   });
 
   testWidgets(
-      'a back-restored screen is preserved intact, not re-decoded '
-      '(a poison-on-build flag never re-fires)', (tester) async {
+      'a back-restored screen is preserved intact without re-decoding (a poison-on-build flag never re-fires)',
+      (tester) async {
     // The #3 (poisoned-screen-on-restore) assurance. Back restores a screen from
     // its still-mounted element WITHOUT re-running its build (the keystone:
     // state preserved, not re-decoded), so a screen that rendered fine can never

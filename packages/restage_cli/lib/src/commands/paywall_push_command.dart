@@ -17,11 +17,8 @@ import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Push one generated specialized paywall from its exact manifest closure.
-///
-/// This is retained as a deprecated compatibility command. New workflows use
-/// `restage surface push <slug>` so the generated manifest remains the
-/// visible authority for every surface category.
+/// Pushes a generated paywall from its manifest closure.
+/// Deprecated: use `restage surface push <id>` for any surface category.
 class PaywallPushCommand extends Command<int> {
   /// Construct a paywall push command.
   PaywallPushCommand({
@@ -96,11 +93,18 @@ class PaywallPushCommand extends Command<int> {
     if (rest.length > 1) {
       _stderr.writeln(
         'Too many positional arguments. Expected exactly one '
-        '<name|file.dart>.',
+        '<id|file.dart>.',
       );
       return 1;
     }
     final selector = rest.single;
+    // A `.dart` path selects by file; anything else is the id itself.
+    if (!selector.endsWith('.dart') && !isValidSurfaceSlug(selector)) {
+      _stderr.writeln(
+        'Refusing the id `$selector`. $surfaceSlugRefusalMessage',
+      );
+      return 1;
+    }
 
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loadedConfig = await loadRestageConfig(from: directory);

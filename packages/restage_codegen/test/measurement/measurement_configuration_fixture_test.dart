@@ -388,13 +388,13 @@ final class _PersistentMeasurementBuild {
         _cacheConsumerKey,
         package: 'restage_codegen',
         autoApply: build_config.AutoApply.none,
-        hideOutput: false,
+        outputsToArtifactTree: false,
       ),
       build_runner_internal.BuilderDefinition(
         _packageCompilerKey,
         package: 'restage_codegen',
         autoApply: build_config.AutoApply.none,
-        hideOutput: false,
+        outputsToArtifactTree: false,
       ),
     ].build();
     final buildConfig = build_config.BuildConfig.fromMap(
@@ -436,18 +436,20 @@ final class _PersistentMeasurementBuild {
       },
     );
     final buildPlan = await build_runner_internal.BuildPlan.load(
-      builderFactories: builderFactories,
-      buildOptions: build_runner_internal.BuildOptions.forTests(),
-      testingOverrides: build_runner_internal.TestingOverrides(
-        builderDefinitions: builderDefinitions,
-        buildConfig: <String, build_config.BuildConfig>{
-          _package: buildConfig,
-        }.build(),
-        buildPackages: buildPackages,
-        checkBuilderFreshness: false,
-        flattenOutput: true,
-        readerWriter: readerWriter,
-        resolvers: build_runner_internal.ResolversImpl.custom(),
+      await build_runner_internal.BuildSpec.load(
+        builderFactories: builderFactories,
+        buildOptions: build_runner_internal.BuildOptions.forTests(),
+        testingOverrides: build_runner_internal.TestingOverrides(
+          builderDefinitions: builderDefinitions,
+          buildConfig: <String, build_config.BuildConfig>{
+            _package: buildConfig,
+          }.build(),
+          buildPackages: buildPackages,
+          checkBuilderFreshness: false,
+          forceToPackagePathsForTesting: true,
+          readerWriter: readerWriter,
+          resolvers: build_runner_internal.ResolversImpl.custom(),
+        ),
       ),
     );
     return _PersistentMeasurementBuild(

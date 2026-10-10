@@ -43,6 +43,7 @@ export 'src/flow_document/flow_predicate_sugar.dart';
 export 'src/flow_document/general_render_gate.dart';
 export 'src/flow_document/paywall_screen_assets.dart';
 export 'src/generated_output_path_order.dart';
+export 'src/identity/surface_slug.dart';
 export 'src/render_bundle/bounded_png.dart';
 export 'src/render_bundle/render_bundle_channel.dart';
 export 'src/restage_bundle/restage_bundle.dart';

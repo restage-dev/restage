@@ -346,13 +346,13 @@ Future<_ResolvedOpaqueOccurrences> _resolveOpaqueOccurrences(
   final root = expression as InstanceCreationExpression;
   final sourceRoot = root.constructorName.element?.enclosingElement;
   final childArgument = root.argumentList.arguments
-      .whereType<NamedExpression>()
-      .singleWhere((argument) => argument.name.label.name == 'child');
-  final column = childArgument.expression as InstanceCreationExpression;
+      .whereType<NamedArgument>()
+      .singleWhere((argument) => argument.name.lexeme == 'child');
+  final column = childArgument.argumentExpression as InstanceCreationExpression;
   final childrenArgument = column.argumentList.arguments
-      .whereType<NamedExpression>()
-      .singleWhere((argument) => argument.name.label.name == 'children');
-  final children = childrenArgument.expression as ListLiteral;
+      .whereType<NamedArgument>()
+      .singleWhere((argument) => argument.name.lexeme == 'children');
+  final children = childrenArgument.argumentExpression as ListLiteral;
   final occurrences = children.elements
       .whereType<InstanceCreationExpression>()
       .where(

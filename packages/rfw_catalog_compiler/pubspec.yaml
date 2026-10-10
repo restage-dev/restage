@@ -21,7 +21,7 @@ dependencies:
   # lack element-model APIs this package relies on (e.g. FormalParameterElement),
   # so a downgrade below it fails to compile. The <15.0.0 ceiling admits the
   # latest stable analyzer (currently 14.x).
-  analyzer: ">=10.0.0 <15.0.0"
+  analyzer: ">=13.0.0 <15.0.0"
   build: ">=2.4.0 <5.0.0"
   meta: ^1.16.0
   rfw_catalog_schema: ^2.0.0

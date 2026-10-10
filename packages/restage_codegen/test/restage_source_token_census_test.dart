@@ -764,7 +764,7 @@ final class _CallArgumentVisitor extends RecursiveAstVisitor<void> {
     if (node.methodName.name == position.function) {
       final actual = node.argumentList.arguments;
       if (actual.length > position.index) {
-        arguments.add(actual[position.index]);
+        arguments.add(actual[position.index].argumentExpression);
       } else {
         tooShort.add(node.toSource());
       }

@@ -35,7 +35,7 @@ final class CustomStructuredValueEmitter {
         structuredValueFor,
     required String Function(
       EmitFragment fragment,
-      List<Expression> args,
+      List<Argument> args,
       List<Issue> issues,
       String loc,
     ) dispatch,
@@ -52,7 +52,7 @@ final class CustomStructuredValueEmitter {
       _structuredValueFor;
   final String Function(
     EmitFragment fragment,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) _dispatch;

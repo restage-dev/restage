@@ -1025,7 +1025,7 @@ Future<_LoweredFlow?> _lowerFlow(
     if (element is MethodInvocation && element.methodName.name == 'end') {
       endCount += 1;
       final endState = _endStateId(
-        element.argumentList.arguments.firstOrNull,
+        element.argumentList.arguments.positionalAt(0),
         endLocals,
       );
       final resultExpr = _namedArg(element, 'result');
@@ -1304,7 +1304,7 @@ _ScreenNode? _parseScreenNode(
   if (expression is MethodInvocation &&
       expression.methodName.name == 'screen') {
     final screen = _screenForRef(
-      expression.argumentList.arguments.firstOrNull,
+      expression.argumentList.arguments.positionalAt(0),
       descriptors,
       issues,
       assetId,
@@ -1326,7 +1326,7 @@ _ScreenNode? _parseScreenNode(
     return null;
   }
   final target = _targetId(
-    expression.argumentList.arguments.firstOrNull,
+    expression.argumentList.arguments.positionalAt(0),
     descriptors,
     endLocals,
     nodeLocals,
@@ -1371,7 +1371,7 @@ _ScreenNode? _parseScreenNode(
     return null;
   }
 
-  final eventArg = onCall.argumentList.arguments.firstOrNull;
+  final eventArg = onCall.argumentList.arguments.positionalAt(0);
   final event = _eventId(eventArg, issues, assetId);
   if (event == null) return null;
   final eventScalarType = _eventScalarFlowDataType(eventArg);
@@ -1411,7 +1411,7 @@ _ScreenNode? _parseScreenNode(
   final receiver = onCall.target;
   if (receiver is MethodInvocation && receiver.methodName.name == 'screen') {
     final screen = _screenForRef(
-      receiver.argumentList.arguments.firstOrNull,
+      receiver.argumentList.arguments.positionalAt(0),
       descriptors,
       issues,
       assetId,
@@ -1474,7 +1474,7 @@ Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
   final result = <String, FlowStateWrite>{};
   for (final call in writeCalls) {
     final method = call.methodName.name;
-    final key = _stringExpression(call.argumentList.arguments.firstOrNull);
+    final key = _stringExpression(call.argumentList.arguments.positionalAt(0));
     if (key == null) {
       issues.add(
         Issue(
@@ -1528,7 +1528,7 @@ Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
       );
     } else {
       final literal = _literalWriteValue(
-        call.argumentList.arguments.elementAtOrNull(1),
+        call.argumentList.arguments.positionalAt(1),
       );
       if (literal == null) {
         issues.add(
@@ -1661,7 +1661,7 @@ _GraphNode? _parseDecisionNode(
   AssetId assetId,
 ) {
   final id = _flowNodeId(
-    invocation.argumentList.arguments.firstOrNull,
+    invocation.argumentList.arguments.positionalAt(0),
     nodeLocals,
   );
   final branches = _authoredBranches(
@@ -1709,7 +1709,7 @@ Future<_GraphNode?> _parseSubFlowNode(
   Map<NormalizedFlowIdentity, List<int>> childFlowDocuments,
 ) async {
   final id = _flowNodeId(
-    invocation.argumentList.arguments.firstOrNull,
+    invocation.argumentList.arguments.positionalAt(0),
     nodeLocals,
   );
   final childRef = _flowRefForExpression(
@@ -1899,7 +1899,7 @@ FlowBranchTarget? _authoredBranchTarget(
     return null;
   }
   final target = _targetId(
-    expression.argumentList.arguments.firstOrNull,
+    expression.argumentList.arguments.positionalAt(0),
     descriptors,
     endLocals,
     nodeLocals,
@@ -1937,14 +1937,14 @@ _ParsedActionTransition? _parseActionTransition(
     return null;
   }
   final action = _actionForRef(
-    runCall.argumentList.arguments.firstOrNull,
+    runCall.argumentList.arguments.positionalAt(0),
     actionsByName,
     issues,
     assetId,
   );
   if (action == null) return null;
   final predicate = _actionResultPredicate(
-    expression.argumentList.arguments.firstOrNull,
+    expression.argumentList.arguments.positionalAt(0),
     action,
     issues,
     assetId,
@@ -2740,8 +2740,8 @@ String? _endStateId(Expression? expression, Map<String, String> endLocals) {
 
 Expression? _namedArg(MethodInvocation invocation, String name) {
   for (final arg in invocation.argumentList.arguments) {
-    if (arg is NamedExpression && arg.name.label.name == name) {
-      return arg.expression;
+    if (arg is NamedArgument && arg.name.lexeme == name) {
+      return arg.argumentExpression;
     }
   }
   return null;
@@ -3351,7 +3351,8 @@ StateFlowValueSource? _stateSugarSource(
   List<Issue> issues,
   AssetId assetId,
 ) {
-  final key = _stringExpression(invocation.argumentList.arguments.firstOrNull);
+  final key =
+      _stringExpression(invocation.argumentList.arguments.positionalAt(0));
   if (key == null) {
     _unsupportedGraphDeclaration(
       issues,
@@ -3446,7 +3447,7 @@ FlowPredicateCondition? _sugarCondition(
       }
       return buildFlowPredicateCondition(operator);
     case FlowPredicateValueArity.single:
-      final argument = arguments.firstOrNull;
+      final argument = arguments.positionalAt(0);
       if (argument == null) {
         _unsupportedGraphDeclaration(
           issues,
@@ -3991,8 +3992,8 @@ Expression? _namedConstructorArg(
   String name,
 ) {
   for (final arg in creation.argumentList.arguments) {
-    if (arg is NamedExpression && arg.name.label.name == name) {
-      return arg.expression;
+    if (arg is NamedArgument && arg.name.lexeme == name) {
+      return arg.argumentExpression;
     }
   }
   return null;
@@ -5354,3 +5355,11 @@ final class _LoweredFlow {
 
 const _zeroHash = 'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
+
+/// The argument at [index] when it is positional, else null.
+extension on NodeList<Argument> {
+  Expression? positionalAt(int index) {
+    final argument = elementAtOrNull(index);
+    return argument is Expression ? argument : null;
+  }
+}

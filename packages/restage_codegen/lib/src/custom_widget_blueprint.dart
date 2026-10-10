@@ -348,7 +348,7 @@ final class InlinedDefinitions {
 /// translator (to emit the bound arguments) so the two agree exactly.
 Map<Element, Expression>? bindHelperArguments(
   List<FormalParameterElement> params,
-  List<Expression> args,
+  List<Argument> args,
 ) {
   final positionalParams = params.where((p) => p.isPositional).toList();
   final namedParams = <String, FormalParameterElement>{
@@ -357,10 +357,10 @@ Map<Element, Expression>? bindHelperArguments(
   final positionalArgs = <Expression>[];
   final namedArgs = <String, Expression>{};
   for (final arg in args) {
-    if (arg is NamedExpression) {
-      namedArgs[arg.name.label.name] = arg.expression;
+    if (arg is NamedArgument) {
+      namedArgs[arg.name.lexeme] = arg.argumentExpression;
     } else {
-      positionalArgs.add(arg);
+      positionalArgs.add(arg.argumentExpression);
     }
   }
   if (positionalArgs.length != positionalParams.length) return null;

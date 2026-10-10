@@ -59,8 +59,8 @@ final class _SurfaceMountVisitor extends RecursiveAstVisitor<void> {
     }
     final arguments = {
       for (final argument
-          in node.argumentList.arguments.whereType<NamedExpression>())
-        argument.name.label.name: argument.expression,
+          in node.argumentList.arguments.whereType<NamedArgument>())
+        argument.name.lexeme: argument.argumentExpression,
     };
     final argumentName = switch (name) {
       'RestagePaywall' => 'id',

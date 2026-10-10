@@ -206,8 +206,8 @@ bool _writesEnabled(ElementAnnotation annotation) {
   ).unit;
   final declaration = parsed.declarations.whereType<ClassDeclaration>().first;
   final arguments = declaration.metadata.single.arguments?.arguments;
-  return arguments?.whereType<NamedExpression>().any(
-            (argument) => argument.name.label.name == 'enabled',
+  return arguments?.whereType<NamedArgument>().any(
+            (argument) => argument.name.lexeme == 'enabled',
           ) ??
       false;
 }

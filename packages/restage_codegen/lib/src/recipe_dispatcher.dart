@@ -487,14 +487,14 @@ final class RecipeDispatcher {
   /// registered recipe).
   String emit(
     EmitFragment fragment,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
-    final positional = args.where((a) => a is! NamedExpression).toList();
+    final positional = args.whereType<Expression>().toList();
     final named = <String, Expression>{
-      for (final a in args.whereType<NamedExpression>())
-        a.name.label.name: a.expression,
+      for (final a in args.whereType<NamedArgument>())
+        a.name.lexeme: a.argumentExpression,
     };
     return unwrapDslEmission(
       _emitFragment(fragment, positional, named, issues, loc),
@@ -508,17 +508,17 @@ final class RecipeDispatcher {
   /// failure DSL; on success, returns the evaluated emit fragment.
   String? tryTranslate(
     String key,
-    List<Expression> args,
+    List<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
     final recipe = _recipes[key];
     if (recipe == null) return null;
 
-    final positional = args.where((a) => a is! NamedExpression).toList();
+    final positional = args.whereType<Expression>().toList();
     final named = <String, Expression>{
-      for (final a in args.whereType<NamedExpression>())
-        a.name.label.name: a.expression,
+      for (final a in args.whereType<NamedArgument>())
+        a.name.lexeme: a.argumentExpression,
     };
 
     for (final validation in recipe.validations) {

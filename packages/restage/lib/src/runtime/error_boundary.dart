@@ -296,6 +296,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
     // ancestor boundary cannot win the post-frame race.
     if (_failurePending || _caught != null) return;
     _failurePending = true;
+    _paintProbe?.markNeedsSemanticsUpdate();
     final resolvedStack = stack ?? StackTrace.current;
     final callback = widget.onError;
     final generation = ++_failureCaptureGeneration;
@@ -322,6 +323,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
 
   void _holdProvisionalReport(_PendingFlutterErrorReport report) {
     _provisionalReports.add(report);
+    _paintProbe?.markNeedsSemanticsUpdate();
     final lease = report.ownership?.lease;
     if (lease != null) {
       report.leaseHeld = holdFrameworkPaintErrorForTransaction(lease, report);
@@ -330,6 +332,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
 
   void _cancelProvisionalReport(_PendingFlutterErrorReport report) {
     _provisionalReports.remove(report);
+    _paintProbe?.markNeedsSemanticsUpdate();
     if (report.leaseHeld) {
       final lease = report.ownership?.lease;
       if (lease != null) {
@@ -370,6 +373,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
     if (_caught == null && _failurePending) {
       _failureCaptureGeneration += 1;
       _failurePending = false;
+      _paintProbe?.markNeedsSemanticsUpdate();
     }
   }
 
@@ -583,6 +587,12 @@ class _RenderRuntimeErrorBoundaryPaintProbe extends RenderProxyBox {
     if (_boundary._pipelineBlocked) return;
     super.paint(context, offset);
     _boundary._scheduleFirstPaintSuccess();
+  }
+
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (_boundary._pipelineBlocked) return;
+    super.visitChildrenForSemantics(visitor);
   }
 }
 

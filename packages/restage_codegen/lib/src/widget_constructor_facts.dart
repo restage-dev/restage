@@ -917,8 +917,7 @@ bool _canBeUnresolvedValueReference(
           identical(parent.fieldName, identifier) ||
       parent is PrefixedIdentifier &&
           identical(parent.identifier, identifier) ||
-      parent is PropertyAccess && identical(parent.propertyName, identifier) ||
-      parent is NamedExpression && identical(parent.name.label, identifier)) {
+      parent is PropertyAccess && identical(parent.propertyName, identifier)) {
     return false;
   }
   if (parent is MethodInvocation && identical(parent.methodName, identifier)) {
@@ -1670,7 +1669,7 @@ Map<FormalParameterElement, _FlutterKeyProvenance>? _superConstructorOrigins(
   Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
   Map<ConstructorElement, ConstructorDeclaration> declarations,
 ) {
-  NodeList<Expression>? arguments;
+  NodeList<Argument>? arguments;
   if (source.isOriginDeclaration) {
     final declaration = declarations[source.baseElement];
     if (declaration == null) return null;
@@ -1691,7 +1690,7 @@ Map<FormalParameterElement, _FlutterKeyProvenance>? _superConstructorOrigins(
   return _invocationFlutterKeyOrigins(
     source: source,
     target: target,
-    arguments: arguments ?? const <Expression>[],
+    arguments: arguments ?? const <Argument>[],
     sourceOrigins: sourceOrigins,
     declarations: declarations,
     includeSuperFormals: true,
@@ -1702,7 +1701,7 @@ Map<FormalParameterElement, _FlutterKeyProvenance>?
     _invocationFlutterKeyOrigins({
   required ConstructorElement source,
   required ConstructorElement target,
-  required Iterable<Expression> arguments,
+  required Iterable<Argument> arguments,
   required Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
   required Map<ConstructorElement, ConstructorDeclaration> declarations,
   bool includeSuperFormals = false,
@@ -1737,8 +1736,7 @@ Map<FormalParameterElement, _FlutterKeyProvenance>?
         !identical(owner.baseElement, target.baseElement)) {
       return null;
     }
-    final expression =
-        argument is NamedExpression ? argument.expression : argument;
+    final expression = argument.argumentExpression;
     final origin = _expressionFlutterKeyOrigin(
       expression,
       source,
@@ -1827,8 +1825,7 @@ _FlutterKeyProvenance _omittedFlutterKeyOrigin(
       if (formalDeclaration.hasDefaultValue) return _refusedFlutterKey;
       continue;
     }
-    final defaultValue =
-        parameter is DefaultFormalParameter ? parameter.defaultValue : null;
+    final defaultValue = parameter.defaultClause?.value;
     if (defaultValue != null) {
       return _unwrappedExpression(defaultValue) is NullLiteral
           ? _nullFlutterKey
@@ -1908,8 +1905,7 @@ bool _formalTargetsFlutterKey(
         .firstOrNull;
     if (redirectCall == null) return false;
     for (final argument in redirectCall.argumentList.arguments) {
-      final expression =
-          argument is NamedExpression ? argument.expression : argument;
+      final expression = argument.argumentExpression;
       if (!_isFormalReference(expression, formalDeclaration)) continue;
       final target = argument.correspondingParameter ??
           (constructorDeclarations == null
@@ -1944,8 +1940,7 @@ bool _formalTargetsFlutterKey(
     final targetConstructor = superCall.element ?? constructor.superConstructor;
     if (targetConstructor == null) continue;
     for (final argument in superCall.argumentList.arguments) {
-      final expression =
-          argument is NamedExpression ? argument.expression : argument;
+      final expression = argument.argumentExpression;
       if (!_isFormalReference(expression, formalDeclaration)) continue;
       final target = argument.correspondingParameter ??
           (constructorDeclarations == null
@@ -2006,11 +2001,11 @@ FormalParameterElement? _redirectingFactoryFormal(
 
 FormalParameterElement? _parsedArgumentFormal(
   ConstructorElement constructor,
-  NodeList<Expression> arguments,
-  Expression argument,
+  NodeList<Argument> arguments,
+  Argument argument,
 ) {
-  if (argument is NamedExpression) {
-    final name = argument.name.label.name;
+  if (argument is NamedArgument) {
+    final name = argument.name.lexeme;
     for (final formal in constructor.formalParameters) {
       if (formal.isNamed && formal.name == name) return formal;
     }
@@ -2018,7 +2013,7 @@ FormalParameterElement? _parsedArgumentFormal(
   }
   var position = 0;
   for (final candidate in arguments) {
-    if (candidate is NamedExpression) continue;
+    if (candidate is NamedArgument) continue;
     if (identical(candidate, argument)) {
       final positional = constructor.formalParameters
           .where((formal) => formal.isPositional)

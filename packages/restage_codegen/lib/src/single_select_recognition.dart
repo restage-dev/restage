@@ -97,23 +97,23 @@ SingleSelectOutcome recogniseRadioGroup(InstanceCreationExpression creation) {
   Expression? onChanged;
   Expression? child;
   for (final arg in args) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const SingleSelectDeferred(
         'a positional argument has no declarative equivalent',
       );
     }
-    switch (arg.name.label.name) {
+    switch (arg.name.lexeme) {
       case 'key':
         break; // the universal super.key convention
       case 'groupValue':
-        selected = arg.expression;
+        selected = arg.argumentExpression;
       case 'onChanged':
-        onChanged = arg.expression;
+        onChanged = arg.argumentExpression;
       case 'child':
-        child = arg.expression;
+        child = arg.argumentExpression;
       default:
         return SingleSelectDeferred(
-          "the '${arg.name.label.name}' argument has no "
+          "the '${arg.name.lexeme}' argument has no "
           'RestageRadioGroup equivalent',
         );
     }
@@ -158,23 +158,23 @@ SingleSelectOutcome recogniseDropdown(InstanceCreationExpression creation) {
   Expression? onChanged;
   Expression? items;
   for (final arg in args) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return const SingleSelectDeferred(
         'a positional argument has no declarative equivalent',
       );
     }
-    switch (arg.name.label.name) {
+    switch (arg.name.lexeme) {
       case 'key':
         break;
       case 'value':
-        selected = arg.expression;
+        selected = arg.argumentExpression;
       case 'onChanged':
-        onChanged = arg.expression;
+        onChanged = arg.argumentExpression;
       case 'items':
-        items = arg.expression;
+        items = arg.argumentExpression;
       default:
         return SingleSelectDeferred(
-          "the '${arg.name.label.name}' argument has no "
+          "the '${arg.name.lexeme}' argument has no "
           'RestageDropdown equivalent',
         );
     }
@@ -354,16 +354,16 @@ _LeafOutcome _optionFromCarrier(
   Expression? value;
   Expression? label;
   for (final arg in creation.argumentList.arguments) {
-    if (arg is! NamedExpression) {
+    if (arg is! NamedArgument) {
       return _LeafDeferred(
         'a positional argument on $widgetName has no declarative equivalent',
       );
     }
-    final name = arg.name.label.name;
+    final name = arg.name.lexeme;
     if (name == 'value') {
-      value = arg.expression;
+      value = arg.argumentExpression;
     } else if (name == labelArg) {
-      label = arg.expression;
+      label = arg.argumentExpression;
     } else if (name == 'key') {
       // The universal `super.key` convention — inert, never a behavior change.
       continue;
@@ -432,8 +432,8 @@ List<Expression>? _staticChildLeaves(Expression child) {
   final element = creation.constructorName.type.element;
   if (element != null && !libraryIsFlutter(element)) return null;
   for (final arg in creation.argumentList.arguments) {
-    if (arg is NamedExpression && arg.name.label.name == 'children') {
-      final list = arg.expression;
+    if (arg is NamedArgument && arg.name.lexeme == 'children') {
+      final list = arg.argumentExpression;
       return list is ListLiteral ? _plainListElements(list) : null;
     }
   }
@@ -490,7 +490,7 @@ Expression? _literalTextContent(Expression label) {
   if (args.isEmpty) return null;
   final first = args.first;
   // The data is the first positional argument.
-  if (first is NamedExpression) return null;
+  if (first is! Expression) return null;
   return first;
 }
 

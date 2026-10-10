@@ -2562,10 +2562,10 @@ final class ExpressionTranslator {
 
     final valueByLabel = <String, Expression>{};
     for (final field in expr.fields) {
-      if (field is! NamedExpression) {
+      if (field is! RecordLiteralNamedField) {
         return defer('positional record fields are unsupported');
       }
-      valueByLabel[field.name.label.name] = field.expression;
+      valueByLabel[field.name.lexeme] = field.fieldExpression;
     }
 
     final issuesBefore = issues.length;
@@ -3069,7 +3069,7 @@ final class ExpressionTranslator {
   /// diagnostic rather than silently truncating. Recognised by name, consistent
   /// with the translator's other value-type recipes.
   String _duration(
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -3086,7 +3086,7 @@ final class ExpressionTranslator {
     // a wrong (negative) millisecond value.
     var totalMicros = BigInt.zero;
     for (final arg in args) {
-      if (arg is! NamedExpression) {
+      if (arg is! NamedArgument) {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
@@ -3098,7 +3098,7 @@ final class ExpressionTranslator {
         );
         return '';
       }
-      final unit = arg.name.label.name;
+      final unit = arg.name.lexeme;
       final micros = unitMicros[unit];
       if (micros == null) {
         issues.add(
@@ -3112,7 +3112,7 @@ final class ExpressionTranslator {
       }
       // The unified scalar boundary, so a const-object scalar field used as a
       // Duration unit folds consistently with emission (bypasses _translate).
-      final folded = _foldScalarConstant(arg.expression);
+      final folded = _foldScalarConstant(arg.argumentExpression);
       if (folded is! int) {
         issues.add(
           Issue(
@@ -3231,7 +3231,7 @@ final class ExpressionTranslator {
   String? _tryValueType(
     String type,
     String? variant,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc, {
     required bool fromConstructor,
@@ -3252,7 +3252,7 @@ final class ExpressionTranslator {
   String? _emitValueType(
     String type,
     String? variant,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc, {
     required bool fromConstructor,
@@ -3329,7 +3329,7 @@ final class ExpressionTranslator {
   String? _tryValueOrRecipe(
     String type,
     String? variant,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
     String loc, {
     required bool fromConstructor,
@@ -3525,7 +3525,7 @@ final class ExpressionTranslator {
     if (textClass == null || !_isFrameworkValueType(textClass)) return null;
 
     final args = expr.argumentList.arguments;
-    final positionals = args.where((a) => a is! NamedExpression).toList();
+    final positionals = args.whereType<Expression>().toList();
     if (positionals.isEmpty) return null;
     final first = positionals.first;
     if (first is! MethodInvocation) return null;
@@ -3573,13 +3573,13 @@ final class ExpressionTranslator {
           'decimalDigits': 'decimalDigits',
         };
         for (final a in ctorArgs) {
-          if (a is! NamedExpression) {
+          if (a is! NamedArgument) {
             return defer(
               'the NumberFormat.currency call has a positional argument this '
               'version cannot extract',
             );
           }
-          final param = a.name.label.name;
+          final param = a.name.lexeme;
           final widgetProp = paramToProp[param];
           if (widgetProp == null) {
             return defer(
@@ -3587,13 +3587,13 @@ final class ExpressionTranslator {
               '$adoptTarget equivalent',
             );
           }
-          if (!_isConstFormatConfigLiteral(a.expression)) {
+          if (!_isConstFormatConfigLiteral(a.argumentExpression)) {
             return defer(
               'the NumberFormat `$param:` argument is not a compile-time '
               'constant; a dynamic format configuration is not adopted',
             );
           }
-          config[widgetProp] = a.expression;
+          config[widgetProp] = a.argumentExpression;
         }
       case 'decimalPattern':
         if (ctorArgs.length > 1) {
@@ -3604,7 +3604,7 @@ final class ExpressionTranslator {
         }
         if (ctorArgs.length == 1) {
           final a = ctorArgs.single;
-          if (a is NamedExpression || !_isConstFormatConfigLiteral(a)) {
+          if (a is! Expression || !_isConstFormatConfigLiteral(a)) {
             return defer(
               'the NumberFormat.decimalPattern locale is not a compile-time '
               'constant; a dynamic format configuration is not adopted',
@@ -3626,12 +3626,12 @@ final class ExpressionTranslator {
 
     // G4 — the `.format(<value>)` call takes exactly one positional value.
     final fmtArgs = first.argumentList.arguments;
-    if (fmtArgs.length != 1 || fmtArgs.single is NamedExpression) {
+    final valueExpr = fmtArgs.singleOrNull;
+    if (valueExpr is! Expression) {
       return defer(
         'the .format(...) call does not take exactly one positional value',
       );
     }
-    final valueExpr = fmtArgs.single;
 
     // Numeric-substitution gate: the value must render identically through
     // the substitute's `double` value slot. `NumberFormat.format` accepts
@@ -3653,9 +3653,9 @@ final class ExpressionTranslator {
     // carry-set. Any other property (semanticsLabel, the widget-level
     // overflow / softWrap / locale, …) blocks the rewrite — a styled Text is
     // never silently reduced.
-    final carried = <NamedExpression>[];
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    final carried = <NamedArgument>[];
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       if (isDiscardedWidgetKeyArgument(a)) continue;
       if (!kRestageFormattedTextProps.contains(name)) {
         return defer(
@@ -3700,15 +3700,16 @@ final class ExpressionTranslator {
     }
 
     for (final a in carried) {
-      final name = a.name.label.name;
+      final name = a.name.lexeme;
       // `style` decomposes through the entry's native recipe (TextStyle ->
       // flat props), exactly as a hand-authored substitute would.
-      final decomposed = _tryDecompose(entry, name, a.expression, scratch);
+      final decomposed =
+          _tryDecompose(entry, name, a.argumentExpression, scratch);
       if (decomposed != null) {
         emitted.addAll(decomposed);
         continue;
       }
-      final lowered = lowerSlot(name, a.expression);
+      final lowered = lowerSlot(name, a.argumentExpression);
       if (lowered == null) {
         return defer('$adoptTarget has no `$name` property');
       }
@@ -3823,7 +3824,7 @@ final class ExpressionTranslator {
   }
 
   String _textRich({
-    required NodeList<Expression> args,
+    required NodeList<Argument> args,
     required Expression anchor,
     required String? flutterType,
     required List<Issue> issues,
@@ -3857,7 +3858,7 @@ final class ExpressionTranslator {
       return '';
     }
 
-    final positionals = args.where((a) => a is! NamedExpression).toList();
+    final positionals = args.whereType<Expression>().toList();
     if (positionals.length != 1) {
       issues.add(
         Issue(
@@ -3878,12 +3879,13 @@ final class ExpressionTranslator {
     // Text.rich must never emit a blob that dropped an authored property. Keep
     // this fail-fast policy if the loops are ever unified.
     final emitted = <String>['${_rfwMapKey(textSpanProp.name)}: $span'];
-    for (final arg in args.whereType<NamedExpression>()) {
-      final name = arg.name.label.name;
+    for (final arg in args.whereType<NamedArgument>()) {
+      final name = arg.name.lexeme;
       if (isDiscardedWidgetKeyArgument(arg)) continue;
 
       final before = issues.length;
-      final decomposed = _tryDecompose(entry, name, arg.expression, issues);
+      final decomposed =
+          _tryDecompose(entry, name, arg.argumentExpression, issues);
       if (issues.length > before) return '';
       if (decomposed != null) {
         emitted.addAll(decomposed);
@@ -3895,7 +3897,7 @@ final class ExpressionTranslator {
         if (_reportUndecomposableArgument(
           entry,
           name,
-          arg.expression,
+          arg.argumentExpression,
           issues,
         )) {
           return '';
@@ -3912,7 +3914,7 @@ final class ExpressionTranslator {
         return '';
       }
       final value = _translateSlotValue(
-        arg.expression,
+        arg.argumentExpression,
         prop.type,
         issues,
         property: prop,
@@ -3969,7 +3971,7 @@ final class ExpressionTranslator {
     if (spanArgs == null) return null;
 
     final parts = <String>[];
-    for (final positional in spanArgs.where((a) => a is! NamedExpression)) {
+    for (final positional in spanArgs.whereType<Expression>()) {
       issues.add(
         Issue(
           code: IssueCode.unknownProperty,
@@ -3982,8 +3984,8 @@ final class ExpressionTranslator {
       return null;
     }
 
-    for (final arg in spanArgs.whereType<NamedExpression>()) {
-      final name = arg.name.label.name;
+    for (final arg in spanArgs.whereType<NamedArgument>()) {
+      final name = arg.name.lexeme;
       if (!_kCarriedTextSpanProps.contains(name)) {
         _addTextSpanUncarriedPropIssue(name, arg, issues);
         return null;
@@ -3991,23 +3993,24 @@ final class ExpressionTranslator {
 
       switch (name) {
         case 'text':
-          if (arg.expression is NullLiteral) continue;
+          if (arg.argumentExpression is NullLiteral) continue;
           final before = issues.length;
           final value = _translateSlotValue(
-            arg.expression,
+            arg.argumentExpression,
             PropertyType.string,
             issues,
           );
           if (value.isEmpty && issues.length > before) return null;
           parts.add('text: $value');
         case 'style':
-          if (arg.expression is NullLiteral) continue;
-          final style = _textSpanStyleMap(arg.expression, issues);
+          if (arg.argumentExpression is NullLiteral) continue;
+          final style = _textSpanStyleMap(arg.argumentExpression, issues);
           if (style == null) return null;
           parts.add('style: $style');
         case 'children':
-          if (arg.expression is NullLiteral) continue;
-          final children = _textSpanChildren(arg.expression, issues, depth);
+          if (arg.argumentExpression is NullLiteral) continue;
+          final children =
+              _textSpanChildren(arg.argumentExpression, issues, depth);
           if (children == null) return null;
           parts.add('children: $children');
       }
@@ -4016,7 +4019,7 @@ final class ExpressionTranslator {
     return '{ ${parts.join(', ')} }';
   }
 
-  NodeList<Expression>? _textSpanArguments(
+  NodeList<Argument>? _textSpanArguments(
     Expression expr,
     List<Issue> issues,
   ) {
@@ -4147,7 +4150,7 @@ final class ExpressionTranslator {
 
   void _addTextSpanUncarriedPropIssue(
     String name,
-    NamedExpression arg,
+    NamedArgument arg,
     List<Issue> issues,
   ) {
     final knownDeferred = _kDeferredTextSpanProps.contains(name)
@@ -4432,11 +4435,13 @@ final class ExpressionTranslator {
         final positional = <String>[];
         final named = <String, String>{};
         for (final a in expr.argumentList.arguments) {
-          if (a is NamedExpression) {
-            named[a.name.label.name] =
-                _translateHelperArgument(a.expression, issues);
+          if (a is NamedArgument) {
+            named[a.name.lexeme] =
+                _translateHelperArgument(a.argumentExpression, issues);
           } else {
-            positional.add(_translateHelperArgument(a, issues));
+            positional.add(
+              _translateHelperArgument(a.argumentExpression, issues),
+            );
           }
         }
         return _safeHelperTranslate(
@@ -4624,13 +4629,13 @@ final class ExpressionTranslator {
     final positional = <String>[];
     final named = <String, String>{};
     for (final argument in expr.argumentList.arguments) {
-      if (argument is NamedExpression) {
-        named[argument.name.label.name] =
-            _translateHelperArgument(argument.expression, issues);
+      if (argument is NamedArgument) {
+        named[argument.name.lexeme] =
+            _translateHelperArgument(argument.argumentExpression, issues);
         continue;
       }
       if (positional.isEmpty) {
-        final eventName = _foldScalarConstant(argument);
+        final eventName = _foldScalarConstant(argument.argumentExpression);
         if (eventName is! String) {
           issues.add(
             Issue(
@@ -4645,7 +4650,9 @@ final class ExpressionTranslator {
         positional.add(_stringLiteral(eventName));
         continue;
       }
-      positional.add(_translateHelperArgument(argument, issues));
+      positional.add(
+        _translateHelperArgument(argument.argumentExpression, issues),
+      );
     }
     return HelperCallArgs(positional: positional, named: named);
   }
@@ -4685,7 +4692,7 @@ final class ExpressionTranslator {
 
   String? _unsupportedCommerceEventName(MethodInvocation expression) {
     final args = expression.argumentList.arguments;
-    if (args.isEmpty || args.first is NamedExpression) return null;
+    if (args.isEmpty || args.first is NamedArgument) return null;
 
     String? blockedName(Expression eventName) {
       final stripped = _stripParens(eventName);
@@ -4705,7 +4712,7 @@ final class ExpressionTranslator {
           : null;
     }
 
-    return blockedName(args.first);
+    return blockedName(args.first.argumentExpression);
   }
 
   /// Distributes a single conditional argument over a value-reference
@@ -4726,7 +4733,7 @@ final class ExpressionTranslator {
     int? condIndex;
     for (var i = 0; i < args.length; i++) {
       final a = args[i];
-      final value = a is NamedExpression ? a.expression : a;
+      final value = a.argumentExpression;
       if (_stripParens(value) is ConditionalExpression) {
         if (condIndex != null) {
           issues.add(
@@ -4747,7 +4754,7 @@ final class ExpressionTranslator {
     }
     if (condIndex == null) return null;
     final condArg = args[condIndex];
-    final slotExpr = condArg is NamedExpression ? condArg.expression : condArg;
+    final slotExpr = condArg.argumentExpression;
     return _distributeValueHelper(expr, helper, condIndex, slotExpr, issues);
   }
 
@@ -4777,11 +4784,10 @@ final class ExpressionTranslator {
     final args = expr.argumentList.arguments;
     for (var i = 0; i < args.length; i++) {
       final a = args[i];
-      final valueExpr =
-          i == condIndex ? stripped : (a is NamedExpression ? a.expression : a);
+      final valueExpr = i == condIndex ? stripped : a.argumentExpression;
       final translated = _translateHelperArgument(valueExpr, issues);
-      if (a is NamedExpression) {
-        named[a.name.label.name] = translated;
+      if (a is NamedArgument) {
+        named[a.name.lexeme] = translated;
       } else {
         positional.add(translated);
       }
@@ -4801,13 +4807,14 @@ final class ExpressionTranslator {
     final positional = <String>[];
     final named = <String, String>{};
     for (final arg in expr.argumentList.arguments) {
-      if (arg is NamedExpression) {
-        named[arg.name.label.name] =
-            _translateHelperArgument(arg.expression, issues);
+      if (arg is NamedArgument) {
+        named[arg.name.lexeme] =
+            _translateHelperArgument(arg.argumentExpression, issues);
         continue;
       }
       if (positional.isEmpty) {
-        final descriptorId = _onboardingEventDescriptorId(arg);
+        final descriptorId =
+            _onboardingEventDescriptorId(arg.argumentExpression);
         if (descriptorId == null) {
           issues.add(
             Issue(
@@ -4833,7 +4840,8 @@ final class ExpressionTranslator {
       // coerced to an empty map at the runtime boundary (and a flow
       // `.capture()` reads the reserved `value` key). A map literal already
       // carries named fields, so it is emitted as-is.
-      final translated = _translateHelperArgument(arg, issues);
+      final translated =
+          _translateHelperArgument(arg.argumentExpression, issues);
       final isMapLiteral = arg is SetOrMapLiteral && arg.isMap;
       positional.add(
         isMapLiteral ? translated : '{ $kCapturedEventValueKey: $translated }',
@@ -5154,7 +5162,7 @@ final class ExpressionTranslator {
     final emitted = <String, String>{};
 
     for (final arg in call.argumentList.arguments) {
-      if (arg is! NamedExpression) {
+      if (arg is! NamedArgument) {
         issues.add(
           _modalSheetUnsupportedIssue(
             'positional arguments have no declarative sheet equivalent',
@@ -5163,7 +5171,7 @@ final class ExpressionTranslator {
         );
         return null;
       }
-      final name = arg.name.label.name;
+      final name = arg.name.lexeme;
       final disposition = dispositions[name];
       if (disposition == null) {
         issues.add(
@@ -5178,14 +5186,14 @@ final class ExpressionTranslator {
         case ModalSheetArgumentDisposition.drop:
           break;
         case ModalSheetArgumentDisposition.builder:
-          builderExpr ??= arg.expression;
+          builderExpr ??= arg.argumentExpression;
         case ModalSheetArgumentDisposition.pageBuilder:
-          pageBuilderExpr ??= arg.expression;
+          pageBuilderExpr ??= arg.argumentExpression;
         case ModalSheetArgumentDisposition.map:
-          mapped[name] = arg.expression;
+          mapped[name] = arg.argumentExpression;
         case ModalSheetArgumentDisposition.animationStyle:
           final animation = _modalSheetAnimationStyleSlots(
-            arg.expression,
+            arg.argumentExpression,
             sheetEntry,
             issues,
           );
@@ -5267,7 +5275,7 @@ final class ExpressionTranslator {
 
     final emitted = <String, String>{};
     for (final arg in expr.argumentList.arguments) {
-      if (arg is! NamedExpression) {
+      if (arg is! NamedArgument) {
         issues.add(
           _modalSheetUnsupportedIssue(
             'AnimationStyle accepts only named fields in sheet lowering',
@@ -5276,7 +5284,7 @@ final class ExpressionTranslator {
         );
         return null;
       }
-      final fieldName = arg.name.label.name;
+      final fieldName = arg.name.lexeme;
       final slotName = switch (fieldName) {
         'duration' => 'enterDuration',
         'reverseDuration' => 'exitDuration',
@@ -5294,11 +5302,11 @@ final class ExpressionTranslator {
         return null;
       }
       final isCurve = fieldName == 'curve' || fieldName == 'reverseCurve';
-      if (isCurve && _supportedCurveName(arg.expression) == null) {
+      if (isCurve && _supportedCurveName(arg.argumentExpression) == null) {
         issues.add(
           _modalSheetUnsupportedIssue(
             '$fieldName must be a supported Curves.* value',
-            arg.expression,
+            arg.argumentExpression,
           ),
         );
         return null;
@@ -5306,7 +5314,7 @@ final class ExpressionTranslator {
       final value = _emitModalSheetSlot(
         sheetEntry,
         slotName,
-        arg.expression,
+        arg.argumentExpression,
         issues,
       );
       if (value == null) return null;
@@ -5391,7 +5399,7 @@ final class ExpressionTranslator {
   String? _pageViewAlias({
     required ClassElement? widgetClass,
     required String? constructorName,
-    required NodeList<Expression> args,
+    required NodeList<Argument> args,
     required Expression anchor,
     required List<Issue> issues,
   }) {
@@ -5435,24 +5443,24 @@ final class ExpressionTranslator {
     Expression? viewportFractionExpr; // from the PageController flatten
 
     for (final arg in args) {
-      if (arg is! NamedExpression) {
+      if (arg is! NamedArgument) {
         defer('a positional argument has no declarative equivalent');
         return '';
       }
-      final name = arg.name.label.name;
+      final name = arg.name.lexeme;
       if (isDiscardedWidgetKeyArgument(arg)) continue;
       switch (name) {
         case 'children':
-          childrenExpr = arg.expression;
+          childrenExpr = arg.argumentExpression;
         case 'scrollDirection':
-          scrollDirectionExpr = arg.expression;
+          scrollDirectionExpr = arg.argumentExpression;
         case 'pageSnapping':
-          pageSnappingExpr = arg.expression;
+          pageSnappingExpr = arg.argumentExpression;
         case 'onPageChanged':
-          onPageChangedExpr = arg.expression;
+          onPageChangedExpr = arg.argumentExpression;
         case 'controller':
           {
-            final flat = _pageControllerFlatten(arg.expression);
+            final flat = _pageControllerFlatten(arg.argumentExpression);
             if (flat == null) {
               defer("the 'controller' argument must be a literal "
                   'PageController(initialPage:, viewportFraction:) with no '
@@ -5539,12 +5547,12 @@ final class ExpressionTranslator {
     Expression? initialPage;
     Expression? viewportFraction;
     for (final arg in expr.argumentList.arguments) {
-      if (arg is! NamedExpression) return null; // a positional argument
-      switch (arg.name.label.name) {
+      if (arg is! NamedArgument) return null; // a positional argument
+      switch (arg.name.lexeme) {
         case 'initialPage':
-          initialPage = arg.expression;
+          initialPage = arg.argumentExpression;
         case 'viewportFraction':
-          viewportFraction = arg.expression;
+          viewportFraction = arg.argumentExpression;
         default:
           return null; // keepPage / onAttach / onDetach / …
       }
@@ -5574,7 +5582,7 @@ final class ExpressionTranslator {
   String? _draggableScrollableSheetAlias({
     required ClassElement? widgetClass,
     required String? constructorName,
-    required NodeList<Expression> args,
+    required NodeList<Argument> args,
     required Expression anchor,
     required List<Issue> issues,
   }) {
@@ -5630,11 +5638,11 @@ final class ExpressionTranslator {
     Expression? builderExpr;
     final mapped = <String, Expression>{};
     for (final arg in args) {
-      if (arg is! NamedExpression) {
+      if (arg is! NamedArgument) {
         defer('a positional argument has no declarative equivalent');
         return '';
       }
-      final name = arg.name.label.name;
+      final name = arg.name.lexeme;
       final disposition = kDraggableSheetArgumentDispositions[name];
       if (disposition == null) {
         defer("the '$name' argument has no RestageDraggableSheet equivalent");
@@ -5644,11 +5652,11 @@ final class ExpressionTranslator {
         case DraggableSheetArgumentDisposition.drop:
           break;
         case DraggableSheetArgumentDisposition.map:
-          mapped[name] = arg.expression;
+          mapped[name] = arg.argumentExpression;
         case DraggableSheetArgumentDisposition.builder:
-          builderExpr = arg.expression;
+          builderExpr = arg.argumentExpression;
         case DraggableSheetArgumentDisposition.snapSizes:
-          if (!_isAbsentOrEmptyList(arg.expression)) {
+          if (!_isAbsentOrEmptyList(arg.argumentExpression)) {
             defer(
               kDraggableSheetSnapSizesUnsupportedReason,
               subject: 'param:snapSizes',
@@ -5656,7 +5664,7 @@ final class ExpressionTranslator {
             return '';
           }
         case DraggableSheetArgumentDisposition.shouldCloseOnMinExtent:
-          final value = _staticBoolLiteral(arg.expression);
+          final value = _staticBoolLiteral(arg.argumentExpression);
           if (value == null) {
             defer('shouldCloseOnMinExtent must be a literal false to lower');
             return '';
@@ -6281,7 +6289,7 @@ final class ExpressionTranslator {
     required String widgetName,
     required String? flutterType,
     required ClassElement? widgetClass,
-    required NodeList<Expression> args,
+    required NodeList<Argument> args,
     required Expression anchor,
     required List<Issue> issues,
     String? constructorName,
@@ -6632,7 +6640,7 @@ final class ExpressionTranslator {
       // Emit each implied default the author did not pass explicitly; the
       // author's explicit value (handled by the arg loops below) wins.
       final authorNamed = {
-        for (final a in args.whereType<NamedExpression>()) a.name.label.name,
+        for (final a in args.whereType<NamedArgument>()) a.name.lexeme,
       };
       for (final e in implied.entries) {
         if (!authorNamed.contains(e.key)) {
@@ -6646,7 +6654,7 @@ final class ExpressionTranslator {
     // args only; they would otherwise capture the first positional slot and
     // collide with their own named-arg form (e.g. Icon's `size` would absorb
     // the IconData positional and then duplicate when `size:` is also named).
-    final positionals = args.where((a) => a is! NamedExpression).toList();
+    final positionals = args.whereType<Expression>().toList();
     final sourceParameters = _walk.measurementWidget == null
         ? const <Expression, FormalParameterElement>{}
         : _resolvedSourceParameters(anchor, args);
@@ -6689,15 +6697,16 @@ final class ExpressionTranslator {
     }
 
     // Named args map by name; runtime widget keys are not serialized.
-    for (final a in args.whereType<NamedExpression>()) {
-      final name = a.name.label.name;
+    for (final a in args.whereType<NamedArgument>()) {
+      final name = a.name.lexeme;
       if (isDiscardedWidgetKeyArgument(a)) continue;
 
       // Structured-type decomposition. If this argument matches one of the
       // entry's native recipes, hoist mapped structured fields to flat
       // properties on the outer widget. Inner values route back through
       // `_translate`, so per-type value translators compose recursively.
-      final decomposed = _tryDecompose(entry, name, a.expression, issues);
+      final decomposed =
+          _tryDecompose(entry, name, a.argumentExpression, issues);
       if (decomposed != null) {
         emitted.addAll(decomposed);
         continue;
@@ -6705,7 +6714,8 @@ final class ExpressionTranslator {
 
       final prop = entry.properties.where((p) => p.name == name).firstOrNull;
       if (prop == null) {
-        if (_reportUndecomposableArgument(entry, name, a.expression, issues)) {
+        if (_reportUndecomposableArgument(
+            entry, name, a.argumentExpression, issues)) {
           continue;
         }
         issues.add(
@@ -6723,11 +6733,11 @@ final class ExpressionTranslator {
       final isIconSlot = prop.synthetic == _kIconDataSynthetic;
       if (isIconSlot) _resetResolvedIcon();
       final value = _translateSlotValue(
-        a.expression,
+        a.argumentExpression,
         prop.type,
         issues,
         property: prop,
-        sourceParameter: sourceParameters[a.expression],
+        sourceParameter: sourceParameters[a.argumentExpression],
       );
       if (value.isEmpty && issues.length > before) return '';
       // An asymmetric `BorderRadius` value (a direct `borderRadius:` arg, e.g.
@@ -6815,7 +6825,7 @@ final class ExpressionTranslator {
   /// refused.
   String? _preferredSizeHeightEmission(
     WidgetEntry entry,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues,
   ) {
     final heightProp = entry.properties.firstWhereOrNull(
@@ -6829,10 +6839,11 @@ final class ExpressionTranslator {
     );
     if (slot == null) return null;
     final slotArg = args
-        .whereType<NamedExpression>()
-        .firstWhereOrNull((a) => a.name.label.name == slot.name);
+        .whereType<NamedArgument>()
+        .firstWhereOrNull((a) => a.name.lexeme == slot.name);
     if (slotArg == null) return null;
-    final height = _preferredHeightOf(slotArg.expression, heightProp, issues);
+    final height =
+        _preferredHeightOf(slotArg.argumentExpression, heightProp, issues);
     if (height == null) {
       issues.add(
         Issue(
@@ -6914,7 +6925,7 @@ final class ExpressionTranslator {
 
   /// The constructor name and argument list of a widget construction, or
   /// `null` when the expression is not one.
-  ({String name, NodeList<Expression> args})? _widgetCallOf(Expression expr) {
+  ({String name, NodeList<Argument> args})? _widgetCallOf(Expression expr) {
     return switch (expr) {
       InstanceCreationExpression(:final constructorName, :final argumentList) =>
         (
@@ -6930,10 +6941,10 @@ final class ExpressionTranslator {
   }
 
   /// The named argument [name] of an argument list, unwrapped.
-  Expression? _namedArgument(NodeList<Expression> args, String name) => args
-      .whereType<NamedExpression>()
-      .firstWhereOrNull((a) => a.name.label.name == name)
-      ?.expression;
+  Expression? _namedArgument(NodeList<Argument> args, String name) => args
+      .whereType<NamedArgument>()
+      .firstWhereOrNull((a) => a.name.lexeme == name)
+      ?.argumentExpression;
 
   /// [expr] lowered as a real, with its folded value when the lowering is
   /// a bare number.
@@ -6955,7 +6966,7 @@ final class ExpressionTranslator {
 
   Map<Expression, FormalParameterElement> _resolvedSourceParameters(
     Expression anchor,
-    NodeList<Expression> arguments,
+    NodeList<Argument> arguments,
   ) {
     final constructor = switch (anchor) {
       InstanceCreationExpression() => anchor.constructorName.element,
@@ -6971,15 +6982,15 @@ final class ExpressionTranslator {
     var positionalIndex = 0;
     final result = Map<Expression, FormalParameterElement>.identity();
     for (final argument in arguments) {
-      if (argument is NamedExpression) {
-        final parameter = argument.name.label.element;
+      if (argument is NamedArgument) {
+        final parameter = argument.correspondingParameter;
         if (parameter is FormalParameterElement) {
-          result[argument.expression] = parameter;
+          result[argument.argumentExpression] = parameter;
         }
         continue;
       }
       if (positionalIndex < positional.length) {
-        result[argument] = positional[positionalIndex];
+        result[argument.argumentExpression] = positional[positionalIndex];
       }
       positionalIndex++;
     }
@@ -7187,7 +7198,7 @@ final class ExpressionTranslator {
   String? _tryInlineCustomWidget(
     WidgetClassification classification,
     String key,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     Expression anchor,
     List<Issue> issues, {
     WidgetEntry? catalogEntry,
@@ -7350,7 +7361,7 @@ final class ExpressionTranslator {
   /// formal identity and named-or-positional correspondence agree.
   String _customWidgetCallArgs(
     CustomWidgetBlueprint blueprint,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
     List<Issue> issues, {
     WidgetEntry? catalogEntry,
   }) {
@@ -7365,8 +7376,8 @@ final class ExpressionTranslator {
     for (final arg in args) {
       final resolvedParam = _resolvedCustomWidgetParam(blueprint, arg);
       CustomWidgetParam? param;
-      if (arg is NamedExpression) {
-        final argName = arg.name.label.name;
+      if (arg is NamedArgument) {
+        final argName = arg.name.lexeme;
         if (isDiscardedWidgetKeyArgument(arg)) continue;
         if (!parameterNames.contains(argName)) {
           issues.add(
@@ -7413,7 +7424,7 @@ final class ExpressionTranslator {
         }
         suppliedProperties[param.name] = property;
       }
-      supplied[param.name] = arg is NamedExpression ? arg.expression : arg;
+      supplied[param.name] = arg.argumentExpression;
     }
     // Emit one argument per parameter per the null-coalescing completion
     // table (a property the blueprint marked coalesced is `completion-required`
@@ -7514,7 +7525,7 @@ final class ExpressionTranslator {
 
   CustomWidgetParam? _resolvedCustomWidgetParam(
     CustomWidgetBlueprint blueprint,
-    Expression argument,
+    Argument argument,
   ) {
     final formal = argument.correspondingParameter;
     if (formal is! FieldFormalParameterElement) return null;
@@ -7528,13 +7539,12 @@ final class ExpressionTranslator {
   PropertyEntry? _customWidgetCatalogProperty(
     WidgetEntry entry,
     CustomWidgetParam param,
-    Expression argument,
+    Argument argument,
   ) {
     final formal = argument.correspondingParameter;
     if (formal is! FieldFormalParameterElement) return null;
     if (formal.isNamed) {
-      if (argument is! NamedExpression ||
-          argument.name.label.name != param.name) {
+      if (argument is! NamedArgument || argument.name.lexeme != param.name) {
         return null;
       }
       return entry.properties.singleWhereOrNull(
@@ -10086,8 +10096,8 @@ final class ExpressionTranslator {
       if (target == null) return null;
       overrides = <String, Expression>{
         for (final argument in read.argumentList.arguments)
-          if (argument is NamedExpression)
-            argument.name.label.name: argument.expression,
+          if (argument is NamedArgument)
+            argument.name.lexeme: argument.argumentExpression,
       };
       if (overrides.length != read.argumentList.arguments.length) return null;
       read = target;
@@ -10541,7 +10551,7 @@ final class ExpressionTranslator {
 
   _NativeInvocationMatch _bindNativeInvocationArguments(
     FactoryVariant variant,
-    NodeList<Expression> args,
+    NodeList<Argument> args,
   ) {
     final parameterExpressions = <WireId, Expression>{};
     final fieldExpressions = <WireId, Expression>{};
@@ -10550,23 +10560,23 @@ final class ExpressionTranslator {
 
     var positionalIndex = 0;
     for (final arg in args) {
-      if (arg is NamedExpression) {
-        final name = arg.name.label.name;
+      if (arg is NamedArgument) {
+        final name = arg.name.lexeme;
         final parameter = parameters.firstWhereOrNull(
           (p) => p.kind == FactoryParameterKind.named && p.name == name,
         );
         if (parameter == null) {
-          unmappedArguments[name] = arg.expression;
+          unmappedArguments[name] = arg.argumentExpression;
           continue;
         }
         final mapped = _bindNativeParameter(
           variant,
           parameter,
-          arg.expression,
+          arg.argumentExpression,
           parameterExpressions,
           fieldExpressions,
         );
-        if (!mapped) unmappedArguments[name] = arg.expression;
+        if (!mapped) unmappedArguments[name] = arg.argumentExpression;
       } else {
         final position = positionalIndex;
         final parameter = parameters.firstWhereOrNull(
@@ -10576,17 +10586,19 @@ final class ExpressionTranslator {
         );
         positionalIndex++;
         if (parameter == null) {
-          unmappedArguments['#$position'] = arg;
+          unmappedArguments['#$position'] = arg.argumentExpression;
           continue;
         }
         final mapped = _bindNativeParameter(
           variant,
           parameter,
-          arg,
+          arg.argumentExpression,
           parameterExpressions,
           fieldExpressions,
         );
-        if (!mapped) unmappedArguments['#$position'] = arg;
+        if (!mapped) {
+          unmappedArguments['#$position'] = arg.argumentExpression;
+        }
       }
     }
 
@@ -10824,8 +10836,8 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
 
   bool _isNavigationTriggerSlot(FunctionExpression node) {
     final parent = node.parent;
-    if (parent is! NamedExpression) return false;
-    return isNavigationTriggerSlotName(parent.name.label.name);
+    if (parent is! NamedArgument) return false;
+    return isNavigationTriggerSlotName(parent.name.lexeme);
   }
 
   bool _usesBuildContextParameter(RecognisedNavigation navigation) {
@@ -10841,13 +10853,13 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
       final args = target.argumentList.arguments;
       if (args.length != 1) return null;
       final arg = args.single;
-      if (arg is NamedExpression) return null;
+      if (arg is NamedArgument) return null;
       return arg is SimpleIdentifier ? arg : null;
     }
     final args = pushCall.argumentList.arguments;
     if (args.isEmpty) return null;
     final first = args.first;
-    if (first is NamedExpression) return null;
+    if (first is NamedArgument) return null;
     return first is SimpleIdentifier ? first : null;
   }
 }
@@ -10925,8 +10937,8 @@ String? _paywallEventName(
         );
   if (helper?.name != 'paywallEvent') return null;
   final args = node.argumentList.arguments;
-  if (args.isEmpty || args.first is NamedExpression) return null;
-  var first = args.first;
+  if (args.isEmpty || args.first is NamedArgument) return null;
+  var first = args.first.argumentExpression;
   while (first is ParenthesizedExpression) {
     first = first.expression;
   }
@@ -10968,8 +10980,8 @@ final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
 
   bool _isModalTriggerSlot(FunctionExpression node) {
     final parent = node.parent;
-    if (parent is! NamedExpression) return false;
-    return isModalSheetTriggerSlotName(parent.name.label.name);
+    if (parent is! NamedArgument) return false;
+    return isModalSheetTriggerSlotName(parent.name.lexeme);
   }
 }
 

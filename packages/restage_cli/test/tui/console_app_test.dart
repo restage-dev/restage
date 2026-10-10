@@ -219,22 +219,27 @@ void main() {
     });
   });
 
-  test('arrow keys on left panel move dashboard nav, not surfaces', () async {
-    await testNocterm('left panel arrows move nav', (tester) async {
-      final controller = ConsoleController(repository: FakeConsoleRepository());
-      await tester.pumpComponent(RestageConsoleApp(controller: controller));
-      await tester.pump();
-      await tester.pump();
+  test(
+    'arrow keys on left panel move dashboard nav without changing the selected surface',
+    () async {
+      await testNocterm('left panel arrows move nav', (tester) async {
+        final controller = ConsoleController(
+          repository: FakeConsoleRepository(),
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
 
-      await tester.sendArrowDown();
-      await tester.pump();
+        await tester.sendArrowDown();
+        await tester.pump();
 
-      expect(controller.state.focusedPanel, ConsolePanel.projects);
-      expect(controller.state.selectedSurface?.slug, 'pro');
-      expect(tester.terminalState, containsText('> Surfaces'));
-      expect(tester.terminalState, containsText('Detail: pro'));
-    });
-  });
+        expect(controller.state.focusedPanel, ConsolePanel.projects);
+        expect(controller.state.selectedSurface?.slug, 'pro');
+        expect(tester.terminalState, containsText('> Surfaces'));
+        expect(tester.terminalState, containsText('Detail: pro'));
+      });
+    },
+  );
 
   test('left nav skips duplicate lifecycle view', () async {
     await testNocterm('left nav skips lifecycle view', (tester) async {

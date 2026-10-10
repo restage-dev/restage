@@ -288,7 +288,7 @@ void main() {
       ('collection-if', "if (enabled) 'more'"),
       ('collection-for', 'for (final value in more) value'),
     ];
-    NodeList<Expression> callArgumentsOf(Expression expression) =>
+    NodeList<Argument> callArgumentsOf(Expression expression) =>
         switch (expression) {
           InstanceCreationExpression(:final argumentList) =>
             argumentList.arguments,
@@ -328,8 +328,8 @@ Object x() => ListSink(values: <String>['ok', $tail]);
         final argument = (expression as InstanceCreationExpression)
             .argumentList
             .arguments
-            .single as NamedExpression;
-        final list = argument.expression as ListLiteral;
+            .single as NamedArgument;
+        final list = argument.argumentExpression as ListLiteral;
         final lineInfo = LineInfo.fromContent(source);
         final offendingLocation =
             lineInfo.getLocation(list.elements.last.offset);
@@ -410,8 +410,8 @@ Object x() => ListSink(values: <String>['ok', $tail]);
         final source = 'Object x() => RadialGradient(colors: <Color>[ '
             'Color(0xFF112233), $tail]);';
         final expression = await parseExpressionFromSourceForTest(source);
-        final argument = callArgumentsOf(expression).single as NamedExpression;
-        final list = argument.expression as ListLiteral;
+        final argument = callArgumentsOf(expression).single as NamedArgument;
+        final list = argument.argumentExpression as ListLiteral;
         final lineInfo = LineInfo.fromContent(source);
         final offendingLocation =
             lineInfo.getLocation(list.elements.last.offset);

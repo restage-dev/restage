@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -9,6 +10,7 @@ import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -88,7 +90,6 @@ void main() {
       httpClient: client,
       renderBundleBuilder: builder,
     ).run(<String>['build', 'push', '-C', root.path]);
-
     expect(exit, 0, reason: stderr.toString());
     expect(rpcCalls, 2);
     expect(uploadCalls, 1);
@@ -164,6 +165,76 @@ void main() {
       expect(stderr.toString(), isEmpty);
     },
   );
+
+  test('a staging ceiling refusal is reported with both figures', () async {
+    // The ceiling is only reached on a part, and parts only happen past the
+    // single-request ceiling, so the archive has to be over it.
+    final random = Random(29);
+    final builder = _FakeBuilder(
+      Uint8List.fromList(
+        List<int>.generate(
+          renderBundleMaxUploadTransferBytes + (4 * 1024 * 1024),
+          (_) => random.nextInt(256),
+        ),
+      ),
+    );
+    const heldBytes = 201326592;
+    const limitBytes = 201326592;
+    const uploadUrl =
+        'http://bundles.restage.localhost:8081/render-bundles/v1/upload'
+        '?projectSlug=demo&organizationId=7&channel=main';
+    final client = MockClient((request) async {
+      if (request.url.port == 8081) {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'reason': 'staged_bytes_exceeded',
+            'heldBytes': heldBytes,
+            'limitBytes': limitBytes,
+          }),
+          400,
+        );
+      }
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      switch (body['method']) {
+        case 'prepareUpload':
+          return http.Response(jsonEncode(uploadUrl), 200);
+        case 'prepareChunkedUpload':
+          return http.Response(
+            jsonEncode(<String, Object?>{
+              'uploadId': '0123456789abcdef0123456789abcdef',
+              'nonce': 'fedcba9876543210fedcba9876543210',
+              'expiresAt': DateTime.utc(2030).toIso8601String(),
+              'uploadUrl': uploadUrl,
+              'partByteLimit': 8 * 1024 * 1024,
+              'maxParts': 8,
+            }),
+            200,
+          );
+        case 'discardChunkedUpload':
+          return http.Response(jsonEncode(null), 200);
+        default:
+          fail('unexpected RPC: ${body['method']}');
+      }
+    });
+
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: client,
+      renderBundleBuilder: builder,
+    ).run(<String>['build', 'push', '-C', root.path]);
+
+    expect(exit, isNot(0));
+    final reported = stderr.toString();
+    expect(reported, contains('$heldBytes bytes staged'));
+    expect(reported, contains('$limitBytes byte limit'));
+    expect(
+      reported,
+      contains('192 MiB'),
+      reason: 'the limit is also given in the units the pricing page uses',
+    );
+  });
 
   test('matching explicit parent and bundle overrides are accepted', () async {
     await seedRestageConfig(
@@ -314,6 +385,159 @@ void main() {
     },
   );
 
+  test(
+    'an edge refusal reports its status instead of one generic line',
+    () async {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[7, 8, 9]));
+      var uploadCalls = 0;
+      final client = MockClient((request) async {
+        if (request.url.port == 8081) {
+          uploadCalls++;
+          return http.Response('request entity too large', 413);
+        }
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['method'], 'prepareUpload');
+        return http.Response(
+          jsonEncode(
+            'http://bundles.restage.localhost:8081/render-bundles/v1/upload?projectSlug=demo&organizationId=7&channel=main',
+          ),
+          200,
+        );
+      });
+
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+        renderBundleBuilder: builder,
+      ).run(<String>['build', 'push', '-C', root.path]);
+
+      expect(exit, 2);
+      expect(uploadCalls, 1);
+      expect(stdout.toString(), isEmpty);
+      expect(
+        stderr.toString(),
+        'Could not upload the render bundle (HTTP 413: something between '
+        'this machine and the service refused the body size, which was '
+        '${gzip.encode(const <int>[7, 8, 9]).length} compressed bytes).\n',
+      );
+      expect(stderr.toString(), isNot(contains('request entity too large')));
+    },
+  );
+
+  test('an archive past the raw ceiling reports its measured size', () async {
+    var networkCalls = 0;
+    final builder = _FakeBuilder(Uint8List(renderBundleMaxArchiveBytes + 1));
+
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient((_) async {
+        networkCalls++;
+        return http.Response('', 500);
+      }),
+      renderBundleBuilder: builder,
+    ).run(<String>['build', 'push', '-C', root.path]);
+
+    expect(exit, 2);
+    expect(networkCalls, 0);
+    expect(
+      stderr.toString(),
+      'Could not upload the render bundle: built '
+      '${renderBundleMaxArchiveBytes + 1} bytes, over the '
+      '$renderBundleMaxArchiveBytes byte limit (64 MiB).\n',
+    );
+  });
+
+  test(
+    'a body past the single-request ceiling is published in parts',
+    () async {
+      // Incompressible, so it clears the raw ceiling and cannot be sent whole.
+      final random = Random(5);
+      final archive = Uint8List.fromList(
+        List<int>.generate(
+          renderBundleMaxUploadTransferBytes + (1024 * 1024),
+          (_) => random.nextInt(256),
+        ),
+      );
+      final compressed = gzip.encode(archive);
+      expect(
+        compressed.length,
+        greaterThan(renderBundleMaxUploadTransferBytes),
+      );
+      const uploadId = '0123456789abcdef0123456789abcdef';
+      const uploadUrl =
+          'http://bundles.restage.localhost:8081/render-bundles/v1/upload'
+          '?projectSlug=demo&organizationId=7&channel=main';
+      final hash = CapabilitySidecar.hashBlob(archive);
+      final parts = <int, List<int>>{};
+      String? committedHash;
+
+      final client = MockClient((request) async {
+        if (request.url.port == 8081) {
+          final query = request.url.queryParameters;
+          expect(query['uploadId'], uploadId);
+          parts[int.parse(query['partIndex']!)] = request.bodyBytes;
+          return http.Response('', 204);
+        }
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        switch (body['method']) {
+          case 'prepareUpload':
+            return http.Response(jsonEncode(uploadUrl), 200);
+          case 'prepareChunkedUpload':
+            return http.Response(
+              jsonEncode(<String, Object?>{
+                'uploadId': uploadId,
+                'nonce': 'fedcba9876543210fedcba9876543210',
+                'expiresAt': DateTime.utc(2030).toIso8601String(),
+                'uploadUrl': uploadUrl,
+                'partByteLimit': 8 * 1024 * 1024,
+                'maxParts': 8,
+              }),
+              200,
+            );
+          case 'commitChunkedUpload':
+            committedHash = body['contentHash'] as String?;
+            return http.Response(jsonEncode(null), 200);
+          case 'discover':
+            return http.Response(
+              jsonEncode(<String, Object?>{'version': 1, 'contentHash': hash}),
+              200,
+            );
+          default:
+            fail('unexpected RPC: ${body['method']}');
+        }
+      });
+
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+        renderBundleBuilder: _FakeBuilder(archive),
+      ).run(<String>['build', 'push', '-C', root.path]);
+
+      expect(exit, 0, reason: stderr.toString());
+      expect(stderr.toString(), isEmpty);
+      expect(stdout.toString(), contains('main version 1'));
+      expect(parts, hasLength(greaterThan(1)));
+      // The parts are byte ranges of one compressed stream, so in index order
+      // they must reproduce exactly what a single request would have sent.
+      expect(<int>[
+        for (var index = 0; index < parts.length; index++) ...parts[index]!,
+      ], compressed);
+      // The commit names the hash of the raw container. The compressed
+      // transfer has its own, and the two differ.
+      expect(committedHash, hash);
+    },
+  );
+
+  test('the upload wire ceiling is 24 MiB', () {
+    expect(renderBundleMaxUploadTransferBytes, 25165824);
+  });
+
   test('build failure is generic and performs no network operation', () async {
     var networkCalls = 0;
     final exit = await RestageCli(
@@ -380,8 +604,14 @@ void main() {
       expect(uploadCalls, 1);
       expect(discoverCalls, 1);
       expect(stdout.toString(), isEmpty);
-      expect(stderr.toString(), 'Could not upload the render bundle.\n');
-      expect(stderr.toString(), isNot(contains(changedHeadHash)));
+      expect(
+        stderr.toString(),
+        'Uploaded render bundle main (${CapabilitySidecar.hashBlob(const <int>[7, 8, 9])}), '
+        'but main now points at version 5 ($changedHeadHash) from another '
+        'push.\n',
+      );
+      // The upload is stored, so the loser of the race must not re-run it.
+      expect(stdout.toString(), isEmpty);
     },
   );
 

@@ -22,6 +22,7 @@ import 'dart:collection';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
+import 'package:build_runner/src/build/resolver/build_step_resolver.dart';
 import 'package:build_runner/src/internal.dart' as build_runner_internal;
 
 /// One analyzer entry point a build step reached for.
@@ -30,18 +31,14 @@ import 'package:build_runner/src/internal.dart' as build_runner_internal;
 /// against every package, because nothing rules out what they reached.
 typedef ResolverUse = ({String api, AssetId? asset});
 
-/// Wraps a real build resolver and records every analysis it is asked for.
-///
-/// Pass one to `testBuilder(..., resolvers: ...)`, then read [uses] or
-/// [usesIn].
-final class CountingResolvers implements Resolvers {
+/// Records resolver analyses in [uses] and [usesIn] for build tests.
+/// Extends `ResolversImpl` so the analyzer receives the build filesystem.
+final class CountingResolvers extends build_runner_internal.ResolversImpl {
   /// Creates a counting wrapper around a fresh analysis driver.
   CountingResolvers()
-      : _delegate = build_runner_internal.ResolversImpl.custom(
+      : super(
           analysisDriverModel: build_runner_internal.AnalysisDriverModel(),
         );
-
-  final Resolvers _delegate;
 
   final List<ResolverUse> _uses = <ResolverUse>[];
 
@@ -75,17 +72,14 @@ final class CountingResolvers implements Resolvers {
       .join(', ');
 
   @override
-  Future<ReleasableResolver> get(BuildStep buildStep) async =>
-      _CountingResolver(await _delegate.get(buildStep), _uses);
-
-  @override
-  void reset() => _delegate.reset();
+  Future<BuildStepResolver> get(BuildStep buildStep) async =>
+      _CountingResolver(await super.get(buildStep), _uses);
 }
 
-final class _CountingResolver implements ReleasableResolver {
+final class _CountingResolver implements BuildStepResolver {
   _CountingResolver(this._delegate, this._uses);
 
-  final ReleasableResolver _delegate;
+  final BuildStepResolver _delegate;
   final List<ResolverUse> _uses;
 
   @override

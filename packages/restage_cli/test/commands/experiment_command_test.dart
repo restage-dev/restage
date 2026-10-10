@@ -1125,7 +1125,7 @@ void main() {
       },
     );
 
-    test('a service-fault refusal exits two, not one', () async {
+    test('a service-fault refusal exits with code two', () async {
       final result = await run(
         const ['read', '--experiment-id=experiment.checkout'],
         reply: (method, sent) => refusalFor(
@@ -1296,7 +1296,7 @@ void main() {
         ),
       );
 
-      expect(result.code, 2, reason: 'a service fault, not operator error');
+      expect(result.code, 2, reason: 'code two marks a service fault');
       expect(result.err, contains('cursor'));
     });
   });
@@ -1324,7 +1324,11 @@ void main() {
         '--replacement=${bad.path}',
       ]);
 
-      expect(result.code, 1, reason: 'the operator can fix this, not a fault');
+      expect(
+        result.code,
+        1,
+        reason: 'code one marks an operator-fixable error',
+      );
       expect(result.err, contains('randomizedUnitSelection'));
       expect(result.err, isNot(contains('The service returned')));
       expect(result.methods, isEmpty, reason: 'nothing may reach the wire');

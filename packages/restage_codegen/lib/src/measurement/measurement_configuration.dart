@@ -154,9 +154,9 @@ final class _MeasurementConfigurationVisitor extends RecursiveAstVisitor<void> {
 
   void _collectSetting(InvocationExpression node) {
     final arguments = node.argumentList.arguments
-        .whereType<NamedExpression>()
+        .whereType<NamedArgument>()
         .where(
-          (argument) => argument.name.label.name == _measurementEnabledName,
+          (argument) => argument.name.lexeme == _measurementEnabledName,
         )
         .toList(growable: false);
     final location = _location(node);
@@ -172,8 +172,9 @@ final class _MeasurementConfigurationVisitor extends RecursiveAstVisitor<void> {
       return;
     }
 
-    final enabled =
-        arguments.isEmpty ? true : _readBoolean(arguments.single.expression);
+    final enabled = arguments.isEmpty
+        ? true
+        : _readBoolean(arguments.single.argumentExpression);
     if (enabled == null) {
       issues.add(
         Issue(

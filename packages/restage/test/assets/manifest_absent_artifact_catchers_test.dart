@@ -44,7 +44,7 @@ void main() {
     expect(
       bundle.loadedKeys,
       isNot(contains('assets/paywalls/pro_upgrade.rfw')),
-      reason: 'these cases must run on the skip path, not the delegate path',
+      reason: 'these cases must run on the skip path',
     );
   });
 

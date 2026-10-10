@@ -1,6 +1,5 @@
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -305,7 +304,7 @@ Future<({String? code, String? problem})> _mountDefaultExpression(
   for (final declaration in resolved.defaultDeclarations) {
     final node = await astNodeFor(declaration.firstFragment);
     final expression =
-        node is DefaultFormalParameter ? node.defaultValue : null;
+        node is FormalParameter ? node.defaultClause?.value : null;
     if (expression == null) continue;
     final contents = declaration.firstFragment.libraryFragment?.source.contents;
     if (contents == null || expression.end > contents.data.length) {
@@ -543,7 +542,6 @@ Element _referencedDefaultElement(Element element) =>
 bool _isSelectorName(SimpleIdentifier identifier) =>
     switch (identifier.parent) {
       ConstructorName(:final name) when identical(name, identifier) => true,
-      Label(:final label) when identical(label, identifier) => true,
       MethodInvocation(:final methodName)
           when identical(methodName, identifier) =>
         true,
@@ -563,11 +561,7 @@ Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
   Future<AstNode?> Function(Fragment fragment) astNodeFor,
 ) async {
   final node = await astNodeFor(parameter.firstFragment);
-  final formal = switch (node) {
-    DefaultFormalParameter(:final parameter) => parameter,
-    NormalFormalParameter() => node,
-    _ => null,
-  };
+  final formal = node is FormalParameter ? node : null;
   if (formal == null) {
     return (
       code: namespace.typeCode(effectiveType),
@@ -596,58 +590,28 @@ Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
 }
 
 /// The authored type spelling of [formal], or null when it has none.
-String? _formalTypeCode(NormalFormalParameter formal) => switch (formal) {
-      SimpleFormalParameter(:final type) => type?.toSource(),
-      FieldFormalParameter(:final type, parameters: null) => type?.toSource(),
-      SuperFormalParameter(:final type, parameters: null) => type?.toSource(),
-      FieldFormalParameter() ||
-      SuperFormalParameter() ||
-      FunctionTypedFormalParameter() =>
-        _functionFormalType(formal),
-    };
+String? _formalTypeCode(FormalParameter formal) =>
+    formal.functionTypedSuffix == null
+        ? formal.type?.toSource()
+        : _functionFormalType(formal);
 
 /// Renders an old-style function-typed formal as a function type. Parameter
 /// modifiers, metadata and defaults are declaration-only and are dropped.
-String _functionFormalType(NormalFormalParameter formal) {
-  final (
-    TypeAnnotation? returnType,
-    TypeParameterList? typeParameters,
-    FormalParameterList parameters,
-    Token? question,
-  ) = switch (formal) {
-    FunctionTypedFormalParameter(
-      :final returnType,
-      :final typeParameters,
-      :final parameters,
-      :final question,
-    ) =>
-      (returnType, typeParameters, parameters, question),
-    FieldFormalParameter(
-      :final type,
-      :final typeParameters,
-      :final parameters!,
-      :final question,
-    ) =>
-      (type, typeParameters, parameters, question),
-    SuperFormalParameter(
-      :final type,
-      :final typeParameters,
-      :final parameters!,
-      :final question,
-    ) =>
-      (type, typeParameters, parameters, question),
-    _ => throw StateError('Expected a function-typed parameter.'),
-  };
+String _functionFormalType(FormalParameter formal) {
+  final suffix = formal.functionTypedSuffix;
+  if (suffix == null) {
+    throw StateError('Expected a function-typed parameter.');
+  }
+  final returnType = formal.type;
+  final typeParameters = suffix.typeParameters;
+  final parameters = suffix.formalParameters;
+  final question = suffix.question;
   final requiredPositional = <String>[];
   final optionalPositional = <String>[];
   final named = <String>[];
   for (final parameter in parameters.parameters) {
-    final normal = switch (parameter) {
-      DefaultFormalParameter(:final parameter) => parameter,
-      NormalFormalParameter() => parameter,
-    };
-    final type = _formalTypeCode(normal) ?? 'dynamic';
-    final name = normal.name?.lexeme;
+    final type = _formalTypeCode(parameter) ?? 'dynamic';
+    final name = parameter.name?.lexeme;
     final source = name == null ? type : '$type $name';
     if (parameter.isNamed) {
       named.add('${parameter.isRequiredNamed ? 'required ' : ''}$source');

@@ -126,9 +126,9 @@ void main() {
     final children = (expression as MethodInvocation)
         .argumentList
         .arguments
-        .whereType<NamedExpression>()
+        .whereType<NamedArgument>()
         .single
-        .expression as ListLiteral;
+        .argumentExpression as ListLiteral;
     expect(inspectTypedList(children), isA<CollectionTypedListElement>());
     final result = _widgetTranslator(HelperRegistry()).translate(expression);
 
@@ -2739,9 +2739,9 @@ CollectionElement _singleCollectionElement(Expression expression) {
 ListLiteral _childrenList(Expression expression) {
   final construction = expression as InstanceCreationExpression;
   final argument = construction.argumentList.arguments
-      .whereType<NamedExpression>()
-      .singleWhere((argument) => argument.name.label.name == 'children');
-  return argument.expression as ListLiteral;
+      .whereType<NamedArgument>()
+      .singleWhere((argument) => argument.name.lexeme == 'children');
+  return argument.argumentExpression as ListLiteral;
 }
 
 Future<_ResolvedBuildProbe> _mixedReceiverProbe() =>
