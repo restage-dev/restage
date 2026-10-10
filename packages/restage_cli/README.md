@@ -52,7 +52,7 @@ restage envs
 restage targets
 
 # List and push the surfaces the build generated.
-restage surface list --all
+restage surface list
 restage surface push <id>
 restage surface push lib/screens/welcome.dart
 restage surface push lib/screens/onboarding.dart --all
@@ -85,6 +85,7 @@ restage slots set <name> --entitlement <e> --ios-product-id <id> --android-produ
 restage stores list
 restage keys list
 restage keys revoke <id>
+restage keys resolve <key>
 
 # Decide which published version each request receives (beta).
 restage surface routing --help
@@ -105,7 +106,8 @@ restage console
 restage doctor
 ```
 
-`init` and `doctor` work offline. `login` and the other commands talk to
+`init` works offline. `doctor` also checks `restage_config.yaml` against the
+server when you are signed in. `login` and the other commands talk to
 Restage Cloud, or to the backend URL you configure.
 
 `surface kill` turns a surface off in an environment, so apps fall back to
@@ -116,7 +118,9 @@ views, steps, drop-off, and completions per published version.
 In the console, `p` pushes the selected surface and `l` publishes its latest
 pushed revision after asking for a reason. On the live plane, kill, publish,
 freeze, and unfreeze also ask you to type `confirm`; rollback always does. Type `/` and then any command, such as
-`restage surface history welcome`, to run it there and read its output.
+`restage surface history welcome`, to run it there and read its output. Pushes,
+publishes and other actions show their full output there too, with next steps
+written as console commands.
 
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts. A required value with no default then exits non-zero with a
@@ -169,6 +173,14 @@ revision is live.
 
 `restage paywall push <name>` still works for a `@Paywall` surface. New scripts
 should use `restage surface push` for every surface type.
+
+A push of a surface with measurement writes the app's measurement profile to
+`assets/restage/measurement/target-profile.v1.json` and names it in the
+output. The app ships it only when `pubspec.yaml` lists it under
+`flutter.assets`. The CLI leaves `pubspec.yaml` alone and tells you when the
+line is missing; pass `--declare-assets`, or set `declareAssets: true` in
+`restage_config.yaml`, to have it added with your comments kept. The console's
+push uses the same setting and shows the full output of a push or a build.
 
 ### Release receipts
 
@@ -243,8 +255,12 @@ restage build push               # your personal build
 restage build push --env staging # the build for an environment
 ```
 
-Each app has one build per environment plus one personal build per user.
-Moving an environment's build needs an admin account or an API key. The
+Each app has one build per environment plus one personal build per user. A
+personal build shows only in your own dashboard preview. An environment's build
+is what everyone in your organization sees. The preview opens on the
+environment's build when it has every widget the surface uses, and on your
+personal build otherwise; the build menu above the preview switches between
+them. Moving an environment's build needs an admin account or an API key. The
 command builds twice, checks that both builds are identical, and uploads only
 the files the service does not already have:
 
@@ -256,9 +272,23 @@ Pushed mobile staging version 4. Moved 3 of 41 app files. Built from a91f2c3.
 build from what the last run produced. `--record-git` writes a release receipt
 for the build.
 
+The build uses the Flutter your app uses, whatever version it is. The CLI
+takes the SDK from `--flutter-root`, then `flutterRoot` in
+`restage_config.yaml` (relative to that file), then the project's FVM link or
+the version its `.fvmrc` or `.flutter-version` names in the FVM cache, then
+`FLUTTER_ROOT`, then `PATH`. The push prints which Flutter it used and where
+it found it:
+
+```
+Building with Flutter 3.44.8 at /Users/me/fvm/versions/3.44.8 (.fvmrc at /Users/me/app).
+```
+
 When you push a surface that uses your app's widgets and the environment has no
 build that includes them, the CLI tells you which command to run.
-`restage surface push welcome --build` pushes the build first.
+`restage surface push welcome --build` pushes the environment's build first.
+The build only feeds dashboard previews: devices render surfaces with the
+widgets compiled into the app. So a build that fails does not stop the
+surfaces; the push reports the failure and exits non-zero.
 
 For CI, set `RESTAGE_API_KEY` to a secret key with the bundle-push scope. A key
 belongs to one organization, app, and environment, so give each environment

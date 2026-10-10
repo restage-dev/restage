@@ -1,9 +1,20 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/restage_tui.dart';
+
+/// Run the console with its own wording for commands it names.
+Future<int> runConsole(
+  ConsoleLauncher launcher,
+  ConsoleController controller,
+) => runZoned(
+  () => launcher(controller),
+  zoneValues: selectorSyntaxZoneValues(SelectorSyntax.console),
+);
 
 class ConsoleCommand extends Command<int> {
   ConsoleCommand({
@@ -36,7 +47,8 @@ class ConsoleCommand extends Command<int> {
       usageException('console requires an interactive terminal');
     }
     final directory = argResults?['directory'] as String?;
-    return _launcher(
+    return runConsole(
+      _launcher,
       _controllerFactory(directory == null ? null : Directory(directory)),
     );
   }

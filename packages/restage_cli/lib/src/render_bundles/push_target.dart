@@ -1,4 +1,26 @@
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+/// A build push that moves the caller's own head.
+const pushPersonalBuildFollowUp = FollowUp('build push', 'restage_push_build', [
+  FollowUpArg('personal', null, flag: 'personal'),
+]);
+
+/// Why a key cannot push to a personal head, and what to do instead.
+String keyHasNoPersonalHeadSentence() {
+  final syntax = currentSelectorSyntax;
+  return 'A key moves the head of the environment it is bound to, so it has '
+      'no personal head to push to. To push to your own head, sign in, then '
+      '${syntax.run.toLowerCase()} '
+      '${syntax.command(pushPersonalBuildFollowUp)}.';
+}
+
+/// A build push that moves [environment]'s head.
+FollowUp pushBuildFollowUp(String environment) => FollowUp(
+  'build push',
+  'restage_push_build',
+  [FollowUpArg('environmentSlug', environment, flag: 'env')],
+);
 
 /// Where a push points the app's renderer.
 ///
@@ -47,19 +69,19 @@ resolveBundlePushTarget({
   if (environment != null && personal) {
     return (
       target: null,
-      refusal: const BundlePushTargetRefusal(
-        'Name one target: --env <slug> for an environment head, or '
-        '--personal for your own.',
+      refusal: BundlePushTargetRefusal(
+        'Name one target: '
+        '${currentSelectorSyntax.command(pushBuildFollowUp('<slug>'))} for an '
+        'environment head, or '
+        '${currentSelectorSyntax.command(pushPersonalBuildFollowUp)} for your '
+        'own.',
       ),
     );
   }
   if (personal && withKey) {
     return (
       target: null,
-      refusal: const BundlePushTargetRefusal(
-        'A key moves the head of the environment it is bound to, so it has no '
-        'personal head to push to. Drop --personal, or sign in.',
-      ),
+      refusal: BundlePushTargetRefusal(keyHasNoPersonalHeadSentence()),
     );
   }
   if (environment != null && !isValidRenderBundleEnvironmentSlug(environment)) {

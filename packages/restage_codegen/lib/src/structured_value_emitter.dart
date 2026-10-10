@@ -3,25 +3,15 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// The synthetic value sentinel emitted for an asymmetric `BorderRadius`
-/// (`.only` / `.vertical` / `.horizontal`). The host property-emit recognises
-/// this prefix and splices the `key: value` corner list onto the per-corner
-/// catalog slots; the recognition itself stays widget-agnostic. Mirrors the
-/// `__rfw_interp(...)` Text-interpolation sentinel precedent.
-const String _kBorderRadiusSentinelPrefix = '__rfw_border_radius_corners(';
+const String _kBorderRadiusSentinelPrefix = kBorderRadiusCornerSentinel;
 
-/// Canonical corner emission order for the per-corner sentinel.
-const List<String> _kBorderRadiusCornerOrder = [
-  'topLeft',
-  'topRight',
-  'bottomLeft',
-  'bottomRight',
-];
+const List<String> _kBorderRadiusCornerOrder = kBorderRadiusCornerOrder;
 
 /// Emits RFW DSL fragments for structured Flutter value types.
 /// Host translation primitives are injected; the emitter owns no walk state.
@@ -445,6 +435,11 @@ final class StructuredValueEmitter {
   /// look-alike defers either way (a value-substitution the floor can't catch).
   String? _radiusCircularScalar(Expression radiusExpr) {
     final stripped = _stripParens(radiusExpr);
+    final constValue = frameworkStaticConst(stripped);
+    if (constValue != null) {
+      final encoded = encodeFrameworkConst(constValue);
+      return encoded?.kind == FrameworkConstKind.radius ? encoded!.dsl : null;
+    }
     final String className;
     final String? ctorName;
     final List<Argument> arguments;
@@ -844,10 +839,13 @@ final class StructuredValueEmitter {
               'side: ${_borderSideExpression(a.argumentExpression, issues)}');
         case 'borderRadius':
           if (supportsBorderRadius) {
-            parts.add(
-              'borderRadius: '
-              '${_translateDoubleScalar(a.argumentExpression, issues)}',
-            );
+            final constValue = frameworkStaticConst(a.argumentExpression);
+            final encoded =
+                constValue == null ? null : encodeFrameworkConst(constValue);
+            final radius = encoded?.kind == FrameworkConstKind.borderRadius
+                ? encoded!.dsl
+                : _translateDoubleScalar(a.argumentExpression, issues);
+            parts.add('borderRadius: ${borderRadiusCornersAsMap(radius)}');
           } else {
             _unknownNamedArg(wireType, name, supported, issues, loc);
           }
@@ -1536,6 +1534,12 @@ final class StructuredValueEmitter {
     // This helper dispatches on the raw expression's shape with no fallback,
     // so a bound name or const chain is resolved through before dispatching.
     final expr = _resolveAlignmentSource(rawExpr);
+    final constValue = frameworkStaticConst(expr);
+    final encoded =
+        constValue == null ? null : encodeFrameworkConst(constValue);
+    if (encoded != null && encoded.kind == FrameworkConstKind.alignment) {
+      return encoded.dsl;
+    }
     if (expr is PrefixedIdentifier && expr.prefix.name == 'Alignment') {
       // Nested name-only gate: an `Alignment.<member>` argument inside a real
       // framework gradient is lowered against a hard-coded coordinate table by

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:restage/restage.dart'
-    show kReservedPreviewConstructorName, kReservedPreviewLibraryName;
+import 'package:restage_shared/restage_shared.dart'
+    show hostInstalledRfwLibrary, kReservedPreviewConstructorName;
 
 import 'wire_json.dart';
 
@@ -87,10 +87,9 @@ void _validateCatalogIndexes(Map<String, Object?> catalog) {
     if (entry.key.trim().isEmpty) {
       throw const FormatException('library names must not be empty.');
     }
-    if (entry.key == kReservedPreviewLibraryName) {
+    if (hostInstalledRfwLibrary(entry.key) != null) {
       throw FormatException(
-        'library "$kReservedPreviewLibraryName" is reserved for internal '
-        'preview instrumentation.',
+        'library "${entry.key}" is installed by the render host.',
       );
     }
     final library = _asStringMap(entry.value, 'library ${entry.key}');

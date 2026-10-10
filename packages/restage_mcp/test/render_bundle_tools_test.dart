@@ -78,6 +78,14 @@ void main() {
       tools['restage_push_build']!.inputSchema.properties,
       contains('recordGit'),
     );
+    expect(
+      tools['restage_push_build']!.inputSchema.properties,
+      contains('flutterRoot'),
+    );
+    expect(
+      tools['restage_push_build']!.inputSchema.properties,
+      contains('personal'),
+    );
   });
 
   test('list_builds reads each head as the server sends it', () async {
@@ -171,8 +179,11 @@ void main() {
     expect(
       result.structuredContent!['buildNotice'],
       'This surface uses widgets from your app (acme.widgets). The dashboard '
-      'has no build of mobile for staging yet, so it cannot display them; '
-      'run `restage build push --env staging`.',
+      'has no build of mobile for staging yet. Call restage_push_build to '
+      'see them in your own dashboard preview; restage_push_build with '
+      'environmentSlug: staging updates what everyone sees. This affects '
+      'dashboard previews only: devices draw these widgets from the app '
+      'installed on them.',
     );
   });
 
@@ -215,6 +226,33 @@ void main() {
     expect(result.structuredContent, isNot(contains('buildNotice')));
   });
 
+  test('push_build pushes to the caller\'s own head with personal', () async {
+    List<String>? seenArgs;
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient((_) async => http.Response('null', 200)),
+      cliRunner:
+          (
+            List<String> args, {
+            required StringSink stdout,
+            required StringSink stderr,
+          }) async {
+            seenArgs = args;
+            return 0;
+          },
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_push_build',
+        arguments: {'projectDirectory': '/work/app', 'personal': true},
+      ),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(seenArgs, ['build', 'push', '-C', '/work/app', '--personal']);
+  });
+
   test('push_build runs the build push with the arguments given', () async {
     List<String>? seenArgs;
     final connection = await connectServer(
@@ -241,6 +279,7 @@ void main() {
           'projectDirectory': '/work/app',
           'environmentSlug': 'staging',
           'recordGit': true,
+          'flutterRoot': '/opt/flutter',
         },
       ),
     );
@@ -254,6 +293,8 @@ void main() {
       '--env',
       'staging',
       '--record-git',
+      '--flutter-root',
+      '/opt/flutter',
     ]);
     expect(result.structuredContent!['exitCode'], 0);
     expect(

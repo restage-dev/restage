@@ -12,7 +12,7 @@ import '../helpers.dart';
 /// The generated flow-reference declaration, matched across the line wrap
 /// Measurement introduces by lengthening the constructor.
 final _constFirstRunFlowRef =
-    RegExp(r'const firstRunFlowRef = SurfaceFlowRef<\s*FirstRunResult>');
+    RegExp(r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>');
 
 void main() {
   test('public README documents the current asset-backed flow API', () {
@@ -361,8 +361,12 @@ final class NotificationResult {
             'requestNotifications'),
         contains('final Map<String, FlowActionBinding<dynamic, dynamic>> '
             'flowActionBindings;'),
-        contains("'requestNotifications': "
-            'FlowActionBinding<void, NotificationResult>('),
+        matches(
+          RegExp(
+            r"'requestNotifications':\s*"
+            r'FlowActionBinding<void, NotificationResult>\(',
+          ),
+        ),
         contains("actionName: 'requestNotifications'"),
         contains('contractVersion: 1'),
         contains('argsSchema: const FlowActionSchema.object({})'),

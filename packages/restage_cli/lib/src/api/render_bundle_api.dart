@@ -166,7 +166,6 @@ final class RenderBundlePushOutcome {
     required this.reactivated,
     required this.appFilesSent,
     required this.appFilesHeld,
-    required this.engineFilesSent,
   });
 
   /// The version this push selected.
@@ -192,9 +191,6 @@ final class RenderBundlePushOutcome {
 
   /// App files the server already held.
   final int appFilesHeld;
-
-  /// Engine files this push seeded.
-  final int engineFilesSent;
 }
 
 /// Why a version cannot be evicted to make room for a push.
@@ -265,6 +261,7 @@ final class RenderBundleHeadDiscovery {
     required this.libraries,
     required this.updatedAt,
     this.ownerDisplayName,
+    this.ownerUserInfoId,
     this.sourceCommit,
     this.sourceDirty = false,
   });
@@ -284,6 +281,9 @@ final class RenderBundleHeadDiscovery {
 
   /// Whose head it is, for a personal head.
   final String? ownerDisplayName;
+
+  /// The owner's user id, for a personal head.
+  final int? ownerUserInfoId;
 
   /// The commit the version was built from, when the push knew it.
   final String? sourceCommit;
@@ -401,7 +401,6 @@ final class RenderBundleApi {
     // A round that runs again sends the same bytes again, so the figures
     // count what moved, by hash and by path.
     final appHashesSent = <String>{};
-    final enginePathsSent = <String>{};
     while (true) {
       round++;
       final ticket = await _prepare(
@@ -424,19 +423,6 @@ final class RenderBundleApi {
           field: 'contentHash',
         ),
       );
-      enginePathsSent.addAll(
-        await _sendMissing(
-          ticket: ticket,
-          uri: ticket.engineUploadUrl,
-          bodies: <String, Uint8List>{
-            for (final path in ticket.missingEnginePaths)
-              path:
-                  artifact.engineFiles[path] ??
-                  (throw const RenderBundleUploadException()),
-          },
-          field: 'path',
-        ),
-      );
       final result = await _commit(ticket.uploadToken, manifest);
       if (result != null) {
         return RenderBundlePushOutcome(
@@ -452,7 +438,6 @@ final class RenderBundleApi {
           appFilesHeld: manifest
               .where((entry) => !appHashesSent.contains(entry['contentHash']))
               .length,
-          engineFilesSent: enginePathsSent.length,
         );
       }
       // A cleanup pass or an eviction removed a blob between the two calls.
@@ -478,7 +463,7 @@ final class RenderBundleApi {
         'appSlug': app,
         'environment': ?target.environment,
         'personal': target.personal,
-        'engineSetId': artifact.engineSetId,
+        'engineSet': artifact.engineSet.canonicalForm,
         'manifest': manifest,
         'provenance': <String, Object?>{
           'sourceCommit': ?source.commit,
@@ -837,6 +822,7 @@ RenderBundleHeadDiscovery _readHead(Object? item, {required Set<String> seen}) {
   final head = item['head'];
   final versionView = item['version'];
   final owner = item['ownerDisplayName'];
+  final ownerId = item['ownerUserInfoId'];
   final updatedAtSource = item['updatedAt'];
   final updatedAt = updatedAtSource is String
       ? DateTime.tryParse(updatedAtSource)
@@ -862,6 +848,7 @@ RenderBundleHeadDiscovery _readHead(Object? item, {required Set<String> seen}) {
       (sourceCommit != null && !_isCommitText(sourceCommit)) ||
       sourceDirty is! bool ||
       (owner != null && owner is! String) ||
+      (ownerId != null && ownerId is! int) ||
       updatedAt == null ||
       !updatedAt.isUtc) {
     throw const RenderBundleUploadException();
@@ -872,6 +859,7 @@ RenderBundleHeadDiscovery _readHead(Object? item, {required Set<String> seen}) {
     libraries: libraries,
     updatedAt: updatedAt,
     ownerDisplayName: owner as String?,
+    ownerUserInfoId: ownerId as int?,
     sourceCommit: sourceCommit as String?,
     sourceDirty: sourceDirty,
   );
@@ -951,9 +939,7 @@ final class _UploadTicket {
     required this.uploadToken,
     required this.headReference,
     required this.blobUploadUrl,
-    required this.engineUploadUrl,
     required this.missingContentHashes,
-    required this.missingEnginePaths,
     required this.uploadConcurrency,
     required this.maxFileTransferBytes,
   });
@@ -963,32 +949,26 @@ final class _UploadTicket {
     final uploadToken = raw['uploadToken'];
     final headReference = raw['headReference'];
     final blobUploadUrl = raw['blobUploadUrl'];
-    final engineUploadUrl = raw['engineUploadUrl'];
     final uploadConcurrency = raw['uploadConcurrency'];
     final maxFileTransferBytes = raw['maxFileTransferBytes'];
     final hashes = _stringList(raw['missingContentHashes']);
-    final paths = _stringList(raw['missingEnginePaths']);
     if (uploadToken is! String ||
         uploadToken.isEmpty ||
         headReference is! String ||
         !isValidRenderBundleHead(headReference) ||
         blobUploadUrl is! String ||
-        engineUploadUrl is! String ||
         uploadConcurrency is! int ||
         uploadConcurrency < 1 ||
         maxFileTransferBytes is! int ||
         maxFileTransferBytes < 1 ||
-        hashes == null ||
-        paths == null) {
+        hashes == null) {
       return null;
     }
     return _UploadTicket(
       uploadToken: uploadToken,
       headReference: headReference,
       blobUploadUrl: blobUploadUrl,
-      engineUploadUrl: engineUploadUrl,
       missingContentHashes: hashes,
-      missingEnginePaths: paths,
       uploadConcurrency: uploadConcurrency,
       maxFileTransferBytes: maxFileTransferBytes,
     );
@@ -997,9 +977,7 @@ final class _UploadTicket {
   final String uploadToken;
   final String headReference;
   final String blobUploadUrl;
-  final String engineUploadUrl;
   final List<String> missingContentHashes;
-  final List<String> missingEnginePaths;
   final int uploadConcurrency;
   final int maxFileTransferBytes;
 }

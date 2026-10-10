@@ -91,6 +91,7 @@ final class SurfacePublicationAssemblyInput {
     Iterable<String> sources = const <String>[],
     this.flowFacts,
     this.screenContractFacts,
+    this.mountName,
   })  : artifacts = List.unmodifiable(artifacts),
         // Ordered by the same rule as every other generated-path list in
         // this manifest family, so `sources` cannot be the one member whose
@@ -116,6 +117,25 @@ final class SurfacePublicationAssemblyInput {
 
   final SurfacePublicationFlowFacts? flowFacts;
   final SurfacePublicationScreenContractFacts? screenContractFacts;
+
+  /// The generated widget that mounts this publication, when one is emitted.
+  final String? mountName;
+
+  /// This input with [artifacts] in place of its own, every other fact kept.
+  SurfacePublicationAssemblyInput withArtifacts(
+    Iterable<SurfacePublicationArtifactInput> artifacts,
+  ) =>
+      SurfacePublicationAssemblyInput(
+        surface: surface,
+        slug: slug,
+        sourceKind: sourceKind,
+        payloadKind: payloadKind,
+        artifacts: artifacts,
+        sources: sources,
+        flowFacts: flowFacts,
+        screenContractFacts: screenContractFacts,
+        mountName: mountName,
+      );
 }
 
 /// The strict, canonical result of publication assembly.
@@ -434,6 +454,7 @@ abstract final class SurfacePublicationManifestAssembler {
       contractFingerprint: contractFacts?.contractFingerprint,
       hostDataContract: contractFacts?.publishedHostDataContract,
       hostDataContractHash: contractFacts?.hostDataContractHash,
+      mountName: input.mountName,
     );
 
     artifacts.sort(_compareArtifacts);

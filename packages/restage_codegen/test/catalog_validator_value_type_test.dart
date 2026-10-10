@@ -126,6 +126,22 @@ void main() {
       expect(validate(dsl), isNotEmpty);
     });
 
+    test('an issue location starts at the authored class name', () {
+      final library = parseLibraryFile(
+        '''
+        import restage.core;
+        widget OnboardingScreen = Container(alignment: "center");
+        ''',
+        sourceIdentifier: 'test',
+      );
+      final issues = validateModelAgainstCatalog(
+        library,
+        catalog,
+        rootLabels: {'OnboardingScreen': 'WelcomeMessage'},
+      );
+      expect(issues.single.location, 'WelcomeMessage/Container');
+    });
+
     test('a number on a locale slot (locale: 42) diagnoses', () {
       // The `locale` decoder reads a bare BCP-47 string; a number is the
       // wrong type and would be silently nulled.

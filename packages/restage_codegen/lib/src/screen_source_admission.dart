@@ -6,6 +6,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
@@ -82,7 +83,7 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
   final visitorResult = await visitOnboardingSources(library, assetId);
   final issues = <Issue>[...visitorResult.issues];
 
-  final resolved = await library.session.getResolvedLibraryByElement(library);
+  final resolved = await resolveLibraryInLongForm(library);
   final resolvedLibrary = resolved is ResolvedLibraryResult ? resolved : null;
   if (resolvedLibrary != null && resolvedLibrary.units.isNotEmpty) {
     issues.addAll(

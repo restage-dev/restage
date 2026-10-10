@@ -15,6 +15,7 @@ import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
@@ -599,7 +600,7 @@ Future<AstNode?> _initializerFor(
   TopLevelVariableElement variable,
   LibraryElement library,
 ) async {
-  final resolved = await library.session.getResolvedLibraryByElement(library);
+  final resolved = await resolveLibraryInLongForm(library);
   if (resolved is! ResolvedLibraryResult) return null;
   final node = resolved.getFragmentDeclaration(variable.firstFragment)?.node;
   return node is VariableDeclaration ? node.initializer : null;
@@ -875,70 +876,8 @@ final class _FlowDefinitionGraphParser {
       return false;
     }
     try {
-      for (final entry in expression.elements) {
-        if (entry is! MapLiteralEntry)
-          throw ArgumentError(
-              'Answer declarations cannot use spreads or control flow');
-        final question = _stringExpression(entry.key);
-        final creation = entry.value;
-        if (question == null ||
-            !survey.fields.containsKey(question) ||
-            creation is! InstanceCreationExpression ||
-            !_isRestageCreation(creation, 'FlowAnswerMeasurement')) {
-          throw ArgumentError(
-              'Measured questions must select an existing surveyAnswers key and FlowAnswerMeasurement');
-        }
-        String text(String name) =>
-            _stringExpression(_named(creation, name)) ??
-            (throw ArgumentError('$name must be a literal string'));
-        final json = <String, Object?>{
-          'questionId': question,
-          'outcomeKey': text('outcomeKey'),
-          'propertyName': text('propertyName'),
-          'kind': creation.constructorName.name?.name
-        };
-        if (json['kind'] == 'category') {
-          final labels = _named(creation, 'categoryLabels');
-          if (labels is! SetOrMapLiteral || !labels.isMap)
-            throw ArgumentError('Category labels must be a literal map');
-          final map = <String, String>{};
-          for (final label in labels.elements) {
-            if (label is! MapLiteralEntry)
-              throw ArgumentError(
-                  'Category labels cannot use spreads or control flow');
-            final key = _stringExpression(label.key);
-            final value = _stringExpression(label.value);
-            if (key == null || value == null || map.containsKey(key))
-              throw ArgumentError(
-                  'Categories need distinct literal values and labels');
-            map[key] = value;
-          }
-          json['categoryLabels'] = map;
-        } else {
-          json['minimum'] = text('minimum');
-          json['maximum'] = text('maximum');
-          if (json['kind'] == 'scaledDecimal') {
-            final scale = _named(creation, 'scale');
-            if (scale is! IntegerLiteral)
-              throw ArgumentError('Answer scale must be a literal integer');
-            json['scale'] = scale.value;
-            json['unit'] = text('unit');
-          }
-        }
-        if (_measurementAnswers.containsKey(question))
-          throw ArgumentError('Measured question declared twice');
-        final declaration = MeasurementDeclaredAnswerV1.fromJson(json);
-        final sourceType = survey.fields[question]!.type;
-        if ((declaration.kind == MeasurementAnswerKindV1.category &&
-                sourceType != FlowDataType.string) ||
-            (declaration.kind != MeasurementAnswerKindV1.category &&
-                sourceType != FlowDataType.string &&
-                sourceType != FlowDataType.int)) {
-          throw ArgumentError(
-              'Declared answer kind does not match its typed state source');
-        }
-        _measurementAnswers[question] = declaration;
-      }
+      _measurementAnswers
+          .addAll(parseFlowMeasurementAnswers(expression, survey));
       return true;
     } on Object catch (error) {
       _issue(IssueCode.buildMethodTooComplex,
@@ -2412,6 +2351,90 @@ final class _ChildFlow {
   final String referenceName;
 }
 
+/// The answers a flow declares for measurement, keyed by a question in
+/// [survey]. Throws on a declaration it cannot read.
+Map<String, MeasurementDeclaredAnswerV1> parseFlowMeasurementAnswers(
+  Expression? expression,
+  FlowOutboundPayloadDeclaration survey,
+) {
+  final answers = <String, MeasurementDeclaredAnswerV1>{};
+  if (expression == null) return answers;
+  if (expression is! SetOrMapLiteral || !expression.isMap) {
+    throw ArgumentError('measurementAnswers must be a literal question map.');
+  }
+  for (final entry in expression.elements) {
+    if (entry is! MapLiteralEntry) {
+      throw ArgumentError(
+          'Answer declarations cannot use spreads or control flow');
+    }
+    final question = _stringExpression(entry.key);
+    final creation = entry.value;
+    if (question == null ||
+        !survey.fields.containsKey(question) ||
+        creation is! InstanceCreationExpression ||
+        !_isRestageCreation(creation, 'FlowAnswerMeasurement')) {
+      throw ArgumentError(
+          'Measured questions must select an existing surveyAnswers key and FlowAnswerMeasurement');
+    }
+    String text(String name) =>
+        _stringExpression(_named(creation, name)) ??
+        (throw ArgumentError('$name must be a literal string'));
+    final json = <String, Object?>{
+      'questionId': question,
+      'outcomeKey': text('outcomeKey'),
+      'propertyName': text('propertyName'),
+      'kind': creation.constructorName.name?.name
+    };
+    if (json['kind'] == 'category') {
+      final labels = _named(creation, 'categoryLabels');
+      if (labels is! SetOrMapLiteral || !labels.isMap) {
+        throw ArgumentError('Category labels must be a literal map');
+      }
+      final map = <String, String>{};
+      for (final label in labels.elements) {
+        if (label is! MapLiteralEntry) {
+          throw ArgumentError(
+              'Category labels cannot use spreads or control flow');
+        }
+        final key = _stringExpression(label.key);
+        final value = _stringExpression(label.value);
+        if (key == null || value == null || map.containsKey(key)) {
+          throw ArgumentError(
+              'Categories need distinct literal values and labels');
+        }
+        map[key] = value;
+      }
+      json['categoryLabels'] = map;
+    } else {
+      json['minimum'] = text('minimum');
+      json['maximum'] = text('maximum');
+      if (json['kind'] == 'scaledDecimal') {
+        final scale = _named(creation, 'scale');
+        if (scale is! IntegerLiteral) {
+          throw ArgumentError('Answer scale must be a literal integer');
+        }
+        json['scale'] = scale.value;
+        json['unit'] = text('unit');
+      }
+    }
+    if (answers.containsKey(question)) {
+      throw ArgumentError('Measured question declared twice');
+    }
+    final declaration = MeasurementDeclaredAnswerV1.fromJson(json);
+    final sourceType = survey.fields[question]!.type;
+    if ((declaration.kind == MeasurementAnswerKindV1.category &&
+            sourceType != FlowDataType.string) ||
+        (declaration.kind != MeasurementAnswerKindV1.category &&
+            sourceType != FlowDataType.string &&
+            sourceType != FlowDataType.int)) {
+      throw ArgumentError(
+          'Declared answer kind does not match its typed state source');
+    }
+    answers[question] = declaration;
+  }
+  return answers;
+}
+
 bool _isRestageCreation(
   InstanceCreationExpression expression,
   String typeName,
@@ -2714,7 +2737,7 @@ VariableElement? _referencedVariableElement(Expression? expression) {
 Future<AstNode?> _initializerForVariable(VariableElement variable) async {
   final library = variable.library;
   if (library == null) return null;
-  final resolved = await library.session.getResolvedLibraryByElement(library);
+  final resolved = await resolveLibraryInLongForm(library);
   if (resolved is! ResolvedLibraryResult) return null;
   final node = resolved.getFragmentDeclaration(variable.firstFragment)?.node;
   return node is VariableDeclaration ? node.initializer : null;

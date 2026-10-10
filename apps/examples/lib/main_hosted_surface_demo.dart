@@ -8,36 +8,37 @@ import 'package:restage_shared/restage_shared.dart';
 
 import 'user_factories.g.dart';
 
-/// Dev-only entrypoint that renders a paywall via **Restage-hosted delivery** —
-/// fetched through `RestageVariantResolver`, exactly as a production app would.
+/// Renders a published surface through Restage-hosted delivery, fetched by
+/// `RestageVariantResolver` as a production app would.
 ///
-/// Two modes, selected by `--dart-define`:
+/// Against a backend, name the surface and its type. Push and publish it
+/// first (`restage surface push <slug> --type paywall`, then
+/// `restage surface publish <slug> --type paywall`):
 ///
-///  - **Self-contained (default).** An in-app fake surface server packages the
-///    bundled `narrate_membership.rfw` into the surface-document envelope a Restage
-///    backend would serve and hands it back, so the hosted-delivery path runs
-///    end-to-end with no backend and no seed. Good for a quick local check / CI.
+///     flutter run -t lib/main_hosted_surface_demo.dart \
+///       --dart-define=RESTAGE_BASE_URL=https://your-backend.example \
+///       --dart-define=RESTAGE_API_KEY=rs_pk_... \
+///       --dart-define=RESTAGE_SURFACE=<slug> \
+///       --dart-define=RESTAGE_SURFACE_TYPE=paywall
 ///
-///        flutter run -t lib/main_hosted_paywall_demo.dart
+/// The key selects the organization, project, app and environment.
 ///
-///  - **Against a real backend (the device smoke).** Point the resolver at a
-///    live delivery origin with a publishable key. First push a real blob and
-///    make it live (`restage surface push narrate_membership --type paywall`,
-///    then `restage surface publish narrate_membership --type paywall`), then:
+/// Paywalls render by slug. Onboarding, message, survey and general surfaces
+/// render through the generated `<Stem>Surface` mount compiled into the app,
+/// so the published version must match a flow this app was built with.
 ///
-///        flutter run -t lib/main_hosted_paywall_demo.dart \
-///          --dart-define=RESTAGE_BASE_URL=https://your-backend.example \
-///          --dart-define=RESTAGE_API_KEY=rs_pk_live_...
-///
-/// Either way the screen rendering, fail-closed fallback, and analytics wiring
-/// are identical to the bundled-asset demo — only the delivery changes.
+/// With no base URL, an in-app fake server serves a bundled paywall
+/// (`RESTAGE_SURFACE`, default `narrate_membership`) with no backend.
 const _baseUrl = String.fromEnvironment('RESTAGE_BASE_URL');
-const _apiKey =
-    String.fromEnvironment('RESTAGE_API_KEY', defaultValue: 'rs_pk_demo');
-const _paywallId = 'narrate_membership';
+const _apiKey = String.fromEnvironment('RESTAGE_API_KEY');
+const _surfaceSlug = String.fromEnvironment('RESTAGE_SURFACE');
+const _surfaceType =
+    String.fromEnvironment('RESTAGE_SURFACE_TYPE', defaultValue: 'paywall');
 
-// A non-routable stand-in origin for the self-contained fake-server mode (the
-// real origin is supplied via --dart-define, never baked in).
+const _bundledPaywallId = 'narrate_membership';
+const _fakeApiKey = 'rs_pk_demo';
+
+// A non-routable stand-in origin for the self-contained fake-server mode.
 const _fakeBaseUrl = 'https://fake-surfaces.local';
 
 Future<void> main() async {
@@ -46,32 +47,65 @@ Future<void> main() async {
   // installs its own vocabulary.
   registerRestageWidgets();
 
+  final problem = hostedSurfaceConfigurationProblem(
+    baseUrl: _baseUrl,
+    apiKey: _apiKey,
+    surfaceSlug: _surfaceSlug,
+    surfaceType: _surfaceType,
+  );
+  if (problem != null) {
+    runApp(_MisconfiguredApp(problem));
+    return;
+  }
+
+  final String slug;
   if (_baseUrl.isEmpty) {
-    // Self-contained mode: serve the bundled paywall through an in-app fake
-    // server so the hosted path renders anywhere, with no real backend.
-    final envelope = await buildPaywallSurfaceEnvelope(_paywallId);
+    slug = _surfaceSlug.isEmpty ? _bundledPaywallId : _surfaceSlug;
+    final envelope = await buildPaywallSurfaceEnvelope(slug);
     Restage.configure(
-      apiKey: _apiKey,
+      apiKey: _fakeApiKey,
       baseUrl: _fakeBaseUrl,
       resolver: RestageVariantResolver(
-        apiKey: _apiKey,
+        apiKey: _fakeApiKey,
         environment: RestageEnvironment.sandbox,
         baseUrl: _fakeBaseUrl,
         httpClient: FakeSurfaceServer(envelope),
       ),
     );
   } else {
-    // Real hosted delivery: `configure` installs `RestageVariantResolver`
-    // wired to the configured base URL as the default — it fetches the active
-    // published version of the paywall from the backend.
-    Restage.configure(
-      apiKey: _apiKey,
-      baseUrl: _baseUrl,
-      environment: RestageEnvironment.production,
-    );
+    slug = _surfaceSlug;
+    // With a base URL and no resolver, `configure` installs
+    // `RestageVariantResolver`, which fetches the published version.
+    Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
   }
 
-  runApp(const _HostedPaywallDemoApp());
+  runApp(_HostedSurfaceDemoApp(slug: slug));
+}
+
+/// Why the given defines cannot render a surface, or null when they can.
+String? hostedSurfaceConfigurationProblem({
+  required String baseUrl,
+  required String apiKey,
+  required String surfaceSlug,
+  required String surfaceType,
+}) {
+  final Surface surface;
+  try {
+    surface = Surface.fromWireName(surfaceType);
+  } on FormatException {
+    final known = Surface.values.map((s) => s.wireName).join(', ');
+    return 'Unknown RESTAGE_SURFACE_TYPE "$surfaceType". Use one of: $known.';
+  }
+  if (surface != Surface.paywall) {
+    return 'A ${surface.wireName} surface renders through its generated '
+        'Surface mount, compiled into the app. This entrypoint renders '
+        'paywalls by slug.';
+  }
+  if (baseUrl.isNotEmpty && (apiKey.isEmpty || surfaceSlug.isEmpty)) {
+    return 'With RESTAGE_BASE_URL set, also set RESTAGE_API_KEY and '
+        'RESTAGE_SURFACE.';
+  }
+  return null;
 }
 
 /// Resolves the bundled paywall `.rfw` and re-packages it as the blob surface
@@ -94,17 +128,19 @@ Future<Uint8List> buildPaywallSurfaceEnvelope(String id) async {
   );
 }
 
-class _HostedPaywallDemoApp extends StatelessWidget {
-  const _HostedPaywallDemoApp();
+class _HostedSurfaceDemoApp extends StatelessWidget {
+  const _HostedSurfaceDemoApp({required this.slug});
+
+  final String slug;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Hosted paywall delivery',
+      title: 'Hosted surface delivery',
       theme: ThemeData.dark(useMaterial3: true),
       home: Scaffold(
         body: RestagePaywall(
-          id: _paywallId,
+          id: slug,
           onEvent: (event) => debugPrint('paywall event: ${event.toMap()}'),
           loadingBuilder: (context) =>
               const Center(child: CircularProgressIndicator()),
@@ -114,11 +150,31 @@ class _HostedPaywallDemoApp extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                'This paywall is unavailable right now.',
+                'Paywall "$slug" is unavailable right now.\n\n$error',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MisconfiguredApp extends StatelessWidget {
+  const _MisconfiguredApp(this.problem);
+
+  final String problem;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Text(problem, textAlign: TextAlign.center),
           ),
         ),
       ),
@@ -131,9 +187,7 @@ class _HostedPaywallDemoApp extends StatelessWidget {
 /// It serves the bundled `narrate_membership.rfw` through an in-app
 /// [FakeSurfaceServer] wrapped in a per-instance [RestageVariantResolver], so the
 /// over-the-air fetch path renders end to end without a backend and without
-/// touching the app-wide [Restage.configure] resolver. The standalone
-/// entrypoint above keeps the dual-mode (`--dart-define`) wiring for the device
-/// smoke; the gallery uses this self-contained widget.
+/// touching the app-wide [Restage.configure] resolver.
 class HostedPaywallDemo extends StatefulWidget {
   /// Creates the hosted-delivery demo surface.
   const HostedPaywallDemo({super.key});
@@ -152,9 +206,9 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
   }
 
   Future<RestageVariantResolver> _buildResolver() async {
-    final envelope = await buildPaywallSurfaceEnvelope(_paywallId);
+    final envelope = await buildPaywallSurfaceEnvelope(_bundledPaywallId);
     return RestageVariantResolver(
-      apiKey: _apiKey,
+      apiKey: _fakeApiKey,
       environment: RestageEnvironment.sandbox,
       baseUrl: _fakeBaseUrl,
       httpClient: FakeSurfaceServer(envelope),
@@ -187,7 +241,7 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
             return const Center(child: CircularProgressIndicator());
           }
           return RestagePaywall(
-            id: _paywallId,
+            id: _bundledPaywallId,
             // A per-instance resolver — the fake-server hosted path — so the
             // gallery's app-wide AssetVariantResolver is left untouched.
             resolver: snapshot.data,

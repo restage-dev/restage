@@ -119,9 +119,9 @@ command it matches.
 | `restage_login` | Sign in with the device-code flow (call once to start, again to finish). |
 | `restage_whoami` | Report the signed-in account. |
 | `restage_logout` | Sign out and remove the local session. |
-| `restage_status` | Report the account, endpoint, and the project a local `restage_config.yaml` points at. |
+| `restage_status` | Report the account, endpoint, and the project a local `restage_config.yaml` points at, and name any organization, project, app, or environment in it that does not exist. |
 | `restage_init` | Set up a Flutter project for Restage (`dryRun` shows the plan first). |
-| `restage_doctor` | Check a Flutter project for common setup issues. |
+| `restage_doctor` | Check a Flutter project for common setup issues, including a `restage_config.yaml` that names things that do not exist. |
 
 **Choosing a target**
 
@@ -164,7 +164,7 @@ rebuild (not `readinessOnly`). The CLI asks for the same changes; there,
 | `restage_surface_audit` | Show the audit timeline for one surface. |
 | `restage_read_surface_funnel` | Read one surface's funnel over a time window: views, steps, drop-off, and completions per published version. |
 | `restage_push_surface` | Push generated surfaces from a local Flutter project (by id or by `.dart` file). This does not make them live. |
-| `restage_publish_surface` | Publish a pushed revision so it serves (admin). Without `revision`, publishes the latest one pushed. |
+| `restage_publish_surface` | Publish a pushed revision so it serves (admin). Without `revision`, publishes the latest one pushed. `showInApp` says how to mount it in an app. |
 | `restage_push_surface_draft` | Push a surface's saved dashboard draft as a new revision (admin). This does not make it live. |
 | `restage_pull_surface_draft` | Download a surface's saved dashboard draft as base64. |
 | `restage_rollback_preflight` | Check whether a rollback is compatible with the apps already installed, without changing anything. |
@@ -192,6 +192,7 @@ Routing decides which published version each request receives.
 | `restage_list_routing_audiences` | List the audiences a routing rule can name. |
 | `restage_routing_audience_usage` | List the experiments and routing rules that use one audience. |
 | `restage_read_delivery_diagnostics` | Read one surface's delivery diagnostics for a date range: default versions served and requests the server refused. |
+| `restage_read_delivery_flow` | Who saw which version of a surface, by rule, experiment and everyone else. |
 
 **Builds and the widget catalog**
 
@@ -204,7 +205,7 @@ command that fixes it.
 | --- | --- |
 | `restage_list_builds` | List an app's builds (one per environment and one per user), with the version, the commit it was built from, and the widget libraries it includes. |
 | `restage_push_build` | Build the app's widgets and push the build: to an environment with `environmentSlug`, or to your own build without it. Runs a Flutter web build, so it can take minutes. |
-| `restage_push_catalog` | Upload the app's generated widget catalog. |
+| `restage_push_catalog` | Upload the app's generated widget catalog, which lists your own widgets in the dashboard editor's palette. Devices and previews do not need it. |
 
 **Discovery**
 
@@ -243,6 +244,7 @@ command that fixes it.
 | --- | --- |
 | `restage_list_api_keys` | List an environment's API keys (redacted: no hash or plaintext). |
 | `restage_revoke_api_key` | Revoke a key by id (admin). |
+| `restage_resolve_api_key` | Find the organization, project, app, environment, and plane a key belongs to. The key is matched locally against key prefixes and never sent. |
 
 > Neither this server nor the CLI creates API keys, because a new key's secret
 > is shown only once. Create keys in the dashboard.
@@ -251,7 +253,7 @@ command that fixes it.
 
 | Tool | What it does |
 | --- | --- |
-| `restage_audit_log` | The organization's server audit log. |
+| `restage_audit_log` | The organization's server audit log. Each row's `chain` is `pending`, `chained` (not yet reached by a verification run), or `verified`. |
 | `restage_audit_export` | The organization's compliance audit rows. |
 | `restage_audit_verdict` | Whether the organization's audit chain verifies. |
 

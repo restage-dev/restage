@@ -639,12 +639,8 @@ Object x() => Curves.$member;
       expect(r.issues, isEmpty);
     });
 
-    test(
-        'real-flutter Colors.X outside the curated subset → diagnostic '
-        '(expansion deferred, never silent-wrong)', () async {
-      // `teal` is a real Material colour but not in the curated table; it
-      // surfaces the supported-list diagnostic rather than silently lowering
-      // (the broad-expansion is a named follow-up).
+    test('real-flutter Colors.X outside the old curated table lowers by value',
+        () async {
       final r = translator.translate(
         await parseExpressionFromSourceForTest(
           '''
@@ -654,10 +650,8 @@ Object x() => Curves.$member;
           rootPackage: 'apps_examples',
         ),
       );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unresolvedIdentifier),
-      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, '0xFF009688');
     });
 
     test(
@@ -2383,7 +2377,7 @@ SegmentedButton<String>(
         ),
       );
       expect(r.issues, isEmpty);
-      expect(r.dsl, '"topLeft"');
+      expect(r.dsl, '{x: -1.0, y: -1.0}');
     });
 
     test('custom Alignment.X cannot impersonate the framework static const',
@@ -2914,8 +2908,12 @@ SegmentedButton<String>(
         ': BorderRadius.circular(4))',
       );
       expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
+        r.issues.map((i) => i.message),
+        contains(
+          "A BorderRadius with different corners can't be chosen by a "
+          "condition here. Put the condition inside each corner's radius "
+          'instead.',
+        ),
       );
       expect(r.dsl, isNot(contains('__rfw_border_radius_corners')));
     });

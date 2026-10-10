@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../authoring/flow_definition.dart' show FlowAnswerMeasurement;
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../runtime/surface_vocabulary.dart';
 import '../surface_screen/surface_screen_runtime_provenance.dart';
@@ -606,6 +607,7 @@ final class FlowDef {
     required this.states,
     this.flowState = const {},
     this.outbound = const FlowOutboundDeclarations(),
+    this.measurementAnswers = const {},
   });
 
   /// Initial flow screen.
@@ -619,20 +621,29 @@ final class FlowDef {
 
   /// Surface-specific outbound allowlists.
   final FlowOutboundDeclarations outbound;
+
+  /// Measured survey answers, keyed by a question in
+  /// [FlowOutboundDeclarations.surveyAnswers].
+  final Map<String, FlowAnswerMeasurement> measurementAnswers;
 }
 
 /// Creates a flow graph descriptor.
+///
+/// [measurementAnswers] declares, per question in `outbound.surveyAnswers`,
+/// the bounded answer values measurement records and their display labels.
 FlowDef flow({
   required FlowScreenRef initial,
   required List<FlowNodeDef> states,
   Map<String, FlowStateDeclaration> flowState = const {},
   FlowOutboundDeclarations outbound = const FlowOutboundDeclarations(),
+  Map<String, FlowAnswerMeasurement> measurementAnswers = const {},
 }) {
   return FlowDef(
     initial: initial,
     states: states,
     flowState: flowState,
     outbound: outbound,
+    measurementAnswers: measurementAnswers,
   );
 }
 

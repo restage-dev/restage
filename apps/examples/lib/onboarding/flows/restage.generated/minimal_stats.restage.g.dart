@@ -10,7 +10,7 @@ const minimalStatsFlowRef = SurfaceFlowRef<
   decodeResult: _decodeMinimalStatsFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_stats","initial":"starter_stats","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:2777691fff0e1ec65303ee2fdd5a5307dd246c8585b30871b458cf84a57c6119","minClient":1,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
+        '{"flow":"minimal_stats","initial":"starter_stats","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:c383a951687aedfb9936f5da8d9e7d9087254a9fcee7a9e66e235fb29d3f6470","minClient":1,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
     screens: {
       'starter_stats': StarterStatsScreen.new,
     },

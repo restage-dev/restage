@@ -1300,7 +1300,8 @@ _InputResolution _resolveInput(
   final problem = resolved.bindingProblem;
   if (problem != null) return _InvalidInput(problem);
   final field = resolved.field!;
-  final obstruction = _fieldObstruction(field, resolved.type);
+  final obstruction =
+      _fieldObstruction(field, resolved.type, resolved.backingFormal);
   if (obstruction != null) return _InvalidInput(obstruction);
   if (_containsUnresolvedTypeParameter(resolved.type)) {
     return _InvalidInput(
@@ -2027,9 +2028,15 @@ FormalParameterElement? _terminalSuperConstructorParameter(
   return terminal is SuperFormalParameterElement ? null : terminal;
 }
 
-String? _fieldObstruction(FieldElement field, DartType type) {
+String? _fieldObstruction(
+  FieldElement field,
+  DartType type,
+  FormalParameterElement backingFormal,
+) {
   final name = field.name;
-  if (name == null || name.isEmpty || name.startsWith('_')) {
+  final privateNamed = backingFormal is FieldFormalParameterElement &&
+      backingFormal.privateName == name;
+  if (name == null || name.isEmpty || (name.startsWith('_') && !privateNamed)) {
     return 'the backing field is private or unnamed';
   }
   if (field.isStatic || !field.isFinal) {

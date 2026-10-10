@@ -269,6 +269,21 @@ final foreignGeneratedRef = Object();
             contains('final class GeneralFlowSeed implements FlowSeed'),
           ),
         );
+        // Each publication names the generated widget that mounts it.
+        final mountNames = {
+          for (final entry in bundle.manifest.publications)
+            entry.publication.slug: entry.publication.mountName,
+        };
+        expect(mountNames, {
+          'announcement': null,
+          'follow_up': 'FollowUpSurface',
+          'general_flow': 'GeneralFlowSurface',
+          'premium': null,
+        });
+        final generated = bundle.generatedParts.values.join('\n');
+        expect(generated, contains('final class GeneralFlowSurface '));
+        // This fixture's screen omits its mount, so it names none.
+        expect(generated, isNot(contains('AnnouncementSurface')));
 
         await _assertGeneratedPartsAnalyze(
           scenario.source,

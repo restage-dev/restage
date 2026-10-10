@@ -11,14 +11,13 @@ import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/push_target.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 void main() {
   final bundleOrigin = Uri.parse('http://bundles.restage.localhost:8081');
   const blobUrl =
       'http://bundles.restage.localhost:8081/render-bundles/v1/blob';
-  const engineUrl =
-      'http://bundles.restage.localhost:8081/render-bundles/v1/engine-file';
 
   Uint8List bytes(String text) => Uint8List.fromList(utf8.encode(text));
   String hashOf(Uint8List value) => 'sha256:${crypto.sha256.convert(value)}';
@@ -26,10 +25,14 @@ void main() {
   final index = bytes('<!doctype html>');
   final wasm = bytes('app payload');
   final skwasm = bytes('engine payload');
+  final engineSet = RenderBundleEngineSet.fromFiles(
+    flutterVersion: '3.99.0-0.1.pre',
+    engineRevision: 'af7e796e161ae0bb1ff0758c71a7105418bd9ded',
+    files: {'skwasm.wasm': skwasm},
+  );
   final artifact = RenderBundleArtifact(
     appFiles: <String, Uint8List>{'index.html': index, 'main.dart.wasm': wasm},
-    engineFiles: <String, Uint8List>{'skwasm.wasm': skwasm},
-    engineSetId: 'e' * 64,
+    engineSet: engineSet,
   );
   const source = BundleSource(
     inRepository: true,
@@ -39,19 +42,15 @@ void main() {
 
   Map<String, Object?> ticket({
     List<String> missingContentHashes = const <String>[],
-    List<String> missingEnginePaths = const <String>[],
     int uploadConcurrency = 3,
     int maxFileTransferBytes = 24 * 1024 * 1024,
     String blob = blobUrl,
-    String engine = engineUrl,
   }) => <String, Object?>{
     'uploadToken': 'token-1',
     'headReference': 'staging',
     'expiresAt': DateTime.utc(2030).toIso8601String(),
     'blobUploadUrl': blob,
-    'engineUploadUrl': engine,
     'missingContentHashes': missingContentHashes,
-    'missingEnginePaths': missingEnginePaths,
     'uploadConcurrency': uploadConcurrency,
     'maxFileTransferBytes': maxFileTransferBytes,
   };
@@ -77,10 +76,7 @@ void main() {
   test('sends the manifest, the missing files, then commits', () async {
     final rpc = _FakeUploadRpc(
       prepared: <Object?>[
-        ticket(
-          missingContentHashes: <String>[hashOf(wasm)],
-          missingEnginePaths: <String>['skwasm.wasm'],
-        ),
+        ticket(missingContentHashes: <String>[hashOf(wasm)]),
       ],
       committed: pushResult(),
     );
@@ -116,13 +112,14 @@ void main() {
     expect(rpc.prepareArgs!['appSlug'], 'mobile');
     expect(rpc.prepareArgs!['environment'], 'staging');
     expect(rpc.prepareArgs!['personal'], isFalse);
-    expect(rpc.prepareArgs!['engineSetId'], 'e' * 64);
+    expect(rpc.prepareArgs!['engineSet'], engineSet.canonicalForm);
+    expect(rpc.prepareArgs!.containsKey('engineSetId'), isFalse);
     expect(rpc.prepareArgs!['provenance'], <String, Object?>{
       'sourceCommit': 'a91f2c3d4e5f60718293a4b5c6d7e8f901234567',
       'sourceDirty': true,
     });
-    // The manifest holds the app's own files, sorted; the engine travels on
-    // its own paths.
+    // The manifest holds the app's own files, sorted; the engine never
+    // travels with a push.
     expect(rpc.prepareArgs!['manifest'], <Map<String, Object?>>[
       <String, Object?>{
         'path': 'index.html',
@@ -137,7 +134,6 @@ void main() {
     ]);
     expect(sent.keys.map((uri) => uri.path).toSet(), <String>{
       '/render-bundles/v1/blob',
-      '/render-bundles/v1/engine-file',
     });
     expect(
       sent.entries.firstWhere((entry) => entry.key.path.endsWith('blob')).value,
@@ -147,17 +143,10 @@ void main() {
       sent.keys.firstWhere((uri) => uri.path.endsWith('blob')).queryParameters,
       <String, String>{'contentHash': hashOf(wasm)},
     );
-    expect(
-      sent.keys
-          .firstWhere((uri) => uri.path.endsWith('engine-file'))
-          .queryParameters,
-      <String, String>{'path': 'skwasm.wasm'},
-    );
     expect(outcome.version, 4);
     expect(outcome.headReference, 'staging');
     expect(outcome.appFilesSent, 1);
     expect(outcome.appFilesHeld, 1);
-    expect(outcome.engineFilesSent, 1);
   });
 
   test('a push whose files are all stored sends no bytes', () async {
@@ -194,11 +183,7 @@ void main() {
     final hashes = <String>[hashOf(index), hashOf(wasm)];
     final rpc = _FakeUploadRpc(
       prepared: <Object?>[
-        ticket(
-          missingContentHashes: hashes,
-          missingEnginePaths: <String>['skwasm.wasm'],
-          uploadConcurrency: 1,
-        ),
+        ticket(missingContentHashes: hashes, uploadConcurrency: 1),
       ],
       committed: pushResult(),
     );
@@ -344,8 +329,7 @@ void main() {
     final shared = bytes('one payload under two names');
     final twins = RenderBundleArtifact(
       appFiles: <String, Uint8List>{'a.bin': shared, 'b.bin': shared},
-      engineFiles: <String, Uint8List>{'skwasm.wasm': skwasm},
-      engineSetId: 'e' * 64,
+      engineSet: engineSet,
     );
     final rpc = _FakeUploadRpc(
       prepared: <Object?>[

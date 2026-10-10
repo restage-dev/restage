@@ -12,12 +12,30 @@ final class MeasurementBundledProfileFinalizeException implements Exception {
   const MeasurementBundledProfileFinalizeException();
 }
 
+/// What a publication wrote into the app for its bundled Measurement profile.
+final class MeasurementProfileWrite {
+  const MeasurementProfileWrite({
+    required this.declared,
+    required this.pubspecUpdated,
+  });
+
+  /// Whether pubspec.yaml ships the profile after this publication.
+  final bool declared;
+
+  /// Whether this publication added the profile to pubspec.yaml.
+  final bool pubspecUpdated;
+}
+
 /// Submit one assembled publication through the operation selected by its
-/// optional Measurement candidate.
+/// optional Measurement candidate. With [declareAssets] the profile it writes
+/// is added to pubspec.yaml; otherwise pubspec.yaml is left as it is.
 ///
 /// The candidate is target-neutral. Target, revision, binding, policy, and
 /// active-pointer authority remain with the publication API and service.
-Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
+Future<
+  ({SurfacePublicationUploadResult result, MeasurementProfileWrite? profile})
+>
+publishAssembledSurfacePublication({
   required SurfacePublicationApi api,
   required AssembledSurfacePublication assembled,
   required Directory packageRoot,
@@ -27,10 +45,11 @@ Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
   int? environmentTargetId,
   RuntimePlane? runtimePlane,
   int? organizationId,
+  bool declareAssets = false,
 }) async {
   final measurementUpload = assembled.measurementUpload;
   if (measurementUpload == null) {
-    return api.publish(
+    final result = await api.publish(
       project: project,
       app: app,
       environment: environment,
@@ -39,6 +58,7 @@ Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
       runtimePlane: runtimePlane,
       organizationId: organizationId,
     );
+    return (result: result, profile: null);
   }
 
   final measurementResult = await api.publishMeasurementBound(
@@ -50,6 +70,7 @@ Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
     runtimePlane: runtimePlane,
     organizationId: organizationId,
   );
+  MeasurementProfileWrite? profile;
   if (assembled.hasBundledMeasurementSourceClosure) {
     try {
       await MeasurementBundledTargetProfilePackager().packageFinalizedEntry(
@@ -57,8 +78,18 @@ Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
         entry: measurementResult.bundledPublicationEntry,
         selectedBundleFiles: assembled.selectedBundleFiles,
       );
-      await ensureMeasurementBundledTargetProfileAssetDeclaration(
-        packageRoot: packageRoot,
+      final updated =
+          declareAssets &&
+          await ensureMeasurementBundledTargetProfileAssetDeclaration(
+            packageRoot: packageRoot,
+          );
+      profile = MeasurementProfileWrite(
+        declared:
+            updated ||
+            await isMeasurementBundledTargetProfileAssetDeclared(
+              packageRoot: packageRoot,
+            ),
+        pubspecUpdated: updated,
       );
     } on MeasurementBundledTargetProfilePackagingException {
       throw const MeasurementBundledProfileFinalizeException();
@@ -68,5 +99,5 @@ Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
       throw const MeasurementBundledProfileFinalizeException();
     }
   }
-  return measurementResult.publicationResult;
+  return (result: measurementResult.publicationResult, profile: profile);
 }

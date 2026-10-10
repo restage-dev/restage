@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:test/test.dart';
 
@@ -85,5 +88,32 @@ void main() {
       expect(resolved.target, isNull, reason: slug);
       expect(resolved.refusal!.message, contains('Refusing the environment'));
     }
+  });
+
+  test('the target refusals name each caller\'s own form', () {
+    String refusal({required bool withKey, SelectorSyntax? syntax}) => runZoned(
+      () => resolveBundlePushTarget(
+        environment: withKey ? null : 'staging',
+        personal: true,
+        withKey: withKey,
+      ).refusal!.message,
+      zoneValues: syntax == null ? null : selectorSyntaxZoneValues(syntax),
+    );
+
+    expect(
+      refusal(withKey: false),
+      contains(
+        '`restage build push --env <slug>` for an environment head, or '
+        '`restage build push --personal` for your own',
+      ),
+    );
+    expect(
+      refusal(withKey: true, syntax: SelectorSyntax.console),
+      contains('sign in, then type `/restage build push --personal`.'),
+    );
+    expect(
+      refusal(withKey: true, syntax: SelectorSyntax.mcp),
+      contains('sign in, then call restage_push_build with personal: true.'),
+    );
   });
 }

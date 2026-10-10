@@ -43,6 +43,7 @@ export 'src/commands/surface_identity.dart'
         SurfaceLifecycleIdentity,
         explicitLifecycleIdentity,
         kLifecycleSourceKinds,
+        lookUpLifecycleIdentity,
         kLifecycleSurfaceTypes;
 export 'src/commands/surface_publish_operation.dart'
     show
@@ -50,6 +51,8 @@ export 'src/commands/surface_publish_operation.dart'
         SurfacePublication,
         familyHistory,
         familyTargetOf,
+        mountGuide,
+        mountLine,
         publishSurface;
 export 'src/commands/target_resolution.dart'
     show ResolvedEnvironmentTargetContext, resolveTargetSelection;

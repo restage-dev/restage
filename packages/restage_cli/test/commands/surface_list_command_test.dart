@@ -64,7 +64,7 @@ void main() {
       );
     });
 
-    test('--all lists every known surface type', () async {
+    test('lists every known surface type when --type is left out', () async {
       await seedCredential(store);
       await seedRestageConfig(tempDir, 'demo', 'mobile');
 
@@ -84,7 +84,7 @@ void main() {
         stderr: stderr,
         credentialStore: store,
         httpClient: client,
-      ).run(['surface', 'list', '--all', '-C', tempDir.path]);
+      ).run(['surface', 'list', '-C', tempDir.path]);
 
       expect(exitCode, 0);
       expect(seenTypes, [
@@ -131,21 +131,6 @@ void main() {
       expect(decoded, hasLength(1));
       expect(decoded.single, containsPair('surfaceType', 'survey'));
       expect(decoded.single, containsPair('slug', 'nps'));
-    });
-
-    test('requires --type or --all', () async {
-      await seedCredential(store);
-      await seedRestageConfig(tempDir, 'demo', 'mobile');
-
-      final exitCode = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-      ).run(['surface', 'list', '-C', tempDir.path]);
-
-      expect(exitCode, 1);
-      expect(stderr.toString(), contains('Required: --type'));
-      expect(stderr.toString(), contains('--all'));
     });
 
     test('rejects invalid surface type', () async {

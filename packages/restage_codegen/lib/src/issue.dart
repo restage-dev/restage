@@ -831,9 +831,8 @@ void logBuildNoticeOnce(
 ) {
   if (!seenKeys.add(issue.buildNoticeKey)) return;
   final message = issue.toLogString();
-  if (issue.code == IssueCode.customWidgetAppFactoryUsed ||
-      (issue.buildNoticeIdentity?.startsWith(kEventClosureNoticePrefix) ??
-          false)) {
+  if (issue.buildNoticeIdentity?.startsWith(kEventClosureNoticePrefix) ??
+      false) {
     logger.warning(message);
     return;
   }

@@ -7,6 +7,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
@@ -97,7 +98,7 @@ const Set<String> _kLifecycleMethods = {
 Future<AstNode?> resolvedAstNodeFor(Fragment fragment) async {
   final library = fragment.libraryFragment?.element;
   if (library == null) return null;
-  final result = await library.session.getResolvedLibraryByElement(library);
+  final result = await resolveLibraryInLongForm(library);
   if (result is! ResolvedLibraryResult) return null;
   return result.getFragmentDeclaration(fragment)?.node;
 }
@@ -386,52 +387,26 @@ final class _ResolvedDefaultExpressionCompiler
   String? problem;
 
   @override
-  void visitDotShorthandConstructorInvocation(
-    DotShorthandConstructorInvocation node,
-  ) {
-    final constructor = node.element;
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    final type = node.constructorName.type;
+    if (!type.name.isSynthetic) {
+      super.visitInstanceCreationExpression(node);
+      return;
+    }
+    // An expanded dot shorthand has no source text for its constructor.
+    final constructor = node.constructorName.element;
     final owner = constructor?.enclosingElement;
     final ownerName = owner == null ? null : namespace.elementName(owner);
-    final constructorName = constructor?.name;
     if (constructor == null ||
         !_memberIsVisible(constructor) ||
-        ownerName == null ||
-        constructorName == null) {
+        ownerName == null) {
       _fail();
       return;
     }
-    final suffix = constructorName == 'new' ? '' : '.$constructorName';
-    _replace(node.period.offset, node.constructorName.end, '$ownerName$suffix');
-    node.typeArguments?.accept(this);
+    final name = constructor.name;
+    final suffix = name == null || name == 'new' ? '' : '.$name';
+    _replace(type.offset, node.argumentList.offset, '$ownerName$suffix');
     node.argumentList.accept(this);
-  }
-
-  @override
-  void visitDotShorthandInvocation(DotShorthandInvocation node) {
-    final element = node.memberName.element;
-    final spelling = element == null
-        ? null
-        : namespace.staticMemberName(element, includeAliases: false);
-    if (spelling == null) {
-      _fail();
-      return;
-    }
-    _replace(node.offset, node.memberName.end, spelling);
-    node.typeArguments?.accept(this);
-    node.argumentList.accept(this);
-  }
-
-  @override
-  void visitDotShorthandPropertyAccess(DotShorthandPropertyAccess node) {
-    final element = node.propertyName.element;
-    final spelling = element == null
-        ? null
-        : namespace.staticMemberName(element, includeAliases: false);
-    if (spelling == null) {
-      _fail();
-      return;
-    }
-    _replace(node.offset, node.end, spelling);
   }
 
   @override

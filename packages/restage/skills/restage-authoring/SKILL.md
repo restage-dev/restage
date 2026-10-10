@@ -25,6 +25,8 @@ Write surfaces in Dart and let the build compile them. Never hand-write or edit 
 3. **Build.** Run `dart run build_runner build`. If it stops, fix the source at the
    reported line; [references/diagnostics.md](references/diagnostics.md) maps each
    error code to a fix. Never work around an error by editing generated output.
+   Commit what the build changed, including `.restage/measurement-state.json` and
+   `.restage/wire-ids.events.jsonl`; they keep analytics ids stable across builds.
 4. **Mount the generated widget** (`<ClassName>Surface`) where the surface belongs, and
    handle its events in `onEvent` or `onComplete`.
 5. **Verify.** Run `flutter analyze` and the app's tests. A generated mount renders the

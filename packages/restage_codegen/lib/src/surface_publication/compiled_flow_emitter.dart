@@ -9,6 +9,18 @@ import 'package:restage_shared/restage_shared.dart';
 /// Generated original-graph argument and the typed mount that binds it.
 typedef CompiledFlowEmission = ({String argument, String mount});
 
+/// Whether [emitCompiledFlow] emits a mount for a flow declared in [library].
+bool emitsCompiledFlowMount(LibraryElement library) =>
+    _sdkPrefix(OwningLibraryNamespace(library)) != null;
+
+String? _sdkPrefix(OwningLibraryNamespace namespace) =>
+    namespace.prefixForOrigin('package:restage', const {
+      'CompiledFlow',
+      'CompiledFlowScreenBuilder',
+      'RestageFlowGraph',
+      'FlowUnavailablePolicy',
+    });
+
 /// Retains the existing canonical documents and original Flutter constructors.
 CompiledFlowEmission emitCompiledFlow({
   required FlowDocument document,
@@ -20,12 +32,7 @@ CompiledFlowEmission emitCompiledFlow({
   required String resultType,
 }) {
   final namespace = OwningLibraryNamespace(library);
-  final sdk = namespace.prefixForOrigin('package:restage', const {
-    'CompiledFlow',
-    'CompiledFlowScreenBuilder',
-    'RestageFlowGraph',
-    'FlowUnavailablePolicy',
-  });
+  final sdk = _sdkPrefix(namespace);
   // Like generated screen mounts, preserve descriptor-only imports.
   if (sdk == null) return (argument: '', mount: '');
   final builders = <String, String>{};

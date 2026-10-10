@@ -358,6 +358,30 @@ void main() {
       expect(star.rotation, closeTo(15.0, 0.000001));
     });
 
+    test('decodes a uniform or per-corner border radius', () {
+      final source = _MapDataSource({
+        'uniform': {'type': 'rounded', 'borderRadius': 6},
+        'corners': {
+          'type': 'continuous',
+          'borderRadius': {'topLeft': 8.0, 'bottomRight': 2},
+        },
+      });
+
+      final uniform = RestageDecoders.shapeBorder(source, const ['uniform']);
+      expect(
+        (uniform! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(6),
+      );
+      final corners = RestageDecoders.shapeBorder(source, const ['corners']);
+      expect(
+        (corners! as ContinuousRectangleBorder).borderRadius,
+        const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          bottomRight: Radius.circular(2),
+        ),
+      );
+    });
+
     test('decodes rounded, circle, stadium, continuous, beveled, star', () {
       final source = _MapDataSource({
         'rounded': {'type': 'rounded', 'borderRadius': 8.0},

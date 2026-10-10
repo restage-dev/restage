@@ -389,6 +389,170 @@ class RoutingRevisionRead {
   };
 }
 
+/// Views one source served to one version: a rule, an experiment, everyone
+/// else, or views with no delivery record.
+@experimental
+@immutable
+class DeliveryFlowCell {
+  /// Construct a cell.
+  const DeliveryFlowCell({
+    required this.source,
+    required this.version,
+    required this.views,
+    this.approxViews,
+    this.routeId,
+    this.experimentId,
+    this.experimentLabel,
+    this.experimentRunning,
+  });
+
+  /// Who served the views: `rule`, `experiment`, `earlierExperiments`,
+  /// `everyoneElse` or `notRecorded`.
+  final String source;
+
+  /// The rule, for a rule's cell.
+  final String? routeId;
+
+  /// The experiment, for an experiment's cell.
+  final String? experimentId;
+
+  /// The experiment's name; null when it has none to show.
+  final String? experimentLabel;
+
+  /// Whether the experiment is running now, for an experiment's cell.
+  final bool? experimentRunning;
+
+  /// The published version the views saw.
+  final int version;
+
+  /// The views; null when held under the disclosure floor, never zero.
+  final int? views;
+
+  /// A merged cell's rounded views when one of its cells is held; null when
+  /// [views] is stated or the cell is one held count (under the floor).
+  final int? approxViews;
+
+  /// Decode one wire object.
+  factory DeliveryFlowCell.fromJson(Map<String, dynamic> json) =>
+      DeliveryFlowCell(
+        source: json['source']! as String,
+        routeId: json['routeId'] as String?,
+        experimentId: json['experimentId'] as String?,
+        experimentLabel: json['experimentLabel'] as String?,
+        experimentRunning: json['experimentRunning'] as bool?,
+        version: json['version']! as int,
+        views: json['views'] as int?,
+      );
+
+  /// Encode for `--json` output.
+  Map<String, dynamic> toJson() => {
+    'source': source,
+    'routeId': routeId,
+    'experimentId': experimentId,
+    'experimentLabel': source == 'experiment'
+        ? experimentLabel ?? 'Unnamed experiment'
+        : experimentLabel,
+    'experimentRunning': experimentRunning,
+    'version': version,
+    'views': views,
+    'approxViews': approxViews,
+  };
+}
+
+/// One surface's views over a whole UTC-day window, by rule and version.
+@experimental
+@immutable
+class DeliveryFlowRead {
+  /// Construct a flow read.
+  const DeliveryFlowRead({
+    required this.windowStartDayUtc,
+    required this.windowEndDayExclusiveUtc,
+    required this.cells,
+  });
+
+  /// First UTC day included, in microseconds since the epoch.
+  final int windowStartDayUtc;
+
+  /// First UTC day excluded, in microseconds since the epoch.
+  final int windowEndDayExclusiveUtc;
+
+  /// Each rule's cells, each experiment's, everyone else's, then the cells
+  /// with no delivery record.
+  final List<DeliveryFlowCell> cells;
+
+  /// Decode one wire object.
+  factory DeliveryFlowRead.fromJson(Map<String, dynamic> json) =>
+      DeliveryFlowRead(
+        windowStartDayUtc: json['windowStartDayUtc']! as int,
+        windowEndDayExclusiveUtc: json['windowEndDayExclusiveUtc']! as int,
+        cells: _objects(
+          json['cells'],
+        ).map(DeliveryFlowCell.fromJson).toList(growable: false),
+      );
+
+  /// The cells as shown: each rule's, each running experiment's, finished
+  /// experiments' together per version, then everyone else's. Views with no
+  /// delivery record are counted in [notRecordedViews] instead.
+  List<DeliveryFlowCell> get shownCells {
+    final earlier = <int, List<int?>>{};
+    final shown = <DeliveryFlowCell>[];
+    for (final cell in cells) {
+      switch (cell.source) {
+        case 'notRecorded':
+          continue;
+        case 'experiment' when cell.experimentRunning != true:
+          (earlier[cell.version] ??= <int?>[]).add(cell.views);
+        default:
+          shown.add(cell);
+      }
+    }
+    final everyoneElse = shown.indexWhere(
+      (cell) => cell.source == 'everyoneElse',
+    );
+    shown.insertAll(everyoneElse < 0 ? shown.length : everyoneElse, [
+      for (final MapEntry(key: version, value: parts) in earlier.entries)
+        if (measurementDisclosedSumV1(parts) case (:final exact, :final approx))
+          DeliveryFlowCell(
+            source: 'earlierExperiments',
+            version: version,
+            views: exact,
+            approxViews: approx,
+          ),
+    ]);
+    return shown;
+  }
+
+  /// Every view in the window; null when any count is hidden.
+  int? get totalViews => _sum(cells).exact;
+
+  /// The total's rounded stand-in when a count is hidden; null when
+  /// [totalViews] is stated or the total is one hidden count.
+  int? get approxTotalViews => _sum(cells).approx;
+
+  /// Views with no delivery record; null when one is hidden.
+  int? get notRecordedViews => _sum(_notRecorded).exact;
+
+  /// [notRecordedViews] rounded when one is hidden.
+  int? get approxNotRecordedViews => _sum(_notRecorded).approx;
+
+  Iterable<DeliveryFlowCell> get _notRecorded =>
+      cells.where((cell) => cell.source == 'notRecorded');
+
+  static ({int? exact, int? approx}) _sum(Iterable<DeliveryFlowCell> cells) =>
+      measurementDisclosedSumV1([for (final cell in cells) cell.views]);
+
+  /// Encode for `--json` output: the shown cells and the totals.
+  Map<String, dynamic> toJson() => {
+    'windowStartDayUtc': windowStartDayUtc,
+    'windowEndDayExclusiveUtc': windowEndDayExclusiveUtc,
+    'cells': [for (final cell in shownCells) cell.toJson()],
+    'totalViews': totalViews,
+    'approxTotalViews': approxTotalViews,
+    'notRecordedViews': notRecordedViews,
+    'approxNotRecordedViews': approxNotRecordedViews,
+  };
+}
+
 /// How one rule classified against a supplied request context.
 @experimental
 @immutable
@@ -805,6 +969,40 @@ class SurfaceRoutingApi {
             FormatException('The delivery diagnostics response $detail.'),
       ),
     );
+  }
+
+  /// Reads every view of one surface over a whole UTC-day window, by who
+  /// served it and the version it saw.
+  Future<DeliveryFlowRead> readDeliveryFlow({
+    required String projectSlug,
+    required String appSlug,
+    required String surfaceType,
+    required String surfaceSlug,
+    required int environmentId,
+    required int organizationId,
+    required int windowStartDayUtc,
+    required int windowEndDayExclusiveUtc,
+    int? contractVersion,
+  }) async {
+    final raw = await _call('readDeliveryFlow', <String, dynamic>{
+      'projectSlug': projectSlug,
+      'appSlug': appSlug,
+      'surfaceType': surfaceType,
+      'surfaceSlug': surfaceSlug,
+      'environmentId': environmentId,
+      'windowStartDayUtc': windowStartDayUtc,
+      'windowEndDayExclusiveUtc': windowEndDayExclusiveUtc,
+      'contractVersion': contractVersion,
+      'organizationId': organizationId,
+    });
+    final read = DeliveryFlowRead.fromJson(_object(raw));
+    if (read.windowStartDayUtc != windowStartDayUtc ||
+        read.windowEndDayExclusiveUtc != windowEndDayExclusiveUtc) {
+      throw const FormatException(
+        'The delivery flow response named another window.',
+      );
+    }
+    return read;
   }
 
   Future<Object?> _call(String method, Map<String, dynamic> args) =>

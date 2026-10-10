@@ -20,3 +20,6 @@ assets/restage/output-roster.json
 # surfaces.
 *.rsbundle
 !assets/restage/bundles/**/*.rsbundle
+
+# Written per developer by `restage init`; names your own project and app.
+restage_config.yaml

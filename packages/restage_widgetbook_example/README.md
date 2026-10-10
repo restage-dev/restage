@@ -66,6 +66,16 @@ flutter build web --no-tree-shake-icons
 The flag is needed because the workbench includes the RFW runtime, which
 builds icons from runtime values.
 
+## Push to Restage Cloud
+
+Before pushing, point the example at your own project. `restage init` lists
+the projects and apps in your organization and writes `restage_config.yaml`
+(ignored by git here, since it names your project):
+
+```sh
+restage init --no-starter --no-add-deps
+```
+
 ## Watch mode
 
 - `build_runner watch` regenerates the A2UI and Widgetbook output when you edit

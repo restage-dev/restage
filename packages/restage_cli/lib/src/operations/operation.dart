@@ -210,6 +210,7 @@ class Operation {
     required this.scope,
     required this.call,
     this.surface = false,
+    this.readsSurface = false,
     this.params = const [],
     this.resultKey,
     this.columns,
@@ -235,6 +236,10 @@ class Operation {
 
   /// Whether the call names one surface (a positional id and a type).
   final bool surface;
+
+  /// Whether a surface call only reads, so the surface type may be left out
+  /// and looked up by id.
+  final bool readsSurface;
 
   /// The parameters beyond the scope.
   final List<OperationParam> params;

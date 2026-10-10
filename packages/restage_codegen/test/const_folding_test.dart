@@ -150,6 +150,28 @@ void main() {
       );
     });
 
+    test('returns null for a shorthand fromEnvironment constant', () async {
+      expect(
+        await _fold(
+          '// @dart=3.13\n'
+          "const bool verbose = .fromEnvironment('VERBOSE'); "
+          'Object x() => verbose;',
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null for a shorthand hasEnvironment constant', () async {
+      expect(
+        await _fold(
+          '// @dart=3.13\n'
+          "const bool declared = .hasEnvironment('FLAVOR'); "
+          'Object x() => declared;',
+        ),
+        isNull,
+      );
+    });
+
     test('returns null for a bool.hasEnvironment constant', () async {
       expect(
         await _fold(

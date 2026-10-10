@@ -40,8 +40,7 @@ void main() {
     await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
 
-    // Experience question → goal question (any option advances; the flow is
-    // linear by design).
+    // Experience question → goal question (any option advances).
     expect(find.text('How much have\nyou meditated?'), findsOneWidget);
     await tester.tap(find.text("I'm new to meditation"));
     await tester.pumpAndSettle();
@@ -52,7 +51,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The reminder host-action gate: the demo grants, so the flow advances to
-    // the recap (the one conditional branch in the flow).
+    // the recap.
     expect(find.text('Stay on track'), findsOneWidget);
     await tester.tap(find.text('Enable daily reminders'));
     await tester.pumpAndSettle();
@@ -96,6 +95,23 @@ void main() {
     // Declined: the flow holds on the reminder screen, never reaching the recap.
     expect(find.text('Stay on track'), findsOneWidget);
     expect(find.text("You're all set"), findsNothing);
+  });
+
+  testWidgets('a curious user skips the reminder and goes to the recap',
+      (tester) async {
+    _useTallSurface(tester);
+    await tester.pumpWidget(const MaterialApp(home: LumenOnboardingDemo()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Begin'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("I'm new to meditation"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Just curious'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Stay on track'), findsNothing);
+    expect(find.text("You're all set"), findsOneWidget);
   });
 }
 

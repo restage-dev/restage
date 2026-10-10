@@ -1,21 +1,32 @@
+import 'package:analyzer/dart/element/element.dart';
+import 'package:build/build.dart';
 import 'package:dart_style/dart_style.dart';
+import 'package:pub_semver/pub_semver.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-// One formatter per process. Constructing `DartFormatter` is non-trivial
-// and the formatter is stateless across calls.
-//
-// `latestShortStyleLanguageVersion` pins the formatter to the pre-3.7
-// "short" style. Generated files land in packages whose pubspec floors
-// (`sdk: ^3.5.0`) predate the tall-style cutover, so the workspace
-// `dart format` CLI uses the short style for them; matching here keeps
-// regenerated output byte-stable against `dart format --set-exit-if-changed`.
-final DartFormatter _formatter = DartFormatter(
-  languageVersion: DartFormatter.latestShortStyleLanguageVersion,
-);
+final Map<Version, DartFormatter> _formatters = {};
 
-/// Formats [source] with `dart format` rules so emitted code passes
-/// `dart format --set-exit-if-changed` byte-stably across runs.
-String formatGeneratedDart(String source) => _formatter.format(source);
+/// Formats [source] as `dart format` does for code at [languageVersion], so
+/// the consumer's own `dart format` leaves it unchanged. Without a version it
+/// uses the short style.
+String formatGeneratedDart(String source, {Version? languageVersion}) {
+  final version =
+      languageVersion ?? DartFormatter.latestShortStyleLanguageVersion;
+  return _formatters
+      .putIfAbsent(version, () => DartFormatter(languageVersion: version))
+      .format(source);
+}
+
+/// The language version `dart format` applies to the build step's package.
+Future<Version?> packageLanguageVersion(BuildStep buildStep) async {
+  final language = (await buildStep.packageConfig)[buildStep.inputId.package]
+      ?.languageVersion;
+  return language == null ? null : Version(language.major, language.minor, 0);
+}
+
+/// The language version of [library], which its parts share.
+Version libraryLanguageVersion(LibraryElement library) =>
+    library.languageVersion.effective;
 
 /// Renders [value] as a single-quoted Dart string literal.
 ///

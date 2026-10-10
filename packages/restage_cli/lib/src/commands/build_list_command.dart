@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/render_bundles/push_target.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
@@ -71,10 +73,7 @@ final class BuildListCommand extends Command<int> {
           (argResults?['project'] as String?) ?? ctx.config?.project;
       final app = (argResults?['app'] as String?) ?? ctx.config?.app;
       if (project == null || app == null) {
-        _stderr.writeln(
-          'No project / app context. Run `restage init` or pass '
-          '--project <slug> --app <slug>.',
-        );
+        _stderr.writeln(noProjectContextSentence());
         return 1;
       }
       final organizationId = await resolveRequiredOrganizationId(
@@ -99,7 +98,9 @@ final class BuildListCommand extends Command<int> {
         }
         if (heads.isEmpty) {
           _stdout.writeln(
-            'No builds yet. Run `restage build push --env <slug>` to push one.',
+            'No builds yet. ${currentSelectorSyntax.run} '
+            '${currentSelectorSyntax.command(pushBuildFollowUp('<slug>'))} '
+            'to push one.',
           );
           return 0;
         }

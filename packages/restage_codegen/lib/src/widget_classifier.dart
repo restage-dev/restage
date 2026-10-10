@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/device_recognition.dart';
+import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
@@ -81,6 +82,7 @@ List<CustomWidgetParam>? _constructorParams(
         isVoidCallback: _isVoidCallbackType(parameter.type),
         coalesceFallback: coalescedFallbacks[name],
         sourceField: parameter.field,
+        sourceParameter: parameter,
       ),
     );
   }
@@ -189,8 +191,6 @@ const Set<(String, String)> kStructuredConstMembers = {
   ('BorderRadiusDirectional', 'zero'),
   ('Offset', 'zero'),
 };
-
-const String _alignmentTypeName = 'Alignment';
 
 /// Whether [name] is reserved for a framework constant namespace.
 bool isFrameworkConstNamespaceName(String name) =>
@@ -1335,6 +1335,11 @@ class _Walk {
           return true;
         });
         return !verdict.recorded;
+      case CollectionRuntimeIfGroup(:final members):
+        for (final member in members) {
+          if (!await _classifyRuntimeIfBranch(member)) return false;
+        }
+        return true;
     }
   }
 
@@ -1501,10 +1506,8 @@ class _Walk {
   /// not an own `this.x` constructor-formal field of the widget class.
   String? _ownParamName(Element? element) {
     final resolved = _unwrapAccessor(element);
-    if (resolved is FieldElement &&
-        resolved.enclosingElement == _widgetClass &&
-        _isConstructorParameter(resolved)) {
-      return resolved.name;
+    if (resolved is FieldElement && resolved.enclosingElement == _widgetClass) {
+      return _constructorFormalName(resolved);
     }
     return null;
   }
@@ -1628,14 +1631,11 @@ class _Walk {
     return true;
   }
 
-  /// Accepts a resolved Flutter `Alignment` const field before the curated
-  /// fallback, gating on the prefix the translator also lowers on.
+  /// Accepts a framework static const the translator encodes by value
+  /// (alignments, colours, durations, offsets), then the curated members.
   bool _isStructuredConstMember(PrefixedIdentifier expr) {
-    if (expr.prefix.name == _alignmentTypeName &&
-        isFrameworkValueTypeLibrary(expr.prefix.element)) {
-      final resolved = _unwrapAccessor(expr.identifier.element);
-      if (resolved is FieldElement && resolved.isConst) return true;
-    }
+    final value = frameworkStaticConst(expr);
+    if (value != null && encodeFrameworkConst(value) != null) return true;
     if (!kStructuredConstMembers
         .contains((expr.prefix.name, expr.identifier.name))) {
       return false;
@@ -1727,7 +1727,7 @@ class _Walk {
       owner = resolved.enclosingElement;
     } else if (resolved is FieldElement) {
       owner = resolved.enclosingElement;
-      if (owner == _widgetClass && !_isConstructorParameter(resolved)) {
+      if (owner == _widgetClass && _constructorFormalName(resolved) == null) {
         return null;
       }
     } else {
@@ -1736,20 +1736,20 @@ class _Walk {
     return (owner == _widgetClass || owner == _stateClass) ? resolved : null;
   }
 
-  /// Whether [field] is bound by a `this.x` constructor formal — the only
-  /// widget fields the translator can emit as `args.` references.
-  bool _isConstructorParameter(FieldElement field) {
+  /// The public name of the `this.x` constructor formal that binds [field] —
+  /// the only widget fields the translator can emit as `args.` references.
+  String? _constructorFormalName(FieldElement field) {
     final owner = field.enclosingElement;
-    if (owner is! ClassElement) return false;
+    if (owner is! ClassElement) return null;
     for (final constructor in owner.constructors) {
       for (final parameter in constructor.formalParameters) {
         if (parameter is FieldFormalParameterElement &&
             parameter.field == field) {
-          return true;
+          return parameter.name;
         }
       }
     }
-    return false;
+    return null;
   }
 
   /// Whether [cls] is a `Widget` subclass — composed into the tree — as

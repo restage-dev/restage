@@ -141,9 +141,16 @@ void main() {
       'restage_unfreeze_surface',
     ]) {
       final schema = tools[name]!.inputSchema;
+      expect(schema.required, contains('surfaceSlug'), reason: name);
+      expect(schema.properties, contains('surfaceType'), reason: name);
+      final reads = {
+        'restage_surface_status',
+        'restage_surface_history',
+        'restage_surface_audit',
+      };
       expect(
-        schema.required,
-        containsAll(['surfaceType', 'surfaceSlug']),
+        schema.required!.contains('surfaceType'),
+        !reads.contains(name),
         reason: name,
       );
       expect(
@@ -347,8 +354,36 @@ void main() {
         expect(activate.body, isNot(contains('contractVersion')));
         expect(result.structuredContent!['publishedRevision'], 5);
         expect(result.structuredContent!['latestPushed'], isTrue);
+        expect(
+          result.structuredContent!['showInApp'],
+          allOf(contains('Restage.configure'), contains('<Name>Surface()')),
+        );
       },
     );
+
+    test('shows the generated widget the published revision names', () async {
+      final connection = await connect(
+        (_) async => http.Response(
+          jsonEncode({..._activation(5), 'mountName': 'FirstRunScreenSurface'}),
+          200,
+        ),
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+      );
+
+      expect(result.isError, isNot(true), reason: _text(result));
+      expect(
+        result.structuredContent!['showInApp'],
+        allOf(
+          contains('Restage.configure'),
+          contains(
+            'then add FirstRunScreenSurface(...) where it should appear',
+          ),
+        ),
+      );
+    });
 
     test('an explicit revision and reason skip the history read', () async {
       final calls = <BackendCall>[];
@@ -724,6 +759,73 @@ void main() {
     });
   });
 
+  group('status and history without a surfaceType look the type up', () {
+    Future<(CallToolResult, List<BackendCall>)> call(
+      String tool,
+      Map<String, List<String>> slugsByType,
+    ) async {
+      final calls = <BackendCall>[];
+      final connection = await connect((call) async {
+        if (call.method == 'list') {
+          final type = call.body['surfaceType']! as String;
+          return http.Response(
+            jsonEncode([
+              for (final slug in slugsByType[type] ?? const <String>[])
+                {
+                  '__className__': 'SurfaceSummary',
+                  'surfaceType': type,
+                  'slug': slug,
+                  'name': slug,
+                  'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
+                  'publishedVersionByEnvironment': <String, int?>{},
+                },
+            ]),
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode(
+            call.method == 'surfaceStatus' ? _statusView() : _history([1]),
+          ),
+          200,
+        );
+      }, calls: calls);
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: tool,
+          arguments: {..._surface}..remove('surfaceType'),
+        ),
+      );
+      return (result, calls);
+    }
+
+    for (final tool in ['restage_surface_status', 'restage_surface_history']) {
+      test('$tool resolves a unique slug', () async {
+        final (result, calls) = await call(tool, {
+          'onboarding': ['first-run'],
+          'paywall': ['pro'],
+        });
+        expect(result.isError, isNot(true), reason: _text(result));
+        final read = calls.singleWhere((call) => call.method != 'list');
+        expect(read.body['surfaceType'], 'onboarding');
+      });
+    }
+
+    test('an ambiguous slug names the types', () async {
+      final (result, calls) = await call('restage_surface_status', {
+        'onboarding': ['first-run'],
+        'survey': ['first-run'],
+      });
+      expect(result.isError, isTrue);
+      expect(
+        _text(result),
+        'Surface "first-run" exists as more than one type: onboarding, '
+        'survey. Pass surfaceType to choose one.',
+      );
+      expect(calls.where((call) => call.method != 'list'), isEmpty);
+    });
+  });
+
   test('manifest push runs the CLI push with the selectors given', () async {
     List<String>? ran;
     final connection = await connect(
@@ -746,6 +848,9 @@ void main() {
           'environmentSlug': 'production',
           'runtimePlane': 'live',
           'recordGit': true,
+          'build': true,
+          'flutterRoot': '/opt/flutter',
+          'declareAssets': true,
         },
       ),
     );
@@ -765,6 +870,10 @@ void main() {
       'production',
       '--plane',
       'live',
+      '--build',
+      '--flutter-root',
+      '/opt/flutter',
+      '--declare-assets',
       '--record-git',
     ]);
     expect(result.structuredContent!['output'], contains('r4'));

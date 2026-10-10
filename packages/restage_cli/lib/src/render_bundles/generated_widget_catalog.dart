@@ -41,6 +41,7 @@ typedef RenderBundleCatalogProducer =
     Future<GeneratedWidgetCatalog> Function({
       required Directory projectRoot,
       required bool generate,
+      String? flutterExecutable,
     });
 
 /// Where the generator writes [packageName]'s catalog.
@@ -65,6 +66,7 @@ String generatedWidgetCatalogPath(Directory projectRoot, String packageName) =>
 Future<GeneratedWidgetCatalog> readGeneratedWidgetCatalog({
   required Directory projectRoot,
   required bool generate,
+  String? flutterExecutable,
   RenderBundleProcessRunner? processRunner,
   String? dartExecutable,
 }) async {
@@ -79,7 +81,7 @@ Future<GeneratedWidgetCatalog> readGeneratedWidgetCatalog({
     await _generate(
       projectRoot: projectRoot,
       processRunner: processRunner ?? runRenderBundleProcess,
-      dartExecutable: dartExecutable ?? _dartBesideFlutter(),
+      dartExecutable: dartExecutable ?? _dartBesideFlutter(flutterExecutable),
     );
   } else if (!catalog.existsSync()) {
     throw const GeneratedCatalogException('catalog_missing');
@@ -118,9 +120,12 @@ Future<void> _generate({
 
 /// The Dart binary beside the resolved Flutter one, so the generator runs on
 /// the same toolchain the bundle is built with.
-String _dartBesideFlutter() {
+String _dartBesideFlutter(String? flutterExecutable) {
   try {
-    return p.join(File(findFlutterExecutable()).parent.path, 'dart');
+    return p.join(
+      File(flutterExecutable ?? findFlutterExecutable()).parent.path,
+      'dart',
+    );
   } on Object {
     throw const GeneratedCatalogException('toolchain');
   }

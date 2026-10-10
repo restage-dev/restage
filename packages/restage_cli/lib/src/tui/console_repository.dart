@@ -10,6 +10,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -166,6 +167,19 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
+  /// The load failure for [config], naming what does exist when the config
+  /// names something that does not; [fallback] otherwise.
+  Future<ConsoleLoadException> _configProblem(
+    DiscoveryApi discovery,
+    RestageConfig config,
+    String fallback,
+  ) async {
+    final problems = (await checkConfigTarget(discovery, config)).problems;
+    return ConsoleLoadException(
+      problems.isEmpty ? fallback : problems.join(' '),
+    );
+  }
+
   Future<Credential> _readCredential(FileCredentialStore store) async {
     try {
       final credential = await store.read();
@@ -246,7 +260,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
         );
       }
       final message = stderr.toString().trim();
-      throw ConsoleLoadException(
+      throw await _configProblem(
+        discovery,
+        config,
         message.isEmpty
             ? 'Could not resolve organization "$configuredSlug".'
             : message,
@@ -261,8 +277,19 @@ class DefaultConsoleRepository implements ConsoleRepository {
         );
       }
       if (organizations.length > 1) {
-        throw const ConsoleLoadException(
-          'restage_config.yaml is missing organization.',
+        // The project may name the organization when it lives in only one.
+        final check = await checkConfigTarget(discovery, config);
+        final resolved = check.organization;
+        if (resolved == null) {
+          throw ConsoleLoadException(
+            check.problems.isEmpty
+                ? ambiguousOrganizationSentence(organizations)
+                : check.problems.join(' '),
+          );
+        }
+        return _ConsoleOrganization(
+          organizationId: resolved.organizationId,
+          slug: resolved.slug,
         );
       }
       final organization = organizations.single;
@@ -287,7 +314,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
         organization.organizationId,
       );
       if (!_containsSlug(projects, config.project)) {
-        throw ConsoleLoadException(
+        throw await _configProblem(
+          discovery,
+          config,
           'No project found for restage_config.yaml project: ${config.project}.',
         );
       }
@@ -345,7 +374,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
         projectSlug: config.project,
       );
       if (!_containsSlug(apps, config.app)) {
-        throw ConsoleLoadException(
+        throw await _configProblem(
+          discovery,
+          config,
           'No app found for restage_config.yaml app: ${config.app}.',
         );
       }
@@ -383,7 +414,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
       ];
       if (legacyMatches.length != 1 ||
           legacyMatches.single.environmentTargetId == null) {
-        throw ConsoleLoadException(
+        throw await _configProblem(
+          discovery,
+          config,
           'No environment found for defaultEnvironment: $environment.',
         );
       }

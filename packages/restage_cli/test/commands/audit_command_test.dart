@@ -57,6 +57,34 @@ void main() {
               'chainVerified': true,
               'entryId': 99,
             },
+            {
+              '__className__': 'SurfaceAuditLogEntryView',
+              'action': 'experimentStarted',
+              'actorType': 'human',
+              'actorEmail': 'owner@example.com',
+              'outcome': 'success',
+              'severity': 'info',
+              'targetType': 'experiment',
+              'targetId': 'experiment.one',
+              'targetName': 'Annual plan framing',
+              'occurredAt': '2026-06-29T18:16:51.000Z',
+              'context': {'experimentId': 'experiment.one'},
+              'chainState': 'pendingChain',
+              'chainVerified': false,
+            },
+            {
+              '__className__': 'SurfaceAuditLogEntryView',
+              'action': 'experimentPaused',
+              'actorType': 'human',
+              'outcome': 'success',
+              'severity': 'info',
+              'targetType': 'experiment',
+              'targetId': 'experiment.gone',
+              'occurredAt': '2026-06-29T18:15:51.000Z',
+              'context': {'experimentId': 'experiment.gone'},
+              'chainState': 'pendingChain',
+              'chainVerified': false,
+            },
           ]),
           200,
         );
@@ -72,6 +100,15 @@ void main() {
     final code = await runner.run(['audit', 'log', '-C', tempDir.path]);
 
     expect(code, 0);
+    final lines = out.toString().split('\n');
+    expect(lines.first, startsWith('WHEN\tACTION\tTARGET\tACTOR'));
+    expect(lines, contains(contains('\tsurfacePublished\tpro\t')));
+    expect(
+      lines,
+      contains(contains('\texperimentStarted\tAnnual plan framing\t')),
+    );
+    // An experiment deleted since keeps its id.
+    expect(lines, contains(contains('\texperimentPaused\texperiment.gone\t')));
     expect(logBody, isNotNull);
     expect(logBody!['method'], 'listAuditLog');
     expect(logBody!['organizationId'], 7);

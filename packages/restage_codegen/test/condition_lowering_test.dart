@@ -293,13 +293,19 @@ void main() {
       expect(parsed(result), 'Column(children: [Text(text: "b")])');
     });
 
-    test('a spread body refuses loudly', () async {
+    test('a spread body guards each element', () async {
       final result = await lower(
-        "Column(children: [if (isPro) ...[Text(text: 'b')]])",
+        "Column(children: [if (isPro) ...[Text(text: 'b'), Text(text: 'c')] "
+        "else Text(text: 'd')])",
       );
       expect(
-        result.issues.map((issue) => issue.code),
-        contains(IssueCode.unsupportedCollectionFlow),
+        parsed(result),
+        'Column(children: [...for presence in switch state.isPro '
+        '{ true: [0], false: [] }: Text(text: "b"), '
+        '...for presence in switch state.isPro '
+        '{ true: [0], false: [] }: Text(text: "c"), '
+        '...for presence in switch state.isPro '
+        '{ true: [], false: [0] }: Text(text: "d")])',
       );
     });
 
@@ -453,10 +459,33 @@ void main() {
       );
     });
 
-    test('a spread inside a nested `if` refuses loudly', () async {
+    test('a spread inside a nested `if` guards each element', () async {
       final result = await lower(
         'Column(children: '
         "[if (isPro) if (trialUsed) ...[Text(text: 'b')]])",
+      );
+      expect(
+        parsed(result),
+        'Column(children: [...for presence in switch state.isPro '
+        '{ true: switch state.trialUsed { true: [0], false: [] }, false: [] }: '
+        'Text(text: "b")])',
+      );
+    });
+
+    test('a case-pattern `if` refuses naming the construct', () async {
+      final result = await lower(
+        "Column(children: [if (plan case 'annual') Text(text: 'b')])",
+      );
+      final issue = result.issues.singleWhere(
+        (issue) => issue.code == IssueCode.unsupportedCollectionFlow,
+      );
+      expect(issue.message, contains('collection-if with a case pattern'));
+      expect(issue.location, isNotEmpty);
+    });
+
+    test('a null-aware spread body refuses loudly', () async {
+      final result = await lower(
+        "Column(children: [if (isPro) ...?[Text(text: 'b')]])",
       );
       expect(
         result.issues.map((issue) => issue.code),

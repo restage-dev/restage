@@ -169,14 +169,29 @@ final class _BuildEnvironmentScan extends RecursiveAstVisitor<void> {
 
   @override
   void visitInstanceCreationExpression(InstanceCreationExpression node) {
-    final constructor = node.constructorName.element;
-    final name = constructor?.name;
-    if ((name == 'fromEnvironment' || name == 'hasEnvironment') &&
-        (constructor?.library.isDartCore ?? false)) {
+    if (_isEnvironmentConstructor(node.constructorName.element)) {
       found = true;
       return;
     }
     super.visitInstanceCreationExpression(node);
+  }
+
+  // Initializers are read from the element model, so shorthands stay unexpanded.
+  @override
+  void visitDotShorthandConstructorInvocation(
+    DotShorthandConstructorInvocation node,
+  ) {
+    if (_isEnvironmentConstructor(node.element)) {
+      found = true;
+      return;
+    }
+    super.visitDotShorthandConstructorInvocation(node);
+  }
+
+  static bool _isEnvironmentConstructor(Element? constructor) {
+    final name = constructor?.name;
+    return (name == 'fromEnvironment' || name == 'hasEnvironment') &&
+        (constructor?.library?.isDartCore ?? false);
   }
 
   @override

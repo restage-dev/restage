@@ -1,7 +1,7 @@
 part of '../section_header_showcase.dart';
 
-const sectionHeaderShowcaseFlowRef =
-    SurfaceFlowRef<SectionHeaderShowcaseResult>(
+const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
+    SectionHeaderShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'section_header_showcase',
   version: 1,
   minClient: 6,
@@ -10,12 +10,14 @@ const sectionHeaderShowcaseFlowRef =
   decodeResult: _decodeSectionHeaderShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":6,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:95ff0d2946f74fc5f038b0d892c1c2be9afa93a89ea75497d19b30a43d7ab794","minClient":6,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
+        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":6,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:a19b24bfd19e74537a4a4f95b5d07d1d1be84bfc143966a2816d8c7417e2db58","minClient":6,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
     screens: {
       'section_header_showcase': SectionHeaderShowcaseScreen.new,
     },
     children: {},
   ),
+  measurementPublicationDraftDigest:
+      '02b065ede525ddc9b04c4596e341f472e941680f2ac5913ba0212844215897ce',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

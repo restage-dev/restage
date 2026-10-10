@@ -7,6 +7,10 @@ import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart'
+    show kMeasurementRouteArgumentKeyV1;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
@@ -56,7 +60,7 @@ void main() {
     );
   });
 
-  test('a state-update paywall compiles unmeasured with its handlers intact',
+  test('a state-update paywall publishes measurement with its handlers intact',
       () async {
     final compiled = await _compileFixture(_statefulPaywallSourcePath);
 
@@ -65,10 +69,9 @@ void main() {
       isTrue,
       reason: compiled.output.errors.join('\n'),
     );
-    expect(compiled.output.publications, isEmpty);
-    expect(compiled.log, contains('Flutter State method tear-off'));
-    expect(compiled.log, contains('compiles unmeasured'));
-    _expectUnmeasuredStatefulPaywall(compiled.readerWriter);
+    expect(compiled.output.publications, hasLength(1));
+    expect(compiled.log, isNot(contains('compiles unmeasured')));
+    _expectMeasuredStatefulPaywall(compiled.readerWriter);
   });
 }
 
@@ -119,45 +122,32 @@ Future<_Compiled> _compileFixture(String sourcePath) async {
   );
 }
 
-void _expectUnmeasuredStatefulPaywall(TestReaderWriter readerWriter) {
+/// The plan card's local state update pairs with the routed measure-only tap;
+/// the close control's host event carries its own route.
+void _expectMeasuredStatefulPaywall(TestReaderWriter readerWriter) {
   final manifest = SurfacePublicationManifestV1Codec.decodeJson(
     readerWriter.testing.readString(
       AssetId(_package, '.restage/build/metadata/restage.publication.json'),
     ),
   );
-  expect(manifest.publications, hasLength(1));
   final publication = manifest.publications.single;
-  expect(publication.publication.surface, Surface.paywall);
   expect(publication.publication.slug, _statefulPaywallSlug);
-  expect(publication.publication.sourceKind, SurfaceSourceKind.paywall);
-  expect(publication.publication.payloadKind, SurfacePayloadKind.blob);
-  expect(publication.sources, <String>[_statefulPaywallSourcePath]);
-
   final bundle = RestageBundleCodec.decode(
     readerWriter.testing.readBytes(
       AssetId(_package, _statefulPaywallBundlePath),
     ),
   );
-  expect(bundle.packageName, _package);
-  expect(bundle.authoredLibraryPath, _statefulPaywallSourcePath);
-  final deliveryFiles = <String, List<int>>{
-    for (final artifact in bundle.entries)
-      if (artifact.role != RestageBundleEntryRole.rfwText)
-        artifact.logicalPath: artifact.bytes,
-  };
-  expect(manifest.validateArtifactClosure(deliveryFiles), hasLength(1));
-
   final blobPath = publication.artifacts
       .singleWhere(
         (artifact) =>
             artifact.role == SurfacePublicationArtifactRole.screenBlob,
       )
       .path;
-  final blob = bundle.entries.singleWhere(
-    (artifact) => artifact.logicalPath == blobPath,
+  final library = fmt.decodeLibraryBlob(
+    bundle.entries
+        .singleWhere((artifact) => artifact.logicalPath == blobPath)
+        .bytes,
   );
-  final library = fmt.decodeLibraryBlob(blob.bytes);
-  expectNoMeasurementRfwIdentities(library);
 
   final handlers = rfwEventHandlers(library);
   final stateHandler = handlers.whereType<fmt.SetStateHandler>().single;
@@ -166,8 +156,17 @@ void _expectUnmeasuredStatefulPaywall(TestReaderWriter readerWriter) {
     ['annualSelected'],
   );
   expect(stateHandler.value, isFalse);
-  final hostEvent = handlers.whereType<fmt.EventHandler>().single;
-  expect(hostEvent.eventName, 'close');
+  final events = handlers.whereType<fmt.EventHandler>().toList();
+  expect(
+    events.map((event) => event.eventName),
+    unorderedEquals(['close', kMeasurementPublicationTapEventNameV1]),
+  );
+  for (final event in events) {
+    expect(
+      event.eventArguments[kMeasurementRouteArgumentKeyV1],
+      isA<String>(),
+    );
+  }
 }
 
 BuilderOptions _builderOptions(String builderKey) {

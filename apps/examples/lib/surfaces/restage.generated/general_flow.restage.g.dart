@@ -10,7 +10,7 @@ const generalJourneyRef = SurfaceFlowRef<
   decodeResult: _decodeGeneralJourneyResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"general_journey","initial":"general_status","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"general_status":{"contentHash":"sha256:5e3d337414301058ab8a74a34ed20dbb0d9617218f1d97f9f9aba6ebbe7b1abe","minClient":1,"path":"general_status.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"general_status":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"general_status"}},"version":1}',
+        '{"flow":"general_journey","initial":"general_status","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"general_status":{"contentHash":"sha256:016e8c65b83c8307d340282158862e9df50aa0c61396eb403be89c891c01d455","minClient":1,"path":"measurement/83088be4886b490b/general_status.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"general_status":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"general_status"}},"version":1}',
     screens: {
       'general_status': GeneralStatus.new,
     },

@@ -33,12 +33,7 @@ class SurfaceListCommand extends Command<int> {
         'type',
         help:
             'Filter by surface category: paywall, onboarding, message, '
-            'survey, general.',
-      )
-      ..addFlag(
-        'all',
-        negatable: false,
-        help: 'List every supported surface type.',
+            'survey, general. Lists every type when left out.',
       )
       ..addFlag(
         'json',
@@ -82,18 +77,9 @@ class SurfaceListCommand extends Command<int> {
   }
 
   List<SurfaceType>? _resolveSurfaceTypes() {
-    final all = argResults?['all'] as bool? ?? false;
     final raw = argResults?['type'] as String?;
     final valid = _listableSurfaceTypes.map((type) => type.wireName).join(', ');
-    if (all && raw != null && raw.isNotEmpty) {
-      _io.stderr.writeln('Pass either --all or --type <$valid>, not both.');
-      return null;
-    }
-    if (all) return _listableSurfaceTypes;
-    if (raw == null || raw.isEmpty) {
-      _io.stderr.writeln('Required: --type <$valid>, or pass --all.');
-      return null;
-    }
+    if (raw == null || raw.isEmpty) return _listableSurfaceTypes;
     final SurfaceType type;
     try {
       type = SurfaceType.fromWireName(raw);

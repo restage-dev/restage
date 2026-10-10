@@ -15,7 +15,9 @@ final readExperimentResultsTool = Tool(
       'Read one experiment\'s results at an exact target. Every rate, effect '
       'and interval end is a decimal beside the exact numerator and '
       'denominator it came from; the figures are the service\'s own and are '
-      'returned unchanged.',
+      'returned unchanged. A result with fewer than 5 users, successes or '
+      'failures in any variant is held for privacy: its availability is '
+      'privacyRestricted and it states no figures.',
   inputSchema: Schema.object(
     properties: {
       ...exactTargetProperties(),
@@ -46,7 +48,8 @@ final readExperimentRosterTool = Tool(
       'that names no evaluated result, whose read the service refuses, or '
       'that falls beyond the $kExperimentRosterResultReadBound result reads '
       'one call performs states that in its `omission` field. The figures '
-      'are the service\'s own and are returned unchanged.',
+      'are the service\'s own and are returned unchanged; a result held for '
+      'privacy reads privacyRestricted with no figures.',
   inputSchema: Schema.object(
     properties: {
       ...exactTargetProperties(),

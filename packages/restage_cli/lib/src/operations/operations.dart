@@ -48,6 +48,37 @@ final List<Operation> sharedOperations = [
     ],
   ),
   Operation(
+    cliPath: 'org rename',
+    mcpName: 'restage_rename_organization',
+    description: 'Rename an organization. Its slug stays.',
+    mcpDescription:
+        'Rename an organization. Admins only. The slug, and every link and '
+        'key using it, stay the same.',
+    scope: OperationScope.organization,
+    params: const [
+      OperationParam(
+        'name',
+        cli: 'new name <name>',
+        positional: true,
+        required: true,
+        help: 'The new organization name.',
+      ),
+    ],
+    render: (out, _, args, _) =>
+        out.writeln('Renamed the organization to ${args.str('name')}.'),
+    call: (target, args) async {
+      final organizationId = await target.organization();
+      await target.api.call('organization', 'rename', {
+        'organizationId': organizationId,
+        'name': args.str('name'),
+      });
+      return <String, Object?>{
+        'organizationId': organizationId,
+        'name': args.str('name'),
+      };
+    },
+  ),
+  Operation(
     cliPath: 'projects',
     mcpName: 'restage_list_projects',
     description: 'List projects available to the signed-in account.',
@@ -137,6 +168,34 @@ final List<Operation> sharedOperations = [
         ),
       );
     },
+  ),
+  Operation(
+    cliPath: 'app rename',
+    mcpName: 'restage_rename_app',
+    description: 'Rename an app. Its slug stays.',
+    mcpDescription:
+        'Rename an app. Admins only. The slug, and the SDK configuration and '
+        'keys using it, stay the same. Returns the app.',
+    scope: OperationScope.app,
+    params: const [
+      OperationParam(
+        'name',
+        cli: 'new name <name>',
+        positional: true,
+        required: true,
+        help: 'The new app name.',
+      ),
+    ],
+    render: (out, _, args, _) =>
+        out.writeln('Renamed the app to ${args.str('name')}.'),
+    resultKey: 'app',
+    columns: _appConfigColumns,
+    call: (target, args) => AppAdminApi(target.api).renameApp(
+      project: target.project!,
+      app: target.app!,
+      name: args.str('name'),
+      organizationId: target.organizationId,
+    ),
   ),
   Operation(
     cliPath: 'app-config show',
@@ -463,13 +522,105 @@ final List<Operation> sharedOperations = [
     },
   ),
   Operation(
+    cliPath: 'app delete',
+    mcpName: 'restage_delete_app',
+    description:
+        "Delete an app nothing uses (admin). --name must be the app's name.",
+    mcpDescription:
+        'Delete an app nothing uses. Refused while it has serving surfaces, '
+        'active API keys, running experiments or delivery rules. Requires '
+        "the app's exact name.",
+    scope: OperationScope.app,
+    params: const [
+      OperationParam(
+        'name',
+        cli: 'name',
+        required: true,
+        help: "The app's name, exactly as it is shown.",
+      ),
+    ],
+    render: (out, _, _, target) => out.writeln('Deleted app ${target.app}.'),
+    call: (target, args) async {
+      await AppAdminApi(target.api).deleteApp(
+        project: target.project!,
+        app: target.app!,
+        name: args.str('name'),
+        organizationId: target.organizationId,
+      );
+      return <String, Object?>{'deleted': true, 'app': target.app};
+    },
+  ),
+  Operation(
+    cliPath: 'keys resolve',
+    mcpName: 'restage_resolve_api_key',
+    description:
+        'Find the organization, project, app, environment and plane an API '
+        'key belongs to. The key is matched here against key prefixes and '
+        'never sent.',
+    mcpDescription:
+        'Find the organization, project, app, environment and runtime plane '
+        'an API key belongs to, such as the rs_pk_ publishable key an app is '
+        'configured with. The key is matched locally against the short '
+        "prefixes of your organizations' active keys: it is never sent to "
+        'the server, and only the matching prefix is returned. Pass the key '
+        'or its leading part. Use the result as organizationId, projectSlug, '
+        'appSlug, environmentSlug and runtimePlane to push and publish to '
+        'the environment that key serves.',
+    scope: OperationScope.account,
+    params: const [
+      OperationParam(
+        'key',
+        cli: 'key <value>',
+        positional: true,
+        required: true,
+        help: 'The API key, or its leading part.',
+      ),
+      OperationParam(
+        'organizationId',
+        type: ParamType.integer,
+        mcpOnly: true,
+        help: 'Only search this organization.',
+      ),
+      OperationParam(
+        'organization',
+        cli: 'organization',
+        cliOnly: true,
+        help: 'Only search the organization with this slug.',
+      ),
+    ],
+    validate: (args, _) => (args.optStr('key') ?? '').startsWith('rs_')
+        ? null
+        : 'Expected a Restage API key, starting with rs_pk_ or rs_sk_.',
+    resultKey: 'matches',
+    columns: const [
+      (header: 'ORGANIZATION', key: 'organizationSlug'),
+      (header: 'PROJECT', key: 'projectSlug'),
+      (header: 'APP', key: 'appSlug'),
+      (header: 'ENVIRONMENT', key: 'environmentSlug'),
+      (header: 'PLANE', key: 'runtimePlane'),
+      (header: 'TARGET', key: 'environmentTargetId'),
+      (header: 'KEY', key: 'keyPrefix'),
+    ],
+    call: (target, args) => resolveApiKey(
+      target.api,
+      args.str('key'),
+      organizationId: args.optInt('organizationId'),
+      organizationSlug: args.optStr('organization'),
+    ),
+  ),
+  Operation(
     cliPath: 'audit log',
     mcpName: 'restage_audit_log',
     description: 'Show the organization server audit log.',
     mcpDescription:
         "The organization's server audit log, newest first, the same as "
-        '`restage audit log`: each row with its action, actor, outcome, '
-        'reason, and whether its hash chain verifies.',
+        '`restage audit log`: each row with its action, target, actor, '
+        'outcome and reason. An experiment row carries `targetName`, the '
+        "experiment's current name, absent once the experiment is gone. "
+        'Each row carries `chain`: pending (not yet in the tamper-evident '
+        'chain), chained (in the chain; the periodic verification has not '
+        'reached it yet), or verified. restage_audit_verdict says whether '
+        'the chain as a whole verifies.',
     scope: OperationScope.organization,
     resultKey: 'events',
     toJson: _auditRowsJson,
@@ -525,9 +676,14 @@ final List<Operation> sharedOperations = [
     mcpDescription:
         'The audit timeline for one surface in an environment: pushes, '
         'publishes, rollbacks, kills, and freezes, newest first, each with '
-        'its actor, outcome, and reason.',
+        'its actor, outcome, and reason. '
+        'Each row carries `chain`: pending (not yet in the tamper-evident '
+        'chain), chained (in the chain; the periodic verification has not '
+        'reached it yet), or verified. restage_audit_verdict says whether '
+        'the chain as a whole verifies.',
     scope: OperationScope.target,
     surface: true,
+    readsSurface: true,
     params: const [
       OperationParam(
         'contractVersion',
@@ -563,6 +719,7 @@ final List<Operation> sharedOperations = [
         'inspection. The draft is compiled binary and not editable here.',
     scope: OperationScope.app,
     surface: true,
+    readsSurface: true,
     params: const [
       OperationParam(
         'out',
@@ -616,12 +773,21 @@ final List<Operation> sharedOperations = [
       final pushed = value! as Map<String, Object?>;
       final slug = target.identity!.slug;
       final revision = pushed['revision'];
+      final publish = target.syntax.command(
+        FollowUp('surface publish', 'restage_publish_surface', [
+          FollowUpArg('surfaceSlug', slug),
+          FollowUpArg(
+            'surfaceType',
+            target.identity!.surface.wireName,
+            flag: 'type',
+          ),
+          FollowUpArg('revision', '$revision', flag: 'revision'),
+          ...planeArgs(target.runtimePlane!, implicit: target.planeIsImplicit),
+        ]),
+      );
       out.writeln(
         'Pushed the draft of "$slug" to ${target.environment} as r$revision. '
-        'Not live yet. Run `restage surface publish $slug --type '
-        '${target.identity!.surface.wireName} --revision $revision'
-        '${planeFlag(target.runtimePlane!, implicit: target.planeIsImplicit)}` '
-        'to publish it.',
+        'Not live yet. ${target.syntax.run} $publish to publish it.',
       );
       if (pushed['buildNotice'] case final String notice) out.writeln(notice);
     },
@@ -652,6 +818,93 @@ final List<Operation> sharedOperations = [
     },
   ),
 ];
+
+/// The active keys whose prefix matches [key], each with the organization,
+/// project, app and environment target it belongs to. [key] never leaves
+/// this process.
+@visibleForTesting
+Future<List<Map<String, Object?>>> resolveApiKey(
+  RestageApi api,
+  String key, {
+  int? organizationId,
+  String? organizationSlug,
+}) async {
+  final discovery = DiscoveryApi(api);
+  final admin = AppAdminApi(api);
+  final plane = RegExp(r'^rs_(?:pk|sk)_(sandbox|live)_').firstMatch(key);
+  final runtimePlane = plane == null
+      ? null
+      : RuntimePlane.fromWireName(plane.group(1)!);
+  final organizations = [
+    for (final organization in await discovery.listOrganizations())
+      if ((organizationId == null ||
+              organization.organizationId == organizationId) &&
+          (organizationSlug == null || organization.slug == organizationSlug))
+        organization,
+  ];
+  if (organizations.isEmpty) {
+    throw const TargetSelectionException('No organization of yours matches.');
+  }
+  final matches = <Map<String, Object?>>[];
+  for (final organization in organizations) {
+    final id = organization.organizationId;
+    for (final project in await discovery.listProjects(id)) {
+      final apps = await discovery.listApps(
+        organizationId: id,
+        projectSlug: project.slug,
+      );
+      for (final app in apps) {
+        final targets = await discovery.listEnvironmentTargets(
+          organizationId: id,
+          projectSlug: project.slug,
+          appSlug: app.slug,
+          appId: app.appId,
+          runtimePlane: runtimePlane,
+        );
+        for (final environment in targets) {
+          final keys = await admin.listApiKeys(
+            project: project.slug,
+            app: app.slug,
+            environment: environment.environmentSlug,
+            environmentTargetId: environment.environmentTargetId,
+            runtimePlane: environment.runtimePlane,
+            organizationId: id,
+          );
+          for (final row in keys) {
+            final prefix = row['keyPrefix'] as String? ?? '';
+            final stem = prefix.endsWith('...')
+                ? prefix.substring(0, prefix.length - 3)
+                : prefix;
+            if (stem.isEmpty ||
+                !(key.startsWith(stem) || stem.startsWith(key))) {
+              continue;
+            }
+            matches.add({
+              'organizationId': id,
+              'organizationSlug': organization.slug,
+              'projectSlug': project.slug,
+              'appSlug': app.slug,
+              'appId': app.appId,
+              'environmentSlug': environment.environmentSlug,
+              'runtimePlane': environment.runtimePlane.wireName,
+              'environmentTargetId': environment.environmentTargetId,
+              'apiKeyId': row['id'],
+              'kind': row['kind'],
+              'keyPrefix': prefix,
+            });
+          }
+        }
+      }
+    }
+  }
+  if (matches.isEmpty) {
+    throw TargetSelectionException(
+      'No active API key in ${organizations.map((o) => o.slug).join(', ')} '
+      'matches that key. A revoked key does not match.',
+    );
+  }
+  return matches;
+}
 
 /// The shared operation [mcpName] names.
 @experimental

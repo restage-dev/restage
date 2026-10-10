@@ -15,18 +15,17 @@ final class BranchingNotice extends StatefulWidget {
 
 class _BranchingNoticeState extends State<BranchingNotice> {
   bool highlighted = true;
-
-  void select() => setState(() => highlighted = true);
+  bool expanded = false;
 
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          GestureDetector(
-            onTap: select,
-            child: highlighted
-                ? const Text('Highlighted')
-                : const Text('Ordinary'),
-          ),
+          highlighted && expanded
+              ? TextButton(
+                  onPressed: surfaceEvent(BranchingNotice.dismiss),
+                  child: const Text('Highlighted'),
+                )
+              : const Text('Ordinary'),
           FilledButton(
             onPressed: surfaceEvent(BranchingNotice.dismiss),
             child: const Text('Dismiss'),

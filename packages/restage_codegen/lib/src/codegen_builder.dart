@@ -16,6 +16,7 @@ import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
@@ -214,7 +215,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   final issues = <Issue>[];
   final noticeKeys = buildNoticeKeys ?? <String>{};
   LineInfo? lineInfo;
-  final resolved = await library.session.getResolvedLibraryByElement(library);
+  final resolved = await resolveLibraryInLongForm(library);
   if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
     lineInfo = resolved.units.first.lineInfo;
     issues.addAll(
@@ -242,7 +243,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     catalog: catalog,
     helpers: helpers,
     astNodeFor: (fragment) =>
-        buildStep.resolver.astNodeFor(fragment, resolve: true),
+        resolvedNodeInLongForm(buildStep.resolver, fragment),
   );
   ExpressionTranslator translatorFor(
     PaywallSourceFound source,
@@ -492,7 +493,11 @@ _CompiledPaywallForm? _compilePaywallForm({
     return null;
   }
   final library = lowering.library;
-  final validationIssues = validateModelAgainstCatalog(library, catalog);
+  final validationIssues = validateModelAgainstCatalog(
+    library,
+    catalog,
+    rootLabels: {rootWidgetName: source.className},
+  );
   if (validationIssues.isNotEmpty) {
     issues.addAll(validationIssues);
     return null;
@@ -663,8 +668,7 @@ final class RestageCodegenBuilder implements Builder {
     // early-return, so a malformed file in the paywall source directory is
     // always diagnosed rather than dropped.
     LineInfo? lineInfo;
-    final resolvedLib =
-        await library.session.getResolvedLibraryByElement(library);
+    final resolvedLib = await resolveLibraryInLongForm(library);
     if (resolvedLib is ResolvedLibraryResult && resolvedLib.units.isNotEmpty) {
       lineInfo = resolvedLib.units.first.lineInfo;
       state.issues.addAll(
@@ -742,7 +746,7 @@ final class RestageCodegenBuilder implements Builder {
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
-          buildStep.resolver.astNodeFor(fragment, resolve: true),
+          resolvedNodeInLongForm(buildStep.resolver, fragment),
     );
 
     final translator = ExpressionTranslator(
@@ -821,6 +825,7 @@ final class RestageCodegenBuilder implements Builder {
           final validationIssues = validateModelAgainstCatalog(
             rfwLibrary,
             catalog,
+            rootLabels: {paywallRootWidgetName: src.className},
           );
           if (validationIssues.isEmpty) {
             final derivation = deriveCapabilityManifest(rfwLibrary, catalog);
@@ -888,6 +893,7 @@ final class RestageCodegenBuilder implements Builder {
           final validationIssues = validateModelAgainstCatalog(
             flowScreenLibrary,
             catalog,
+            rootLabels: {onboardingScreenRootWidgetName: src.className},
           );
           if (validationIssues.isEmpty) {
             final derivation = deriveCapabilityManifest(

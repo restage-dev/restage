@@ -34,6 +34,28 @@ const _loginPollBudget = Duration(seconds: 30);
 /// The server version reported to MCP hosts. Keep in sync with `pubspec.yaml`.
 const restageMcpVersion = '0.1.0';
 
+/// How an agent uses this server, sent to the host at initialization.
+const restageMcpInstructions = '''
+Manage Restage surfaces (screens, onboarding and other flows, messages, surveys, paywalls) and their configuration. Sign in with restage_login, or reuse an existing `restage login` session.
+
+Target: restage_status and restage_doctor check that the project's restage_config.yaml names an organization, project, app and environment that exist, and list the real ones when it does not. Given an app's API key (rs_pk_...), restage_resolve_api_key names the organization, project, app, environment and runtime plane it serves.
+
+Publish: generate code in the Flutter project (`dart run build_runner build`), push with restage_push_surface, then make the revision live with restage_publish_surface.
+
+Custom widgets (your own @RestageWidget classes):
+- On devices: a surface that uses them renders only in app builds that have those widgets compiled in and registered at the library version the push note names (the @RestageLibrary capabilityVersion). Older installs show their fallback. Devices need no build or catalog push.
+- In dashboard previews: the dashboard draws app widgets from a build pushed with restage_push_build. Builds use the app's own Flutter, whatever version it is.
+- In the dashboard editor palette: restage_push_catalog uploads the widget list. Devices and previews do not need it.
+
+Show a published surface in an app (restage_publish_surface returns this as showInApp):
+- Configure hosted delivery once at startup: `Restage.configure(apiKey: 'rs_pk_...', baseUrl: 'https://...')`. The key picks the environment; restage_resolve_api_key shows which.
+- Paywalls: mount the generated typed mount, such as `ProUpgradePaywallSurface()` for a class `ProUpgradePaywall`, or render by slug with `RestagePaywall(id: '<slug>')`.
+- Screens and flows (onboarding, messages, surveys, general): there is no mount by slug. The app must compile the generated mount, such as `WelcomeFlowSurface(onComplete: ...)`, and a published version must match the contract that app build carries. Add `part 'restage.generated/<file>.restage.g.dart';` to the declaring library.
+- A generated mount fetches the live version and falls back to the compiled widget.
+- Example: in the Restage examples app, `lib/main_hosted_surface_demo.dart` renders a published surface given `--dart-define`s for RESTAGE_BASE_URL, RESTAGE_API_KEY, RESTAGE_SURFACE=<slug> and RESTAGE_SURFACE_TYPE=<type>.
+- Docs: https://docs.page/restage-dev/restage/delivery/hosted-delivery and https://docs.page/restage-dev/restage/authoring/custom-widgets
+''';
+
 /// The Restage MCP server.
 ///
 /// Exposes the Restage backend to an MCP host over the tools capability,
@@ -102,10 +124,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
            name: 'restage',
            version: restageMcpVersion,
          ),
-         instructions:
-             'Manage Restage surfaces (paywalls, onboarding, messages, '
-             'surveys) and configuration. Sign in with restage_login (or '
-             'reuse an existing `restage login` session).',
+         instructions: restageMcpInstructions,
        ) {
     // _scrubbed removes the secrets this server holds (the session token and
     // the in-flight device grant) from every result.
@@ -152,8 +171,13 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   Future<CallToolResult> Function(CallToolRequest) _scrubbed(
     Future<CallToolResult> Function(CallToolRequest) handler,
   ) {
-    return (request) =>
-        _gate.track(() async => _scrubHeldSecrets(await handler(request)));
+    // Every sentence a tool renders names MCP arguments and tools.
+    return (request) => _gate.track(
+      () => runZoned(
+        () async => _scrubHeldSecrets(await handler(request)),
+        zoneValues: selectorSyntaxZoneValues(SelectorSyntax.mcp),
+      ),
+    );
   }
 
   /// Remove the secrets this server holds — the stored session token (the full

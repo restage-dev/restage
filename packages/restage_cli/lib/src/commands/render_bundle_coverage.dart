@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/render_bundles/push_target.dart';
+import 'package:restage_cli/src/api/auth_api.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/render_bundle_coverage_sentence.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -117,23 +120,65 @@ Future<String?> _coverageSentence({
         }
       }
     }
-    return renderBundleCoverageSentence(
-      required: required,
-      headVersion: last?.headVersion,
-      registered: last?.registered ?? const {},
-      surfaceCount: surfaceCount,
-      app: app,
-      environment: environment,
+    String? sentence({required bool ownBuildCovers}) =>
+        renderBundleCoverageSentence(
+          required: required,
+          headVersion: last?.headVersion,
+          registered: last?.registered ?? const {},
+          surfaceCount: surfaceCount,
+          app: app,
+          environment: environment,
+          ownBuildCovers: ownBuildCovers,
+        );
+    if (sentence(ownBuildCovers: false) == null) return null;
+    return sentence(
+      ownBuildCovers: await _ownBuildCovers(
+        api: api,
+        bundles: bundles,
+        project: project,
+        app: app,
+        organizationId: organizationId,
+        required: required,
+      ),
     );
   } finally {
     bundles.close();
   }
 }
 
+/// Whether the signed-in user's own build of [app] registers [required]. A
+/// key has no build of its own, and a failed read counts as not covering.
+Future<bool> _ownBuildCovers({
+  required RestageApi api,
+  required RenderBundleApi bundles,
+  required String project,
+  required String app,
+  required int? organizationId,
+  required Map<String, int> required,
+}) async {
+  try {
+    final me = (await AuthApi(api).whoami())?.id;
+    if (me == null) return false;
+    final heads = await bundles.listHeads(
+      project: project,
+      app: app,
+      organizationId: organizationId,
+    );
+    final own = heads.where((head) => head.ownerUserInfoId == me).firstOrNull;
+    if (own == null) return false;
+    return required.entries.every(
+      (entry) => (own.libraries[entry.key] ?? 0) >= entry.value,
+    );
+  } on Object {
+    return false;
+  }
+}
+
 /// Builds the `build` command a push runs first under `--build`.
 typedef BuildCommandFactory = Command<int> Function();
 
-/// Pushes the app's build to [environment] before the surfaces go.
+/// Pushes the app's build to [environment] before the surfaces go. A failed
+/// build does not stop them: the build only feeds dashboard previews.
 Future<int> pushBuildFirst({
   required BuildCommandFactory buildCommand,
   required String project,
@@ -144,6 +189,7 @@ Future<int> pushBuildFirst({
   required bool recordGit,
   required StringSink stdout,
   required StringSink stderr,
+  String? flutterRoot,
 }) async {
   stdout.writeln('Pushing the build of $app to $environment first.');
   final runner = CommandRunner<int>('restage', '')..addCommand(buildCommand());
@@ -162,13 +208,32 @@ Future<int> pushBuildFirst({
       '-C',
       directory.path,
       if (recordGit) '--record-git',
+      if (flutterRoot != null) ...<String>['--flutter-root', flutterRoot],
     ]);
   } on UsageException catch (error) {
     stderr.writeln(error.message);
     code = 1;
   }
-  if (code != 0) {
-    stderr.writeln('The build push failed, so nothing else was pushed.');
-  }
   return code ?? 1;
+}
+
+/// Says what is and is not live after a push whose build failed.
+void reportBuildNotPushed({
+  required String app,
+  required String environment,
+  required bool surfacesPushed,
+  required StringSink stderr,
+}) {
+  final syntax = currentSelectorSyntax;
+  final retry =
+      '${syntax.run.toLowerCase()} '
+      '${syntax.command(pushBuildFollowUp(environment))}';
+  stderr.writeln(
+    '${surfacesPushed ? 'The surfaces were pushed, but the build of $app '
+              'was not.' : 'The build of $app was not pushed either.'} '
+    'Devices render surfaces with the widgets compiled into the app, so '
+    'they do not need it; the dashboard cannot preview app widgets until a '
+    'build of $app reaches $environment. Fix the build error above, then '
+    '$retry.',
+  );
 }

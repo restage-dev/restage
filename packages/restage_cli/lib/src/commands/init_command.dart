@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -235,17 +236,29 @@ class InitCommand extends Command<int> {
     }
 
     _stdout.writeln();
+    final syntax = currentSelectorSyntax;
+    String push(String surface) => syntax.command(
+      FollowUp('surface push', 'restage_push_surface', [
+        FollowUpArg('surface', surface),
+      ]),
+    );
     if (wantsStarter) {
+      final publish = syntax.command(
+        const FollowUp('surface publish', 'restage_publish_surface', [
+          FollowUpArg('surfaceSlug', 'starter'),
+          FollowUpArg('surfaceType', 'paywall', flag: 'type', mcpOnly: true),
+        ]),
+      );
       _stdout.writeln(
         'Next: run `dart pub get && dart run build_runner build`, then '
-        '`restage surface push starter` to push the starter to the '
+        '${push('starter')} to push the starter to the '
         '`${context.environment ?? '<environment>'}` environment, and '
-        '`restage surface publish starter` to make it live.',
+        '$publish to make it live.',
       );
     } else {
       _stdout.writeln(
         'Next: run `dart pub get && dart run build_runner build`, then '
-        '`restage surface push <id>` to push a surface.',
+        '${push('<id>')} to push a surface.',
       );
     }
     return 0;

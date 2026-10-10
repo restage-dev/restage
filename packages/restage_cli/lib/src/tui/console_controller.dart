@@ -279,6 +279,10 @@ class ConsoleController {
     final message = _operationMessage(result);
     _state = _state.copyWith(
       operationMessage: message,
+      commandOutput: ConsoleCommandOutput(
+        arguments: ['build', 'push', '--env', context.environment],
+        result: result,
+      ),
       activity: [
         ConsoleActivityEntry(
           operation: 'build',
@@ -379,6 +383,10 @@ class ConsoleController {
     final message = _operationMessage(result);
     _state = _state.copyWith(
       operationMessage: message,
+      commandOutput: ConsoleCommandOutput(
+        arguments: ['surface', operation, surface.slug],
+        result: result,
+      ),
       activity: _recordActivity(
         operation: operation,
         surface: surface,

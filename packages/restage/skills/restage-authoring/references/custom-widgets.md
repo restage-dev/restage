@@ -102,7 +102,9 @@ or changing its constructor needs an app release. Raise `capabilityVersion` when
 surface starts depending on such a change, so older apps never receive it.
 
 Before the dashboard can show a surface that uses custom widgets, push a build of the
-app with `restage build push`. See [tools.md](tools.md).
+app. `restage build push` makes a personal build that only your own preview uses;
+`restage build push --env <env>` updates the build everyone sees. See
+[tools.md](tools.md).
 
 ## Optional A2UI and Widgetbook output
 

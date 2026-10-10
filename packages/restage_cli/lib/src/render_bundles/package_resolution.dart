@@ -222,3 +222,24 @@ String readProjectPackageName(Directory projectRoot) {
   }
   return document['name']! as String;
 }
+
+/// The app's version name and build number from the pubspec's `version`
+/// field (`1.4.0+42` reads as `1.4.0` and 42); each is null when absent.
+({String? name, int? build}) readProjectAppVersion(Directory projectRoot) {
+  try {
+    final document = loadYaml(
+      File(p.join(projectRoot.path, 'pubspec.yaml')).readAsStringSync(),
+    );
+    final version = document is YamlMap ? document['version'] : null;
+    if (version is! String) return (name: null, build: null);
+    final plus = version.indexOf('+');
+    final name = (plus < 0 ? version : version.substring(0, plus)).trim();
+    final build = plus < 0 ? null : int.tryParse(version.substring(plus + 1));
+    return (
+      name: name.isEmpty || name.length > 64 ? null : name,
+      build: build == null || build < 0 || build > 0x7fffffff ? null : build,
+    );
+  } on Object {
+    return (name: null, build: null);
+  }
+}

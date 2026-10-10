@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/surface_push_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -158,6 +160,26 @@ void main() {
         'to publish it.',
       ),
     );
+  });
+
+  test('through the MCP server the hint names the publish tool', () async {
+    writeConfig(plane: 'sandbox');
+
+    final code = await runZoned(
+      () => push(['--plane', 'live'], backend(published: [])),
+      zoneValues: selectorSyntaxZoneValues(SelectorSyntax.mcp),
+    );
+
+    expect(code, 0, reason: err.toString());
+    expect(
+      out.toString(),
+      contains(
+        'Not live yet. Call restage_publish_surface with surfaceSlug: '
+        'pro_upgrade, surfaceType: paywall, environmentSlug: staging, '
+        'runtimePlane: live to publish it.',
+      ),
+    );
+    expect(out.toString(), isNot(contains('restage surface publish')));
   });
 
   test('no plane on an environment with both planes asks for one', () async {

@@ -9,6 +9,62 @@ const String kReservedPreviewLibraryName = 'restage.editor';
 const String kReservedPreviewConstructorName =
     '__restage_internal_geometry_marker_v1__';
 
+/// Library namespace of the measurement presentation wrappers.
+const String kMeasurementPresentationLibraryName = 'restage.measurement';
+
+/// Wrapper around a widget occurrence that owns a measurement event.
+const String kMeasurementPresentedConstructorName = 'MeasurementPresented';
+
+/// Wrapper around a widget occurrence that owns a measurement source event.
+const String kMeasurementSourcePresentedConstructorName =
+    'MeasurementSourcePresented';
+
+/// An RFW library a Restage render host installs itself.
+///
+/// Content may import it; an application or a widget bundle may not declare it.
+final class HostInstalledRfwLibrary {
+  /// Declares [namespace] and the [constructors] the host installs under it.
+  const HostInstalledRfwLibrary(this.namespace, this.constructors);
+
+  /// The dotted library namespace.
+  final String namespace;
+
+  /// Every constructor the host installs under [namespace].
+  final Set<String> constructors;
+}
+
+/// The preview instrumentation library.
+const HostInstalledRfwLibrary kPreviewInstrumentationRfwLibrary =
+    HostInstalledRfwLibrary(
+  kReservedPreviewLibraryName,
+  <String>{kReservedPreviewConstructorName},
+);
+
+/// The measurement presentation library.
+const HostInstalledRfwLibrary kMeasurementPresentationRfwLibrary =
+    HostInstalledRfwLibrary(
+  kMeasurementPresentationLibraryName,
+  <String>{
+    kMeasurementPresentedConstructorName,
+    kMeasurementSourcePresentedConstructorName,
+  },
+);
+
+/// Every library a Restage render host installs itself.
+const List<HostInstalledRfwLibrary> kHostInstalledRfwLibraries =
+    <HostInstalledRfwLibrary>[
+  kPreviewInstrumentationRfwLibrary,
+  kMeasurementPresentationRfwLibrary,
+];
+
+/// The host-installed library named [namespace], or null.
+HostInstalledRfwLibrary? hostInstalledRfwLibrary(String namespace) {
+  for (final library in kHostInstalledRfwLibraries) {
+    if (library.namespace == namespace) return library;
+  }
+  return null;
+}
+
 /// Rejects an RFW library blob that claims Restage's preview-only symbols.
 ///
 /// Publish and build tooling call this before accepting custom content. The

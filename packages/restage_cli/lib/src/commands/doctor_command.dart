@@ -1,7 +1,15 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/config/config_target_check.dart';
+import 'package:restage_cli/src/config/restage_config.dart';
+import 'package:restage_cli/src/credentials/file_credential_store.dart';
 
 /// A build flag Restage apps no longer need.
 ///
@@ -53,9 +61,15 @@ const _scannableExtensions = <String>{
 /// Advisory only: it exits `0` either way.
 class DoctorCommand extends Command<int> {
   /// Construct a doctor command bound to the given output sinks.
-  DoctorCommand({required StringSink stdout, required StringSink stderr})
-    : _stdout = stdout,
-      _stderr = stderr {
+  DoctorCommand({
+    required StringSink stdout,
+    required StringSink stderr,
+    FileCredentialStore? credentialStore,
+    http.Client? httpClient,
+  }) : _stdout = stdout,
+       _stderr = stderr,
+       _credentialStore = credentialStore,
+       _httpClient = httpClient {
     argParser.addOption(
       'directory',
       abbr: 'C',
@@ -66,14 +80,17 @@ class DoctorCommand extends Command<int> {
 
   final StringSink _stdout;
   final StringSink _stderr;
+  final FileCredentialStore? _credentialStore;
+  final http.Client? _httpClient;
 
   @override
   String get name => 'doctor';
 
   @override
   String get description =>
-      'Check the project for common setup issues, such as a build command '
-      'that turns off icon tree shaking.';
+      'Check the project for common setup issues: a restage_config.yaml that '
+      'names a project, app or environment that does not exist, or a build '
+      'command that turns off icon tree shaking.';
 
   @override
   Future<int> run() async {
@@ -91,6 +108,8 @@ class DoctorCommand extends Command<int> {
     _stdout.writeln('restage doctor');
     _stdout.writeln('');
 
+    await _checkConfig(root);
+
     if (evidence != null) {
       _stdout.writeln('WARN  Icon tree shaking is turned off');
       _stdout.writeln(
@@ -107,6 +126,67 @@ class DoctorCommand extends Command<int> {
     }
 
     return 0;
+  }
+
+  /// Reports whether restage_config.yaml names things that exist.
+  Future<void> _checkConfig(Directory root) async {
+    void line(String status, String detail) {
+      _stdout
+        ..writeln('$status  Project config')
+        ..writeln('      $detail');
+    }
+
+    final ({RestageConfig config, File source})? loaded;
+    try {
+      loaded = await loadRestageConfig(from: root);
+    } on RestageConfigFormatException catch (error) {
+      line('WARN', error.message);
+      return;
+    }
+    if (loaded == null) {
+      final syntax = currentSelectorSyntax;
+      line(
+        'WARN',
+        'No restage_config.yaml. ${syntax.run} '
+            '${syntax.command(initFollowUp)} to set one up.',
+      );
+      return;
+    }
+    final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
+    final credential = await store.read();
+    if (credential == null) {
+      line('SKIP', 'Not checked against the server. ${notSignedInSentence()}');
+      return;
+    }
+    RestageApi? api;
+    try {
+      api = RestageApi(
+        endpoint: resolveApiEndpoint(
+          config: loaded.config,
+          credential: credential,
+        ),
+        httpClient: _httpClient,
+        credential: credential,
+      );
+      final check = await checkConfigTarget(DiscoveryApi(api), loaded.config);
+      if (check.problems.isEmpty) {
+        line('PASS', 'The ${configTargetConfirmed(loaded.config)}.');
+      } else {
+        for (final problem in check.problems) {
+          line('WARN', problem);
+        }
+      }
+    } on EndpointConfigurationException catch (error) {
+      line('SKIP', error.toString());
+    } on InsecureEndpointException catch (error) {
+      line('SKIP', error.toString());
+    } on RestageApiException catch (error) {
+      line('SKIP', renderApiError(error).message);
+    } on SocketException catch (error) {
+      line('SKIP', 'Could not contact the backend: $error');
+    } finally {
+      if (_httpClient == null) api?.close();
+    }
   }
 
   /// Returns the first build-config file under [root] that mentions the flag.

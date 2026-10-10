@@ -7,6 +7,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
@@ -66,16 +67,23 @@ class SurfaceStatusCommand extends Command<int> {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _io.stderr);
     if (slug == null) return 1;
 
-    final identity = await resolveSurfaceLifecycleIdentity(
+    final selection = await resolveSurfaceReadSelection(
       argResults: argResults,
       fixedSurfaceType: _fixedType,
       slug: slug,
       stderr: _io.stderr,
     );
-    if (identity == null) return 1;
+    if (selection == null) return 1;
 
     return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
       final target = ctx.target!;
+      final identity = await selection.resolve(
+        api: ctx.api,
+        project: target.project,
+        app: target.app,
+        organizationId: target.organizationId,
+        appId: target.appId,
+      );
       final status = await SurfaceApi(ctx.api).surfaceStatus(
         project: target.project,
         app: target.app,
@@ -99,6 +107,7 @@ class SurfaceStatusCommand extends Command<int> {
   /// delivery mode — flow versions on a current server):
   /// ```
   ///   live: vN  locked: bool  shape: blob|flow  mode: typed|general
+  ///   in your app: <Name>Surface(...)
   ///     vN (active)  ISO-8601  contentHash  typed|general
   ///     vM           ISO-8601  contentHash  typed|general
   /// ```
@@ -115,6 +124,9 @@ class SurfaceStatusCommand extends Command<int> {
       'live: $liveLabel  locked: ${status.locked}  '
       'shape: ${status.deliveryShape}$modeSegment',
     );
+    if (mountLine(status) case final line?) {
+      _io.stdout.writeln('  in your app: $line');
+    }
     if (status.families.isNotEmpty) {
       for (final family in status.families) {
         final active = family.activeRevision == null

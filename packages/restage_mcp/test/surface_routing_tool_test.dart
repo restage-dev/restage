@@ -133,6 +133,7 @@ void main() {
           'restage_routing_audience_usage',
           'restage_read_routing',
           'restage_read_delivery_diagnostics',
+          'restage_read_delivery_flow',
           'restage_read_routing_revision',
           'restage_preview_routing',
           'restage_publish_routing',
@@ -444,6 +445,95 @@ void main() {
         );
       },
     );
+  });
+
+  group('delivery flow', () {
+    test('carries the target and window, and keeps a held cell null', () async {
+      Map<String, Object?>? sent;
+      final start = DateTime.utc(2026, 9, 1).microsecondsSinceEpoch;
+      final end = DateTime.utc(2026, 9, 3).microsecondsSinceEpoch;
+      final connection = await connectServer(
+        store: store,
+        httpClient: routingClient({
+          'windowStartDayUtc': start,
+          'windowEndDayExclusiveUtc': end,
+          'cells': [
+            {'source': 'rule', 'routeId': 'trial', 'version': 5, 'views': 186},
+            {
+              'source': 'experiment',
+              'experimentId': 'exp-1',
+              'experimentRunning': true,
+              'version': 3,
+            },
+            {
+              'source': 'experiment',
+              'experimentId': 'exp-old',
+              'experimentLabel': 'Offer layout',
+              'experimentRunning': false,
+              'version': 2,
+              'views': 30,
+            },
+            {'source': 'notRecorded', 'version': 4, 'views': 12},
+          ],
+        }, onCall: (body, _) => sent = body),
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_read_delivery_flow',
+          arguments: {
+            ...surfaceTarget(),
+            'windowStartDateUtc': '2026-09-01',
+            'windowEndDateExclusiveUtc': '2026-09-03',
+          },
+        ),
+      );
+
+      expect(result.isError, isNot(true));
+      expect(sent!['method'], 'readDeliveryFlow');
+      expect(sent!['surfaceSlug'], 'welcome');
+      expect(sent!['environmentId'], 31);
+      expect(sent!['organizationId'], 11);
+      expect(sent!['windowStartDayUtc'], start);
+      expect(sent!['windowEndDayExclusiveUtc'], end);
+      expect(result.structuredContent!['cells'], [
+        {
+          'source': 'rule',
+          'routeId': 'trial',
+          'experimentId': null,
+          'experimentLabel': null,
+          'experimentRunning': null,
+          'version': 5,
+          'views': 186,
+          'approxViews': null,
+        },
+        {
+          'source': 'experiment',
+          'routeId': null,
+          'experimentId': 'exp-1',
+          'experimentLabel': 'Unnamed experiment',
+          'experimentRunning': true,
+          'version': 3,
+          'views': null,
+          'approxViews': null,
+        },
+        {
+          'source': 'earlierExperiments',
+          'routeId': null,
+          'experimentId': null,
+          'experimentLabel': null,
+          'experimentRunning': null,
+          'version': 2,
+          'views': 30,
+          'approxViews': null,
+        },
+      ]);
+      expect(result.structuredContent!['totalViews'], isNull);
+      // 228 stated beside one held cell: 230, to the nearest 10.
+      expect(result.structuredContent!['approxTotalViews'], 230);
+      expect(result.structuredContent!['notRecordedViews'], 12);
+      expect(result.structuredContent!['approxNotRecordedViews'], isNull);
+    });
   });
 
   group('the document travels whole and unread', () {

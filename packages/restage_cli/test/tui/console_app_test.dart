@@ -946,7 +946,11 @@ void main() {
 
       expect(tester.terminalState, containsText('Server audit'));
       expect(tester.terminalState, containsText('Verdict verified'));
-      expect(tester.terminalState, containsText('surfacePublished pro'));
+      expect(tester.terminalState, containsText('surfacePublished verified'));
+      expect(tester.terminalState, containsText('experimentStarted'));
+      // Each event names what it acted on on its own line: a surface's slug,
+      // an experiment's current name (clipped by the narrow list here).
+      expect(tester.terminalState, containsText('Annual plan'));
       expect(tester.terminalState, containsText('owner@example.com'));
       expect(tester.terminalState, containsText('Session activity'));
       expect(tester.terminalState, containsText('push pro exit 0'));
@@ -1687,9 +1691,23 @@ class FakeConsoleRepository implements ConsoleRepository {
         'surfaceType': 'paywall',
         'environmentSlug': 'staging',
       },
-      chainState: 'chained',
-      chainVerified: true,
+      chain: AuditChain.verified,
       entryId: 99,
+    ),
+    SurfaceAuditLogEntry(
+      action: 'experimentStarted',
+      actorType: 'human',
+      actorEmail: 'owner@example.com',
+      outcome: 'success',
+      severity: 'info',
+      targetType: 'experiment',
+      targetId: 'experiment.one',
+      targetName: 'Annual plan framing',
+      occurredAt: DateTime.parse('2026-06-29T18:16:51.000Z'),
+      reason: null,
+      context: const {'experimentId': 'experiment.one'},
+      chain: AuditChain.pending,
+      entryId: null,
     ),
   ];
 

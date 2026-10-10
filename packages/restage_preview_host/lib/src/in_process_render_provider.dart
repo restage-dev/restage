@@ -135,6 +135,7 @@ class InProcessPreviewSurface extends StatelessWidget {
     required this.registrations,
     required this.entryWidgetName,
     required this.onRemoteEvent,
+    this.placeholderBuilder,
     super.key,
   });
 
@@ -149,6 +150,9 @@ class InProcessPreviewSurface extends StatelessWidget {
 
   /// Receives events emitted by the rendered RFW document.
   final RemoteEventHandler onRemoteEvent;
+
+  /// Draws a widget the surface cannot build; null keeps the default.
+  final RenderPlaceholderBuilder? placeholderBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -172,6 +176,7 @@ class InProcessPreviewSurface extends StatelessWidget {
               onRemoteEvent: onRemoteEvent,
               onRenderEvent: provider._handleRenderEvent,
               geometryRegistry: provider.geometryRegistry,
+              placeholderBuilder: placeholderBuilder,
             ),
           ),
         );

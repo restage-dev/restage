@@ -1,3 +1,4 @@
+import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
@@ -100,6 +101,8 @@ String? preludeDeclarationProblem(FunctionBody body) =>
     if (variable.initializer == null) {
       return (body: null, declarationProblem: _kUninitializedDeclaration);
     }
+    // A wildcard binds nothing, so it compiles as if it were absent.
+    if (_isWildcard(variable)) continue;
     declarations.add(variable);
     if (keyword == 'final') finalLocals.add(variable);
   }
@@ -112,6 +115,14 @@ String? preludeDeclarationProblem(FunctionBody body) =>
     declarationProblem: null,
   );
 }
+
+bool _isWildcard(VariableDeclaration variable) =>
+    variable.name.lexeme == '_' &&
+    switch (variable.root) {
+      CompilationUnit(:final featureSet) =>
+        featureSet.isEnabled(Feature.wildcard_variables),
+      _ => false,
+    };
 
 const String _kUninitializedDeclaration =
     'a const or final local has no resolved declaration or initializer; '

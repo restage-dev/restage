@@ -7,6 +7,12 @@ const String _reservedMeasurementPrefix = '__restage_measurement_';
 const String _measurementRouteV1Key = '__restage_measurement_route_v1';
 const String _measurementRouteV1Prefix = 'mrv1.';
 
+/// Whether [name] is the measure-only tap event, which a host records and
+/// never delivers.
+@internal
+bool isMeasurementTapEventName(String name) =>
+    name == kMeasurementPublicationTapEventNameV1;
+
 /// Private Measurement interpretation of a stripped RFW event payload.
 ///
 /// This is intentionally an SDK-internal detail rather than a public event

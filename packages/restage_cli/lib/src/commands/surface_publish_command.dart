@@ -166,7 +166,10 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
               'Published "$slug" at r$revision in ${target.environment} '
               '(${describeFamily(sourceKind, result.contractVersion ?? family.contractVersion)}).',
             )
-            ..writeln('Active revision: $active   frozen: ${result.frozen}');
+            ..writeln('Active revision: $active   frozen: ${result.frozen}')
+            ..writeln(
+              mountGuide(sourceKind, slug, mountName: result.mountName),
+            );
         },
       );
       return recorded == false ? 2 : 0;

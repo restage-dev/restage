@@ -75,3 +75,6 @@ assets/restage/output-roster.json
 
 # Disposable Restage artifacts; identity state remains tracked.
 .restage/build/
+
+# Written per developer by `restage init`; names your own project and app.
+restage_config.yaml

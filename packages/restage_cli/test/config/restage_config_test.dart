@@ -41,6 +41,25 @@ app: my-app
       expect(config.recordGit, isNull);
     });
 
+    test('declareAssets round-trips; flutterRoot is read, never written', () {
+      const config = RestageConfig(
+        project: 'p',
+        app: 'a',
+        declareAssets: true,
+        flutterRoot: '/opt/flutter',
+      );
+
+      final yaml = config.toYaml();
+      expect(RestageConfig.fromYaml(yaml).declareAssets, isTrue);
+      expect(yaml, isNot(contains('flutterRoot')));
+      expect(
+        RestageConfig.fromYaml(
+          'project: p\napp: a\nflutterRoot: ../sdk\n',
+        ).flutterRoot,
+        '../sdk',
+      );
+    });
+
     test('recordGit round-trips and refuses a value that is not a flag', () {
       const config = RestageConfig(project: 'p', app: 'a', recordGit: true);
 
@@ -194,19 +213,29 @@ app: my-app
     });
   });
 
-  group('examples smoke config', () {
-    test('uses public example slugs and no baked endpoint', () async {
-      final examples = _locateExamplesApp();
-      final configFile = File(p.join(examples.path, 'restage_config.yaml'));
+  group('example project config', () {
+    for (final example in const [
+      'apps/examples',
+      'packages/restage_widgetbook_example',
+    ]) {
+      test('$example leaves restage_config.yaml to restage init', () async {
+        final dir = Directory(p.join(_locateCheckoutRoot().path, example));
 
-      expect(configFile.existsSync(), isTrue);
-      final config = RestageConfig.fromYaml(await configFile.readAsString());
+        final tracked = await Process.run('git', [
+          'ls-files',
+          '--',
+          'restage_config.yaml',
+        ], workingDirectory: dir.path);
+        expect(tracked.exitCode, 0, reason: '${tracked.stderr}');
+        expect((tracked.stdout as String).trim(), isEmpty);
 
-      expect(config.project, 'examples');
-      expect(config.app, 'examples');
-      expect(config.defaultEnvironment, 'dev');
-      expect(config.endpoint, isNull);
-    });
+        final ignore = File(p.join(dir.path, '.gitignore')).readAsLinesSync();
+        expect(ignore, contains('restage_config.yaml'));
+
+        final readme = File(p.join(dir.path, 'README.md')).readAsStringSync();
+        expect(readme, contains('restage init'));
+      });
+    }
   });
 
   group('resolveApiEndpoint', () {
@@ -316,16 +345,19 @@ Credential _credential({required String endpoint}) => Credential(
   authToken: 'kid:secret',
 );
 
-Directory _locateExamplesApp() {
+Directory _locateCheckoutRoot() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
-    final candidate = Directory(p.join(dir.path, 'apps', 'examples'));
-    if (File(p.join(candidate.path, 'pubspec.yaml')).existsSync()) {
-      return candidate;
+    if (File(
+      p.join(dir.path, 'apps', 'examples', 'pubspec.yaml'),
+    ).existsSync()) {
+      return dir;
     }
     final parent = dir.parent;
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  throw StateError('Could not locate apps/examples from ${Directory.current}');
+  throw StateError(
+    'Could not locate the checkout root from ${Directory.current}',
+  );
 }

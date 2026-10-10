@@ -59,19 +59,27 @@ class SurfaceHistoryCommand extends Command<int> {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _io.stderr);
     if (slug == null) return 1;
 
-    final identity = await resolveSurfaceLifecycleIdentity(
+    final selection = await resolveSurfaceReadSelection(
       argResults: argResults,
       fixedSurfaceType: _fixedType,
       slug: slug,
       stderr: _io.stderr,
     );
-    if (identity == null) return 1;
+    if (selection == null) return 1;
 
     return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
+      final target = ctx.target!;
+      final identity = await selection.resolve(
+        api: ctx.api,
+        project: target.project,
+        app: target.app,
+        organizationId: target.organizationId,
+        appId: target.appId,
+      );
       final history = await familyHistory(
         api: SurfaceApi(ctx.api),
         identity: identity,
-        at: ctx.target!.family,
+        at: target.family,
       );
       if (argResults?['json'] as bool? ?? false) {
         _io.stdout.writeln(jsonEncode(history.toJson()));

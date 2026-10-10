@@ -84,6 +84,16 @@ final surfaceTypeProperty = UntitledSingleSelectEnumSchema(
   values: surfaceTypeWireNames,
 );
 
+/// The optional `surfaceType` property of a read, looked up by slug when left
+/// out.
+final surfaceReadTypeProperty = UntitledSingleSelectEnumSchema(
+  description:
+      'Optional surface type: one of '
+      '${surfaceTypeWireNames.map((n) => '"$n"').join(', ')}. Omit to look '
+      'it up by slug.',
+  values: surfaceTypeWireNames,
+);
+
 /// The `surfaceSlug` property.
 final surfaceSlugProperty = Schema.string(description: 'The surface slug.');
 
@@ -166,9 +176,12 @@ Map<String, Schema> targetProperties() => {
 const targetRequired = [...appRequired, 'environmentSlug'];
 
 /// The properties that name one surface at one environment target.
-Map<String, Schema> surfaceTargetProperties({bool family = false}) => {
+Map<String, Schema> surfaceTargetProperties({
+  bool family = false,
+  bool read = false,
+}) => {
   ...targetProperties(),
-  'surfaceType': surfaceTypeProperty,
+  'surfaceType': read ? surfaceReadTypeProperty : surfaceTypeProperty,
   'surfaceSlug': surfaceSlugProperty,
   if (family) 'sourceKind': sourceKindProperty,
   if (family) 'contractVersion': contractVersionProperty,
@@ -181,6 +194,9 @@ const surfaceTargetRequired = [
   'surfaceSlug',
   'environmentSlug',
 ];
+
+/// The required keys of a read's [surfaceTargetProperties].
+const surfaceReadRequired = [...appRequired, 'surfaceSlug', 'environmentSlug'];
 
 /// The runtime plane the call names, if any.
 RuntimePlane? runtimePlaneOf(CallToolRequest request) {
@@ -205,7 +221,41 @@ Surface surfaceTypeOf(CallToolRequest request) {
 /// The lifecycle identity the call names: its surface, plus the optional
 /// exact family selectors.
 SurfaceLifecycleIdentity lifecycleIdentityOf(CallToolRequest request) {
-  final type = surfaceTypeOf(request);
+  final (:sourceKind, :contractVersion) = _familySelectorsOf(request);
+  return explicitLifecycleIdentity(
+    type: surfaceTypeOf(request),
+    slug: request.str('surfaceSlug'),
+    sourceKind: sourceKind,
+    contractVersion: contractVersion,
+  );
+}
+
+/// The lifecycle identity a read names, looking its type up by slug when the
+/// call leaves `surfaceType` out.
+Future<SurfaceLifecycleIdentity> readIdentityOf(
+  RestageApi api,
+  CallToolRequest request,
+) async {
+  if (request.optStr('surfaceType') != null) {
+    return lifecycleIdentityOf(request);
+  }
+  final (:sourceKind, :contractVersion) = _familySelectorsOf(request);
+  return lookUpLifecycleIdentity(
+    api: api,
+    project: request.str('projectSlug'),
+    app: request.str('appSlug'),
+    slug: request.str('surfaceSlug'),
+    organizationId: request.optInt('organizationId'),
+    appId: request.optInt('appId'),
+    sourceKind: sourceKind,
+    contractVersion: contractVersion,
+    syntax: SelectorSyntax.mcp,
+  );
+}
+
+({SurfaceSourceKind? sourceKind, int? contractVersion}) _familySelectorsOf(
+  CallToolRequest request,
+) {
   final rawKind = request.optStr('sourceKind');
   final SurfaceSourceKind? sourceKind;
   try {
@@ -221,12 +271,7 @@ SurfaceLifecycleIdentity lifecycleIdentityOf(CallToolRequest request) {
       'contractVersion must be a positive integer.',
     );
   }
-  return explicitLifecycleIdentity(
-    type: type,
-    slug: request.str('surfaceSlug'),
-    sourceKind: sourceKind,
-    contractVersion: contractVersion,
-  );
+  return (sourceKind: sourceKind, contractVersion: contractVersion);
 }
 
 /// The target one call names, with its selectors as given; the server
@@ -359,6 +404,22 @@ List<String> cliProjectArgs(CallToolRequest request) => [
     project,
   ],
   if (request.optStr('appSlug') case final app?) ...['--app', app],
+];
+
+/// The `flutterRoot` property of a tool that builds.
+final flutterRootProperty = Schema.string(
+  description:
+      'Absolute path of the Flutter SDK directory to build with, instead of '
+      'the one found from the project. Overrides `flutterRoot` in '
+      'restage_config.yaml.',
+);
+
+/// The CLI flag for a `flutterRoot` argument, when one is given.
+List<String> cliFlutterRootArgs(CallToolRequest request) => [
+  if (request.optStr('flutterRoot') case final root?) ...[
+    '--flutter-root',
+    root,
+  ],
 ];
 
 /// The CLI flags naming the environment target a local-project call

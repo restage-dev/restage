@@ -9,6 +9,7 @@ import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart';
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
@@ -460,7 +461,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
       );
     }
 
-    final resolved = await library.session.getResolvedLibraryByElement(library);
+    final resolved = await resolveLibraryInLongForm(library);
     if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
       issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
     }

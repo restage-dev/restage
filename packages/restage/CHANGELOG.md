@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+The render host draws a bounded placeholder for a widget it can't build, or one no
+installed library provides, where it used to draw an error box.
+
 Generated mounts install the app's own `@RestageWidget` widgets from the library a
 surface draws on, so apps with generated mounts need no startup registration call.
 `registerRestageWidgets()` is still needed when an app mounts surfaces only by id.

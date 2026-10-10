@@ -1,5 +1,5 @@
-// A surface whose callback becomes a declarative sheet compiles unmeasured,
-// with a diagnostic naming the idiom — never a build break.
+// A callback that opens a declarative sheet is a routed tap, and the sheet
+// body is measured under that tap's sheet scope.
 
 import 'dart:io';
 
@@ -7,7 +7,9 @@ import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -20,8 +22,14 @@ const _sourcePath = 'lib/surfaces/sheet_notice.dart';
 const _bundlePath = 'assets/restage/bundles/lib/surfaces/sheet_notice.rsbundle';
 const _slug = 'sheet_notice';
 
+const _source = 'package:apps_examples/surfaces/sheet_notice.dart#SheetNotice';
+const _column = 'package:flutter/src/widgets/basic.dart#Column';
+const _padding = 'package:flutter/src/widgets/basic.dart#Padding';
+const _filled = 'package:flutter/src/material/filled_button.dart#FilledButton';
+const _text = 'package:flutter/src/material/text_button.dart#TextButton';
+
 void main() {
-  test('a sheet-opening callback leaves the surface unmeasured', () async {
+  test('a sheet-opening callback and the sheet body are measured', () async {
     final compiled = await _compileFixture();
 
     expect(
@@ -29,30 +37,54 @@ void main() {
       isTrue,
       reason: compiled.output.errors.join('\n'),
     );
+    expect(compiled.log, isNot(contains('compiles unmeasured')));
     expect(
-      compiled.output.publications,
-      isEmpty,
-      reason: 'a surface Measurement cannot resolve must get no partial plan',
+      compiled.output.publications
+          .map((publication) => publication.selector.slug),
+      <String>[_slug],
+    );
+
+    const trigger = '$_source|child:$_column:$_column.children[0]|'
+        'widget:$_filled';
+    const sheet = '$trigger|sheet:onPressed:builder';
+    const close = '$sheet|child:$_padding:$_padding.child[0]|'
+        'child:$_column:$_column.children[1]|widget:$_text';
+    final routed = {
+      for (final node in compiled.output.ledgerNodes)
+        for (final event in node.events)
+          if (event.active)
+            '${node.structuralOccurrenceKey}\u0000'
+                '${event.sourceEventIdentity.value}',
+    };
+    expect(
+      routed,
+      containsAll(<String>['$trigger\u0000onPressed', '$close\u0000onPressed']),
     );
     expect(
-      compiled.log,
-      contains('Measurement is unavailable for'),
-      reason: 'the boundary must name the surface, not skip silently',
+      compiled.output.ledgerNodes.map((node) => node.structuralOccurrenceKey),
+      contains('$sheet|widget:$_padding'),
     );
-    expect(
-      compiled.log,
-      contains('modal-sheet lowering'),
-      reason: 'the diagnostic must name the idiom, not just fail vaguely',
+
+    // Opening and closing change sheet state; each pairs the state update
+    // with the measure-only tap that carries its route.
+    final bundle = RestageBundleCodec.decode(
+      compiled.readerWriter.testing.readBytes(AssetId(_package, _bundlePath)),
     );
-    expect(compiled.log, contains('compiles unmeasured'));
-    expectUnmeasuredScreenPublication(
-      readerWriter: compiled.readerWriter,
-      packageName: _package,
-      sourcePath: _sourcePath,
-      bundlePath: _bundlePath,
-      surface: Surface.general,
-      slug: _slug,
+    final blob = bundle.entries.singleWhere(
+      (entry) => entry.logicalPath.endsWith('.rfw'),
     );
+    final handlers = rfwEventHandlers(fmt.decodeLibraryBlob(blob.bytes));
+    final taps = handlers.whereType<fmt.EventHandler>().where(
+          (handler) =>
+              handler.eventName == kMeasurementPublicationTapEventNameV1,
+        );
+    expect(taps, hasLength(2));
+    for (final tap in taps) {
+      expect(
+        tap.eventArguments.keys,
+        <String>[kMeasurementPublicationRouteArgumentKeyV1],
+      );
+    }
   });
 }
 

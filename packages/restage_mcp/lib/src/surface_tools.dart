@@ -88,8 +88,8 @@ final _surfaceStatusTool = Tool(
       "('typed' or 'general'); a general version's flow structure can be "
       'recomposed over the air within the installed vocabulary.',
   inputSchema: Schema.object(
-    properties: surfaceTargetProperties(family: true),
-    required: surfaceTargetRequired,
+    properties: surfaceTargetProperties(family: true, read: true),
+    required: surfaceReadRequired,
   ),
 );
 
@@ -100,8 +100,8 @@ final _surfaceHistoryTool = Tool(
       'newest first, marking the active one, the same as `restage surface '
       'history`.',
   inputSchema: Schema.object(
-    properties: surfaceTargetProperties(family: true),
-    required: surfaceTargetRequired,
+    properties: surfaceTargetProperties(family: true, read: true),
+    required: surfaceReadRequired,
   ),
 );
 
@@ -112,7 +112,9 @@ final _pushSurfaceTool = Tool(
       'environment, the same as `restage surface push`: by surface id, or '
       'by the .dart file that declares it. A pushed revision is not live '
       'until restage_publish_surface publishes it. Requires an admin role or '
-      'a push-scoped key.',
+      'a push-scoped key. To target the environment an app is configured '
+      "for, pass the app's rs_pk_ key to restage_resolve_api_key and use "
+      'the organization, project, app, environment and plane it returns.',
   inputSchema: Schema.object(
     properties: {
       'surface': Schema.string(
@@ -131,7 +133,18 @@ final _pushSurfaceTool = Tool(
       'build': Schema.bool(
         description:
             "Push the app's build to the same environment first, so the "
-            'dashboard can display the widgets these surfaces use.',
+            'dashboard can display the widgets these surfaces use. A failed '
+            'build does not stop the surfaces; retry it alone with '
+            'restage_push_build.',
+      ),
+      'flutterRoot': flutterRootProperty,
+      'declareAssets': Schema.bool(
+        description:
+            'Add the files the push writes into the app, such as the '
+            'measurement profile, to flutter.assets in pubspec.yaml, keeping '
+            'its comments. `declareAssets: true` in restage_config.yaml does '
+            'the same. Otherwise pubspec.yaml is left alone and the output '
+            'names the line to add.',
       ),
       ...localProjectProperties(),
       'environmentSlug': Schema.string(
@@ -150,7 +163,8 @@ final _publishSurfaceTool = Tool(
   description:
       'Publish one pushed revision of a surface family in an environment, so '
       'it serves, the same as `restage surface publish`. Without revision it '
-      'publishes the latest revision pushed there. Requires an admin role.',
+      'publishes the latest revision pushed there. Requires an admin role. '
+      'restage_resolve_api_key names the environment an app key serves.',
   inputSchema: Schema.object(
     properties: {
       ...surfaceTargetProperties(family: true),
@@ -308,7 +322,7 @@ Future<CallToolResult> _surfaceStatus(
   ToolContext ctx,
   CallToolRequest request,
 ) => ctx.authed('reading the surface status', (api) async {
-  final identity = lifecycleIdentityOf(request);
+  final identity = await readIdentityOf(api, request);
   final target = targetSelector(request);
   final status = await SurfaceApi(api).surfaceStatus(
     project: target.project,
@@ -331,7 +345,7 @@ Future<CallToolResult> _surfaceHistory(
 ) => ctx.authed('reading the surface history', (api) async {
   final history = await familyHistory(
     api: SurfaceApi(api),
-    identity: lifecycleIdentityOf(request),
+    identity: await readIdentityOf(api, request),
     at: familyOf(targetSelector(request)),
   );
   return jsonResult(history.toJson());
@@ -346,6 +360,8 @@ Future<CallToolResult> _pushSurface(ToolContext ctx, CallToolRequest request) =>
         ...cliTargetArgs(request),
         if (request.optBool('all') ?? false) '--all',
         if (request.optBool('build') ?? false) '--build',
+        ...cliFlutterRootArgs(request),
+        if (request.optBool('declareAssets') ?? false) '--declare-assets',
         if (request.optBool('recordGit') case final recordGit?)
           recordGit ? '--record-git' : '--no-record-git',
       ]);
@@ -407,6 +423,13 @@ Future<CallToolResult> _publishSurface(
       'publishedRevision': publication.revision,
       'latestPushed': publication.latest,
       'result': publication.result.toJson(),
+      'showInApp': mountGuide(
+        publication.result.sourceKind == null
+            ? publication.family.sourceKind
+            : SurfaceSourceKind.fromWireName(publication.result.sourceKind!),
+        publication.family.slug,
+        mountName: publication.result.mountName,
+      ),
       if (recorded != null)
         'receipt': {'recorded': recorded, 'output': output.toString().trim()},
     });

@@ -4,6 +4,10 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        kMeasurementPublicationRouteArgumentKeyV1,
+        kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/rfw_formats.dart' show parseLibraryFile;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -191,6 +195,52 @@ Object x() => surfaceEvent(Probe.blocked);
       expect(issues, hasLength(1));
       expect(issues.single.code.name, 'unsupportedCommerceAuthoring');
       expect(issues.single.message, contains('data.products'));
+    });
+  });
+
+  group('measure-only tap event', () {
+    test('rejects an authored event using the reserved name', () {
+      for (final arguments in <String>[
+        '{}',
+        '{plan: "annual"}',
+        '{plan: "annual", __restage_measurement_route_v1: "x"}',
+      ]) {
+        final library = parseLibraryFile(
+          '''
+          import restage.core;
+          widget Paywall = GestureDetector(
+            onTap: event "$kMeasurementPublicationTapEventNameV1" $arguments,
+            child: Text(text: "Annual"),
+          );
+          ''',
+          sourceIdentifier: 'test',
+        );
+        final issues = validateCommerceAuthoring(library);
+
+        expect(issues, hasLength(1), reason: arguments);
+        expect(issues.single.code.name, 'invalidEventConfiguration');
+        expect(issues.single.message, contains('reserved for measurement'));
+      }
+    });
+
+    test('accepts the reserved tap the compiler pairs with a state update', () {
+      final library = parseLibraryFile(
+        '''
+        import restage.core;
+        widget Paywall { annual: false } = GestureDetector(
+          onTap: [
+            set state.annual = true,
+            event "$kMeasurementPublicationTapEventNameV1" {
+              $kMeasurementPublicationRouteArgumentKeyV1: "route"
+            },
+          ],
+          child: Text(text: "Annual"),
+        );
+        ''',
+        sourceIdentifier: 'test',
+      );
+
+      expect(validateCommerceAuthoring(library), isEmpty);
     });
   });
 }

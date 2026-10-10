@@ -10,17 +10,13 @@ part 'restage.generated/lumen_onboarding.restage.g.dart';
 
 /// A meditation onboarding flow that ends on an embedded subscription paywall.
 ///
-/// The shape: welcome → two linear personalization questions (experience, goal)
-/// → a reminder **host-action gate** (the one conditional the flow runtime
-/// offers — advance only on a granted result) → a recap → the meditation
-/// welcome offer as the final flow screen via `paywallScreen(...)`, whose continue
-/// action ends the flow. The paywall's close and terms controls leave the
-/// graph as declared custom events.
-///
-/// The questions are linear by design: the flow runtime authors exactly one
-/// forward transition per screen, so a personalization answer tailors the
-/// experience rather than forking the graph (the faithful pattern — real
-/// onboardings capture answers for tailoring, not an immediate path fork).
+/// The shape: welcome → two personalization questions (experience, goal) → a
+/// reminder **host-action gate** that advances only on a granted result → a
+/// recap → the welcome offer as the final flow screen via `paywallScreen(...)`,
+/// whose continue action ends the flow. The goal answer is recorded, and a
+/// `decision()` sends a user who is just curious past the reminder to the
+/// recap. The paywall's close and terms controls leave the graph as declared
+/// custom events.
 @FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class LumenOnboardingFlow extends RestageFlow {
   /// Host action that requests the daily-reminder permission and reports the
@@ -35,10 +31,17 @@ final class LumenOnboardingFlow extends RestageFlow {
 
   @override
   FlowDef buildFlow() {
+    final route = flowNode('route');
     final done = endState('done');
 
     return flow(
       initial: lumenWelcomeScreenRef,
+      flowState: const {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
       outbound: const FlowOutboundDeclarations(
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
@@ -63,9 +66,33 @@ final class LumenOnboardingFlow extends RestageFlow {
         screen(lumenExperienceScreenRef)
             .on(LumenExperienceScreen.next)
             .goTo(lumenGoalScreenRef),
+        // Each answer is recorded on the way to the routing node.
         screen(lumenGoalScreenRef)
+            .on(LumenGoalScreen.sleep)
+            .write('goal', 'sleep')
+            .goTo(route)
+            .on(LumenGoalScreen.stress)
+            .write('goal', 'stress')
+            .goTo(route)
+            .on(LumenGoalScreen.focus)
+            .write('goal', 'focus')
+            .goTo(route)
+            .on(LumenGoalScreen.curious)
+            .write('goal', 'curious')
+            .goTo(route)
             .on(LumenGoalScreen.next)
-            .goTo(lumenReminderScreenRef),
+            .goTo(route),
+        // A user who is just curious skips the reminder.
+        decision(
+          route,
+          branches: [
+            flowBranch(
+              when: state('goal').equals('curious'),
+              target: lumenRecapScreenRef,
+            ),
+          ],
+          defaultBranch: flowBranchTarget(lumenReminderScreenRef),
+        ),
         screen(lumenReminderScreenRef)
             .on(LumenReminderScreen.enable)
             .run(enableReminders)

@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 
 /// Resolved organization id for commands scoped by project/app slugs.
@@ -104,10 +105,7 @@ Future<int?> resolveRequiredOrganizationId({
       return null;
     }
     if (organizations.length != 1) {
-      stderr.writeln(
-        'No organization context. Pass --organization <slug>, or set '
-        '`organization` in restage_config.yaml.',
-      );
+      stderr.writeln(ambiguousOrganizationSentence(organizations));
       return null;
     }
     return organizations.single.organizationId;

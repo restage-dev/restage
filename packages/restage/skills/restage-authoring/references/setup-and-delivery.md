@@ -97,23 +97,6 @@ as the same typed classes, so app code handles both cases the same way. The one
 exception: with two copies of the same screen on screen at once, the SDK can't tell
 which copy an event came from, so it refuses the event.
 
-## Testing hosted delivery
-
-Widget tests can't reach the network by default. To render a published version in a
-test, and prove it came from the server:
-
-- set `HttpOverrides.global = null` in the test so `HttpClient` works, and call
-  `SharedPreferences.setMockInitialValues({})`;
-- configure with the key from `--dart-define`, and `measurementEnabled: false` (the
-  SDK waits up to a few seconds of the test's fake time for measurement setup);
-- pump the generated mount, then loop `await tester.runAsync(() =>
-  Future<void>.delayed(const Duration(milliseconds: 50)))` and `tester.pump()` until it
-  settles;
-- assert `onUnavailable` never fired, and look for text that only the published version
-  has;
-- at the end, `pumpWidget(const SizedBox())` and `pump(const Duration(seconds: 16))` so
-  `HttpClient`'s idle timer finishes.
-
 ## Measurement
 
 Measurement is on when hosted delivery is configured. Views, steps, events and

@@ -6,6 +6,9 @@ import 'package:restage_cli/src/api/auth_api.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 
@@ -46,7 +49,7 @@ class StatusCommand extends Command<int> {
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
     if (credential == null) {
-      _stderr.writeln('Not signed in. Run `restage login`.');
+      _stderr.writeln(notSignedInSentence());
       return 1;
     }
 
@@ -79,10 +82,7 @@ class StatusCommand extends Command<int> {
     try {
       final user = await AuthApi(api).whoami();
       if (user == null) {
-        _stderr.writeln(
-          'The stored credential is no longer accepted by the server. '
-          'Run `restage login` to refresh it.',
-        );
+        _stderr.writeln(staleCredentialSentence(currentSelectorSyntax));
         return 1;
       }
 
@@ -90,7 +90,11 @@ class StatusCommand extends Command<int> {
       _stdout.writeln('endpoint: $apiEndpoint');
 
       if (loaded == null) {
-        _stdout.writeln('no restage_config.yaml - run `restage init`.');
+        final syntax = currentSelectorSyntax;
+        _stdout.writeln(
+          'no restage_config.yaml. ${syntax.run} '
+          '${syntax.command(initFollowUp)} to set one up.',
+        );
         await _writeWorkspaceStatus(api, null);
         return 0;
       }
@@ -108,10 +112,7 @@ class StatusCommand extends Command<int> {
       return 0;
     } on RestageApiException catch (e) {
       if (e.statusCode == 401 || e.statusCode == 403) {
-        _stderr.writeln(
-          'The stored credential is no longer accepted by the server. '
-          'Run `restage login` to refresh it.',
-        );
+        _stderr.writeln(staleCredentialSentence(currentSelectorSyntax));
         return 1;
       }
       _stderr.writeln('Could not contact the backend: ${e.body}');
@@ -131,50 +132,43 @@ class StatusCommand extends Command<int> {
     final discovery = DiscoveryApi(api);
     final organizations = await discovery.listOrganizations();
     if (organizations.isEmpty) {
-      _stdout.writeln('workspace: unavailable');
+      _stdout.writeln('workspace: no organizations for this account');
       return;
     }
 
-    final configuredSlug = config?.organization;
-    OrganizationSummary organization;
-    if (configuredSlug == null || configuredSlug.isEmpty) {
-      if (organizations.length != 1) {
-        _stdout.writeln(
-          'workspace: ambiguous (set organization in restage_config.yaml)',
-        );
-        return;
+    OrganizationSummary? organization;
+    if (config != null) {
+      final check = await checkConfigTarget(discovery, config);
+      for (final problem in check.problems) {
+        _stdout.writeln('config problem: $problem');
       }
+      if (check.problems.isEmpty) {
+        _stdout.writeln('config: ${configTargetConfirmed(config)}');
+      }
+      organization = check.organization;
+    } else if (organizations.length == 1) {
       organization = organizations.single;
     } else {
-      final matchingOrganizations = organizations
-          .where((organization) => organization.slug == configuredSlug)
-          .toList(growable: false);
-      if (matchingOrganizations.length != 1) {
-        _stdout.writeln(
-          matchingOrganizations.isEmpty
-              ? 'workspace: unavailable'
-              : 'workspace: ambiguous',
-        );
-        return;
-      }
-      organization = matchingOrganizations.single;
+      _stdout.writeln(
+        'workspace: ${ambiguousOrganizationSentence(organizations)}',
+      );
     }
+    if (organization == null) return;
 
     final workspaces = await discovery.listWorkspaceExperiences();
     final matchingWorkspaces = workspaces
         .where(
           (workspace) =>
-              workspace.organizationId == organization.organizationId,
+              workspace.organizationId == organization!.organizationId,
         )
         .toList(growable: false);
     if (matchingWorkspaces.length != 1) {
-      _stdout.writeln(
-        matchingWorkspaces.isEmpty
-            ? 'workspace: unavailable'
-            : 'workspace: ambiguous',
-      );
+      _stdout.writeln('workspace: unavailable');
       return;
     }
+    _stdout.writeln(
+      'organization: ${organization.slug} (id ${organization.organizationId})',
+    );
     _renderWorkspace(matchingWorkspaces.single);
   }
 

@@ -10,7 +10,7 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
   decodeResult: _decodeBareSurfaceFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"bare_surface","initial":"starter_bare_surface","minClient":6,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_bare_surface":{"contentHash":"sha256:fc3d3f58933885aadc75119444fd3f80f62c816d6f2486168470ebf1d6fa700e","minClient":6,"path":"starter_bare_surface.rfw","schemaVersion":1,"version":1}},"states":{"starter_bare_surface":{"kind":"screen","on":{},"screen":"starter_bare_surface"}},"version":1}',
+        '{"flow":"bare_surface","initial":"starter_bare_surface","minClient":6,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_bare_surface":{"contentHash":"sha256:ba21b35bda002f8c682f5397c6b8033e057ce288777162718b13a1cf31153494","minClient":6,"path":"starter_bare_surface.rfw","schemaVersion":1,"version":1}},"states":{"starter_bare_surface":{"kind":"screen","on":{},"screen":"starter_bare_surface"}},"version":1}',
     screens: {
       'starter_bare_surface': StarterBareSurfaceScreen.new,
     },

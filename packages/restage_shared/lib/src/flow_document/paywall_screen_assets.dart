@@ -14,9 +14,10 @@ const String kPaywallScreensAssetDir = 'assets/paywalls/screens';
 /// Never emit here.
 const String kLegacyPaywallScreensAssetDir = 'assets/onboarding/screens';
 
-/// Whether [artifactFilename] (e.g. `paywall_pro.rfw`) is a paywall-owned
-/// flow-screen adapter and therefore resolves from [kPaywallScreensAssetDir]
-/// (with [kLegacyPaywallScreensAssetDir] as the compatibility fallback),
-/// regardless of which flow surface embeds it.
+/// Whether [artifactFilename] (e.g. `paywall_pro.rfw`, or a measured flow's
+/// own copy at `measurement/<key>/paywall_pro.rfw`) is a paywall-owned flow-screen
+/// adapter and therefore resolves from [kPaywallScreensAssetDir] (with
+/// [kLegacyPaywallScreensAssetDir] as the compatibility fallback), regardless
+/// of which flow surface embeds it. The file name decides.
 bool isPaywallScreenArtifact(String artifactFilename) =>
-    artifactFilename.startsWith(kPaywallScreenIdPrefix);
+    artifactFilename.split('/').last.startsWith(kPaywallScreenIdPrefix);

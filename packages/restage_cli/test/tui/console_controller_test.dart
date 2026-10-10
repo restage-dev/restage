@@ -112,6 +112,46 @@ void main() {
     expect(controller.state.activity.first.exitCode, 0);
   });
 
+  test('a push keeps every line it printed, notes included', () async {
+    final executor = RecordingConsoleOperationExecutor()
+      ..nextStdout =
+          'Pushed pro (paywall) to staging; stored r2.\n'
+          'Not live yet. Type `/restage surface publish pro` to publish it.\n';
+    final controller = ConsoleController(
+      repository: FakeConsoleRepository(),
+      operationExecutor: executor,
+    );
+    await controller.load();
+
+    await controller.pushSelected();
+
+    expect(controller.state.commandOutput!.arguments, [
+      'surface',
+      'push',
+      'pro',
+    ]);
+    expect(controller.state.commandOutput!.lines, [
+      'Pushed pro (paywall) to staging; stored r2.',
+      'Not live yet. Type `/restage surface publish pro` to publish it.',
+    ]);
+  });
+
+  test('a build keeps every line it printed', () async {
+    final executor = RecordingConsoleOperationExecutor()
+      ..nextStdout =
+          'Pushed default staging version 4.\n'
+          'The surfaces were pushed, but the build of default was not.\n';
+    final controller = ConsoleController(
+      repository: FakeConsoleRepository(),
+      operationExecutor: executor,
+    );
+    await controller.load();
+
+    await controller.pushBuild();
+
+    expect(controller.state.commandOutput!.lines, hasLength(2));
+  });
+
   test('publish runs for the selected surface', () async {
     final executor = RecordingConsoleOperationExecutor()
       ..nextStdout = 'Published "pro" at r3 in staging.\n';
@@ -259,8 +299,7 @@ class FakeConsoleRepository implements ConsoleRepository {
       occurredAt: DateTime.parse('2026-06-29T18:17:51.000Z'),
       reason: 'demo publish',
       context: const {'surfaceSlug': 'pro'},
-      chainState: 'chained',
-      chainVerified: true,
+      chain: AuditChain.verified,
       entryId: 99,
     ),
   ];

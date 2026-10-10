@@ -15,6 +15,7 @@ import 'package:build/build.dart' show AssetId;
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
@@ -258,15 +259,20 @@ final class CompiledFlowArtifact {
     required List<int> flowDocumentBytes,
     required Iterable<String> generatedTopLevelSymbols,
     this.generatedPart,
+    Map<String, MeasurementDeclaredAnswerV1> measurementAnswers = const {},
   })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
         generatedTopLevelSymbols = Set.unmodifiable(
           generatedTopLevelSymbols,
-        );
+        ),
+        measurementAnswers = Map.unmodifiable(measurementAnswers);
 
   final Element declaration;
   final Uint8List flowDocumentBytes;
   final String? generatedPart;
   final Set<String> generatedTopLevelSymbols;
+
+  /// The survey answers a class-authored flow declares for measurement.
+  final Map<String, MeasurementDeclaredAnswerV1> measurementAnswers;
 
   String get declarationIdentity =>
       '${declaration.library?.identifier ?? '<unknown>'}#'
@@ -656,6 +662,7 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
         library: library,
       )}'
       '\n\n$reference\n',
+      languageVersion: libraryLanguageVersion(library),
     );
     return CanonicalFlowArtifactCompilationResult(
       compilation: CanonicalFlowArtifactCompilation(
@@ -913,6 +920,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final artifactsByIdentity = <String, List<_ResolvedArtifact>>{};
   final paywallsByIdentity = <String, PaywallArtifactFacts>{};
   final partFragments = <String, _PartAccumulator>{};
+  // Each class-authored flow's part, and the document it embeds, so the part
+  // can follow the document measurement finalizes.
+  final precompiledFlowParts = <_PrecompiledFlowPart>[];
+  final precompiledFlowDocumentPaths = <String, String>{};
   final pendingStandaloneParts = <_PendingStandalonePart>[];
   final pendingCompatibilityScreenParts = <_PendingCompatibilityScreenPart>[];
   final pendingFlowParts = <_PendingFlowPart>[];
@@ -1688,12 +1699,22 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           issues: issues,
         );
       }
+      precompiledFlowDocumentPaths[precompiled.declarationIdentity] =
+          flowDocumentPath;
       final assembly = _assemblePrecompiledFlowPublication(
         flow: flow,
         source: source,
         artifactsByIdentity: artifactsByIdentity,
         flowDocumentPath: flowDocumentPath,
         flowDocumentBytes: precompiled.flowDocumentBytes,
+        mountName: switch (_flowMountName(flow)) {
+          final name?
+              when precompiled.generatedTopLevelSymbols.contains(
+                name,
+              ) =>
+            name,
+          _ => null,
+        },
         issues: issues,
       );
       if (assembly == null) continue;
@@ -1717,12 +1738,21 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           issues: issues,
         );
         if (partPath != null) {
+          final fragment = _withoutPartHeader(generatedPart);
           _addPartFragment(
             partFragments,
             path: partPath,
             source: source,
             library: precompiled.declaration.library!,
-            fragment: _withoutPartHeader(generatedPart),
+            fragment: fragment,
+          );
+          precompiledFlowParts.add(
+            _PrecompiledFlowPart(
+              partPath: partPath,
+              fragment: fragment,
+              flowDocumentPath: flowDocumentPath,
+              surface: flow.surface,
+            ),
           );
         }
       }
@@ -1829,6 +1859,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     pendingFlowParts.add(
       _PendingFlowPart(
         partPath: flowPartPath,
+        flowDocumentPath: flowDocumentPath,
         source: source,
         library: library,
         refName: refName,
@@ -1962,6 +1993,16 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       measurementPresentationMaterializations
           .addAll(finalized.presentationMaterializations);
       _stripMeasurementMarkersFromInspectionOutputs(outputFiles);
+      _embedFinalizedFlowDocuments(
+        precompiledFlowParts,
+        partFragments: partFragments,
+        outputFiles: outputFiles,
+        documentPathsById: {
+          for (final pending in pendingFlowParts)
+            (pending.flow.surface, pending.document.flow):
+                pending.flowDocumentPath,
+        },
+      );
     } on Object catch (error) {
       _addIssue(
         issues,
@@ -2062,18 +2103,32 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       fragment: reference,
     );
   }
+  // References embed the documents the package ships, after measurement has
+  // placed their screens, children included.
+  FlowDocument shipped(String? path, FlowDocument compiled) =>
+      switch (path == null ? null : outputFiles[path]) {
+        final bytes? => FlowDocumentCodec.decodeJson(utf8.decode(bytes)),
+        null => compiled,
+      };
   final descendantsBySurface = <Surface, Map<String, FlowDocument>>{};
+  final pendingPaths = <Surface, Map<String, String>>{};
   for (final pending in pendingFlowParts) {
     (descendantsBySurface[pending.flow.surface] ??= {})[pending.document.flow] =
-        pending.document;
+        shipped(pending.flowDocumentPath, pending.document);
+    (pendingPaths[pending.flow.surface] ??= {})[pending.document.flow] =
+        pending.flowDocumentPath;
   }
   for (final child in input.precompiledFlows) {
-    final descendants = descendantsBySurface[
-        sourcesByIdentity[child.declarationIdentity]?.surface];
+    final surface = sourcesByIdentity[child.declarationIdentity]?.surface;
+    final descendants = descendantsBySurface[surface];
     if (descendants == null) continue;
-    final document =
+    final compiled =
         FlowDocumentCodec.decodeJson(utf8.decode(child.flowDocumentBytes));
-    descendants[document.flow] = document;
+    descendants[compiled.flow] = shipped(
+      precompiledFlowDocumentPaths[child.declarationIdentity] ??
+          pendingPaths[surface]?[compiled.flow],
+      compiled,
+    );
   }
   final nativeScreensBySurface = {
     for (final surface in descendantsBySurface.keys)
@@ -2095,7 +2150,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       decoderName: pending.decoderName,
       seedName: pending.seedName,
       graph: pending.graph,
-      document: pending.document,
+      document: shipped(pending.flowDocumentPath, pending.document),
       descendants: descendantsBySurface[pending.flow.surface]!,
       nativeScreens: {
         ...nativeScreensBySurface[pending.flow.surface]!,
@@ -2289,6 +2344,7 @@ SurfacePublicationAssemblyInput? _assembleStandalonePublication({
         eventContract: contract.eventSchema,
         hostDataContract: contract.hostDataContract,
       ),
+      mountName: contract.mountName,
     );
   } on Object catch (error) {
     _addIssue(
@@ -2604,6 +2660,15 @@ Map<NormalizedFlowIdentity, Uint8List> _indexPrecompiledClassFlowDocuments(
   return documentsByIdentity;
 }
 
+/// The generated widget that mounts [flow], or null when none is emitted.
+String? _flowMountName(NormalizedFlowSource flow) {
+  final name = flow.declaration.name;
+  final library = flow.declaration.library;
+  if (name == null || name.isEmpty || library == null) return null;
+  if (!emitsCompiledFlowMount(library)) return null;
+  return generatedSurfaceName(name, fallback: 'SurfaceFlow');
+}
+
 _FlowAssembly? _assembleFlowPublication({
   required NormalizedFlowSource flow,
   required NormalizedFlowGraph graph,
@@ -2703,6 +2768,7 @@ _FlowAssembly? _assembleFlowPublication({
         for (final artifact in closureArtifacts) artifact.artifact.source,
       ]),
       flowFacts: SurfacePublicationFlowFacts(deliveryMode: flow.delivery),
+      mountName: _flowMountName(flow),
     );
     return _FlowAssembly(
       manifestInput: manifestInput,
@@ -2725,6 +2791,7 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
   required Map<String, List<_ResolvedArtifact>> artifactsByIdentity,
   required String flowDocumentPath,
   required List<int> flowDocumentBytes,
+  required String? mountName,
   required List<Issue> issues,
 }) {
   try {
@@ -2792,6 +2859,7 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
         flowFacts: SurfacePublicationFlowFacts(
           deliveryMode: flow.delivery,
         ),
+        mountName: mountName,
       ),
       flowDocumentBytes: documentBytes,
     );
@@ -3877,18 +3945,7 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
         );
         reconciledUnmeasuredOutputPaths.add(artifact.path);
       }
-      finalizedInputs.add(
-        SurfacePublicationAssemblyInput(
-          surface: input.surface,
-          slug: input.slug,
-          sourceKind: input.sourceKind,
-          payloadKind: input.payloadKind,
-          artifacts: finalArtifacts,
-          sources: input.sources,
-          flowFacts: input.flowFacts,
-          screenContractFacts: input.screenContractFacts,
-        ),
-      );
+      finalizedInputs.add(input.withArtifacts(finalArtifacts));
       continue;
     }
     final finalArtifacts = <SurfacePublicationArtifactInput>[];
@@ -3955,19 +4012,7 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
         draft: draft,
       ),
     );
-    finalizedInputs.add(
-      SurfacePublicationAssemblyInput(
-        surface: input.surface,
-        slug: input.slug,
-        sourceKind: input.sourceKind,
-        payloadKind: input.payloadKind,
-        artifacts: finalArtifacts,
-        // Artifact rewrites do not change the publication's source files.
-        sources: input.sources,
-        flowFacts: input.flowFacts,
-        screenContractFacts: input.screenContractFacts,
-      ),
-    );
+    finalizedInputs.add(input.withArtifacts(finalArtifacts));
   }
   final missingPlans = routePlansByPublicationKey.keys
       .where((key) => !claimedPlans.contains(key))
@@ -4342,7 +4387,11 @@ void _addPartFragment(
   );
   final accumulator = fragments[path];
   if (accumulator == null) {
-    fragments[path] = _PartAccumulator(header: header, fragments: {fragment});
+    fragments[path] = _PartAccumulator(
+      header: header,
+      languageVersion: libraryLanguageVersion(library),
+      fragments: {fragment},
+    );
     return;
   }
   if (accumulator.header != header) {
@@ -4364,6 +4413,7 @@ String? _formatPart(
   try {
     return formatGeneratedDart(
       '${accumulator.header}\n\n${fragments.join('\n\n')}\n',
+      languageVersion: accumulator.languageVersion,
     );
   } on Object catch (error) {
     _addIssue(
@@ -4828,6 +4878,7 @@ final class _PendingCompatibilityScreenPart {
 final class _PendingFlowPart {
   const _PendingFlowPart({
     required this.partPath,
+    required this.flowDocumentPath,
     required this.source,
     required this.library,
     required this.refName,
@@ -4843,6 +4894,7 @@ final class _PendingFlowPart {
   });
 
   final String partPath;
+  final String flowDocumentPath;
   final RestageSourceDeclaration source;
   final LibraryElement library;
   final String refName;
@@ -4857,9 +4909,120 @@ final class _PendingFlowPart {
   final String measurementPublicationKey;
 }
 
+/// A class-authored flow's generated part and the document it embeds.
+final class _PrecompiledFlowPart {
+  const _PrecompiledFlowPart({
+    required this.partPath,
+    required this.fragment,
+    required this.flowDocumentPath,
+    required this.surface,
+  });
+
+  final String partPath;
+  final String fragment;
+  final String flowDocumentPath;
+
+  /// The surface whose flows its children are.
+  final Surface surface;
+}
+
+/// Rewrites each class-authored flow's embedded documents, its own and its
+/// children's, to the ones the package ships: measurement relocates and
+/// re-hashes a flow's screens after its part was generated, and the runtime
+/// resolves screens by the embedded document.
+void _embedFinalizedFlowDocuments(
+  List<_PrecompiledFlowPart> parts, {
+  required Map<String, _PartAccumulator> partFragments,
+  required Map<String, Uint8List> outputFiles,
+  required Map<(Surface, String), String> documentPathsById,
+}) {
+  // A child is named by its flow id within its parent's surface: its own
+  // publication's document, else the one document shipped under that id.
+  final shippedById = <String, Uint8List?>{};
+  for (final MapEntry(key: path, value: bytes) in outputFiles.entries) {
+    if (!path.endsWith('.flow.json')) continue;
+    final String id;
+    try {
+      id = FlowDocumentCodec.decodeJson(utf8.decode(bytes)).flow;
+    } on Object {
+      continue;
+    }
+    shippedById[id] = shippedById.containsKey(id) ? null : bytes;
+  }
+  for (final part in parts) {
+    final accumulator = partFragments[part.partPath];
+    if (accumulator == null || !accumulator.fragments.contains(part.fragment)) {
+      continue;
+    }
+    var updated = part.fragment;
+    var from = 0;
+    var root = true;
+    while (true) {
+      final literal = _documentLiteral(updated, from);
+      if (literal == null) break;
+      final Uint8List? shipped;
+      if (root) {
+        shipped = outputFiles[part.flowDocumentPath];
+      } else {
+        final embedded = literal.text
+            .substring(1, literal.text.length - 1)
+            .replaceAllMapped(RegExp(r'\\(.)'), (match) => match.group(1)!);
+        String? id;
+        try {
+          id = FlowDocumentCodec.decodeJson(embedded).flow;
+        } on Object {
+          id = null;
+        }
+        shipped = id == null
+            ? null
+            : outputFiles[documentPathsById[(part.surface, id)]] ??
+                shippedById[id];
+      }
+      root = false;
+      final replacement = shipped == null
+          ? literal.text
+          : dartStringLiteral(utf8.decode(shipped));
+      updated = updated.replaceRange(literal.start, literal.end, replacement);
+      from = literal.start + replacement.length;
+    }
+    if (updated == part.fragment) continue;
+    final ordered = [
+      for (final fragment in accumulator.fragments)
+        fragment == part.fragment ? updated : fragment,
+    ];
+    accumulator.fragments
+      ..clear()
+      ..addAll(ordered);
+  }
+}
+
+/// The string literal after the first `documentJson:` at or past [from]; the
+/// first in a part is its root flow's, and child flows embed theirs after it.
+({int start, int end, String text})? _documentLiteral(String part, int from) {
+  const label = 'documentJson:';
+  final at = part.indexOf(label, from);
+  if (at < 0) return null;
+  var start = at + label.length;
+  while (start < part.length && part.codeUnitAt(start) <= 0x20) {
+    start += 1;
+  }
+  if (start >= part.length || part[start] != "'") return null;
+  var end = start + 1;
+  while (end < part.length && part[end] != "'") {
+    end += part[end] == r'\' ? 2 : 1;
+  }
+  if (end >= part.length) return null;
+  return (start: start, end: end + 1, text: part.substring(start, end + 1));
+}
+
 final class _PartAccumulator {
-  _PartAccumulator({required this.header, required this.fragments});
+  _PartAccumulator({
+    required this.header,
+    required this.languageVersion,
+    required this.fragments,
+  });
 
   final String header;
+  final Version languageVersion;
   final Set<String> fragments;
 }

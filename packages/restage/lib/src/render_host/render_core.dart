@@ -8,6 +8,7 @@ export 'marker_library.dart';
 export 'protocol.dart';
 export 'protocol_server.dart';
 export 'raw_rfw_render_surface.dart';
+export 'render_placeholder.dart';
 export 'render_bundle_entry_selector.dart';
 export 'structured_widget_placeholder.dart';
 export 'wire_json.dart' show renderWireMaxDepth, renderWireMaxNodes;

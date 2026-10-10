@@ -2,6 +2,10 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        kMeasurementPublicationReservedArgumentPrefixV1,
+        kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/rfw_formats.dart';
 
 const String _restageLibraryOrigin = 'package:restage';
@@ -91,6 +95,14 @@ Issue unsupportedCommerceEventIssue(String name, String location) => Issue(
       location: location,
     );
 
+/// Creates the diagnostic for an authored event using the reserved tap name.
+Issue reservedMeasurementEventIssue(String location) => Issue(
+      code: IssueCode.invalidEventConfiguration,
+      message: "The event name '$kMeasurementPublicationTapEventNameV1' is "
+          'reserved for measurement. Choose another event name.',
+      location: location,
+    );
+
 /// Creates the diagnostic for an authored product-data reference.
 Issue unsupportedCommerceDataIssue(String location) => Issue(
       code: IssueCode.unsupportedCommerceAuthoring,
@@ -99,12 +111,22 @@ Issue unsupportedCommerceDataIssue(String location) => Issue(
       location: location,
     );
 
+// The compiler emits the reserved tap event with its route argument alone.
+bool _carriesOnlyMeasurementRoute(EventHandler handler) =>
+    handler.eventArguments.length == 1 &&
+    handler.eventArguments.keys.single
+        .startsWith(kMeasurementPublicationReservedArgumentPrefixV1);
+
 /// Finds unsupported commerce forms in a parsed [library].
-List<Issue> validateCommerceAuthoring(RemoteWidgetLibrary library) {
+List<Issue> validateCommerceAuthoring(
+  RemoteWidgetLibrary library, {
+  Map<String, String> rootLabels = const {},
+}) {
   final issues = <Issue>[];
   for (final widget in library.widgets) {
-    _visitCommerceValue(widget.initialState, widget.name, issues);
-    _visitCommerceValue(widget.root, widget.name, issues);
+    final location = rootLabels[widget.name] ?? widget.name;
+    _visitCommerceValue(widget.initialState, location, issues);
+    _visitCommerceValue(widget.root, location, issues);
   }
   return issues;
 }
@@ -117,6 +139,10 @@ void _visitCommerceValue(
   if (value is EventHandler) {
     if (unsupportedCommerceEventNames.contains(value.eventName)) {
       issues.add(unsupportedCommerceEventIssue(value.eventName, location));
+    }
+    if (value.eventName == kMeasurementPublicationTapEventNameV1 &&
+        !_carriesOnlyMeasurementRoute(value)) {
+      issues.add(reservedMeasurementEventIssue(location));
     }
     _visitCommerceValue(value.eventArguments, location, issues);
     return;

@@ -482,22 +482,95 @@ widget Preview = TemporaryLabel();
         counterRegistration,
       ],
     ));
-    final exception = tester.takeException();
-    final errorWidgetCount = find.byType(ErrorWidget).evaluate().length;
+    expect(tester.takeException(), isNull);
+    final placeholderCount = find.text('TemporaryLabel').evaluate().length;
     final staleCount = find.text('Temporary registration').evaluate().length;
     await tester.pumpWidget(const SizedBox.shrink());
 
-    expect(
-      exception.toString(),
-      contains('Could not find remote widget named TemporaryLabel'),
-    );
-    expect(errorWidgetCount, 1);
+    expect(placeholderCount, 1);
     expect(counterCount, 1);
     expect(staleCount, 0);
     expect(initializationCount, 1);
   });
 
-  testWidgets('library mode delegates unresolved widgets without reporting',
+  testWidgets('a widget no library provides draws a bounded placeholder',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RawRfwRenderSurface.library(
+          epoch: 1,
+          library: parseLibraryFile('''
+import restage.core;
+import acme.widgets;
+widget Preview = Row(children: [Text(text: 'Streak'), StreakBadge(days: 3)]);
+'''),
+          data: const <String, Object?>{},
+          environment: _environment(),
+          registrations: const <RestageWidgetLibraryRegistration>[],
+          entryWidgetName: 'Preview',
+          onRemoteEvent: (_, __) {},
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ErrorWidget), findsNothing);
+    expect(find.text('Streak'), findsOneWidget);
+    expect(find.text('StreakBadge'), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(DefaultRenderPlaceholder)),
+      const Size(kRenderPlaceholderWidth, kRenderPlaceholderHeight),
+    );
+  });
+
+  testWidgets('a builder that throws draws a placeholder naming its input',
+      (tester) async {
+    final events = <RenderEvent>[];
+    final registration = RestageWidgetLibraryRegistration(
+      library: const WidgetLibrary.custom('acme.widgets'),
+      widgets: <RestageWidgetFactory>[
+        RestageWidgetFactory(
+          name: 'StreakBadge',
+          builder: (_, __) =>
+              throw ArgumentError('StreakBadge.days is required.'),
+        ),
+      ],
+      capabilityVersion: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RawRfwRenderSurface.library(
+          epoch: 2,
+          library: parseLibraryFile('''
+import restage.core;
+import restage.material;
+import acme.widgets;
+widget Preview = Column(children: [
+  StreakBadge(),
+  SwitchListTile(title: Text(text: 'Alerts')),
+]);
+'''),
+          data: const <String, Object?>{},
+          environment: _environment(),
+          registrations: <RestageWidgetLibraryRegistration>[registration],
+          entryWidgetName: 'Preview',
+          onRemoteEvent: (_, __) {},
+          onRenderEvent: events.add,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ErrorWidget), findsNothing);
+    expect(find.text('StreakBadge.days'), findsOneWidget);
+    expect(find.text('SwitchListTile.value'), findsOneWidget);
+    expect(events.whereType<Settled>(), hasLength(1));
+    expect(events.whereType<RenderError>(), isEmpty);
+  });
+
+  testWidgets('an embedder draws placeholders with its own builder',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -512,26 +585,14 @@ widget Preview = Missing();
           registrations: const <RestageWidgetLibraryRegistration>[],
           entryWidgetName: 'Preview',
           onRemoteEvent: (_, __) {},
+          placeholderBuilder: (_, placeholder) =>
+              Text('custom ${placeholder.label}'),
         ),
       ),
     );
 
-    final exception = tester.takeException();
-    final errorMessages = find
-        .byType(ErrorWidget)
-        .evaluate()
-        .map((element) => (element.widget as ErrorWidget).message)
-        .toList();
-    await tester.pumpWidget(const SizedBox.shrink());
-    expect(
-      exception.toString(),
-      contains('Could not find remote widget named Missing'),
-    );
-    expect(errorMessages, hasLength(1));
-    expect(
-      errorMessages.single,
-      contains('Could not find remote widget named Missing'),
-    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('custom Missing'), findsOneWidget);
   });
 
   testWidgets('an actual in-place data change rebuilds the runtime snapshot',
@@ -603,38 +664,6 @@ widget Preview = Broken();
     expect(tester.takeException(), isNull);
     expect(events.whereType<Settled>(), isEmpty);
     expect(events.whereType<RenderError>().single.epoch, 4);
-
-    await tester.pump();
-    expect(events.whereType<RenderError>(), hasLength(1));
-  });
-
-  testWidgets('a missing remote widget errors once and never settles',
-      (tester) async {
-    final events = <RenderEvent>[];
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RawRfwRenderSurface.library(
-          epoch: 5,
-          library: parseLibraryFile('''
-import acme.widgets;
-widget Preview = Missing();
-'''),
-          data: const <String, Object?>{},
-          environment: _environment(),
-          registrations: const <RestageWidgetLibraryRegistration>[],
-          entryWidgetName: 'Preview',
-          onRemoteEvent: (_, __) {},
-          onRenderEvent: events.add,
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-
-    expect(tester.takeException(), isNull);
-    expect(events.whereType<Settled>(), isEmpty);
-    expect(events.whereType<RenderError>().single.epoch, 5);
 
     await tester.pump();
     expect(events.whereType<RenderError>(), hasLength(1));

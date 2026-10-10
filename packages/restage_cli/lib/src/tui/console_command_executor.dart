@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -234,6 +235,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
       httpClient: _httpClient,
       hasTerminal: () => false,
       interactiveFactory: (_) => interactive,
+      selectorSyntax: SelectorSyntax.console,
     ).run(commandArgs);
     return ConsoleOperationResult(
       exitCode: exitCode,

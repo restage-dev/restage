@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_example/main_hosted_paywall_demo.dart';
+import 'package:restage_example/main_hosted_surface_demo.dart';
 
 /// De-risks the dev-only hosted-paywall demo entrypoint: the bundled
 /// `narrate_membership.rfw`, re-packaged as a blob surface envelope and served by the
@@ -34,5 +34,57 @@ void main() {
     final bundled =
         await const AssetVariantResolver().resolve('narrate_membership');
     expect(variant.bytes, bundled.bytes);
+  });
+
+  group('hostedSurfaceConfigurationProblem', () {
+    String? problem({
+      String baseUrl = '',
+      String apiKey = '',
+      String surfaceSlug = '',
+      String surfaceType = 'paywall',
+    }) =>
+        hostedSurfaceConfigurationProblem(
+          baseUrl: baseUrl,
+          apiKey: apiKey,
+          surfaceSlug: surfaceSlug,
+          surfaceType: surfaceType,
+        );
+
+    test('accepts the self-contained default', () {
+      expect(problem(), isNull);
+    });
+
+    test('accepts a backend paywall named by slug', () {
+      expect(
+        problem(
+          baseUrl: 'https://backend.example',
+          apiKey: 'rs_pk_sandbox_x',
+          surfaceSlug: 'pulse_paywall',
+        ),
+        isNull,
+      );
+    });
+
+    test('requires a key and a slug with a backend', () {
+      expect(
+        problem(baseUrl: 'https://backend.example', surfaceSlug: 'a'),
+        contains('RESTAGE_API_KEY'),
+      );
+      expect(
+        problem(baseUrl: 'https://backend.example', apiKey: 'rs_pk_x'),
+        contains('RESTAGE_SURFACE'),
+      );
+    });
+
+    test('names the known types for an unknown one', () {
+      final message = problem(surfaceType: 'banner');
+      expect(message, contains('"banner"'));
+      expect(message, contains('paywall'));
+      expect(message, contains('survey'));
+    });
+
+    test('points flow types at their generated mount', () {
+      expect(problem(surfaceType: 'onboarding'), contains('generated'));
+    });
   });
 }

@@ -40,6 +40,7 @@ final _cliToMcp = <String, Set<String>>{
   'surface unfreeze': {'restage_unfreeze_surface'},
   'surface routing audience-usage': {'restage_routing_audience_usage'},
   'surface routing delivery-diagnostics': {'restage_read_delivery_diagnostics'},
+  'surface routing delivery-flow': {'restage_read_delivery_flow'},
   'surface routing list-audiences': {'restage_list_routing_audiences'},
   'surface routing preview': {'restage_preview_routing'},
   'surface routing publish': {'restage_publish_routing'},

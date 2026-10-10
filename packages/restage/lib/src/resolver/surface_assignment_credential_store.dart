@@ -29,6 +29,7 @@ final class SurfaceAssignmentCredentialStore {
   int? _observedActorGeneration;
   int _leaseGeneration = 0;
   int? _expiresAtMicros;
+  int? _confirmedAtMicros;
   Future<String?>? _pending;
 
   /// Changes at local identity reset or an authenticated retention rollover.
@@ -44,13 +45,19 @@ final class SurfaceAssignmentCredentialStore {
   Future<String?> resolve() {
     final current = identityGeneration();
     final expiry = _expiresAtMicros;
+    final confirmedAt = _confirmedAtMicros;
+    final now = _nowMicros();
     if (_generation == current &&
         _pending != null &&
-        (expiry == null || _nowMicros() < expiry)) {
+        (expiry == null || now < expiry) &&
+        (confirmedAt == null ||
+            (now >= confirmedAt &&
+                now - confirmedAt < _reconfirmIntervalMicros))) {
       return _pending!;
     }
     _generation = current;
     _expiresAtMicros = null;
+    _confirmedAtMicros = null;
     final pending = _pending = _resolve(current);
     // A missing key is never held, so the next request registers again.
     unawaited(pending.then((key) {
@@ -91,6 +98,20 @@ final class SurfaceAssignmentCredentialStore {
         _leaseGeneration += 1;
         onRetentionRollover();
       }
+      // A handle confirmed within a day and not expiring within a day is reused.
+      final heldHandle = registration?['credentialHandle'] as String?;
+      final confirmedAt = registration?['lastConfirmedAtMicros'] as int?;
+      final now = _nowMicros();
+      if (heldHandle != null &&
+          heldExpiry != null &&
+          confirmedAt != null &&
+          now >= confirmedAt &&
+          now - confirmedAt < _reconfirmIntervalMicros &&
+          heldExpiry - now > _reconfirmIntervalMicros) {
+        _expiresAtMicros = heldExpiry;
+        _confirmedAtMicros = confirmedAt;
+        return heldHandle;
+      }
       if (registration == null) {
         final random = Random.secure();
         registration = {
@@ -112,6 +133,7 @@ final class SurfaceAssignmentCredentialStore {
       }
       if (!isCurrent()) return null;
       final previousHandle = registration['credentialHandle'] as String?;
+      final presentedAt = _nowMicros();
       final issued = await rpc.registerAssignmentCredential(
         registrationNonce: registration['registrationNonce'] as String,
         registrationCreatedAtMicros:
@@ -130,6 +152,7 @@ final class SurfaceAssignmentCredentialStore {
         ...registration,
         'credentialHandle': issued.credentialHandle,
         'expiresAtMicros': issued.expiresAtMicros,
+        'lastConfirmedAtMicros': presentedAt,
       };
       if (!await SurfaceAssignmentPersistence.writeString(
           storageKey, jsonEncode(persistedRegistration),
@@ -139,12 +162,15 @@ final class SurfaceAssignmentCredentialStore {
       }
       if (!isCurrent()) return null;
       _expiresAtMicros = issued.expiresAtMicros;
+      _confirmedAtMicros = presentedAt;
       return issued.credentialHandle;
     } on Object {
       if (isCurrent()) _pending = null;
       return null;
     }
   }
+
+  static const _reconfirmIntervalMicros = Duration.microsecondsPerDay;
 
   static int _utcNowMicros() => DateTime.now().toUtc().microsecondsSinceEpoch;
 }

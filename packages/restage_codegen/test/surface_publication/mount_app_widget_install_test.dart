@@ -151,14 +151,22 @@ void main() {
 
       expect(
         _packed(part),
-        contains('libraries:[RestageWidgetLibraryRegistration.constant('
+        contains(
+          _packed(
+            'libraries:[RestageWidgetLibraryRegistration.constant('
             "library:WidgetLibrary.custom('app.widgets'),"
-            'capabilityVersion:1,'),
+            'capabilityVersion:1,',
+          ),
+        ),
       );
       expect(
         _packed(part),
-        contains("RestageWidgetFactory(name:'StreakBadge',"
-            r'builder:_restage$app$widgets$$StreakBadge)'),
+        contains(
+          _packed(
+            "RestageWidgetFactory(name:'StreakBadge',"
+            r'builder:_restage$app$widgets$$StreakBadge)',
+          ),
+        ),
       );
       expect(part, contains(r'Widget _restage$app$widgets$$StreakBadge('));
       expect(part, contains('return StreakBadge('));
@@ -211,8 +219,10 @@ final class Offer extends StatelessWidget {
       expect(
         part,
         contains(
-          r'builder:_restage$app$widgets$$StreakBadge),],),],)'
-          '.addToInstalled();',
+          _packed(
+            r'builder:_restage$app$widgets$$StreakBadge),],),],)'
+            '.addToInstalled();',
+          ),
         ),
       );
       expect(build.warnings, isEmpty);
@@ -297,10 +307,14 @@ const firstRun = FlowDefinition(
       // library and capability version alone.
       expect(
         part,
-        contains("RestageWidgetFactory(name:'StreakBadge',"
+        contains(
+          _packed(
+            "RestageWidgetFactory(name:'StreakBadge',"
             r'builder:_restage$app$widgets$$StreakBadge),'
             "RestageWidgetFactory(name:'StreakChip',"
-            r'builder:_restage$app$widgets$$StreakChip),'),
+            r'builder:_restage$app$widgets$$StreakChip)',
+          ),
+        ),
       );
       expect(build.warnings, isEmpty);
       expect(await _errors(sources, build.parts), isEmpty);
@@ -344,7 +358,9 @@ const firstRun = FlowDefinition(
 
       expect(
         flow,
-        contains('libraries:[RestageWidgetLibraryRegistration.constant('),
+        contains(
+          _packed('libraries:[RestageWidgetLibraryRegistration.constant('),
+        ),
         reason: build.warnings.join('\n'),
       );
       expect(flow, contains(r'Widget_restage$app$widgets$$StreakBadge('));
@@ -445,7 +461,11 @@ final class DataSource {}
   });
 }
 
-String _packed(String source) => source.replaceAll(RegExp(r'\s+'), '');
+/// [source] without whitespace or trailing commas, so either format style
+/// compares equal.
+String _packed(String source) => source
+    .replaceAll(RegExp(r'\s+'), '')
+    .replaceAll(RegExp(r',(?=[)\]}])'), '');
 
 typedef _Build = ({Map<String, String> parts, List<String> warnings});
 

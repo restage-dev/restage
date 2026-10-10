@@ -147,7 +147,7 @@ Future<int> runAuthed(
   final store = io.credentialStore ?? FileCredentialStore.atDefaultLocation();
   final credential = await store.read();
   if (credential == null) {
-    stderr.writeln('Not signed in. Run `restage login`.');
+    stderr.writeln(notSignedInSentence());
     return 1;
   }
   final config = (await loadRestageConfig(
@@ -288,10 +288,7 @@ Future<LifecycleContext?> _resolveTarget({
   final project = _option(argResults, 'project') ?? config?.project;
   final app = _option(argResults, 'app') ?? config?.app;
   if (project == null || app == null) {
-    stderr.writeln(
-      'No project / app context. Run `restage init` or pass '
-      '--project <slug> --app <slug>.',
-    );
+    stderr.writeln(noProjectContextSentence());
     return null;
   }
   final fromFlag = _option(argResults, 'env');
@@ -303,10 +300,7 @@ Future<LifecycleContext?> _resolveTarget({
       ? await io.interactive.prompt('Environment slug?')
       : null;
   if (environment == null || environment.isEmpty) {
-    stderr.writeln(
-      'Required: --env <slug>. Set `defaultEnvironment` in '
-      'restage_config.yaml or pass --env.',
-    );
+    stderr.writeln(environmentRequiredSentence());
     return null;
   }
   final resolved = await resolveTargetInteractively(

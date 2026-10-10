@@ -63,7 +63,7 @@ void main() {
 
       final project = await writeRenderBundleProject(
         projectRoot: app,
-        flutterVersion: requiredRenderBundleFlutterVersion,
+        flutterVersion: '3.99.0-0.1.pre',
         fontBytes: Uint8List.fromList(<int>[0]),
         licenseBytes: Uint8List.fromList(<int>[0]),
       );

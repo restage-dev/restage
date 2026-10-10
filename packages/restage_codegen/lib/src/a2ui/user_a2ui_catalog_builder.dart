@@ -11,6 +11,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_native_screen.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_semantics.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
@@ -207,7 +208,10 @@ final class UserA2uiCatalogBuilder implements Builder {
       emitted,
       <PropertyExclusion>[...walk.exclusions, ...nativeScreens.exclusions],
     );
-    final dart = formatGeneratedDart(emitted.toString());
+    final dart = formatGeneratedDart(
+      emitted.toString(),
+      languageVersion: await packageLanguageVersion(buildStep),
+    );
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, _catalogDartPath),
       dart,
@@ -401,9 +405,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       // `allowSyntaxErrors: true`, so a malformed token whose parser recovery
       // yields a structurally-valid declaration would otherwise be walked into
       // a clean catalog with the bad token silently dropped.
-      final resolved = await library.session.getResolvedLibraryByElement(
-        library,
-      );
+      final resolved = await resolveLibraryInLongForm(library);
       if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
         issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
       }

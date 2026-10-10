@@ -51,9 +51,15 @@ void main() {
         ),
       );
 
-      expect(warning, contains('catalog content version'));
-      expect(warning, contains('example.widgets'));
-      expect(warning, contains('v2'));
+      expect(
+        warning,
+        'Note for devices: this publication renders only in app builds that '
+        'register the built-in widget catalog at content version '
+        '${kBaselineCatalogVersion + 1} or later and the app widget library '
+        '"example.widgets" at version 2 or later. Installs of older app '
+        'builds show their configured fallback. This is about device '
+        'delivery; dashboard previews depend on a build push instead.',
+      );
     });
   });
 

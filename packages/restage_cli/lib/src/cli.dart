@@ -29,6 +29,7 @@ import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
 import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
@@ -83,6 +84,7 @@ class RestageCli {
     BundleSourceReader? renderBundleSource,
     ReleaseRecorderOpener? renderBundleRecorderOpener,
     RenderBundlePushReceipt? renderBundleReceipt,
+    FlutterToolchainResolver? renderBundleFlutterToolchain,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
     SelectorSyntax selectorSyntax = SelectorSyntax.cli,
@@ -105,6 +107,7 @@ class RestageCli {
        _renderBundleSource = renderBundleSource,
        _renderBundleRecorderOpener = renderBundleRecorderOpener,
        _renderBundleReceipt = renderBundleReceipt,
+       _renderBundleFlutterToolchain = renderBundleFlutterToolchain,
        _experimentActivationApi = experimentActivationApi,
        _environment = environment,
        _consoleControllerFactory =
@@ -142,6 +145,7 @@ class RestageCli {
   final BundleSourceReader? _renderBundleSource;
   final ReleaseRecorderOpener? _renderBundleRecorderOpener;
   final RenderBundlePushReceipt? _renderBundleReceipt;
+  final FlutterToolchainResolver? _renderBundleFlutterToolchain;
   final ExperimentActivationApi? _experimentActivationApi;
   final Map<String, String>? _environment;
 
@@ -158,7 +162,10 @@ class RestageCli {
     final args = _placeDirectory(runner, unplaced, directory);
     try {
       if (args.isEmpty && _hasTerminal()) {
-        return await _consoleLauncher(_consoleControllerFactory(null));
+        return await runConsole(
+          _consoleLauncher,
+          _consoleControllerFactory(null),
+        );
       }
       final result = await runZoned(
         () => runner.run(args),
@@ -268,6 +275,7 @@ class RestageCli {
           recordReceipt: _renderBundleReceipt,
           defaultEndpoint: _defaultEndpoint,
           environment: _environment,
+          flutterToolchain: _renderBundleFlutterToolchain,
         ),
       )
       ..addCommand(
@@ -299,7 +307,14 @@ class RestageCli {
           httpClient: _httpClient,
         ),
       )
-      ..addCommand(DoctorCommand(stdout: _stdout, stderr: _stderr))
+      ..addCommand(
+        DoctorCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
       ..addCommand(
         ConsoleCommand(
           controllerFactory: _consoleControllerFactory,

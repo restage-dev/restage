@@ -13,6 +13,11 @@ const String kMeasurementPublicationReservedArgumentPrefixV1 =
 const String kMeasurementPublicationRouteArgumentKeyV1 =
     '__restage_measurement_route_v1';
 
+/// Event name that carries a route for a tap with no business event, such as
+/// one that only changes screen state. Hosts record it and never deliver it.
+const String kMeasurementPublicationTapEventNameV1 =
+    '__restage_measurement_tap_v1';
+
 /// Fixed route-carrier version marker.
 const String kMeasurementPublicationRouteCarrierPrefixV1 = 'mrv1';
 

@@ -21,6 +21,7 @@ import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/coverage_measurement/coverage_report.dart';
 import 'package:restage_codegen/src/coverage_measurement/emit_outcomes.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
@@ -388,6 +389,7 @@ Future<ScanResult> scanPackage({
           );
           return null;
         }
+        expandLibraryDotShorthands(res.units.map((unit) => unit.unit));
         resolved = res;
         resolvedLibCache[library] = resolved;
       }
@@ -428,6 +430,7 @@ Future<ScanResult> scanPackage({
         continue;
       }
       filesResolved++;
+      expandLibraryDotShorthands(resolved.units.map((unit) => unit.unit));
       // Seed the astNodeFor cache so classifying this library's members does
       // not re-resolve a library we just resolved.
       resolvedLibCache[resolved.element] = resolved;

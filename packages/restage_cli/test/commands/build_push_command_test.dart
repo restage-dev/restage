@@ -12,6 +12,7 @@ import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/source_boundary.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
 import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -83,6 +84,7 @@ void main() {
       credentialStore: store,
       httpClient: client,
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
@@ -99,6 +101,76 @@ void main() {
     expect(stdout.toString(), contains('mobile staging version 4'));
     expect(stdout.toString(), contains('Every file was already stored'));
     expect(stderr.toString(), isEmpty);
+  });
+
+  test('the resolved Flutter reaches the generator and the build', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    String? seenFlagRoot;
+    String? seenConfigRoot;
+    File(p.join(root.path, 'restage_config.yaml')).writeAsStringSync(
+      'project: demo\napp: mobile\nflutterRoot: sdk/flutter\n',
+    );
+
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleFlutterToolchain:
+          ({required projectRoot, String? flagRoot, String? configRoot}) async {
+            seenFlagRoot = flagRoot;
+            seenConfigRoot = configRoot;
+            return const FlutterToolchain(
+              executable: '/pinned/bin/flutter',
+              source: 'PATH',
+              version: _flutterVersion,
+            );
+          },
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+
+    expect(exit, 0, reason: stderr.toString());
+    expect(seenFlagRoot, isNull);
+    expect(seenConfigRoot, p.join(root.absolute.path, 'sdk', 'flutter'));
+    expect(catalogStep.flutterExecutable, '/pinned/bin/flutter');
+    expect(builder.flutterExecutable, '/pinned/bin/flutter');
+  });
+
+  test('no usable Flutter stops the push before the build', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: _pushClient(builder.archive),
+          renderBundleBuilder: builder,
+          renderBundleFlutterToolchain:
+              ({required projectRoot, String? flagRoot, String? configRoot}) =>
+                  throw const FlutterToolchainException(
+                    'Builds need Flutter X.',
+                  ),
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--flutter-root',
+          '/elsewhere',
+        ]);
+
+    expect(exit, 1);
+    expect(
+      stderr.toString(),
+      'Could not build the render bundle. Builds need Flutter X.\n',
+    );
+    expect(catalogStep.calls, 0);
+    expect(builder.projectRoot, isNull);
   });
 
   test('a deployed push trusts the origins the server names', () async {
@@ -129,10 +201,7 @@ void main() {
                 'expiresAt': DateTime.utc(2030).toIso8601String(),
                 'blobUploadUrl':
                     'https://bundles.restage.dev/render-bundles/v1/blob',
-                'engineUploadUrl':
-                    'https://bundles.restage.dev/render-bundles/v1/engine-file',
                 'missingContentHashes': <String>[],
-                'missingEnginePaths': <String>[],
                 'uploadConcurrency': 3,
                 'maxFileTransferBytes': 24 * 1024 * 1024,
               }),
@@ -166,6 +235,7 @@ void main() {
       credentialStore: store,
       httpClient: client,
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
@@ -183,6 +253,7 @@ void main() {
       credentialStore: store,
       httpClient: _withOrigins((_) async => fail('nothing to upload')),
       renderBundleBuilder: _FakeBuilder.empty(),
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -214,6 +285,7 @@ void main() {
           bundles: bundles,
         ),
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
@@ -256,6 +328,7 @@ void main() {
         bundles: 'https://bundles.example.test',
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -275,6 +348,7 @@ void main() {
         refusal: 'builds_unavailable',
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -306,6 +380,7 @@ void main() {
         credentialStore: store,
         httpClient: client,
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path, '--env', environment]);
@@ -343,13 +418,9 @@ void main() {
             'expiresAt': DateTime.utc(2030).toIso8601String(),
             'blobUploadUrl':
                 'http://bundles.restage.localhost:8081/render-bundles/v1/blob',
-            'engineUploadUrl':
-                'http://bundles.restage.localhost:8081/render-bundles/v1/'
-                'engine-file',
             'missingContentHashes': <String>[
               CapabilitySidecar.hashBlob(builder.appFiles['index.html']!),
             ],
-            'missingEnginePaths': <String>[],
             'uploadConcurrency': 3,
             'maxFileTransferBytes': 24 * 1024 * 1024,
           }),
@@ -363,13 +434,17 @@ void main() {
         credentialStore: store,
         httpClient: client,
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
 
       expect(exit, 2);
       expect(uploadCalls, 1);
-      expect(stdout.toString(), isEmpty);
+      expect(
+        stdout.toString(),
+        'Building with Flutter $_flutterVersion at /sdk (PATH).\n',
+      );
       expect(
         stderr.toString(),
         'Could not upload the render bundle (HTTP 413: something between '
@@ -398,6 +473,7 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -422,6 +498,7 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: _FailingBuilder(),
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -474,6 +551,7 @@ void main() {
         credentialStore: store,
         httpClient: _withOrigins((_) async => http.Response('', 500)),
         renderBundleBuilder: _FailingBuilder(error),
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
@@ -483,18 +561,16 @@ void main() {
     });
   }
 
-  test('an engine file the pin does not cover is named', () async {
+  test('a build that wrote no engine names how to change Flutter', () async {
     final exit = await RestageCli(
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
       httpClient: _withOrigins((_) async => http.Response('', 500)),
       renderBundleBuilder: _FailingBuilder(
-        const RenderBundleBuildException(
-          'engine_incomplete',
-          detail: 'chromium/canvaskit.wasm',
-        ),
+        const RenderBundleBuildException('engine_missing'),
       ),
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -502,9 +578,10 @@ void main() {
     expect(exit, 2);
     expect(
       stderr.toString(),
-      'Could not build the render bundle: the pinned engine set names '
-      'chromium/canvaskit.wasm and this build did not produce it. Build on '
-      'the version the pin names.\n',
+      'Could not build the render bundle: `flutter build web` wrote no '
+      'engine files. To build with a different Flutter, run `restage build '
+      'push --flutter-root <sdk directory>`, set `flutterRoot` in '
+      'restage_config.yaml, or set FLUTTER_ROOT.\n',
     );
   });
 
@@ -520,6 +597,7 @@ void main() {
         prepareRefusal: 'required_file_missing',
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
@@ -544,6 +622,7 @@ void main() {
         prepareRefusal: 'upload_key_unavailable',
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
@@ -554,6 +633,33 @@ void main() {
       'The service could not mint the credential an upload needs, so nothing '
       'was stored. Try again; if it keeps happening the service is '
       'degraded.\n',
+    );
+  });
+
+  test('an engine Flutter never published is named', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(
+        builder.archive,
+        organizationId: 7,
+        prepareRefusal: 'engine_not_released',
+      ),
+      renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      "Could not upload the render bundle: this build's Flutter engine is not "
+      'one Flutter published, so the dashboard cannot load it. Build with a '
+      'released Flutter SDK; a custom or local engine is not supported for '
+      'previews.\n',
     );
   });
 
@@ -569,6 +675,7 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: (_, {recordGit = false}) async =>
           throw const SourceBoundaryException('The lockfile cannot be read.'),
@@ -602,6 +709,7 @@ void main() {
               return http.Response('', 500);
             }),
             renderBundleBuilder: builder,
+            renderBundleFlutterToolchain: _fakeFlutter,
             renderBundleCatalog: catalogStep.call,
             renderBundleSource: sourceStep.call,
           ).run(<String>[
@@ -632,6 +740,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -649,6 +758,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path, '--no-generate']);
@@ -665,6 +775,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -690,6 +801,7 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -714,6 +826,7 @@ void main() {
       credentialStore: store,
       httpClient: _withOrigins((request) async => http.Response('', 500)),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -745,6 +858,7 @@ void main() {
         onRpcBody: rpcBodies.add,
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: _keyEnvironment,
@@ -777,6 +891,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: _keyEnvironment,
@@ -809,8 +924,9 @@ void main() {
       (
         'environment_not_found',
         <String>[],
-        'This key is bound to one environment and --env names another. Drop '
-            '--env, or use the key for the environment it belongs to.\n',
+        'This key is bound to one environment and --env <slug> names '
+            'another. Leave it out, or use the key for the environment it '
+            'belongs to.\n',
       ),
     ]) {
       final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
@@ -820,6 +936,7 @@ void main() {
         credentialStore: store,
         httpClient: _pushClient(builder.archive, prepareRefusal: reason),
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
         environment: _keyEnvironment,
@@ -862,6 +979,7 @@ void main() {
         credentialStore: store,
         httpClient: client,
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
         environment: _keyEnvironment,
@@ -881,6 +999,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive, prepareKeyMismatch: true),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: _keyEnvironment,
@@ -912,6 +1031,7 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: const <String, String>{'RESTAGE_API_KEY': _key},
@@ -942,6 +1062,7 @@ void main() {
           onUrl: (url) => hosts.add(url.host),
         ),
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
         environment: const <String, String>{'RESTAGE_API_KEY': _key},
@@ -981,6 +1102,7 @@ void main() {
           bundles: bundles,
         ),
         renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
@@ -1011,6 +1133,7 @@ void main() {
         (request) async => http.Response('forbidden: no scope', 403),
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: _keyEnvironment,
@@ -1039,6 +1162,7 @@ void main() {
         onAuthorization: authorizations.add,
       ),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: const <String, String>{},
@@ -1074,8 +1198,8 @@ void main() {
     expect(exit, 1);
     expect(
       stderr.toString(),
-      'Not signed in. Run `restage login`, or set RESTAGE_API_KEY to push '
-      'with a key.\n',
+      'Not signed in. Run `restage login`. To push with a key, set '
+      'RESTAGE_API_KEY.\n',
     );
   });
 
@@ -1087,6 +1211,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -1111,6 +1236,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -1130,6 +1256,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
@@ -1153,6 +1280,7 @@ void main() {
             return http.Response('', 500);
           }),
           renderBundleBuilder: builder,
+          renderBundleFlutterToolchain: _fakeFlutter,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
         ).run(<String>[
@@ -1178,6 +1306,7 @@ void main() {
       stderr: stderr,
       credentialStore: store,
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       environment: _keyEnvironment,
@@ -1205,6 +1334,7 @@ void main() {
             organizationId: 7,
           ),
           renderBundleBuilder: builder,
+          renderBundleFlutterToolchain: _fakeFlutter,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
           renderBundleRecorderOpener: ({required projectRoot}) async =>
@@ -1261,7 +1391,7 @@ void main() {
     expect(recorded!['environment'], 'staging');
     expect(recorded!['version'], 6);
     expect(recorded!['dirty'], isFalse);
-    expect(recorded!['toolchain'], requiredRenderBundleFlutterVersion);
+    expect(recorded!['toolchain'], _flutterVersion);
   });
 
   test('a push to a personal head records no environment', () async {
@@ -1279,6 +1409,7 @@ void main() {
             organizationId: 7,
           ),
           renderBundleBuilder: builder,
+          renderBundleFlutterToolchain: _fakeFlutter,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
           renderBundleRecorderOpener: ({required projectRoot}) async =>
@@ -1328,6 +1459,7 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       renderBundleRecorderOpener: ({required projectRoot}) async =>
@@ -1353,6 +1485,7 @@ void main() {
           credentialStore: store,
           httpClient: _pushClient(builder.archive, organizationId: 7),
           renderBundleBuilder: builder,
+          renderBundleFlutterToolchain: _fakeFlutter,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
           renderBundleRecorderOpener: ({required projectRoot}) async =>
@@ -1398,6 +1531,7 @@ void main() {
           credentialStore: store,
           httpClient: _pushClient(builder.archive, organizationId: 7),
           renderBundleBuilder: builder,
+          renderBundleFlutterToolchain: _fakeFlutter,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
           renderBundleRecorderOpener: ({required projectRoot}) async =>
@@ -1451,6 +1585,7 @@ void main() {
             credentialStore: store,
             httpClient: _pushClient(builder.archive),
             renderBundleBuilder: builder,
+            renderBundleFlutterToolchain: _fakeFlutter,
             renderBundleCatalog: catalogStep.call,
             renderBundleSource: sourceStep.call,
             renderBundleRecorderOpener: ({required projectRoot}) async =>
@@ -1512,6 +1647,7 @@ void main() {
       credentialStore: store,
       httpClient: _pushClient(builder.archive),
       renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
       renderBundleRecorderOpener: ({required projectRoot}) async => recorder,
@@ -1686,11 +1822,7 @@ http.Client _pushClient(
           'expiresAt': DateTime.utc(2030).toIso8601String(),
           'blobUploadUrl':
               'http://bundles.restage.localhost:8081/render-bundles/v1/blob',
-          'engineUploadUrl':
-              'http://bundles.restage.localhost:8081/render-bundles/v1/'
-              'engine-file',
           'missingContentHashes': missingContentHashes,
-          'missingEnginePaths': <String>[],
           'uploadConcurrency': 3,
           'maxFileTransferBytes': 24 * 1024 * 1024,
         }),
@@ -1737,6 +1869,19 @@ final class _FakeSource {
   }
 }
 
+Future<FlutterToolchain> _fakeFlutter({
+  required Directory projectRoot,
+  String? flagRoot,
+  String? configRoot,
+}) async => const FlutterToolchain(
+  executable: '/sdk/bin/flutter',
+  source: 'PATH',
+  version: _flutterVersion,
+);
+
+/// A Flutter version no build list names ahead of time.
+const _flutterVersion = '3.99.0-0.1.pre';
+
 final class _FakeCatalog {
   _FakeCatalog({
     this.json = '{"libraries":{},"widgets":[]}',
@@ -1749,13 +1894,16 @@ final class _FakeCatalog {
   final GeneratedCatalogException? failure;
   int calls = 0;
   bool? generate;
+  String? flutterExecutable;
 
   Future<GeneratedWidgetCatalog> call({
     required Directory projectRoot,
     required bool generate,
+    String? flutterExecutable,
   }) async {
     calls++;
     this.generate = generate;
+    this.flutterExecutable = flutterExecutable;
     final refusal = failure;
     if (refusal != null) throw refusal;
     return GeneratedWidgetCatalog(
@@ -1790,6 +1938,7 @@ final class _FakeBuilder implements RenderBundleArtifactBuilder {
   Directory? projectRoot;
   String? catalogJson;
   Uri? parentOrigin;
+  String? flutterExecutable;
 
   /// The container the command encodes from these files.
   late final Uint8List archive = encodeRenderBundleArchive(appFiles);
@@ -1800,14 +1949,21 @@ final class _FakeBuilder implements RenderBundleArtifactBuilder {
     required String catalogJson,
     required Uri parentOrigin,
     required Uri controlOrigin,
+    String? flutterExecutable,
   }) async {
     this.projectRoot = projectRoot;
     this.catalogJson = catalogJson;
+    this.flutterExecutable = flutterExecutable;
     this.parentOrigin = parentOrigin;
     return RenderBundleArtifact(
       appFiles: appFiles,
-      engineFiles: const <String, Uint8List>{},
-      engineSetId: 'a' * 64,
+      engineSet: RenderBundleEngineSet.fromFiles(
+        flutterVersion: _flutterVersion,
+        engineRevision: 'af7e796e161ae0bb1ff0758c71a7105418bd9ded',
+        files: {
+          'skwasm.wasm': [1, 2, 3],
+        },
+      ),
     );
   }
 }
@@ -1825,5 +1981,6 @@ final class _FailingBuilder implements RenderBundleArtifactBuilder {
     required String catalogJson,
     required Uri parentOrigin,
     required Uri controlOrigin,
+    String? flutterExecutable,
   }) => throw failure;
 }

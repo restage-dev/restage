@@ -9,6 +9,8 @@ import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_cli/src/operations/operations.dart';
 
 const _groupDescriptions = <String, String>{
+  'org': 'Rename an organization.',
+  'app': 'Rename or delete an app.',
   'app-config':
       "Read or change an app's iOS bundle id, Android package, and web "
       'domain.',
@@ -16,8 +18,8 @@ const _groupDescriptions = <String, String>{
   'slots': "List or set an app's product slots.",
   'stores': "List an app's store connections.",
   'keys':
-      "List or revoke an environment's API keys. Create keys in the "
-      'dashboard.',
+      "List or revoke an environment's API keys, or find where a key "
+      'belongs. Create keys in the dashboard.',
   'audit': 'Read server audit logs and compliance exports.',
   'surface draft':
       'Download or push the draft a surface has saved in the dashboard.',
@@ -170,21 +172,36 @@ class SpecCommand extends Command<int> {
         return 1;
       }
     }
-    final SurfaceLifecycleIdentity? identity;
+    SurfaceReadSelection? selection;
     if (slug != null) {
-      identity = await resolveSurfaceLifecycleIdentity(
-        argResults: results,
-        fixedSurfaceType: null,
-        slug: slug,
-        stderr: stderr,
-      );
-      if (identity == null) return 1;
-    } else {
-      identity = null;
+      selection = operation.readsSurface
+          ? await resolveSurfaceReadSelection(
+              argResults: results,
+              fixedSurfaceType: null,
+              slug: slug,
+              stderr: stderr,
+            )
+          : switch (await resolveSurfaceLifecycleIdentity(
+              argResults: results,
+              fixedSurfaceType: null,
+              slug: slug,
+              stderr: stderr,
+            )) {
+              final identity? => SurfaceReadSelection.of(identity),
+              null => null,
+            };
+      if (selection == null) return 1;
     }
 
     return runAuthed(_io, results, operation.scope, (ctx) async {
       final resolved = ctx.target;
+      final identity = await selection?.resolve(
+        api: ctx.api,
+        project: resolved?.project ?? ctx.project!,
+        app: resolved?.app ?? ctx.app!.slug,
+        organizationId: resolved?.organizationId ?? ctx.organizationId,
+        appId: resolved?.appId ?? ctx.app?.appId,
+      );
       final target = OperationTarget(
         api: ctx.api,
         syntax: currentSelectorSyntax,

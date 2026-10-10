@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+Dot shorthands such as `.center`, `const .all(4)` and `.circular(8)` compile exactly
+like the long form they stand for, in surfaces, flow screens and custom widgets. A
+`@RestageWidget` may take private named parameters (`this._label`); its catalog
+property keeps the public name. A wildcard local (`final _ = ...;`) in `build()`
+compiles as if it were absent. The analyzer constraint is now `>=13.1.0 <14.0.0`.
+
+Framework constants such as `Alignment.centerLeft`, `FractionalOffset.center`,
+`Colors.redAccent`, `Duration.zero` and `BorderRadius.zero` compile to their values
+wherever the property accepts them. A shape's `BorderRadius.only`, `.vertical` and
+`.horizontal` keep their per-corner radii.
+
+Generated Dart follows the formatting style of the app's language version, so
+`dart format` leaves it unchanged. Build errors name the authored class.
+
 Generated mounts install the app widget library their surface draws on. This needs
 restage 2.1.0 or newer; the build stops with the minimum version when an older
 restage from pub.dev is resolved.

@@ -17,6 +17,7 @@ List<ToolEntry> routingTools(ToolContext ctx) => [
     _readDeliveryDiagnosticsTool,
     (request) => _readDeliveryDiagnostics(ctx, request),
   ),
+  (_readDeliveryFlowTool, (request) => _readDeliveryFlow(ctx, request)),
   (_readRoutingRevisionTool, (request) => _readRoutingRevision(ctx, request)),
   (_previewRoutingTool, (request) => _previewRouting(ctx, request)),
   liveGuarded(ctx, (
@@ -131,6 +132,40 @@ final _readDeliveryDiagnosticsTool = Tool(
       'and recorded server refusals, with each section\'s coverage and '
       'disclosure state. Held and unavailable counts are not zero, and neither '
       'section is a people, device, or all-request census.',
+  inputSchema: Schema.object(
+    properties: {
+      ..._targetProperties(surfaceScoped: true),
+      'windowStartDateUtc': Schema.string(
+        description:
+            'First UTC date included, in strict YYYY-MM-DD calendar form.',
+      ),
+      'windowEndDateExclusiveUtc': Schema.string(
+        description:
+            'First UTC date excluded, in strict YYYY-MM-DD calendar form. '
+            'The window is half-open and may span at most the retained '
+            'Measurement period.',
+      ),
+    },
+    required: [
+      ..._requiredTarget(surfaceScoped: true),
+      'windowStartDateUtc',
+      'windowEndDateExclusiveUtc',
+    ],
+    additionalProperties: false,
+  ),
+);
+
+/// Read who saw which version for one surface and UTC-day window.
+final _readDeliveryFlowTool = Tool(
+  name: 'restage_read_delivery_flow',
+  description:
+      'Who saw which version of one surface over whole UTC days: each routing '
+      'rule\'s views by version, each experiment\'s, everyone else, and views '
+      'with no delivery record. A count under the disclosure floor of 5 is '
+      'null and reads "<5". A total or merged cell that includes one is null, '
+      'and its approx field carries a rounded figure built only from the '
+      'stated counts. The approx field is null when the total is a single '
+      'held count.',
   inputSchema: Schema.object(
     properties: {
       ..._targetProperties(surfaceScoped: true),
@@ -389,6 +424,48 @@ Future<CallToolResult> _readDeliveryDiagnostics(
       contractVersion: target.contractVersion,
     );
     return jsonResult(diagnostics.toJson());
+  },
+);
+
+/// Handle `restage_read_delivery_flow`.
+Future<CallToolResult> _readDeliveryFlow(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
+  action: 'reading who saw which version',
+  surfaceScoped: true,
+  body: (api, target) async {
+    final int windowStartDayUtc;
+    final int windowEndDayExclusiveUtc;
+    try {
+      windowStartDayUtc = parseDeliveryDiagnosticsUtcDate(
+        request.str('windowStartDateUtc'),
+      );
+      windowEndDayExclusiveUtc = parseDeliveryDiagnosticsUtcDate(
+        request.str('windowEndDateExclusiveUtc'),
+      );
+      validateDeliveryDiagnosticsUtcWindow(
+        windowStartDayUtc: windowStartDayUtc,
+        windowEndDayExclusiveUtc: windowEndDayExclusiveUtc,
+      );
+    } on FormatException catch (error) {
+      return mcpError('Invalid UTC date window: ${error.message}');
+    }
+
+    final flow = await api.readDeliveryFlow(
+      projectSlug: target.projectSlug,
+      appSlug: target.appSlug,
+      surfaceType: target.surfaceType!,
+      surfaceSlug: target.surfaceSlug!,
+      environmentId: target.environmentId,
+      organizationId: target.organizationId,
+      windowStartDayUtc: windowStartDayUtc,
+      windowEndDayExclusiveUtc: windowEndDayExclusiveUtc,
+      contractVersion: target.contractVersion,
+    );
+    return jsonResult(flow.toJson());
   },
 );
 

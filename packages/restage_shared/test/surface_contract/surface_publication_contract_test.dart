@@ -891,6 +891,42 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('carries an optional mount name and round-trips it exactly', () {
+      final fixture = _screenFixture();
+      final publication = Map<String, Object?>.from(
+        fixture.manifest.publications.single.publication.toJson(),
+      );
+      expect(publication.containsKey('mountName'), isFalse);
+
+      publication['mountName'] = 'WelcomeScreenSurface';
+      final decoded =
+          SurfacePublication.fromJson(publication, path: r'$.publication');
+      expect(decoded.mountName, 'WelcomeScreenSurface');
+      expect(decoded.toJson()['mountName'], 'WelcomeScreenSurface');
+      expect(
+        SurfacePublication.fromJson(decoded.toJson(), path: r'$.publication')
+            .toJson(),
+        decoded.toJson(),
+      );
+
+      for (final invalid in <Object?>[
+        null,
+        '',
+        'welcomeScreenSurface',
+        '_WelcomeScreenSurface',
+        'Welcome Screen',
+        'Welcome()',
+      ]) {
+        publication['mountName'] = invalid;
+        expect(
+          () =>
+              SurfacePublication.fromJson(publication, path: r'$.publication'),
+          throwsFormatException,
+          reason: '$invalid',
+        );
+      }
+    });
   });
 
   group('Surface screen delivery contracts', () {
