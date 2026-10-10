@@ -100,4 +100,28 @@ class DiscoveryApi {
         EnvironmentTargetSummary.fromJson(item as Map<String, dynamic>),
     ];
   }
+
+  /// Resolve selectors to the organization, app and one environment target
+  /// the server would act on. Refusals are a `TargetSelectionRefusedException`.
+  Future<ResolvedTargetSelection> resolveTarget({
+    required String projectSlug,
+    required String appSlug,
+    String? environmentSlug,
+    RuntimePlane? runtimePlane,
+    int? environmentTargetId,
+    int? organizationId,
+    String? organizationSlug,
+  }) async {
+    final raw = await _api
+        .call('environment', 'resolveTarget', <String, dynamic>{
+          'projectSlug': projectSlug,
+          'appSlug': appSlug,
+          'environmentSlug': ?environmentSlug,
+          'runtimePlane': ?runtimePlane?.wireName,
+          'environmentTargetId': ?environmentTargetId,
+          'organizationId': ?organizationId,
+          'organizationSlug': ?organizationSlug,
+        });
+    return ResolvedTargetSelection.fromJson(raw as Map<String, dynamic>);
+  }
 }

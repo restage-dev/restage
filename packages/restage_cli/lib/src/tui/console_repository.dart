@@ -77,8 +77,6 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final surfaces = await _loadSurfaces(config, organization, selectedApp);
     final builds = await _loadBuilds(
       api,
-      endpoint: endpoint,
-      credential: credential,
       config: config,
       organization: organization,
     );
@@ -308,17 +306,10 @@ class DefaultConsoleRepository implements ConsoleRepository {
   /// reads as no heads: the console still opens, and a push says the rest.
   Future<List<ConsoleBuildHead>> _loadBuilds(
     RestageApi api, {
-    required Uri endpoint,
-    required Credential credential,
     required RestageConfig config,
     required _ConsoleOrganization organization,
   }) async {
-    final bundles = RenderBundleApi(
-      rpc: api,
-      apiEndpoint: endpoint,
-      credential: credential,
-      uploadClient: _httpClient,
-    );
+    final bundles = RenderBundleApi(rpc: api, uploadClient: _httpClient);
     try {
       final heads = await bundles.listHeads(
         project: config.project,
@@ -464,7 +455,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
               slug: summary.slug,
               name: summary.name,
               contractVersion: identity?.contractVersion,
-              sourceKind: identity?.sourceKind.wireName,
+              sourceKind: identity?.sourceKind?.wireName,
               payloadKind: identity?.payloadKind?.wireName,
               hasManifestIdentity: identity != null,
             ),
@@ -480,9 +471,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
   }
 
   ConsoleLoadException _apiException(RestageApiException e) {
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) return ConsoleLoadException(outcome.message);
-    return ConsoleLoadException('Could not contact the backend: ${e.body}');
+    return ConsoleLoadException(renderApiError(e).message);
   }
 
   Future<Map<String, SurfaceLifecycleIdentity>> _loadManifestIdentities(

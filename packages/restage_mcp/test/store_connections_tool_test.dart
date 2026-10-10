@@ -58,8 +58,8 @@ void main() {
 
     expect(tools, contains('restage_list_store_connections'));
     expect(
-      tools['restage_list_store_connections']!.inputSchema.required,
-      containsAll(['projectSlug', 'appSlug']),
+      tools['restage_list_store_connections']!.inputSchema.properties!.keys,
+      containsAll(['projectDirectory', 'projectSlug', 'appSlug']),
     );
   });
 

@@ -57,6 +57,7 @@ void main() {
           'environmentSlug': 'production',
           'environmentTargetId': 31,
           'runtimePlane': 'live',
+          'confirmLive': true,
         },
       ),
     );
@@ -74,6 +75,42 @@ void main() {
     expect(sentArguments['environmentTargetId'], 31);
   });
 
+  test('refuses a live mutation without confirmLive', () async {
+    var mutated = false;
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        final directory = _targetDirectory(body['method']! as String);
+        if (directory != null) return directory;
+        mutated = true;
+        return http.Response(jsonEncode(_wire(_acceptedResponse)), 200);
+      }),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_apply_canonical_mutation',
+        arguments: {
+          'canonicalRequestBase64': base64Encode(_request),
+          'organizationId': 11,
+          'projectSlug': 'checkout',
+          'appSlug': 'app',
+          'environmentSlug': 'production',
+          'environmentTargetId': 31,
+          'runtimePlane': 'live',
+        },
+      ),
+    );
+
+    expect(result.isError, isTrue);
+    expect(
+      (result.content.single as TextContent).text,
+      contains('confirmLive: true'),
+    );
+    expect(mutated, isFalse);
+  });
+
   test('refuses when the declared target resolves to no exact row', () async {
     var reachedRoute = false;
     final connection = await connectServer(
@@ -81,8 +118,17 @@ void main() {
       httpClient: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, Object?>;
         final method = body['method']! as String;
-        if (method == 'listEnvironmentTargets') {
-          return http.Response(jsonEncode(<Object?>[]), 200);
+        if (method == 'resolveTarget') {
+          return http.Response(
+            jsonEncode({
+              'className': 'TargetSelectionRefusedException',
+              'data': {
+                'reason': 'environmentNotFound',
+                'environmentSlug': 'production',
+              },
+            }),
+            400,
+          );
         }
         final directory = _targetDirectory(method);
         if (directory != null) return directory;
@@ -144,15 +190,26 @@ http.Response? _targetDirectory(String method) => switch (method) {
     200,
   ),
   'listEnvironmentTargets' => http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 31,
-        'namedEnvironmentId': 37,
-        'environmentSlug': 'production',
-        'runtimePlane': 'live',
-      },
-    ]),
+    jsonEncode([_directoryTarget]),
+    200,
+  ),
+  'resolveTarget' => http.Response(
+    jsonEncode({
+      'organizationId': 11,
+      'organizationSlug': 'restage',
+      'projectSlug': 'checkout',
+      'appId': 23,
+      'appSlug': 'app',
+      'target': _directoryTarget,
+    }),
     200,
   ),
   _ => null,
+};
+
+const _directoryTarget = {
+  'environmentTargetId': 31,
+  'namedEnvironmentId': 37,
+  'environmentSlug': 'production',
+  'runtimePlane': 'live',
 };

@@ -15,6 +15,12 @@ import 'package:test/test.dart';
 /// constructor-supplied [response]. Used for lifecycle methods where testing
 /// the HTTP wire format adds no value over testing the arg-map shape.
 class FakeRestageApi implements RestageApi {
+  @override
+  Uri get endpoint => Uri.parse('http://localhost/');
+
+  @override
+  Credential? get credential => null;
+
   FakeRestageApi({required this.response});
 
   final dynamic response;
@@ -543,41 +549,37 @@ void main() {
   });
 
   group('SurfaceApi.activate', () {
-    test(
-      'targets one exact family and preserves a null non-versioned address',
-      () async {
-        final fake = FakeRestageApi(
-          response: {
-            'family': {
-              'surfaceType': 'paywall',
-              'surfaceSlug': 'pro',
-              'sourceKind': 'paywall',
-            },
-            'publishedRevision': 3,
-            'activePublishedRevisionAfter': 3,
-            'identityFrozenAfter': false,
+    test('leaves unnamed family selectors to the server', () async {
+      final fake = FakeRestageApi(
+        response: {
+          'family': {
+            'surfaceType': 'paywall',
+            'surfaceSlug': 'pro',
+            'sourceKind': 'paywall',
           },
-        );
+          'publishedRevision': 3,
+          'activePublishedRevisionAfter': 3,
+          'identityFrozenAfter': false,
+        },
+      );
 
-        final result = await SurfaceApi(fake).activate(
-          project: 'p',
-          app: 'a',
-          surfaceType: SurfaceType.paywall,
-          surfaceSlug: 'pro',
-          environment: 'production',
-          publishedRevision: 3,
-          reason: 'restore',
-          contractVersion: null,
-        );
+      final result = await SurfaceApi(fake).activate(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 'pro',
+        environment: 'production',
+        publishedRevision: 3,
+        reason: 'restore',
+        contractVersion: null,
+      );
 
-        expect(fake.lastMethod, 'activateSurface');
-        expect(fake.lastArgs!['publishedRevision'], 3);
-        expect(fake.lastArgs!.containsKey('contractVersion'), isTrue);
-        expect(fake.lastArgs!['contractVersion'], isNull);
-        expect(result.sourceKind, 'paywall');
-        expect(result.activeRevisionAfter, 3);
-      },
-    );
+      expect(fake.lastMethod, 'activateSurface');
+      expect(fake.lastArgs!['publishedRevision'], 3);
+      expect(fake.lastArgs!.containsKey('contractVersion'), isFalse);
+      expect(result.sourceKind, 'paywall');
+      expect(result.activeRevisionAfter, 3);
+    });
   });
 
   group('SurfaceApi.surfaceStatus', () {
@@ -645,10 +647,42 @@ void main() {
       expect(fake.lastArgs!['contractVersion'], 4);
       expect(result.contractVersion, 4);
     });
+
+    test('sends a named source kind and omits an unnamed one', () async {
+      Map<String, dynamic> response() => {
+        'surfaceType': 'message',
+        'surfaceSlug': 'recap',
+        'environmentSlug': 'staging',
+        'liveVersion': null,
+        'locked': false,
+        'deliveryShape': 'blob',
+        'versions': <dynamic>[],
+      };
+      final named = FakeRestageApi(response: response());
+      await SurfaceApi(named).surfaceStatus(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.message,
+        surfaceSlug: 'recap',
+        environment: 'staging',
+        sourceKind: SurfaceSourceKind.flowGraph,
+      );
+      expect(named.lastArgs!['sourceKind'], 'flowGraph');
+
+      final unnamed = FakeRestageApi(response: response());
+      await SurfaceApi(unnamed).surfaceStatus(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.message,
+        surfaceSlug: 'recap',
+        environment: 'staging',
+      );
+      expect(unnamed.lastArgs!.containsKey('sourceKind'), isFalse);
+    });
   });
 
   group('SurfaceApi generated family history', () {
-    test('sends an exact positive screen family reference', () async {
+    test('sends the partial family selector it is given', () async {
       final fake = FakeRestageApi(
         response: {
           '__className__': 'SurfaceContractFamilyView',
@@ -696,13 +730,10 @@ void main() {
       expect(fake.lastArgs!['environmentTargetId'], 11);
       expect(fake.lastArgs!['runtimePlane'], 'sandbox');
       expect(fake.lastArgs!['organizationId'], 7);
-      expect(fake.lastArgs!['family'], {
-        '__className__': 'SurfaceContractFamilyReference',
-        'surfaceType': 'general',
-        'surfaceSlug': 'welcome',
-        'sourceKind': 'screen',
-        'contractVersion': 7,
-      });
+      expect(fake.lastArgs!['surfaceType'], 'general');
+      expect(fake.lastArgs!['surfaceSlug'], 'welcome');
+      expect(fake.lastArgs!['sourceKind'], 'screen');
+      expect(fake.lastArgs!['contractVersion'], 7);
       expect(result.family.surfaceType, 'general');
       expect(result.family.contractVersion, 7);
       expect(result.revisions.single.publishedRevision, 4);
@@ -729,8 +760,7 @@ void main() {
         sourceKind: SurfaceSourceKind.paywall,
       );
 
-      final family = fake.lastArgs!['family'] as Map<String, dynamic>;
-      expect(family.containsKey('contractVersion'), isFalse);
+      expect(fake.lastArgs!.containsKey('contractVersion'), isFalse);
       expect(result.family.contractVersion, isNull);
       expect(result.family.sourceKind, 'paywall');
     });

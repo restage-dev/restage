@@ -231,18 +231,32 @@ class ConsoleController {
     _state = _state.copyWith(operationMessage: message);
   }
 
-  Future<void> freezeSelected({required String reason}) async {
+  Future<void> freezeSelected({
+    required String reason,
+    bool confirmedProduction = false,
+  }) async {
     await _runSelectedOperation(
-      (executor, context, surface) =>
-          executor.freeze(context: context, surface: surface, reason: reason),
+      (executor, context, surface) => executor.freeze(
+        context: context,
+        surface: surface,
+        reason: reason,
+        confirmedProduction: confirmedProduction,
+      ),
       operation: 'freeze',
     );
   }
 
-  Future<void> unfreezeSelected({required String reason}) async {
+  Future<void> unfreezeSelected({
+    required String reason,
+    bool confirmedProduction = false,
+  }) async {
     await _runSelectedOperation(
-      (executor, context, surface) =>
-          executor.unfreeze(context: context, surface: surface, reason: reason),
+      (executor, context, surface) => executor.unfreeze(
+        context: context,
+        surface: surface,
+        reason: reason,
+        confirmedProduction: confirmedProduction,
+      ),
       operation: 'unfreeze',
     );
   }
@@ -282,6 +296,53 @@ class ConsoleController {
   Future<void> refreshBuilds() async {
     final snapshot = await _repository.load();
     _state = _state.copyWith(builds: snapshot.builds);
+  }
+
+  Future<void> publishSelected({
+    required String reason,
+    bool confirmedProduction = false,
+  }) async {
+    await _runSelectedOperation(
+      (executor, context, surface) => executor.publish(
+        context: context,
+        surface: surface,
+        reason: reason,
+        confirmedProduction: confirmedProduction,
+      ),
+      operation: 'publish',
+    );
+  }
+
+  /// Runs `restage` with [arguments] and keeps everything it printed.
+  Future<void> runCommand(List<String> arguments) async {
+    final executor = _operationExecutor;
+    if (executor == null) {
+      _state = _state.copyWith(operationMessage: 'Operations unavailable.');
+      return;
+    }
+    final excluded = arguments.isEmpty
+        ? null
+        : consoleExcludedCommands[arguments.first];
+    if (excluded != null) {
+      _state = _state.copyWith(operationMessage: excluded);
+      return;
+    }
+    _state = _state.copyWith(operationMessage: 'Running...');
+    final result = await executor.runCommand(arguments);
+    final message = _operationMessage(result);
+    _state = _state.copyWith(
+      operationMessage: message,
+      commandOutput: ConsoleCommandOutput(arguments: arguments, result: result),
+      activity: [
+        ConsoleActivityEntry(
+          operation: 'restage',
+          surfaceSlug: arguments.join(' '),
+          exitCode: result.exitCode,
+          message: message,
+        ),
+        ..._state.activity,
+      ].take(5).toList(growable: false),
+    );
   }
 
   Future<void> pushSelected() async {

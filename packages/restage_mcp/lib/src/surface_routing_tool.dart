@@ -3,46 +3,34 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dart_mcp/server.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 
 import 'api_runner.dart';
+import 'tool_support.dart';
+
+/// The routing tools, bound to [ctx].
+List<ToolEntry> routingTools(ToolContext ctx) => [
+  (_listRoutingAudiencesTool, (request) => _listRoutingAudiences(ctx, request)),
+  (_routingAudienceUsageTool, (request) => _routingAudienceUsage(ctx, request)),
+  (_readRoutingTool, (request) => _readRouting(ctx, request)),
+  (
+    _readDeliveryDiagnosticsTool,
+    (request) => _readDeliveryDiagnostics(ctx, request),
+  ),
+  (_readRoutingRevisionTool, (request) => _readRoutingRevision(ctx, request)),
+  (_previewRoutingTool, (request) => _previewRouting(ctx, request)),
+  liveGuarded(ctx, (
+    _publishRoutingTool,
+    (request) => _publishRouting(ctx, request),
+  )),
+  liveGuarded(ctx, (
+    _rollbackRouteTool,
+    (request) => _rollbackRoute(ctx, request),
+  )),
+];
 
 /// Largest routing document or preview input this server will accept.
 const _maximumRoutingBytes = kMaximumRoutingDocumentBytes;
-
-final _surfaceTypeWireNames = [
-  for (final type in SurfaceType.values) type.wireName,
-];
-
-final _surfaceTypeProperty = UntitledSingleSelectEnumSchema(
-  description:
-      'The surface type: one of '
-      '${_surfaceTypeWireNames.map((n) => '"$n"').join(', ')}.',
-  values: _surfaceTypeWireNames,
-);
-
-final _organizationIdProperty = Schema.int(
-  description: 'The organization id, from restage_list_organizations.',
-);
-
-final _environmentTargetIdProperty = Schema.int(
-  description:
-      'The exact environment target id, from '
-      'restage_list_environment_targets.',
-);
-
-final _surfaceSlugProperty = Schema.string(description: 'The surface slug.');
-
-final _projectSlugProperty = Schema.string(description: 'The project slug.');
-
-final _appSlugProperty = Schema.string(description: 'The app slug.');
-
-final _contractVersionProperty = Schema.int(
-  description:
-      'Optional standalone-screen contract version. Omit for the '
-      'non-versioned flow or paywall lineage.',
-);
 
 final _pageSizeProperty = Schema.int(
   description: 'Optional rows per page, 1 to 200. Defaults to 50.',
@@ -60,26 +48,27 @@ final _operationIdProperty = Schema.string(
 );
 
 Map<String, Schema> _targetProperties({required bool surfaceScoped}) => {
-  'organizationId': _organizationIdProperty,
-  'projectSlug': _projectSlugProperty,
-  'appSlug': _appSlugProperty,
-  if (surfaceScoped) 'surfaceType': _surfaceTypeProperty,
-  if (surfaceScoped) 'surfaceSlug': _surfaceSlugProperty,
-  'environmentTargetId': _environmentTargetIdProperty,
-  if (surfaceScoped) 'contractVersion': _contractVersionProperty,
+  ...appProperties(),
+  if (surfaceScoped) 'surfaceType': surfaceTypeProperty,
+  if (surfaceScoped) 'surfaceSlug': surfaceSlugProperty,
+  'environmentSlug': Schema.string(
+    description:
+        'The environment slug. Names the target with runtimePlane when '
+        'environmentTargetId is left out.',
+  ),
+  'runtimePlane': runtimePlaneProperty,
+  'environmentTargetId': environmentTargetIdProperty,
+  if (surfaceScoped) 'contractVersion': contractVersionProperty,
 };
 
 List<String> _requiredTarget({required bool surfaceScoped}) => [
-  'organizationId',
-  'projectSlug',
-  'appSlug',
+  ...appRequired,
   if (surfaceScoped) 'surfaceType',
   if (surfaceScoped) 'surfaceSlug',
-  'environmentTargetId',
 ];
 
 /// List the sealed audience revisions routing rules can reference.
-final listRoutingAudiencesTool = Tool(
+final _listRoutingAudiencesTool = Tool(
   name: 'restage_list_routing_audiences',
   description:
       'List the sealed audience revisions a routing rule can name, newest '
@@ -98,7 +87,7 @@ final listRoutingAudiencesTool = Tool(
 );
 
 /// List what references one audience revision.
-final routingAudienceUsageTool = Tool(
+final _routingAudienceUsageTool = Tool(
   name: 'restage_routing_audience_usage',
   description:
       'List the experiments and routing documents that reference one audience '
@@ -119,7 +108,7 @@ final routingAudienceUsageTool = Tool(
 );
 
 /// Read the stored routing document.
-final readRoutingTool = Tool(
+final _readRoutingTool = Tool(
   name: 'restage_read_routing',
   description:
       'Read the routing document stored for one surface in one environment: '
@@ -134,7 +123,7 @@ final readRoutingTool = Tool(
 );
 
 /// Read bounded delivery diagnostics for one surface and UTC-day window.
-final readDeliveryDiagnosticsTool = Tool(
+final _readDeliveryDiagnosticsTool = Tool(
   name: 'restage_read_delivery_diagnostics',
   description:
       'Read delivery diagnostics for one surface over a whole, half-open UTC '
@@ -166,7 +155,7 @@ final readDeliveryDiagnosticsTool = Tool(
 );
 
 /// Read one earlier revision of the stored routing document.
-final readRoutingRevisionTool = Tool(
+final _readRoutingRevisionTool = Tool(
   name: 'restage_read_routing_revision',
   description:
       'Read one earlier revision of the routing document stored for a surface '
@@ -186,7 +175,7 @@ final readRoutingRevisionTool = Tool(
 );
 
 /// Evaluate a routing document against a supplied request context.
-final previewRoutingTool = Tool(
+final _previewRoutingTool = Tool(
   name: 'restage_preview_routing',
   description:
       'Evaluate a routing document against a supplied request context without '
@@ -231,7 +220,7 @@ final previewRoutingTool = Tool(
 );
 
 /// Publish a whole routing document.
-final publishRoutingTool = Tool(
+final _publishRoutingTool = Tool(
   name: 'restage_publish_routing',
   description:
       'Publish a whole routing document, replacing what is stored. The write '
@@ -265,7 +254,7 @@ final publishRoutingTool = Tool(
 );
 
 /// Restore one route to an earlier revision.
-final rollbackRouteTool = Tool(
+final _rollbackRouteTool = Tool(
   name: 'restage_rollback_route',
   description:
       'Restore one route to the shape it held at an earlier revision, leaving '
@@ -294,14 +283,12 @@ final rollbackRouteTool = Tool(
 );
 
 /// Handle `restage_list_routing_audiences`.
-Future<CallToolResult> handleListRoutingAudiences({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _listRoutingAudiences(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'listing the routing audiences',
   body: (api, target) async {
     final pageSize = _pageSize(request);
@@ -319,14 +306,12 @@ Future<CallToolResult> handleListRoutingAudiences({
 );
 
 /// Handle `restage_routing_audience_usage`.
-Future<CallToolResult> handleRoutingAudienceUsage({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _routingAudienceUsage(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'listing the audience consumers',
   body: (api, target) async {
     final pageSize = _pageSize(request);
@@ -345,39 +330,33 @@ Future<CallToolResult> handleRoutingAudienceUsage({
 );
 
 /// Handle `restage_read_routing`.
-Future<CallToolResult> handleReadRouting({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
-  action: 'reading the routing document',
-  surfaceScoped: true,
-  body: (api, target) async {
-    final read = await api.readRouting(
-      projectSlug: target.projectSlug,
-      appSlug: target.appSlug,
-      surfaceType: target.surfaceType!,
-      surfaceSlug: target.surfaceSlug!,
-      environmentId: target.environmentId,
-      organizationId: target.organizationId,
-      contractVersion: target.contractVersion,
+Future<CallToolResult> _readRouting(ToolContext ctx, CallToolRequest request) =>
+    _withRouting(
+      ctx,
+      request,
+      action: 'reading the routing document',
+      surfaceScoped: true,
+      body: (api, target) async {
+        final read = await api.readRouting(
+          projectSlug: target.projectSlug,
+          appSlug: target.appSlug,
+          surfaceType: target.surfaceType!,
+          surfaceSlug: target.surfaceSlug!,
+          environmentId: target.environmentId,
+          organizationId: target.organizationId,
+          contractVersion: target.contractVersion,
+        );
+        return jsonResult(read.toJson());
+      },
     );
-    return jsonResult(read.toJson());
-  },
-);
 
 /// Handle `restage_read_delivery_diagnostics`.
-Future<CallToolResult> handleReadDeliveryDiagnostics({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _readDeliveryDiagnostics(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'reading delivery diagnostics',
   surfaceScoped: true,
   body: (api, target) async {
@@ -414,14 +393,12 @@ Future<CallToolResult> handleReadDeliveryDiagnostics({
 );
 
 /// Handle `restage_read_routing_revision`.
-Future<CallToolResult> handleReadRoutingRevision({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _readRoutingRevision(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'reading the earlier routing revision',
   surfaceScoped: true,
   body: (api, target) async {
@@ -444,14 +421,12 @@ Future<CallToolResult> handleReadRoutingRevision({
 );
 
 /// Handle `restage_preview_routing`.
-Future<CallToolResult> handlePreviewRouting({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _previewRouting(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'previewing the routing document',
   surfaceScoped: true,
   body: (api, target) async {
@@ -500,14 +475,12 @@ Future<CallToolResult> handlePreviewRouting({
 );
 
 /// Handle `restage_publish_routing`.
-Future<CallToolResult> handlePublishRouting({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _publishRouting(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'publishing the routing document',
   surfaceScoped: true,
   body: (api, target) async {
@@ -544,14 +517,12 @@ Future<CallToolResult> handlePublishRouting({
 );
 
 /// Handle `restage_rollback_route`.
-Future<CallToolResult> handleRollbackRoute({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withRouting(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> _rollbackRoute(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
   action: 'rolling the route back',
   surfaceScoped: true,
   body: (api, target) async {
@@ -604,10 +575,9 @@ class _RoutingTarget {
 
 /// Run [body] against the routing client, translating routing's own typed
 /// refusals before the shared error seam sees them.
-Future<CallToolResult> _withRouting({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  required http.Client? httpClient,
+Future<CallToolResult> _withRouting(
+  ToolContext ctx,
+  CallToolRequest request, {
   required String action,
   required Future<CallToolResult> Function(
     SurfaceRoutingApi api,
@@ -616,33 +586,49 @@ Future<CallToolResult> _withRouting({
   body,
   bool surfaceScoped = false,
 }) {
-  final target = _RoutingTarget(
-    organizationId: request.reqInt('organizationId'),
-    projectSlug: request.str('projectSlug'),
-    appSlug: request.str('appSlug'),
-    environmentId: request.reqInt('environmentTargetId'),
-    surfaceType: surfaceScoped ? request.str('surfaceType') : null,
-    surfaceSlug: surfaceScoped ? request.str('surfaceSlug') : null,
-    contractVersion: surfaceScoped ? request.optInt('contractVersion') : null,
-  );
-
-  return withApi(
-    store: store,
-    httpClient: httpClient,
-    action: action,
-    surfaceNoun: target.surfaceType ?? 'surface',
-    body: (api) async {
-      try {
-        return await body(SurfaceRoutingApi(api), target);
-      } on RoutingDocumentBytesException catch (error) {
-        return mcpError(error.toString());
-      } on RestageApiException catch (error) {
-        final typed = decodeSurfaceRoutingException(error.body);
-        if (typed == null) rethrow;
-        return mcpError(_routingRefusal(typed));
+  return ctx.authed(action, (api) async {
+    // Routing names exact organization and target ids; selectors that do not
+    // already give both are resolved on the server.
+    final organizationId = request.optInt('organizationId');
+    final targetId = request.optInt('environmentTargetId');
+    final int organization;
+    final int environmentId;
+    if (organizationId != null &&
+        targetId != null &&
+        request.optStr('environmentSlug') == null) {
+      organization = organizationId;
+      environmentId = targetId;
+    } else {
+      if (request.optStr('environmentSlug') == null) {
+        throw const TargetSelectionException(
+          'Name the environment: pass environmentSlug (and runtimePlane when '
+          'it exists on both planes), or organizationId with '
+          'environmentTargetId.',
+        );
       }
-    },
-  );
+      final selected = await resolveToolTarget(api, request);
+      organization = selected.organizationId;
+      environmentId = selected.target.environmentTargetId;
+    }
+    final target = _RoutingTarget(
+      organizationId: organization,
+      projectSlug: request.str('projectSlug'),
+      appSlug: request.str('appSlug'),
+      environmentId: environmentId,
+      surfaceType: surfaceScoped ? request.str('surfaceType') : null,
+      surfaceSlug: surfaceScoped ? request.str('surfaceSlug') : null,
+      contractVersion: surfaceScoped ? request.optInt('contractVersion') : null,
+    );
+    try {
+      return await body(SurfaceRoutingApi(api), target);
+    } on RoutingDocumentBytesException catch (error) {
+      return mcpError(error.toString());
+    } on RestageApiException catch (error) {
+      final typed = decodeSurfaceRoutingException(error.body);
+      if (typed == null) rethrow;
+      return mcpError(_routingRefusal(typed));
+    }
+  });
 }
 
 String _routingRefusal(SurfaceRoutingTypedException typed) => switch (typed) {

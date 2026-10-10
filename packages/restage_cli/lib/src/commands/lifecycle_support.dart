@@ -1,17 +1,14 @@
-import 'dart:io';
-
 import 'package:args/args.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/experiment_activation_host_transport.dart';
-import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
-import 'package:restage_cli/src/config/restage_config.dart';
+import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
-import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
@@ -37,6 +34,7 @@ class LifecycleContext {
     required this.namedEnvironmentId,
     required this.environmentTargetId,
     required this.runtimePlane,
+    this.planeIsImplicit = true,
   });
 
   /// The authenticated credential to use for API calls.
@@ -71,6 +69,32 @@ class LifecycleContext {
 
   /// Canonical runtime plane for the selected target.
   final RuntimePlane runtimePlane;
+
+  /// Whether a follow-up command reaches this target without `--plane`.
+  final bool planeIsImplicit;
+
+  /// ` --plane <plane>` for a follow-up hint, or empty.
+  String get planeHint => planeFlag(runtimePlane, implicit: planeIsImplicit);
+
+  /// This target as a resolved selector.
+  ResolvedEnvironmentTargetContext get resolved =>
+      ResolvedEnvironmentTargetContext(
+        projectSlug: project,
+        appSlug: app,
+        organizationId: organizationId,
+        organizationSlug: organizationSlug,
+        appId: appId,
+        target: EnvironmentTargetSummary(
+          environmentTargetId: environmentTargetId,
+          namedEnvironmentId: namedEnvironmentId,
+          environmentSlug: environment,
+          runtimePlane: runtimePlane,
+        ),
+        planeIsImplicit: planeIsImplicit,
+      );
+
+  /// This target for a surface family operation.
+  FamilyTarget get family => familyTargetOf(resolved);
 }
 
 /// Converts an exact resolved lifecycle context into an activation route
@@ -92,6 +116,15 @@ extension ExperimentActivationLifecycleContext on LifecycleContext {
       );
 }
 
+/// Register the `--type` selector of a surface command.
+void addSurfaceTypeOption(ArgParser parser) => parser.addOption(
+  'type',
+  help:
+      'Deprecated validation/disambiguation selector only; omit it when '
+      'using a generated manifest, which is authoritative. Values: '
+      'onboarding, message, survey, paywall, general.',
+);
+
 /// Register the options every lifecycle command shares.
 ///
 /// [withType] adds `--type` for commands that need a surface-type selector.
@@ -105,15 +138,7 @@ void addLifecycleOptions(
   bool withContractVersion = false,
   bool withSourceKind = false,
 }) {
-  if (withType) {
-    parser.addOption(
-      'type',
-      help:
-          'Deprecated validation/disambiguation selector only; omit it when '
-          'using a generated manifest, which is authoritative. Values: '
-          'onboarding, message, survey, paywall, general.',
-    );
-  }
+  if (withType) addSurfaceTypeOption(parser);
   if (withSourceKind) {
     parser.addOption(
       'source-kind',
@@ -131,138 +156,13 @@ void addLifecycleOptions(
           'non-versioned flow/paywall lineage.',
     );
   }
-  parser
-    ..addOption(
-      'organization',
-      help: 'Organization slug (overrides restage_config.yaml).',
-    )
-    ..addOption(
-      'project',
-      help: 'Project slug (overrides restage_config.yaml).',
-    )
-    ..addOption('app', help: 'App slug (overrides restage_config.yaml).')
-    ..addOption(
-      'env',
-      help:
-          'Environment slug (overrides restage_config.yaml '
-          '`defaultEnvironment`).',
-    )
-    ..addOption(
-      'directory',
-      abbr: 'C',
-      defaultsTo: '.',
-      help: 'Directory to start the restage_config.yaml search from.',
-    );
+  addScopeOptions(parser, OperationScope.target);
   if (withReason) {
     parser.addOption(
       'reason',
       help: 'Audit reason for this change (required).',
     );
   }
-  addRuntimePlaneOption(parser);
-}
-
-/// Resolve credential + project/app/env. Prints a precise error and returns
-/// null on any gap. Resolves credential, project, app, and environment from
-/// flags and the local config file, in that priority order.
-Future<LifecycleContext?> loadLifecycleContext({
-  required ArgResults? argResults,
-  required Interactive interactive,
-  required StringSink stderr,
-  FileCredentialStore? credentialStore,
-  http.Client? httpClient,
-}) async {
-  final store = credentialStore ?? FileCredentialStore.atDefaultLocation();
-  final credential = await store.read();
-  if (credential == null) {
-    stderr.writeln('Not signed in. Run `restage login`.');
-    return null;
-  }
-
-  final loaded = await loadRestageConfig(
-    from: Directory(argResults?['directory'] as String? ?? '.'),
-  );
-  final Uri apiEndpoint;
-  try {
-    apiEndpoint = resolveApiEndpoint(
-      config: loaded?.config,
-      credential: credential,
-    );
-  } on EndpointConfigurationException catch (e) {
-    stderr.writeln(e.toString());
-    return null;
-  }
-
-  final project = (argResults?['project'] as String?) ?? loaded?.config.project;
-  final app = (argResults?['app'] as String?) ?? loaded?.config.app;
-  if (project == null || app == null) {
-    stderr.writeln(
-      'No project / app context. Run `restage init` or pass '
-      '--project <slug> --app <slug>.',
-    );
-    return null;
-  }
-
-  final fromFlag = argResults?['env'] as String?;
-  final environment = (fromFlag != null && fromFlag.isNotEmpty)
-      ? fromFlag
-      : (loaded?.config.defaultEnvironment?.isNotEmpty ?? false)
-      ? loaded!.config.defaultEnvironment!
-      : interactive.isInteractive
-      ? await interactive.prompt('Environment slug?')
-      : null;
-
-  if (environment == null || environment.isEmpty) {
-    stderr.writeln(
-      'Required: --env <slug>. Set `defaultEnvironment` in '
-      'restage_config.yaml or pass --env.',
-    );
-    return null;
-  }
-
-  final RestageApi api;
-  try {
-    api = RestageApi(
-      endpoint: apiEndpoint,
-      httpClient: httpClient,
-      credential: credential,
-    );
-  } on InsecureEndpointException catch (e) {
-    stderr.writeln(e.toString());
-    return null;
-  }
-  final ResolvedEnvironmentTargetContext? resolvedTarget;
-  try {
-    resolvedTarget = await resolveEnvironmentTargetContext(
-      api: api,
-      interactive: interactive,
-      stderr: stderr,
-      projectSlug: project,
-      appSlug: app,
-      environmentSlug: environment,
-      preferredOrganizationSlug:
-          (argResults?['organization'] as String?) ??
-          loaded?.config.organization,
-      runtimePlane: runtimePlaneFromArgs(argResults),
-    );
-  } finally {
-    if (httpClient == null) api.close();
-  }
-  if (resolvedTarget == null) return null;
-
-  return LifecycleContext(
-    credential: credential,
-    apiEndpoint: apiEndpoint,
-    project: project,
-    app: app,
-    environment: environment,
-    organizationId: resolvedTarget.organizationId,
-    organizationSlug: resolvedTarget.organizationSlug,
-    appId: resolvedTarget.appId,
-    namedEnvironmentId: resolvedTarget.target.namedEnvironmentId,
-    environmentTargetId: resolvedTarget.target.environmentTargetId,
-    runtimePlane: resolvedTarget.target.runtimePlane,
-  );
 }
 
 /// Return a non-empty audit reason, or null after printing a required-flag
@@ -369,23 +269,6 @@ SurfaceType? resolveSurfaceTypeArg({
   }
   return type;
 }
-
-/// Return a user-facing error message for a typed [SurfaceException].
-///
-/// Use this instead of [SurfaceException.toString] in command error paths so
-/// users see legible messages rather than internal debug representations.
-String renderSurfaceException(SurfaceException e) => switch (e) {
-  SurfaceNotFound(:final surfaceSlug) => "Surface '$surfaceSlug' not found.",
-  SurfaceEnvironmentNotFound(:final environmentSlug) =>
-    "Environment '$environmentSlug' not found.",
-  SurfacePublishConflict(:final surfaceSlug, :final environmentSlug) =>
-    "Concurrent push conflict for '$surfaceSlug' in '$environmentSlug'. "
-        'Retry the operation.',
-  SurfaceRollbackUnsupported(:final surfaceSlug) =>
-    "Rollback is not supported for '$surfaceSlug'.",
-  SurfaceVersionNotFound(:final surfaceSlug, :final toVersion) =>
-    "Version v$toVersion not found for '$surfaceSlug'.",
-};
 
 /// Print the complete family effect returned by an identity-wide mutation.
 ///

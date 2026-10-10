@@ -47,7 +47,7 @@ void main() {
           authToken: '42:abc',
         ),
       );
-      await api.call('paywall', 'list', const <String, dynamic>{});
+      await api.call('surface', 'list', const <String, dynamic>{});
       // "Basic " + base64("42:abc") = "Basic NDI6YWJj". The capital `B`
       // is required — see _buildAuthHeader's doc comment.
       expect(seen.headers['authorization'], 'Basic NDI6YWJj');

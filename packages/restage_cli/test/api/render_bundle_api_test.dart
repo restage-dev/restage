@@ -3,16 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
-import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:test/test.dart';
 
 void main() {
-  const credential = Credential(
-    endpoint: 'http://api.restage.localhost:8080',
-    kind: CredentialKind.authKey,
-    authToken: 'key-id:private-key',
-  );
-  final endpoint = Uri.parse('http://api.restage.localhost:8080');
   final localBundleOrigin = Uri.parse('http://bundles.restage.localhost:8081');
 
   test('lists the heads an app holds, environment heads first', () async {
@@ -37,8 +30,6 @@ void main() {
       };
     final api = RenderBundleApi(
       rpc: rpc,
-      apiEndpoint: endpoint,
-      credential: credential,
       trustedBundleOrigin: localBundleOrigin,
     );
 
@@ -100,8 +91,6 @@ void main() {
         };
       final api = RenderBundleApi(
         rpc: rpc,
-        apiEndpoint: endpoint,
-        credential: credential,
         trustedBundleOrigin: localBundleOrigin,
       );
       await expectLater(
@@ -116,8 +105,6 @@ void main() {
     final rpc = _FakeRestageApi();
     final api = RenderBundleApi(
       rpc: rpc,
-      apiEndpoint: endpoint,
-      credential: credential,
       trustedBundleOrigin: localBundleOrigin,
     );
     for (final scope in <(String, String)>[('', 'mobile'), ('demo', '')]) {
@@ -141,8 +128,6 @@ void main() {
       };
     final api = RenderBundleApi(
       rpc: rpc,
-      apiEndpoint: endpoint,
-      credential: credential,
       trustedBundleOrigin: localBundleOrigin,
     );
 
@@ -173,8 +158,6 @@ void main() {
         };
       final api = RenderBundleApi(
         rpc: rpc,
-        apiEndpoint: endpoint,
-        credential: credential,
         trustedBundleOrigin: localBundleOrigin,
       );
 
@@ -200,8 +183,6 @@ void main() {
       final rpc = _FakeRestageApi();
       final api = RenderBundleApi(
         rpc: rpc,
-        apiEndpoint: endpoint,
-        credential: credential,
         trustedBundleOrigin: Uri.parse(origin),
       );
 
@@ -222,8 +203,6 @@ void main() {
     final rpc = _FakeRestageApi();
     final api = RenderBundleApi(
       rpc: rpc,
-      apiEndpoint: endpoint,
-      credential: credential,
       trustedBundleOrigin: localBundleOrigin,
     );
 

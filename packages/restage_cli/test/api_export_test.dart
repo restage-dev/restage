@@ -32,8 +32,6 @@ void main() {
     expect(AuthApi, isNotNull);
     expect(CatalogApi, isNotNull);
     expect(CatalogInvalid, isNotNull);
-    expect(PaywallApi, isNotNull);
-    expect(PaywallSummary, isNotNull);
     expect(SurfaceApi, isNotNull);
     expect(SurfacePublicationApi, isNotNull);
     expect(SurfacePublicationUploadResult, isNotNull);

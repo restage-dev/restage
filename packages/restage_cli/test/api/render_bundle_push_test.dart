@@ -14,12 +14,6 @@ import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:test/test.dart';
 
 void main() {
-  const credential = Credential(
-    endpoint: 'http://api.restage.localhost:8080',
-    kind: CredentialKind.authKey,
-    authToken: 'key-id:private-key',
-  );
-  final endpoint = Uri.parse('http://api.restage.localhost:8080');
   final bundleOrigin = Uri.parse('http://bundles.restage.localhost:8081');
   const blobUrl =
       'http://bundles.restage.localhost:8081/render-bundles/v1/blob';
@@ -76,8 +70,6 @@ void main() {
   RenderBundleApi apiWith(_FakeUploadRpc rpc, http.Client uploadClient) =>
       RenderBundleApi(
         rpc: rpc,
-        apiEndpoint: endpoint,
-        credential: credential,
         trustedBundleOrigin: bundleOrigin,
         uploadClient: uploadClient,
       );
@@ -394,8 +386,6 @@ void main() {
     var attempts = 0;
     final api = RenderBundleApi(
       rpc: rpc,
-      apiEndpoint: endpoint,
-      credential: credential,
       trustedBundleOrigin: bundleOrigin,
       uploadClient: MockClient((_) async {
         attempts++;
@@ -581,6 +571,11 @@ final class _FakeUploadRpc extends RestageApi {
     this.prepareFailure,
   }) : super(
          endpoint: Uri.parse('http://api.restage.localhost:8080'),
+         credential: const Credential(
+           endpoint: 'http://api.restage.localhost:8080',
+           kind: CredentialKind.authKey,
+           authToken: 'key-id:private-key',
+         ),
          httpClient: MockClient((_) async => http.Response('', 500)),
        );
 

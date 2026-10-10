@@ -6,6 +6,8 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -77,6 +79,12 @@ class InitCommand extends Command<int> {
         'organization',
         help: 'Organization slug (skips the organization picker).',
       )
+      ..addOption(
+        'plane',
+        allowed: runtimePlaneWireNames,
+        defaultsTo: 'sandbox',
+        help: 'Default runtime plane: sandbox or live.',
+      )
       ..addFlag(
         'starter',
         help: 'Write a starter `@Paywall` to `lib/paywalls/`.',
@@ -134,6 +142,7 @@ class InitCommand extends Command<int> {
       defaultEnvironment: context.environment,
       organization: context.organization,
       endpoint: context.endpoint,
+      plane: RuntimePlane.fromWireName(results['plane'] as String),
     );
 
     final wantsStarter = results['starter'] as bool;
@@ -225,14 +234,20 @@ class InitCommand extends Command<int> {
       _stdout.writeln('Pubspec dependencies already wired.');
     }
 
-    _stdout
-      ..writeln()
-      ..writeln(
+    _stdout.writeln();
+    if (wantsStarter) {
+      _stdout.writeln(
         'Next: run `dart pub get && dart run build_runner build`, then '
         '`restage surface push starter` to push the starter to the '
         '`${context.environment ?? '<environment>'}` environment, and '
         '`restage surface publish starter` to make it live.',
       );
+    } else {
+      _stdout.writeln(
+        'Next: run `dart pub get && dart run build_runner build`, then '
+        '`restage surface push <id>` to push a surface.',
+      );
+    }
     return 0;
   }
 

@@ -104,6 +104,8 @@ void main() {
             'projectSlug': 'acme',
             'appSlug': 'ios',
             'environmentSlug': 'production',
+            'environmentTargetId': 44,
+            'runtimePlane': 'live',
           },
         ),
       );
@@ -165,6 +167,8 @@ void main() {
             'projectSlug': 'acme',
             'appSlug': 'ios',
             'environmentSlug': 'production',
+            'environmentTargetId': 44,
+            'runtimePlane': 'live',
           },
         ),
       );
@@ -303,6 +307,8 @@ void main() {
           'projectSlug': 'acme',
           'appSlug': 'ios',
           'environmentSlug': 'production',
+          'environmentTargetId': 44,
+          'runtimePlane': 'live',
         },
       ),
     );

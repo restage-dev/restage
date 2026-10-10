@@ -116,9 +116,6 @@ void main() {
     File(
       p.join(project.path, 'pubspec.yaml'),
     ).writeAsStringSync('name: custom_project\n');
-    File(p.join(project.path, 'lib', 'main_render_bundle.dart'))
-      ..createSync(recursive: true)
-      ..writeAsStringSync('void main() {}\n');
     return project;
   }
 

@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/experiment_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -172,6 +173,12 @@ void main() {
 }
 
 class _FixedReply implements RestageApi {
+  @override
+  Uri get endpoint => Uri.parse('http://localhost/');
+
+  @override
+  Credential? get credential => null;
+
   _FixedReply(this.reply);
 
   final Object? reply;

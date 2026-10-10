@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
@@ -9,8 +10,15 @@ import 'package:test/test.dart';
 
 import '../_helpers/publication_fixtures.dart';
 
-/// Padded nodes enough to carry one draft past the admitted byte limit.
-const int _oversizedPaddingNodes = 14000;
+/// A draft size whose encoding is past the admitted limit.
+const int _oversizedDraftBytes =
+    kMaximumMeasurementPublicationCandidateDraftBytes + 1024;
+
+/// An index value that decodes to [_oversizedDraftBytes] bytes. The limit is
+/// enforced on the encoded length, so the bytes never need to be a draft.
+final String _oversizedDraftBase64 = base64Url
+    .encode(Uint8List(_oversizedDraftBytes))
+    .replaceAll('=', '');
 
 Matcher _refusedWith(Matcher message) => throwsA(
   isA<PublicationAssemblyException>().having(
@@ -45,20 +53,15 @@ void main() {
     'an oversized draft for another surface does not block a push',
     () async {
       final pushed = await seedMeasurementPaywall(root);
-      final other = await seedMeasurementPaywall(
-        root,
-        slug: 'measured_other',
-        paddingNodes: _oversizedPaddingNodes,
-      );
-      expect(
-        other.draft.canonicalBytes.length,
-        greaterThan(kMaximumMeasurementPublicationCandidateDraftBytes),
-        reason: 'the other surface must carry a draft the index cannot admit',
-      );
+      final other = await seedMeasurementPaywall(root, slug: 'measured_other');
       await writeGeneratedOutput(root, [pushed.entry, other.entry]);
       await writeMeasurementPublicationIndexEntries(root, [
         (entry: pushed.entry, draft: pushed.draft, draftBase64: null),
-        (entry: other.entry, draft: other.draft, draftBase64: null),
+        (
+          entry: other.entry,
+          draft: other.draft,
+          draftBase64: _oversizedDraftBase64,
+        ),
       ]);
 
       final assembled = await push('measured_upgrade');
@@ -74,22 +77,20 @@ void main() {
   );
 
   test('an oversized draft for the pushed surface names its size', () async {
-    final pushed = await seedMeasurementPaywall(
-      root,
-      paddingNodes: _oversizedPaddingNodes,
-    );
-    final size = pushed.draft.canonicalBytes.length;
-    expect(
-      size,
-      greaterThan(kMaximumMeasurementPublicationCandidateDraftBytes),
-      reason: 'the pushed surface must carry a draft the index cannot admit',
-    );
+    final pushed = await seedMeasurementPaywall(root);
+    await writeMeasurementPublicationIndexEntries(root, [
+      (
+        entry: pushed.entry,
+        draft: pushed.draft,
+        draftBase64: _oversizedDraftBase64,
+      ),
+    ]);
 
     await expectLater(
       push('measured_upgrade'),
       _refusedWith(
         allOf(
-          contains('$size bytes decoded'),
+          contains('$_oversizedDraftBytes bytes decoded'),
           contains(
             'against a limit of '
             '$kMaximumMeasurementPublicationCandidateDraftBytes',
@@ -118,18 +119,12 @@ void main() {
   });
 
   test('an over-limit value that decodes to no whole byte is refused', () async {
-    final pushed = await seedMeasurementPaywall(
-      root,
-      paddingNodes: _oversizedPaddingNodes,
-    );
+    final pushed = await seedMeasurementPaywall(root);
     // Trimmed to the nearest shorter length that encodes no whole byte, so the
     // value is still past the limit and cannot decode.
-    final encoded = base64Url
-        .encode(pushed.draft.canonicalBytes)
-        .replaceAll('=', '');
-    final truncated = encoded.substring(
+    final truncated = _oversizedDraftBase64.substring(
       0,
-      encoded.length - ((encoded.length - 1) % 4),
+      _oversizedDraftBase64.length - ((_oversizedDraftBase64.length - 1) % 4),
     );
     expect(truncated.length % 4, 1);
     await writeMeasurementPublicationIndexEntries(root, [

@@ -19,20 +19,102 @@ widget Preview = Text(text: "ordinary");
 '''),
 );
 
-/// Write a stub credential to [store]. Used by command tests that need
-/// the CLI to behave as signed-in.
+/// Create a Git repository at [root] on `main` that ignores the machine's
+/// identity, signing key, hooks and background maintenance. The configuration
+/// is written directly because every spawn from a large test runner is costly.
+Future<void> initTestGitRepository(Directory root) async {
+  await _gitOrFail(root, ['init', '-b', 'main', '.']);
+  File(p.join(root.path, '.git', 'config')).writeAsStringSync(
+    '[user]\n'
+    '\tname = Receipt Test\n'
+    '\temail = receipts@example.test\n'
+    '[commit]\n'
+    '\tgpgsign = false\n'
+    '[core]\n'
+    '\thooksPath = .git/hooks\n'
+    // Maintenance a commit starts in the background can write during teardown.
+    '[gc]\n'
+    '\tauto = 0\n'
+    '[maintenance]\n'
+    '\tauto = false\n',
+    mode: FileMode.append,
+  );
+}
+
+/// A committed Git repository built once and copied into each test's root,
+/// so a suite pays for `git init`, `add` and `commit` once.
+final class TestGitTemplate {
+  TestGitTemplate._(this._source, this.commit);
+
+  /// Build a repository whose first commit, titled [message], holds what
+  /// [seed] writes.
+  static Future<TestGitTemplate> create(
+    Future<void> Function(Directory root) seed, {
+    String message = 'first',
+  }) async {
+    final source = await Directory.systemTemp.createTemp('git_template_');
+    await initTestGitRepository(source);
+    await seed(source);
+    await _gitOrFail(source, ['add', '-A']);
+    await _gitOrFail(source, ['commit', '-m', message]);
+    final head = await _gitOrFail(source, ['rev-parse', 'HEAD']);
+    return TestGitTemplate._(source, (head.stdout as String).trim());
+  }
+
+  final Directory _source;
+
+  /// The template's single commit.
+  final String commit;
+
+  /// Copy the repository into the empty directory [root].
+  Future<void> copyTo(Directory root) async {
+    await for (final entity in _source.list(recursive: true)) {
+      final target = p.join(
+        root.path,
+        p.relative(entity.path, from: _source.path),
+      );
+      if (entity is Directory) {
+        await Directory(target).create(recursive: true);
+      } else if (entity is File) {
+        await File(target).parent.create(recursive: true);
+        await entity.copy(target);
+      }
+    }
+    // Copied files carry new stat data; refresh so the index sees them clean.
+    await _gitOrFail(root, ['update-index', '-q', '--refresh']);
+  }
+
+  /// Remove the template.
+  Future<void> delete() => _source.delete(recursive: true);
+}
+
+Future<ProcessResult> _gitOrFail(Directory root, List<String> arguments) async {
+  final result = await Process.run(
+    'git',
+    arguments,
+    workingDirectory: root.path,
+  );
+  if (result.exitCode != 0) {
+    fail('git ${arguments.join(' ')} failed: ${result.stderr}');
+  }
+  return result;
+}
+
+/// Writes a test credential directly to [store], avoiding the unnecessary
+/// `chmod` process started by [FileCredentialStore.write].
 Future<void> seedCredential(
   FileCredentialStore store, {
   String endpoint = 'http://localhost:8080/',
   String authToken = 'kid:secret',
 }) async {
-  await store.write(
-    Credential(
-      endpoint: endpoint,
-      kind: CredentialKind.authKey,
-      authToken: authToken,
-    ),
+  final credential = Credential(
+    endpoint: endpoint,
+    kind: CredentialKind.authKey,
+    authToken: authToken,
   );
+  final file = File(store.path);
+  await file.parent.create(recursive: true);
+  await file.writeAsString(jsonEncode(credential.toJson()));
 }
 
 /// Write a `restage_config.yaml` to [dir]. [defaultEnvironment] is
@@ -44,8 +126,7 @@ Future<void> seedRestageConfig(
   String? defaultEnvironment,
   String? organization,
   String? endpoint,
-  String? dashboardOrigin,
-  String? renderBundleOrigin,
+  String? plane,
 }) async {
   final buffer = StringBuffer()
     ..writeln('project: $project')
@@ -59,11 +140,8 @@ Future<void> seedRestageConfig(
   if (endpoint != null) {
     buffer.writeln('endpoint: $endpoint');
   }
-  if (dashboardOrigin != null) {
-    buffer.writeln('dashboardOrigin: $dashboardOrigin');
-  }
-  if (renderBundleOrigin != null) {
-    buffer.writeln('renderBundleOrigin: $renderBundleOrigin');
+  if (plane != null) {
+    buffer.writeln('plane: $plane');
   }
   await File(
     p.join(dir.path, 'restage_config.yaml'),
@@ -310,6 +388,122 @@ http.Client scriptedHttpClient(
   });
 }
 
+/// The targets the default fake backend exposes.
+const defaultEnvironmentTargets = <Map<String, dynamic>>[
+  {
+    'environmentTargetId': 11,
+    'namedEnvironmentId': 21,
+    'environmentSlug': 'dev',
+    'runtimePlane': 'sandbox',
+  },
+  {
+    'environmentTargetId': 12,
+    'namedEnvironmentId': 22,
+    'environmentSlug': 'staging',
+    'runtimePlane': 'sandbox',
+  },
+  {
+    'environmentTargetId': 13,
+    'namedEnvironmentId': 23,
+    'environmentSlug': 'production',
+    'runtimePlane': 'live',
+  },
+];
+
+const _defaultAppIds = <String, int>{
+  'mobile': 5,
+  'a': 8,
+  'default': 9,
+  'config-app': 6,
+  'flag-app': 7,
+};
+
+/// The server's answer to `environment.resolveTarget` over [targets]: the
+/// one target the selectors in [body] name, or the typed refusal.
+http.Response resolveTargetResponse(
+  Map<String, dynamic> body, {
+  List<Map<String, dynamic>> targets = defaultEnvironmentTargets,
+  int organizationId = 7,
+  String organizationSlug = 'restage',
+  int? appId,
+}) {
+  final environment = body['environmentSlug'] as String?;
+  final plane = body['runtimePlane'] as String?;
+  final targetId = body['environmentTargetId'] as int?;
+  Map<String, dynamic>? target;
+  if (environment != null) {
+    final named = [
+      for (final candidate in targets)
+        if (candidate['environmentSlug'] == environment) candidate,
+    ];
+    final matches = [
+      for (final candidate in named)
+        if ((plane == null || candidate['runtimePlane'] == plane) &&
+            (targetId == null || candidate['environmentTargetId'] == targetId))
+          candidate,
+    ];
+    if (matches.length != 1) {
+      final reason = matches.length > 1
+          ? 'environmentOnBothPlanes'
+          : named.isNotEmpty && plane != null && targetId == null
+          ? 'noTargetOnPlane'
+          : 'environmentNotFound';
+      return typedErrorResponse('TargetSelectionRefusedException', {
+        'reason': reason,
+        'environmentSlug': environment,
+        if (matches.length > 1) 'candidates': matches,
+      });
+    }
+    target = matches.single;
+  }
+  final appSlug = body['appSlug'] as String;
+  return http.Response(
+    jsonEncode({
+      'organizationId': organizationId,
+      'organizationSlug': organizationSlug,
+      'projectSlug': body['projectSlug'],
+      'appId': appId ?? _defaultAppIds[appSlug] ?? 5,
+      'appSlug': appSlug,
+      'target': ?target,
+    }),
+    200,
+  );
+}
+
+/// A script step answering `environment.resolveTarget` with [target];
+/// [inspect] sees the request body first.
+ScriptStep resolveTargetStep(
+  Map<String, dynamic> target, {
+  int organizationId = 7,
+  String organizationSlug = 'restage',
+  int appId = 5,
+  void Function(Map<String, dynamic> body)? inspect,
+}) => (request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'resolveTarget');
+  inspect?.call(body);
+  return resolveTargetResponse(
+    body,
+    targets: [target],
+    organizationId: organizationId,
+    organizationSlug: organizationSlug,
+    appId: appId,
+  );
+};
+
+/// A typed backend exception response.
+http.Response typedErrorResponse(
+  String className,
+  Map<String, dynamic> fields, {
+  int status = 400,
+}) => http.Response(
+  jsonEncode({
+    'className': className,
+    'data': {'__className__': className, ...fields},
+  }),
+  status,
+);
+
 http.Response? _defaultTargetDiscoveryResponse(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   switch (body['method']) {
@@ -332,34 +526,16 @@ http.Response? _defaultTargetDiscoveryResponse(http.Request request) {
         200,
       );
     case 'listEnvironmentTargets':
-      final allTargets = <Map<String, dynamic>>[
-        {
-          'environmentTargetId': 11,
-          'namedEnvironmentId': 21,
-          'environmentSlug': 'dev',
-          'runtimePlane': 'sandbox',
-        },
-        {
-          'environmentTargetId': 12,
-          'namedEnvironmentId': 22,
-          'environmentSlug': 'staging',
-          'runtimePlane': 'sandbox',
-        },
-        {
-          'environmentTargetId': 13,
-          'namedEnvironmentId': 23,
-          'environmentSlug': 'production',
-          'runtimePlane': 'live',
-        },
-      ];
       final plane = body['runtimePlane'] as String?;
       return http.Response(
         jsonEncode([
-          for (final target in allTargets)
+          for (final target in defaultEnvironmentTargets)
             if (plane == null || target['runtimePlane'] == plane) target,
         ]),
         200,
       );
+    case 'resolveTarget':
+      return resolveTargetResponse(body);
   }
   return null;
 }
@@ -373,7 +549,7 @@ http.Response publishSucceeded(
   String surfaceType = 'paywall',
   String sourceKind = 'paywall',
   int storedRevision = 1,
-  int activeRevision = 1,
+  int? activeRevision = 1,
   bool identityFrozen = false,
 }) => http.Response(
   jsonEncode({

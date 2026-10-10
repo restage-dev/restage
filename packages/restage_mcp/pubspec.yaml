@@ -36,8 +36,9 @@ dependencies:
   restage_measurement_schema: ^0.1.0
 
 dev_dependencies:
+  args: ^2.5.0
   lints: ^6.0.0
-  # Test-only: builds a canonical BlobSurfacePayload frame to exercise the
-  # paywall get/unwrap path against the surface store. Workspace-resolved.
+  # Test-only: builds a canonical BlobSurfacePayload frame for the draft
+  # download test. Workspace-resolved.
   restage_shared: ^2.0.0
   test: ^1.25.0

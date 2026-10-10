@@ -2,25 +2,20 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dart_mcp/server.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
 
 import 'api_runner.dart';
-import 'exact_target.dart';
+import 'tool_support.dart';
 
 const _canonicalMutationRequestError =
     'canonicalRequestBase64 must contain one non-empty, bounded, canonical '
     'base64-encoded mutation request.';
-const _canonicalMutationTargetError =
-    'The declared target does not resolve to one exact authorized target.';
 const _canonicalMutationTargetMismatchError =
     'The canonical request target does not match the declared target.';
 const _canonicalMutationResponseError =
     'The service returned an invalid canonical mutation response.';
-
-const _runtimePlaneValues = ['sandbox', 'live'];
 
 /// The one route-neutral canonical mutation transport exposed through MCP.
 final canonicalMutationTool = Tool(
@@ -36,27 +31,9 @@ final canonicalMutationTool = Tool(
         description:
             'One exact canonical mutation request as standard padded base64.',
       ),
-      'organizationId': Schema.int(description: 'The organization id.'),
-      'projectSlug': Schema.string(description: 'The project slug.'),
-      'appSlug': Schema.string(description: 'The app slug.'),
-      'environmentSlug': Schema.string(description: 'The environment slug.'),
-      'environmentTargetId': Schema.int(
-        description: 'The exact environment target id.',
-      ),
-      'runtimePlane': UntitledSingleSelectEnumSchema(
-        description: 'The target runtime plane: sandbox or live.',
-        values: _runtimePlaneValues,
-      ),
+      ...exactTargetProperties(),
     },
-    required: [
-      'canonicalRequestBase64',
-      'organizationId',
-      'projectSlug',
-      'appSlug',
-      'environmentSlug',
-      'environmentTargetId',
-      'runtimePlane',
-    ],
+    required: ['canonicalRequestBase64', ...exactTargetRequired],
     additionalProperties: false,
   ),
 );
@@ -67,11 +44,10 @@ final canonicalMutationTool = Tool(
 /// public schema decoder to reject noncanonical request bytes before any
 /// network work. [ProgrammaticMutationApi] owns the complete coordinate
 /// binding immediately before its single mutation route.
-Future<CallToolResult> handleCanonicalMutation({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) {
+Future<CallToolResult> handleCanonicalMutation(
+  ToolContext ctx,
+  CallToolRequest request,
+) {
   final bytes = _decodeCanonicalRequestBase64(
     request.str('canonicalRequestBase64'),
   );
@@ -86,52 +62,31 @@ Future<CallToolResult> handleCanonicalMutation({
     return Future.value(mcpError('The declared runtime plane is invalid.'));
   }
 
-  final organizationId = request.reqInt('organizationId');
-  final projectSlug = request.str('projectSlug');
-  final appSlug = request.str('appSlug');
-  final environmentSlug = request.str('environmentSlug');
-  final environmentTargetId = request.reqInt('environmentTargetId');
+  return ctx.authed('applying the canonical mutation', (api) async {
+    final target = await exactTargetCoordinate(api, request);
+    if (target == null) return mcpError(exactTargetError);
 
-  return withApi(
-    store: store,
-    httpClient: httpClient,
-    action: 'applying the canonical mutation',
-    surfaceNoun: 'surface',
-    body: (api) async {
-      final target = await resolveExactTarget(
-        api: api,
-        organizationId: organizationId,
-        projectSlug: projectSlug,
-        appSlug: appSlug,
-        environmentSlug: environmentSlug,
-        environmentTargetId: environmentTargetId,
+    try {
+      final response = await ProgrammaticMutationApi(api).mutateCanonicalBytes(
+        projectSlug: request.str('projectSlug'),
+        appSlug: request.str('appSlug'),
+        environmentSlug: request.str('environmentSlug'),
+        organizationId: request.reqInt('organizationId'),
+        appId: target.appId.value,
+        namedEnvironmentId: target.namedEnvironmentId.value,
+        environmentTargetId: target.environmentTargetId.value,
         runtimePlane: runtimePlane,
+        canonicalRequestBytes: bytes,
       );
-      if (target == null) return mcpError(_canonicalMutationTargetError);
-
-      try {
-        final response = await ProgrammaticMutationApi(api)
-            .mutateCanonicalBytes(
-              projectSlug: projectSlug,
-              appSlug: appSlug,
-              environmentSlug: environmentSlug,
-              organizationId: organizationId,
-              appId: target.appId.value,
-              namedEnvironmentId: target.namedEnvironmentId.value,
-              environmentTargetId: target.environmentTargetId.value,
-              runtimePlane: runtimePlane,
-              canonicalRequestBytes: bytes,
-            );
-        return _canonicalMutationSuccess(response, target);
-      } on ProgrammaticMutationTargetMismatchException {
-        return mcpError(_canonicalMutationTargetMismatchError);
-      } on measurement.CanonicalFormatException {
-        return mcpError(_canonicalMutationResponseError);
-      } on FormatException {
-        return mcpError(_canonicalMutationResponseError);
-      }
-    },
-  );
+      return _canonicalMutationSuccess(response, target);
+    } on ProgrammaticMutationTargetMismatchException {
+      return mcpError(_canonicalMutationTargetMismatchError);
+    } on measurement.CanonicalFormatException {
+      return mcpError(_canonicalMutationResponseError);
+    } on FormatException {
+      return mcpError(_canonicalMutationResponseError);
+    }
+  });
 }
 
 Uint8List? _decodeCanonicalRequestBase64(String encoded) {

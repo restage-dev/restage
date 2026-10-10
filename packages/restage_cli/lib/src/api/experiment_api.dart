@@ -474,6 +474,15 @@ ExperimentDiscovery _discoveryFromPage(ExperimentTargetDiscoveryV1 page) =>
       actionAvailability: List.unmodifiable(page.actionAvailability),
     );
 
+/// The experiment operations that change what a target serves.
+@experimental
+const kLiveExperimentOperations = {
+  ExperimentAuthoringOperationV1.activateDraft,
+  ExperimentAuthoringOperationV1.pauseExperiment,
+  ExperimentAuthoringOperationV1.resumeExperiment,
+  ExperimentAuthoringOperationV1.concludeExperiment,
+};
+
 /// Builds one strict request document for a read operation.
 @experimental
 ExperimentAuthoringRequestV1 experimentRequest({

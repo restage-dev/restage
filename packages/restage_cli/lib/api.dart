@@ -1,26 +1,18 @@
-/// Reusable Restage backend access layer: the HTTP/RPC wire, the auth-header
-/// scheme, the typed paywall/auth wrappers, and the on-disk credential store.
-///
-/// This is promoted to a public library so other first-party tools can reuse a
-/// single wire implementation, a single auth-header scheme, and a single
-/// credential format instead of re-implementing them. Most users invoke the
-/// `restage` binary directly and never import this library.
-///
-/// This surface exists for first-party reuse. Every symbol it re-exports is
-/// annotated `@experimental` (from `package:meta`): the shape may change in a
-/// future release, so external code that pins to it should expect to track
-/// those changes. Most users invoke the `restage` binary directly and never
-/// import this library.
+/// HTTP/RPC clients, typed API wrappers and stored credentials for Restage tools.
+/// Re-exported APIs are experimental and may change. Most integrations use
+/// the `restage` executable.
 library;
 
 export 'package:restage_shared/restage_shared.dart'
     show
         LibraryRequirement,
         Surface,
+        SurfaceSourceKind,
         SurfacePublicationUploadRequest,
         SurfacePublicationUploadRequestV1Codec,
         SurfaceType;
 
+export 'src/api/app_admin_api.dart';
 export 'src/api/auth_api.dart';
 export 'src/api/auth_models.dart';
 export 'src/api/catalog_api.dart';
@@ -30,8 +22,6 @@ export 'src/api/experiment_activation_api.dart';
 export 'src/api/experiment_activation_host_transport.dart';
 export 'src/api/experiment_api.dart';
 export 'src/api/measurement_wire.dart';
-export 'src/api/paywall_api.dart';
-export 'src/api/paywall_models.dart';
 export 'src/api/programmatic_mutation_api.dart';
 export 'src/api/render_bundle_api.dart';
 export 'src/api/render_bundle_coverage_sentence.dart';
@@ -40,7 +30,33 @@ export 'src/api/surface_funnel_api.dart';
 export 'src/api/surface_publication_api.dart';
 export 'src/api/surface_routing_api.dart';
 export 'src/api/typed_error_models.dart';
+export 'src/api/typed_error_renderer.dart'
+    show
+        TypedErrorOutcome,
+        appNotFoundSentence,
+        renderApiError,
+        staleCredentialSentence,
+        typedErrorSentence,
+        unauthorizedSentence;
+export 'src/commands/surface_identity.dart'
+    show
+        SurfaceLifecycleIdentity,
+        explicitLifecycleIdentity,
+        kLifecycleSourceKinds,
+        kLifecycleSurfaceTypes;
+export 'src/commands/surface_publish_operation.dart'
+    show
+        FamilyTarget,
+        SurfacePublication,
+        familyHistory,
+        familyTargetOf,
+        publishSurface;
+export 'src/commands/target_resolution.dart'
+    show ResolvedEnvironmentTargetContext, resolveTargetSelection;
+export 'src/operations/operation.dart';
+export 'src/operations/operations.dart' show sharedOperation, sharedOperations;
 export 'src/api/surface_models.dart';
+export 'src/api/selector_syntax.dart';
 export 'src/api/restage_api.dart'
     show
         RestageApi,
@@ -50,10 +66,13 @@ export 'src/api/restage_api.dart'
 export 'src/config/restage_config.dart'
     show
         RestageConfig,
+        RestageConfigFormatException,
         loadRestageConfig,
         resolveApiEndpoint,
         EndpointConfigurationException,
         EndpointFormatException,
         EndpointMismatchException;
 export 'src/credentials/credential.dart';
+export 'src/receipts/release_recorder.dart'
+    show ReleaseRecorder, ReleaseRecorderException;
 export 'src/credentials/file_credential_store.dart';

@@ -1,8 +1,9 @@
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 
-/// Outcome of [renderGenericTypedError]: the exit code to return and the
-/// stderr message to write.
+/// The exit code and stderr message for a backend refusal.
 class TypedErrorOutcome {
   /// Construct an outcome with the matching exit code + message.
   const TypedErrorOutcome(this.exitCode, this.message);
@@ -14,50 +15,140 @@ class TypedErrorOutcome {
   final String message;
 }
 
-/// Render the legible message + exit code for a generic
-/// [RestageApiException].
+/// The one rendering of a [RestageApiException], worded for [syntax].
 ///
-/// Returns:
-///   - a [TypedErrorOutcome] for typed exceptions every command surfaces
-///     uniformly (`ProjectNotFound`, `AppNotFound`, `Unauthorized`,
-///     credential rot via HTTP 401/403, the catch-all non-200);
-///   - a catch-all HTTP outcome for any other response body.
-///
-/// Callers with endpoint-specific typed exceptions should decode those
-/// before calling this helper so they can keep command-specific wording.
-TypedErrorOutcome? renderGenericTypedError(RestageApiException e) {
-  final typed = decodeGenericTypedException(e.body);
-  switch (typed) {
-    case ProjectNotFound(:final projectSlug):
-      return TypedErrorOutcome(
-        1,
-        'Project `$projectSlug` not found or you do not have access to it.',
-      );
-    case AppNotFound(:final appSlug, :final projectSlug):
-      return TypedErrorOutcome(
-        1,
-        'App `$appSlug` not found under project `$projectSlug`.',
-      );
-    case SurfaceSlugRejected(:final slug, :final reason):
-      return TypedErrorOutcome(1, 'Refusing the id `$slug`. $reason');
-    case MeasurementReadRejected(:final detail):
-      return TypedErrorOutcome(1, 'The read was refused. $detail');
-    case UnauthorizedAccess():
-      return const TypedErrorOutcome(
-        1,
-        'Not authorised. Sign in again with `restage login`.',
-      );
-    case null:
-      if (e.statusCode == 401 || e.statusCode == 403) {
-        return const TypedErrorOutcome(
-          1,
-          'The stored credential is no longer accepted by the server. '
-          'Run `restage login` to refresh it.',
-        );
-      }
-      return TypedErrorOutcome(
-        2,
-        'Could not contact the backend: HTTP ${e.statusCode} — ${e.body}',
-      );
+/// A typed refusal reads as its sentence (exit 1); an untyped 401/403 as a
+/// stale credential (exit 1); anything else as an HTTP failure (exit 2).
+TypedErrorOutcome renderApiError(
+  RestageApiException e, {
+  SelectorSyntax? syntax,
+}) {
+  syntax ??= currentSelectorSyntax;
+  String? typed;
+  try {
+    typed = typedErrorSentence(e.body, syntax: syntax);
+  } on Object {
+    typed = null;
   }
+  if (typed != null) return TypedErrorOutcome(1, typed);
+  if (e.statusCode == 401 || e.statusCode == 403) {
+    return TypedErrorOutcome(1, staleCredentialSentence(syntax));
+  }
+  return TypedErrorOutcome(2, switch (syntax) {
+    SelectorSyntax.cli =>
+      'Could not contact the backend: HTTP ${e.statusCode} — ${e.body}',
+    SelectorSyntax.mcp =>
+      'The Restage backend returned an error (status ${e.statusCode}).',
+  });
+}
+
+/// The one sentence for a typed backend refusal in [body], worded for
+/// [syntax], or null when the body carries no typed payload. The CLI and the
+/// MCP server share it.
+String? typedErrorSentence(String body, {SelectorSyntax? syntax}) {
+  syntax ??= currentSelectorSyntax;
+  final generic = decodeGenericTypedException(body);
+  if (generic != null) return _genericSentence(generic, syntax);
+  final surface = decodeSurfaceTypedException(body);
+  if (surface != null) return renderSurfaceException(surface);
+  return null;
+}
+
+/// Return a user-facing error message for a typed [SurfaceException].
+String renderSurfaceException(SurfaceException e) => switch (e) {
+  SurfaceNotFound(:final surfaceSlug) => "Surface '$surfaceSlug' not found.",
+  SurfacePublishConflict(:final surfaceSlug, :final environmentSlug) =>
+    "Concurrent push conflict for '$surfaceSlug' in '$environmentSlug'. "
+        'Retry the operation.',
+  SurfaceRollbackUnsupported(:final surfaceSlug) =>
+    "Rollback is not supported for '$surfaceSlug'.",
+  SurfaceVersionNotFound(:final surfaceSlug, :final toVersion) =>
+    "Version v$toVersion not found for '$surfaceSlug'.",
+  SurfaceFamilyRefused(:final message) => message,
+};
+
+/// The sentence for an app slug with no app under [projectSlug].
+String appNotFoundSentence(String appSlug, String projectSlug) =>
+    'App `$appSlug` not found under project `$projectSlug`.';
+
+/// The sentence for a credential the server no longer accepts.
+String staleCredentialSentence(SelectorSyntax syntax) =>
+    'The stored credential is no longer accepted by the server. '
+    '${syntax.signIn}';
+
+String _genericSentence(GenericTypedException typed, SelectorSyntax syntax) =>
+    switch (typed) {
+      ProjectNotFound(:final projectSlug) =>
+        'Project `$projectSlug` not found or you do not have access to it.',
+      AppNotFound(:final appSlug, :final projectSlug) => appNotFoundSentence(
+        appSlug,
+        projectSlug,
+      ),
+      SurfaceSlugRejected(:final slug, :final reason) =>
+        'Refusing the id `$slug`. $reason',
+      MeasurementReadRejected(:final detail) => 'The read was refused. $detail',
+      UnauthorizedAccess(:final reason) => unauthorizedSentence(reason, syntax),
+      final TargetSelectionRefused refused => targetSelectionSentence(
+        refused,
+        syntax,
+      ),
+    };
+
+/// Names why the server refused a signed-in caller.
+String unauthorizedSentence(
+  UnauthorizedReason reason, [
+  SelectorSyntax? syntax,
+]) => switch (reason) {
+  UnauthorizedReason.roleMissing =>
+    'Your role in this organization does not allow this. Ask an '
+        'organization admin.',
+  UnauthorizedReason.liveChangesNotAllowed =>
+    "This organization's plan does not allow changes to the live plane. "
+        'Check Billing in the dashboard.',
+  UnauthorizedReason.paidPlanRequired =>
+    'This needs a paid plan. Check Billing in the dashboard.',
+  UnauthorizedReason.notSignedIn => staleCredentialSentence(
+    syntax ?? currentSelectorSyntax,
+  ),
+  UnauthorizedReason.credentialNotAllowed =>
+    'This credential cannot do this. Sign in, or use a secret API key with '
+        'the right scope.',
+  UnauthorizedReason.sampleWorkspaceReadOnly =>
+    'The sample workspace is read-only. Use your own organization to make '
+        'changes.',
+  UnauthorizedReason.membershipChanged =>
+    'Your membership in this organization changed. Try again.',
+};
+
+/// Names why the server could not resolve the request's selectors.
+String targetSelectionSentence(
+  TargetSelectionRefused refused,
+  SelectorSyntax syntax,
+) {
+  final environment = refused.environmentSlug;
+  final named = environment == null || environment.isEmpty
+      ? 'the environment'
+      : "environment '$environment'";
+  return switch (refused.reason) {
+    TargetSelectionRefusal.environmentNotFound =>
+      environment == null || environment.isEmpty
+          ? 'No environment target matches the request.'
+          : "Environment '$environment' not found.",
+    TargetSelectionRefusal.environmentOnBothPlanes =>
+      "Environment '${environment ?? ''}' exists on both runtime planes. "
+          'Pass ${syntax.plane}.',
+    TargetSelectionRefusal.noTargetOnPlane =>
+      'No target found for $named on that runtime plane.',
+    TargetSelectionRefusal.noOrganization =>
+      'No organizations found for this account.',
+    TargetSelectionRefusal.multipleOrganizations =>
+      'This project is in more than one of your organizations'
+          '${refused.organizationSlugs.isEmpty ? '' : ' (${refused.organizationSlugs.join(', ')})'}. '
+          'Pass ${syntax.organization}.',
+    TargetSelectionRefusal.organizationNotFound =>
+      'No organization of yours matches ${syntax.organization}.',
+    TargetSelectionRefusal.keyTargetMismatch =>
+      'The API key belongs to a different app or environment than the one '
+          'named.',
+  };
 }

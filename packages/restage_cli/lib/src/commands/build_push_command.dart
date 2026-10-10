@@ -2,8 +2,13 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/typed_error_models.dart';
+import 'package:restage_cli/src/api/typed_error_renderer.dart'
+    show targetSelectionSentence;
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -17,19 +22,18 @@ import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
-// ignore: implementation_imports
-import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart';
 
 /// Environment variable carrying a secret key for an unattended push. It is
 /// read here only; a flag or the configuration file cannot supply it.
 const _apiKeyVariable = 'RESTAGE_API_KEY';
 
+/// Environment variable naming the only server other than the built-in one a
+/// key may be sent to.
+const _endpointVariable = 'RESTAGE_BACKEND_URL';
+
 /// Opens the repository a receipt is written into.
 typedef ReleaseRecorderOpener =
-    Future<ReleaseRecorder?> Function({
-      required Directory projectRoot,
-      required StringSink stderr,
-    });
+    Future<ReleaseRecorder> Function({required Directory projectRoot});
 
 /// Writes the receipt one push earned.
 typedef RenderBundlePushReceipt =
@@ -85,6 +89,7 @@ final class BuildPushCommand extends Command<int> {
         'organization',
         help: 'Organization slug (overrides restage_config.yaml).',
       )
+      ..addOption('organization-id', hide: true)
       ..addOption(
         'env',
         help:
@@ -113,21 +118,6 @@ final class BuildPushCommand extends Command<int> {
         help:
             'Run the code generator first. Pass --no-generate to build against '
             'the catalog a previous run produced.',
-      )
-      ..addOption(
-        'parent-origin',
-        help:
-            'Exact dashboard shell origin trusted by the render bundle. '
-            'Defaults to dashboardOrigin in restage_config.yaml and, when '
-            'provided, must match it exactly.',
-      )
-      ..addOption(
-        'bundle-origin',
-        help:
-            'Exact isolated upload origin. Required for local and deployed '
-            'uploads unless set as renderBundleOrigin in restage_config.yaml. '
-            'Local uploads use a distinct second port on the same loopback '
-            'host; deployed uploads use a distinct HTTPS origin.',
       );
   }
 
@@ -155,20 +145,14 @@ final class BuildPushCommand extends Command<int> {
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loaded = await loadRestageConfig(from: directory);
     final projectRoot = loaded?.source.parent ?? directory.absolute;
-    final project =
-        (argResults?['project'] as String?) ?? loaded?.config.project;
-    final app = (argResults?['app'] as String?) ?? loaded?.config.app;
-    if (project == null || project.isEmpty || app == null || app.isEmpty) {
-      _stderr.writeln(
-        'No project / app context. Run `restage init` or pass '
-        '--project <slug> --app <slug>.',
-      );
-      return 1;
-    }
-    final key = (_environment ?? Platform.environment)[_apiKeyVariable]?.trim();
+    var project = (argResults?['project'] as String?) ?? loaded?.config.project;
+    var app = (argResults?['app'] as String?) ?? loaded?.config.app;
+    final environment = _environment ?? Platform.environment;
+    final key = environment[_apiKeyVariable]?.trim();
     final withKey = key != null && key.isNotEmpty;
+    final environmentFlag = argResults?['env'] as String?;
     final resolved = resolveBundlePushTarget(
-      environment: argResults?['env'] as String?,
+      environment: environmentFlag,
       personal: argResults?['personal'] as bool? ?? false,
       withKey: withKey,
     );
@@ -179,13 +163,13 @@ final class BuildPushCommand extends Command<int> {
     }
     final Credential? credential;
     if (withKey) {
-      // A key authorises one app's environment head on the server, so its
-      // endpoint is the configured one and nothing about it is persisted.
+      // A key goes only to the built-in server or one the environment names;
+      // a checked-in configuration file must never redirect it.
+      final named = environment[_endpointVariable]?.trim();
       credential = Credential(
-        endpoint:
-            loaded?.config.endpoint?.trim() ??
-            _defaultEndpoint?.toString() ??
-            '',
+        endpoint: named != null && named.isNotEmpty
+            ? named
+            : _defaultEndpoint?.toString() ?? '',
         kind: CredentialKind.secretKey,
         authToken: key,
       );
@@ -206,69 +190,124 @@ final class BuildPushCommand extends Command<int> {
         config: loaded?.config,
         credential: credential,
       );
+    } on EndpointMismatchException catch (error) {
+      _stderr.writeln(
+        withKey
+            ? 'restage_config.yaml names ${error.configEndpoint}, but a key is '
+                  'sent only to ${error.credentialEndpoint}. Set '
+                  '$_endpointVariable to push to that server with a key.'
+            : error.toString(),
+      );
+      return 1;
     } on EndpointConfigurationException catch (error) {
       _stderr.writeln(error.toString());
       return 1;
     }
-    final origins = resolveRenderBundleOriginTriplet(
-      config: loaded?.config,
-      apiEndpoint: apiEndpoint,
-      renderBundleOriginOverride: argResults?['bundle-origin'] as String?,
-    );
-    if (origins == null) {
-      _stderr.writeln(
-        'A valid API, dashboard, and render-bundle origin triplet is required. '
-        'Configure dashboardOrigin and renderBundleOrigin with three distinct '
-        'finite restage.localhost roles or direct HTTPS siblings under '
-        'restage.dev.',
+    final RestageApi api;
+    try {
+      api = RestageApi(
+        endpoint: apiEndpoint,
+        httpClient: _httpClient,
+        credential: credential,
       );
+    } on InsecureEndpointException {
+      _stderr.writeln('The configured endpoint is not permitted.');
       return 1;
     }
-    final parentOriginSource = argResults?['parent-origin'] as String?;
-    var parentOrigin = origins.dashboardOrigin;
-    if (parentOriginSource != null) {
-      final Uri explicitParentOrigin;
-      try {
-        explicitParentOrigin = Uri.parse(parentOriginSource);
-      } on FormatException {
+    try {
+      if (withKey) {
+        // The key names its own app; a project or app named here must agree.
+        final ApiKeyTarget keyTarget;
+        try {
+          keyTarget = await readApiKeyTarget(api);
+        } on RenderBundleUploadException catch (error) {
+          _stderr.writeln(_uploadFailureMessage(error, withKey: true));
+          return 2;
+        } on SocketException {
+          _stderr.writeln('Could not contact the backend.');
+          return 2;
+        }
+        // Refuse what the key cannot push before anything is built.
+        if (!keyTarget.secret) {
+          _stderr.writeln(_rejectionMessage('not_a_secret_key', withKey: true));
+          return 1;
+        }
+        if (!keyTarget.scopes.contains(renderBundlePushScope)) {
+          _stderr.writeln(_rejectionMessage('missing_scope', withKey: true));
+          return 1;
+        }
+        final namedEnvironment = target.environment;
+        if ((project != null && project != keyTarget.projectSlug) ||
+            (app != null && app != keyTarget.appSlug) ||
+            (namedEnvironment != null &&
+                namedEnvironment != keyTarget.target.environmentSlug)) {
+          _stderr.writeln(
+            targetSelectionSentence(
+              const TargetSelectionRefused(
+                reason: TargetSelectionRefusal.keyTargetMismatch,
+              ),
+              currentSelectorSyntax,
+            ),
+          );
+          return 1;
+        }
+        project = keyTarget.projectSlug;
+        app = keyTarget.appSlug;
+      }
+      if (project == null || project.isEmpty || app == null || app.isEmpty) {
         _stderr.writeln(
-          'The parent origin must exactly match the configured '
-          'dashboardOrigin.',
+          'No project / app context. Run `restage init` or pass '
+          '--project <slug> --app <slug>.',
         );
         return 1;
       }
-      if (!isApprovedRenderBundleOriginTriplet(
-            origins.apiOrigin,
-            explicitParentOrigin,
-            origins.bundleOrigin,
-          ) ||
-          explicitParentOrigin.origin != origins.dashboardOrigin.origin) {
-        _stderr.writeln(
-          'The parent origin must exactly match the configured '
-          'dashboardOrigin.',
-        );
-        return 1;
-      }
-      parentOrigin = Uri.parse(explicitParentOrigin.origin);
+      return await _push(
+        api: api,
+        config: loaded?.config,
+        projectRoot: projectRoot,
+        project: project,
+        app: app,
+        target: target,
+        withKey: withKey,
+      );
+    } finally {
+      if (_httpClient == null) api.close();
     }
+  }
+
+  Future<int> _push({
+    required RestageApi api,
+    required RestageConfig? config,
+    required Directory projectRoot,
+    required String project,
+    required String app,
+    required BundlePushTarget target,
+    required bool withKey,
+  }) async {
+    final origins = await _readOrigins(api);
+    if (origins == null) return 1;
 
     final flagOrganization = (argResults?['organization'] as String?)?.trim();
     final organizationSlug =
         flagOrganization == null || flagOrganization.isEmpty
-        ? loaded?.config.organization
+        ? config?.organization
         : flagOrganization;
     final recordGit = argResults?['record-git'] as bool? ?? false;
     ReleaseRecorder? recorder;
     if (recordGit) {
-      recorder = await _openRecorder(projectRoot: projectRoot, stderr: _stderr);
-      if (recorder == null) return 1;
+      try {
+        recorder = await _openRecorder(projectRoot: projectRoot);
+      } on ReleaseRecorderException catch (error) {
+        _stderr.writeln(error.message);
+        return 1;
+      }
     }
 
     // Read before the catalog step: the provenance describes the source the
     // push started from, and a boundary that will not resolve costs nothing.
     final BundleSource source;
     try {
-      source = await _source(projectRoot);
+      source = await _source(projectRoot, recordGit: recordGit);
     } on SourceBoundaryException catch (error) {
       _stderr.writeln(error.message);
       return 1;
@@ -296,7 +335,7 @@ final class BuildPushCommand extends Command<int> {
       artifact = await _builder.build(
         projectRoot: projectRoot,
         catalogJson: catalog.json,
-        parentOrigin: parentOrigin,
+        parentOrigin: origins.dashboardOrigin,
         controlOrigin: origins.bundleOrigin,
       );
     } on RenderBundleBuildException catch (error) {
@@ -324,17 +363,6 @@ final class BuildPushCommand extends Command<int> {
       );
       return 2;
     }
-    final RestageApi api;
-    try {
-      api = RestageApi(
-        endpoint: apiEndpoint,
-        httpClient: _httpClient,
-        credential: credential,
-      );
-    } on InsecureEndpointException {
-      _stderr.writeln('The configured endpoint is not permitted.');
-      return 1;
-    }
     RenderBundleApi? renderBundles;
     try {
       int? organizationId;
@@ -344,9 +372,10 @@ final class BuildPushCommand extends Command<int> {
         final suppressedResolutionErrors = StringBuffer();
         final configuredOrganization = await resolveConfiguredOrganization(
           api: api,
-          config: loaded?.config,
+          config: config,
           stderr: suppressedResolutionErrors,
           preferredSlug: organizationSlug,
+          organizationId: organizationIdOption(argResults),
         );
         if (configuredOrganization == null) {
           _stderr.writeln('Could not resolve organization context.');
@@ -356,8 +385,6 @@ final class BuildPushCommand extends Command<int> {
       }
       renderBundles = RenderBundleApi(
         rpc: api,
-        apiEndpoint: apiEndpoint,
-        credential: credential,
         trustedBundleOrigin: origins.bundleOrigin,
         uploadClient: _httpClient,
       );
@@ -409,34 +436,97 @@ final class BuildPushCommand extends Command<int> {
       _stderr.writeln('Could not contact the backend.');
       return 2;
     } finally {
-      if (_httpClient == null) {
-        renderBundles?.close();
-        api.close();
-      }
+      if (_httpClient == null) renderBundles?.close();
     }
   }
 
+  /// The origins the server says a build trusts.
+  Future<RenderBundleOrigins?> _readOrigins(RestageApi api) async {
+    try {
+      return await readRenderBundleOrigins(api);
+    } on RenderBundleUploadException catch (error) {
+      final status = error.statusCode;
+      _stderr.writeln(
+        error.reason == 'builds_unavailable'
+            ? _noBuilds
+            : status == null
+            ? 'Could not read where builds go from the server.'
+            : 'Could not read where builds go from the server (HTTP '
+                  '$status).',
+      );
+    } on SocketException {
+      _stderr.writeln('Could not contact the backend.');
+    }
+    return null;
+  }
+
   int _reportBuildFailure([RenderBundleBuildException? error]) {
-    final path = error?.detail;
-    final named = path == null ? null : _engineMismatchMessage(error!, path);
-    _stderr.writeln(named ?? 'Could not build the render bundle.');
+    _stderr.writeln(
+      (error == null ? null : _buildFailureMessage(error)) ??
+          'Could not build the render bundle.',
+    );
     return 2;
   }
 }
 
-/// Names the engine file that puts this build on another toolchain.
-String? _engineMismatchMessage(RenderBundleBuildException error, String path) =>
-    switch (error.reason) {
-      'engine_toolchain' =>
-        'Could not build the render bundle: the engine file $path was built '
-            'on another toolchain than the pinned set for this Flutter '
-            'version. Build on the version the pin names.',
-      'engine_incomplete' =>
-        'Could not build the render bundle: the pinned engine set names '
-            '$path and this build did not produce it. Build on the version '
-            'the pin names.',
-      _ => null,
-    };
+const _noBuilds = 'This server does not accept builds.';
+
+/// Turns a build failure into the sentence a reader can act on. Its detail
+/// is the generated build project, or the engine file, it is about.
+String? _buildFailureMessage(RenderBundleBuildException error) {
+  final project = error.detail;
+  return switch (error.reason) {
+    'project_identity' =>
+      'Could not build the render bundle: pubspec.yaml does not name this '
+          'app. Run the push from the app\'s directory.',
+    'factories_missing' =>
+      'Could not build the render bundle: lib/user_factories.g.dart is '
+          'missing. Run `dart run build_runner build`, or drop --no-generate '
+          'and let the push run it.',
+    'output_root' =>
+      'Could not build the render bundle: the output_root in build.yaml is '
+          'not a package-relative path. Fix it and push again.',
+    'dependencies_unresolved' =>
+      'Could not build the render bundle: this app\'s dependencies are not '
+          'resolved. Run `flutter pub get` and push again.',
+    'render_host_missing' =>
+      'Could not build the render bundle: the restage package this app '
+          'uses is too old to build one. Upgrade restage and push again.',
+    'dependencies_failed' =>
+      'Could not build the render bundle: its dependencies did not resolve. '
+          'Run `flutter pub get` in ${project ?? 'the build directory'} to '
+          'see why.',
+    'catalog_contract' =>
+      'Could not build the render bundle: the widget catalog could not be '
+          'read.',
+    'flutter_not_found' => 'Could not find the Flutter toolchain on PATH.',
+    'flutter_version_unavailable' =>
+      'Could not build the render bundle: `flutter --version` did not '
+          'answer.',
+    'flutter_version_mismatch' =>
+      'Could not build the render bundle: builds need Flutter '
+          '$requiredRenderBundleFlutterVersion.',
+    'flutter_build_failed' =>
+      'Could not build the render bundle: `flutter build web` failed. Run '
+          '`flutter build web --wasm` in '
+          '${project ?? 'the build directory'} to see why.',
+    'loader_contract' =>
+      'Could not build the render bundle: Flutter built a web loader this '
+          'CLI cannot serve. Update the restage CLI and push again.',
+    'non_deterministic_output' =>
+      'Could not build the render bundle: two builds of the same source '
+          'differed.',
+    'engine_toolchain' when project != null =>
+      'Could not build the render bundle: the engine file $project was built '
+          'on another toolchain than the pinned set for this Flutter '
+          'version. Build on the version the pin names.',
+    'engine_incomplete' when project != null =>
+      'Could not build the render bundle: the pinned engine set names '
+          '$project and this build did not produce it. Build on the version '
+          'the pin names.',
+    _ => null,
+  };
+}
 
 /// Renders a catalog-step failure as one line a reader can act on.
 String _catalogFailureMessage(GeneratedCatalogException error) =>
@@ -463,6 +553,10 @@ String _uploadFailureMessage(
   }
   final storage = error.storage;
   if (storage != null) return _storageMessage(storage);
+  final targetSelection = error.targetSelection;
+  if (targetSelection != null) {
+    return targetSelectionSentence(targetSelection, currentSelectorSyntax);
+  }
   final refused = error.reason;
   if (refused != null) {
     final named = _rejectionMessage(refused, withKey: withKey);
@@ -558,6 +652,7 @@ String? _rejectionMessage(String reason, {required bool withKey}) =>
         'Could not read this organization\'s storage limit. A push needs it, '
             'so this one was refused. Try again; if it keeps happening the '
             'service is degraded.',
+      'builds_unavailable' => _noBuilds,
       'upload_unavailable' =>
         'The upload service did not answer, so nothing was stored. Try '
             'again; if it keeps happening the service is degraded.',

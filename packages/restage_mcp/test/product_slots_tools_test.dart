@@ -65,14 +65,7 @@ void main() {
     // it, or null to unmap it) every call.
     expect(
       tools['restage_upsert_product_slot']!.inputSchema.required,
-      containsAll([
-        'projectSlug',
-        'appSlug',
-        'name',
-        'entitlement',
-        'iosProductId',
-        'androidProductId',
-      ]),
+      containsAll(['name', 'entitlement', 'iosProductId', 'androidProductId']),
     );
   });
 

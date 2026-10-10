@@ -29,6 +29,11 @@ class CatalogPushCommand extends Command<int> {
       )
       ..addOption('app', help: 'App slug (overrides restage_config.yaml).')
       ..addOption(
+        'organization',
+        help: 'Organization slug (overrides restage_config.yaml).',
+      )
+      ..addOption('organization-id', hide: true)
+      ..addOption(
         'directory',
         abbr: 'C',
         defaultsTo: '.',
@@ -109,6 +114,8 @@ class CatalogPushCommand extends Command<int> {
         api: api,
         config: loaded?.config,
         stderr: _stderr,
+        preferredSlug: argResults?['organization'] as String?,
+        organizationId: organizationIdOption(argResults),
       );
       if (configuredOrganization == null) return 1;
 
@@ -137,12 +144,8 @@ class CatalogPushCommand extends Command<int> {
       return 1;
     }
 
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln(e.toString());
-    return 1;
+    final outcome = renderApiError(e);
+    _stderr.writeln(outcome.message);
+    return outcome.exitCode;
   }
 }

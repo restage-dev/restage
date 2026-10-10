@@ -1,14 +1,11 @@
 import 'package:dart_mcp/server.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
 
 import 'api_runner.dart';
-import 'exact_target.dart';
+import 'tool_support.dart';
 
-const _targetError =
-    'The declared target does not resolve to one exact authorized target.';
 const _payloadError =
     'The operation payload is not the exact semantic document this operation '
     'accepts.';
@@ -19,8 +16,6 @@ final List<String> _operations = [
   for (final operation in measurement.ExperimentAuthoringOperationV1.values)
     operation.wireName,
 ];
-
-const _runtimePlanes = ['sandbox', 'live'];
 
 /// The one semantic experiment operation exposed through MCP.
 ///
@@ -54,28 +49,9 @@ final experimentApplyTool = Tool(
             'Retry identity, required for an operation that changes state and '
             'refused for one that does not.',
       ),
-      'organizationId': Schema.int(description: 'The organization id.'),
-      'projectSlug': Schema.string(description: 'The project slug.'),
-      'appSlug': Schema.string(description: 'The app slug.'),
-      'environmentSlug': Schema.string(description: 'The environment slug.'),
-      'environmentTargetId': Schema.int(
-        description: 'The exact environment target id.',
-      ),
-      'runtimePlane': UntitledSingleSelectEnumSchema(
-        description: 'The target runtime plane: sandbox or live.',
-        values: _runtimePlanes,
-      ),
+      ...exactTargetProperties(),
     },
-    required: [
-      'operation',
-      'payload',
-      'organizationId',
-      'projectSlug',
-      'appSlug',
-      'environmentSlug',
-      'environmentTargetId',
-      'runtimePlane',
-    ],
+    required: ['operation', 'payload', ...exactTargetRequired],
     additionalProperties: false,
   ),
 );
@@ -85,11 +61,10 @@ final experimentApplyTool = Tool(
 /// The public schema decodes the request, so an unknown property or a resolved
 /// `serverDefault` is refused here rather than at the route. Authority stays
 /// the route's: a refusal is reported as it arrives and never widened.
-Future<CallToolResult> handleExperimentApply({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) {
+Future<CallToolResult> handleExperimentApply(
+  ToolContext ctx,
+  CallToolRequest request,
+) {
   final operation = _operationFor(request.str('operation'));
   if (operation == null) {
     return Future.value(mcpError('The declared operation is unsupported.'));
@@ -100,9 +75,8 @@ Future<CallToolResult> handleExperimentApply({
     return Future.value(mcpError(_payloadError));
   }
 
-  final RuntimePlane runtimePlane;
   try {
-    runtimePlane = RuntimePlane.fromWireName(request.str('runtimePlane'));
+    RuntimePlane.fromWireName(request.str('runtimePlane'));
   } on FormatException {
     return Future.value(mcpError('The declared runtime plane is invalid.'));
   }
@@ -129,41 +103,21 @@ Future<CallToolResult> handleExperimentApply({
     return Future.value(mcpError(error.message));
   }
 
-  final organizationId = request.reqInt('organizationId');
-  final projectSlug = request.str('projectSlug');
-  final appSlug = request.str('appSlug');
-  final environmentSlug = request.str('environmentSlug');
-  final environmentTargetId = request.reqInt('environmentTargetId');
+  return ctx.authed('applying the experiment operation', (api) async {
+    final target = await exactTargetCoordinate(api, request);
+    if (target == null) return mcpError(exactTargetError);
 
-  return withApi(
-    store: store,
-    httpClient: httpClient,
-    action: 'applying the experiment operation',
-    surfaceNoun: 'surface',
-    body: (api) async {
-      final target = await resolveExactTarget(
-        api: api,
-        organizationId: organizationId,
-        projectSlug: projectSlug,
-        appSlug: appSlug,
-        environmentSlug: environmentSlug,
-        environmentTargetId: environmentTargetId,
-        runtimePlane: runtimePlane,
-      );
-      if (target == null) return mcpError(_targetError);
-
-      try {
-        final result = await ExperimentApi(
-          api,
-        ).execute(request: semanticRequest, target: target);
-        return _success(result);
-      } on ExperimentResponseMismatchException {
-        return mcpError(_resultError);
-      } on measurement.CanonicalFormatException {
-        return mcpError(_resultError);
-      }
-    },
-  );
+    try {
+      final result = await ExperimentApi(
+        api,
+      ).execute(request: semanticRequest, target: target);
+      return _success(result);
+    } on ExperimentResponseMismatchException {
+      return mcpError(_resultError);
+    } on measurement.CanonicalFormatException {
+      return mcpError(_resultError);
+    }
+  });
 }
 
 CallToolResult _success(measurement.ExperimentAuthoringResultV1 result) {
@@ -218,6 +172,12 @@ String _deliveryArmPublication(measurement.ExperimentDeliveryArmV1 arm) =>
       ) =>
         'revision $publishedRevision (contract $contractVersion)',
     };
+
+/// Whether the call's operation changes what a target serves.
+bool changesLiveExperiment(CallToolRequest request) {
+  final operation = _operationFor(request.optStr('operation') ?? '');
+  return operation != null && kLiveExperimentOperations.contains(operation);
+}
 
 measurement.ExperimentAuthoringOperationV1? _operationFor(String wireName) {
   for (final operation in measurement.ExperimentAuthoringOperationV1.values) {

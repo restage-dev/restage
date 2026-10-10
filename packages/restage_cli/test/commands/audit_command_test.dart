@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
-import 'package:restage_cli/src/commands/audit_command.dart';
+import 'package:restage_cli/src/commands/authed.dart';
+import 'package:restage_cli/src/commands/spec_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/io/interactive.dart';
 import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
@@ -157,14 +159,18 @@ CommandRunner<int> _runner({
   required FileCredentialStore credentialStore,
   required http.Client httpClient,
 }) {
-  return CommandRunner<int>('restage', '')..addCommand(
-    AuditCommand(
+  final runner = CommandRunner<int>('restage', '');
+  operationCommands(
+    CommandIo(
       stdout: stdout,
       stderr: StringBuffer(),
+      interactive: const NonInteractive(),
       credentialStore: credentialStore,
       httpClient: httpClient,
     ),
-  );
+    exclude: const {'surface'},
+  ).forEach(runner.addCommand);
+  return runner;
 }
 
 http.Response _listOrganizations(http.Request request) {

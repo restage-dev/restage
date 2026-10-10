@@ -191,35 +191,69 @@ void main() {
     expect(pathspecs, <String>['.', 'packages/widgets']);
   });
 
-  test('a boundary that will not resolve reaches the caller', () async {
+  test(
+    'with recordGit a boundary that will not resolve reaches the caller',
+    () async {
+      await File(
+        p.join(root.path, '.dart_tool', 'package_graph.json'),
+      ).delete();
+      List<String>? pathspecs;
+      await expectLater(
+        readBundleSource(
+          root,
+          recordGit: true,
+          processRunner:
+              (executable, arguments, {String? workingDirectory}) async {
+                final command = arguments.join(' ');
+                if (command.startsWith('rev-parse --show-toplevel')) {
+                  return ProcessResult(0, 0, '${root.path}\n', '');
+                }
+                if (command.startsWith('rev-parse --verify')) {
+                  return ProcessResult(0, 0, 'a91f2c3d4e5f6071\n', '');
+                }
+                if (command.startsWith('symbolic-ref')) {
+                  return ProcessResult(0, 0, 'work\n', '');
+                }
+                if (command.startsWith('status')) {
+                  pathspecs = arguments.sublist(arguments.indexOf('--') + 1);
+                  return ProcessResult(0, 0, '', '');
+                }
+                fail('unexpected command: git $command');
+              },
+        ),
+        throwsA(isA<SourceBoundaryException>()),
+      );
+      // Nothing was asked of Git: the answer would have described the wrong set.
+      expect(pathspecs, isNull);
+    },
+  );
+
+  test('without recordGit a boundary that will not resolve checks the app '
+      'package alone', () async {
     await File(p.join(root.path, '.dart_tool', 'package_graph.json')).delete();
     List<String>? pathspecs;
-    await expectLater(
-      readBundleSource(
-        root,
-        processRunner:
-            (executable, arguments, {String? workingDirectory}) async {
-              final command = arguments.join(' ');
-              if (command.startsWith('rev-parse --show-toplevel')) {
-                return ProcessResult(0, 0, '${root.path}\n', '');
-              }
-              if (command.startsWith('rev-parse --verify')) {
-                return ProcessResult(0, 0, 'a91f2c3d4e5f6071\n', '');
-              }
-              if (command.startsWith('symbolic-ref')) {
-                return ProcessResult(0, 0, 'work\n', '');
-              }
-              if (command.startsWith('status')) {
-                pathspecs = arguments.sublist(arguments.indexOf('--') + 1);
-                return ProcessResult(0, 0, '', '');
-              }
-              fail('unexpected command: git $command');
-            },
-      ),
-      throwsA(isA<SourceBoundaryException>()),
+    final source = await readBundleSource(
+      root,
+      processRunner: (executable, arguments, {String? workingDirectory}) async {
+        final command = arguments.join(' ');
+        if (command.startsWith('rev-parse --show-toplevel')) {
+          return ProcessResult(0, 0, '${root.path}\n', '');
+        }
+        if (command.startsWith('rev-parse --verify')) {
+          return ProcessResult(0, 0, 'a91f2c3d4e5f6071\n', '');
+        }
+        if (command.startsWith('symbolic-ref')) {
+          return ProcessResult(0, 0, 'work\n', '');
+        }
+        if (command.startsWith('status')) {
+          pathspecs = arguments.sublist(arguments.indexOf('--') + 1);
+          return ProcessResult(0, 0, '', '');
+        }
+        fail('unexpected command: git $command');
+      },
     );
-    // Nothing was asked of Git: the answer would have described the wrong set.
-    expect(pathspecs, isNull);
+    expect(source.commit, 'a91f2c3d4e5f6071');
+    expect(pathspecs, <String>['.']);
   });
 
   test('a short hash is carried whole', () {

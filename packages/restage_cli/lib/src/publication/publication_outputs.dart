@@ -454,7 +454,7 @@ final class RestagePublicationOutputsLoader {
   }
 
   Future<File> _configuredIndexFile(Directory root) async {
-    final outputRoot = await _configuredOutputRoot(root);
+    final outputRoot = await readConfiguredRestageOutputRoot(root);
     final metadataRoot = p.posix.join(
       outputRoot ?? defaultRestagePortableOutputRoot,
       restageOutputRootMetadataSegment,
@@ -464,49 +464,6 @@ final class RestagePublicationOutputsLoader {
       p.posix.join(metadataRoot, restageOutputsFileName),
       'configured output index',
     );
-  }
-
-  Future<String?> _configuredOutputRoot(Directory root) async {
-    final buildFile = File(p.join(root.path, 'build.yaml'));
-    if (!buildFile.existsSync()) return null;
-    final source = await _readText(buildFile, 'build.yaml');
-    final Object? document;
-    try {
-      document = loadYaml(source);
-    } on Object catch (error) {
-      throw PublicationManifestException(
-        'Could not parse build.yaml while locating generated publication '
-        'metadata: $error.',
-      );
-    }
-    if (document is! Map) return null;
-    final globalOptions = _builderOptions(
-      _mapValue(
-        _mapValue(document, 'global_options'),
-        restageOutputsBuilderKey,
-      ),
-    );
-    final targets = _mapValue(document, 'targets');
-    final defaultTarget = _mapValue(targets, r'$default');
-    final targetOptions = _builderOptions(
-      _mapValue(_mapValue(defaultTarget, 'builders'), restageOutputsBuilderKey),
-    );
-    final raw =
-        _mapValue(globalOptions, 'output_root') ??
-        _mapValue(targetOptions, 'output_root');
-    if (raw == null) return null;
-    if (raw is! String) {
-      throw const PublicationManifestException(
-        'The generated output_root in build.yaml must be a string.',
-      );
-    }
-    try {
-      return _requireOutputRoot(raw);
-    } on FormatException catch (error) {
-      throw PublicationManifestException(
-        'Invalid generated output_root in build.yaml: ${error.message}',
-      );
-    }
   }
 
   Future<List<File>> _discoverIndexFiles(Directory root) async {
@@ -552,6 +509,48 @@ final class RestagePublicationOutputsLoader {
     }
     found.sort((left, right) => left.path.compareTo(right.path));
     return found;
+  }
+}
+
+/// The `output_root` build.yaml configures for generated output, or null when
+/// it leaves the default.
+Future<String?> readConfiguredRestageOutputRoot(Directory root) async {
+  final buildFile = File(p.join(root.path, 'build.yaml'));
+  if (!buildFile.existsSync()) return null;
+  final source = await _readText(buildFile, 'build.yaml');
+  final Object? document;
+  try {
+    document = loadYaml(source);
+  } on Object catch (error) {
+    throw PublicationManifestException(
+      'Could not parse build.yaml while locating generated publication '
+      'metadata: $error.',
+    );
+  }
+  if (document is! Map) return null;
+  final globalOptions = _builderOptions(
+    _mapValue(_mapValue(document, 'global_options'), restageOutputsBuilderKey),
+  );
+  final targets = _mapValue(document, 'targets');
+  final defaultTarget = _mapValue(targets, r'$default');
+  final targetOptions = _builderOptions(
+    _mapValue(_mapValue(defaultTarget, 'builders'), restageOutputsBuilderKey),
+  );
+  final raw =
+      _mapValue(globalOptions, 'output_root') ??
+      _mapValue(targetOptions, 'output_root');
+  if (raw == null) return null;
+  if (raw is! String) {
+    throw const PublicationManifestException(
+      'The generated output_root in build.yaml must be a string.',
+    );
+  }
+  try {
+    return _requireOutputRoot(raw);
+  } on FormatException catch (error) {
+    throw PublicationManifestException(
+      'Invalid generated output_root in build.yaml: ${error.message}',
+    );
   }
 }
 

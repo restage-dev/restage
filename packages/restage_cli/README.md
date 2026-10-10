@@ -45,6 +45,7 @@ restage status
 restage init
 
 # See what you have access to.
+restage orgs
 restage projects
 restage apps
 restage envs
@@ -68,6 +69,22 @@ restage surface rollback <id> --to-version <version> --reason "<reason>"
 restage surface freeze <id> --reason "<reason>"
 restage surface unfreeze <id> --reason "<reason>"
 restage surface kill <id> --reason "<reason>"
+restage surface audit <id>
+
+# Work with a draft saved in the dashboard.
+restage surface draft pull <id> --out <file>
+restage surface draft push <id>
+
+# App configuration, store products, and API keys.
+restage app-config show
+restage app-config set --ios-bundle-id <id>
+restage products list
+restage products import --store appStore
+restage slots list
+restage slots set <name> --entitlement <e> --ios-product-id <id> --android-product-id none
+restage stores list
+restage keys list
+restage keys revoke <id>
 
 # Decide which published version each request receives (beta).
 restage surface routing --help
@@ -96,9 +113,26 @@ the version bundled with them. `surface freeze` stops new publishes to a
 surface until you unfreeze it. `surface results` reads the surface's funnel:
 views, steps, drop-off, and completions per published version.
 
+In the console, `p` pushes the selected surface and `l` publishes its latest
+pushed revision after asking for a reason. On the live plane, kill, publish,
+freeze, and unfreeze also ask you to type `confirm`; rollback always does. Type `/` and then any command, such as
+`restage surface history welcome`, to run it there and read its output.
+
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts. A required value with no default then exits non-zero with a
 `required: --foo <value>` message.
+
+Commands that change what the live plane serves ask first. `surface publish`,
+`surface freeze`, `surface unfreeze`, `surface routing publish` and
+`rollback`, `experiment activate`, `pause`, `resume`, `conclude`, and
+`rebuild-serving-records` (except `--readiness-only`), `mutation`, and
+`experiment-activation` take `--yes` as consent. `surface kill` and `surface rollback`
+refuse `--yes` on the live plane and need an interactive confirmation. On a
+sandbox target the first group does not ask, and kill and rollback accept
+`--yes`.
+
+List commands such as `restage apps` and `restage targets` print a table with a
+header row. Scripts should pass `--json`.
 
 ## Pushing and publishing
 

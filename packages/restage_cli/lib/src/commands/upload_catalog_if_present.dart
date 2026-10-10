@@ -34,7 +34,7 @@ Future<void> uploadCatalogIfPresent({
     final catalog = decodeCatalogTypedException(e.body);
     final message = catalog != null
         ? renderCatalogException(catalog)
-        : renderGenericTypedError(e)?.message ?? e.toString();
+        : renderApiError(e).message;
     stderr.writeln('Warning: widget catalog upload failed: $message');
   } on Object catch (e) {
     stderr.writeln('Warning: could not upload the widget catalog: $e');

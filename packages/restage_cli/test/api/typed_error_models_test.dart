@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:test/test.dart';
 
@@ -43,16 +44,67 @@ void main() {
         'data': {
           '__className__': 'UnauthorizedException',
           'resource': 'project:demo',
+          'reason': 'paidPlanRequired',
         },
       });
 
       final decoded = decodeGenericTypedException(body);
 
       expect(decoded, isA<UnauthorizedAccess>());
-      expect((decoded! as UnauthorizedAccess).resource, 'project:demo');
+      final unauthorized = decoded! as UnauthorizedAccess;
+      expect(unauthorized.resource, 'project:demo');
+      expect(unauthorized.reason, UnauthorizedReason.paidPlanRequired);
     });
 
-    test('returns null for a paywall-specific className', () {
+    test('an UnauthorizedException without a reason is a missing role', () {
+      final body = jsonEncode({
+        'className': 'UnauthorizedException',
+        'data': {'resource': 'project:demo'},
+      });
+
+      final decoded = decodeGenericTypedException(body)! as UnauthorizedAccess;
+
+      expect(decoded.reason, UnauthorizedReason.roleMissing);
+      expect(
+        renderApiError(RestageApiException(403, body)).message,
+        contains('Your role in this organization'),
+      );
+    });
+
+    test('decodes TargetSelectionRefusedException with its candidates', () {
+      final body = jsonEncode({
+        'className': 'TargetSelectionRefusedException',
+        'data': {
+          '__className__': 'TargetSelectionRefusedException',
+          'reason': 'environmentOnBothPlanes',
+          'environmentSlug': 'production',
+          'candidates': [
+            {
+              'environmentTargetId': 12,
+              'namedEnvironmentId': 9,
+              'environmentSlug': 'production',
+              'runtimePlane': 'sandbox',
+            },
+          ],
+        },
+      });
+
+      final decoded =
+          decodeGenericTypedException(body)! as TargetSelectionRefused;
+
+      expect(decoded.reason, TargetSelectionRefusal.environmentOnBothPlanes);
+      expect(decoded.environmentSlug, 'production');
+      expect(decoded.candidates.single.environmentTargetId, 12);
+      expect(
+        renderApiError(
+          RestageApiException(400, body),
+          syntax: SelectorSyntax.mcp,
+        ).message,
+        contains('runtimePlane: sandbox or live'),
+      );
+    });
+
+    test('returns null for a retired className', () {
       final body = jsonEncode({
         'className': 'PaywallNotFoundException',
         'data': {
@@ -107,11 +159,39 @@ void main() {
         '"data":{"slug":"WelcomeFlow","reason":"the rule"}}';
     final typed = decodeGenericTypedException(body);
     expect(typed, isA<SurfaceSlugRejected>());
-    final outcome = renderGenericTypedError(
-      const RestageApiException(400, body),
-    );
-    expect(outcome!.exitCode, 1);
+    final outcome = renderApiError(const RestageApiException(400, body));
+    expect(outcome.exitCode, 1);
     expect(outcome.message, contains('WelcomeFlow'));
     expect(outcome.message, contains('the rule'));
+  });
+
+  group('renderApiError', () {
+    test('a typed surface refusal reads as its sentence', () {
+      const body =
+          '{"className":"SurfaceNotFoundException",'
+          '"data":{"surfaceSlug":"welcome"}}';
+      final outcome = renderApiError(const RestageApiException(404, body));
+      expect(outcome.exitCode, 1);
+      expect(outcome.message, "Surface 'welcome' not found.");
+    });
+
+    test('an untyped 401 reads as a stale credential for each syntax', () {
+      const error = RestageApiException(401, 'nope');
+      expect(renderApiError(error).message, contains('restage login'));
+      expect(
+        renderApiError(error, syntax: SelectorSyntax.mcp).message,
+        contains('restage_login'),
+      );
+    });
+
+    test('anything else is an HTTP failure with exit 2', () {
+      const error = RestageApiException(500, 'boom');
+      final cli = renderApiError(error);
+      expect(cli.exitCode, 2);
+      expect(cli.message, 'Could not contact the backend: HTTP 500 — boom');
+      final mcp = renderApiError(error, syntax: SelectorSyntax.mcp);
+      expect(mcp.exitCode, 2);
+      expect(mcp.message, isNot(contains('boom')));
+    });
   });
 }

@@ -13,30 +13,56 @@ import '../_helpers/test_fixtures.dart';
 /// One tracked artifact a bundle declares.
 typedef _TrackedArtifact = ({String logicalPath, String hex});
 
-Uint8List _decodeDraft(String value) =>
-    base64Url.decode(value.padRight((value.length + 3) ~/ 4 * 4, '='));
+/// One draft of the example index fixture, decoded once for every test.
+typedef _IndexedDraft = ({
+  String slug,
+  Uint8List bytes,
+  MeasurementPublicationDraftV1 draft,
+});
+
+final List<_IndexedDraft> _indexedDrafts = () {
+  final index =
+      jsonDecode(
+            File(
+              p.join(
+                locateCheckoutRoot().path,
+                exampleMeasurementIndexFixturePath,
+              ),
+            ).readAsStringSync(),
+          )
+          as Map<String, Object?>;
+  return [
+    for (final raw in index['entries']! as List<Object?>)
+      _indexedDraft(raw! as Map<String, Object?>),
+  ];
+}();
+
+_IndexedDraft _indexedDraft(Map<String, Object?> entry) {
+  final value = entry['draftBase64']! as String;
+  final bytes = base64Url.decode(
+    value.padRight((value.length + 3) ~/ 4 * 4, '='),
+  );
+  return (
+    slug: (entry['selector']! as Map<String, Object?>)['slug']! as String,
+    bytes: bytes,
+    draft: MeasurementPublicationDraftV1.fromCanonicalBytes(bytes),
+  );
+}
+
+bool _sameBytes(List<int> left, List<int> right) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (left[index] != right[index]) return false;
+  }
+  return true;
+}
 
 void main() {
   test('every generated draft in the example index binds', () {
-    final index =
-        jsonDecode(
-              File(
-                p.join(
-                  locateCheckoutRoot().path,
-                  exampleMeasurementIndexFixturePath,
-                ),
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>;
-    final entries = index['entries']! as List<Object?>;
-    expect(entries, isNotEmpty);
+    expect(_indexedDrafts, isNotEmpty);
 
     var largest = 0;
-    for (final raw in entries) {
-      final entry = raw! as Map<String, Object?>;
-      final slug =
-          (entry['selector']! as Map<String, Object?>)['slug']! as String;
-      final bytes = _decodeDraft(entry['draftBase64']! as String);
+    for (final (:slug, :bytes, :draft) in _indexedDrafts) {
       expect(
         bytes.length,
         lessThanOrEqualTo(kMaximumMeasurementPublicationCandidateDraftBytes),
@@ -45,8 +71,9 @@ void main() {
       // Decoding through the schema proves the bound admits the real value
       // rather than only comparing its length.
       expect(
-        MeasurementPublicationDraftV1.fromCanonicalBytes(bytes).canonicalBytes,
-        orderedEquals(bytes),
+        _sameBytes(draft.canonicalBytes, bytes),
+        isTrue,
+        reason: '$slug does not re-encode to its own bytes',
       );
       if (bytes.length > largest) largest = bytes.length;
     }
@@ -96,26 +123,14 @@ void main() {
       }
       expect(declaredByHash, isNotEmpty);
 
-      final fixtureFile = File(
-        p.join(root.path, exampleMeasurementIndexFixturePath),
-      );
-      final index =
-          jsonDecode(fixtureFile.readAsStringSync()) as Map<String, Object?>;
-      final entries = index['entries']! as List<Object?>;
-      expect(entries, isNotEmpty);
+      expect(_indexedDrafts, isNotEmpty);
 
       const refresh =
           'Refresh it from the example app\'s generated Measurement '
           'publication index, as the note on '
           'exampleMeasurementIndexFixturePath describes.';
 
-      for (final raw in entries) {
-        final entry = raw! as Map<String, Object?>;
-        final selector = entry['selector']! as Map<String, Object?>;
-        final slug = selector['slug']! as String;
-        final draft = MeasurementPublicationDraftV1.fromCanonicalBytes(
-          _decodeDraft(entry['draftBase64']! as String),
-        );
+      for (final (:slug, bytes: _, :draft) in _indexedDrafts) {
         expect(draft.artifacts, isNotEmpty, reason: '$slug declares none');
 
         // A flow document is nameable on its own, so compare it against the

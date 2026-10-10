@@ -398,13 +398,7 @@ void main() {
       final targetId = environment == 'dev' ? 41 : 42;
       Map<String, dynamic>? mutation;
       final client = scriptedHttpClient([
-        _okListOrganizations,
-        (request) => activeAppDiscoveryResponse(
-          request,
-          appSlug: 'default',
-          projectSlug: 'default',
-        ),
-        _targetList(environment, targetId, RuntimePlane.live),
+        _target(environment, targetId, RuntimePlane.live),
         _okStatus,
         (request) {
           mutation = jsonDecode(request.body) as Map<String, dynamic>;
@@ -437,17 +431,54 @@ void main() {
     });
   }
 
+  test('a live freeze runs only once the operator confirmed', () async {
+    final fixture = await _seedExecutorFixture(environment: 'staging');
+    final mutations = <Map<String, dynamic>>[];
+    final client = scriptedHttpClient([
+      _target('staging', 42, RuntimePlane.live),
+      _target('staging', 42, RuntimePlane.live),
+      (request) {
+        mutations.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response('', 200);
+      },
+    ], withDefaultTargetDiscovery: false);
+    final executor = ConsoleCommandExecutor(
+      credentialStore: fixture.store,
+      httpClient: client,
+      directory: fixture.dir,
+    );
+    final context = _context(
+      'staging',
+      environmentTargetId: 42,
+      namedEnvironmentId: 142,
+      runtimePlane: RuntimePlane.live,
+    );
+
+    final refused = await executor.freeze(
+      context: context,
+      surface: _surface,
+      reason: 'hold releases',
+    );
+    expect(refused.exitCode, 1);
+    expect(refused.stderr, contains('changes what the live plane serves'));
+    expect(mutations, isEmpty);
+
+    final confirmed = await executor.freeze(
+      context: context,
+      surface: _surface,
+      reason: 'hold releases',
+      confirmedProduction: true,
+    );
+    expect(confirmed.exitCode, 0, reason: confirmed.stderr);
+    expect(mutations.single['method'], 'setSurfaceLock');
+    expect(mutations.single['runtimePlane'], 'live');
+  });
+
   test('sandbox prod kill bypasses only on the sandbox plane', () async {
     final fixture = await _seedExecutorFixture(environment: 'prod');
     Map<String, dynamic>? mutation;
     final client = scriptedHttpClient([
-      _okListOrganizations,
-      (request) => activeAppDiscoveryResponse(
-        request,
-        appSlug: 'default',
-        projectSlug: 'default',
-      ),
-      _targetList('prod', 31, RuntimePlane.sandbox),
+      _target('prod', 31, RuntimePlane.sandbox),
       _okStatus,
       (request) {
         mutation = jsonDecode(request.body) as Map<String, dynamic>;
@@ -519,37 +550,20 @@ Future<({Directory dir, FileCredentialStore store})> _seedExecutorFixture({
   return (dir: dir, store: store);
 }
 
-http.Response _okListOrganizations(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listMine');
-  return http.Response(
-    jsonEncode([
-      {'organizationId': 7, 'slug': 'restage', 'name': 'Restage'},
-    ]),
-    200,
-  );
-}
-
-ScriptStep _targetList(
+ScriptStep _target(
   String environment,
   int environmentTargetId,
   RuntimePlane runtimePlane,
-) => (request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listEnvironmentTargets');
-  expect(body['runtimePlane'], runtimePlane.wireName);
-  return http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': environmentTargetId,
-        'namedEnvironmentId': environmentTargetId + 100,
-        'environmentSlug': environment,
-        'runtimePlane': runtimePlane.wireName,
-      },
-    ]),
-    200,
-  );
-};
+) => resolveTargetStep(
+  {
+    'environmentTargetId': environmentTargetId,
+    'namedEnvironmentId': environmentTargetId + 100,
+    'environmentSlug': environment,
+    'runtimePlane': runtimePlane.wireName,
+  },
+  appId: 5,
+  inspect: (body) => expect(body['runtimePlane'], runtimePlane.wireName),
+);
 
 http.Response _okStatus(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;

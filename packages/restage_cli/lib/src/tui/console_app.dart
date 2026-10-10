@@ -23,6 +23,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     'freeze',
     'unfreeze',
     'push',
+    'publish',
     'build',
   ];
   static const _minNavWidth = 18;
@@ -37,6 +38,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   bool _previewInFlight = false;
   int _previewGeneration = 0;
   _ConsoleView _activeView = _ConsoleView.overview;
+
+  /// Whether the middle panel shows the last command's output.
+  bool _showingOutput = false;
   _SurfaceFilter _surfaceFilter = _SurfaceFilter.all;
   _SurfaceFocus _surfaceFocus = _SurfaceFocus.rows;
   _DetailAction _detailAction = _DetailAction.push;
@@ -169,6 +173,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     }
     final next = (current + delta).clamp(0, values.length - 1).toInt();
     setState(() {
+      _showingOutput = false;
       _activeView = values[next];
     });
   }
@@ -361,6 +366,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         _detailAction = _DetailAction.push;
         unawaited(_pushSelected());
         return true;
+      case LogicalKey.keyL:
+        _openPrompt(_PromptKind.publish);
+        return true;
       case LogicalKey.keyB:
         unawaited(_pushBuild());
         return true;
@@ -387,6 +395,16 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   }
 
   Future<void> _submitSearch(String raw) async {
+    final arguments = consoleCommandArguments(raw);
+    if (arguments != null) {
+      _closeSearch(clear: true);
+      if (arguments.isEmpty) return;
+      setState(() => _showingOutput = true);
+      await component.controller.runCommand(arguments);
+      if (!mounted) return;
+      setState(() {});
+      return;
+    }
     final command = _matchedCommand(raw);
     if (command == null) {
       _closeSearch();
@@ -414,6 +432,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       case 'push':
         _detailAction = _DetailAction.push;
         await _pushSelected();
+      case 'publish':
+        _openPrompt(_PromptKind.publish);
       case 'build':
         await _pushBuild();
     }
@@ -447,7 +467,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     });
 
     switch (prompt) {
-      case _PromptKind.kill:
+      case _PromptKind.kill ||
+          _PromptKind.publish ||
+          _PromptKind.freeze ||
+          _PromptKind.unfreeze:
         if (_needsLiveConfirmation) {
           final target = _confirmTarget();
           if (target == null) {
@@ -455,15 +478,11 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             return;
           }
           _openOperationConfirmation(
-            _PendingKill(reason: input, target: target),
+            _PendingLiveChange(kind: prompt, reason: input, target: target),
           );
           return;
         }
-        await component.controller.killSelected(reason: input, frozen: false);
-      case _PromptKind.freeze:
-        await component.controller.freezeSelected(reason: input);
-      case _PromptKind.unfreeze:
-        await component.controller.unfreezeSelected(reason: input);
+        await _runReasonedOperation(prompt, input, confirmed: false);
       case _PromptKind.rollback:
         await _submitRollback(input);
       case _PromptKind.operationConfirm:
@@ -581,12 +600,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       return;
     }
     switch (pending) {
-      case _PendingKill():
-        await component.controller.killSelected(
-          reason: pending.reason,
-          frozen: false,
-          confirmedProduction: true,
-        );
+      case _PendingLiveChange(:final kind):
+        await _runReasonedOperation(kind, pending.reason, confirmed: true);
       case _PendingRollback(:final toVersion):
         // "The operator typed confirm" — the executor scopes the flag to
         // the live plane itself, so both arms pass it unconditionally.
@@ -599,16 +614,45 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     }
   }
 
+  /// Runs a kill, publish, freeze, or unfreeze with the operator's reason.
+  Future<void> _runReasonedOperation(
+    _PromptKind kind,
+    String reason, {
+    required bool confirmed,
+  }) async {
+    final controller = component.controller;
+    switch (kind) {
+      case _PromptKind.kill:
+        await controller.killSelected(
+          reason: reason,
+          frozen: false,
+          confirmedProduction: confirmed,
+        );
+      case _PromptKind.publish:
+        await controller.publishSelected(
+          reason: reason,
+          confirmedProduction: confirmed,
+        );
+      case _PromptKind.freeze:
+        await controller.freezeSelected(
+          reason: reason,
+          confirmedProduction: confirmed,
+        );
+      case _PromptKind.unfreeze:
+        await controller.unfreezeSelected(
+          reason: reason,
+          confirmedProduction: confirmed,
+        );
+      case _PromptKind.rollback || _PromptKind.operationConfirm:
+        break;
+    }
+  }
+
   bool get _needsLiveConfirmation =>
       component.controller.state.context?.runtimePlane == RuntimePlane.live;
 
-  /// Surface a visible refusal when a live-plane kill was submitted with no
-  /// usable selection (e.g. a background refresh emptied the surface list
-  /// while the prompt was open). The prompt input is already consumed at
-  /// this point, so dropping it silently would leave the operator unable to
-  /// tell whether the operation ran. Uses the controller's guard wording so
-  /// the refusal reads the same on every path. The setState is load-bearing:
-  /// this path early-returns before _submitPrompt's trailing repaint.
+  /// Reports a live-operation refusal after selection becomes unavailable.
+  /// Repaint here because this path returns before `_submitPrompt`'s repaint.
   void _reportNothingSelected() {
     component.controller.reportOperationMessage('No surface selected.');
     if (mounted) setState(() {});
@@ -646,6 +690,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
   void _selectView(_ConsoleView view) {
     setState(() {
+      _showingOutput = false;
       _activeView = view;
       _leftEnvironmentFocused = false;
       component.controller.focusPanel(ConsolePanel.projects);
@@ -959,6 +1004,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   }
 
   String get _middlePanelTitle {
+    if (_showingOutput) return 'Command output';
     if (_searchQuery.isNotEmpty) return 'Search';
     return _activeView.label;
   }
@@ -967,6 +1013,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       _searchQuery.isNotEmpty || _activeView == _ConsoleView.surfaces;
 
   Component _middlePanel(ConsoleState state, {required int width}) {
+    if (_showingOutput) return _commandOutputPanel(state);
     if (_surfaceMiddleVisible) return _surfaceList(state, width: width);
     return switch (_activeView) {
       _ConsoleView.overview => _overviewPanel(state),
@@ -1022,6 +1069,39 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           maxLines: 1,
           style: TextStyle(color: _ConsoleTheme.muted),
         ),
+      ],
+    );
+  }
+
+  Component _commandOutputPanel(ConsoleState state) {
+    final output = state.commandOutput;
+    if (output == null) {
+      return const Text(
+        'Type / then restage <command> to run any command',
+        maxLines: 1,
+        style: TextStyle(color: _ConsoleTheme.muted),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'restage ${output.arguments.join(' ')}  exit '
+          '${output.result.exitCode}',
+          maxLines: 1,
+          style: TextStyle(
+            color: output.result.succeeded
+                ? _ConsoleTheme.heading
+                : _ConsoleTheme.warning,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        for (final line in output.lines)
+          Text(
+            line,
+            maxLines: 1,
+            style: const TextStyle(color: _ConsoleTheme.text),
+          ),
       ],
     );
   }
@@ -1167,7 +1247,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
   String _searchLabel(ConsoleState state) {
     final query = _searchQuery;
-    if (query.isEmpty) return '/ search surfaces, commands';
+    if (query.isEmpty) return '/ search surfaces, commands, or restage ...';
     final count = _searchResults(state).length;
     return '/ $query  ($count result${count == 1 ? '' : 's'})';
   }
@@ -1191,6 +1271,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           label: _ConsoleView.auditTrail.label,
           onTap: () => _selectView(_ConsoleView.auditTrail),
         ),
+
         const Text('CONTEXT', style: TextStyle(color: _ConsoleTheme.muted)),
         Text(
           'Proj ${state.projects.length}  Apps ${state.apps.length}',
@@ -1766,10 +1847,6 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     final contractVersion = surface.contractVersion;
     final selectorArgs = <String>[
       if (!surface.hasManifestIdentity) ...['--type', surface.surfaceType],
-      if (!surface.hasManifestIdentity && action == _DetailAction.rollback) ...[
-        '--source-kind',
-        _fallbackSourceKind(surface),
-      ],
       if (action == _DetailAction.rollback && contractVersion != null) ...[
         '--contract-version',
         '$contractVersion',
@@ -1789,12 +1866,6 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       '--plane',
       context.runtimePlane.wireName,
     ].join(' ');
-  }
-
-  String _fallbackSourceKind(ConsoleSurface surface) {
-    if (surface.sourceKind != null) return surface.sourceKind!;
-    if (surface.contractVersion != null) return 'screen';
-    return surface.surfaceType == 'paywall' ? 'paywall' : 'flowGraph';
   }
 
   Component _actionChip(_DetailAction action) {
@@ -2005,6 +2076,7 @@ class _PanelWidths {
 enum _PromptKind {
   kill('Reason for kill', 'cleanup window'),
   rollback('Rollback target and reason', '2 bad release'),
+  publish('Reason for publish', 'ship new copy'),
   freeze('Reason for freeze', 'pause publishes'),
   unfreeze('Reason for unfreeze', 'resume publishes'),
   operationConfirm('Type confirm to proceed', 'confirm');
@@ -2015,9 +2087,9 @@ enum _PromptKind {
   final String placeholder;
 }
 
-/// A destructive operation parked behind the type-confirm prompt: kill on
-/// the live plane, and rollback in every environment (its confirm carries the
-/// preview's cohort-impact note). Pinned to the [target] it was opened for —
+/// An operation parked behind the type-confirm prompt: kill, publish, freeze
+/// and unfreeze on the live plane, and rollback in every environment (its
+/// confirm carries the preview's cohort-impact note). Pinned to the [target] it was opened for —
 /// the confirm is refused if the selection moves before it is typed.
 sealed class _PendingConfirmOperation {
   const _PendingConfirmOperation({required this.reason, required this.target});
@@ -2026,8 +2098,14 @@ sealed class _PendingConfirmOperation {
   final _ConfirmTarget target;
 }
 
-final class _PendingKill extends _PendingConfirmOperation {
-  const _PendingKill({required super.reason, required super.target});
+final class _PendingLiveChange extends _PendingConfirmOperation {
+  const _PendingLiveChange({
+    required this.kind,
+    required super.reason,
+    required super.target,
+  });
+
+  final _PromptKind kind;
 }
 
 final class _PendingRollback extends _PendingConfirmOperation {

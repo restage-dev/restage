@@ -142,6 +142,7 @@ class SurfaceApi {
     RuntimePlane? runtimePlane,
     int? organizationId,
     int? contractVersion,
+    SurfaceSourceKind? sourceKind,
   }) async {
     final raw = await _api.call('surface', 'surfaceStatus', <String, dynamic>{
       'projectSlug': project,
@@ -154,6 +155,7 @@ class SurfaceApi {
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
       'contractVersion': contractVersion,
+      if (sourceKind != null) 'sourceKind': sourceKind.wireName,
     });
     return SurfaceStatusResult.fromJson(
       raw as Map<String, dynamic>,
@@ -193,39 +195,32 @@ class SurfaceApi {
     ];
   }
 
-  /// Read the immutable revision history for one exact generated family.
-  ///
-  /// The nested family reference is the generated backend model. Its
-  /// non-versioned flow/paywall form intentionally omits `contractVersion`;
-  /// standalone screens carry their positive contract version.
+  /// Read one family's revision history. The server resolves the family from
+  /// the optional [sourceKind] and [contractVersion] the way activation does,
+  /// and the result names it.
   Future<SurfaceContractFamilyHistoryResult> surfaceContractHistory({
     required String project,
     required String app,
     required SurfaceType surfaceType,
     required String surfaceSlug,
     required String environment,
-    required SurfaceSourceKind sourceKind,
+    SurfaceSourceKind? sourceKind,
     int? contractVersion,
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
-    final family = <String, dynamic>{
-      '__className__': 'SurfaceContractFamilyReference',
-      'surfaceType': surfaceType.wireName,
-      'surfaceSlug': surfaceSlug,
-      'sourceKind': sourceKind.wireName,
-      if (contractVersion != null) 'contractVersion': contractVersion,
-    };
     final raw = await _api
         .call('surface', 'surfaceContractHistory', <String, dynamic>{
           'projectSlug': project,
           'appSlug': app,
+          'surfaceType': surfaceType.wireName,
+          'surfaceSlug': surfaceSlug,
           'environmentSlug': environment,
-          'family': family,
-          if (environmentTargetId != null)
-            'environmentTargetId': environmentTargetId,
-          if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
+          'sourceKind': ?sourceKind?.wireName,
+          'contractVersion': ?contractVersion,
+          'environmentTargetId': ?environmentTargetId,
+          'runtimePlane': ?runtimePlane?.wireName,
           'organizationId': ?organizationId,
         });
     return SurfaceContractFamilyHistoryResult.fromJson(raw);
@@ -369,6 +364,7 @@ class SurfaceApi {
     RuntimePlane? runtimePlane,
     int? organizationId,
     int? contractVersion,
+    SurfaceSourceKind? sourceKind,
   }) async {
     final raw = await _api.call('surface', 'rollbackSurface', <String, dynamic>{
       'projectSlug': project,
@@ -384,6 +380,7 @@ class SurfaceApi {
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
       'contractVersion': contractVersion,
+      if (sourceKind != null) 'sourceKind': sourceKind.wireName,
     });
     return SurfaceFamilyMutationResult.fromJsonOrNull(
       raw,
@@ -391,21 +388,23 @@ class SurfaceApi {
     );
   }
 
-  /// Activate one exact family revision without changing any other family
-  /// pointer. A null [contractVersion] explicitly selects the existing
-  /// non-versioned flow/paywall lineage.
+  /// Activate one family revision without changing any other family pointer.
+  /// The server resolves the family from the optional [sourceKind] and
+  /// [contractVersion]; a null [publishedRevision] activates its newest
+  /// revision. The result names the family and revision.
   Future<SurfaceFamilyMutationResult> activate({
     required String project,
     required String app,
     required SurfaceType surfaceType,
     required String surfaceSlug,
     required String environment,
-    required int publishedRevision,
+    required int? publishedRevision,
     required String reason,
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
     int? contractVersion,
+    SurfaceSourceKind? sourceKind,
   }) async {
     final raw = await _api.call('surface', 'activateSurface', <String, dynamic>{
       'projectSlug': project,
@@ -419,7 +418,8 @@ class SurfaceApi {
         'environmentTargetId': environmentTargetId,
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
-      'contractVersion': contractVersion,
+      'contractVersion': ?contractVersion,
+      'sourceKind': ?sourceKind?.wireName,
     });
     return SurfaceFamilyMutationResult.fromJson(
       raw,
@@ -444,6 +444,7 @@ class SurfaceApi {
     RuntimePlane? runtimePlane,
     int? organizationId,
     int? contractVersion,
+    SurfaceSourceKind? sourceKind,
   }) async {
     final raw = await _api
         .call('surface', 'rollbackPreflight', <String, dynamic>{
@@ -458,6 +459,7 @@ class SurfaceApi {
           if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
           'organizationId': ?organizationId,
           'contractVersion': contractVersion,
+          if (sourceKind != null) 'sourceKind': sourceKind.wireName,
         });
     return RollbackPreflightResult.fromJson(raw as Map<String, dynamic>);
   }

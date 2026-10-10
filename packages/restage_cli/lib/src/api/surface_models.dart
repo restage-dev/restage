@@ -5,8 +5,7 @@ import 'package:restage_shared/restage_shared.dart';
 
 /// Slim view of the backend's `SurfaceSummary` — the fields the command-line
 /// surface displays. The wire payload may carry additional fields; unknown
-/// fields are ignored. Parallel to [PaywallSummary]; a paywall view adapts a
-/// `SurfaceSummary` of [surfaceType] `paywall` by dropping the type.
+/// fields are ignored.
 @experimental
 @immutable
 class SurfaceSummary {
@@ -1297,16 +1296,8 @@ class RollbackPreflightResult {
   };
 }
 
-/// Sealed hierarchy for typed errors returned by surface endpoints. The
-/// CLI catches the transport-layer exception, runs
-/// [decodeSurfaceTypedException] over the body, and surfaces these to the
-/// user as legible messages.
-///
-/// This is a parallel decoder to the paywall one: the surface endpoints
-/// throw their own `Surface*` exception classes, so the surface-specific
-/// class names are decoded here rather than overloading the paywall
-/// decoder. Generic, shared exceptions (project / app not found,
-/// unauthorized) are decoded by the shared error renderer.
+/// Typed surface errors decoded by [decodeSurfaceTypedException].
+/// The shared renderer handles authorization, discovery and target errors.
 @experimental
 @immutable
 sealed class SurfaceException implements Exception {
@@ -1341,21 +1332,6 @@ class SurfacePublishConflict extends SurfaceException {
       'environmentSlug: $environmentSlug)';
 }
 
-/// An environment with the requested slug does not exist under the
-/// resolved app. Named distinctly from the paywall path's
-/// `EnvironmentNotFound` so the two decoders stay independent even though
-/// the wire class name (`EnvironmentNotFoundException`) is shared.
-@experimental
-class SurfaceEnvironmentNotFound extends SurfaceException {
-  /// Construct with the missing [environmentSlug].
-  const SurfaceEnvironmentNotFound({required this.environmentSlug});
-  final String environmentSlug;
-
-  @override
-  String toString() =>
-      'SurfaceEnvironmentNotFound(environmentSlug: $environmentSlug)';
-}
-
 /// A server refused to re-point the requested surface family. Older servers
 /// may use this for a flow-shaped target; current family lifecycle support
 /// accepts flow and blob revisions.
@@ -1383,6 +1359,19 @@ class SurfaceVersionNotFound extends SurfaceException {
   @override
   String toString() =>
       'SurfaceVersionNotFound(surfaceSlug: $surfaceSlug, toVersion: $toVersion)';
+}
+
+/// The surface's stored family state refused the operation; [message] says
+/// why.
+@experimental
+class SurfaceFamilyRefused extends SurfaceException {
+  /// Construct with the server's [code] and [message].
+  const SurfaceFamilyRefused({required this.code, required this.message});
+  final String code;
+  final String message;
+
+  @override
+  String toString() => 'SurfaceFamilyRefused(code: $code, message: $message)';
 }
 
 /// Attempt to decode [body] as one of the typed surface exceptions.
@@ -1419,10 +1408,6 @@ SurfaceException? decodeSurfaceTypedException(String body) {
         surfaceSlug: data['surfaceSlug'] as String,
         environmentSlug: data['environmentSlug'] as String,
       );
-    case 'EnvironmentNotFoundException':
-      return SurfaceEnvironmentNotFound(
-        environmentSlug: data['environmentSlug'] as String,
-      );
     case 'SurfaceRollbackUnsupportedException':
       return SurfaceRollbackUnsupported(
         surfaceSlug: data['surfaceSlug'] as String,
@@ -1438,6 +1423,11 @@ SurfaceException? decodeSurfaceTypedException(String body) {
         surfaceSlug: versionSlug,
         toVersion: versionNum,
       );
+    case 'SurfaceContractFamilyViolation':
+      final code = data['code'];
+      final message = data['message'];
+      if (code is! String || message is! String) return null;
+      return SurfaceFamilyRefused(code: code, message: message);
     default:
       return null;
   }

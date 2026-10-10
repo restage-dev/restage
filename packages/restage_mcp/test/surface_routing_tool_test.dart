@@ -95,7 +95,7 @@ void main() {
     void Function(Map<String, Object?> body, Uri url)? onCall,
     int status = 200,
     String? rawBody,
-  }) => MockClient((request) async {
+  }) => _withTargets((request) async {
     final body = jsonDecode(request.body) as Map<String, Object?>;
     onCall?.call(body, request.url);
     return http.Response(rawBody ?? jsonEncode(response), status);
@@ -121,7 +121,7 @@ void main() {
     test('a default server lists every routing tool', () async {
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
+        httpClient: _withTargets((_) async => http.Response('{}', 200)),
         environment: const {},
       );
 
@@ -144,7 +144,7 @@ void main() {
     test('no tool offers to author a document or an audience', () async {
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
+        httpClient: _withTargets((_) async => http.Response('{}', 200)),
         environment: const {},
       );
 
@@ -356,7 +356,7 @@ void main() {
         var calls = 0;
         final connection = await connectServer(
           store: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withTargets((_) async {
             calls++;
             return http.Response('{}', 200);
           }),
@@ -410,7 +410,7 @@ void main() {
         var calls = 0;
         final connection = await connectServer(
           store: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withTargets((_) async {
             calls++;
             return http.Response(
               jsonEncode({
@@ -440,7 +440,7 @@ void main() {
         expect(calls, 1);
         expect(
           (result.content.single as TextContent).text,
-          contains('lacks the required role'),
+          contains('Your role in this organization does not allow this'),
         );
       },
     );
@@ -603,7 +603,7 @@ void main() {
       var reached = false;
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async {
+        httpClient: _withTargets((_) async {
           reached = true;
           return http.Response('{}', 200);
         }),
@@ -631,7 +631,7 @@ void main() {
       var reached = false;
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async {
+        httpClient: _withTargets((_) async {
           reached = true;
           return http.Response('{}', 200);
         }),
@@ -748,7 +748,7 @@ void main() {
       var reached = false;
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async {
+        httpClient: _withTargets((_) async {
           reached = true;
           return http.Response('{}', 200);
         }),
@@ -826,7 +826,7 @@ void main() {
         var reached = false;
         final connection = await connectServer(
           store: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withTargets((_) async {
             reached = true;
             return http.Response('{}', 200);
           }),
@@ -897,7 +897,7 @@ void main() {
         var calls = 0;
         final connection = await connectServer(
           store: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withTargets((_) async {
             calls++;
             return http.Response(
               jsonEncode({
@@ -935,7 +935,7 @@ void main() {
     test('a service refusal is surfaced in the service term', () async {
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient(
+        httpClient: _withTargets(
           (_) async => http.Response(
             jsonEncode({
               'className': 'SurfaceRoutingRejectedException',
@@ -974,7 +974,7 @@ void main() {
       var calls = 0;
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async {
+        httpClient: _withTargets((_) async {
           calls++;
           return http.Response(
             jsonEncode({
@@ -1000,7 +1000,7 @@ void main() {
       expect(calls, 1);
       expect(
         (result.content.single as TextContent).text,
-        contains('lacks the required role'),
+        contains('Your role in this organization does not allow this'),
       );
       expect(result.structuredContent, isNull);
     });
@@ -1011,7 +1011,7 @@ void main() {
         var calls = 0;
         final connection = await connectServer(
           store: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withTargets((_) async {
             calls++;
             return http.Response(
               jsonEncode({
@@ -1048,7 +1048,7 @@ void main() {
         var reached = false;
         final connection = await connectServer(
           store: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withTargets((_) async {
             reached = true;
             return http.Response('{}', 200);
           }),
@@ -1164,7 +1164,7 @@ void main() {
       var reached = false;
       final connection = await connectServer(
         store: store,
-        httpClient: MockClient((_) async {
+        httpClient: _withTargets((_) async {
           reached = true;
           return http.Response('{}', 200);
         }),
@@ -1236,3 +1236,29 @@ void main() {
     expect(result.structuredContent!['documentBase64'], isNull);
   });
 }
+
+/// A client that answers the live guard's target listing, target 31 on the
+/// sandbox plane and 32 on the live plane, and hands every other call to
+/// [handler].
+MockClient _withTargets(Future<http.Response> Function(http.Request) handler) =>
+    MockClient((request) async {
+      final body = jsonDecode(request.body) as Map<String, Object?>;
+      if (body['method'] != 'listEnvironmentTargets') return handler(request);
+      return http.Response(
+        jsonEncode([
+          {
+            'environmentTargetId': 31,
+            'namedEnvironmentId': 41,
+            'environmentSlug': 'staging',
+            'runtimePlane': 'sandbox',
+          },
+          {
+            'environmentTargetId': 32,
+            'namedEnvironmentId': 42,
+            'environmentSlug': 'production',
+            'runtimePlane': 'live',
+          },
+        ]),
+        200,
+      );
+    });

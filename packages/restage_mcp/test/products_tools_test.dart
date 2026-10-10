@@ -65,18 +65,15 @@ void main() {
       // list_products requires only the project + app; store is an optional
       // filter.
       expect(
-        tools['restage_list_products']!.inputSchema.required,
-        containsAll(['projectSlug', 'appSlug']),
+        tools['restage_list_products']!.inputSchema.properties!.keys,
+        containsAll(['projectDirectory', 'projectSlug', 'appSlug']),
       );
       expect(
         tools['restage_list_products']!.inputSchema.required ?? const [],
         isNot(contains('store')),
       );
       // import_products requires the store (which catalog to pull).
-      expect(
-        tools['restage_import_products']!.inputSchema.required,
-        containsAll(['projectSlug', 'appSlug', 'store']),
-      );
+      expect(tools['restage_import_products']!.inputSchema.required, ['store']);
     },
   );
 

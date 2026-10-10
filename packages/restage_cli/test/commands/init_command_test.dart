@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/cli.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:path/path.dart' as p;
@@ -76,6 +77,7 @@ void main() {
       expect(config.config.app, 'default-app');
       expect(config.config.defaultEnvironment, 'staging');
       expect(config.config.endpoint, 'http://localhost:8080/');
+      expect(config.config.plane, RuntimePlane.sandbox);
     });
 
     test(
@@ -395,6 +397,8 @@ void main() {
             '--env',
             'dev',
             '--no-starter',
+            '--plane',
+            'live',
           ]);
 
       expect(exitCode, 0);
@@ -403,6 +407,15 @@ void main() {
           p.join(tempDir.path, 'lib', 'paywalls', 'starter.dart'),
         ).existsSync(),
         isFalse,
+      );
+      expect(
+        (await loadRestageConfig(from: tempDir))!.config.plane,
+        RuntimePlane.live,
+      );
+      expect(stdout.toString(), isNot(contains('push starter')));
+      expect(
+        stdout.toString(),
+        contains('`restage surface push <id>` to push a surface.'),
       );
     });
 

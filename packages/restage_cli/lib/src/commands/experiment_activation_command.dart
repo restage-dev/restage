@@ -7,6 +7,8 @@ import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/api/experiment_activation_host_transport.dart';
 import 'package:restage_cli/src/api/measurement_wire.dart';
 import 'package:restage_cli/src/commands/experimental_gate.dart';
+import 'package:restage_cli/src/commands/live_guard.dart';
+import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
 
@@ -15,16 +17,19 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
 /// The command is intentionally usable only when its embedding host injects
 /// an authority transport. It does not select a backend endpoint or derive
 /// any activation-owned values.
-class ExperimentActivationCommand extends Command<int> {
+class ExperimentActivationCommand extends Command<int>
+    implements LiveGuardedCommand {
   /// Creates the command over an already-composed activation API boundary.
   ExperimentActivationCommand({
     required ExperimentActivationApi api,
     required StringSink stdout,
     required StringSink stderr,
+    Interactive interactive = const NonInteractive(),
     Map<String, String>? environment,
   }) : _api = api,
        _stdout = stdout,
        _stderr = stderr,
+       _interactive = interactive,
        _environment = environment {
     argParser
       ..addOption(
@@ -38,6 +43,7 @@ class ExperimentActivationCommand extends Command<int> {
   }
 
   final ExperimentActivationApi _api;
+  final Interactive _interactive;
   final StringSink _stdout;
   final StringSink _stderr;
   final Map<String, String>? _environment;
@@ -71,6 +77,19 @@ class ExperimentActivationCommand extends Command<int> {
 
     final requestBytes = await _readCommand(requestFile);
     if (requestBytes == null) return 1;
+    final plane = ExperimentActivationCommandWireV1.fromCanonicalBytes(
+      requestBytes,
+    ).target.runtimePlane;
+    if (!await confirmLiveChange(
+      command: this,
+      interactive: _interactive,
+      stdout: _stdout,
+      stderr: _stderr,
+      live: plane == measurement.RuntimePlane.live,
+      impactLine: 'Activate an experiment on the live plane.',
+    )) {
+      return 1;
+    }
 
     final ExperimentActivationResultWireV1 result;
     try {

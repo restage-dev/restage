@@ -145,7 +145,7 @@ void main() {
     expect(identity.contractVersion, isNull);
   });
 
-  test('source-kind screen requires a positive contract version', () async {
+  test('source-kind screen alone leaves the contract to the server', () async {
     final error = StringBuffer();
 
     final identity = await resolveSurfaceLifecycleIdentity(
@@ -159,9 +159,12 @@ void main() {
       stderr: error,
     );
 
-    expect(identity, isNull);
-    expect(error.toString(), contains('--source-kind screen'));
-    expect(error.toString(), contains('--contract-version'));
+    expect(error.toString(), isEmpty);
+    expect(identity, isNotNull);
+    expect(identity!.sourceKind, SurfaceSourceKind.screen);
+    expect(identity.contractVersion, isNull);
+    expect(identity.isExact, isFalse);
+    expect(identity.familyAddress, 'current contract');
   });
 
   test('specialized paywall rejects a contract version', () async {
@@ -187,19 +190,23 @@ void main() {
     expect(error.toString(), contains('contract-version'));
   });
 
-  test('does not infer specialized paywall from a category alone', () async {
+  test('a category alone leaves the family to the server', () async {
     final error = StringBuffer();
 
     final identity = await resolveSurfaceLifecycleIdentity(
-      argResults: _args(tempDir, flags: {'type': 'paywall'}, rest: ['offer']),
+      argResults: _args(tempDir, flags: {'type': 'message'}, rest: ['recap']),
       fixedSurfaceType: null,
-      slug: 'offer',
+      slug: 'recap',
       stderr: error,
     );
 
-    expect(identity, isNull);
-    expect(error.toString(), contains('--source-kind'));
-    expect(error.toString(), contains('paywall'));
+    expect(error.toString(), isEmpty);
+    expect(identity, isNotNull);
+    expect(identity!.surface, Surface.message);
+    expect(identity.sourceKind, isNull);
+    expect(identity.contractVersion, isNull);
+    expect(identity.isExact, isFalse);
+    expect(identity.familyAddress, 'current family');
   });
 
   test('explicit flow fallback remains non-versioned', () async {

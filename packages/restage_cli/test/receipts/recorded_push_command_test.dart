@@ -99,71 +99,67 @@ void main() {
     )..addCommand(command)).run(['push', ...args, '-C', app.path]);
   }
 
+  late TestGitTemplate repository;
+  setUpAll(() async {
+    repository = await TestGitTemplate.create((template) async {
+      _write(template, '.gitignore', '.dart_tool/\n**/.restage/build/\n');
+      _write(template, 'app/lib/screen.dart', 'const screen = 1;\n');
+      _write(
+        template,
+        'app/restage_config.yaml',
+        'project: demo\napp: mobile\ndefaultEnvironment: staging\n',
+      );
+      _write(
+        template,
+        p.join('.dart_tool', 'package_config.json'),
+        jsonEncode({
+          'configVersion': 2,
+          'packages': [
+            {
+              'name': fixturePackageName,
+              'rootUri': '../app',
+              'packageUri': 'lib/',
+              'languageVersion': '3.8',
+            },
+          ],
+        }),
+      );
+      _write(
+        template,
+        p.join('.dart_tool', 'package_graph.json'),
+        jsonEncode({
+          'configVersion': 1,
+          'roots': [fixturePackageName],
+          'packages': [
+            {
+              'name': fixturePackageName,
+              'dependencies': <String>[],
+              'devDependencies': <String>[],
+            },
+          ],
+        }),
+      );
+      _write(template, 'pubspec.lock', 'packages: {}\n');
+
+      await seedGeneratedPaywall(
+        Directory(p.join(template.path, 'app')),
+        slug: 'pro_upgrade',
+        sources: const ['lib/screen.dart'],
+      );
+    });
+  });
+  tearDownAll(() => repository.delete());
+
   setUp(() async {
     root = await Directory.systemTemp.createTemp('recorded_push_');
     home = await Directory.systemTemp.createTemp('recorded_push_home_');
-    app = Directory(p.join(root.path, 'app'))..createSync(recursive: true);
+    await repository.copyTo(root);
+    app = Directory(p.join(root.path, 'app'));
     store = FileCredentialStore(p.join(home.path, 'credentials'));
     await seedCredential(store);
     out = StringBuffer();
     err = StringBuffer();
-
-    await _git(root, ['init', '-b', 'main', '.']);
-    await _git(root, ['config', 'user.name', 'Receipt Test']);
-    await _git(root, ['config', 'user.email', 'receipts@example.test']);
-    await _git(root, ['config', 'commit.gpgsign', 'false']);
-    await _git(root, ['config', 'core.hooksPath', '.git/hooks']);
-    // Background maintenance after a commit can race teardown.
-    await _git(root, ['config', 'gc.auto', '0']);
-    await _git(root, ['config', 'maintenance.auto', 'false']);
-
-    _write(root, '.gitignore', '.dart_tool/\n**/.restage/build/\n');
-    _write(root, 'app/lib/screen.dart', 'const screen = 1;\n');
-    _write(
-      root,
-      'app/restage_config.yaml',
-      'project: demo\napp: mobile\ndefaultEnvironment: staging\n',
-    );
-    _write(
-      root,
-      p.join('.dart_tool', 'package_config.json'),
-      jsonEncode({
-        'configVersion': 2,
-        'packages': [
-          {
-            'name': fixturePackageName,
-            'rootUri': '../app',
-            'packageUri': 'lib/',
-            'languageVersion': '3.8',
-          },
-        ],
-      }),
-    );
-    _write(
-      root,
-      p.join('.dart_tool', 'package_graph.json'),
-      jsonEncode({
-        'configVersion': 1,
-        'roots': [fixturePackageName],
-        'packages': [
-          {
-            'name': fixturePackageName,
-            'dependencies': <String>[],
-            'devDependencies': <String>[],
-          },
-        ],
-      }),
-    );
-    _write(root, 'pubspec.lock', 'packages: {}\n');
-
-    await seedGeneratedPaywall(
-      app,
-      slug: 'pro_upgrade',
-      sources: const ['lib/screen.dart'],
-    );
-    await _git(root, ['add', '-A']);
-    await _git(root, ['commit', '-m', 'first']);
-    sourceCommit = _out(await _git(root, ['rev-parse', 'HEAD']));
+    sourceCommit = repository.commit;
   });
 
   tearDown(() {
@@ -532,32 +528,12 @@ void main() {
     http.Client acceptsEither() => mockHttpClient((request) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       switch (body['method']) {
-        case 'listMine':
-          return http.Response(
-            jsonEncode([
-              {'organizationId': 11, 'slug': 'acme', 'name': 'Acme'},
-              {'organizationId': 12, 'slug': 'other', 'name': 'Other'},
-            ]),
-            200,
-          );
-        case 'listApps':
-          return http.Response(
-            jsonEncode([
-              {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
-            ]),
-            200,
-          );
-        case 'listEnvironmentTargets':
-          return http.Response(
-            jsonEncode([
-              {
-                'environmentTargetId': 12,
-                'namedEnvironmentId': 22,
-                'environmentSlug': 'staging',
-                'runtimePlane': 'sandbox',
-              },
-            ]),
-            200,
+        case 'resolveTarget':
+          final slug = body['organizationSlug'] as String;
+          return resolveTargetResponse(
+            body,
+            organizationId: slug == 'acme' ? 11 : 12,
+            organizationSlug: slug,
           );
         default:
           return publishSucceeded(

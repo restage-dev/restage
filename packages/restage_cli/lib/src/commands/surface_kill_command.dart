@@ -2,15 +2,14 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
-import 'package:restage_cli/src/api/surface_models.dart';
-import 'package:restage_cli/src/api/typed_error_models.dart';
-import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Deactivate a surface in one environment so the SDK falls back to its
@@ -27,7 +26,7 @@ import 'package:restage_shared/restage_shared.dart';
 /// sandbox targets; live targets always require interactive confirmation.
 /// The `--frozen` flag additionally locks the surface against future publishes
 /// after killing it.
-class SurfaceKillCommand extends Command<int> {
+class SurfaceKillCommand extends Command<int> implements LiveGuardedCommand {
   /// Construct a kill command.
   ///
   /// Pass [fixedSurfaceType] to pin the surface type (e.g. for the `paywall`
@@ -40,12 +39,14 @@ class SurfaceKillCommand extends Command<int> {
     SurfaceType? fixedSurfaceType,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
-  }) : _stdout = stdout,
-       _stderr = stderr,
-       _interactive = interactive,
-       _fixedType = fixedSurfaceType,
-       _credentialStore = credentialStore,
-       _httpClient = httpClient {
+  }) : _io = CommandIo(
+         stdout: stdout,
+         stderr: stderr,
+         interactive: interactive,
+         credentialStore: credentialStore,
+         httpClient: httpClient,
+       ),
+       _fixedType = fixedSurfaceType {
     addLifecycleOptions(
       argParser,
       withType: fixedSurfaceType == null,
@@ -64,12 +65,8 @@ class SurfaceKillCommand extends Command<int> {
       );
   }
 
-  final StringSink _stdout;
-  final StringSink _stderr;
-  final Interactive _interactive;
+  final CommandIo _io;
   final SurfaceType? _fixedType;
-  final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
 
   @override
   String get name => 'kill';
@@ -82,7 +79,7 @@ class SurfaceKillCommand extends Command<int> {
   @override
   Future<int> run() async {
     // Step 1: resolve slug.
-    final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
+    final slug = resolveSingleSlug(argResults: argResults, stderr: _io.stderr);
     if (slug == null) return 1;
 
     // Step 2: resolve the current manifest identity. Kill is identity-wide;
@@ -91,142 +88,73 @@ class SurfaceKillCommand extends Command<int> {
       argResults: argResults,
       fixedSurfaceType: _fixedType,
       slug: slug,
-      stderr: _stderr,
-      requireExplicitSourceKindForFallback: false,
+      stderr: _io.stderr,
     );
     if (identity == null) return 1;
 
     // Step 3: require a non-empty audit reason.
     final reason = await requireReason(
       argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
+      interactive: _io.interactive,
+      stderr: _io.stderr,
     );
     if (reason == null) return 1;
 
-    // Step 4: resolve credential + project/app/env.
-    final ctx = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
-    );
-    if (ctx == null) return 1;
-
-    // Step 5: build the API client.
-    final RestageApi api;
-    try {
-      api = RestageApi(
-        endpoint: ctx.apiEndpoint,
-        httpClient: _httpClient,
-        credential: ctx.credential,
+    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
+      final target = ctx.target!;
+      final surfaces = SurfaceApi(ctx.api);
+      // The status doubles as an existence check and names the live version
+      // for the impact line.
+      final status = await surfaces.surfaceStatus(
+        project: target.project,
+        app: target.app,
+        surfaceType: identity.surface,
+        surfaceSlug: slug,
+        environment: target.environment,
+        environmentTargetId: target.environmentTargetId,
+        runtimePlane: target.runtimePlane,
+        organizationId: target.organizationId,
       );
-    } on InsecureEndpointException catch (e) {
-      _stderr.writeln(e.toString());
-      return 1;
-    }
-    try {
-      // Step 6: fetch the current status — doubles as an existence check and
-      // provides the live version for the human-readable impact line.
-      final SurfaceStatusResult status;
-      try {
-        status = await SurfaceApi(api).surfaceStatus(
-          project: ctx.project,
-          app: ctx.app,
-          surfaceType: identity.surface,
-          surfaceSlug: slug,
-          environment: ctx.environment,
-          environmentTargetId: ctx.environmentTargetId,
-          runtimePlane: ctx.runtimePlane,
-          organizationId: ctx.organizationId,
-        );
-      } on RestageApiException catch (e) {
-        return _renderError(e);
-      }
-
-      // Step 7: build the impact line.
       final liveLabel = status.liveVersion == null
           ? '— (none)'
           : 'v${status.liveVersion}';
-      final impactLine =
-          'Kill ${identity.surface.wireName} "$slug" in ${ctx.environment} '
-          '(currently serving $liveLabel).';
-
-      // Step 8: confirm the destructive operation.
       final yesFlag = argResults!['yes'] as bool;
       final frozen = argResults!['frozen'] as bool;
-
       final confirmed = await confirmDestructive(
-        interactive: _interactive,
-        stdout: _stdout,
-        stderr: _stderr,
-        environment: ctx.environment,
-        runtimePlane: ctx.runtimePlane,
+        interactive: _io.interactive,
+        stdout: _io.stdout,
+        stderr: _io.stderr,
+        environment: target.environment,
+        runtimePlane: target.runtimePlane,
         yesFlag: yesFlag,
-        impactLine: impactLine,
+        impactLine:
+            'Kill ${identity.surface.wireName} "$slug" in '
+            '${target.environment} (currently serving $liveLabel).',
       );
       if (!confirmed) {
-        // Print 'Aborted.' only for an interactive decline (where the user
-        // was shown the impact line and said no). The prod-refusal and the
-        // non-interactive paths already write a message to stderr.
-        if (!yesFlag && _interactive.isInteractive) {
-          _stdout.writeln('Aborted.');
+        // Only an interactive decline lacks a message of its own.
+        if (!yesFlag && _io.interactive.isInteractive) {
+          _io.stdout.writeln('Aborted.');
         }
         return 1;
       }
-
-      // Step 9: call kill.
-      SurfaceIdentityMutationResult? mutation;
-      try {
-        mutation = await SurfaceApi(api).kill(
-          project: ctx.project,
-          app: ctx.app,
-          surfaceType: identity.surface,
-          surfaceSlug: slug,
-          environment: ctx.environment,
-          frozen: frozen,
-          reason: reason,
-          environmentTargetId: ctx.environmentTargetId,
-          runtimePlane: ctx.runtimePlane,
-          organizationId: ctx.organizationId,
-        );
-      } on RestageApiException catch (e) {
-        if (decodeGenericTypedException(e.body) is UnauthorizedAccess) {
-          _stderr.writeln('Killing requires an admin role.');
-          return 1;
-        }
-        return _renderError(e);
-      }
-
-      _stdout.writeln(
-        'Killed "$slug" in ${ctx.environment}${frozen ? ' (frozen)' : ''}.',
+      final mutation = await surfaces.kill(
+        project: target.project,
+        app: target.app,
+        surfaceType: identity.surface,
+        surfaceSlug: slug,
+        environment: target.environment,
+        frozen: frozen,
+        reason: reason,
+        environmentTargetId: target.environmentTargetId,
+        runtimePlane: target.runtimePlane,
+        organizationId: target.organizationId,
       );
-      if (mutation != null) {
-        writeAffectedFamilyMutation(_stdout, mutation);
-      }
+      _io.stdout.writeln(
+        'Killed "$slug" in ${target.environment}${frozen ? ' (frozen)' : ''}.',
+      );
+      if (mutation != null) writeAffectedFamilyMutation(_io.stdout, mutation);
       return 0;
-    } finally {
-      if (_httpClient == null) api.close();
-    }
-  }
-
-  /// Render a typed API error to stderr and return the appropriate exit code.
-  ///
-  /// Surface-specific exceptions are rendered by [decodeSurfaceTypedException];
-  /// generic ones fall through to [renderGenericTypedError].
-  int _renderError(RestageApiException e) {
-    final surface = decodeSurfaceTypedException(e.body);
-    if (surface != null) {
-      _stderr.writeln(renderSurfaceException(surface));
-      return 1;
-    }
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln(e.toString());
-    return 1;
+    });
   }
 }

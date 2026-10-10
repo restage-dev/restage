@@ -1,9 +1,16 @@
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:test/test.dart';
 
 class FakeRestageApi implements RestageApi {
+  @override
+  Uri get endpoint => Uri.parse('http://localhost/');
+
+  @override
+  Credential? get credential => null;
+
   FakeRestageApi({required this.response});
 
   final dynamic response;

@@ -126,6 +126,12 @@ class RestageApi {
   final http.Client _httpClient;
   final Credential? _credential;
 
+  /// The backend origin calls go to.
+  Uri get endpoint => _endpoint;
+
+  /// The credential calls carry, when there is one.
+  Credential? get credential => _credential;
+
   /// Invoke [methodName] on [endpointName].
   ///
   /// Returns the decoded JSON body for 200 responses (a `Map`, `List`,

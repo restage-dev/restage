@@ -244,6 +244,46 @@ void main() {
     });
   });
 
+  test(
+    'a live publish without --yes is refused when non-interactive',
+    () async {
+      var called = false;
+      final path = await seedBytes('doc.bin', const [9, 9, 9]);
+      final err = StringBuffer();
+      final code =
+          await makeRunner(
+            stdout: StringBuffer(),
+            stderr: err,
+            httpClient: mockHttpClient((request) {
+              called = true;
+              return json({'outcome': 'applied', 'revisionOrdinal': 5});
+            }),
+          ).run([
+            'routing',
+            'publish',
+            'welcome',
+            '--project',
+            'p',
+            '--app',
+            'a',
+            '--env',
+            'production',
+            '--plane',
+            'live',
+            '--type',
+            'onboarding',
+            '--document',
+            path,
+            '--expected-revision-ordinal',
+            '4',
+          ]);
+
+      expect(code, 1);
+      expect(called, isFalse);
+      expect(err.toString(), contains('changes what the live plane serves'));
+    },
+  );
+
   group('the document travels whole and unread', () {
     test('publish sends the file bytes exactly, so both branches of a '
         'percentage route reach the service together', () async {
@@ -988,7 +1028,10 @@ void main() {
 
       expect(code, 1);
       expect(calls, 1);
-      expect(err.toString(), contains('Not authorised'));
+      expect(
+        err.toString(),
+        contains('Your role in this organization does not allow this'),
+      );
       expect(out.toString(), isEmpty);
     });
 
@@ -1523,7 +1566,10 @@ void main() {
             ]);
 
         expect(code, 1);
-        expect(error.toString(), contains('Not authorised. Sign in again'));
+        expect(
+          error.toString(),
+          contains('Your role in this organization does not allow this'),
+        );
       },
     );
 

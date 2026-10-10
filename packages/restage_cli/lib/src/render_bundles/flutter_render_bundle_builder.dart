@@ -6,11 +6,10 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/loader_engine_base.dart';
+import 'package:restage_cli/src/render_bundles/package_resolution.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
+import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
 import 'package:restage_shared/restage_shared.dart';
-// ignore: implementation_imports
-import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart';
-import 'package:yaml/yaml.dart';
 
 /// The Flutter version a render bundle is built with.
 const requiredRenderBundleFlutterVersion = '3.47.0';
@@ -126,6 +125,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     String? flutterExecutable,
     RenderBundleFontAuthority? fontAuthority,
     RenderBundleEngineSet? engineSet,
+    RenderBundleProjectWriter? projectWriter,
   }) : _processRunner = processRunner ?? runRenderBundleProcess,
        _tempDirectoryCreator =
            tempDirectoryCreator ?? Directory.systemTemp.createTemp,
@@ -133,7 +133,8 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
            catalogResolver ?? createRenderBundleCapabilityCatalogUnion,
        _flutterExecutableOverride = flutterExecutable,
        _fontAuthorityOverride = fontAuthority,
-       _engineSetOverride = engineSet;
+       _engineSetOverride = engineSet,
+       _projectWriter = projectWriter ?? writeRenderBundleProject;
 
   final RenderBundleProcessRunner _processRunner;
   final RenderBundleTempDirectoryCreator _tempDirectoryCreator;
@@ -141,6 +142,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
   final String? _flutterExecutableOverride;
   final RenderBundleFontAuthority? _fontAuthorityOverride;
   final RenderBundleEngineSet? _engineSetOverride;
+  final RenderBundleProjectWriter _projectWriter;
 
   @override
   Future<RenderBundleArtifact> build({
@@ -149,13 +151,6 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     required Uri parentOrigin,
     required Uri controlOrigin,
   }) async {
-    final entrypoint = File(
-      p.join(projectRoot.path, 'lib', 'main_render_bundle.dart'),
-    );
-    if (!entrypoint.existsSync()) {
-      throw const RenderBundleBuildException('entrypoint_missing');
-    }
-    _validateParentOrigin(parentOrigin);
     // Resolve the exact built-in + custom capability union, then recursively
     // audit it before any private temp directory or dart-define file exists.
     final String capabilityCatalogJson;
@@ -198,6 +193,29 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       if (engineSet == null) {
         throw const RenderBundleBuildException('engine_set_missing');
       }
+      final project = await _projectWriter(
+        projectRoot: projectRoot,
+        flutterVersion: requiredRenderBundleFlutterVersion,
+        fontBytes: fontBytes,
+        licenseBytes: licenseBytes,
+      );
+      final projectPath = p.relative(project.path, from: projectRoot.path);
+      if (!isRenderBundleProjectResolved(project, flutterRoot: flutterRoot)) {
+        final resolved = await _processRunner(flutterExecutable, <String>[
+          'pub',
+          'get',
+        ], workingDirectory: project.path);
+        if (resolved.exitCode != 0) {
+          throw RenderBundleBuildException(
+            'dependencies_failed',
+            detail: projectPath,
+          );
+        }
+        await markRenderBundleProjectResolved(
+          project,
+          flutterRoot: flutterRoot,
+        );
+      }
       final artifacts = <RenderBundleArtifact>[];
       for (var pass = 1; pass <= 2; pass++) {
         final output = Directory(p.join(scratch.path, 'output_$pass'));
@@ -206,7 +224,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         );
         await defineFile.writeAsString(
           jsonEncode(<String, String>{
-            'RESTAGE_RENDER_BUNDLE_PARENT_ORIGIN': parentOrigin.toString(),
+            renderBundleParentOriginDefine: parentOrigin.toString(),
           }),
           flush: true,
         );
@@ -220,14 +238,18 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           '--no-web-resources-cdn',
           '--pwa-strategy=none',
           '--no-tree-shake-icons',
+          '--no-pub',
           '--target',
-          'lib/main_render_bundle.dart',
+          renderBundleEntrypoint,
           '--output',
           output.path,
           '--dart-define-from-file=${defineFile.path}',
-        ], workingDirectory: projectRoot.path);
+        ], workingDirectory: project.path);
         if (result.exitCode != 0) {
-          throw const RenderBundleBuildException('flutter_build_failed');
+          throw RenderBundleBuildException(
+            'flutter_build_failed',
+            detail: projectPath,
+          );
         }
         await _prepareOutput(
           output,
@@ -297,7 +319,11 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     }
     final indexSource = await index.readAsString();
     final loaderSource = await loader.readAsString();
-    if (!RegExp(r'''renderer\s*:\s*['"]skwasm['"]''').hasMatch(loaderSource) ||
+    // The build configuration names a skwasm build; the loader may still pick
+    // the CanvasKit fallback on a browser without it.
+    if (!RegExp(
+          r'''['"]?renderer['"]?\s*:\s*['"]skwasm['"]''',
+        ).hasMatch(loaderSource) ||
         !RegExp(
           r'''fontFallbackBaseUrl\s*:\s*['"]assets/fonts/fallback/['"]''',
         ).hasMatch(loaderSource)) {
@@ -438,7 +464,12 @@ Future<String> createRenderBundleCapabilityCatalogUnion(
   Directory projectRoot,
   String customCatalogJson,
 ) async {
-  final packageConfig = await _loadProjectPackageConfig(projectRoot);
+  final PackageConfig packageConfig;
+  try {
+    packageConfig = (await PackageResolution.read(projectRoot)).config;
+  } on PackageResolutionException {
+    throw StateError('package configuration unavailable');
+  }
   final catalogs = <Catalog>[];
   for (final package in const <String>[
     'restage_core',
@@ -459,87 +490,6 @@ Future<String> createRenderBundleCapabilityCatalogUnion(
   }
   catalogs.add(decodeCatalog(customCatalogJson));
   return encodeCatalog(_mergeCapabilityCatalogs(catalogs));
-}
-
-Future<PackageConfig> _loadProjectPackageConfig(Directory projectRoot) async {
-  final canonicalProjectPath = _resolveDirectory(projectRoot);
-  final canonicalProject = Directory(canonicalProjectPath);
-  final localConfig = File(
-    p.join(canonicalProjectPath, '.dart_tool', 'package_config.json'),
-  );
-  final localType = FileSystemEntity.typeSync(
-    localConfig.path,
-    followLinks: false,
-  );
-  if (localType == FileSystemEntityType.file) {
-    final canonicalConfigPath = localConfig.resolveSymbolicLinksSync();
-    if (!p.equals(
-      canonicalConfigPath,
-      p.normalize(localConfig.absolute.path),
-    )) {
-      throw StateError('package configuration identity mismatch');
-    }
-    final packageConfig = await findPackageConfig(
-      canonicalProject,
-      recurse: false,
-      minVersion: 2,
-    );
-    if (packageConfig == null) {
-      throw StateError('package configuration unavailable');
-    }
-    return packageConfig;
-  }
-  if (localType != FileSystemEntityType.notFound) {
-    throw StateError('package configuration unavailable');
-  }
-
-  final packageConfig = await findPackageConfig(
-    canonicalProject,
-    minVersion: 2,
-  );
-  if (packageConfig == null) {
-    throw StateError('package configuration unavailable');
-  }
-  final projectName = readProjectPackageName(canonicalProject);
-  final projectPackage = packageConfig[projectName];
-  if (projectPackage == null ||
-      !projectPackage.root.isScheme('file') ||
-      !p.equals(
-        _resolveDirectory(Directory.fromUri(projectPackage.root)),
-        canonicalProjectPath,
-      )) {
-    throw StateError('package configuration identity mismatch');
-  }
-  return packageConfig;
-}
-
-String _resolveDirectory(Directory directory) {
-  try {
-    return p.normalize(directory.resolveSymbolicLinksSync());
-  } on FileSystemException {
-    throw StateError('package configuration identity unavailable');
-  }
-}
-
-/// Reads the package name the project's pubspec declares.
-String readProjectPackageName(Directory projectRoot) {
-  final pubspec = File(p.join(projectRoot.path, 'pubspec.yaml'));
-  if (FileSystemEntity.typeSync(pubspec.path, followLinks: false) !=
-      FileSystemEntityType.file) {
-    throw StateError('project package identity unavailable');
-  }
-  final Object? document;
-  try {
-    document = loadYaml(pubspec.readAsStringSync());
-  } on Object {
-    throw StateError('project package identity unavailable');
-  }
-  if (document is! YamlMap ||
-      document['name'] is! String ||
-      !RegExp(r'^[a-z_][a-z0-9_]*$').hasMatch(document['name']! as String)) {
-    throw StateError('project package identity unavailable');
-  }
-  return document['name']! as String;
 }
 
 Catalog _mergeCapabilityCatalogs(List<Catalog> catalogs) {
@@ -637,12 +587,6 @@ Future<Uint8List> _readVerified(
     throw RenderBundleBuildException(reason);
   }
   return bytes;
-}
-
-void _validateParentOrigin(Uri origin) {
-  if (!isApprovedRenderBundleParentOrigin(origin)) {
-    throw const RenderBundleBuildException('parent_origin');
-  }
 }
 
 /// Takes the engine out of the app's files and checks it against the set.

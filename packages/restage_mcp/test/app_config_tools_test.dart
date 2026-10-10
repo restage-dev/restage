@@ -61,15 +61,19 @@ void main() {
       expect(tools, contains('restage_get_app_config'));
       expect(tools, contains('restage_update_app_config'));
 
-      // get reads via listApps, which needs the org id.
+      // get reads via listApps; the org id is resolved when left out.
+      expect(
+        tools['restage_get_app_config']!.inputSchema.properties!.keys,
+        containsAll(['projectDirectory', 'projectSlug', 'appSlug']),
+      );
       expect(
         tools['restage_get_app_config']!.inputSchema.required,
-        containsAll(['organizationId', 'projectSlug', 'appSlug']),
+        isNot(contains('organizationId')),
       );
       // update only needs project + app (org id is an optional disambiguator).
       expect(
-        tools['restage_update_app_config']!.inputSchema.required,
-        containsAll(['projectSlug', 'appSlug']),
+        tools['restage_update_app_config']!.inputSchema.properties!.keys,
+        containsAll(['projectDirectory', 'projectSlug', 'appSlug']),
       );
       expect(
         tools['restage_update_app_config']!.inputSchema.required ?? const [],

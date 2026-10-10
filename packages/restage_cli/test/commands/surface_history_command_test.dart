@@ -36,123 +36,88 @@ void main() {
     }
   });
 
-  test(
-    'prints exact family history and threads configured organization',
-    () async {
-      Map<String, dynamic>? historyBody;
-      final client = scriptedHttpClient([
-        _listOrganizations,
-        (request) => activeAppDiscoveryResponse(
-          request,
-          appSlug: 'mobile',
-          projectSlug: 'alpha',
-        ),
-        _listStagingTarget,
-        (request) {
-          historyBody = jsonDecode(request.body) as Map<String, dynamic>;
-          return http.Response(
-            jsonEncode({
-              '__className__': 'SurfaceContractFamilyView',
-              'family': {
-                '__className__': 'SurfaceContractFamilyReference',
-                'surfaceType': 'paywall',
-                'surfaceSlug': 'pro',
-                'sourceKind': 'paywall',
-              },
-              'activePublishedRevision': 2,
-              'revisions': [
-                {
-                  '__className__': 'SurfaceContractPublishedRevisionView',
-                  'publishedRevision': 2,
-                  'publishedAt': '2026-06-29T18:17:51.000Z',
-                  'contentHash': 'sha-2',
-                  'minClient': 1,
-                  'payloadKind': 'blob',
-                  'isActive': true,
-                },
-                {
-                  '__className__': 'SurfaceContractPublishedRevisionView',
-                  'publishedRevision': 1,
-                  'publishedAt': '2026-06-28T18:17:51.000Z',
-                  'contentHash': 'sha-1',
-                  'minClient': 1,
-                  'payloadKind': 'blob',
-                  'isActive': false,
-                },
-              ],
-            }),
-            200,
-          );
+  test('prints the family history the server resolves', () async {
+    Map<String, dynamic>? historyBody;
+    final client = scriptedHttpClient([
+      resolveTargetStep(
+        {
+          'environmentTargetId': 12,
+          'namedEnvironmentId': 22,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
         },
-      ], withDefaultTargetDiscovery: false);
-
-      final out = StringBuffer();
-      final runner = CommandRunner<int>('restage', '')
-        ..addCommand(
-          SurfaceHistoryCommand(
-            stdout: out,
-            stderr: StringBuffer(),
-            interactive: const NonInteractive(),
-            fixedSurfaceType: SurfaceType.paywall,
-            credentialStore: store,
-            httpClient: client,
-          ),
+        inspect: (body) {
+          expect(body['organizationSlug'], 'restage');
+          expect(body['projectSlug'], 'alpha');
+          expect(body['appSlug'], 'mobile');
+          expect(body, isNot(contains('runtimePlane')));
+        },
+      ),
+      (request) {
+        historyBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            '__className__': 'SurfaceContractFamilyView',
+            'family': {
+              '__className__': 'SurfaceContractFamilyReference',
+              'surfaceType': 'paywall',
+              'surfaceSlug': 'pro',
+              'sourceKind': 'paywall',
+            },
+            'activePublishedRevision': 2,
+            'revisions': [
+              {
+                '__className__': 'SurfaceContractPublishedRevisionView',
+                'publishedRevision': 2,
+                'publishedAt': '2026-06-29T18:17:51.000Z',
+                'contentHash': 'sha-2',
+                'minClient': 1,
+                'payloadKind': 'blob',
+                'isActive': true,
+              },
+              {
+                '__className__': 'SurfaceContractPublishedRevisionView',
+                'publishedRevision': 1,
+                'publishedAt': '2026-06-28T18:17:51.000Z',
+                'contentHash': 'sha-1',
+                'minClient': 1,
+                'payloadKind': 'blob',
+                'isActive': false,
+              },
+            ],
+          }),
+          200,
         );
-
-      final code = await runner.run(['history', 'pro', '-C', tempDir.path]);
-
-      expect(code, 0);
-      expect(historyBody, isNotNull);
-      expect(historyBody!['method'], 'surfaceContractHistory');
-      expect(historyBody!['projectSlug'], 'alpha');
-      expect(historyBody!['appSlug'], 'mobile');
-      expect(historyBody!['environmentSlug'], 'staging');
-      expect(historyBody!['organizationId'], 7);
-      expect(historyBody!['family'], {
-        '__className__': 'SurfaceContractFamilyReference',
-        'surfaceType': 'paywall',
-        'surfaceSlug': 'pro',
-        'sourceKind': 'paywall',
-      });
-      expect(out.toString(), contains('family: non-versioned paywall'));
-      expect(out.toString(), contains('r2'));
-      expect(out.toString(), contains('sha-2'));
-    },
-  );
-}
-
-http.Response _listOrganizations(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listMine');
-  return http.Response(
-    jsonEncode([
-      {
-        'organizationId': 7,
-        'slug': 'restage',
-        'name': 'Restage',
-        'role': 'owner',
       },
-    ]),
-    200,
-  );
-}
+    ], withDefaultTargetDiscovery: false);
 
-http.Response _listStagingTarget(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listEnvironmentTargets');
-  expect(body['organizationId'], 7);
-  expect(body['projectSlug'], 'alpha');
-  expect(body['appSlug'], 'mobile');
-  expect(body, isNot(contains('runtimePlane')));
-  return http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 12,
-        'namedEnvironmentId': 22,
-        'environmentSlug': 'staging',
-        'runtimePlane': 'sandbox',
-      },
-    ]),
-    200,
-  );
+    final out = StringBuffer();
+    final runner = CommandRunner<int>('restage', '')
+      ..addCommand(
+        SurfaceHistoryCommand(
+          stdout: out,
+          stderr: StringBuffer(),
+          interactive: const NonInteractive(),
+          fixedSurfaceType: SurfaceType.paywall,
+          credentialStore: store,
+          httpClient: client,
+        ),
+      );
+
+    final code = await runner.run(['history', 'pro', '-C', tempDir.path]);
+
+    expect(code, 0);
+    expect(historyBody, isNotNull);
+    expect(historyBody!['method'], 'surfaceContractHistory');
+    expect(historyBody!['projectSlug'], 'alpha');
+    expect(historyBody!['appSlug'], 'mobile');
+    expect(historyBody!['environmentSlug'], 'staging');
+    expect(historyBody!['organizationId'], 7);
+    expect(historyBody!['surfaceType'], 'paywall');
+    expect(historyBody!['surfaceSlug'], 'pro');
+    expect(historyBody, isNot(contains('sourceKind')));
+    expect(out.toString(), contains('family: non-versioned paywall'));
+    expect(out.toString(), contains('r2'));
+    expect(out.toString(), contains('sha-2'));
+  });
 }

@@ -7,9 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/experiment_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/commands/experimental_gate.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 /// Semantic experiment authoring, one subcommand per operation.
@@ -126,7 +129,7 @@ abstract class _ExperimentSubcommand extends Command<int> {
   Map<String, Object?>? buildPayload();
 
   /// Whether this operation changes live state and needs live confirmation.
-  bool get changesLiveState => false;
+  bool get changesLiveState => kLiveExperimentOperations.contains(operation);
 
   /// Runs an operator call instead of a semantic operation. Null when this
   /// subcommand names one.
@@ -159,32 +162,30 @@ abstract class _ExperimentSubcommand extends Command<int> {
     }
 
     final asJson = argResults?['json'] as bool? ?? false;
-    final context = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
+    return runAuthed(
+      CommandIo(
+        stdout: _stdout,
+        stderr: _stderr,
+        interactive: _interactive,
+        credentialStore: _credentialStore,
+        httpClient: _httpClient,
+      ),
+      argResults,
+      OperationScope.target,
+      (ctx) => _execute(ctx.api, ctx.target!, asJson: asJson),
     );
-    if (context == null) return 1;
+  }
 
+  Future<int> _execute(
+    RestageApi transport,
+    LifecycleContext context, {
+    required bool asJson,
+  }) async {
     final payload = buildPayload();
     if (payload == null) return 1;
 
     final target = _targetOf(context);
     if (changesLiveState && !await _confirmLiveExperimentChange(target)) {
-      return 1;
-    }
-
-    final RestageApi transport;
-    try {
-      transport = RestageApi(
-        endpoint: context.apiEndpoint,
-        httpClient: _httpClient,
-        credential: context.credential,
-      );
-    } on InsecureEndpointException catch (error) {
-      _stderr.writeln(error);
       return 1;
     }
 
@@ -196,7 +197,6 @@ abstract class _ExperimentSubcommand extends Command<int> {
     if (operation != null) {
       try {
         final resolvedOperation = operation!;
-        final resolvedPayload = payload;
         final idempotencyKey = resolvedOperation.requiresIdempotencyKey
             ? (argResults?['idempotency-key'] as String?) ??
                   _newIdentity('idempotency')
@@ -205,18 +205,17 @@ abstract class _ExperimentSubcommand extends Command<int> {
             ? _newIdentity('correlation')
             : experimentRetryCorrelationId(
                 operation: resolvedOperation,
-                payload: resolvedPayload,
+                payload: payload,
                 idempotencyKey: idempotencyKey,
               );
         request = experimentRequest(
           operation: resolvedOperation,
           correlationId: correlationId,
-          payload: resolvedPayload,
+          payload: payload,
           idempotencyKey: idempotencyKey,
         );
       } on CanonicalFormatException catch (error) {
         _stderr.writeln(error.message);
-        if (_httpClient == null) transport.close();
         return 1;
       }
     }
@@ -254,8 +253,6 @@ abstract class _ExperimentSubcommand extends Command<int> {
     } on CanonicalFormatException {
       _stderr.writeln('The service returned an invalid semantic result.');
       return 2;
-    } finally {
-      if (_httpClient == null) transport.close();
     }
   }
 
@@ -304,23 +301,17 @@ abstract class _ExperimentSubcommand extends Command<int> {
         : '$headline\n${_audienceConflictLine(locator, refusal.messageKey)}';
   }
 
-  /// Consent to change a running experiment on the live plane.
-  ///
-  /// Distinct from `confirmDestructive`, which guards destructive surface
-  /// lifecycle operations and refuses `--yes` outright. Activation is not
-  /// destructive, so an explicit `--yes` is consent here. `--non-interactive`
-  /// says how to prompt, not that the operator agreed, so it fails closed.
-  Future<bool> _confirmLiveExperimentChange(TargetCoordinate target) async {
-    if (target.runtimePlane != RuntimePlane.live) return true;
-    if (globalResults?['yes'] as bool? ?? false) return true;
-    if (!_interactive.isInteractive) {
-      _stderr.writeln(
-        'This changes live experiment state. Run interactively, or pass --yes.',
+  /// Consent to change a running experiment on the live plane; `--yes` is
+  /// consent, and `--non-interactive` alone fails closed.
+  Future<bool> _confirmLiveExperimentChange(TargetCoordinate target) =>
+      confirmLiveChange(
+        command: this,
+        interactive: _interactive,
+        stdout: _stdout,
+        stderr: _stderr,
+        live: target.runtimePlane == RuntimePlane.live,
+        impactLine: 'Experiment $name on the live plane.',
       );
-      return false;
-    }
-    return _interactive.confirm('Change live experiment state?');
-  }
 
   /// Reads a required option, or prints a precise error and returns null.
   String? requireOption(String option) {
@@ -817,7 +808,8 @@ class _ReviewCommand extends _ExperimentSubcommand {
 }
 
 /// Activates a reviewed draft.
-class _ActivateCommand extends _ExperimentSubcommand {
+class _ActivateCommand extends _ExperimentSubcommand
+    implements LiveGuardedCommand {
   _ActivateCommand(super.context);
 
   @override
@@ -829,9 +821,6 @@ class _ActivateCommand extends _ExperimentSubcommand {
   @override
   ExperimentAuthoringOperationV1? get operation =>
       ExperimentAuthoringOperationV1.activateDraft;
-
-  @override
-  bool get changesLiveState => true;
 
   @override
   void addOptions(ArgParser parser) {
@@ -869,11 +858,9 @@ class _ActivateCommand extends _ExperimentSubcommand {
 }
 
 /// Shared shape for the three lifecycle transitions.
-abstract class _TransitionCommand extends _ExperimentSubcommand {
+abstract class _TransitionCommand extends _ExperimentSubcommand
+    implements LiveGuardedCommand {
   _TransitionCommand(super.context);
-
-  @override
-  bool get changesLiveState => true;
 
   @override
   void addOptions(ArgParser parser) => parser
@@ -1462,7 +1449,8 @@ Object? _drainJson(Object? value) => switch (value) {
 String _newIdentity(String prefix) => newExperimentIdentity(prefix);
 
 /// Produces the serving records a target lacks, or counts what is missing.
-class _RebuildServingRecordsCommand extends _ExperimentSubcommand {
+class _RebuildServingRecordsCommand extends _ExperimentSubcommand
+    implements LiveGuardedCommand {
   _RebuildServingRecordsCommand(super.context);
 
   @override

@@ -1,17 +1,12 @@
 import 'package:dart_mcp/server.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
 
 import 'api_runner.dart';
-import 'exact_target.dart';
+import 'tool_support.dart';
 
-const _targetError =
-    'The declared target does not resolve to one exact authorized target.';
 const _readingError = 'The service returned an invalid funnel reading.';
-
-const _runtimePlanes = ['sandbox', 'live'];
 
 /// Reads one surface's funnel at an exact target.
 final readSurfaceFunnelTool = Tool(
@@ -26,17 +21,7 @@ final readSurfaceFunnelTool = Tool(
       "The figures are the service's own and are returned unchanged.",
   inputSchema: Schema.object(
     properties: {
-      'organizationId': Schema.int(description: 'The organization id.'),
-      'projectSlug': Schema.string(description: 'The project slug.'),
-      'appSlug': Schema.string(description: 'The app slug.'),
-      'environmentSlug': Schema.string(description: 'The environment slug.'),
-      'environmentTargetId': Schema.int(
-        description: 'The exact environment target id.',
-      ),
-      'runtimePlane': UntitledSingleSelectEnumSchema(
-        description: 'The target runtime plane: sandbox or live.',
-        values: _runtimePlanes,
-      ),
+      ...exactTargetProperties(),
       'surfaceId': Schema.string(
         description: 'The surface identity, as discovery reports it.',
       ),
@@ -59,12 +44,7 @@ final readSurfaceFunnelTool = Tool(
       ),
     },
     required: [
-      'organizationId',
-      'projectSlug',
-      'appSlug',
-      'environmentSlug',
-      'environmentTargetId',
-      'runtimePlane',
+      ...exactTargetRequired,
       'surfaceId',
       'windowStartMicros',
       'windowEndExclusiveMicros',
@@ -78,14 +58,12 @@ final readSurfaceFunnelTool = Tool(
 /// The selection is built before the read opens, so a value the caller
 /// supplied that the contract refuses comes back with the contract's own
 /// message naming the field, never as a service fault.
-Future<CallToolResult> handleReadSurfaceFunnel({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) {
-  final RuntimePlane runtimePlane;
+Future<CallToolResult> handleReadSurfaceFunnel(
+  ToolContext ctx,
+  CallToolRequest request,
+) {
   try {
-    runtimePlane = RuntimePlane.fromWireName(request.str('runtimePlane'));
+    RuntimePlane.fromWireName(request.str('runtimePlane'));
   } on FormatException {
     return Future.value(mcpError('The declared runtime plane is invalid.'));
   }
@@ -102,40 +80,20 @@ Future<CallToolResult> handleReadSurfaceFunnel({
     return Future.value(mcpError(error.message));
   }
 
-  final organizationId = request.reqInt('organizationId');
-  final projectSlug = request.str('projectSlug');
-  final appSlug = request.str('appSlug');
-  final environmentSlug = request.str('environmentSlug');
-  final environmentTargetId = request.reqInt('environmentTargetId');
-
-  return withApi(
-    store: store,
-    httpClient: httpClient,
-    action: 'reading the surface funnel',
-    surfaceNoun: 'surface',
-    body: (api) async {
-      final target = await resolveExactTarget(
-        api: api,
-        organizationId: organizationId,
-        projectSlug: projectSlug,
-        appSlug: appSlug,
-        environmentSlug: environmentSlug,
-        environmentTargetId: environmentTargetId,
-        runtimePlane: runtimePlane,
-      );
-      if (target == null) return mcpError(_targetError);
-      try {
-        final view = await SurfaceFunnelApi(
-          api,
-        ).read(target: target, selection: selection);
-        return jsonResult(view.toJson());
-      } on SurfaceFunnelMismatchException {
-        return mcpError(_readingError);
-      } on measurement.CanonicalFormatException {
-        return mcpError(_readingError);
-      }
-    },
-  );
+  return ctx.authed('reading the surface funnel', (api) async {
+    final target = await exactTargetCoordinate(api, request);
+    if (target == null) return mcpError(exactTargetError);
+    try {
+      final view = await SurfaceFunnelApi(
+        api,
+      ).read(target: target, selection: selection);
+      return jsonResult(view.toJson());
+    } on SurfaceFunnelMismatchException {
+      return mcpError(_readingError);
+    } on measurement.CanonicalFormatException {
+      return mcpError(_readingError);
+    }
+  });
 }
 
 /// Reads the optional version selection, absent when the caller named none.

@@ -6,6 +6,8 @@ import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/render_bundle_receipt.dart';
 import 'package:test/test.dart';
 
+import '../_helpers/test_fixtures.dart';
+
 const _contentHash =
     '1111111111111111111111111111111111111111111111111111111111111111';
 const _engineSetId =
@@ -43,32 +45,29 @@ void main() {
   late StringBuffer err;
   late String sourceCommit;
 
+  late TestGitTemplate repository;
+  setUpAll(() async {
+    repository = await TestGitTemplate.create(
+      (template) async =>
+          _write(template, 'app/lib/main.dart', 'void main() {}\n'),
+      message: 'source',
+    );
+  });
+  tearDownAll(() => repository.delete());
+
   setUp(() async {
     root = await Directory.systemTemp.createTemp('bundle_receipt_');
-    app = Directory(p.join(root.path, 'app'))..createSync(recursive: true);
+    await repository.copyTo(root);
+    app = Directory(p.join(root.path, 'app'));
     out = StringBuffer();
     err = StringBuffer();
-
-    await _git(root, ['init', '-b', 'main', '.']);
-    await _git(root, ['config', 'user.name', 'Receipt Test']);
-    await _git(root, ['config', 'user.email', 'receipts@example.test']);
-    await _git(root, ['config', 'commit.gpgsign', 'false']);
-    await _git(root, ['config', 'core.hooksPath', '.git/hooks']);
-    // Background maintenance after a commit can race teardown.
-    await _git(root, ['config', 'gc.auto', '0']);
-    await _git(root, ['config', 'maintenance.auto', 'false']);
-    _write(root, 'app/lib/main.dart', 'void main() {}\n');
-    await _git(root, ['add', '-A']);
-    await _git(root, ['commit', '-m', 'source']);
-    sourceCommit = _out(await _git(root, ['rev-parse', 'HEAD']));
+    sourceCommit = repository.commit;
   });
 
   tearDown(() => root.deleteSync(recursive: true));
 
   Future<ReleaseRecorder> recorder() async {
-    final opened = await ReleaseRecorder.open(projectRoot: app, stderr: err);
-    expect(opened, isNotNull, reason: err.toString());
-    return opened!;
+    return ReleaseRecorder.open(projectRoot: app);
   }
 
   Future<bool> record({
@@ -224,7 +223,15 @@ void main() {
     final loose = await Directory.systemTemp.createTemp('bundle_loose_');
     addTearDown(() => loose.deleteSync(recursive: true));
 
-    expect(await ReleaseRecorder.open(projectRoot: loose, stderr: err), isNull);
-    expect(err.toString(), contains('not in a Git repository'));
+    await expectLater(
+      ReleaseRecorder.open(projectRoot: loose),
+      throwsA(
+        isA<ReleaseRecorderException>().having(
+          (error) => error.message,
+          'message',
+          contains('not in a Git repository'),
+        ),
+      ),
+    );
   });
 }

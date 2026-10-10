@@ -4,9 +4,9 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/commands/audit_command.dart';
 import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/build_push_command.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
@@ -17,12 +17,13 @@ import 'package:restage_cli/src/commands/login_command.dart';
 import 'package:restage_cli/src/commands/logout_command.dart';
 import 'package:restage_cli/src/commands/paywall_command.dart';
 import 'package:restage_cli/src/commands/preview_command.dart';
-import 'package:restage_cli/src/commands/projects_command.dart';
 import 'package:restage_cli/src/commands/programmatic_mutation_command.dart';
+import 'package:restage_cli/src/commands/spec_command.dart';
 import 'package:restage_cli/src/commands/status_command.dart';
 import 'package:restage_cli/src/commands/surface_command.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
 import 'package:restage_cli/src/api/experiment_activation_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
@@ -84,7 +85,9 @@ class RestageCli {
     RenderBundlePushReceipt? renderBundleReceipt,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
+    SelectorSyntax selectorSyntax = SelectorSyntax.cli,
   }) : _stdout = stdout ?? StringBuffer(),
+       _selectorSyntax = selectorSyntax,
        _stderr = stderr ?? StringBuffer(),
        _credentialStore = credentialStore,
        _defaultEndpoint =
@@ -121,6 +124,7 @@ class RestageCli {
 
   final StringSink _stdout;
   final StringSink _stderr;
+  final SelectorSyntax _selectorSyntax;
   final FileCredentialStore? _credentialStore;
   final Uri _defaultEndpoint;
   final http.Client? _httpClient;
@@ -142,36 +146,47 @@ class RestageCli {
   final Map<String, String>? _environment;
 
   /// Dispatch [args] through the runner and return the exit code.
-  Future<int> run(List<String> args) async {
+  Future<int> run(List<String> arguments) async {
+    final (:directory, args: unplaced) = _takeLeadingDirectory(arguments);
+    // Parse the runner-level globals once so the factory can read them
+    // before command dispatch. Falling back to an empty parse on
+    // unknown args keeps `--help` / unknown-command paths working.
+    final globalResults = _tryParseGlobals(_globalParser(), unplaced);
+    final runner = commandRunner(
+      interactive: _interactiveFactory(globalResults),
+    );
+    final args = _placeDirectory(runner, unplaced, directory);
+    try {
+      if (args.isEmpty && _hasTerminal()) {
+        return await _consoleLauncher(_consoleControllerFactory(null));
+      }
+      final result = await runZoned(
+        () => runner.run(args),
+        zoneValues: selectorSyntaxZoneValues(_selectorSyntax),
+        zoneSpecification: ZoneSpecification(
+          print: (_, _, _, line) => _stdout.writeln(line),
+        ),
+      );
+      return result ?? 0;
+    } on UsageException catch (e) {
+      _stderr
+        ..writeln(e.message)
+        ..writeln()
+        ..writeln(e.usage);
+      return 1;
+    }
+  }
+
+  /// The command tree [run] dispatches through, prompting via [interactive].
+  CommandRunner<int> commandRunner({
+    Interactive interactive = const NonInteractive(),
+  }) {
     final runner = CommandRunner<int>(
       'restage',
       'Restage — tools for building, previewing, and publishing Flutter '
           'surfaces.',
     );
-    // Global flag: switches every interactive prompt to its
-    // non-interactive form. `--yes` is the conventional alias.
-    runner.argParser
-      ..addFlag(
-        'non-interactive',
-        negatable: false,
-        help:
-            'Skip every interactive prompt. Required values default; '
-            'unsupplied values without a default exit non-zero with a '
-            'clear "required: --foo <value>" message.',
-      )
-      ..addFlag(
-        'yes',
-        abbr: 'y',
-        negatable: false,
-        help: 'Alias for --non-interactive.',
-      );
-
-    // Parse the runner-level globals once so the factory can read them
-    // before command dispatch. Falling back to an empty parse on
-    // unknown args keeps `--help` / unknown-command paths working.
-    final globalResults = _tryParseGlobals(runner.argParser, args);
-    final interactive = _interactiveFactory(globalResults);
-
+    _addGlobalOptions(runner.argParser);
     // The credential-store path resolution can fail with [StateError]
     // when neither HOME nor APPDATA is set (e.g. a stripped-down CI
     // container). Resolve lazily — `restage --help` and unknown-command
@@ -256,15 +271,6 @@ class RestageCli {
         ),
       )
       ..addCommand(
-        ProjectsCommand(
-          stdout: _stdout,
-          stderr: _stderr,
-          interactive: interactive,
-          credentialStore: _credentialStore,
-          httpClient: _httpClient,
-        ),
-      )
-      ..addCommand(
         ProgrammaticMutationCommand(
           stdout: _stdout,
           stderr: _stderr,
@@ -282,41 +288,6 @@ class RestageCli {
           credentialStore: _credentialStore,
           httpClient: _httpClient,
           environment: _environment,
-        ),
-      )
-      ..addCommand(
-        AuditCommand(
-          stdout: _stdout,
-          stderr: _stderr,
-          credentialStore: _credentialStore,
-          httpClient: _httpClient,
-        ),
-      )
-      ..addCommand(
-        AppsCommand(
-          stdout: _stdout,
-          stderr: _stderr,
-          interactive: interactive,
-          credentialStore: _credentialStore,
-          httpClient: _httpClient,
-        ),
-      )
-      ..addCommand(
-        EnvsCommand(
-          stdout: _stdout,
-          stderr: _stderr,
-          interactive: interactive,
-          credentialStore: _credentialStore,
-          httpClient: _httpClient,
-        ),
-      )
-      ..addCommand(
-        TargetsCommand(
-          stdout: _stdout,
-          stderr: _stderr,
-          interactive: interactive,
-          credentialStore: _credentialStore,
-          httpClient: _httpClient,
         ),
       )
       ..addCommand(
@@ -344,6 +315,16 @@ class RestageCli {
           launcher: _previewLauncher,
         ),
       );
+    operationCommands(
+      CommandIo(
+        stdout: _stdout,
+        stderr: _stderr,
+        interactive: interactive,
+        credentialStore: _credentialStore,
+        httpClient: _httpClient,
+      ),
+      exclude: const {'surface'},
+    ).forEach(runner.addCommand);
     final experimentActivationApi = _experimentActivationApi;
     if (experimentActivationApi != null) {
       runner.addCommand(
@@ -351,28 +332,92 @@ class RestageCli {
           api: experimentActivationApi,
           stdout: _stdout,
           stderr: _stderr,
+          interactive: interactive,
           environment: _environment,
         ),
       );
     }
-    try {
-      if (args.isEmpty && _hasTerminal()) {
-        return await _consoleLauncher(_consoleControllerFactory(null));
+    return runner;
+  }
+
+  ArgParser _globalParser() =>
+      _addGlobalOptions(CommandRunner<int>('restage', '').argParser);
+
+  // Global flag: switches every interactive prompt to its non-interactive
+  // form. `--yes` is the conventional alias.
+  ArgParser _addGlobalOptions(ArgParser parser) => parser
+    ..addFlag(
+      'non-interactive',
+      negatable: false,
+      help:
+          'Skip every interactive prompt. Required values default; '
+          'unsupplied values without a default exit non-zero with a '
+          'clear "required: --foo <value>" message.',
+    )
+    ..addFlag(
+      'yes',
+      abbr: 'y',
+      negatable: false,
+      help: 'Alias for --non-interactive.',
+    )
+    ..addOption(
+      'directory',
+      abbr: 'C',
+      help:
+          'Directory to start the restage_config.yaml search from, for '
+          'commands that read one.',
+    );
+
+  /// Split a `-C <dir>` given before the command off [args].
+  static ({String? directory, List<String> args}) _takeLeadingDirectory(
+    List<String> args,
+  ) {
+    final rest = [...args];
+    for (var index = 0; index < rest.length; index++) {
+      final arg = rest[index];
+      if (!arg.startsWith('-')) break;
+      if ((arg == '-C' || arg == '--directory') && index + 1 < rest.length) {
+        final directory = rest[index + 1];
+        rest.removeRange(index, index + 2);
+        return (directory: directory, args: rest);
       }
-      final result = await runZoned(
-        () => runner.run(args),
-        zoneSpecification: ZoneSpecification(
-          print: (_, _, _, line) => _stdout.writeln(line),
-        ),
-      );
-      return result ?? 0;
-    } on UsageException catch (e) {
-      _stderr
-        ..writeln(e.message)
-        ..writeln()
-        ..writeln(e.usage);
-      return 1;
+      for (final prefix in ['--directory=', '-C']) {
+        if (arg.startsWith(prefix) && arg.length > prefix.length) {
+          rest.removeAt(index);
+          return (directory: arg.substring(prefix.length), args: rest);
+        }
+      }
     }
+    return (directory: null, args: args);
+  }
+
+  /// Hand [directory] to the command [args] name when it reads one, unless
+  /// the command was given its own.
+  static List<String> _placeDirectory(
+    CommandRunner<int> runner,
+    List<String> args,
+    String? directory,
+  ) {
+    if (directory == null) return args;
+    var commands = runner.commands;
+    ArgParser? parser;
+    var index = 0;
+    while (index < args.length && args[index].startsWith('-')) {
+      index++;
+    }
+    for (; index < args.length; index++) {
+      final command = commands[args[index]];
+      if (command == null) break;
+      parser = command.argParser;
+      commands = command.subcommands;
+    }
+    final own = args
+        .skip(index)
+        .any((arg) => arg.startsWith('-C') || arg.startsWith('--directory'));
+    if (own || !(parser?.options.containsKey('directory') ?? false)) {
+      return args;
+    }
+    return [...args, '--directory', directory];
   }
 
   /// Parse the runner-level globals from [args].

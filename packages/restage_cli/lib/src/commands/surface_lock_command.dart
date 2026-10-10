@@ -2,31 +2,20 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
-import 'package:restage_cli/src/api/surface_models.dart';
-import 'package:restage_cli/src/api/typed_error_models.dart';
-import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Freeze or unfreeze a surface in one environment.
-///
-/// While frozen, no version can be published. Unfreezing allows publishing
-/// again.
-///
-/// Usable two ways via [fixedSurfaceType]:
-///   - null → generic `surface freeze`/`surface unfreeze` group, normally
-///     resolved from the generated manifest.
-///   - non-null → typed-group compatibility convenience (e.g. `paywall freeze`;
-///     no `--type`).
-///
-/// Requires a non-empty `--reason` for the audit trail. Because freeze and
-/// unfreeze are reversible, no destructive-op confirmation prompt is needed.
-class SurfaceLockCommand extends Command<int> {
+/// Freezes or unfreezes publishing for a surface in one environment.
+/// [fixedSurfaceType] selects a typed command; otherwise the manifest resolves it.
+/// Requires `--reason`. Live operations require confirmation or `--yes`.
+class SurfaceLockCommand extends Command<int> implements LiveGuardedCommand {
   /// Construct a freeze or unfreeze command.
   ///
   /// [lock] selects the direction: true → freeze, false → unfreeze. Pass
@@ -42,12 +31,14 @@ class SurfaceLockCommand extends Command<int> {
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
   }) : _lock = lock,
-       _stdout = stdout,
-       _stderr = stderr,
-       _interactive = interactive,
-       _fixedType = fixedSurfaceType,
-       _credentialStore = credentialStore,
-       _httpClient = httpClient {
+       _io = CommandIo(
+         stdout: stdout,
+         stderr: stderr,
+         interactive: interactive,
+         credentialStore: credentialStore,
+         httpClient: httpClient,
+       ),
+       _fixedType = fixedSurfaceType {
     addLifecycleOptions(
       argParser,
       withType: fixedSurfaceType == null,
@@ -56,12 +47,8 @@ class SurfaceLockCommand extends Command<int> {
   }
 
   final bool _lock;
-  final StringSink _stdout;
-  final StringSink _stderr;
-  final Interactive _interactive;
+  final CommandIo _io;
   final SurfaceType? _fixedType;
-  final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
 
   @override
   String get name => _lock ? 'freeze' : 'unfreeze';
@@ -74,7 +61,7 @@ class SurfaceLockCommand extends Command<int> {
   @override
   Future<int> run() async {
     // Step 1: resolve slug.
-    final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
+    final slug = resolveSingleSlug(argResults: argResults, stderr: _io.stderr);
     if (slug == null) return 1;
 
     // Step 2: resolve the current manifest identity. Freeze and unfreeze are
@@ -83,96 +70,48 @@ class SurfaceLockCommand extends Command<int> {
       argResults: argResults,
       fixedSurfaceType: _fixedType,
       slug: slug,
-      stderr: _stderr,
-      requireExplicitSourceKindForFallback: false,
+      stderr: _io.stderr,
     );
     if (identity == null) return 1;
 
     // Step 3: require a non-empty audit reason.
     final reason = await requireReason(
       argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
+      interactive: _io.interactive,
+      stderr: _io.stderr,
     );
     if (reason == null) return 1;
 
-    // Step 4: resolve credential + project/app/env.
-    final ctx = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
-    );
-    if (ctx == null) return 1;
-
-    // Step 5: build the API client.
-    final RestageApi api;
-    try {
-      api = RestageApi(
-        endpoint: ctx.apiEndpoint,
-        httpClient: _httpClient,
-        credential: ctx.credential,
+    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
+      final target = ctx.target!;
+      final confirmed = await confirmLiveChange(
+        command: this,
+        interactive: _io.interactive,
+        stdout: _io.stdout,
+        stderr: _io.stderr,
+        runtimePlane: target.runtimePlane,
+        impactLine:
+            '${_lock ? 'Freeze' : 'Unfreeze'} ${identity.surface.wireName} '
+            '"$slug" in ${target.environment} (live).',
       );
-    } on InsecureEndpointException catch (e) {
-      _stderr.writeln(e.toString());
-      return 1;
-    }
-    try {
-      // Step 6: set or clear the publish lock.
-      SurfaceIdentityMutationResult? mutation;
-      try {
-        mutation = await SurfaceApi(api).setLock(
-          project: ctx.project,
-          app: ctx.app,
-          surfaceType: identity.surface,
-          surfaceSlug: slug,
-          environment: ctx.environment,
-          locked: _lock,
-          reason: reason,
-          environmentTargetId: ctx.environmentTargetId,
-          runtimePlane: ctx.runtimePlane,
-          organizationId: ctx.organizationId,
-        );
-      } on RestageApiException catch (e) {
-        if (decodeGenericTypedException(e.body) is UnauthorizedAccess) {
-          _stderr.writeln(
-            '${_lock ? 'Freezing' : 'Unfreezing'} requires an admin role.',
-          );
-          return 1;
-        }
-        return _renderError(e);
-      }
-
-      // Step 7: confirm success.
-      _stdout.writeln(
-        '${_lock ? 'Froze' : 'Unfroze'} "$slug" in ${ctx.environment}.',
+      if (!confirmed) return 1;
+      final mutation = await SurfaceApi(ctx.api).setLock(
+        project: target.project,
+        app: target.app,
+        surfaceType: identity.surface,
+        surfaceSlug: slug,
+        environment: target.environment,
+        locked: _lock,
+        reason: reason,
+        environmentTargetId: target.environmentTargetId,
+        runtimePlane: target.runtimePlane,
+        organizationId: target.organizationId,
       );
-      if (mutation != null) {
-        writeAffectedFamilyMutation(_stdout, mutation);
-      }
+      _io.stdout.writeln(
+        '${_lock ? 'Froze' : 'Unfroze'} "$slug" in ${target.environment}.',
+      );
+      if (mutation != null) writeAffectedFamilyMutation(_io.stdout, mutation);
       return 0;
-    } finally {
-      if (_httpClient == null) api.close();
-    }
-  }
-
-  /// Render a typed API error to stderr and return the appropriate exit code.
-  ///
-  /// Surface-specific exceptions are rendered by [decodeSurfaceTypedException];
-  /// generic ones fall through to [renderGenericTypedError].
-  int _renderError(RestageApiException e) {
-    final surface = decodeSurfaceTypedException(e.body);
-    if (surface != null) {
-      _stderr.writeln(renderSurfaceException(surface));
-      return 1;
-    }
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln(e.toString());
-    return 1;
+    });
   }
 }
