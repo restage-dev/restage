@@ -318,6 +318,8 @@ final class MeasurementHostConstructionOwner {
     String? registrationFingerprint,
     MeasurementPresentationContextV1? presentationContext,
     String? routingSelectionReceipt,
+    MountSelectionAttributionV1? attribution,
+    PresentationAssignmentCarrierV2? assignment,
   }) async {
     if (_closed) return null;
 
@@ -353,9 +355,12 @@ final class MeasurementHostConstructionOwner {
                       presentationContext != null
                   ? presentationContext.canonicalBytes
                   : null,
-          routingSelectionReceipt: profile.presentationMetadataAdmitted
-              ? routingSelectionReceipt
-              : null,
+          routingSelectionReceipt:
+              attribution != null || profile.presentationMetadataAdmitted
+                  ? routingSelectionReceipt
+                  : null,
+          attributionCanonicalBytes: attribution?.canonicalBytes,
+          assignmentCanonicalBytes: assignment?.canonicalBytes,
           sdkRuntimeSessionNonce:
               profile.sdkRuntimeSessionAdmitted ? nonce : null,
           reportedSdkVersion: profile.sdkRuntimeSessionAdmitted

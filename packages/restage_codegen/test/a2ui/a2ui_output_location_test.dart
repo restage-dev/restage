@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// Placement of the two A2UI outputs.
+/// Output location of the two A2UI outputs.
 ///
 /// The importable catalog Dart is package-wide generated Dart: only a
 /// configured generated-Dart root moves it. The producer-facing capability
@@ -16,8 +16,8 @@ import '../helpers.dart';
 /// application asset, so the bundled-runtime switch and the source layout
 /// leave both exactly where they were.
 ///
-/// Placement decides WHERE each file goes and never WHAT is in it: every
-/// configured case asserts the emitted bytes against the default-placement
+/// Output location decides WHERE each file goes and never WHAT is in it: every
+/// configured case asserts the emitted bytes against the default-output location
 /// bytes.
 const _defaultDartPath = 'lib/generated/restage_a2ui_catalog.g.dart';
 const _defaultJsonPath = '.restage/build/a2ui/restage_a2ui_catalog.a2ui.json';

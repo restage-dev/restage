@@ -1,10 +1,6 @@
-// The single static materialization boundary for portable Restage output:
-// one deterministic `.rsbundle` per authored Dart library, its optional
-// `.restage.md` inspection report, and the package-wide physical output
-// index plus publication manifest. A normal builder with buildExtensions
-// resolved once from RestageOutputPlacementPlan at construction — no
-// post-process builder, no warm-graph reliance, no second generation
-// command.
+// Writes each library's deterministic `.rsbundle` and optional `.restage.md`
+// report, plus the package output index and publication manifest.
+// Resolves `buildExtensions` once from `RestageOutputLocationPlan`.
 
 import 'dart:convert';
 
@@ -15,29 +11,29 @@ import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
-import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/surface_mount_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Materializes deterministic per-library bundles, optional inspection
 /// reports, and the package-wide output index/publication manifest from the
-/// fixed compiler handoff, per the resolved [RestageOutputPlacementPlan].
+/// compiler outputs, per the resolved [RestageOutputLocationPlan].
 final class RestageOutputsBuilder implements Builder {
-  /// Creates the builder, resolving and validating placement options once.
+  /// Creates the builder, resolving and validating output location options once.
   RestageOutputsBuilder(BuilderOptions options)
-      : plan = RestageOutputPlacementPlan.fromBuilderOptions(options);
+      : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
 
-  /// The resolved placement authority for this builder invocation.
-  final RestageOutputPlacementPlan plan;
+  /// The resolved output location authority for this builder invocation.
+  final RestageOutputLocationPlan plan;
 
   @override
   Map<String, List<String>> get buildExtensions => plan.portableBuildExtensions;
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(
+    await registerRestageOutputLocationSignature(
       buildStep,
       plan,
       builderKey: 'restage_codegen:outputs',

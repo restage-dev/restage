@@ -16,7 +16,6 @@ import '../delivery/surface_sections_carrier.dart';
 import '../delivery/render_deadline.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
 import '../delivery/surface_race.dart';
-import '../delivery/surface_ref.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
@@ -32,6 +31,8 @@ import '../flow/restage_flow_view.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import 'local_values.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/placement_mount_attribution.dart';
+import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart'
     show measurementExperimentAssignmentFor;
 import '../resolver/surface_delivery_observations.dart'
@@ -48,6 +49,9 @@ import '../resolver/resolved_paywall_payload.dart';
 import '../resolver/resolved_variant.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/variant_resolver.dart';
+import '../resolver/asset_variant_resolver.dart';
+import '../resolver/placement_mount_resolver.dart';
+import 'placement_presentation.dart';
 import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
@@ -57,6 +61,8 @@ import 'context_data.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
 import 'paywall_error.dart';
+import 'placement_mount.dart';
+import 'surface_vocabulary.dart';
 import 'state_variables.dart';
 
 /// Internal: kept for callers that reset SDK state; there is no paywall cache.
@@ -96,12 +102,14 @@ void debugClearRestagePaywallCache() => resetRestagePaywallCache();
 /// parameters. If a fourth presentation knob is ever added, they would be
 /// grouped into a single `RestagePaywallPresentation` value object (passed as
 /// a `presentation:` parameter) to keep the call site readable.
-class RestagePaywall extends StatefulWidget {
+class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
   /// Const constructor.
   const RestagePaywall({
     super.key,
     required this.id,
+    @Deprecated('Use a generated surface placement binding instead.')
     this.placementId,
+    this.placementBinding,
     this.resolver,
     this.onEvent,
     this.controller,
@@ -126,11 +134,37 @@ class RestagePaywall extends StatefulWidget {
     Map<String, Object?>? context,
   }) : _context = context;
 
+  /// Creates the generated host facts without requiring new authored imports.
+  static GeneratedPlacementDefinition generatedPlacementDefinition({
+    required String id,
+    required Map<String, Object?> defaultSurfaceLocatorJson,
+    required Map<String, Object?> hostContractJson,
+    SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
+  }) =>
+      GeneratedPlacementDefinition.generated(
+        defaultSurface: PaywallRef(id),
+        defaultSurfaceLocatorJson: defaultSurfaceLocatorJson,
+        hostContractJson: hostContractJson,
+        vocabulary: vocabulary,
+      );
+
+  /// Creates the inert binding forwarded by a generated mount.
+  static PlacementMountBinding generatedPlacementBinding({
+    required GeneratedPlacementDefinition Function() definition,
+    String? name,
+  }) =>
+      PlacementMountBinding(definition: definition, name: name);
+
   /// Stable paywall identifier (e.g. `'pro_upgrade'`).
   final String id;
 
   /// Optional placement identifier for delivery and analytics routing.
+  @Deprecated('Use a generated surface placement binding instead.')
   final String? placementId;
+
+  /// The generated default definition and optional named placement.
+  @override
+  final PlacementMountBinding? placementBinding;
 
   /// Variant resolver. Defaults to [Restage.defaultResolver] when null.
   final VariantResolver? resolver;
@@ -241,6 +275,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   final Map<RestageFlowController<void>, MeasurementHostSessionController>
       _flowMeasurementSessions =
       <RestageFlowController<void>, MeasurementHostSessionController>{};
+  final Map<RestageFlowController<void>, MountAttributionSnapshotV1>
+      _flowMountAttributions = {};
+  Object? _fallbackAttributionIdentity;
+  MountAttributionSnapshotV1? _fallbackMountAttribution;
   RestageFlowController<void>? _activeFlowMeasurementController;
   final Set<RestageFlowController<void>> _terminalMeasurementControllers = {};
 
@@ -322,7 +360,29 @@ class _RestagePaywallState extends State<RestagePaywall> {
       canSwap: _canSwap,
       refresh: _refresh,
       renderedVersion: () => _resolvedPaywallPublishedVersion,
-      stampable: widget.resolver == null && Restage.activeRpcClient != null,
+      stampable: widget.placementBinding == null &&
+          widget.resolver == null &&
+          Restage.activeRpcClient != null,
+      localValidity: widget.placementBinding == null
+          ? null
+          : () => _renderedPlacementAdmission()?.isCurrent ?? true,
+      localBoundary: () => _renderedPlacementAdmission()?.nextBoundary,
+      invalidateLocal: _invalidateLocalPlacement,
+      placementState: () => _renderedPlacementAdmission() == null
+          ? placementFallbackFor(_placementResolver)?.refreshState
+          : _renderedPlacementAdmission()?.refreshState,
+      placementWatch: () => _renderedPlacementAdmission() == null
+          ? placementFallbackFor(_placementResolver)?.watch
+          : _renderedPlacementAdmission()?.decision.watch,
+      renderedSurface: () =>
+          _renderedPlacementAdmission()?.renderedSurface ??
+          SurfaceRef(surfaceType: Surface.paywall.wireName, slug: widget.id),
+      invalidatePlacement: () async {
+        final accepted = _renderedPlacementAdmission();
+        await accepted?.invalidateCache();
+      },
+      probePlacement: (rendered) => probeRenderedPlacement(
+          _renderedPlacementAdmission(), _placementResolver, rendered),
     );
     _refreshHandle = handle;
     SurfaceRefreshRegistry.instance.register(handle);
@@ -336,6 +396,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowMountRevalidationBoundary boundary,
   ) =>
       (payload.assignmentLease?.isCurrent ?? true) &&
+      (placementAdmissionFor(payload)?.isCurrent ?? true) &&
       payload.revalidateHostedPresentation(boundary);
 
   bool _controllerPresentationIsCurrent(
@@ -347,8 +408,44 @@ class _RestagePaywallState extends State<RestagePaywall> {
         resolver.revalidate(boundary);
   }
 
+  PlacementDeliveryAdmission? _renderedPlacementAdmission() {
+    final blob = _blobPresentation;
+    if (blob != null) return placementAdmissionFor(blob.payload.variant);
+    final resolver = _flowController?.resolver;
+    if (resolver is _PreResolvedFlowResolver) {
+      return placementAdmissionFor(resolver._payload.flow);
+    }
+    return null;
+  }
+
+  Future<void> _invalidateLocalPlacement() async {
+    if (!mounted || !_canSwap()) return;
+    final resolver = _placementResolver;
+    if (resolver is! PlacementPaywallResolver) return;
+    final original = await resolver.original();
+    if (!mounted || !_canSwap()) return;
+    if (original != null) {
+      await _presentPayload(original,
+          stopwatch: Stopwatch()..start(),
+          epoch: ++_loadEpoch,
+          isRefresh: true);
+    } else if (widget.fallbackBuilder != null) {
+      final blob = _blobPresentation;
+      final flow = _flowController;
+      setState(() {
+        _blobPresentation = null;
+        _flowController = null;
+        _flowTransaction = null;
+        _showDeadlineFallback = true;
+      });
+      if (blob != null) _disposeBlobStageAfterDetach(blob);
+      if (flow != null) _disposeFlowControllerAfterDetach(flow);
+    }
+  }
+
   bool _canSwap() =>
       !_userInteracted &&
+      !(_renderedPlacementAdmission()?.isAssigned ?? false) &&
       (_renderedAssignmentLease?.isCurrent ?? true) &&
       _controllerPresentationIsCurrent(
         _flowController,
@@ -362,9 +459,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   Future<void> _refresh() async {
     // Nothing has rendered yet: the in-flight mount fetch is already
     // fresh-first, so a refresh would be redundant (and could race it).
+    // A settled load error has no fetch in flight and may refresh.
     if (_blobPresentation == null &&
         !(_flowTransaction?.isCommitted ?? false) &&
-        !_showDeadlineFallback) {
+        !_showDeadlineFallback &&
+        _error == null) {
       return;
     }
     await _load(isRefresh: true);
@@ -440,6 +539,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void didUpdateWidget(RestagePaywall oldWidget) {
     super.didUpdateWidget(oldWidget);
     _refreshContext();
+    if (!(oldWidget.placementBinding
+            ?.sameDeclarationAs(widget.placementBinding) ??
+        widget.placementBinding == null)) {
+      unawaited(_load(announceLoadStarted: false));
+    }
     for (final stage in <_BlobStage?>[
       _blobPresentation,
       _pendingBlobStage,
@@ -470,8 +574,42 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }) {
     final source =
         attribution ?? _activeAnalyticsPresentation ?? _anonymousAnalyticsOwner;
-    source.runWithEventContext(() => Restage.fireEvent(event));
-    if (mounted) widget.onEvent?.call(event);
+    void dispatch() {
+      source.runWithEventContext(() => Restage.fireEvent(event));
+      if (mounted) widget.onEvent?.call(event);
+    }
+
+    final mountContext =
+        MountAttributionEventContext.current ?? _activeMountEventContext;
+    if (mountContext == null) {
+      dispatch();
+    } else {
+      mountContext.run(dispatch);
+    }
+  }
+
+  MountAttributionEventContext? get _activeMountEventContext {
+    final controller = _flowController;
+    if (controller != null) {
+      final snapshot = _flowMountAttributions[controller];
+      return snapshot == null
+          ? null
+          : MountAttributionEventContext(
+              snapshot: snapshot,
+              isCurrent: () =>
+                  mounted &&
+                  identical(_flowController, controller) &&
+                  (_flowTransaction?.isPaintAcknowledged ?? false));
+    }
+    final stage = _blobPresentation;
+    final snapshot = stage?.mountAttribution;
+    return stage == null || snapshot == null
+        ? null
+        : MountAttributionEventContext(
+            snapshot: snapshot,
+            isCurrent: () =>
+                _isBlobEventStageCurrent(stage) &&
+                stage.transaction.isPaintAcknowledged);
   }
 
   bool _isPagerBlobStageCurrent(_BlobStage stage) {
@@ -558,6 +696,49 @@ class _RestagePaywallState extends State<RestagePaywall> {
         ),
       );
 
+  VariantResolver? _placementResolver;
+  PlacementMountBinding? _capturedBinding;
+  int _placementGeneration = -1;
+  late final _placementDiscovery = PlacementHostDiscovery(
+      configurationGeneration: () => Restage.configurationGeneration,
+      discovery: () => Restage.placementDiscovery);
+
+  VariantResolver _resolver() {
+    final original = widget.resolver ?? Restage.defaultResolver;
+    final binding = widget.placementBinding;
+    final declaration = _placementDiscovery.capture(binding, widget, context);
+    final registry = Restage.placementRegistry;
+    if (widget.resolver == null &&
+        Restage.placementPaywallsEnabled &&
+        (binding?.isExplicit ?? false) &&
+        registry == null) {
+      return const UnavailablePlacementPaywallResolver();
+    }
+    if (widget.resolver != null ||
+        !Restage.placementPaywallsEnabled ||
+        binding == null ||
+        registry == null) {
+      return original;
+    }
+    if (_placementResolver == null ||
+        !binding.sameDeclarationAs(_capturedBinding) ||
+        _placementGeneration != Restage.configurationGeneration) {
+      _capturedBinding = binding;
+      _placementGeneration = Restage.configurationGeneration;
+      _placementResolver = PlacementPaywallResolver(
+          registry: registry,
+          declaration: declaration!,
+          id: widget.id,
+          originalResolver: const AssetVariantResolver())
+        ..onFallbackChanged = () {
+          if (_refreshHandle case final handle?) {
+            SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+          }
+        };
+    }
+    return _placementResolver!;
+  }
+
   Future<void> _load({
     bool isRefresh = false,
     bool announceLoadStarted = true,
@@ -570,7 +751,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _fireEvent(PaywallLoadStarted(paywallId: widget.id));
     }
     final stopwatch = Stopwatch()..start();
-    final resolver = widget.resolver ?? Restage.defaultResolver;
+    final resolver = _resolver();
     try {
       final payload = await withSurfaceDeliveryObservations(
         cell: _presentationObservations(),
@@ -653,8 +834,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
           // Nothing to show yet: the mount settles on fresh's outcome.
           unawaited(freshFuture.then(
             (payload) {
-              if (payload == null)
+              if (payload == null) {
                 _failLate(null, null, epoch, stopwatch, report);
+              }
             },
             onError: (Object error, StackTrace stack) =>
                 _failLate(error, stack, epoch, stopwatch, report),
@@ -744,7 +926,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
       FlowPaywallPayload(:final flow) => flow,
     };
     return payload.hasHostedExperimentAuthority ||
-        measurementExperimentAssignmentFor(owner) != null;
+        measurementExperimentAssignmentFor(owner) != null ||
+        (placementAdmissionFor(owner)?.isAssigned ?? false);
   }
 
   Future<void> _presentGuarded(
@@ -922,6 +1105,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// Whether a freshly-resolved [variant] carries the same content as what is
   /// currently rendered, so a live refresh should skip the swap.
   bool _isUnchangedBlob(ResolvedVariant variant) {
+    final accepted = _renderedPlacementAdmission();
+    final candidate = placementAdmissionFor(variant);
+    if (accepted != null || candidate != null) {
+      return accepted?.matchesDecision(candidate) ?? false;
+    }
     return _renderedSurfaceVersion == variant.surfaceVersion;
   }
 
@@ -935,9 +1123,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) {
     final freshVersion = payload.paywallPublishedVersion;
     final renderedVersion = _resolvedPaywallPublishedVersion;
-    if (freshVersion != null &&
-        renderedVersion != null &&
-        freshVersion == renderedVersion) {
+    final accepted = _renderedPlacementAdmission();
+    final candidate = placementAdmissionFor(payload.flow);
+    if ((accepted != null || candidate != null)
+        ? (accepted?.matchesDecision(candidate) ?? false)
+        : (freshVersion != null &&
+            renderedVersion != null &&
+            freshVersion == renderedVersion)) {
       payload.abandonHostedLastGood();
       return; // unchanged — nothing to re-host
     }
@@ -992,6 +1184,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
       },
       onPainted: () {
+        _placementDiscovery.markPainted();
+        if (_refreshHandle case final handle?) {
+          SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+        }
+        surfaceDeliveryReceiptFor(placementResolvedLeaf(payload))
+            ?.paintedSinceOpened();
         final oldFlow = _flowToDisposeAfterPromotion;
         if (oldFlow != null) {
           _finalizeMeasurementSessionForFlow(oldFlow);
@@ -1427,6 +1625,15 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
       },
       onPainted: () {
+        _placementDiscovery.markPainted();
+        if (_refreshHandle case final handle?) {
+          SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+        }
+        surfaceDeliveryReceiptFor(placementResolvedLeaf(payload))
+            ?.paintedSinceOpened();
+        if (_refreshHandle case final handle?) {
+          SurfaceRefreshRegistry.instance.localValidityChanged(handle);
+        }
         analyticsPresentation.activate();
         _publishRenderedPayload(payload);
         _activateFlowMeasurementOwner(controller);
@@ -1782,8 +1989,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     RestageFlowController<void> controller,
     FlowPaywallPayload payload,
   ) async {
+    final snapshot = captureMountAttribution(
+        _placementDiscovery.declaration?.mount,
+        resolved: payload);
+    if (snapshot != null) _flowMountAttributions[controller] = snapshot;
+    bindSurfaceDeliveryMountAttribution(payload, snapshot);
     final session = MeasurementHostSessionController.openDeferred(
       payload,
+      mountAttribution: snapshot,
       presentationObservations: _observationCell?.read,
     );
     if (!_measurementOwnedFlowControllers.contains(controller)) {
@@ -2008,8 +2221,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required Duration loadDuration,
     required bool cacheHit,
   }) async {
+    final snapshot = captureMountAttribution(
+        _placementDiscovery.declaration?.mount,
+        resolved: payload);
+    bindSurfaceDeliveryMountAttribution(payload, snapshot);
     final measurementSession = MeasurementHostSessionController.openDeferred(
       payload,
+      mountAttribution: snapshot,
       presentationObservations: _observationCell?.read,
     );
     if (!mounted || epoch != _loadEpoch) {
@@ -2037,6 +2255,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
         );
       },
       onPainted: () {
+        _placementDiscovery.markPainted();
+        if (_refreshHandle case final handle?) {
+          SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
+        }
+        surfaceDeliveryReceiptFor(placementResolvedLeaf(payload))
+            ?.paintedSinceOpened();
         final previousBlob = stage.previousBlob;
         if (previousBlob != null) {
           unawaited(previousBlob.measurementSession.teardown());
@@ -2067,6 +2291,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       transaction: transaction,
       analyticsPresentation: analyticsPresentation,
       measurementSession: measurementSession,
+      mountAttribution: snapshot,
     );
     final eventLease = RestageTargetEventDispatchLease(
       isCurrent: () => _isBlobEventStageCurrent(stage),
@@ -2159,6 +2384,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _resolvedPaywallPublishedVersion = variant.paywallPublishedVersion;
     _renderedAssignmentLease = stage.payload.assignmentLease;
     _renderedSurfaceVersion = variant.surfaceVersion;
+    if (_refreshHandle case final handle?) {
+      SurfaceRefreshRegistry.instance.localValidityChanged(handle);
+    }
   }
 
   void _finishCommittedBlobStage(_BlobStage stage) {
@@ -2208,7 +2436,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// Drops this paywall's stored copy after a candidate failed to render, so
   /// the next mount falls back instead of rendering it again.
   void _forgetStoredCandidate() {
-    final resolver = widget.resolver ?? Restage.defaultResolver;
+    final resolver = _resolver();
     final raced = racedResolverOf<ResolvedPaywallPayload>(resolver);
     if (raced == null) return;
     unawaited(raced.forgetStored(
@@ -2278,6 +2506,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _finalizeMeasurementSessionForFlow(controller);
     _measurementOwnedFlowControllers.remove(controller);
     _flowPresentations.remove(controller)?.dispose();
+    _flowMountAttributions.remove(controller);
     final resolver = controller.resolver;
     if (resolver is _PreResolvedFlowResolver) {
       resolver.disposePresentation();
@@ -2298,6 +2527,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   @override
   void dispose() {
+    _placementDiscovery.dispose();
     _renderDeadline.cancel();
     if (_refreshHandle case final handle?) {
       SurfaceRefreshRegistry.instance.unregister(handle);
@@ -2420,18 +2650,29 @@ class _RestagePaywallState extends State<RestagePaywall> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      if (_useAuthoredFallback && widget.fallbackBuilder != null) {
-        final error = _error!;
-        return _buildAuthoredFallback(
-          error,
-          isCurrent: () =>
-              mounted && _useAuthoredFallback && identical(_error, error),
-        );
-      }
+      final error = _error!;
       final builder = widget.errorBuilder;
-      return builder == null
-          ? const SizedBox.shrink()
-          : builder(context, _error!);
+      final fallback = _useAuthoredFallback && widget.fallbackBuilder != null
+          ? _buildAuthoredFallback(
+              error,
+              isCurrent: () =>
+                  mounted && _useAuthoredFallback && identical(_error, error),
+            )
+          : builder == null
+              ? const SizedBox.shrink()
+              : builder(context, error);
+      // A refreshed flow stages beside the fallback until it paints.
+      final staged = _pendingFlowIsStaged ? _pendingFlowController : null;
+      if (staged == null || !_canBuildHostedFlow(staged)) return fallback;
+      return Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          fallback,
+          Positioned.fill(
+            child: _buildHostedFlowLayer(staged, staged: true),
+          ),
+        ],
+      );
     }
     final flowController = _flowController;
     final Widget current =
@@ -2475,6 +2716,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
     RestagePaywallError error, {
     required bool Function() isCurrent,
   }) {
+    if (!identical(_fallbackAttributionIdentity, error)) {
+      _fallbackAttributionIdentity = error;
+      _fallbackMountAttribution =
+          captureMountAttribution(_placementDiscovery.declaration?.mount);
+    }
+    final snapshot = _fallbackMountAttribution;
     return RestageContextSnapshotScope(
       snapshot: _context,
       child: RestagePaywallEventTargetScope(
@@ -2483,9 +2730,23 @@ class _RestagePaywallState extends State<RestagePaywall> {
         isCurrent: isCurrent,
         child: RestagePaywallEventDispatcher(
           onEvent: (name, args) {
-            if (isCurrent()) _handleRfwEvent(name, args);
+            if (!isCurrent()) return;
+            if (snapshot == null) {
+              _handleRfwEvent(name, args);
+            } else {
+              MountAttributionEventContext(
+                      snapshot: snapshot,
+                      isCurrent: () =>
+                          mounted &&
+                          isCurrent() &&
+                          identical(_fallbackMountAttribution, snapshot))
+                  .run(() => _handleRfwEvent(name, args));
+            }
           },
           child: RuntimeErrorBoundary(
+            onFirstPaintSuccess: () {
+              if (isCurrent()) _placementDiscovery.markPainted();
+            },
             onFirstBuildSuccess: () {
               if (!isCurrent() || _viewedFired) return;
               _viewedFired = true;
@@ -2625,10 +2886,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
                               child: RemoteWidget(
                                 runtime: stage.runtime,
                                 data: stage.data,
-                                widget: const FullyQualifiedWidgetName(
-                                  _paywallLibrary,
-                                  _paywallRootWidget,
-                                ),
+                                widget: placementWidgetNameFor(
+                                    stage.payload.variant,
+                                    const FullyQualifiedWidgetName(
+                                        _paywallLibrary, _paywallRootWidget)),
                                 onEvent: stage.eventHandler,
                               ),
                             ),
@@ -2708,6 +2969,7 @@ final class _BlobStage {
     required this.transaction,
     required this.analyticsPresentation,
     required this.measurementSession,
+    required this.mountAttribution,
   }) : local = LocalValues(
           data,
           seed: sections.localSeeds[_RestagePaywallState._paywallRootWidget],
@@ -2726,6 +2988,7 @@ final class _BlobStage {
   final FirstPaintLeaseTransaction transaction;
   final RootAnalyticsPresentation analyticsPresentation;
   final MeasurementHostSessionController measurementSession;
+  final MountAttributionSnapshotV1? mountAttribution;
   late final PaywallEventHandler eventHandler;
 
   _BlobStage? previousBlob;

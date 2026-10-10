@@ -1,7 +1,7 @@
 import 'surface_delivery_observations.dart';
 
 /// Assignment request API level compiled into the SDK.
-const int assignmentSdkApiLevel = 3;
+const int assignmentSdkApiLevel = 4;
 
 /// Reads fixed platform and installed-build observations for hosted assignment.
 Future<String?> readSurfaceAssignmentBuiltIns() async {

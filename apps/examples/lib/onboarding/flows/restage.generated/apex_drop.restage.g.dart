@@ -71,9 +71,72 @@ final class ApexDropActions {
   const ApexDropActions();
 }
 
+final _apexDropFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: apexDropFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'apex_drop',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{},
+      'signals': <Object?>['dismiss'],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{'dismiss': <String, Object?>{}}
+      }
+    }
+  },
+  vocabulary: apexDropFlowRef.vocabulary,
+);
+
+final apexDropFlowPlacementDefinition =
+    () => _apexDropFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class ApexDropFlowSurface extends RestageFlowGraph<ApexDropResult> {
   const ApexDropFlowSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: apexDropFlowRef);
+
+  const ApexDropFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -87,5 +150,14 @@ final class ApexDropFlowSurface extends RestageFlowGraph<ApexDropResult> {
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: apexDropFlowRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: apexDropFlowRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: apexDropFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

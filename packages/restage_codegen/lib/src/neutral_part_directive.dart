@@ -1,14 +1,10 @@
-// The one place an authored `part` directive is checked against the resolved
-// physical location of a library's generated Restage part.
-//
-// Every producer and validator resolves that location through the shared
-// placement plan, so a package configuring a non-default layout gets a
-// diagnostic naming the exact URI it must declare rather than a hardcoded one.
+// Validates authored `part` directives against the shared output location plan,
+// so diagnostics name the correct URI for the package's configured layout.
 
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:restage_codegen/src/dart_source_parsing.dart';
 import 'package:restage_codegen/src/issue.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 
 /// Filename suffix of the one generated Dart part an authored library owns.
 ///
@@ -38,14 +34,11 @@ const List<String> kSupersededGeneratedPartSuffixes = [
   '.rsflow.g.dart',
 ];
 
-/// A stable, human-readable signature of the placement decisions [plan]
-/// encodes.
-///
-/// Build Runner has no cross-builder options channel, so every
-/// placement-affected Restage builder key accepts the same options with the
-/// same defaults. Two builders resolving different signatures for one package
-/// is a configuration error, and this is what such a report names.
-String restagePlacementSignature(RestageOutputPlacementPlan plan) => <String>[
+/// Human-readable signature of [plan]'s output locations.
+/// Build Runner has no cross-builder options channel. Different signatures
+/// within one package indicate conflicting builder options.
+String restageOutputLocationSignature(RestageOutputLocationPlan plan) =>
+    <String>[
       'source_output_layout=${plan.sourceOutputLayout.name}',
       'inspection_report=${plan.inspectionReport}',
       'bundled_runtime=${plan.bundledRuntime}',
@@ -54,13 +47,13 @@ String restagePlacementSignature(RestageOutputPlacementPlan plan) => <String>[
     ].join(', ');
 
 /// The exact `part` URI [libraryPath] must declare under [plan].
-String neutralPartUri(RestageOutputPlacementPlan plan, String libraryPath) {
+String neutralPartUri(RestageOutputLocationPlan plan, String libraryPath) {
   final placement = plan.forLibrary(libraryPath);
   return placement.partUriFor(placement.neutralPartPath);
 }
 
 /// The package-relative physical path of [libraryPath]'s generated part.
-String neutralPartPath(RestageOutputPlacementPlan plan, String libraryPath) =>
+String neutralPartPath(RestageOutputLocationPlan plan, String libraryPath) =>
     plan.forLibrary(libraryPath).neutralPartPath;
 
 /// Validates [unit]'s `part` directives against the plan-resolved location of
@@ -72,7 +65,7 @@ String neutralPartPath(RestageOutputPlacementPlan plan, String libraryPath) =>
 List<Issue> neutralPartDirectiveIssues({
   required CompilationUnit unit,
   required String libraryPath,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
 }) {
   final required = neutralPartUri(plan, libraryPath);
   final declared = <String>[
@@ -107,7 +100,7 @@ List<Issue> neutralPartDirectiveIssues({
 List<Issue> neutralPartDirectiveIssuesForSource({
   required String sourceText,
   required String libraryPath,
-  required RestageOutputPlacementPlan plan,
+  required RestageOutputLocationPlan plan,
 }) =>
     neutralPartDirectiveIssues(
       unit: parseUnresolvedDart(sourceText, path: libraryPath),

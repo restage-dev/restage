@@ -26,7 +26,8 @@ import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
 import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
@@ -252,7 +253,7 @@ final class OnboardingFlowBuilder implements Builder {
   ) async {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
-      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      plan: RestageOutputLocationPlan.fromBuilderOptions(options),
       measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
         options,
       ),
@@ -476,7 +477,7 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
   Set<String>? declarationIdentities,
   Map<String, String> generatedSourceCarrierDraftDigestsByDeclarationIdentity =
       const {},
-  RestageOutputPlacementPlan? plan,
+  RestageOutputLocationPlan? plan,
 }) async {
   final issues = <Issue>[];
   final sourceText = await buildStep.readAsString(assetId);
@@ -510,7 +511,7 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
     neutralPartDirectiveIssuesForSource(
       sourceText: sourceText,
       libraryPath: assetId.path,
-      plan: plan ?? RestageOutputPlacementPlan.defaults,
+      plan: plan ?? RestageOutputLocationPlan.defaults,
     ),
   );
   final resolvedScreenList = resolvedScreens.toList(growable: false);
@@ -4570,6 +4571,7 @@ String _emitFlowDescriptor(
   final compiled = flow.isCanonical
       ? emitCompiledFlow(
           document: lowered.document,
+          surface: surface,
           descendants: descendants,
           screens: nativeScreens,
           library: flow.element.library,
@@ -4692,6 +4694,8 @@ Set<String> _flowGeneratedTopLevelSymbols(
   return {
     if (flow.isCanonical)
       generatedSurfaceName(flow.className, fallback: 'SurfaceFlow'),
+    if (flow.isCanonical && emitsCompiledFlowMount(flow.element.library))
+      ...placementDefinitionSymbols(flow.className),
     generatedHandleName(flow.className, fallback: 'surfaceFlow'),
     '_decode${flow.className}Result',
     '${flow.className}Descriptor',

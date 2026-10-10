@@ -275,9 +275,17 @@ final class MeasurementWorkerSessionRegistration {
     List<int>? orderedCaptureCanonicalBytesV1,
     List<int>? experimentAssignmentCanonicalBytes,
     List<int>? presentationContextCanonicalBytes,
+    List<int>? attributionCanonicalBytes,
+    List<int>? assignmentCanonicalBytes,
     this.routingSelectionReceipt,
     this.registrationFingerprint,
-  })  : _orderedCaptureCanonicalBytesV1 = orderedCaptureCanonicalBytesV1 == null
+  })  : _attributionCanonicalBytes = attributionCanonicalBytes == null
+            ? null
+            : Uint8List.fromList(attributionCanonicalBytes),
+        _assignmentCanonicalBytes = assignmentCanonicalBytes == null
+            ? null
+            : Uint8List.fromList(assignmentCanonicalBytes),
+        _orderedCaptureCanonicalBytesV1 = orderedCaptureCanonicalBytesV1 == null
             ? null
             : Uint8List.fromList(orderedCaptureCanonicalBytesV1),
         _presentationContextCanonicalBytes =
@@ -313,11 +321,19 @@ final class MeasurementWorkerSessionRegistration {
         (_presentationContextCanonicalBytes != null &&
             (_presentationContextCanonicalBytes.isEmpty ||
                 _presentationContextCanonicalBytes.length > 8192)) ||
+        (_attributionCanonicalBytes != null &&
+            (_attributionCanonicalBytes.isEmpty ||
+                _attributionCanonicalBytes.length > 8192)) ||
+        (_assignmentCanonicalBytes != null &&
+            (_assignmentCanonicalBytes.isEmpty ||
+                _assignmentCanonicalBytes.length > 8192 ||
+                _experimentAssignmentCanonicalBytes != null)) ||
         (routingSelectionReceipt != null &&
             (routingSelectionReceipt!.isEmpty ||
                 routingSelectionReceipt!.length > 4096)) ||
         (registrationFingerprint != null &&
-            (_experimentAssignmentCanonicalBytes == null ||
+            ((_experimentAssignmentCanonicalBytes == null &&
+                    _assignmentCanonicalBytes == null) ||
                 !RegExp(r'^[0-9a-f]{64}$')
                     .hasMatch(registrationFingerprint!))) ||
         firstSequence <= 0 ||
@@ -327,6 +343,14 @@ final class MeasurementWorkerSessionRegistration {
   }
 
   final Uint8List? _orderedCaptureCanonicalBytesV1;
+  final Uint8List? _attributionCanonicalBytes;
+  final Uint8List? _assignmentCanonicalBytes;
+  Uint8List? get attributionCanonicalBytes => _attributionCanonicalBytes == null
+      ? null
+      : Uint8List.fromList(_attributionCanonicalBytes);
+  Uint8List? get assignmentCanonicalBytes => _assignmentCanonicalBytes == null
+      ? null
+      : Uint8List.fromList(_assignmentCanonicalBytes);
 
   /// Versioned publication admission for ordered occurrences.
   Uint8List? get orderedCaptureCanonicalBytesV1 =>
@@ -393,6 +417,11 @@ final class MeasurementWorkerSessionRegistration {
         presentationContextCanonicalBytes,
         routingSelectionReceipt,
         registrationFingerprint,
+        if (_attributionCanonicalBytes != null ||
+            _assignmentCanonicalBytes != null) ...[
+          attributionCanonicalBytes,
+          assignmentCanonicalBytes,
+        ],
       ];
 
   static MeasurementWorkerSessionRegistration fromWire(Object? value) {
@@ -401,10 +430,18 @@ final class MeasurementWorkerSessionRegistration {
         values.length != 8 &&
         values.length != 10 &&
         values.length != 12 &&
-        values.length != 13)
+        values.length != 13 &&
+        values.length != 15) {
       throw ArgumentError('Invalid worker registration length');
+    }
     final rawRoutes = _requireList(values[3]);
     return MeasurementWorkerSessionRegistration(
+      attributionCanonicalBytes: values.length == 15 && values[13] != null
+          ? _requireBytes(values[13])
+          : null,
+      assignmentCanonicalBytes: values.length == 15 && values[14] != null
+          ? _requireBytes(values[14])
+          : null,
       presentationContextCanonicalBytes:
           values.length >= 12 && values[10] != null
               ? _requireBytes(values[10])

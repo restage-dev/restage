@@ -16,6 +16,8 @@ import '_support/harness.dart';
 final _cliToMcp = <String, Set<String>>{
   for (final operation in sharedOperations)
     operation.cliPath: {operation.mcpName},
+  for (final operation in deliveryOperations.values)
+    operation.cliPath: {operation.mcpName},
   'login': {'restage_login'},
   'logout': {'restage_logout'},
   'whoami': {'restage_whoami'},
@@ -35,6 +37,8 @@ final _cliToMcp = <String, Set<String>>{
   'analytics surface': {'restage_read_surface_analytics'},
   'analytics taps': {'restage_read_surface_taps'},
   'analytics health': {'restage_read_data_health'},
+  'delivery map': {'restage_read_delivery_map'},
+  'where': {'restage_where'},
   'surface results': {'restage_read_surface_funnel'},
   'surface check-libraries': {'restage_check_libraries'},
   'surface rollback': {
@@ -49,6 +53,8 @@ final _cliToMcp = <String, Set<String>>{
   'surface routing delivery-flow': {'restage_read_delivery_flow'},
   'surface routing list-audiences': {'restage_list_routing_audiences'},
   'surface routing preview': {'restage_preview_routing'},
+  'surface routing review': {'restage_review_routing'},
+  'surface routing review-rollback': {'restage_review_route_rollback'},
   'surface routing publish': {'restage_publish_routing'},
   'surface routing read': {'restage_read_routing'},
   'surface routing read-revision': {'restage_read_routing_revision'},
@@ -135,6 +141,7 @@ void main() {
   late List<String> cliCommands;
   late Set<String> mcpTools;
   late Set<String> guardedTools;
+  late Map<String, Tool> toolDefinitions;
 
   setUpAll(() async {
     final activation = ExperimentActivationApi(
@@ -156,6 +163,7 @@ void main() {
       experimentActivationApi: activation,
     );
     final tools = (await connection.listTools(ListToolsRequest())).tools;
+    toolDefinitions = {for (final tool in tools) tool.name: tool};
     mcpTools = {for (final tool in tools) tool.name};
     guardedTools = {
       for (final tool in tools)
@@ -188,6 +196,58 @@ void main() {
       reason: 'MCP tools with no CLI counterpart',
     );
   });
+
+  test(
+    'existing surface lifecycle paths expose complete review and exact proceed controls',
+    () {
+      for (final (command, tool) in [
+        ('publish', 'restage_publish_surface'),
+        ('rollback', 'restage_rollback_surface'),
+        ('kill', 'restage_kill_surface'),
+        ('freeze', 'restage_freeze_surface'),
+        ('unfreeze', 'restage_unfreeze_surface'),
+      ]) {
+        for (final group in ['surface', 'paywall']) {
+          final leaf = cliLeaves['$group $command']!;
+          expect(
+            leaf.argParser.options.keys,
+            containsAll([
+              'review-measurement',
+              'reviewed-digest',
+              'operation-id',
+            ]),
+          );
+          expect(_cliToMcp['$group $command'], contains(tool));
+        }
+        expect(
+          toolDefinitions[tool]!.inputSchema.properties!.keys,
+          containsAll([
+            'reviewOnly',
+            'reviewedDigest',
+            'operationId',
+            'confirmLive',
+          ]),
+        );
+      }
+      final archive = cliLeaves['surface archive']!;
+      expect(
+        archive.argParser.options.keys,
+        containsAll(['review-measurement', 'reviewed-digest', 'operation-id']),
+      );
+      expect(
+        toolDefinitions['restage_archive_surface']!
+            .inputSchema
+            .properties!
+            .keys,
+        containsAll([
+          'reviewOnly',
+          'reviewedDigest',
+          'operationId',
+          'confirmLive',
+        ]),
+      );
+    },
+  );
 
   test('a CLI command that asks before a live change maps to a tool that '
       'needs confirmLive, and back', () {

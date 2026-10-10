@@ -68,6 +68,30 @@ Future<CallToolResult> guardErrors(
       return mcpError(e.toString());
     } on TargetSelectionException catch (e) {
       return mcpError(e.message);
+    } on DeliveryMeasurementReviewRequired catch (e) {
+      final result = jsonResult({
+        'measurementReview': e.review.toJson(),
+        'reviewDigest': e.review.digest.hex,
+        'acknowledgementRequired': true,
+      });
+      return CallToolResult(
+        isError: true,
+        content: result.content,
+        structuredContent: result.structuredContent,
+      );
+    } on DeliveryPolicyReviewRequired catch (e) {
+      final result = jsonResult({
+        'policyReview': e.review.toJson(),
+        'reviewDigest': e.review.digest.hex,
+        'acknowledgementRequired': true,
+      });
+      return CallToolResult(
+        isError: true,
+        content: result.content,
+        structuredContent: result.structuredContent,
+      );
+    } on DeliveryManagementResponseException catch (e) {
+      return mcpError(e.toString());
     } on InsecureEndpointException {
       // Never echo the endpoint. A corrupt/crafted credentials file can embed a
       // secret in the endpoint's userinfo (`<keyId>:<key>@host`), and

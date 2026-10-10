@@ -47,6 +47,7 @@ export 'package:restage_shared/restage_shared.dart'
     show
         ChildrenSlot,
         CapabilityManifest,
+        DeliverySurfaceLocatorV1,
         EmitTarget,
         Ignore,
         RestageLibrary,
@@ -54,6 +55,7 @@ export 'package:restage_shared/restage_shared.dart'
         RestageWidget,
         RestageBundleEntryRole,
         Surface,
+        SurfaceHostContractV1,
         // ignore: deprecated_member_use
         SurfaceType,
         SurfacePayloadKind,
@@ -114,6 +116,10 @@ export 'src/runtime/restage_widget_factory.dart';
 export 'src/runtime/restage_widget_libraries.dart';
 export 'src/runtime/restage_widget_registration.dart';
 export 'src/runtime/surface_vocabulary.dart';
+export 'src/runtime/placement_mount.dart';
+export 'src/runtime/restage_placement.dart';
+export 'src/runtime/placement_presentation.dart'
+    show PlacementPresentationController;
 // A surface vocabulary rebuilds each icon it carries as an IconData value, so
 // a file that imports this one can name the type without importing Flutter.
 export 'package:flutter/widgets.dart' show IconData;
@@ -180,6 +186,8 @@ export 'package:restage_measurement_schema/restage_measurement_schema.dart'
         CodeIdentityId,
         CompleteMeasurementManifestV1,
         DeliverySurfaceTypeId,
+        DeliveryFamilySelectorV1,
+        PlacementKeyV1,
         DisplayMetadataRef,
         EnvironmentTargetId,
         ExactArtifactGraphV1,

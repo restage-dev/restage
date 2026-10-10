@@ -10,7 +10,7 @@ import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_routing_reader.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' show EmitTarget;
@@ -66,7 +66,7 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
   BuildStep buildStep, {
   required AssetId assetId,
   required LibraryElement library,
-  RestageOutputPlacementPlan? plan,
+  RestageOutputLocationPlan? plan,
 }) async {
   final sourceText = await buildStep.readAsString(assetId);
   final annotatedClasses = library.classes
@@ -121,7 +121,7 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
     neutralPartDirectiveIssuesForSource(
       sourceText: sourceText,
       libraryPath: assetId.path,
-      plan: plan ?? RestageOutputPlacementPlan.defaults,
+      plan: plan ?? RestageOutputLocationPlan.defaults,
     ),
   );
 

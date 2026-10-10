@@ -2,6 +2,14 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_sections_carrier.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
+import '../measurement/bundled_measurement_publication_binding_read_port.dart';
+import '../measurement/placement_mount_attribution.dart';
+import 'placement_mount_resolver.dart' show copyPlacementAdmission;
+import 'surface_resolution_report.dart';
+
 /// Result of resolving a paywall variant — the `.rfw` blob + delivery metadata.
 ///
 /// Returned by [VariantResolver.resolve]. Carries the encoded bytes the runtime
@@ -101,7 +109,7 @@ class ResolvedVariant {
         'must change when bytes are replaced',
       );
     }
-    return ResolvedVariant(
+    final copy = ResolvedVariant(
       bytes: bytes ?? this.bytes,
       paywallId: paywallId ?? this.paywallId,
       surfaceVersion: surfaceVersion ?? this.surfaceVersion,
@@ -110,6 +118,24 @@ class ResolvedVariant {
           paywallPublishedVersion ?? this.paywallPublishedVersion,
       cacheHit: cacheHit ?? this.cacheHit,
     );
+    if (copy != this) return copy;
+    final attributed = attachMeasurementPublicationBindingReference(
+      copySurfaceSections(this, copyResolvedPlacementDelivery(this, copy)),
+      measurementPublicationBindingReferenceFor(this),
+      canonicalExperimentAssignment: measurementExperimentAssignmentFor(this),
+      registrationFingerprint: measurementRegistrationFingerprintFor(this),
+      routingSelectionReceipt: routingSelectionReceiptFor(this),
+      routingSelectionProvenance: routingSelectionProvenanceFor(this),
+      surfaceResolutionSource: copy.cacheHit
+          ? SurfaceResolutionSource.holdLastGood
+          : surfaceResolutionSourceFor(this),
+    );
+    final bundled = attachMeasurementBundledGeneratedArtifactClosureCarrier(
+        attachMeasurementBundledGeneratedSourceCarrier(
+            attributed, measurementBundledGeneratedSourceCarrierFor(this)),
+        measurementBundledGeneratedArtifactClosureCarrierFor(this));
+    return copyPlacementAdmission(this,
+        attachSurfaceAssignmentLease(bundled, surfaceAssignmentLeaseFor(this)));
   }
 
   @override

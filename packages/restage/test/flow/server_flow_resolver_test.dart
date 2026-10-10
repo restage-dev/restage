@@ -13,6 +13,7 @@ import 'package:restage/src/measurement/measurement_resolved_publication_provena
 // The installed built-in catalog content version is the resolver's capability
 // ceiling (internal; the resolver's own tests reach it via the src path).
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../support/canonical_assignment_fixture.dart';
@@ -86,7 +87,12 @@ void main() {
     expect(request.headers['Authorization'], 'Bearer $apiKey');
     expect(
       withoutSupportedPolicyRevisions(jsonDecode(request.body)),
-      {'surfaceType': 'onboarding', 'surfaceSlug': 'first_run', 'version': 1},
+      {
+        'surfaceType': 'onboarding',
+        'surfaceSlug': 'first_run',
+        'version': 1,
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
+      },
     );
 
     expect(resolved.cacheHit, isFalse);
@@ -189,6 +195,7 @@ void main() {
         'surfaceType': testCase.wireName,
         'surfaceSlug': 'first_run',
         'version': 1,
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
       expect(resolved.document.flow, flowRef.id);
     });

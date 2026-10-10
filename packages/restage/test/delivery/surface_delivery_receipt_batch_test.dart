@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_batch.dart';
+import 'package:restage/src/measurement/placement_mount_attribution.dart';
 import 'package:restage/src/resolver/surface_resolution_report.dart';
-import 'package:restage_shared/restage_shared.dart' show Surface;
+import 'package:restage_shared/restage_shared.dart';
+
+import '../support/placement_delivery_fixture.dart';
 
 void main() {
   late SurfaceDeliveryReceiptBatch batch;
@@ -53,6 +56,39 @@ void main() {
     expect(receipt.routeId, '');
     expect(receipt.latencyBucket, SurfaceDeliveryLatencyBucket.lt500ms);
     expect(receipt.minuteBucketUtc, DateTime.utc(2026, 9, 10, 18, 42));
+  });
+
+  test('painted placement receipts preserve each accepted mount tuple',
+      () async {
+    final fixture = readPlacementDeliveryFixture();
+    final snapshots = [
+      for (var i = 0; i < fixture.response.decisions.length; i++)
+        MountAttributionSnapshotV1.hosted(
+            delivery:
+                (fixture.response.decisions[i] as PlacementBatchAvailableV1)
+                    .publicDelivery,
+            defaultSurface: fixture.request.mounts[i].defaultSurface,
+            mountInstanceNonce: String.fromCharCode(97 + i) * 43)
+    ];
+    for (final snapshot in snapshots) {
+      open()
+        ..bindMountAttribution(snapshot)
+        ..painted(const Duration(milliseconds: 10));
+    }
+
+    final payload = await batch.drain();
+
+    expect(payload.counts, hasLength(2));
+    expect(payload.counts.values, everyElement(1));
+    for (final receipt in payload.counts.keys) {
+      final snapshot = snapshots.singleWhere((candidate) =>
+          candidate.attribution.placementKey ==
+          receipt.attribution!.placementKey);
+      expect(receipt.attribution, snapshot.attribution);
+      expect(receipt.toJson(1)['attribution'], snapshot.attribution.toJson());
+      expect(receipt.attribution!.actualPublication,
+          snapshot.hostedDelivery!.actualPublication);
+    }
   });
 
   test('latency buckets follow the closed thresholds', () {

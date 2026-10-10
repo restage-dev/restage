@@ -50,6 +50,17 @@ abstract final class SurfaceAssignmentPersistence {
     });
   }
 
+  /// Removes one retained value in the same order as writes.
+  static Future<bool> remove(String key, {required int generation}) async {
+    await ready;
+    return _ordered(() async {
+      if (generation != _generation) return false;
+      final prefs = await SharedPreferences.getInstance();
+      if (generation != _generation) return false;
+      return prefs.remove(key);
+    });
+  }
+
   /// Invalidates pending writes immediately and erases after active writes end.
   /// The actor is installation-wide, so reset retires all SDK assignment scopes.
   static Future<void> forget({Future<void>? afterIdentityReset}) {

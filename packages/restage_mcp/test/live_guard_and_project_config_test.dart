@@ -9,6 +9,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
 import 'package:test/test.dart';
 
 import '_support/fake_backend.dart';
+import '_support/delivery_fixtures.dart' show policyReview, surfaceScope;
 import '_support/harness.dart';
 
 const _surface = <String, Object?>{
@@ -57,15 +58,17 @@ void main() {
 
   Future<ServerConnection> connect(
     List<BackendCall> calls,
-    Future<http.Response> Function(BackendCall call) handler,
-  ) => connectServer(
+    Future<http.Response> Function(BackendCall call) handler, {
+    String appSlug = 'mobile',
+  }) => connectServer(
     store: store,
-    httpClient: fakeBackend(handler, calls: calls),
+    httpClient: fakeBackend(handler, calls: calls, appSlug: appSlug),
   );
 
   List<String> changes(List<BackendCall> calls) => [
     for (final call in calls)
-      if (call.endpoint == 'surface') call.method,
+      if (call.endpoint == 'surface' && call.method != 'reviewDeliveryImpact')
+        call.method,
   ];
 
   group('a live target', () {
@@ -171,9 +174,11 @@ void main() {
           arguments: {
             ..._surface,
             'organizationId': 7,
+            'environmentSlug': 'production',
             'environmentTargetId': 44,
-            'documentBase64': base64Encode(const [1]),
-            'expectNoRevision': true,
+            'reviewBase64': base64Encode(
+              policyReview(surfaceScope(live: true)).canonicalBytes,
+            ),
           },
         ),
       );
@@ -357,7 +362,11 @@ void main() {
     test('an argument overrides the config', () async {
       final directory = project('project: demo\napp: mobile\n');
       final calls = <BackendCall>[];
-      final connection = await connect(calls, (_) async => _identityResult());
+      final connection = await connect(
+        calls,
+        (_) async => _identityResult(),
+        appSlug: 'tablet',
+      );
 
       await connection.callTool(
         CallToolRequest(

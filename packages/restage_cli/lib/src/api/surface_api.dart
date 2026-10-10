@@ -3,8 +3,15 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/byte_data_wire.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/delivery_management_api.dart'
+    show DeliveryManagementResponseException;
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        DeliveryMeasurementMutationReviewV1,
+        DeliveryMeasurementMutationProceedV1,
+        TargetCoordinate;
 import 'package:restage_shared/restage_shared.dart';
 
 /// Typed wrapper over the backend's `surface` RPC endpoint.
@@ -22,6 +29,69 @@ class SurfaceApi {
   SurfaceApi(this._api);
 
   final RestageApi _api;
+
+  /// Retains the original complete server review for one surface operation.
+  Future<DeliveryMeasurementMutationReviewV1> reviewDeliveryImpact({
+    required String project,
+    required String app,
+    required Surface surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required String operation,
+    required String reason,
+    int? publishedRevision,
+    int? contractVersion,
+    SurfaceSourceKind? sourceKind,
+    bool? frozen,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+    TargetCoordinate? expectedTarget,
+  }) async {
+    final raw = await _api.call('surface', 'reviewDeliveryImpact', {
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'operation': operation,
+      'reason': reason,
+      'publishedRevision': ?publishedRevision,
+      'contractVersion': ?contractVersion,
+      'sourceKind': ?sourceKind?.wireName,
+      'frozen': ?frozen,
+      'environmentTargetId': ?environmentTargetId,
+      'runtimePlane': ?runtimePlane?.wireName,
+      'organizationId': ?organizationId,
+    });
+    try {
+      final review = DeliveryMeasurementMutationReviewV1.fromCanonicalBytes(
+        decodeByteDataWire(
+          raw,
+          maximumBytes: kMaximumPlacementResponseBytes,
+          malformed: (_) => const DeliveryManagementResponseException(),
+        ),
+      );
+      if (review.operation != operation ||
+          review.reviews.any((impact) {
+            final target = impact.scope.target;
+            return (expectedTarget != null && target != expectedTarget) ||
+                (organizationId != null &&
+                    target.organizationId.value != organizationId) ||
+                (environmentTargetId != null &&
+                    target.environmentTargetId.value != environmentTargetId) ||
+                (runtimePlane != null &&
+                    target.runtimePlane.name != runtimePlane.wireName);
+          })) {
+        throw const DeliveryManagementResponseException();
+      }
+      return review;
+    } on DeliveryManagementResponseException {
+      rethrow;
+    } on Object {
+      throw const DeliveryManagementResponseException();
+    }
+  }
 
   /// List surfaces of [surfaceType] under (project, app).
   ///
@@ -290,6 +360,7 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    DeliveryMeasurementMutationProceedV1? measurementProceed,
   }) async {
     final raw = await _api.call('surface', 'killSurface', <String, dynamic>{
       'projectSlug': project,
@@ -303,6 +374,7 @@ class SurfaceApi {
         'environmentTargetId': environmentTargetId,
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
+      'measurementProceedBytes': ?_measurementProceedWire(measurementProceed),
     });
     return SurfaceIdentityMutationResult.fromJsonOrNull(
       raw,
@@ -327,6 +399,7 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    DeliveryMeasurementMutationProceedV1? measurementProceed,
   }) async {
     final raw = await _api.call('surface', 'setSurfaceLock', <String, dynamic>{
       'projectSlug': project,
@@ -340,6 +413,7 @@ class SurfaceApi {
         'environmentTargetId': environmentTargetId,
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
+      'measurementProceedBytes': ?_measurementProceedWire(measurementProceed),
     });
     return SurfaceIdentityMutationResult.fromJsonOrNull(
       raw,
@@ -368,6 +442,7 @@ class SurfaceApi {
     int? organizationId,
     int? contractVersion,
     SurfaceSourceKind? sourceKind,
+    DeliveryMeasurementMutationProceedV1? measurementProceed,
   }) async {
     final raw = await _api.call('surface', 'rollbackSurface', <String, dynamic>{
       'projectSlug': project,
@@ -384,6 +459,7 @@ class SurfaceApi {
       'organizationId': ?organizationId,
       'contractVersion': contractVersion,
       if (sourceKind != null) 'sourceKind': sourceKind.wireName,
+      'measurementProceedBytes': ?_measurementProceedWire(measurementProceed),
     });
     return SurfaceFamilyMutationResult.fromJsonOrNull(
       raw,
@@ -408,6 +484,7 @@ class SurfaceApi {
     int? organizationId,
     int? contractVersion,
     SurfaceSourceKind? sourceKind,
+    DeliveryMeasurementMutationProceedV1? measurementProceed,
   }) async {
     final raw = await _api.call('surface', 'activateSurface', <String, dynamic>{
       'projectSlug': project,
@@ -423,6 +500,7 @@ class SurfaceApi {
       'organizationId': ?organizationId,
       'contractVersion': ?contractVersion,
       'sourceKind': ?sourceKind?.wireName,
+      'measurementProceedBytes': ?_measurementProceedWire(measurementProceed),
     });
     return SurfaceFamilyMutationResult.fromJson(
       raw,
@@ -529,13 +607,55 @@ class SurfaceApi {
     });
   }
 
-  /// Archives the surface: it stops serving in every environment.
+  /// Retains the complete server archive review across every actual app target.
+  Future<DeliveryMeasurementMutationReviewV1> reviewArchiveDeliveryImpact({
+    required String project,
+    required String app,
+    required Surface surfaceType,
+    required String surfaceSlug,
+    int? organizationId,
+    int? appId,
+  }) async {
+    final raw = await _api.call('surfaceArchive', 'reviewDeliveryImpact', {
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'organizationId': ?organizationId,
+    });
+    try {
+      final review = DeliveryMeasurementMutationReviewV1.fromCanonicalBytes(
+        decodeByteDataWire(
+          raw,
+          maximumBytes: kMaximumPlacementResponseBytes,
+          malformed: (_) => const DeliveryManagementResponseException(),
+        ),
+      );
+      if (review.operation != 'surfaceArchive' ||
+          review.reviews.any((impact) {
+            final target = impact.scope.target;
+            return (organizationId != null &&
+                    target.organizationId.value != organizationId) ||
+                (appId != null && target.appId.value != appId);
+          })) {
+        throw const DeliveryManagementResponseException();
+      }
+      return review;
+    } on DeliveryManagementResponseException {
+      rethrow;
+    } on Object {
+      throw const DeliveryManagementResponseException();
+    }
+  }
+
+  /// Archives the surface using its complete retained all-target review.
   Future<void> archive({
     required String project,
     required String app,
     required SurfaceType surfaceType,
     required String surfaceSlug,
     int? organizationId,
+    DeliveryMeasurementMutationProceedV1? measurementProceed,
   }) => _lifecycle(
     'archive',
     project: project,
@@ -543,6 +663,7 @@ class SurfaceApi {
     surfaceType: surfaceType,
     surfaceSlug: surfaceSlug,
     organizationId: organizationId,
+    measurementProceed: measurementProceed,
   );
 
   /// Restores an archived surface.
@@ -584,6 +705,7 @@ class SurfaceApi {
     required SurfaceType surfaceType,
     required String surfaceSlug,
     int? organizationId,
+    DeliveryMeasurementMutationProceedV1? measurementProceed,
   }) async {
     await _api.call('surfaceArchive', method, <String, dynamic>{
       'projectSlug': project,
@@ -591,8 +713,20 @@ class SurfaceApi {
       'surfaceType': surfaceType.wireName,
       'surfaceSlug': surfaceSlug,
       'organizationId': ?organizationId,
+      'measurementProceedBytes': ?_measurementProceedWire(measurementProceed),
     });
   }
+}
+
+String? _measurementProceedWire(DeliveryMeasurementMutationProceedV1? proceed) {
+  if (proceed == null) return null;
+  final bytes = proceed.canonicalBytes;
+  if (bytes.length > kMaximumPlacementManagementRequestBytes) {
+    throw const FormatException(
+      'The measurement proceed exceeds its byte limit.',
+    );
+  }
+  return encodeByteDataWire(bytes);
 }
 
 Uint8List _surfaceBytes(Object? raw) => decodeByteDataWire(

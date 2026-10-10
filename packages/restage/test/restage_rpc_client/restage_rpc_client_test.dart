@@ -12,6 +12,7 @@ import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/restage_rpc_client/surface_delivery_evidence.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -625,8 +626,11 @@ void main() {
         surfaceSlug: 'first_run',
       );
 
-      expect(withoutSupportedPolicyRevisions(sent),
-          {'surfaceType': 'onboarding', 'surfaceSlug': 'first_run'});
+      expect(withoutSupportedPolicyRevisions(sent), {
+        'surfaceType': 'onboarding',
+        'surfaceSlug': 'first_run',
+        'sdkInstalledLibraries': installedLibrariesCarrier()
+      });
     });
 
     test(
@@ -672,6 +676,7 @@ void main() {
           expect(withoutSupportedPolicyRevisions(jsonDecode(request.body)), {
             'surfaceType': 'paywall',
             'surfaceSlug': 'shared',
+            'sdkInstalledLibraries': installedLibrariesCarrier(),
           });
         }
       },
@@ -866,6 +871,7 @@ void main() {
         'surfaceType': 'onboarding',
         'surfaceSlug': 'first_run',
         'version': 1,
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
     });
 
@@ -895,6 +901,7 @@ void main() {
       expect(withoutSupportedPolicyRevisions(jsonDecode(seen.body)), {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
       expect((jsonDecode(seen.body) as Map).containsKey('version'), isFalse);
     });
@@ -929,10 +936,12 @@ void main() {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
         'assignmentKey': 'anon-123',
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
       expect(withoutSupportedPolicyRevisions(seenBodies.last), {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
     });
   });

@@ -10,6 +10,7 @@ import 'package:rfw/rfw.dart';
 
 import '../authoring/event_dispatch_admission.dart';
 import '../delivery/raced_surface_resolver.dart';
+import '../resolver/placement_mount_resolver.dart';
 import '../delivery/render_deadline.dart';
 import '../delivery/surface_race.dart';
 import '../analytics/root_analytics_context.dart';
@@ -393,8 +394,12 @@ final class RestageFlowController<R> extends ChangeNotifier {
       if (_isDisposed) return;
       final rootFrame = _FlowFrame(
         resolved: resolved,
-        flowId: flow.id,
-        flowVersion: flow.version,
+        flowId: placementAdmissionFor(resolved) == null
+            ? flow.id
+            : resolved.document.flow,
+        flowVersion: placementAdmissionFor(resolved) == null
+            ? flow.version
+            : resolved.document.version,
         // Record the resolved version for lifecycle events ONLY when the active
         // arm served a DIFFERENT version than the requested contract — i.e. a
         // real content OTA. An exact resolve (active off), or an active-arm
@@ -785,8 +790,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _SurveyAnswerTransaction transaction,
     _SurveyAnswerReport report,
   ) {
-    if (!transaction.measurementReportedQuestions.add(report.questionId))
+    if (!transaction.measurementReportedQuestions.add(report.questionId)) {
       return;
+    }
     try {
       _onMeasurementAnswer?.call(report.questionId, report.value);
     } on Object {
@@ -1005,14 +1011,19 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// [active] is false and check B runs as before.
   void _validateResolved(ResolvedFlow resolved, {bool active = false}) {
     final document = resolved.document;
-    if (document.flow != flow.id) {
+    final placement = placementAdmissionFor(resolved);
+    if (placement != null && !placement.isCurrent) {
+      throw _error(
+          'placement_expired', 'The selected placement is no longer eligible.');
+    }
+    if (placement == null && document.flow != flow.id) {
       throw _error(
         'flow_mismatch',
         'Flow JSON id "${document.flow}" does not match requested '
             'flow "${flow.id}".',
       );
     }
-    if (!active && document.version != flow.version) {
+    if (placement == null && !active && document.version != flow.version) {
       throw _error(
         'version_mismatch',
         'Flow JSON version ${document.version} does not match requested '
@@ -1025,7 +1036,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
         'Unsupported flow schemaVersion ${document.schemaVersion}.',
       );
     }
-    if (document.minClient > flow.minClient) {
+    if (placement == null && document.minClient > flow.minClient) {
       throw _error(
         'unsupported_min_client',
         'Flow minClient ${document.minClient} exceeds requested client '
@@ -1041,7 +1052,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
               '${artifact.schemaVersion} for "${entry.key}".',
         );
       }
-      if (artifact.minClient > flow.minClient) {
+      if (placement == null && artifact.minClient > flow.minClient) {
         throw _error(
           'unsupported_min_client',
           'Screen artifact minClient ${artifact.minClient} for "${entry.key}" '

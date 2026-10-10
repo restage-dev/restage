@@ -85,6 +85,7 @@ final class SurfacePublicationUploadResult {
     required this.storedRevision,
     required this.identityFrozen,
     this.activeRevision,
+    this.deliveryPublication,
   });
 
   /// Exact family published by the operation.
@@ -100,6 +101,9 @@ final class SurfacePublicationUploadResult {
 
   /// Identity-wide freeze state after the operation.
   final bool identityFrozen;
+
+  /// Exact immutable publication stored by this upload, when qualified.
+  final DeliveryPublicationReferenceV1? deliveryPublication;
 
   /// Wire-shaped spelling for callers that need to mirror the generated DTO.
   int get storedPublishedRevision => storedRevision;
@@ -140,11 +144,34 @@ final class SurfacePublicationUploadResult {
         'The publication response did not contain freeze state.',
       );
     }
+    final referenceBytes = value['deliveryPublicationBytes'];
+    final publication = referenceBytes == null
+        ? null
+        : DeliveryPublicationReferenceV1.fromCanonicalBytes(
+            decodeByteDataWire(
+              referenceBytes,
+              maximumBytes: 64 * 1024,
+              malformed: FormatException.new,
+            ),
+          );
+    if (publication != null &&
+        (publication.publishedVersion != storedRevision ||
+            publication.surface.family !=
+                (family.contractVersion == null
+                    ? const DeliveryFamilySelectorV1.general()
+                    : DeliveryFamilySelectorV1.screenContract(
+                        contractVersion: family.contractVersion!,
+                      )))) {
+      throw const FormatException(
+        'The publication response reference differs from its stored revision or family.',
+      );
+    }
     return SurfacePublicationUploadResult(
       family: family,
       storedRevision: storedRevision,
       activeRevision: activeRevision as int?,
       identityFrozen: identityFrozen,
+      deliveryPublication: publication,
     );
   }
 
@@ -155,6 +182,10 @@ final class SurfacePublicationUploadResult {
     'storedPublishedRevision': storedRevision,
     if (activeRevision != null) 'activePublishedRevision': activeRevision,
     'identityFrozen': identityFrozen,
+    if (deliveryPublication != null)
+      'deliveryPublicationBytes': encodeByteDataWire(
+        deliveryPublication!.canonicalBytes,
+      ),
   };
 }
 

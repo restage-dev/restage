@@ -8,6 +8,7 @@ import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -48,6 +49,7 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
       withContractVersion: true,
       withSourceKind: true,
     );
+    addSurfaceMeasurementReviewOptions(argParser);
     argParser
       ..addOption(
         'revision',
@@ -136,12 +138,25 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
             'in ${target.environment} (live).',
       );
       if (!confirmed) return 1;
+      final surfaces = SurfaceApi(ctx.api);
+      final impact = await reviewSurfaceMeasurement(
+        io: _io,
+        arguments: argResults!,
+        api: surfaces,
+        target: target,
+        identity: identity,
+        operation: 'surfaceActivate',
+        reason: reason,
+        publishedRevision: explicit.revision,
+      );
+      if (impact.exitCode case final code?) return code;
       final (:recorded, publication: _) = await publishSurface(
-        api: SurfaceApi(ctx.api),
+        api: surfaces,
         identity: identity,
         at: target.family,
         revision: explicit.revision,
         reason: reason,
+        measurementProceed: impact.proceed,
         record: recorder == null
             ? null
             : (recorder: recorder, target: target.resolved),

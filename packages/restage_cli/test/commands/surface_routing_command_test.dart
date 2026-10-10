@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/api.dart'
+    show decodeByteDataWire, kMaximumRoutingRequestBytes;
 import 'package:restage_cli/src/commands/surface_routing_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -12,6 +14,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
+import 'delivery_command_test.dart' show policyReview;
 
 /// The wire form the service reads byte columns as.
 String wire(List<int> bytes) => "decode('${base64Encode(bytes)}', 'base64')";
@@ -66,6 +69,25 @@ MeasurementDeliveryDiagnosticsV1 diagnosticsRead({
           ),
         ],
       ),
+);
+
+DeliveryPolicyReviewV1 currentReview(int? expectedHeadOrdinal) => policyReview(
+  DeliveryPolicyScopeV1(
+    root: DeliveryRootIdentityV1.surface(
+      PublishedSurfaceIdentityV1(
+        target: TargetCoordinate(
+          organizationId: OrganizationId(7),
+          appId: ApplicationId(8),
+          environmentTargetId: EnvironmentTargetId(12),
+          namedEnvironmentId: NamedEnvironmentId(22),
+          runtimePlane: RuntimePlane.sandbox,
+        ),
+        surfaceId: SurfaceId('immutable-welcome-id'),
+      ),
+    ),
+    family: DeliveryFamilySelectorV1.screenContract(contractVersion: 3),
+  ),
+  expectedHeadOrdinal: expectedHeadOrdinal,
 );
 
 void main() {
@@ -207,7 +229,10 @@ void main() {
 
     test('a publish carries the same complete target', () async {
       Map<String, dynamic>? captured;
-      final path = await seedBytes('doc.bin', const [9, 9, 9]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(4).canonicalBytes,
+      );
       final client = scriptedHttpClient([
         (request) {
           captured = jsonDecode(request.body) as Map<String, dynamic>;
@@ -248,7 +273,10 @@ void main() {
     'a live publish without --yes is refused when non-interactive',
     () async {
       var called = false;
-      final path = await seedBytes('doc.bin', const [9, 9, 9]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(4).canonicalBytes,
+      );
       final err = StringBuffer();
       final code =
           await makeRunner(
@@ -285,42 +313,46 @@ void main() {
   );
 
   group('the document travels whole and unread', () {
-    test('publish sends the file bytes exactly, so both branches of a '
-        'percentage route reach the service together', () async {
-      // Two destinations in one document. The client never decodes it; the
-      // pin is that every byte arrives.
-      final document = Uint8List.fromList(
-        utf8.encode('{"routes":[{"primary":11,"remainder":12}]}'),
-      );
-      final path = await seedBytes('percentage.bin', document);
-      Map<String, dynamic>? captured;
-      final client = scriptedHttpClient([
-        (request) {
-          captured = jsonDecode(request.body) as Map<String, dynamic>;
-          return json({'outcome': 'applied', 'revisionOrdinal': 2});
-        },
-      ]);
-
-      final code =
-          await makeRunner(
-            stdout: StringBuffer(),
-            stderr: StringBuffer(),
-            httpClient: client,
-          ).run([
-            'routing',
-            'publish',
-            'welcome',
-            ...target(),
-            '--type',
-            'onboarding',
-            '--document',
-            path,
-            '--expect-no-revision',
-          ]);
-
-      expect(code, 0);
-      expect(captured!['documentBytes'], wire(document));
-    });
+    test(
+      'publish sends only the exact original complete review reference',
+      () async {
+        final review = currentReview(null);
+        final path = await seedBytes('review.json', review.canonicalBytes);
+        Map<String, dynamic>? captured;
+        final client = scriptedHttpClient([
+          (request) {
+            captured = jsonDecode(request.body) as Map<String, dynamic>;
+            return json({'outcome': 'applied', 'revisionOrdinal': 1});
+          },
+        ]);
+        final code =
+            await makeRunner(
+              stdout: StringBuffer(),
+              stderr: StringBuffer(),
+              httpClient: client,
+            ).run([
+              'routing',
+              'publish',
+              'welcome',
+              ...target(),
+              '--type',
+              'onboarding',
+              '--review',
+              path,
+              '--expect-no-revision',
+            ]);
+        expect(code, 0);
+        final request = DeliveryPolicyPublishRequestV1.fromCanonicalBytes(
+          decodeByteDataWire(
+            captured!['documentBytes'],
+            maximumBytes: kMaximumRoutingRequestBytes,
+            malformed: (detail) => FormatException(detail),
+          ),
+        );
+        expect(request.reviewRef, review.reviewRef);
+        expect(request.toJson().containsKey('candidatePlan'), isFalse);
+      },
+    );
 
     test('read writes the returned bytes back out unchanged', () async {
       final stored = Uint8List.fromList(List<int>.generate(64, (i) => i));
@@ -353,67 +385,68 @@ void main() {
       expect(File(out).readAsBytesSync(), stored);
     });
 
-    test('preview reports the service classification and never evaluates a '
-        'rule locally', () async {
-      // The document is not a routing document at all and the request context
-      // is empty of anything a rule could read. A client that evaluated
-      // locally could not return `matched`; this one prints what it is told.
-      final document = await seedBytes('opaque.bin', utf8.encode('not-a-doc'));
-      final schema = await seedBytes('schema.bin', const [1]);
-      final context = await seedBytes('context.bin', const [2]);
-      final audience = await seedBytes('audience.bin', const [3]);
-      Map<String, dynamic>? captured;
-      final client = scriptedHttpClient([
-        (request) {
-          captured = jsonDecode(request.body) as Map<String, dynamic>;
-          return json({
-            'rules': [
-              {'routeId': 'r1', 'matches': true, 'reason': 'matched'},
-              {'routeId': 'r2', 'matches': false, 'reason': 'disabled'},
-            ],
-            'deliveryBytes': wire(const [7, 7]),
-            'usesActivePointer': false,
-          });
-        },
-      ]);
-
-      final out = StringBuffer();
-      final code =
-          await makeRunner(
-            stdout: out,
-            stderr: StringBuffer(),
-            httpClient: client,
-          ).run([
-            'routing',
-            'preview',
-            'welcome',
-            ...target(),
-            '--type',
-            'onboarding',
-            '--document',
-            document,
-            '--schema',
-            schema,
-            '--request-context',
-            context,
-            '--audience',
-            audience,
-          ]);
-
-      expect(code, 0);
-      expect(captured!['method'], 'previewRouting');
-      expect(captured!['audienceBytes'], [
-        wire(const [3]),
-      ]);
-      expect(captured!['requestContextBytes'], wire(const [2]));
-      expect(out.toString(), contains('r1\tmatch\tmatched'));
-      expect(out.toString(), contains('r2\tno match\tdisabled'));
-    });
+    test(
+      'preview preserves the complete original simulation using retained server authority',
+      () async {
+        final scope = currentReview(4).scope;
+        final input = DeliveryPolicySimulationRequestV1(
+          scope: scope,
+          inputs: DeliverySimulationInputsV1(localNow: null),
+        );
+        final simulation = DeliveryPolicySimulationV1(
+          scope: scope,
+          reason: 'identityUnavailable',
+          routeId: 'r1',
+        );
+        final document = await seedBytes(
+          'simulation.json',
+          input.canonicalBytes,
+        );
+        Map<String, dynamic>? captured;
+        final client = scriptedHttpClient([
+          (request) {
+            captured = jsonDecode(request.body) as Map<String, dynamic>;
+            return json({
+              'rules': [
+                {'routeId': 'r1', 'matches': true, 'reason': 'matched'},
+              ],
+              'deliveryBytes': wire(simulation.canonicalBytes),
+              'usesActivePointer': false,
+            });
+          },
+        ]);
+        final out = StringBuffer();
+        final code =
+            await makeRunner(
+              stdout: out,
+              stderr: StringBuffer(),
+              httpClient: client,
+            ).run([
+              'routing',
+              'preview',
+              'welcome',
+              ...target(),
+              '--type',
+              'onboarding',
+              '--document',
+              document,
+            ]);
+        expect(code, 0);
+        expect(captured!['method'], 'previewRouting');
+        expect(captured!['audienceBytes'], isEmpty);
+        expect(captured!['requestContextBytes'], isNull);
+        expect(captured!['schemaBytes'], isNull);
+        expect(out.toString(), contains('identityUnavailable'));
+      },
+    );
   });
 
   group('the compare-and-set precondition', () {
     test('the expected ordinal reaches the service exactly', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(30).canonicalBytes,
+      );
       Map<String, dynamic>? captured;
       final client = scriptedHttpClient([
         (request) {
@@ -445,7 +478,10 @@ void main() {
     });
 
     test('--expect-no-revision sends a null precondition', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       Map<String, dynamic>? captured;
       final client = scriptedHttpClient([
         (request) {
@@ -476,31 +512,42 @@ void main() {
       expect(captured!['expectedRevisionOrdinal'], isNull);
     });
 
-    test('neither precondition is refused before any call', () async {
-      final path = await seedBytes('doc.bin', const [1]);
-      final err = StringBuffer();
-      final code =
-          await makeRunner(
-            stdout: StringBuffer(),
-            stderr: err,
-            httpClient: scriptedHttpClient(const []),
-          ).run([
-            'routing',
-            'publish',
-            'welcome',
-            ...target(),
-            '--type',
-            'onboarding',
-            '--document',
-            path,
-          ]);
+    test(
+      'the original server review supplies the exact head without a duplicate flag',
+      () async {
+        final path = await seedBytes(
+          'review.json',
+          currentReview(4).canonicalBytes,
+        );
+        final err = StringBuffer();
+        final code =
+            await makeRunner(
+              stdout: StringBuffer(),
+              stderr: err,
+              httpClient: scriptedHttpClient([
+                (_) => json({'outcome': 'applied', 'revisionOrdinal': 5}),
+              ]),
+            ).run([
+              'routing',
+              'publish',
+              'welcome',
+              ...target(),
+              '--type',
+              'onboarding',
+              '--document',
+              path,
+            ]);
 
-      expect(code, 1);
-      expect(err.toString(), contains('exactly one'));
-    });
+        expect(code, 0);
+        expect(err.toString(), isEmpty);
+      },
+    );
 
     test('both preconditions together are refused before any call', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(4).canonicalBytes,
+      );
       final err = StringBuffer();
       final code =
           await makeRunner(
@@ -522,13 +569,14 @@ void main() {
           ]);
 
       expect(code, 1);
-      expect(err.toString(), contains('exactly one'));
+      expect(err.toString(), contains('only one'));
     });
 
     test('a rollback carries the route, the prior revision, and the '
         'precondition', () async {
       Map<String, dynamic>? captured;
       final client = scriptedHttpClient([
+        (_) => byteData(currentReview(8).canonicalBytes),
         (request) {
           captured = jsonDecode(request.body) as Map<String, dynamic>;
           return json({'outcome': 'applied', 'revisionOrdinal': 9});
@@ -565,7 +613,10 @@ void main() {
 
   group('the retry identity', () {
     test('a generated operation id is a canonical version 4 UUID', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       Map<String, dynamic>? captured;
       final client = scriptedHttpClient([
         (request) {
@@ -602,7 +653,10 @@ void main() {
     });
 
     test('a supplied operation id is sent unchanged', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       const supplied = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
       Map<String, dynamic>? captured;
       final client = scriptedHttpClient([
@@ -639,7 +693,10 @@ void main() {
 
     test('an operation id that is not a version 4 UUID is refused before '
         'any call', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       final err = StringBuffer();
       final code =
           await makeRunner(
@@ -915,7 +972,10 @@ void main() {
 
   group('refusals', () {
     test('a conflict is reported with both ordinals and no retry', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(4).canonicalBytes,
+      );
       var calls = 0;
       final client = scriptedHttpClient([
         (_) {
@@ -950,7 +1010,10 @@ void main() {
     });
 
     test('a first-publish conflict names both sides in words', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       final client = scriptedHttpClient([(_) => conflict(actual: 2)]);
 
       final err = StringBuffer();
@@ -977,7 +1040,10 @@ void main() {
     });
 
     test('a service refusal is surfaced in the service term', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       final client = scriptedHttpClient([(_) => refusal('invalid_document')]);
 
       final err = StringBuffer();
@@ -1036,7 +1102,10 @@ void main() {
     });
 
     test('a refused mutation makes exactly one call', () async {
-      final path = await seedBytes('doc.bin', const [1]);
+      final path = await seedBytes(
+        'review.json',
+        currentReview(null).canonicalBytes,
+      );
       var calls = 0;
       final client = scriptedHttpClient([
         (_) {
@@ -1897,6 +1966,8 @@ void main() {
         'delivery-flow',
         'read-revision',
         'preview',
+        'review',
+        'review-rollback',
         'publish',
         'rollback',
       ]) {

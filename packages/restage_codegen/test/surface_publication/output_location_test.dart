@@ -1,11 +1,11 @@
 import 'package:build/build.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('RestageOutputPlacementPlan', () {
+  group('RestageOutputLocationPlan', () {
     test('resolves the default restage.generated collection directory', () {
-      final plan = RestageOutputPlacementPlan.fromBuilderOptions(
+      final plan = RestageOutputLocationPlan.fromBuilderOptions(
         BuilderOptions.empty,
       );
       final source = plan.forLibrary('lib/features/onboarding/welcome.dart');
@@ -56,7 +56,7 @@ void main() {
 
     test('declares valid adjacent source output paths without capture reuse',
         () {
-      final plan = RestageOutputPlacementPlan.fromBuilderOptions(
+      final plan = RestageOutputLocationPlan.fromBuilderOptions(
         const BuilderOptions(<String, Object?>{
           'inspection_report': true,
           'source_output_layout': 'adjacent',
@@ -113,7 +113,7 @@ void main() {
 
     test('applies Dart, bundle, and portable-root precedence independently',
         () {
-      final plan = RestageOutputPlacementPlan.fromBuilderOptions(
+      final plan = RestageOutputLocationPlan.fromBuilderOptions(
         const BuilderOptions(<String, Object?>{
           'bundled_runtime': true,
           'dart_output_root': 'lib/generated/restage',
@@ -198,7 +198,7 @@ void main() {
 
     test('recognizes every option fromBuilderOptions accepts', () {
       expect(
-        kRestagePlacementOptionNames,
+        kRestageOutputLocationOptionNames,
         unorderedEquals(<String>[
           'source_output_layout',
           'inspection_report',
@@ -211,7 +211,7 @@ void main() {
 
     test('rejects an authored source inside the reserved collection directory',
         () {
-      final plan = RestageOutputPlacementPlan.fromBuilderOptions(
+      final plan = RestageOutputLocationPlan.fromBuilderOptions(
         BuilderOptions.empty,
       );
       expect(
@@ -235,7 +235,7 @@ void main() {
         <String, Object?>{'dart_output_root': 'lib/.generated/restage'},
       ]) {
         expect(
-          () => RestageOutputPlacementPlan.fromBuilderOptions(
+          () => RestageOutputLocationPlan.fromBuilderOptions(
             BuilderOptions(options),
           ),
           throwsFormatException,

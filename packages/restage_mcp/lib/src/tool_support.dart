@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dart_mcp/server.dart';
@@ -606,7 +607,7 @@ ToolEntry liveGuarded(
   ToolEntry entry, {
   LiveReason reason = LiveReason.none,
   bool Function(CallToolRequest request)? changesLive,
-  RuntimePlane? Function(CallToolRequest request)? planeOf,
+  FutureOr<RuntimePlane?> Function(CallToolRequest request)? planeOf,
 }) {
   final (tool, handler) = entry;
   return (
@@ -631,7 +632,7 @@ ToolEntry liveGuarded(
       try {
         plane = planeOf == null
             ? await _planeOf(ctx, request)
-            : planeOf(request);
+            : await planeOf(request);
       } on FormatException {
         // The tool reports its own malformed input.
         return handler(request);

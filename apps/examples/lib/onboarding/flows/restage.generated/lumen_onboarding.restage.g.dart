@@ -124,10 +124,100 @@ final class LumenOnboardingActions implements FlowActionRegistry {
   );
 }
 
+final _lumenOnboardingFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: lumenOnboardingFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'lumen_onboarding',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{
+        'enableReminders': <String, Object?>{
+          'actionName': 'enableReminders',
+          'contractVersion': 1,
+          'argsSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{}
+          },
+          'resultSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{
+              'granted': <String, Object?>{
+                'required': true,
+                'schema': <String, Object?>{'kind': 'bool'}
+              }
+            }
+          },
+          'minClient': 6,
+          'idempotent': false
+        }
+      },
+      'signals': <Object?>['close', 'sign_in', 'terms'],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{'completed': 'bool'},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{'goal': 'string'},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{
+          'close': <String, Object?>{},
+          'sign_in': <String, Object?>{},
+          'terms': <String, Object?>{}
+        }
+      }
+    }
+  },
+  vocabulary: lumenOnboardingFlowRef.vocabulary,
+);
+
+final lumenOnboardingFlowPlacementDefinition =
+    () => _lumenOnboardingFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class LumenOnboardingFlowSurface
     extends RestageFlowGraph<LumenOnboardingResult> {
   LumenOnboardingFlowSurface({
+    super.key,
+    required CompiledFlowScreenBuilder paywallLumenWelcomeOfferScreenBuilder,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: lumenOnboardingFlowRef, screenBuilders: {
+          'paywall_lumen_welcome_offer': paywallLumenWelcomeOfferScreenBuilder,
+        });
+
+  LumenOnboardingFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     required CompiledFlowScreenBuilder paywallLumenWelcomeOfferScreenBuilder,
     super.initialState,
@@ -142,7 +232,16 @@ final class LumenOnboardingFlowSurface
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: lumenOnboardingFlowRef, screenBuilders: {
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: lumenOnboardingFlowRef, screenBuilders: {
           'paywall_lumen_welcome_offer': paywallLumenWelcomeOfferScreenBuilder,
         });
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: lumenOnboardingFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

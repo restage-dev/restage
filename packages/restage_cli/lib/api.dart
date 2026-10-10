@@ -12,18 +12,48 @@ export 'package:restage_shared/restage_shared.dart'
         SurfacePublicationUploadRequestV1Codec,
         SurfaceType;
 
+export 'package:restage_shared/restage_shared.dart'
+    show
+        PlacementScreenCaptureV1,
+        PlacementSampleDraftV1,
+        PlacementSamplePrepareV1,
+        PlacementSampleUploadTicketV1,
+        PlacementSampleUploadLimitsV1,
+        PlacementSampleStoreV1,
+        PlacementSampleStoredV1,
+        PlacementSampleBindV1,
+        PlacementScreenSampleRefV1,
+        PlacementSampleReadV1,
+        PlacementSampleReadResultV1,
+        PlacementSampleDeleteV1,
+        PlacementSampleDeleteResultV1,
+        PlacementDirectoryRequestV1,
+        PlacementDirectoryPageV1,
+        PlacementReadRequestV1,
+        PlacementReadV1,
+        PlacementObservedHistoryReadRequestV1,
+        PlacementObservedHistoryQueryV1,
+        PlacementObservedHistoryV1,
+        PlacementSimulationPageRequestV1,
+        PlacementSimulationPageV1,
+        kMaximumPlacementManagementRequestBytes,
+        placementScreenSampleMaxBytes;
+
 export 'src/api/app_admin_api.dart';
 export 'src/api/auth_api.dart';
 export 'src/api/auth_models.dart';
+export 'src/api/byte_data_wire.dart';
 export 'src/api/catalog_api.dart';
 export 'src/api/discovery_api.dart';
 export 'src/api/discovery_models.dart';
+export 'src/api/delivery_management_api.dart';
 export 'src/api/experiment_activation_api.dart';
 export 'src/api/experiment_activation_host_transport.dart';
 export 'src/api/experiment_api.dart';
 export 'src/api/library_requirements_api.dart';
 export 'src/api/measurement_page_api.dart';
 export 'src/api/measurement_wire.dart';
+export 'src/api/placement_sample_api.dart';
 export 'src/api/programmatic_mutation_api.dart';
 export 'src/api/render_bundle_api.dart';
 export 'src/api/render_bundle_coverage_sentence.dart';
@@ -58,7 +88,12 @@ export 'src/commands/surface_publish_operation.dart'
         publishSurface;
 export 'src/commands/target_resolution.dart'
     show ResolvedEnvironmentTargetContext, resolveTargetSelection;
+export 'src/commands/surface_routing_command.dart'
+    show isCanonicalOperationId, newOperationId;
 export 'src/operations/operation.dart';
+export 'src/delivery/delivery_operations.dart';
+export 'src/delivery/measurement_impact.dart';
+export 'src/delivery/policy_review.dart';
 export 'src/measurement/page_read.dart';
 export 'src/operations/operations.dart' show sharedOperation, sharedOperations;
 export 'src/api/surface_models.dart';

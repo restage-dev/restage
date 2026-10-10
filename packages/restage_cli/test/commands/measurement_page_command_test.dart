@@ -37,6 +37,8 @@ const _needs = <String, List<String>>{
   'analytics health': [],
   'experiment list': [],
   'experiment results': ['--experiment=experiment.checkout'],
+  'delivery map': [],
+  'where': ['daily-check-in@2'],
 };
 
 String _served(Map<String, Object?> document) => jsonEncode({
@@ -111,9 +113,286 @@ void main() {
   PageRead readOf(String path) =>
       pageReads.singleWhere((read) => read.cliPath == path);
 
-  test('the seven reads are defined once, each with its own tool', () {
+  test('the nine reads are defined once, each with its own tool', () {
     expect(pageReads.map((read) => read.cliPath), _needs.keys);
-    expect(pageReads.map((read) => read.mcpName).toSet(), hasLength(7));
+    expect(pageReads.map((read) => read.mcpName).toSet(), hasLength(9));
+  });
+
+  group('the delivery map', () {
+    test(
+      'where names one surface and version across every environment',
+      () async {
+        final result = await run(readOf('where'), ['daily-check-in@2']);
+
+        expect(result.code, 0, reason: result.err);
+        expect(sent.single['method'], 'readDeliveryMapPage');
+        expect(sent.single['surfaceSlug'], 'daily-check-in');
+        expect(sent.single['version'], 2);
+        expect(sent.single['allEnvironments'], isTrue);
+      },
+    );
+
+    test('where needs a surface and a whole version', () async {
+      expect((await run(readOf('where'), const [])).code, 1);
+      expect((await run(readOf('where'), ['daily@two'])).code, 1);
+      expect(sent, isEmpty);
+    });
+
+    test('the map sends its filters and keeps the grouping local', () async {
+      await run(readOf('delivery map'), [
+        '--all-environments',
+        '--placement=named:home',
+        '--by=surface',
+      ]);
+
+      expect(sent.single['allEnvironments'], isTrue);
+      expect(sent.single['placement'], 'named:home');
+      expect(sent.single.containsKey('by'), isFalse);
+    });
+
+    final page = {
+      'kind': 'deliveryMapPage',
+      'request': {
+        'fromMicros': DateTime.utc(2026, 9, 27).microsecondsSinceEpoch,
+        'untilMicros': DateTime.utc(2026, 10, 4).microsecondsSinceEpoch,
+      },
+      'targets': [
+        {
+          'environment': 'staging',
+          'target': {'environmentTargetId': 13, 'runtimePlane': 'sandbox'},
+        },
+      ],
+      'builds': [
+        {'platform': 'ios', 'buildOrdinal': 118, 'appVersion': '2.3'},
+      ],
+      'placements': {
+        'values': [
+          {
+            'key': 'named:home',
+            'label': 'home',
+            'target': {'environmentTargetId': 13, 'runtimePlane': 'sandbox'},
+            'screen': {'screenLabel': 'Home'},
+            'resolutions': {'value': 1067},
+            'edges': [
+              {
+                'surfaceType': 'message',
+                'surfaceSlug': 'daily-check-in',
+                'isDefault': true,
+                'routeIds': <Object?>[],
+                'routedResolutions': {'value': 1000},
+                'paints': {'value': 1000},
+                'flags': <Object?>[],
+                'kpi': {'state': 'notAvailable'},
+                'versions': [
+                  {
+                    'version': 2,
+                    'live': true,
+                    'routedResolutions': {'value': 1000},
+                    'paints': {'value': 1000},
+                    'paintsByBuild': [
+                      {
+                        'platform': 'ios',
+                        'buildOrdinal': 118,
+                        'count': {'value': 1000},
+                      },
+                    ],
+                    'flags': <Object?>[],
+                  },
+                ],
+              },
+              {
+                'surfaceType': 'message',
+                'surfaceSlug': 'evening-check-in',
+                'isDefault': false,
+                'routeIds': ['evening-ritual'],
+                'routedResolutions': {'state': 'unknown'},
+                'paints': {'state': 'held'},
+                'flags': [
+                  {
+                    'kind': 'cantRender',
+                    'count': 7,
+                    'platform': 'ios',
+                    'buildOrdinal': 118,
+                  },
+                ],
+                'kpi': {
+                  'state': 'available',
+                  'metric': 'Check-in started',
+                  'numerator': 349,
+                  'denominator': 1000,
+                },
+                'versions': <Object?>[],
+              },
+            ],
+            'schedule': [
+              {
+                'rules': [
+                  {
+                    'routeId': 'evening-ritual',
+                    'name': 'Evening ritual',
+                    'audienceName': 'Evening users',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      'surfaces': {
+        'values': [
+          {
+            'surfaceType': 'message',
+            'surfaceSlug': 'weekly-progress',
+            'placed': false,
+            'fitsPlacements': <Object?>[],
+          },
+        ],
+      },
+    };
+
+    List<String> rows(String out) => [
+      for (final line in out.split('\n'))
+        if (line.trim().isNotEmpty)
+          line.trim().split(RegExp(' {2,}')).join('|'),
+    ];
+
+    test('by placement prints a row per version with its shares', () async {
+      final result = await run(
+        readOf('delivery map'),
+        const [],
+        reply: _served(page),
+      );
+
+      expect(result.code, 0, reason: result.err);
+      final table = rows(result.out);
+      expect(
+        table,
+        contains(['Delivery map', 'Sep 27–Oct 3', 'staging'].join('|')),
+      );
+      expect(
+        table,
+        contains(
+          [
+            'PLACEMENT',
+            'SCREEN',
+            'SURFACE',
+            'VERSION',
+            'RULE',
+            'AUDIENCE',
+            'BUILDS',
+            'CONFIGURED',
+            'SEEN',
+            'PAINTS',
+            'KPI',
+          ].join('|'),
+        ),
+      );
+      expect(
+        table,
+        contains(
+          [
+            'home',
+            'Home',
+            'daily-check-in',
+            'v2',
+            '—',
+            'Everyone',
+            'iOS 2.3 (118)',
+            '93.7%',
+            'Unknown',
+            '1,000',
+            'Not available',
+          ].join('|'),
+        ),
+      );
+      expect(
+        table,
+        contains(
+          [
+            'home',
+            'Home',
+            'evening-check-in',
+            '—',
+            'Evening ritual',
+            'Evening users',
+            '—',
+            'Unknown',
+            'Unknown',
+            '<5',
+            'Check-in started 34.9%',
+          ].join('|'),
+        ),
+      );
+      expect(
+        table,
+        contains(
+          [
+            'home',
+            'evening-check-in',
+            'cant-render',
+            '7 fallbacks on iOS 2.3 (118)',
+          ].join('|'),
+        ),
+      );
+      expect(table, contains(['Not placed yet', '1'].join('|')));
+      expect(
+        table,
+        contains(['weekly-progress', 'Fits no reported spot'].join('|')),
+      );
+    });
+
+    test('by surface leads with the surface and the environment', () async {
+      final result = await run(readOf('delivery map'), [
+        '--by=surface',
+      ], reply: _served(page));
+
+      final table = rows(result.out);
+      expect(
+        table,
+        contains(
+          [
+            'SURFACE',
+            'VERSION',
+            'ENVIRONMENT',
+            'PLANE',
+            'PLACEMENT',
+            'SCREEN',
+            'RULE',
+            'AUDIENCE',
+            'BUILDS',
+            'CONFIGURED',
+            'SEEN',
+            'PAINTS',
+          ].join('|'),
+        ),
+      );
+      expect(
+        table,
+        contains(
+          [
+            'daily-check-in',
+            'v2',
+            'staging',
+            'sandbox',
+            'home',
+            'Home',
+            '—',
+            'Everyone',
+            'iOS 2.3 (118)',
+            '93.7%',
+            'Unknown',
+            '1,000',
+          ].join('|'),
+        ),
+      );
+    });
+
+    test('where takes the v prefix the dashboard shows', () async {
+      await run(readOf('where'), ['annual-upgrade@v4']);
+
+      expect(sent.single['surfaceSlug'], 'annual-upgrade');
+      expect(sent.single['version'], 4);
+    });
   });
 
   group('every read', () {

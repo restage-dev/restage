@@ -969,16 +969,50 @@ final List<Operation> sharedOperations = [
         'restage_restore_surface brings it back. Requires an admin role.',
     scope: OperationScope.app,
     surface: true,
+    params: const [
+      OperationParam(
+        'reviewOnly',
+        cli: 'review-measurement',
+        type: ParamType.boolean,
+        help:
+            'Return the complete all-target measurement review without archiving.',
+      ),
+      OperationParam(
+        'reviewedDigest',
+        cli: 'reviewed-digest',
+        help:
+            'The exact aggregate digest whose complete warnings you reviewed.',
+      ),
+      OperationParam(
+        'operationId',
+        cli: 'operation-id',
+        help:
+            'Canonical lowercase UUIDv4 for this retry. Generated when omitted.',
+      ),
+    ],
+    reviewMeasurementImpact: (target) =>
+        SurfaceApi(target.api).reviewArchiveDeliveryImpact(
+          project: target.project!,
+          app: target.app!,
+          surfaceType: target.identity!.surface,
+          surfaceSlug: target.identity!.slug,
+          organizationId: target.organizationId,
+          appId: target.appId,
+        ),
     render: (out, _, _, _) => out.writeln('Surface archived.'),
-    call: (target, _) async {
+    call: (target, args) async {
       await SurfaceApi(target.api).archive(
         project: target.project!,
         app: target.app!,
         surfaceType: target.identity!.surface,
         surfaceSlug: target.identity!.slug,
         organizationId: target.organizationId,
+        measurementProceed: args.measurementProceed,
       );
-      return <String, Object?>{'archived': target.identity!.slug};
+      return <String, Object?>{
+        'archived': target.identity!.slug,
+        'operationId': ?args.measurementProceed?.operationId,
+      };
     },
   ),
   Operation(

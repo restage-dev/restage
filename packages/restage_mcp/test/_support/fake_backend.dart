@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage_cli/api.dart' show encodeByteDataWire;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show DeliveryMeasurementMutationReviewV1, CanonicalDigest;
 
 /// One backend call a fake answers: the endpoint path and the JSON body.
 class BackendCall {
@@ -35,6 +38,7 @@ MockClient fakeBackend(
   String appSlug = 'mobile',
   List<FakeTarget> targets = defaultTargets,
   List<Map<String, Object?>> scopeSurfaces = const [],
+  bool withDefaultSurfaceReview = true,
 }) {
   return MockClient((request) async {
     final call = BackendCall(
@@ -42,6 +46,19 @@ MockClient fakeBackend(
       jsonDecode(request.body) as Map<String, dynamic>,
     );
     calls?.add(call);
+    if (withDefaultSurfaceReview &&
+        call.endpoint == 'surface' &&
+        call.method == 'reviewDeliveryImpact') {
+      final review = DeliveryMeasurementMutationReviewV1(
+        operation: call.body['operation'] as String,
+        reviews: const [],
+        dependencyDigest: CanonicalDigest('a' * 64),
+      );
+      return http.Response(
+        jsonEncode(encodeByteDataWire(review.canonicalBytes)),
+        200,
+      );
+    }
     switch (call.method) {
       case 'read':
         if (call.endpoint != 'scope') break;

@@ -1,5 +1,5 @@
 import 'package:build/build.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 
 /// Whether [asset] is an authored Dart library candidate for Restage source
 /// discovery.

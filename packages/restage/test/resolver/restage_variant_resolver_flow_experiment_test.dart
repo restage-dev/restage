@@ -14,6 +14,7 @@ import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -336,6 +337,7 @@ void main() {
         'surfaceSlug': 'child',
         'version': 1,
         'assignmentKey': assignmentKey,
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
     }
     expect(

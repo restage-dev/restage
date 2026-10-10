@@ -70,10 +70,73 @@ final class PlanBoardShowcaseActions {
   const PlanBoardShowcaseActions();
 }
 
+final _planBoardShowcaseFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: planBoardShowcaseFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'plan_board_showcase',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{},
+      'signals': <Object?>['dismiss'],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{'dismiss': <String, Object?>{}}
+      }
+    }
+  },
+  vocabulary: planBoardShowcaseFlowRef.vocabulary,
+);
+
+final planBoardShowcaseFlowPlacementDefinition =
+    () => _planBoardShowcaseFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class PlanBoardShowcaseFlowSurface
     extends RestageFlowGraph<PlanBoardShowcaseResult> {
   const PlanBoardShowcaseFlowSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: planBoardShowcaseFlowRef);
+
+  const PlanBoardShowcaseFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -87,5 +150,14 @@ final class PlanBoardShowcaseFlowSurface
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: planBoardShowcaseFlowRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: planBoardShowcaseFlowRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: planBoardShowcaseFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

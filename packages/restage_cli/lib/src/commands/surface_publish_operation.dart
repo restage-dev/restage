@@ -8,6 +8,8 @@ import 'package:restage_cli/src/receipts/receipt_location.dart';
 import 'package:restage_cli/src/receipts/release_receipt.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_shared/restage_shared.dart' show SurfaceSourceKind;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show DeliveryMeasurementMutationProceedV1;
 
 /// The audit reason recorded when the operator does not supply one.
 const String kDefaultPublishReason = 'Published from the CLI';
@@ -76,6 +78,7 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
   StringSink? stdout,
   StringSink? stderr,
   void Function(SurfacePublication publication)? onPublished,
+  DeliveryMeasurementMutationProceedV1? measurementProceed,
 }) async {
   final result = await api.activate(
     project: at.project,
@@ -90,6 +93,7 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
     organizationId: at.organizationId,
     contractVersion: identity.contractVersion,
     sourceKind: identity.sourceKind,
+    measurementProceed: measurementProceed,
   );
   final sourceKind = result.sourceKind;
   final family = sourceKind == null

@@ -1,9 +1,17 @@
 import 'dart:convert';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dart_mcp/server.dart';
 import 'package:restage_cli/api.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        CanonicalFormatException,
+        TargetCoordinate,
+        DeliveryPolicyScopeV1,
+        DeliveryPolicyReviewRequestV1,
+        DeliveryPolicyReviewV1,
+        DeliveryPolicyPublishRequestV1,
+        DeliveryPolicySimulationRequestV1;
 
 import 'api_runner.dart';
 import 'tool_support.dart';
@@ -21,6 +29,14 @@ List<ToolEntry> routingTools(ToolContext ctx) => [
   (_readRoutingRevisionTool, (request) => _readRoutingRevision(ctx, request)),
   (_previewRoutingTool, (request) => _previewRouting(ctx, request)),
   liveGuarded(ctx, (
+    _reviewRoutingTool,
+    (request) => _reviewRouting(ctx, request),
+  )),
+  liveGuarded(ctx, (
+    _reviewRouteRollbackTool,
+    (request) => _reviewRouteRollback(ctx, request),
+  )),
+  liveGuarded(ctx, (
     _publishRoutingTool,
     (request) => _publishRouting(ctx, request),
   )),
@@ -31,7 +47,7 @@ List<ToolEntry> routingTools(ToolContext ctx) => [
 ];
 
 /// Largest routing document or preview input this server will accept.
-const _maximumRoutingBytes = kMaximumRoutingDocumentBytes;
+const _maximumRoutingBytes = kMaximumRoutingRequestBytes;
 
 final _pageSizeProperty = Schema.int(
   description: 'Optional rows per page, 1 to 200. Defaults to 50.',
@@ -209,110 +225,134 @@ final _readRoutingRevisionTool = Tool(
   ),
 );
 
-/// Evaluate a routing document against a supplied request context.
+final _reviewedDigestProperty = Schema.string(
+  description:
+      'Exact digest of the complete original policy review whose measurement warnings you approved.',
+);
+
+/// Simulate one current policy request using retained server authority.
 final _previewRoutingTool = Tool(
   name: 'restage_preview_routing',
   description:
-      'Evaluate a routing document against a supplied request context without '
-      'publishing it. Read-only: no percentage branch is drawn and no '
-      'identity is allocated. Returns every rule with whether it matched and '
-      'why, and the selected destination when one matched.',
+      'Simulate a current DeliveryPolicySimulationRequestV1 without allocating or enrolling an identity. Returns complete selection and validation evidence.',
   inputSchema: Schema.object(
     properties: {
       ..._targetProperties(surfaceScoped: true),
       'documentBase64': Schema.string(
         description:
-            'The canonical routing document as standard padded base64.',
-      ),
-      'schemaBase64': Schema.string(
-        description:
-            'The canonical context schema revision as standard padded base64.',
-      ),
-      'requestContextBase64': Schema.string(
-        description: 'The canonical request context as standard padded base64.',
-      ),
-      'audiencesBase64': Schema.list(
-        description:
-            'One canonical audience revision, as standard padded base64, per '
-            'audience the document references.',
-        items: Schema.string(),
-      ),
-      'sdkBuiltInsBase64': Schema.string(
-        description:
-            'Optional canonical SDK request built-ins as standard padded '
-            'base64.',
+            'Canonical DeliveryPolicySimulationRequestV1 as standard padded base64.',
       ),
     },
     required: [
       ..._requiredTarget(surfaceScoped: true),
+      'environmentSlug',
       'documentBase64',
-      'schemaBase64',
-      'requestContextBase64',
-      'audiencesBase64',
     ],
     additionalProperties: false,
   ),
 );
 
-/// Publish a whole routing document.
+/// Freeze a complete candidate under the expected current policy head.
+final _reviewRoutingTool = Tool(
+  name: 'restage_review_routing',
+  description:
+      'Retain a complete candidate policy and its original server measurement impact review. Publish that exact review separately. '
+      'A rule may carry an optional name of 1 to 60 characters with no leading or trailing space; serving ignores it.',
+  inputSchema: Schema.object(
+    properties: {
+      ..._targetProperties(surfaceScoped: true),
+      'requestBase64': Schema.string(
+        description:
+            'Canonical DeliveryPolicyReviewRequestV1 as standard padded base64.',
+      ),
+    },
+    required: [
+      ..._requiredTarget(surfaceScoped: true),
+      'environmentSlug',
+      'requestBase64',
+    ],
+    additionalProperties: false,
+  ),
+);
+
+/// Publish only a complete original server review.
 final _publishRoutingTool = Tool(
   name: 'restage_publish_routing',
   description:
-      'Publish a whole routing document, replacing what is stored. The write '
-      'carries a compare-and-set precondition: pass the revision ordinal read '
-      'with the document, or expectNoRevision for the first publish at a '
-      'target. A document authored in Dart and compiled is the input; this '
-      'tool carries it and does not author it.',
+      'Publish an original DeliveryPolicyReviewV1 with its exact head, operation id, and explicitly acknowledged complete warning set.',
   inputSchema: Schema.object(
     properties: {
       ..._targetProperties(surfaceScoped: true),
-      'documentBase64': Schema.string(
+      'reviewBase64': Schema.string(
         description:
-            'The canonical routing document as standard padded base64.',
+            'The complete original canonical DeliveryPolicyReviewV1 as standard padded base64.',
       ),
+      'reviewedDigest': _reviewedDigestProperty,
       'expectedRevisionOrdinal': Schema.int(
         description:
-            'The revision ordinal this write expects, read with the document. '
-            'Omit only when passing expectNoRevision.',
+            'Optional expected-head assertion, which must match the review.',
       ),
       'expectNoRevision': Schema.bool(
         description:
-            'Pass true to require that no document is stored at the target. '
-            'Mutually exclusive with expectedRevisionOrdinal; exactly one is '
-            'required.',
-      ),
-      'operationId': _operationIdProperty,
-    },
-    required: [..._requiredTarget(surfaceScoped: true), 'documentBase64'],
-    additionalProperties: false,
-  ),
-);
-
-/// Restore one route to an earlier revision.
-final _rollbackRouteTool = Tool(
-  name: 'restage_rollback_route',
-  description:
-      'Restore one route to the shape it held at an earlier revision, leaving '
-      'the rest of the stored document as it is. Carries the same '
-      'compare-and-set precondition as a publish.',
-  inputSchema: Schema.object(
-    properties: {
-      ..._targetProperties(surfaceScoped: true),
-      'routeId': Schema.string(description: 'The route to restore.'),
-      'priorRevisionOrdinal': Schema.int(
-        description: 'The revision to restore the route from.',
-      ),
-      'expectedRevisionOrdinal': Schema.int(
-        description: 'The revision ordinal this write expects.',
+            'Optional first-publication assertion, which must match the review.',
       ),
       'operationId': _operationIdProperty,
     },
     required: [
       ..._requiredTarget(surfaceScoped: true),
-      'routeId',
-      'priorRevisionOrdinal',
-      'expectedRevisionOrdinal',
+      'environmentSlug',
+      'reviewBase64',
     ],
+    additionalProperties: false,
+  ),
+);
+
+Map<String, Schema> get _routeRollbackProperties => {
+  ..._targetProperties(surfaceScoped: true),
+  'routeId': Schema.string(description: 'The original route to restore.'),
+  'priorRevisionOrdinal': Schema.int(
+    description: 'The retained revision to restore the selected route from.',
+  ),
+  'expectedRevisionOrdinal': Schema.int(
+    description: 'Expected current whole-policy ordinal.',
+  ),
+};
+
+List<String> get _routeRollbackRequired => [
+  ..._requiredTarget(surfaceScoped: true),
+  'environmentSlug',
+  'routeId',
+  'priorRevisionOrdinal',
+  'expectedRevisionOrdinal',
+];
+
+/// Review restoration of only the selected original route.
+final _reviewRouteRollbackTool = Tool(
+  name: 'restage_review_route_rollback',
+  description:
+      'Return the complete original server review for restoring only one original route. Structured schedules require a whole-policy review.',
+  inputSchema: Schema.object(
+    properties: _routeRollbackProperties,
+    required: _routeRollbackRequired,
+    additionalProperties: false,
+  ),
+);
+
+/// Review and publish restoration of only the selected route.
+final _rollbackRouteTool = Tool(
+  name: 'restage_rollback_route',
+  description:
+      'Review and restore only the selected original route with separate explicit measurement warning acknowledgement. Structured schedules require a whole-policy review.',
+  inputSchema: Schema.object(
+    properties: {
+      ..._routeRollbackProperties,
+      'operationId': _operationIdProperty,
+      'reviewedDigest': _reviewedDigestProperty,
+      'reviewOnly': Schema.bool(
+        description: 'Return the complete original review without publishing.',
+      ),
+    },
+    required: _routeRollbackRequired,
     additionalProperties: false,
   ),
 );
@@ -504,36 +544,19 @@ Future<CallToolResult> _previewRouting(
 ) => _withRouting(
   ctx,
   request,
-  action: 'previewing the routing document',
+  action: 'simulating the routing policy',
   surfaceScoped: true,
   body: (api, target) async {
-    final document = _decode(request.optStr('documentBase64'), 'document');
-    if (document == null) return mcpError(_bytesError('document'));
-    final schema = _decode(request.optStr('schemaBase64'), 'context schema');
-    if (schema == null) return mcpError(_bytesError('context schema'));
-    final context = _decode(
-      request.optStr('requestContextBase64'),
-      'request context',
+    final document = _publicDocument(
+      request.optStr('documentBase64'),
+      DeliveryPolicySimulationRequestV1.fromCanonicalBytes,
     );
-    if (context == null) return mcpError(_bytesError('request context'));
-
-    final rawAudiences =
-        (request.arguments?['audiencesBase64'] as List<Object?>?) ??
-        const <Object?>[];
-    final audiences = <Uint8List>[];
-    for (final raw in rawAudiences) {
-      final decoded = _decode(raw is String ? raw : null, 'audience');
-      if (decoded == null) return mcpError(_bytesError('audience'));
-      audiences.add(decoded);
+    if (document == null) {
+      return mcpError(
+        'documentBase64 must be one canonical DeliveryPolicySimulationRequestV1.',
+      );
     }
-
-    Uint8List? builtIns;
-    final rawBuiltIns = request.optStr('sdkBuiltInsBase64');
-    if (rawBuiltIns != null && rawBuiltIns.isNotEmpty) {
-      builtIns = _decode(rawBuiltIns, 'SDK built-ins');
-      if (builtIns == null) return mcpError(_bytesError('SDK built-ins'));
-    }
-
+    _requireScope(document.scope, target);
     final preview = await api.previewRouting(
       projectSlug: target.projectSlug,
       appSlug: target.appSlug,
@@ -541,13 +564,44 @@ Future<CallToolResult> _previewRouting(
       surfaceSlug: target.surfaceSlug!,
       environmentId: target.environmentId,
       organizationId: target.organizationId,
-      documentBytes: document,
-      schemaBytes: schema,
-      requestContextBytes: context,
-      audienceBytes: audiences,
-      sdkBuiltInsBytes: builtIns,
+      documentBytes: document.canonicalBytes,
+      expectedTarget: target.coordinate,
     );
     return jsonResult(preview.toJson());
+  },
+);
+
+/// Handle `restage_review_routing`.
+Future<CallToolResult> _reviewRouting(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withRouting(
+  ctx,
+  request,
+  action: 'reviewing the routing policy',
+  surfaceScoped: true,
+  body: (api, target) async {
+    final document = _publicDocument(
+      request.optStr('requestBase64'),
+      DeliveryPolicyReviewRequestV1.fromCanonicalBytes,
+    );
+    if (document == null) {
+      return mcpError(
+        'requestBase64 must be one canonical DeliveryPolicyReviewRequestV1.',
+      );
+    }
+    _requireScope(document.scope, target);
+    final review = await api.reviewRouting(
+      projectSlug: target.projectSlug,
+      appSlug: target.appSlug,
+      surfaceType: target.surfaceType!,
+      surfaceSlug: target.surfaceSlug!,
+      environmentId: target.environmentId,
+      organizationId: target.organizationId,
+      request: document,
+      expectedTarget: target.coordinate,
+    );
+    return _policyReviewResult(review);
   },
 );
 
@@ -558,26 +612,31 @@ Future<CallToolResult> _publishRouting(
 ) => _withRouting(
   ctx,
   request,
-  action: 'publishing the routing document',
+  action: 'publishing the routing policy',
   surfaceScoped: true,
   body: (api, target) async {
-    final expected = request.optInt('expectedRevisionOrdinal');
-    final expectNone = request.optBool('expectNoRevision') ?? false;
-    if (expectNone == (expected != null)) {
+    final review = _publicDocument(
+      request.optStr('reviewBase64'),
+      DeliveryPolicyReviewV1.fromCanonicalBytes,
+      maximumBytes: kMaximumRoutingResponseBytes,
+    );
+    if (review == null) {
       return mcpError(
-        'Pass exactly one of expectedRevisionOrdinal or expectNoRevision.',
+        'reviewBase64 must be one complete canonical DeliveryPolicyReviewV1.',
       );
     }
-    if (expected != null && expected < 1) {
-      return mcpError('expectedRevisionOrdinal must be a positive integer.');
+    _requireScope(review.scope, target);
+    final expected = request.optInt('expectedRevisionOrdinal');
+    final expectNone = request.optBool('expectNoRevision') ?? false;
+    if ((expected != null &&
+            (expected < 1 || expected != review.expectedHeadOrdinal)) ||
+        (expectNone &&
+            (expected != null || review.expectedHeadOrdinal != null))) {
+      return mcpError(
+        'The expected-head assertion differs from the original server review.',
+      );
     }
-
-    final document = _decode(request.optStr('documentBase64'), 'document');
-    if (document == null) return mcpError(_bytesError('document'));
-
-    final operationId = _operationId(request);
-    if (operationId == null) return mcpError(_operationIdError);
-
+    final publish = _reviewedPublish(review, request);
     final result = await api.publishRouting(
       projectSlug: target.projectSlug,
       appSlug: target.appSlug,
@@ -585,22 +644,39 @@ Future<CallToolResult> _publishRouting(
       surfaceSlug: target.surfaceSlug!,
       environmentId: target.environmentId,
       organizationId: target.organizationId,
-      documentBytes: document,
-      expectedRevisionOrdinal: expected,
-      operationId: operationId,
+      documentBytes: publish.canonicalBytes,
+      expectedRevisionOrdinal: review.expectedHeadOrdinal,
+      operationId: publish.operationId,
+      expectedTarget: target.coordinate,
     );
-    return jsonResult({...result.toJson(), 'operationId': operationId});
+    return jsonResult({...result.toJson(), 'operationId': publish.operationId});
   },
 );
+
+/// Handle `restage_review_route_rollback`.
+Future<CallToolResult> _reviewRouteRollback(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _routeRollback(ctx, request, reviewOnly: true);
 
 /// Handle `restage_rollback_route`.
 Future<CallToolResult> _rollbackRoute(
   ToolContext ctx,
   CallToolRequest request,
-) => _withRouting(
+) => _routeRollback(
   ctx,
   request,
-  action: 'rolling the route back',
+  reviewOnly: request.optBool('reviewOnly') ?? false,
+);
+
+Future<CallToolResult> _routeRollback(
+  ToolContext ctx,
+  CallToolRequest request, {
+  required bool reviewOnly,
+}) => _withRouting(
+  ctx,
+  request,
+  action: 'reviewing restoration of the original route',
   surfaceScoped: true,
   body: (api, target) async {
     final prior = request.reqInt('priorRevisionOrdinal');
@@ -608,10 +684,23 @@ Future<CallToolResult> _rollbackRoute(
     if (prior < 1 || expected < 1) {
       return mcpError('Both revision ordinals must be positive integers.');
     }
-
-    final operationId = _operationId(request);
-    if (operationId == null) return mcpError(_operationIdError);
-
+    final review = await api.reviewRouteRollback(
+      projectSlug: target.projectSlug,
+      appSlug: target.appSlug,
+      surfaceType: target.surfaceType!,
+      surfaceSlug: target.surfaceSlug!,
+      environmentId: target.environmentId,
+      organizationId: target.organizationId,
+      routeId: request.str('routeId'),
+      priorRevisionOrdinal: prior,
+      expectedRevisionOrdinal: expected,
+      contractVersion: target.contractVersion,
+      expectedTarget: target.coordinate,
+    );
+    if (reviewOnly || review.refusalCodes.isNotEmpty) {
+      return _policyReviewResult(review);
+    }
+    final publish = _reviewedPublish(review, request);
     final result = await api.rollbackRoute(
       projectSlug: target.projectSlug,
       appSlug: target.appSlug,
@@ -623,11 +712,82 @@ Future<CallToolResult> _rollbackRoute(
       priorRevisionOrdinal: prior,
       expectedRevisionOrdinal: expected,
       contractVersion: target.contractVersion,
-      operationId: operationId,
+      operationId: publish.operationId,
+      reviewedPublishRequest: publish,
+      expectedTarget: target.coordinate,
     );
-    return jsonResult({...result.toJson(), 'operationId': operationId});
+    return jsonResult({...result.toJson(), 'operationId': publish.operationId});
   },
 );
+
+DeliveryPolicyPublishRequestV1 _reviewedPublish(
+  DeliveryPolicyReviewV1 review,
+  CallToolRequest request,
+) {
+  try {
+    return reviewedDeliveryPolicyPublish(
+      review: review,
+      reviewedDigest: request.optStr('reviewedDigest'),
+      operationId: request.optStr('operationId'),
+    );
+  } on DeliveryPolicyReviewRequired {
+    rethrow;
+  } on FormatException catch (error) {
+    throw TargetSelectionException(error.message.toString());
+  }
+}
+
+CallToolResult _policyReviewResult(DeliveryPolicyReviewV1 review) {
+  final result = jsonResult({
+    'policyReview': review.toJson(),
+    'reviewBase64': base64Encode(review.canonicalBytes),
+    'reviewDigest': review.digest.hex,
+  });
+  return CallToolResult(
+    isError: review.refusalCodes.isNotEmpty,
+    content: result.content,
+    structuredContent: result.structuredContent,
+  );
+}
+
+void _requireScope(DeliveryPolicyScopeV1 scope, _RoutingTarget target) {
+  if (target.coordinate == null) {
+    throw const TargetSelectionException(
+      'Name environmentSlug for a current whole-policy request.',
+    );
+  }
+  try {
+    requireSurfaceRoutingScope(
+      scope,
+      organizationId: target.organizationId,
+      environmentId: target.environmentId,
+      contractVersion: target.contractVersion,
+      expectedTarget: target.coordinate,
+    );
+  } on FormatException catch (error) {
+    throw TargetSelectionException(error.message.toString());
+  }
+}
+
+T? _publicDocument<T>(
+  String? encoded,
+  T Function(List<int>) decode, {
+  int maximumBytes = kMaximumRoutingRequestBytes,
+}) {
+  final bytes = _decode(
+    encoded,
+    'current document',
+    maximumBytes: maximumBytes,
+  );
+  if (bytes == null) return null;
+  try {
+    return decode(bytes);
+  } on CanonicalFormatException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+}
 
 /// The complete target one routing call carries.
 class _RoutingTarget {
@@ -639,6 +799,7 @@ class _RoutingTarget {
     required this.surfaceType,
     required this.surfaceSlug,
     required this.contractVersion,
+    required this.coordinate,
   });
 
   final int organizationId;
@@ -648,6 +809,7 @@ class _RoutingTarget {
   final String? surfaceType;
   final String? surfaceSlug;
   final int? contractVersion;
+  final TargetCoordinate? coordinate;
 }
 
 /// Run [body] against the routing client, translating routing's own typed
@@ -664,28 +826,29 @@ Future<CallToolResult> _withRouting(
   bool surfaceScoped = false,
 }) {
   return ctx.authed(action, (api) async {
-    // Routing names exact organization and target ids; selectors that do not
-    // already give both are resolved on the server.
-    final organizationId = request.optInt('organizationId');
-    final targetId = request.optInt('environmentTargetId');
+    final declaredOrganization = request.optInt('organizationId');
+    final declaredTarget = request.optInt('environmentTargetId');
+    final TargetCoordinate? coordinate;
     final int organization;
     final int environmentId;
-    if (organizationId != null &&
-        targetId != null &&
-        request.optStr('environmentSlug') == null) {
-      organization = organizationId;
-      environmentId = targetId;
+    if (request.optStr('environmentSlug') == null &&
+        declaredOrganization != null &&
+        declaredTarget != null) {
+      coordinate = null;
+      organization = declaredOrganization;
+      environmentId = declaredTarget;
     } else {
       if (request.optStr('environmentSlug') == null) {
         throw const TargetSelectionException(
-          'Name the environment: pass environmentSlug (and runtimePlane when '
-          'it exists on both planes), or organizationId with '
-          'environmentTargetId.',
+          'Name environmentSlug, or an exact organizationId and environmentTargetId.',
         );
       }
-      final selected = await resolveToolTarget(api, request);
-      organization = selected.organizationId;
-      environmentId = selected.target.environmentTargetId;
+      coordinate = await exactTargetCoordinate(api, request);
+      if (coordinate == null) {
+        throw const TargetSelectionException(exactTargetError);
+      }
+      organization = coordinate.organizationId.value;
+      environmentId = coordinate.environmentTargetId.value;
     }
     final target = _RoutingTarget(
       organizationId: organization,
@@ -695,6 +858,7 @@ Future<CallToolResult> _withRouting(
       surfaceType: surfaceScoped ? request.str('surfaceType') : null,
       surfaceSlug: surfaceScoped ? request.str('surfaceSlug') : null,
       contractVersion: surfaceScoped ? request.optInt('contractVersion') : null,
+      coordinate: coordinate,
     );
     try {
       return await body(SurfaceRoutingApi(api), target);
@@ -721,16 +885,14 @@ String _routingRefusal(SurfaceRoutingTypedException typed) => switch (typed) {
     'The routing service refused the request: $reason.',
 };
 
-String _bytesError(String role) =>
-    'The $role must be one non-empty, bounded, standard padded base64 value '
-    'of at most $_maximumRoutingBytes bytes.';
-
-const _operationIdError = 'operationId must be a canonical version 4 UUID.';
-
 /// Decode one bounded, canonical base64 argument, or null when it is not one.
-Uint8List? _decode(String? encoded, String role) {
+Uint8List? _decode(
+  String? encoded,
+  String role, {
+  int maximumBytes = _maximumRoutingBytes,
+}) {
   if (encoded == null || encoded.isEmpty) return null;
-  if (encoded.length > ((_maximumRoutingBytes + 2) ~/ 3) * 4) return null;
+  if (encoded.length > ((maximumBytes + 2) ~/ 3) * 4) return null;
   final Uint8List bytes;
   try {
     bytes = Uint8List.fromList(base64Decode(encoded));
@@ -738,7 +900,7 @@ Uint8List? _decode(String? encoded, String role) {
     return null;
   }
   if (bytes.isEmpty ||
-      bytes.length > _maximumRoutingBytes ||
+      bytes.length > maximumBytes ||
       base64Encode(bytes) != encoded) {
     return null;
   }
@@ -754,28 +916,5 @@ Object? _pageSize(CallToolRequest request) {
   return value;
 }
 
-final _operationIdShape = RegExp(
-  r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-);
-
-final _random = Random.secure();
-
-/// Read the retry identity, minting one when omitted. Null when the supplied
-/// value is not a canonical version 4 UUID.
-String? _operationId(CallToolRequest request) {
-  final supplied = request.optStr('operationId');
-  if (supplied == null || supplied.isEmpty) return newRoutingOperationId();
-  return _operationIdShape.hasMatch(supplied) ? supplied : null;
-}
-
-/// Mint one retry identity as a canonical version 4 UUID.
-String newRoutingOperationId() {
-  final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  final hex = bytes
-      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-      .join();
-  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
-}
+/// Mint a retry identity through the shared CLI operation-id owner.
+String newRoutingOperationId() => newOperationId();

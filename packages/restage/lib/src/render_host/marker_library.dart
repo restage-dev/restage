@@ -1,6 +1,5 @@
 import 'package:flutter/rendering.dart'
     show PipelineOwner, RenderBox, RenderProxyBox;
-import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart'
     show
         BuildContext,
@@ -97,14 +96,12 @@ final class _RenderlessGeometryMarker extends StatefulWidget {
 
 final class _RenderlessGeometryMarkerState
     extends State<_RenderlessGeometryMarker> {
-  RenderBox? _registeredRenderBox;
-  bool _active = true;
-  bool _resolutionScheduled = false;
+  GeometryRenderBoxBinding? _binding;
 
   @override
   void initState() {
     super.initState();
-    _scheduleResolution();
+    _bind();
   }
 
   @override
@@ -115,65 +112,42 @@ final class _RenderlessGeometryMarkerState
         identical(oldWidget.registry, widget.registry)) {
       return;
     }
-    final previous = _registeredRenderBox;
-    if (previous != null) {
-      oldWidget.registry.unregister(oldWidget.path, previous);
-      _registeredRenderBox = null;
-    }
-    _scheduleResolution();
+    _binding?.dispose();
+    _bind();
   }
 
   @override
   void activate() {
     super.activate();
-    _active = true;
-    _scheduleResolution();
+    _bind();
   }
 
   @override
   void deactivate() {
-    _active = false;
-    _unregisterCurrent();
+    _binding?.dispose();
+    _binding = null;
     super.deactivate();
   }
 
   @override
   void dispose() {
-    _active = false;
-    _unregisterCurrent();
+    _binding?.dispose();
     super.dispose();
   }
 
-  void _scheduleResolution() {
-    if (!_active || _resolutionScheduled) return;
-    _resolutionScheduled = true;
-    SchedulerBinding.instance.addPostFrameCallback(_resolveAndRearm);
-  }
-
-  void _resolveAndRearm(Duration _) {
-    _resolutionScheduled = false;
-    if (!mounted || !_active) return;
-    final candidate = context.findRenderObject();
-    final next =
-        candidate is RenderBox && candidate.attached ? candidate : null;
-    final previous = _registeredRenderBox;
-    if (!identical(previous, next)) {
-      if (previous != null) {
-        widget.registry.unregister(widget.path, previous);
-      }
-      if (next != null) {
-        widget.registry.register(widget.path, next, item: widget.item);
-      }
-      _registeredRenderBox = next;
-    }
-    _scheduleResolution();
-  }
-
-  void _unregisterCurrent() {
-    final previous = _registeredRenderBox;
-    if (previous == null) return;
-    widget.registry.unregister(widget.path, previous);
-    _registeredRenderBox = null;
+  void _bind() {
+    final marker = widget;
+    _binding = GeometryRenderBoxBinding(
+      renderObject: () => mounted ? context.findRenderObject() : null,
+      onChanged: (previous, next) {
+        if (previous != null) {
+          marker.registry.unregister(marker.path, previous);
+        }
+        if (next != null) {
+          marker.registry.register(marker.path, next, item: marker.item);
+        }
+      },
+    );
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
         SdkInstalledLibrariesV1,
         SdkInstalledLibraryV1,
         sdkInstalledLibrariesMaximumCarrierCharacters;
+import 'package:restage_shared/restage_shared.dart' show InstalledCapability;
 
 import 'library_runtime_registry.dart';
 
@@ -13,11 +14,12 @@ import 'library_runtime_registry.dart';
 /// widget libraries, or null when they do not fit the report's bounds.
 ///
 /// Omitting the report leaves the server enrolling this build as before.
-String? installedLibrariesCarrier() {
+String? installedLibrariesCarrier({InstalledCapability? snapshot}) {
   try {
     final report = SdkInstalledLibrariesV1(
       libraries: [
-        for (final library in LibraryRuntimeRegistry.installedSnapshot())
+        for (final library in snapshot?.installedLibraries ??
+            LibraryRuntimeRegistry.installedSnapshot())
           SdkInstalledLibraryV1(
             namespace: library.namespace,
             version: library.version,

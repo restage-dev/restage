@@ -6,6 +6,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceRoutingSelectionProvenanceV1;
 
 import '../resolver/surface_resolution_report.dart';
+import 'placement_mount_attribution.dart' show resolvedPlacementDeliveryFor;
 
 final Expando<SurfaceResolutionSource> _resolvedSurfaceResolutionSources =
     Expando<SurfaceResolutionSource>('restage.resolvedSurfaceResolutionSource');
@@ -85,7 +86,8 @@ T attachMeasurementPublicationBindingReference<T extends Object>(
       : _assignmentRegistrationFingerprints[canonicalExperimentAssignment];
   final existingFingerprint = _resolvedRegistrationFingerprints[resolved];
   if (registrationFingerprint != null &&
-      (canonicalExperimentAssignment == null ||
+      ((canonicalExperimentAssignment == null &&
+              resolvedPlacementDeliveryFor(resolved)?.assignment == null) ||
           existingFingerprint != null &&
               existingFingerprint != registrationFingerprint)) {
     throw StateError('A resolved payload cannot be rebound to a registration.');

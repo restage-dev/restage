@@ -64,10 +64,73 @@ final class MinimalStatsActions {
   const MinimalStatsActions();
 }
 
+final _minimalStatsFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: minimalStatsFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'minimal_stats',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{},
+      'signals': <Object?>[],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{}
+      }
+    }
+  },
+  vocabulary: minimalStatsFlowRef.vocabulary,
+);
+
+final minimalStatsFlowPlacementDefinition =
+    () => _minimalStatsFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class MinimalStatsFlowSurface
     extends RestageFlowGraph<MinimalStatsResult> {
   const MinimalStatsFlowSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: minimalStatsFlowRef);
+
+  const MinimalStatsFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -81,5 +144,14 @@ final class MinimalStatsFlowSurface
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: minimalStatsFlowRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: minimalStatsFlowRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: minimalStatsFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

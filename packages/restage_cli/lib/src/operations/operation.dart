@@ -8,6 +8,10 @@ import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        DeliveryMeasurementMutationReviewV1,
+        DeliveryMeasurementMutationProceedV1;
 
 /// How much of the target an operation names.
 @experimental
@@ -98,10 +102,13 @@ class OperationParam {
 @experimental
 class OperationArgs {
   /// Construct from [values].
-  const OperationArgs(this.values);
+  const OperationArgs(this.values, {this.measurementProceed});
 
   /// The supplied values.
   final Map<String, Object?> values;
+
+  /// Exact proceed evidence derived from the original complete server review.
+  final DeliveryMeasurementMutationProceedV1? measurementProceed;
 
   /// Whether [key] was supplied.
   bool has(String key) => values.containsKey(key);
@@ -225,6 +232,7 @@ class Operation {
     this.validate,
     this.render,
     this.toJson,
+    this.reviewMeasurementImpact,
   });
 
   /// The CLI command path, such as `products list`.
@@ -274,6 +282,12 @@ class Operation {
 
   /// The JSON form of the value, when it is not JSON already.
   final Object? Function(Object? value)? toJson;
+
+  /// The original complete review for a mutation across every app target.
+  final Future<DeliveryMeasurementMutationReviewV1> Function(
+    OperationTarget target,
+  )?
+  reviewMeasurementImpact;
 
   /// The JSON form of [value].
   Object? json(Object? value) => toJson == null ? value : toJson!(value);

@@ -104,19 +104,27 @@ final class ServerFlowResolver
     bool active = false,
     AssetBundle? bundle,
     RestageEnvironment? environment,
+    RestageRpcClient? Function()? rpcClientProvider,
   })  : _active = active,
         _bundle = bundle,
         _apiKey = apiKey,
         _environment = environment,
-        _client = RestageRpcClient(
-          baseUrl: baseUrl,
-          apiKey: apiKey,
-          httpClient: httpClient,
-        ) {
+        _rpcClientProvider = rpcClientProvider,
+        _baseUrl = baseUrl,
+        _httpClient = httpClient {
+    if (rpcClientProvider == null) _ownedClient;
     registerRacedResolver(this, _raced);
   }
 
-  final RestageRpcClient _client;
+  final String _baseUrl;
+  final http.Client? _httpClient;
+  late final RestageRpcClient _ownedClient = RestageRpcClient(
+    baseUrl: _baseUrl,
+    apiKey: _apiKey,
+    httpClient: _httpClient,
+  );
+  final RestageRpcClient? Function()? _rpcClientProvider;
+  RestageRpcClient get _client => _rpcClientProvider?.call() ?? _ownedClient;
   final bool _active;
   final AssetBundle? _bundle;
   final String _apiKey;

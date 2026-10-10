@@ -354,6 +354,8 @@ void main() {
         expect(activate.body['reason'], 'Published from the MCP server');
         expect(calls.map((call) => call.method), [
           'resolveTarget',
+          'read',
+          'reviewDeliveryImpact',
           'activateSurface',
         ]);
         expect(activate.body['environmentSlug'], 'staging');

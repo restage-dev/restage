@@ -105,9 +105,25 @@ final class MeasurementPublicationCandidateAssembler {
           ),
         ),
       );
+      final rootPaths = entry.artifacts
+          .map((artifact) => artifact.path)
+          .toSet();
+      // Root bytes already travel in the bound upload's declared closure.
+      // The canonical upload retains only genuinely separate descendant files.
+      final boundRequest = SurfacePublicationUploadRequest(
+        publication: request.publication,
+        payload: request.payload,
+        artifactManifest: request.artifactManifest,
+        artifactBytesByPath: {
+          for (final item in request.artifactBytesByPath.entries)
+            if (!rootPaths.contains(item.key)) item.key: item.value,
+        },
+      );
       final uploadBytes = Uint8List.fromList(
         utf8.encode(
-          SurfacePublicationUploadRequestV1Codec.encodeCanonicalJson(request),
+          SurfacePublicationUploadRequestV1Codec.encodeCanonicalJson(
+            boundRequest,
+          ),
         ),
       );
       final tupleRecords = <({Uint8List bytes, Map<String, Object?> value})>[];

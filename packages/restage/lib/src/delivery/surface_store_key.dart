@@ -21,11 +21,40 @@ final class SurfaceStoreKey {
   static String scopeFor({
     required String apiKey,
     required String environment,
+    String? baseUrl,
+  }) =>
+      configurationFingerprintFor(
+              apiKey: apiKey, environment: environment, baseUrl: baseUrl)
+          .substring(0, 16);
+
+  /// Stable configured delivery authority, without retaining the credential.
+  static String configurationFingerprintFor({
+    required String apiKey,
+    required String environment,
+    String? baseUrl,
   }) =>
       sha256
-          .convert(utf8.encode('$apiKey\u0000$environment'))
-          .toString()
-          .substring(0, 16);
+          .convert(utf8.encode(baseUrl == null
+              ? '$apiKey\u0000$environment'
+              : '${normalizedOrigin(baseUrl)}\u0000$apiKey\u0000$environment'))
+          .toString();
+
+  /// Normalizes the configured service endpoint for local delivery isolation.
+  static String normalizedOrigin(String value) {
+    final uri = Uri.parse(value);
+    final scheme = uri.scheme.toLowerCase();
+    final port = uri.hasPort &&
+            !((scheme == 'https' && uri.port == 443) ||
+                (scheme == 'http' && uri.port == 80))
+        ? ':${uri.port}'
+        : '';
+    var path = uri.path;
+    while (path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    return '$scheme://${uri.host.toLowerCase()}$port$path'
+        '${uri.hasQuery ? '?${uri.query}' : ''}';
+  }
 
   /// The delivery scope; see [scopeFor].
   final String scope;

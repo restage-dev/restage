@@ -168,6 +168,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
       analyticsAnonymousId: inputs.analyticsAnonymousId,
       sdkSupportedPolicyRevisions: supportedPolicyRevisions,
       sdkBuiltInsCanonicalBase64: inputs.builtIns,
+      sdkInstalledLibraries: inputs.sdkInstalledLibraries,
       assignmentCanonicalBase64: sendAssignmentKey && assignmentKey != null
           ? inputs.heldAssignment
           : null,

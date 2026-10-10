@@ -4,7 +4,7 @@ import 'package:build/build.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -63,7 +63,7 @@ const String _screenPath = 'lib/onboarding/screens/welcome.dart';
 const String _flowPath = 'lib/onboarding/flows/welcome_flow.dart';
 
 void main() {
-  final plan = RestageOutputPlacementPlan.fromBuilderOptions(
+  final plan = RestageOutputLocationPlan.fromBuilderOptions(
     BuilderOptions.empty,
   );
 

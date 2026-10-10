@@ -108,14 +108,65 @@ LumenTrialEndingScreenEvent _decodeValidatedLumenTrialEndingScreenEvent(
   throw FormatException('Invalid LumenTrialEndingScreen event "$name".');
 }
 
+final _lumenTrialEndingScreenPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+  defaultSurface: lumenTrialEndingScreenRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'message',
+    'slug': 'lumen_trial_ending',
+    'family': <String, Object?>{'kind': 'screenContract', 'contractVersion': 1}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[
+        <String, Object?>{
+          'id': 'later',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        },
+        <String, Object?>{
+          'id': 'open_offer',
+          'arguments': <String, Object?>{'encoding': 'none'}
+        }
+      ]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: lumenTrialEndingScreenRef.provenance.vocabulary,
+);
+
+final lumenTrialEndingScreenPlacementDefinition =
+    () => _lumenTrialEndingScreenPlacementDefinitionValue;
+
 final class LumenTrialEndingScreenSurface extends StatelessWidget {
   const LumenTrialEndingScreenSurface({
+    super.key,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  }) : _restagePlacementName = placement;
+
+  const LumenTrialEndingScreenSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  });
+  }) : _restagePlacementName = restagePlacementId;
+
+  final String? _restagePlacementName;
 
   final ValueChanged<LumenTrialEndingScreenEvent>? onEvent;
 
@@ -129,6 +180,10 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestageScreen<LumenTrialEndingScreenEvent>(
       screen: lumenTrialEndingScreenRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: lumenTrialEndingScreenPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
         builder: (context, error) => LumenTrialEndingScreen(),
       ),

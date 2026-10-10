@@ -7,6 +7,7 @@ import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
@@ -52,6 +53,7 @@ class SurfaceKillCommand extends Command<int> implements LiveGuardedCommand {
       withType: fixedSurfaceType == null,
       withReason: true,
     );
+    addSurfaceMeasurementReviewOptions(argParser);
     argParser
       ..addFlag(
         'frozen',
@@ -138,6 +140,17 @@ class SurfaceKillCommand extends Command<int> implements LiveGuardedCommand {
         }
         return 1;
       }
+      final impact = await reviewSurfaceMeasurement(
+        io: _io,
+        arguments: argResults!,
+        api: surfaces,
+        target: target,
+        identity: identity,
+        operation: 'surfaceKill',
+        reason: reason,
+        frozen: frozen,
+      );
+      if (impact.exitCode case final code?) return code;
       final mutation = await surfaces.kill(
         project: target.project,
         app: target.app,
@@ -149,6 +162,7 @@ class SurfaceKillCommand extends Command<int> implements LiveGuardedCommand {
         environmentTargetId: target.environmentTargetId,
         runtimePlane: target.runtimePlane,
         organizationId: target.organizationId,
+        measurementProceed: impact.proceed,
       );
       _io.stdout.writeln(
         'Killed "$slug" in ${target.environment}${frozen ? ' (frozen)' : ''}.',

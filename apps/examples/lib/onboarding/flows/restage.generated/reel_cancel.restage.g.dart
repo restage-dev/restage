@@ -118,9 +118,92 @@ final class ReelCancelActions implements FlowActionRegistry {
   );
 }
 
+final _reelCancelFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: reelCancelFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'reel_cancel',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'typed',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{
+        'redeemOffer': <String, Object?>{
+          'actionName': 'redeemOffer',
+          'contractVersion': 1,
+          'argsSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{}
+          },
+          'resultSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{
+              'redeemed': <String, Object?>{
+                'required': true,
+                'schema': <String, Object?>{'kind': 'bool'}
+              }
+            }
+          },
+          'minClient': 6,
+          'idempotent': false
+        }
+      },
+      'signals': <Object?>['cancel'],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{'retained': 'bool'},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{'cancel': <String, Object?>{}}
+      }
+    }
+  },
+  vocabulary: reelCancelFlowRef.vocabulary,
+);
+
+final reelCancelFlowPlacementDefinition =
+    () => _reelCancelFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class ReelCancelFlowSurface extends RestageFlowGraph<ReelCancelResult> {
   const ReelCancelFlowSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: reelCancelFlowRef);
+
+  const ReelCancelFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -134,5 +217,14 @@ final class ReelCancelFlowSurface extends RestageFlowGraph<ReelCancelResult> {
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: reelCancelFlowRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: reelCancelFlowRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: reelCancelFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

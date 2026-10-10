@@ -9,8 +9,35 @@ import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/refresh/restage_hosted_update_channel.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart';
+
+import '../support/placement_delivery_fixture.dart';
 
 const _surface = SurfaceRef(surfaceType: 'message', slug: 'welcome');
+
+PublicPlacementDeliveryV1 _delivery() =>
+    (readPlacementDeliveryFixture().response.decisions.first
+            as PlacementBatchAvailableV1)
+        .publicDelivery;
+
+PlacementDeliveryWatchV1 _watch({String digest = 'a', String tag = 'first'}) {
+  final mac = base64UrlEncode(List.filled(32, 1)).replaceAll('=', '');
+  return PlacementDeliveryWatchV1(
+    decisionIdentityDigest: CanonicalDigest(digest * 64),
+    channels: [
+      for (final (index, scope) in _delivery().dependencyClosure.indexed)
+        PlacementDeliveryWatchChannelV1(
+          scope: scope,
+          token: 'v2.ABCDEFGH.2000000000000.'
+              '${base64UrlEncode(utf8.encode('$tag-$index')).replaceAll('=', '')}.$mac',
+        ),
+    ],
+  );
+}
+
+String _token(PlacementDeliveryWatchV1 watch, DeliveryPolicyScopeV1 scope) =>
+    watch.channels.singleWhere((channel) => channel.scope == scope).token;
 
 RestageRpcClient _stampClient(
   List<SurfaceStampFetchResult> stamps, {
@@ -51,6 +78,291 @@ void main() {
   });
 
   tearDown(() => server.close());
+
+  test(
+      'missing accepted watch authority resolves before adopting fresh scoped tokens',
+      () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: server.httpUrl,
+    );
+    final watch = _watch();
+    final scope = watch.channels.first.scope;
+    final updates = StreamIterator(channel.watchDelivery(scope,
+        reconnectProbe: () async => PlacementRefreshProbeV1.unchanged(
+            watch.decisionIdentityDigest,
+            watch: watch)));
+    addTearDown(updates.cancel);
+    final next = updates.moveNext();
+    expect(await next.timeout(const Duration(seconds: 2)), isTrue);
+    expect(updates.current, scope);
+    await server.socketAt(0);
+    expect(server.requests.single.uri.queryParameters['channel'],
+        _token(watch, scope));
+    await updates.cancel();
+  });
+
+  test(
+      'an initially throttled watch still resolves its missing accepted authority',
+      () async {
+    var probes = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      random: const _FixedRandom(0.5),
+    );
+    final watch = _watch();
+    final scope = watch.channels.first.scope;
+    final updates = StreamIterator(channel.watchDelivery(scope,
+        reconnectProbe: () async => ++probes == 1
+            ? const PlacementRefreshProbeV1.rateLimited(Duration.zero)
+            : PlacementRefreshProbeV1.unchanged(watch.decisionIdentityDigest,
+                watch: watch)));
+    addTearDown(updates.cancel);
+    expect(
+        await updates.moveNext().timeout(const Duration(seconds: 2)), isTrue);
+    expect(updates.current, scope);
+    await server.socketAt(0);
+    expect(probes, 2);
+    await updates.cancel();
+  });
+
+  test('an unmatched exact family never borrows a different scope token',
+      () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: server.httpUrl,
+    );
+    final watch = _watch();
+    final child = watch.channels
+        .singleWhere((channel) => !channel.scope.root.isPlacement)
+        .scope;
+    final otherFamily = DeliveryPolicyScopeV1(
+        root: child.root, family: const DeliveryFamilySelectorV1.general());
+    expect(await channel.watchDelivery(otherFamily, watch: watch).first,
+        otherFamily);
+    expect(server.connectionCount, 0);
+  });
+
+  test(
+      'delivery watches use the supplied exact scoped token on the existing socket',
+      () async {
+    var surfaceStampRequests = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)],
+          onRequest: () => surfaceStampRequests++),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      random: const _FixedRandom(0),
+    );
+    final watch = _watch();
+    final scope = watch.channels.last.scope;
+    final updates = StreamIterator(channel.watchDelivery(scope,
+        watch: watch,
+        reconnectProbe: () async =>
+            throw StateError('initial token requires no probe')));
+    addTearDown(updates.cancel);
+    final update = updates.moveNext();
+    final socket = await server.socketAt(0);
+    expect(server.requests.single.uri.path, '/watch');
+    expect(server.requests.single.uri.queryParameters['channel'],
+        _token(watch, scope));
+    socket.add(jsonEncode({'type': 'surface_update'}));
+    expect(await update, isTrue);
+    expect(updates.current, scope);
+    expect(surfaceStampRequests, 0);
+  });
+
+  test(
+      'two accepted decisions sharing a scope keep independent token associations',
+      () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+    );
+    final firstWatch = _watch(tag: 'first');
+    final secondWatch = _watch(digest: 'b', tag: 'second');
+    final scope = firstWatch.channels.first.scope;
+    final firstUpdates = <DeliveryPolicyScopeV1>[];
+    final secondUpdates = <DeliveryPolicyScopeV1>[];
+    final received = Completer<void>();
+    final first =
+        channel.watchDelivery(scope, watch: firstWatch).listen((update) {
+      firstUpdates.add(update);
+      received.complete();
+    });
+    final second = channel
+        .watchDelivery(scope, watch: secondWatch)
+        .listen(secondUpdates.add);
+    final firstSocket = await server.socketAt(0);
+    await server.socketAt(1);
+    expect(server.requests[0].uri.queryParameters['channel'],
+        _token(firstWatch, scope));
+    expect(server.requests[1].uri.queryParameters['channel'],
+        _token(secondWatch, scope));
+    firstSocket.add(jsonEncode({'type': 'surface_update'}));
+    await received.future;
+    expect(firstUpdates, [scope]);
+    expect(secondUpdates, isEmpty);
+    await first.cancel();
+    await second.cancel();
+  });
+
+  test('expired delivery tokens renew through the accepted read-only probe',
+      () async {
+    var surfaceStampRequests = 0;
+    var probes = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)],
+          onRequest: () => surfaceStampRequests++),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(hours: 1),
+      random: const _FixedRandom(0),
+    );
+    final watch = _watch();
+    final renewed = _watch(tag: 'renewed');
+    final scope = watch.channels.first.scope;
+    final updates = <DeliveryPolicyScopeV1>[];
+    final subscription =
+        channel.watchDelivery(scope, watch: watch, reconnectProbe: () async {
+      probes++;
+      return PlacementRefreshProbeV1.unchanged(renewed.decisionIdentityDigest,
+          watch: renewed);
+    }).listen(updates.add);
+    final firstSocket = await server.socketAt(0);
+    await firstSocket.close(4401, 'token expired');
+    await server.socketAt(1);
+    expect(server.requests[1].uri.queryParameters['channel'],
+        _token(renewed, scope));
+    expect(updates, isEmpty);
+    expect(probes, 1);
+    expect(surfaceStampRequests, 0);
+    await subscription.cancel();
+  });
+
+  test(
+      'reconnect observes changed decision authority with identical publication',
+      () async {
+    final publication = _delivery().actualPublication;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      random: const _FixedRandom(0.5),
+    );
+    final watch = _watch();
+    final changed = _watch(digest: 'b', tag: 'changed-authority');
+    final scope = watch.channels.first.scope;
+    final updates = StreamIterator(channel.watchDelivery(scope,
+        watch: watch,
+        reconnectProbe: () async => PlacementRefreshProbeV1.unchanged(
+            changed.decisionIdentityDigest,
+            watch: changed)));
+    addTearDown(updates.cancel);
+    final next = updates.moveNext();
+    final socket = await server.socketAt(0);
+    await socket.close();
+    expect(await next.timeout(const Duration(seconds: 2)), isTrue);
+    expect(updates.current, scope);
+    await server.socketAt(1);
+    expect(server.requests[1].uri.queryParameters['channel'],
+        _token(changed, scope));
+    expect(_delivery().actualPublication, publication);
+    expect(changed.decisionIdentityDigest, isNot(watch.decisionIdentityDigest));
+    await updates.cancel();
+  });
+
+  test(
+      'unknown reconnect authority requires resolution without a surface probe',
+      () async {
+    var surfaceStampRequests = 0;
+    var probes = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)],
+          onRequest: () => surfaceStampRequests++),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      random: const _FixedRandom(0),
+    );
+    final watch = _watch();
+    final scope = watch.channels.first.scope;
+    final updates = StreamIterator(
+        channel.watchDelivery(scope, watch: watch, reconnectProbe: () async {
+      probes++;
+      return const PlacementRefreshProbeV1.unavailable();
+    }));
+    addTearDown(updates.cancel);
+    final next = updates.moveNext();
+    final socket = await server.socketAt(0);
+    await socket.close(4401);
+    expect(await next.timeout(const Duration(seconds: 2)), isTrue);
+    expect(updates.current, scope);
+    await updates.cancel();
+    expect(probes, 1);
+    expect(surfaceStampRequests, 0);
+    expect(server.connectionCount, 1);
+  });
+
+  testWidgets(
+      'delivery probe throttling and cancellation share the existing backoff',
+      (tester) async {
+    var probes = 0;
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: Uri.parse('http://edge.example.com'),
+      reconnectBaseDelay: const Duration(seconds: 1),
+      random: const _FixedRandom(0.5),
+    );
+    final updates = <DeliveryPolicyScopeV1>[];
+    final subscription = channel.watchDelivery(
+        _delivery().dependencyClosure.first, reconnectProbe: () async {
+      probes++;
+      return const PlacementRefreshProbeV1.rateLimited(Duration(seconds: 7));
+    }).listen(updates.add);
+    await tester.pump();
+    expect(probes, 1);
+    await tester.pump(const Duration(milliseconds: 6999));
+    expect(probes, 1);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(probes, 2);
+    expect(updates, isEmpty);
+    await subscription.cancel();
+    await tester.pump(const Duration(seconds: 30));
+    expect(probes, 2);
+  });
+
+  test('cancelling while a delivery probe is pending prevents a renewed socket',
+      () async {
+    final probeStarted = Completer<void>();
+    final probe = Completer<PlacementRefreshProbeV1>();
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      random: const _FixedRandom(0),
+    );
+    final watch = _watch();
+    final updates = <DeliveryPolicyScopeV1>[];
+    final subscription = channel.watchDelivery(watch.channels.first.scope,
+        watch: watch, reconnectProbe: () {
+      probeStarted.complete();
+      return probe.future;
+    }).listen(updates.add);
+    final socket = await server.socketAt(0);
+    await socket.close(4401);
+    await probeStarted.future;
+    await subscription.cancel();
+    probe.complete(PlacementRefreshProbeV1.unchanged(
+        watch.decisionIdentityDigest,
+        watch: _watch(tag: 'renewed')));
+    await pumpEventQueue();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await pumpEventQueue();
+    expect(server.connectionCount, 1);
+    expect(updates, isEmpty);
+  });
 
   testWidgets('waits for the throttled stamp delay before retrying',
       (tester) async {

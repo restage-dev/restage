@@ -1,6 +1,8 @@
 import 'dart:async';
 
-import 'package:meta/meta.dart' show internal;
+import 'package:flutter/foundation.dart' show setEquals;
+import 'package:meta/meta.dart' show internal, visibleForTesting;
+import 'package:restage_shared/restage_shared.dart';
 
 import '../restage_rpc_client/restage_rpc_client.dart'
     show SurfaceStamp, SurfaceStampRateLimited;
@@ -21,6 +23,14 @@ final class SurfaceRefreshHandle {
     required this.refresh,
     this.renderedVersion,
     this.stampable = false,
+    this.localValidity,
+    this.localBoundary,
+    this.invalidateLocal,
+    this.placementState,
+    this.probePlacement,
+    this.invalidatePlacement,
+    this.renderedSurface,
+    this.placementWatch,
   });
 
   /// Wire identity of the mounted surface.
@@ -47,6 +57,32 @@ final class SurfaceRefreshHandle {
   /// re-resolve and skips the re-resolve if the version is unchanged.
   final bool stampable;
 
+  /// Returned placement bounds and frozen inputs, checked independently of
+  /// remote refresh triggers. This performs no routing evaluation.
+  final bool Function()? localValidity;
+  final DateTime? Function()? localBoundary;
+  final Future<void> Function()? invalidateLocal;
+  bool _localHandled = false;
+
+  /// Reads only the host's accepted placement decision, never a candidate.
+  final PlacementRefreshStateV1? Function()? placementState;
+
+  /// Checks the exact accepted decision through the configured delivery owner.
+  final Future<PlacementRefreshProbeV1> Function(PlacementRefreshStateV1)?
+      probePlacement;
+
+  /// Removes future cache use independently of the visible swap gate.
+  final Future<void> Function()? invalidatePlacement;
+
+  /// The accepted selected surface for legacy surface-only channels.
+  final SurfaceRef Function()? renderedSurface;
+
+  /// Explicit scoped token association for the accepted decision.
+  final PlacementDeliveryWatchV1? Function()? placementWatch;
+
+  PlacementRefreshStateV1? _acceptedPlacement;
+  PlacementDeliveryWatchV1? _acceptedWatch;
+  int _generation = 0;
   bool _refreshing = false;
 }
 
@@ -58,44 +94,140 @@ final class SurfaceRefreshHandle {
 final class SurfaceRefreshRegistry {
   /// Creates a registry. Use [instance] in production; a fresh instance is
   /// only for isolated tests.
-  SurfaceRefreshRegistry();
+  SurfaceRefreshRegistry({DateTime Function()? now})
+      : _now = now ?? DateTime.now;
 
   /// The process-wide registry.
-  static final SurfaceRefreshRegistry instance = SurfaceRefreshRegistry();
+  static final SurfaceRefreshRegistry instance =
+      SurfaceRefreshRegistry(now: Restage.placementNow);
 
   final List<SurfaceRefreshHandle> _handles = [];
-  final Map<SurfaceRefreshHandle, StreamSubscription<SurfaceUpdate>>
-      _channelSubs = {};
+  final DateTime Function() _now;
+  Timer? _localAlarm;
+  bool _backgrounded = false;
+  bool _checkingLocal = false;
+
+  /// Bounds detection of clock, zone and optional-input changes while active.
+  static const localClockCheckInterval = Duration(seconds: 30);
+  final Map<SurfaceRefreshHandle, _ChannelSubscriptions> _channelSubs = {};
 
   /// Registers a mounted surface. When the handle opted into the update
   /// channel and one is configured, opens a per-surface subscription whose
   /// emissions fire the handle through the gate.
   void register(SurfaceRefreshHandle handle) {
+    if (_handles.contains(handle)) return;
+    handle._acceptedPlacement = _snapshot(handle.placementState?.call());
+    handle._acceptedWatch = _snapshotWatch(
+        handle._acceptedPlacement, handle.placementWatch?.call());
     _handles.add(handle);
     _subscribe(handle);
+    _scheduleLocalAlarm();
   }
 
-  void _subscribe(SurfaceRefreshHandle handle) {
+  void _subscribe(SurfaceRefreshHandle handle, {bool replace = false}) {
     final channel = Restage.configuredUpdateChannel;
-    if (channel != null &&
-        handle.triggers.contains(SurfaceRefreshTrigger.updateChannel) &&
-        !_channelSubs.containsKey(handle)) {
+    if (_backgrounded ||
+        channel == null ||
+        !handle.triggers.contains(SurfaceRefreshTrigger.updateChannel) ||
+        (!replace && _channelSubs.containsKey(handle))) {
+      return;
+    }
+    final previous = _channelSubs[handle];
+    final next = _ChannelSubscriptions(handle._generation);
+    _channelSubs[handle] = next;
+    final placement = handle._acceptedPlacement;
+    if (placement != null && channel is DeliveryUpdateChannel) {
+      final probe = handle.probePlacement;
+      for (final scope in placement.dependencies) {
+        try {
+          next.subscriptions.add(channel
+              .watchDelivery(scope,
+                  watch: handle._acceptedWatch,
+                  reconnectProbe: probe == null ? null : () => probe(placement))
+              .listen(
+            (changed) {
+              if (changed == scope) {
+                unawaited(_onUpdate(handle, next));
+              }
+            },
+            onError: (Object _) {},
+          ));
+        } catch (_) {
+          // A failed scope leaves explicit reload and resume available.
+        }
+      }
+    } else {
       try {
-        _channelSubs[handle] = channel.watch(handle.surface).listen(
-              (_) => unawaited(_fire(handle, skipStamp: true)),
-              onError: (Object _) {},
-            );
+        final surface = handle.renderedSurface?.call() ?? handle.surface;
+        next.subscriptions.add(channel.watch(surface).listen(
+          (update) {
+            if (update.surface == surface) {
+              unawaited(_onUpdate(handle, next));
+            }
+          },
+          onError: (Object _) {},
+        ));
       } catch (_) {
-        // A custom channel cannot prevent the surface from registering. Other
-        // configured refresh triggers remain available.
+        // A custom channel cannot prevent other configured refresh triggers.
       }
     }
+    previous?.cancel();
+    if (next.subscriptions.isEmpty) {
+      _channelSubs.remove(handle);
+    }
+  }
+
+  bool _isCurrent(SurfaceRefreshHandle handle, int generation) =>
+      _handles.contains(handle) && handle._generation == generation;
+
+  bool _isCurrentSubscription(
+          SurfaceRefreshHandle handle, _ChannelSubscriptions subscription) =>
+      !_backgrounded &&
+      !subscription.retired &&
+      _isCurrent(handle, subscription.generation);
+
+  Future<void> _onUpdate(
+      SurfaceRefreshHandle handle, _ChannelSubscriptions subscription) async {
+    if (!_isCurrentSubscription(handle, subscription)) return;
+    try {
+      if (handle._acceptedPlacement != null) {
+        await handle.invalidatePlacement?.call();
+      }
+      if (!_isCurrentSubscription(handle, subscription)) return;
+      await _fire(handle,
+          skipStamp: true,
+          generation: subscription.generation,
+          placementInvalidated: true);
+    } catch (_) {
+      // Failed invalidation leaves the current presentation intact.
+    }
+  }
+
+  /// Replaces watches only after the host has accepted a new decision.
+  @internal
+  void acceptedPlacementChanged(SurfaceRefreshHandle handle) {
+    if (!_handles.contains(handle)) return;
+    final next = _snapshot(handle.placementState?.call());
+    final nextWatch = _snapshotWatch(next, handle.placementWatch?.call());
+    final previous = handle._acceptedPlacement;
+    if (next?.mount == previous?.mount &&
+        next?.decisionIdentityDigest == previous?.decisionIdentityDigest &&
+        setEquals(next?.dependencies, previous?.dependencies) &&
+        nextWatch == handle._acceptedWatch) {
+      return;
+    }
+    handle._acceptedPlacement = next;
+    handle._acceptedWatch = nextWatch;
+    handle._generation++;
+    _subscribe(handle, replace: true);
   }
 
   /// Unregisters a surface and cancels any update-channel subscription.
   void unregister(SurfaceRefreshHandle handle) {
     _handles.remove(handle);
-    unawaited(_channelSubs.remove(handle)?.cancel());
+    handle._generation++;
+    _channelSubs.remove(handle)?.cancel();
+    _scheduleLocalAlarm();
   }
 
   /// Explicit reload: every mounted handle (optionally slug-filtered),
@@ -106,8 +238,14 @@ final class SurfaceRefreshRegistry {
   /// Pauses every update-channel subscription when the app backgrounds.
   /// The handles stay registered; [onAppResumed] reopens them.
   void onAppBackgrounded() {
+    _backgrounded = true;
+    _localAlarm?.cancel();
+    _localAlarm = null;
+    for (final handle in _handles) {
+      handle._generation++;
+    }
     for (final sub in _channelSubs.values) {
-      unawaited(sub.cancel());
+      sub.cancel();
     }
     _channelSubs.clear();
   }
@@ -115,6 +253,8 @@ final class SurfaceRefreshRegistry {
   /// Reopens paused update-channel subscriptions, then checks every surface
   /// with an app-resume or update-channel trigger for a newer version.
   Future<void> onAppResumed() async {
+    _backgrounded = false;
+    await checkLocalValidity();
     for (final handle in List.of(_handles)) {
       _subscribe(handle);
     }
@@ -123,6 +263,67 @@ final class SurfaceRefreshRegistry {
           h.triggers.contains(SurfaceRefreshTrigger.appResume) ||
           h.triggers.contains(SurfaceRefreshTrigger.updateChannel),
     ));
+  }
+
+  /// Re-arms validity after a newly committed presentation.
+  @internal
+  void localValidityChanged(SurfaceRefreshHandle handle) {
+    if (!_handles.contains(handle)) return;
+    handle._localHandled = false;
+    _scheduleLocalAlarm();
+  }
+
+  /// Rechecks actual clock/input readings without a hosted request.
+  @internal
+  @visibleForTesting
+  Future<void> checkLocalValidity() async {
+    if (_checkingLocal) return;
+    _checkingLocal = true;
+    try {
+      for (final handle in List.of(_handles)) {
+        if (!_handles.contains(handle) ||
+            handle.localValidity == null ||
+            handle._localHandled) {
+          continue;
+        }
+        if (handle.localValidity!()) continue;
+        if (handle._refreshing || !handle.canSwap()) continue;
+        handle._refreshing = true;
+        try {
+          await handle.invalidateLocal?.call();
+          handle._localHandled = true;
+        } catch (_) {
+          // A transient staging failure may be retried at the next safe check.
+        } finally {
+          handle._refreshing = false;
+        }
+      }
+    } finally {
+      _checkingLocal = false;
+      _scheduleLocalAlarm();
+    }
+  }
+
+  void _scheduleLocalAlarm() {
+    _localAlarm?.cancel();
+    _localAlarm = null;
+    if (_backgrounded ||
+        !_handles.any((handle) =>
+            handle.localValidity != null && !handle._localHandled)) {
+      return;
+    }
+    final now = _now().toUtc();
+    var delay = localClockCheckInterval;
+    for (final handle in _handles) {
+      if (handle._localHandled) continue;
+      final boundary = handle.localBoundary?.call();
+      if (boundary == null) continue;
+      final until = boundary.toUtc().difference(now);
+      // Expired but locked presentations are checked on the bounded shared
+      // clock cadence; they must not keep firing an immediate alarm.
+      if (until > Duration.zero && until < delay) delay = until;
+    }
+    _localAlarm = Timer(delay, () => unawaited(checkLocalValidity()));
   }
 
   Future<void> _sweep(Iterable<SurfaceRefreshHandle> handles) async {
@@ -134,11 +335,29 @@ final class SurfaceRefreshRegistry {
   Future<void> _fire(
     SurfaceRefreshHandle handle, {
     bool skipStamp = false,
+    int? generation,
+    bool placementInvalidated = false,
   }) async {
-    if (handle._refreshing || !handle.canSwap()) return;
+    final capturedGeneration = generation ?? handle._generation;
+    if (!_isCurrent(handle, capturedGeneration) ||
+        handle._refreshing ||
+        !handle.canSwap()) {
+      return;
+    }
     handle._refreshing = true;
     try {
-      if (handle.stampable && !skipStamp) {
+      final placement = handle._acceptedPlacement;
+      if (placement != null && !skipStamp) {
+        final probe = await handle.probePlacement?.call(placement) ??
+            const PlacementRefreshProbeV1.unavailable();
+        if (!_isCurrent(handle, capturedGeneration)) return;
+        if (probe is PlacementRefreshRateLimitedV1 ||
+            (probe is PlacementRefreshUnchangedV1 &&
+                probe.decisionIdentityDigest ==
+                    placement.decisionIdentityDigest)) {
+          return;
+        }
+      } else if (placement == null && handle.stampable && !skipStamp) {
         final stamp = await Restage.activeRpcClient?.fetchSurfaceStamp(
           surfaceType: handle.surface.surfaceType,
           surfaceSlug: handle.surface.slug,
@@ -153,6 +372,11 @@ final class SurfaceRefreshRegistry {
           return;
         }
       }
+      if (!_isCurrent(handle, capturedGeneration)) return;
+      if (placement != null && !placementInvalidated) {
+        await handle.invalidatePlacement?.call();
+      }
+      if (!_isCurrent(handle, capturedGeneration) || !handle.canSwap()) return;
       await handle.refresh();
     } catch (_) {
       // Staleness is never an error state: a failed refresh keeps the
@@ -165,10 +389,54 @@ final class SurfaceRefreshRegistry {
   /// Clears all handles and cancels all subscriptions. Called from
   /// [Restage.debugReset].
   void debugReset() {
+    _localAlarm?.cancel();
+    _localAlarm = null;
+    _backgrounded = false;
+    for (final handle in _handles) {
+      handle._generation++;
+    }
     for (final sub in _channelSubs.values) {
-      unawaited(sub.cancel());
+      sub.cancel();
     }
     _channelSubs.clear();
     _handles.clear();
+  }
+}
+
+PlacementRefreshStateV1? _snapshot(PlacementRefreshStateV1? state) =>
+    state == null
+        ? null
+        : (
+            mount: PlacementMountDescriptorV1.fromJson(state.mount.toJson()),
+            decisionIdentityDigest: state.decisionIdentityDigest,
+            dependencies: freezeDeliveryDependencyClosureV1(state.dependencies),
+          );
+
+PlacementDeliveryWatchV1? _snapshotWatch(
+    PlacementRefreshStateV1? state, PlacementDeliveryWatchV1? watch) {
+  if (state == null ||
+      watch == null ||
+      watch.decisionIdentityDigest != state.decisionIdentityDigest ||
+      !setEquals(watch.channels.map((channel) => channel.scope).toSet(),
+          state.dependencies)) {
+    return null;
+  }
+  return PlacementDeliveryWatchV1(
+      decisionIdentityDigest: watch.decisionIdentityDigest,
+      channels: watch.channels);
+}
+
+final class _ChannelSubscriptions {
+  _ChannelSubscriptions(this.generation);
+
+  final int generation;
+  final List<StreamSubscription<Object?>> subscriptions = [];
+  bool retired = false;
+
+  void cancel() {
+    retired = true;
+    for (final subscription in subscriptions) {
+      unawaited(subscription.cancel());
+    }
   }
 }

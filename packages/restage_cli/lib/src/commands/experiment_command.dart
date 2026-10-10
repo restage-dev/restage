@@ -136,7 +136,7 @@ abstract class _ExperimentSubcommand extends Command<int> {
   void addOptions(ArgParser parser) {}
 
   /// Builds this operation's payload, or null after a precise error.
-  Map<String, Object?>? buildPayload();
+  Map<String, Object?>? buildPayload(TargetCoordinate target);
 
   /// Whether this operation changes live state and needs live confirmation.
   bool get changesLiveState => kLiveExperimentOperations.contains(operation);
@@ -197,10 +197,10 @@ abstract class _ExperimentSubcommand extends Command<int> {
     LifecycleContext context, {
     required bool asJson,
   }) async {
-    final payload = buildPayload();
+    final target = _targetOf(context);
+    final payload = buildPayload(target);
     if (payload == null) return 1;
 
-    final target = _targetOf(context);
     if (changesLiveState && !await _confirmLiveExperimentChange(target)) {
       return 1;
     }
@@ -428,7 +428,7 @@ class _DiscoverCommand extends _ExperimentSubcommand {
     );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     _exactSurfaceReference = null;
     final surfaceId = (argResults?['surface-id'] as String?)?.trim();
     final surfaceRevisionId = (argResults?['surface-revision-id'] as String?)
@@ -498,7 +498,7 @@ class _CreateCommand extends _ExperimentSubcommand {
     );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final surfaceId = (argResults?['surface-id'] as String?)?.trim();
     final surfaceRevisionId = (argResults?['surface-revision-id'] as String?)
         ?.trim();
@@ -510,12 +510,26 @@ class _CreateCommand extends _ExperimentSubcommand {
       return null;
     }
     if (surfaceId == null || surfaceId.isEmpty) return const {};
-    return {
-      'initialCandidate': {
+    final ExperimentExactSurfaceReferenceV1 candidate;
+    try {
+      candidate = ExperimentExactSurfaceReferenceV1.fromJson({
         'kind': 'exactSurfaceReference',
         'surfaceId': surfaceId,
         'surfaceRevisionId': surfaceRevisionId,
-      },
+      });
+    } on CanonicalFormatException catch (error) {
+      _stderr.writeln(error.message);
+      return null;
+    }
+    // The opening candidate is delivered under its own surface.
+    return {
+      'initialCandidate': candidate.toJson(),
+      'root': DeliveryRootIdentityV1.surface(
+        PublishedSurfaceIdentityV1(
+          target: target,
+          surfaceId: candidate.surfaceId,
+        ),
+      ).toJson(),
     };
   }
 
@@ -542,7 +556,8 @@ class _DeleteDraftCommand extends _ExperimentSubcommand {
   void addOptions(ArgParser parser) => addDraftBindingOptions(parser);
 
   @override
-  Map<String, Object?>? buildPayload() => requireDraftBinding();
+  Map<String, Object?>? buildPayload(TargetCoordinate target) =>
+      requireDraftBinding();
 
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
@@ -567,7 +582,8 @@ class _ReadDraftCommand extends _ExperimentSubcommand {
   void addOptions(ArgParser parser) => addDraftBindingOptions(parser);
 
   @override
-  Map<String, Object?>? buildPayload() => requireDraftBinding();
+  Map<String, Object?>? buildPayload(TargetCoordinate target) =>
+      requireDraftBinding();
 
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
@@ -594,7 +610,7 @@ class _ResolveDraftCommand extends _ExperimentSubcommand {
       parser.addOption('draft-id', help: 'Draft identity (required).');
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final draftId = requireOption('draft-id');
     if (draftId == null) return null;
     return {'draftId': draftId};
@@ -629,7 +645,7 @@ class _SaveCommand extends _ExperimentSubcommand {
   }
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final binding = requireDraftBinding();
     final path = requireOption('replacement');
     if (binding == null || path == null) return null;
@@ -701,7 +717,7 @@ class _CopyCommand extends _ExperimentSubcommand {
     );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final draftId = requireOption('source-draft-id');
     final draftRevisionId = requireOption('source-draft-revision-id');
     final expectedCas = requireOption('source-expected-cas');
@@ -765,7 +781,8 @@ class _ValidateCommand extends _ExperimentSubcommand {
   void addOptions(ArgParser parser) => addDraftBindingOptions(parser);
 
   @override
-  Map<String, Object?>? buildPayload() => requireDraftBinding();
+  Map<String, Object?>? buildPayload(TargetCoordinate target) =>
+      requireDraftBinding();
 
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
@@ -816,7 +833,8 @@ class _ReviewCommand extends _ExperimentSubcommand {
   void addOptions(ArgParser parser) => addDraftBindingOptions(parser);
 
   @override
-  Map<String, Object?>? buildPayload() => requireDraftBinding();
+  Map<String, Object?>? buildPayload(TargetCoordinate target) =>
+      requireDraftBinding();
 
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
@@ -850,7 +868,7 @@ class _ActivateCommand extends _ExperimentSubcommand
   }
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final binding = requireDraftBinding();
     final reviewId = requireOption('review-id');
     final recordDigest = requireOption('review-digest');
@@ -887,7 +905,7 @@ abstract class _TransitionCommand extends _ExperimentSubcommand
     );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final experimentId = requireOption('experiment-id');
     final ordinal = requirePositiveInt('expected-lifecycle-ordinal');
     if (experimentId == null || ordinal == null) return null;
@@ -973,7 +991,7 @@ class _ReadCommand extends _ExperimentSubcommand {
   );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final experimentId = requireOption('experiment-id');
     if (experimentId == null) return null;
     return {'experimentId': experimentId};
@@ -1007,7 +1025,7 @@ class _DeliveryOptionsCommand extends _ExperimentSubcommand {
   );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final experimentId = requireOption('experiment-id');
     if (experimentId == null) return null;
     return {'experimentId': experimentId};
@@ -1077,7 +1095,7 @@ class _RegisterBuildCommand extends _ExperimentSubcommand {
     );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final platform = requireOption('platform');
     final appBuildOrdinal = requireNonNegativeInt('app-build-ordinal');
     final sdkApiLevel = requirePositiveInt('sdk-api-level');
@@ -1140,7 +1158,7 @@ class _ReadinessCommand extends _ExperimentSubcommand {
     ..addOption('audience-digest', help: 'Semantic digest of that revision.');
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final pageSize = optionalPositiveInt('page-size');
     if (pageSize == null && argResults?['page-size'] != null) return null;
     final audienceId = argResults?['audience-id'] as String?;
@@ -1254,7 +1272,7 @@ class _ArchiveCommand extends _ExperimentSubcommand {
     );
 
   @override
-  Map<String, Object?>? buildPayload() {
+  Map<String, Object?>? buildPayload(TargetCoordinate target) {
     final experimentId = requireOption('experiment-id');
     final ordinal = requirePositiveInt('expected-control-plane-ordinal');
     if (experimentId == null || ordinal == null) return null;
@@ -1351,7 +1369,7 @@ class _RebuildServingRecordsCommand extends _ExperimentSubcommand
   }
 
   @override
-  Map<String, Object?>? buildPayload() => const {};
+  Map<String, Object?>? buildPayload(TargetCoordinate target) => const {};
 
   bool get _readinessOnly => argResults?['readiness-only'] as bool? ?? false;
 

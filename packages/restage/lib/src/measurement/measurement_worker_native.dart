@@ -1054,7 +1054,7 @@ final class _MeasurementWorkerKernel {
       ..sort((left, right) => left.sessionId.compareTo(right.sessionId));
     final ordinarySessionCount = orderedSessions
         .where(
-          (session) => session.experimentAssignment == null,
+          (session) => !session.isAssigned,
         )
         .length;
     if (_prepared.length + ordinarySessionCount >
@@ -1069,7 +1069,7 @@ final class _MeasurementWorkerKernel {
       return;
     }
     for (final session in orderedSessions) {
-      if (session.experimentAssignment != null) {
+      if (session.isAssigned) {
         _sessions.remove(session.sessionId);
         continue;
       }
@@ -1210,6 +1210,8 @@ final class _WorkerSession {
     required this.limits,
     required this.nextSequence,
     required this.experimentAssignment,
+    required this.attribution,
+    required this.assignment,
     required this.orderedCaptureV1,
   }) : _slots = List<_WorkerFactSlot>.generate(
           routes.length,
@@ -1260,6 +1262,17 @@ final class _WorkerSession {
         : MeasurementExperimentAssignmentV1.fromJson(
             decodeCanonicalObject(assignmentBytes),
           );
+    final attributionBytes = registration.attributionCanonicalBytes;
+    final attribution = attributionBytes == null
+        ? null
+        : MountSelectionAttributionV1.fromCanonicalBytes(attributionBytes);
+    final carrierBytes = registration.assignmentCanonicalBytes;
+    final carrier = carrierBytes == null
+        ? null
+        : PresentationAssignmentCarrierV2.fromCanonicalBytes(carrierBytes);
+    if (carrier != null && assignment != null) {
+      throw ArgumentError('A frame must retain one assignment carrier.');
+    }
     final orderedBytes = registration.orderedCaptureCanonicalBytesV1;
     final ordered = orderedBytes == null
         ? null
@@ -1287,6 +1300,8 @@ final class _WorkerSession {
       limits: registration.limits,
       nextSequence: registration.firstSequence,
       experimentAssignment: assignment,
+      attribution: attribution,
+      assignment: carrier,
     );
   }
 
@@ -1311,6 +1326,9 @@ final class _WorkerSession {
   final Uint8List contextCanonicalBytes;
   final ExactMeasurementPublicationContextRefV1 publishedContext;
   final MeasurementExperimentAssignmentV1? experimentAssignment;
+  final MountSelectionAttributionV1? attribution;
+  final PresentationAssignmentCarrierV2? assignment;
+  bool get isAssigned => experimentAssignment != null || assignment != null;
   final MeasurementOrderedCaptureV1? orderedCaptureV1;
   final Map<int, List<MeasurementTimedOccurrenceV1>> _timed = {};
   int _orderedCount = 0;
@@ -1338,6 +1356,8 @@ final class _WorkerSession {
         (registrationFingerprint?.length ?? 0) +
         contextCanonicalBytes.length +
         (experimentAssignment?.outcomeLinkCarrier.length ?? 0) +
+        (attribution?.canonicalBytes.length ?? 0) +
+        (assignment?.canonicalBytes.length ?? 0) +
         (_slots.length * _slotOwnedByteCount) +
         (orderedCaptureV1 == null
             ? 0
@@ -1355,7 +1375,7 @@ final class _WorkerSession {
     if (record.routeIndex < 0 ||
         record.routeIndex >= _slots.length ||
         record.monotonicTimestampMicros < _lastTimestampMicros ||
-        ((experimentAssignment != null || orderedCaptureV1 != null) &&
+        ((isAssigned || orderedCaptureV1 != null) &&
             record.monotonicTimestampMicros >
                 measurementIngestMaximumOutcomeWitnessMicros)) {
       return MeasurementWorkerAppendAcknowledgementOutcome.rejected;
@@ -1404,7 +1424,7 @@ final class _WorkerSession {
             ordered,
             MeasurementOccurrenceChannelV1.presentation,
             record.monotonicTimestampMicros);
-      if (experimentAssignment != null) {
+      if (isAssigned) {
         slot.presentationFirstOccurrenceMicros =
             record.monotonicTimestampMicros;
       }
@@ -1431,7 +1451,7 @@ final class _WorkerSession {
     }
     if (record.value == MeasurementWorkerAppendValue.interaction &&
         slot.hasInteractionCounter) {
-      if (experimentAssignment != null) {
+      if (isAssigned) {
         slot.interactionFirstOccurrenceMicros ??=
             record.monotonicTimestampMicros;
       }
@@ -1461,7 +1481,7 @@ final class _WorkerSession {
   }
 
   bool admitFrameElapsed(int? elapsed, {required bool isFinal}) {
-    if (experimentAssignment == null && orderedCaptureV1 == null) return true;
+    if (!isAssigned && orderedCaptureV1 == null) return true;
     if (elapsed == null ||
         elapsed < 0 ||
         elapsed > measurementIngestMaximumOutcomeWitnessMicros ||
@@ -1521,6 +1541,8 @@ final class _WorkerSession {
           'incomplete': _orderedIncomplete
         },
       'captureSessionNonce': captureSessionNonce,
+      if (attribution != null) 'attribution': attribution!.toJson(),
+      if (assignment != null) 'assignment': assignment!.toJson(),
       if (experimentAssignment != null)
         'experimentAssignment': experimentAssignment!.toJson(),
       'facts': facts,
@@ -3160,7 +3182,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
       ..sort((left, right) => left.sessionId.compareTo(right.sessionId));
     for (final session in sessions) {
       if (_collectionCancelled) return;
-      if (session.experimentAssignment != null) continue;
+      if (session.isAssigned) continue;
       final result = await _prepareAndDeliver(session, isFinal: true);
       if (!_isDurablyRetained(result.outcome)) {
         outcome = MeasurementWorkerOwnedDeliveryShutdownOutcome.unavailable;

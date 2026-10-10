@@ -1,5 +1,8 @@
 import 'package:meta/meta.dart';
+import 'package:restage_shared/restage_shared.dart' show InstalledCapability;
 
+import '../runtime/installed_libraries_carrier.dart';
+import '../runtime/installed_widget_vocabulary.dart';
 import 'delivery_input_budget.dart';
 import 'surface_analytics_identity_provider.dart';
 import 'surface_assignment_key_provider.dart';
@@ -18,6 +21,9 @@ final class SurfaceRequestInputs {
     required this.meteringKey,
     required this.builtIns,
     required this.heldAssignment,
+    required this.installedCapability,
+    required this.installedCapabilityHash,
+    required this.sdkInstalledLibraries,
     required String? analyticsAnonymousId,
     required int analyticsGeneration,
   })  : _lease = lease,
@@ -39,6 +45,7 @@ final class SurfaceRequestInputs {
     Future<void>? keyDeadline,
     SurfaceAssignmentResolutionLease? capturedLease,
   }) async {
+    final installedCapability = currentInstalledCapability();
     var deadlinePassed = false;
     if (keyDeadline != null) {
       keyDeadline.then((_) => deadlinePassed = true);
@@ -85,6 +92,10 @@ final class SurfaceRequestInputs {
       analyticsGeneration: analyticsGeneration,
       builtIns: values[3] as String?,
       heldAssignment: values[4] as String?,
+      installedCapability: installedCapability,
+      installedCapabilityHash: installedCapability.contentHash,
+      sdkInstalledLibraries:
+          installedLibrariesCarrier(snapshot: installedCapability),
     );
   }
 
@@ -106,6 +117,15 @@ final class SurfaceRequestInputs {
 
   /// The assignment this build already holds, when one answered.
   final String? heldAssignment;
+
+  /// The immutable installed runtime captured before reading optional inputs.
+  final InstalledCapability installedCapability;
+
+  /// The hash of [installedCapability].
+  final String installedCapabilityHash;
+
+  /// The installed-library report derived from [installedCapability].
+  final String? sdkInstalledLibraries;
 
   final String? _analyticsAnonymousId;
   final int _analyticsGeneration;

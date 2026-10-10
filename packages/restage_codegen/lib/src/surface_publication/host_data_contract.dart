@@ -1,7 +1,70 @@
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+/// The top-level provider shared by a mount and its generated roster entry.
+String placementDefinitionProviderName(String declarationName) =>
+    '${lowerCamelIdentifier(declarationName, fallback: 'surface')}'
+    'PlacementDefinition';
+
+/// Generated declaration names claimed alongside the existing surface handle.
+Set<String> placementDefinitionSymbols(String declarationName) {
+  final provider = placementDefinitionProviderName(declarationName);
+  return {provider, '_${provider}Value'};
+}
+
+/// Emits a validated default coordinate and the exact compiler-projected host.
+String emitPlacementDefinition({
+  required String declarationName,
+  required String defaultSurfaceArgument,
+  required Surface surface,
+  required String slug,
+  required SurfaceHostContractV1 hostContract,
+  required String sdkHost,
+  String? vocabulary,
+  int? screenContractVersion,
+}) {
+  final surfaceType = DeliverySurfaceTypeId(surface.wireName);
+  final family = screenContractVersion == null
+      ? const DeliveryFamilySelectorV1.general()
+      : DeliveryFamilySelectorV1.screenContract(
+          contractVersion: screenContractVersion,
+        );
+  final locator = DeliverySurfaceLocatorV1(
+    surfaceType: surfaceType,
+    slug: slug,
+    family: family,
+  );
+  PlacementKeyV1.generatedDefault(surfaceType: surfaceType, slug: slug);
+  final provider = placementDefinitionProviderName(declarationName);
+  return '''
+final _${provider}Value = $sdkHost.generatedPlacementDefinition(
+  $defaultSurfaceArgument,
+  defaultSurfaceLocatorJson: ${_contractLiteral(locator.toJson())},
+  hostContractJson: ${_contractLiteral(hostContract.toJson())},
+  ${vocabulary == null ? '' : 'vocabulary: $vocabulary,'}
+);
+
+final $provider = () => _${provider}Value;
+''';
+}
+
+String _contractLiteral(Object? value) => switch (value) {
+      null => 'null',
+      String() => dartStringLiteral(value),
+      bool() || num() => '$value',
+      // Typed literals keep empty collections decodable as JSON objects.
+      List<Object?>() => '<Object?>[${value.map(_contractLiteral).join(', ')}]',
+      Map<String, Object?>() => '<String, Object?>{${value.entries.map(
+            (entry) => '${dartStringLiteral(entry.key)}: '
+                '${_contractLiteral(entry.value)}',
+          ).join(', ')}}',
+      _ => throw ArgumentError.value(value, 'value'),
+    };
 
 /// Builds the inert host-data contract one screen declares.
 ///

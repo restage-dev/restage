@@ -17,8 +17,8 @@ import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
-import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
@@ -26,13 +26,8 @@ import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// The generated A2UI catalog Dart file. Declares
-/// `List<CatalogItem> buildRestageCatalogItems()` — the function the consumer
-/// passes to genui's `Catalog(...)`.
-///
-/// Generated Dart, so the placement plan resolves it beneath the package's
-/// generated-Dart root; the companion producer JSON's own filename and
-/// purpose directory belong to the plan.
+/// Generated `buildRestageCatalogItems()` for genui's `Catalog`.
+/// The output plan places Dart and its companion JSON in their configured roots.
 const _catalogDartFileName = 'restage_a2ui_catalog.g.dart';
 
 /// Placeholder pub version for a custom library's catalog envelope. The A2UI
@@ -41,65 +36,33 @@ const _catalogDartFileName = 'restage_a2ui_catalog.g.dart';
 /// byte-stable (matching the custom-catalog emitter's convention).
 const _customLibraryVersion = '0.0.0';
 
-/// Resolves this builder's placement, rejecting any option it does not
-/// recognize.
-///
-/// The A2UI catalog has no authoring options of its own — the whole package's
-/// annotated source is the input — so the recognized set is exactly the shared
-/// placement set every placement-affected builder key accepts, with identical
-/// defaults. A typo would otherwise be silently ignored and the output would
-/// land somewhere the developer did not ask for.
-RestageOutputPlacementPlan _resolvePlan(BuilderOptions options) {
-  requireOnlyRestagePlacementOptions(
+/// Resolves the shared output-location options and rejects unknown keys.
+/// The A2UI builder has no additional authoring options.
+RestageOutputLocationPlan _resolvePlan(BuilderOptions options) {
+  requireOnlyRestageOutputLocationOptions(
     options,
     featureLabel: 'A2UI catalog generation',
   );
-  return RestageOutputPlacementPlan.fromBuilderOptions(options);
+  return RestageOutputLocationPlan.fromBuilderOptions(options);
 }
 
-/// Aggregates the consuming package's `@RestageWidget` source into a genui
-/// **A2UI** catalog (the autonomous-codegen emit target), emitting
-/// `lib/generated/restage_a2ui_catalog.g.dart`
-/// (`buildRestageCatalogItems()`) plus the
-/// `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json` capability stamp.
+/// Builds an opt-in genui catalog from custom widgets and native screens.
 ///
-/// Both paths are the DEFAULT resolution of the shared output placement plan,
-/// which this builder resolves once from its own options. The Dart catalog is
-/// package-wide generated Dart, so a configured generated-Dart root moves it
-/// and nothing else does; the producer JSON is portable tooling data, so a
-/// configured portable-output root moves it into that root's `a2ui/` purpose
-/// directory. The producer JSON is never a bundle entry, a publication
-/// artifact, a delivery capability sidecar, or over-the-air payload.
-///
-/// Custom widgets and native screen components are read from the consuming
-/// package's own source. Widgets retain the custom-catalog walk; screens
-/// enter through the shared exact-identity package index and reuse the same
-/// constructor-input projection and analyzer-fed A2UI seams.
-///
-/// The emitted catalog is **custom-authored only**: one combined genui
-/// `Catalog` contains the package's custom widgets and opaque native screens.
-/// Built-in catalog coverage is separate and never contributes to this output.
+/// Emits `lib/generated/restage_a2ui_catalog.g.dart` and the capability stamp
+/// `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`. Output-location
+/// options relocate Dart and portable data independently. The stamp is
+/// build tooling data and is excluded from delivery artifacts.
 ///
 /// Each contributing custom library must declare
-/// `@RestageLibrary(capabilityVersion:)`; the version is read off the barrel
-/// and carried into the stamp's custom-library capability axis (the A2UI
-/// emitter fails loud if a contributing custom library declares none).
-///
-/// Skips emit when the package contributes neither custom widgets nor native
-/// screens. This builder is **opt-in** (it is not applied to dependents): the
-/// emitted code imports the genui runtime, so a consumer enables it explicitly
-/// only when they want an A2UI catalog.
-///
-/// The toolchain stays runtime-free: the emit is string emission, so this
-/// builder never imports the genui runtime — only the *generated* code does,
-/// and that compiles in the consumer's package (which declares the genui
-/// dependency).
+/// `@RestageLibrary(capabilityVersion:)`. Built-in catalogs are separate.
+/// Packages with no custom widgets or native screens produce no output.
+/// Only the generated code imports genui; the consuming package supplies it.
 final class UserA2uiCatalogBuilder implements Builder {
-  /// Creates the builder, resolving and validating placement options once.
+  /// Creates the builder, resolving and validating output location options once.
   UserA2uiCatalogBuilder(BuilderOptions options) : plan = _resolvePlan(options);
 
-  /// The resolved placement authority for this builder invocation.
-  final RestageOutputPlacementPlan plan;
+  /// The resolved output location authority for this builder invocation.
+  final RestageOutputLocationPlan plan;
 
   /// The package-relative path of the generated A2UI catalog Dart.
   String get _catalogDartPath =>
@@ -115,12 +78,9 @@ final class UserA2uiCatalogBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    // Join the package's one placement record before emitting anything. This
-    // builder reads a placement plan but compiles no surfaces, so without this
-    // it would be the one placement-affected key that never meets the others,
-    // and a package configuring a different root here than on the outputs key
-    // would get a quietly split layout instead of a diagnostic.
-    await registerRestagePlacementSignature(
+    // Register this builder's output location plan to detect conflicting options
+    // across builders before they write to different roots.
+    await registerRestageOutputLocationSignature(
       buildStep,
       plan,
       builderKey: 'restage_codegen:user_a2ui_catalog',

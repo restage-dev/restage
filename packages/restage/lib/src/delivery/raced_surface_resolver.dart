@@ -2,7 +2,13 @@ import 'dart:async';
 
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show CanonicalSurfaceExperimentAssignmentV1, Surface;
+    show
+        CanonicalSurfaceExperimentAssignmentV1,
+        Surface,
+        PlacementMountRequestV1;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show PresentationAssignmentCarrierV2;
+import 'dart:convert';
 
 import '../measurement/measurement_resolved_publication_provenance.dart'
     show
@@ -145,7 +151,7 @@ void reportRacedSurface<T>(
       SurfaceResolutionSource.bundled;
   reportSurfaceResolution<Object>(
     reporting.reportSurfaceFor(key),
-    key.slug,
+    reporting.reportSlugFor(key, winner),
     leaf,
     source,
     reason: source == SurfaceResolutionSource.fresh
@@ -207,11 +213,13 @@ Future<({bool reusable, String? key, SurfaceAssignmentResolutionLease? lease})>
   required String surface,
   required String slug,
   int? contractVersion,
+  PlacementMountRequestV1? placement,
+  PresentationAssignmentCarrierV2? placementAssignment,
 }) async {
   const refused = (reusable: false, key: null, lease: null);
   final storedKey = storedSurfaceAssignmentKey(stored);
   if (storedKey == null) {
-    return assignment == null
+    return assignment == null && placementAssignment == null
         ? (
             reusable: true,
             key: null,
@@ -243,6 +251,16 @@ Future<({bool reusable, String? key, SurfaceAssignmentResolutionLease? lease})>
       )) {
     return refused;
   }
+  if (placementAssignment != null) {
+    if (placement == null) return refused;
+    final held = await SurfaceCanonicalCarrierProvider.heldPlacement(
+        mount: placement, assignmentKey: storedKey);
+    if (held !=
+        base64UrlEncode(placementAssignment.canonicalBytes)
+            .replaceAll('=', '')) {
+      return refused;
+    }
+  }
   final lease = identityLease.forStoredAssignment(storedKey, registration);
   return lease.isCurrent
       ? (reusable: true, key: storedKey, lease: lease)
@@ -255,14 +273,16 @@ Future<({bool reusable, String? key, SurfaceAssignmentResolutionLease? lease})>
 Future<void> persistAcceptedDelivery(
   SurfaceArtifactStore store,
   SurfaceStoreKey key,
-  StoredSurface? stored,
-) {
+  StoredSurface? stored, {
+  bool Function()? publicationGuard,
+}) {
   if (stored == null) return Future<void>.value();
   // Persists for one key run one at a time, so a keyed entry written while a
   // keyless one checks the store is always seen by that check.
   final pending = _persists[store] ??= <SurfaceStoreKey, Future<void>>{};
   final previous = pending[key] ?? Future<void>.value();
-  final next = previous.then((_) => _persist(store, key, stored));
+  final next = previous.then(
+      (_) => _persist(store, key, stored, publicationGuard: publicationGuard));
   pending[key] = next;
   unawaited(next.whenComplete(() {
     if (identical(pending[key], next)) pending.remove(key);
@@ -273,12 +293,35 @@ Future<void> persistAcceptedDelivery(
 final Expando<Map<SurfaceStoreKey, Future<void>>> _persists =
     Expando<Map<SurfaceStoreKey, Future<void>>>('surface persists');
 
+/// Removes one still-matching accepted row in the same queue as its writes.
+@internal
+Future<void> evictAcceptedDelivery(SurfaceArtifactStore store,
+    SurfaceStoreKey key, bool Function(StoredSurface) matches) {
+  final pending = _persists[store] ??= <SurfaceStoreKey, Future<void>>{};
+  final previous = pending[key] ?? Future<void>.value();
+  final next = previous.then((_) async {
+    try {
+      final stored = await store.read(key);
+      if (stored != null && matches(stored)) await store.remove(key);
+    } on Object {
+      // A failed eviction remains a miss when the decision is re-gated.
+    }
+  });
+  pending[key] = next;
+  unawaited(next.whenComplete(() {
+    if (identical(pending[key], next)) pending.remove(key);
+  }));
+  return next;
+}
+
 Future<void> _persist(
   SurfaceArtifactStore store,
   SurfaceStoreKey key,
-  StoredSurface stored,
-) async {
+  StoredSurface stored, {
+  bool Function()? publicationGuard,
+}) async {
   try {
+    if (publicationGuard != null && !publicationGuard()) return;
     if (storedSurfaceAssignmentKey(stored) == null) {
       final existing = await store.read(key);
       final existingKey =
@@ -288,6 +331,7 @@ Future<void> _persist(
         return;
       }
     }
+    if (publicationGuard != null && !publicationGuard()) return;
     await store.write(key, stored);
   } on Object {
     // A delivery that cannot be kept is still rendered.
@@ -309,6 +353,9 @@ mixin RacedSurfaceReporting<T> {
   /// The surface a resolution for [key] reports under.
   Surface reportSurfaceFor(SurfaceStoreKey key) =>
       Surface.fromWireName(key.surfaceType);
+
+  /// The served content identity, when it differs from the request key.
+  String reportSlugFor(SurfaceStoreKey key, T winner) => key.slug;
 
   /// The store this resolver persists accepted deliveries in.
   SurfaceArtifactStore get store;

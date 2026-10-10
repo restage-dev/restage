@@ -942,6 +942,8 @@ final foreignGeneratedRef = Object();
         result.compilation!.generatedTopLevelSymbols,
         equals({
           'GeneralFlowSurface',
+          'generalFlowPlacementDefinition',
+          '_generalFlowPlacementDefinitionValue',
           'generalFlowRef',
           '_decodeGeneralFlowResult',
           'GeneralFlowResult',

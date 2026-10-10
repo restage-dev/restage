@@ -9,6 +9,7 @@ import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
@@ -62,6 +63,7 @@ class SurfaceRollbackCommand extends Command<int>
       withContractVersion: true,
       withSourceKind: true,
     );
+    addSurfaceMeasurementReviewOptions(argParser);
     argParser
       ..addOption(
         'to-version',
@@ -280,6 +282,19 @@ class SurfaceRollbackCommand extends Command<int>
       return 1;
     }
 
+    final impact = await reviewSurfaceMeasurement(
+      io: _io,
+      arguments: argResults!,
+      api: surfaces,
+      target: ctx,
+      identity: identity,
+      operation: 'surfaceRollback',
+      reason: reason!,
+      publishedRevision: toVersion,
+      contractVersion: status.contractVersion,
+      frozen: freeze,
+    );
+    if (impact.exitCode case final code?) return code;
     await surfaces.rollback(
       project: ctx.project,
       app: ctx.app,
@@ -288,12 +303,13 @@ class SurfaceRollbackCommand extends Command<int>
       environment: ctx.environment,
       toVersion: toVersion,
       lockAfter: freeze,
-      reason: reason!,
+      reason: reason,
       environmentTargetId: ctx.environmentTargetId,
       runtimePlane: ctx.runtimePlane,
       organizationId: ctx.organizationId,
       contractVersion: status.contractVersion,
       sourceKind: identity.sourceKind,
+      measurementProceed: impact.proceed,
     );
     _io.stdout.writeln(
       'Rolled back "$slug" to v$toVersion${freeze ? ' (frozen)' : ''}.',

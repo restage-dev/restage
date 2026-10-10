@@ -210,7 +210,8 @@ final class MeasurementOutboxPreparedBatch {
           request.factFrame.sequence != batch.sequence ||
           request.factFrame.isFinal != batch.isFinal ||
           (registrationFingerprint != null &&
-              request.factFrame.experimentAssignment == null)) {
+              request.factFrame.experimentAssignment == null &&
+              request.factFrame.assignment == null)) {
         throw ArgumentError('Inconsistent measurement worker batch');
       }
       return MeasurementOutboxPreparedBatch._fromValidatedRequest(
@@ -302,7 +303,8 @@ final class MeasurementOutboxPreparedBatch {
             request.requestSha256 != requestSha256 ||
             request.factFrameSha256 != factFrameSha256 ||
             (registrationFingerprint != null &&
-                request.factFrame.experimentAssignment == null) ||
+                request.factFrame.experimentAssignment == null &&
+                request.factFrame.assignment == null) ||
             !_sameBytes(
               expectedBinding,
               publicationBindingReferenceCanonicalBytes,

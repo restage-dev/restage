@@ -107,10 +107,93 @@ class StrideFirstRunActions implements FlowActionRegistry, FlowSignalRegistry {
   Set<String> get installedSignalNames => const {'skip'};
 }
 
+final _strideFirstRunFlowPlacementDefinitionValue =
+    RestageFlowGraph.generatedPlacementDefinition(
+  defaultSurface: strideFirstRunFlowRef,
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'onboarding',
+    'slug': 'stride_first_run',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'flow',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'inputs': <String, Object?>{},
+      'schemaVersion': 1
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': <String, Object?>{
+      'schemaVersion': 1,
+      'deliveryMode': 'general',
+      'hostSeedableState': <String, Object?>{},
+      'actions': <String, Object?>{
+        'requestNotifications': <String, Object?>{
+          'actionName': 'requestNotifications',
+          'contractVersion': 1,
+          'argsSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{}
+          },
+          'resultSchema': <String, Object?>{
+            'kind': 'object',
+            'fields': <String, Object?>{
+              'granted': <String, Object?>{
+                'required': true,
+                'schema': <String, Object?>{'kind': 'bool'}
+              }
+            }
+          },
+          'minClient': 6,
+          'idempotent': false
+        }
+      },
+      'signals': <Object?>['skip'],
+      'outbound': <String, Object?>{
+        'actionArgs': <String, Object?>{},
+        'terminalResult': <String, Object?>{'completed': 'bool'},
+        'lifecycle': <String, Object?>{},
+        'surveyAnswers': <String, Object?>{},
+        'subFlowResult': <String, Object?>{},
+        'customEvents': <String, Object?>{'skip': <String, Object?>{}}
+      }
+    }
+  },
+  vocabulary: strideFirstRunFlowRef.vocabulary,
+);
+
+final strideFirstRunFlowPlacementDefinition =
+    () => _strideFirstRunFlowPlacementDefinitionValue;
+
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class StrideFirstRunFlowSurface
     extends RestageFlowGraph<Map<String, Object?>> {
   const StrideFirstRunFlowSurface({
+    super.key,
+    String? placement,
+    super.initialState,
+    super.actions,
+    super.installedSignalNames,
+    super.resolver,
+    super.onFlowUnavailable,
+    super.onComplete,
+    super.loadingBuilder,
+    super.transition,
+    super.systemBack,
+    super.liveRefresh,
+    super.context,
+    super.unavailable = const FlowUnavailablePolicy.hide(),
+  })  : _restagePlacementName = placement,
+        super(flow: strideFirstRunFlowRef);
+
+  const StrideFirstRunFlowSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     super.initialState,
     super.actions,
@@ -124,5 +207,14 @@ final class StrideFirstRunFlowSurface
     super.liveRefresh,
     super.context,
     super.unavailable = const FlowUnavailablePolicy.hide(),
-  }) : super(flow: strideFirstRunFlowRef);
+  })  : _restagePlacementName = restagePlacementId,
+        super(flow: strideFirstRunFlowRef);
+
+  final String? _restagePlacementName;
+
+  @override
+  get placementBinding => RestageFlowGraph.generatedPlacementBinding(
+        definition: strideFirstRunFlowPlacementDefinition,
+        name: _restagePlacementName,
+      );
 }

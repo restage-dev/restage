@@ -2,6 +2,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
     show FlowDeliveryMode, Surface, kBaselineCatalogVersion;
 
+import '../runtime/placement_mount.dart' show SurfacePresentationRequirement;
+
 /// Marks a top-level [FlowDefinition] or [RestageFlow] class as a flow
 /// graph.
 ///
@@ -17,6 +19,7 @@ final class FlowGraph {
     this.version = 1,
     this.minClient = kBaselineCatalogVersion,
     this.delivery = FlowDeliveryMode.typed,
+    this.presentation = SurfacePresentationRequirement.infer,
   });
 
   /// Optional stable flow identity.
@@ -33,6 +36,9 @@ final class FlowGraph {
 
   /// Delivery discipline for the generated flow payload.
   final FlowDeliveryMode delivery;
+
+  /// Narrows the presentation modes the complete compiled flow must prove.
+  final SurfacePresentationRequirement presentation;
 }
 
 /// Legacy source annotation for a reusable flow screen.
@@ -73,6 +79,7 @@ final class FlowSource {
     this.version = 1,
     this.minClient = kBaselineCatalogVersion,
     this.delivery = FlowDeliveryMode.typed,
+    this.presentation = SurfacePresentationRequirement.infer,
   });
 
   /// Stable flow graph identifier.
@@ -86,4 +93,7 @@ final class FlowSource {
 
   /// Delivery discipline for the emitted flow document.
   final FlowDeliveryMode delivery;
+
+  /// Narrows the presentation modes the complete compiled flow must prove.
+  final SurfacePresentationRequirement presentation;
 }

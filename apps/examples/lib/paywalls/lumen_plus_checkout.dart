@@ -5,6 +5,18 @@ import 'package:restage/restage.dart';
 /// starts.
 @Paywall()
 class LumenPlusCheckoutScreen extends StatelessWidget {
+  /// Starts the trial on the selected plan.
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
+  /// Asks the app to restore an existing subscription.
+  static const restorePurchases = SurfaceEvent<void>('restore_purchases');
+
+  /// Opens the subscription terms.
+  static const terms = SurfaceEvent<void>('terms');
+
+  /// Opens the privacy policy.
+  static const privacy = SurfaceEvent<void>('privacy');
+
   const LumenPlusCheckoutScreen({super.key});
 
   @override

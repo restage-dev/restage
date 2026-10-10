@@ -15,7 +15,7 @@ import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
-import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -74,7 +74,7 @@ class ResolvedWidgetMountInput {
     this.partPath,
   }) : constructorParams = constructorParams ?? rootParams;
 
-  /// Owning library asset used for diagnostics and part placement.
+  /// Owning library asset used for diagnostics and part output location.
   final AssetId assetId;
 
   /// Analyzer identity of the authored widget.
@@ -89,8 +89,8 @@ class ResolvedWidgetMountInput {
   /// Why the original constructor cannot be preserved, when unsupported.
   final String? mountConstructorProblem;
 
-  /// Placement authority, or null for the default layout.
-  final RestageOutputPlacementPlan? plan;
+  /// Output location authority, or null for the default layout.
+  final RestageOutputLocationPlan? plan;
 
   /// Roster-owned generated part path, when supplied by the aggregate owner.
   final String? partPath;
@@ -98,7 +98,7 @@ class ResolvedWidgetMountInput {
   /// The owning library’s single generated Dart part.
   String get generatedPartPath =>
       partPath ??
-      (plan ?? RestageOutputPlacementPlan.defaults)
+      (plan ?? RestageOutputLocationPlan.defaults)
           .forLibrary(assetId.path)
           .neutralPartPath;
 
@@ -175,6 +175,7 @@ final class ResolvedStandaloneScreenContractInput
 ({String? source, String? omissionMessage}) emitPaywallMount(
   ResolvedWidgetMountInput input, {
   required String id,
+  FlowDocument? navigationFlow,
   SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
   String? Function(String sdkPrefix)? appWidgetLibraries,
 }) {
@@ -185,7 +186,40 @@ final class ResolvedStandaloneScreenContractInput
   );
   final mount = result.mount;
   if (mount == null) return (source: null, omissionMessage: result.message);
-  final buffer = StringBuffer();
+  final librarySource = appWidgetLibraries?.call(mount.sdk);
+  final buffer = StringBuffer()
+    ..writeln(
+      emitPlacementDefinition(
+        declarationName: input.screen.name!,
+        defaultSurfaceArgument: 'id: ${dartStringLiteral(id)}',
+        surface: Surface.paywall,
+        slug: id,
+        hostContract: SurfaceHostContractV1(
+          hosting: SurfaceHostingV1(
+            contentKind: navigationFlow == null
+                ? SurfaceContentKindV1.single
+                : SurfaceContentKindV1.flow,
+            presentation: SurfacePresentationV1.inline,
+          ),
+          providedContext: hostDataContractOf(input.rootParams),
+          handledEvents: SurfaceScreenEventSchema(events: const []),
+          flowBoundary: navigationFlow == null
+              ? null
+              : FlowHostBoundaryV1.fromDocument(
+                  navigationFlow,
+                  signals: navigationFlow.outbound.customEvents.keys.toSet(),
+                ),
+        ),
+        vocabulary: vocabulary.namesInstallable || librarySource != null
+            ? 'const ${emitSurfaceVocabulary(
+                vocabulary,
+                sdkPrefix: mount.sdk,
+                libraries: librarySource,
+              )}'
+            : null,
+        sdkHost: '${mount.sdk}RestagePaywall',
+      ),
+    );
   _emitScreenMount(
     buffer,
     screenName: input.screen.name!,
@@ -193,7 +227,7 @@ final class ResolvedStandaloneScreenContractInput
     eventType: '${mount.sdk}RestageEvent',
     paywallId: id,
     vocabulary: vocabulary,
-    appWidgetLibraries: appWidgetLibraries?.call(mount.sdk),
+    appWidgetLibraries: librarySource,
   );
   return (source: buffer.toString(), omissionMessage: null);
 }
@@ -419,74 +453,7 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
     );
   }
 
-  final events = <_ResolvedScreenEvent>[];
-  final fields = screen.children.whereType<FieldElement>().where((field) {
-    return field.isStatic;
-  }).toList()
-    ..sort((left, right) => (left.name ?? '').compareTo(right.name ?? ''));
-  for (final field in fields) {
-    final type = field.type;
-    if (!_hasSurfaceEventName(type)) continue;
-    if (!_isSdkSurfaceEvent(type)) {
-      issues.add(
-        _issue(
-          input,
-          IssueCode.unresolvedIdentifier,
-          'Static field ${field.name ?? '<unnamed>'} looks like a '
-          'SurfaceEvent but does not resolve to package:restage '
-          'SurfaceEvent<T>.',
-        ),
-      );
-      continue;
-    }
-    if (!field.isConst) {
-      issues.add(
-        _issue(
-          input,
-          IssueCode.annotationEvaluationFailed,
-          'Static SurfaceEvent field ${field.name ?? '<unnamed>'} must be '
-          'const so its wire ID is stable.',
-        ),
-      );
-      continue;
-    }
-    final value = field.computeConstantValue();
-    final id = value?.getField('id')?.toStringValue();
-    if (id == null || id.isEmpty) {
-      issues.add(
-        _issue(
-          input,
-          IssueCode.annotationEvaluationFailed,
-          'Static SurfaceEvent field ${field.name ?? '<unnamed>'} must have '
-          'a non-empty const ID.',
-        ),
-      );
-      continue;
-    }
-    final eventType = type as InterfaceType;
-    if (eventType.typeArguments.length != 1) {
-      issues.add(
-        _issue(
-          input,
-          IssueCode.buildMethodTooComplex,
-          'Static SurfaceEvent field ${field.name ?? '<unnamed>'} must have '
-          'exactly one resolved type argument.',
-        ),
-      );
-      continue;
-    }
-    final payloadType = eventType.typeArguments.single;
-    final event = _eventFromType(
-      field: field,
-      id: id,
-      payloadType: payloadType,
-      input: input,
-      issues: issues,
-    );
-    if (event != null) events.add(event);
-  }
-
-  _reportDuplicateEventIds(input, events, issues);
+  final events = _inspectScreenEvents(input, issues);
   final mountResolution = screen.name == null || screen.name!.isEmpty
       ? (mount: null, message: null)
       : _resolveScreenMount(
@@ -564,11 +531,104 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
   );
 }
 
+/// Inspects typed events for a screen, including neutral flow screens.
+///
+/// The same resolved type algebra builds standalone event contracts.
+({SurfaceScreenEventSchema? schema, List<Issue> issues})
+    inspectScreenEventContract(ResolvedWidgetMountInput input) {
+  final issues = <Issue>[];
+  final events = _inspectScreenEvents(input, issues);
+  return (
+    schema: issues.isEmpty
+        ? SurfaceScreenEventSchema(
+            events: [for (final event in events) event.schemaEvent],
+          )
+        : null,
+    issues: List.unmodifiable(issues),
+  );
+}
+
+List<_ResolvedScreenEvent> _inspectScreenEvents(
+  ResolvedWidgetMountInput input,
+  List<Issue> issues,
+) {
+  final screen = input.screen;
+  final events = <_ResolvedScreenEvent>[];
+  final fields = screen.children.whereType<FieldElement>().where((field) {
+    return field.isStatic;
+  }).toList()
+    ..sort((left, right) => (left.name ?? '').compareTo(right.name ?? ''));
+  for (final field in fields) {
+    final type = field.type;
+    if (!_hasSurfaceEventName(type)) continue;
+    if (!_isSdkSurfaceEvent(type)) {
+      issues.add(
+        _issue(
+          input,
+          IssueCode.unresolvedIdentifier,
+          'Static field ${field.name ?? '<unnamed>'} looks like a '
+          'SurfaceEvent but does not resolve to package:restage '
+          'SurfaceEvent<T>.',
+        ),
+      );
+      continue;
+    }
+    if (!field.isConst) {
+      issues.add(
+        _issue(
+          input,
+          IssueCode.annotationEvaluationFailed,
+          'Static SurfaceEvent field ${field.name ?? '<unnamed>'} must be '
+          'const so its wire ID is stable.',
+        ),
+      );
+      continue;
+    }
+    final value = field.computeConstantValue();
+    final id = value?.getField('id')?.toStringValue();
+    if (id == null || id.isEmpty) {
+      issues.add(
+        _issue(
+          input,
+          IssueCode.annotationEvaluationFailed,
+          'Static SurfaceEvent field ${field.name ?? '<unnamed>'} must have '
+          'a non-empty const ID.',
+        ),
+      );
+      continue;
+    }
+    final eventType = type as InterfaceType;
+    if (eventType.typeArguments.length != 1) {
+      issues.add(
+        _issue(
+          input,
+          IssueCode.buildMethodTooComplex,
+          'Static SurfaceEvent field ${field.name ?? '<unnamed>'} must have '
+          'exactly one resolved type argument.',
+        ),
+      );
+      continue;
+    }
+    final payloadType = eventType.typeArguments.single;
+    final event = _eventFromType(
+      field: field,
+      id: id,
+      payloadType: payloadType,
+      input: input,
+      issues: issues,
+    );
+    if (event != null) events.add(event);
+  }
+
+  _reportDuplicateEventIds(input, events, issues);
+  return events;
+}
+
 _ResolvedScreenEvent? _eventFromType({
   required FieldElement field,
   required String id,
   required DartType payloadType,
-  required ResolvedStandaloneScreenContractInput input,
+  required ResolvedWidgetMountInput input,
   required List<Issue> issues,
 }) {
   if (payloadType is VoidType) {
@@ -599,7 +659,7 @@ _ResolvedScreenEvent? _eventFromType({
 
 _DartEventShape? _shapeFromType(
   DartType type, {
-  required ResolvedStandaloneScreenContractInput input,
+  required ResolvedWidgetMountInput input,
   required FieldElement field,
   required List<Issue> issues,
 }) {
@@ -663,7 +723,7 @@ _DartEventShape? _shapeFromType(
 
 _DartEventShape? _shapeFromInterface(
   InterfaceType type, {
-  required ResolvedStandaloneScreenContractInput input,
+  required ResolvedWidgetMountInput input,
   required FieldElement field,
   required List<Issue> issues,
 }) {
@@ -731,7 +791,7 @@ _DartEventShape? _shapeFromInterface(
 }
 
 void _reportDuplicateEventIds(
-  ResolvedStandaloneScreenContractInput input,
+  ResolvedWidgetMountInput input,
   List<_ResolvedScreenEvent> events,
   List<Issue> issues,
 ) {
@@ -842,11 +902,21 @@ void _reportGeneratedSymbolCollisions(
     );
   }
 
-  if (sourceNames.contains(mountName) ||
-      reservedGeneratedSymbols.contains(mountName)) {
+  final mountSymbols = {
+    mountName,
+    ...placementDefinitionSymbols(screenName),
+  };
+  final collision = mountSymbols
+      .where(
+        (name) =>
+            sourceNames.contains(name) ||
+            reservedGeneratedSymbols.contains(name),
+      )
+      .firstOrNull;
+  if (collision != null) {
     return (
       mount: null,
-      message: omitted('$mountName already exists in ${input.assetId.path}'),
+      message: omitted('$collision already exists in ${input.assetId.path}'),
     );
   }
 
@@ -1281,6 +1351,27 @@ String _emitReferenceDart(
 
   final mount = contract._mount;
   if (mount != null) {
+    buffer
+      ..writeln()
+      ..writeln(
+        emitPlacementDefinition(
+          declarationName: screenName,
+          defaultSurfaceArgument: 'defaultSurface: $refName',
+          surface: contract.surface,
+          slug: contract.slug,
+          screenContractVersion: contract.contractVersion,
+          hostContract: SurfaceHostContractV1(
+            hosting: const SurfaceHostingV1(
+              contentKind: SurfaceContentKindV1.single,
+              presentation: SurfacePresentationV1.inline,
+            ),
+            providedContext: contract.hostDataContract,
+            handledEvents: contract.eventSchema,
+          ),
+          vocabulary: '$refName.provenance.vocabulary',
+          sdkHost: '${mount.sdk}RestageScreen',
+        ),
+      );
     _emitScreenMount(
       buffer,
       screenName: contract.screen.name!,
@@ -1324,6 +1415,31 @@ void _emitScreenMount(
   );
   final sdk = mount.sdk;
   final flutter = mount.flutter;
+  final names = {
+    for (final parameter in parameters) ...[
+      parameter.name,
+      parameter.slotName,
+    ],
+    for (final binding in constructor.defaultBindings) binding.name,
+    'onEvent',
+    'resolver',
+    unavailableControl,
+    'loadingBuilder',
+  };
+  String allocate(String stem) {
+    var name = stem;
+    var suffix = 2;
+    while (!names.add(name)) {
+      name = '$stem${suffix++}';
+    }
+    return name;
+  }
+
+  final placementArgument = allocate('restagePlacementId');
+  final placementSlot = allocate('_restagePlacementName');
+  final namedPlacement = optionalPositional.isEmpty &&
+      !parameters.any((parameter) => parameter.name == 'placement');
+  final provider = placementDefinitionProviderName(screenName);
 
   for (final binding in constructor.defaultBindings) {
     buffer
@@ -1337,55 +1453,59 @@ void _emitScreenMount(
     ..writeln()
     ..writeln(
       'final class $mountName extends ${flutter}StatelessWidget {',
-    )
-    ..writeln('  const $mountName(');
-  for (final parameter in requiredPositional) {
-    buffer.writeln('    ${parameter.declarationSource},');
-  }
-  if (optionalPositional.isNotEmpty) {
-    buffer.writeln('    [');
-    for (final parameter in optionalPositional) {
+    );
+  for (final atPlacement in [false, true]) {
+    buffer.writeln(
+      '  const $mountName${atPlacement ? '.atPlacement' : ''}(',
+    );
+    if (atPlacement) {
+      buffer.writeln('    String $placementArgument,');
+    }
+    for (final parameter in requiredPositional) {
       buffer.writeln('    ${parameter.declarationSource},');
     }
-    if (!constructor.hasKeyParameter) {
-      buffer.writeln('    ${flutter}Key? key,');
-    }
-    buffer
-      ..writeln('    this.onEvent,')
-      ..writeln('    this.resolver,')
-      ..writeln(
-        '    this.$unavailableControl,',
-      )
-      ..writeln('    this.loadingBuilder,')
-      ..writeln('    ]');
-  } else {
-    buffer.writeln('    {');
-    for (final parameter in named) {
-      buffer.writeln('    ${parameter.declarationSource},');
-    }
-    if (!constructor.hasKeyParameter) {
-      buffer.writeln('    super.key,');
+    if (optionalPositional.isNotEmpty) {
+      buffer.writeln('    [');
+      for (final parameter in optionalPositional) {
+        buffer.writeln('    ${parameter.declarationSource},');
+      }
+      if (!constructor.hasKeyParameter) {
+        buffer.writeln('    ${flutter}Key? key,');
+      }
+    } else {
+      buffer.writeln('    {');
+      for (final parameter in named) {
+        buffer.writeln('    ${parameter.declarationSource},');
+      }
+      if (!constructor.hasKeyParameter) {
+        buffer.writeln('    super.key,');
+      }
+      if (!atPlacement && namedPlacement) {
+        buffer.writeln('    String? placement,');
+      }
     }
     buffer
       ..writeln('    this.onEvent,')
       ..writeln('    this.resolver,')
       ..writeln('    this.$unavailableControl,')
       ..writeln('    this.loadingBuilder,')
-      ..writeln('    }');
-  }
-  final initializers = <String>[
-    for (final parameter in constructor.parameters.where(
-      (parameter) => parameter.requiresStorage,
-    ))
-      '${parameter.slotName} = ${parameter.name}',
-    if (constructor.explicitSuperKeySource case final source?)
-      'super(key: $source)',
-    if (optionalPositional.isNotEmpty && !constructor.hasKeyParameter)
-      'super(key: key)',
-  ];
-  if (initializers.isEmpty) {
-    buffer.writeln('  );');
-  } else {
+      ..writeln(optionalPositional.isNotEmpty ? '    ]' : '    }');
+    final placementValue = atPlacement
+        ? placementArgument
+        : namedPlacement
+            ? 'placement'
+            : 'null';
+    final initializers = <String>[
+      for (final parameter in constructor.parameters.where(
+        (parameter) => parameter.requiresStorage,
+      ))
+        '${parameter.slotName} = ${parameter.name}',
+      '$placementSlot = $placementValue',
+      if (constructor.explicitSuperKeySource case final source?)
+        'super(key: $source)',
+      if (optionalPositional.isNotEmpty && !constructor.hasKeyParameter)
+        'super(key: key)',
+    ];
     buffer.write('  ) : ');
     for (var index = 0; index < initializers.length; index++) {
       if (index > 0) buffer.write('       ');
@@ -1393,6 +1513,7 @@ void _emitScreenMount(
         ..write(initializers[index])
         ..writeln(index == initializers.length - 1 ? ';' : ',');
     }
+    buffer.writeln();
   }
   for (final parameter in constructor.parameters.where(
     (parameter) => parameter.requiresStorage,
@@ -1402,6 +1523,7 @@ void _emitScreenMount(
       ..writeln('  final ${parameter.typeCode} ${parameter.slotName};');
   }
   buffer
+    ..writeln('  final String? $placementSlot;')
     ..writeln()
     ..writeln('  final ${flutter}ValueChanged<$eventType>? onEvent;')
     ..writeln()
@@ -1459,7 +1581,13 @@ void _emitScreenMount(
       paywall
           ? '      id: ${dartStringLiteral(paywallId)},'
           : '      screen: $refName,',
-    );
+    )
+    ..writeln('      placementBinding: '
+        '$sdk${paywall ? 'RestagePaywall' : 'RestageScreen'}'
+        '.generatedPlacementBinding(')
+    ..writeln('        definition: $provider,')
+    ..writeln('        name: $placementSlot,')
+    ..writeln('      ),');
   final hostParameters =
       constructor.values.where((parameter) => parameter.root.isHostData);
   if (hostParameters.isNotEmpty) {
@@ -1558,27 +1686,15 @@ Iterable<_ResolvedScreenEvent> _eventsInSchemaOrder(
   }
 }
 
-/// The `bundle: ...` argument source for [contract]'s generated reference, or
-/// `null` when this package's resolved placement does not route `.rsbundle`
-/// files into Flutter assets.
-///
-/// The asset key and logical entry paths are deterministic functions of data
-/// [contract] already carries (its resolved [RestageOutputPlacementPlan] and
-/// its own `surface`/`slug`), computed here rather than duplicated from the
-/// roster's canonical-publication claim formula. The entry hashes and lengths
-/// come only from [ResolvedStandaloneScreenContractInput.bundleEntryMetadata]
-/// — never recomputed here — because those must be byte-identical to what the
-/// outputs builder records for the same bytes, and the only way to guarantee
-/// that is for both to trace back to one hash of one set of bytes.
-///
-/// A `bundled_runtime: true` package must never emit a reference with a
-/// silently omitted locator: throws if the resolved placement calls for one
-/// and [ResolvedStandaloneScreenContractInput.bundleEntryMetadata] is absent.
+/// Emits the bundle locator for [contract], or null outside Flutter assets.
+/// Paths use the resolved output plan and surface identity. Hashes and lengths
+/// come from [ResolvedStandaloneScreenContractInput.bundleEntryMetadata].
+/// Throws when a bundled-runtime locator requires missing entry metadata.
 String? _resolveBundleLocatorSource(
   ResolvedStandaloneScreenContract contract,
   String sdk,
 ) {
-  final plan = contract.input.plan ?? RestageOutputPlacementPlan.defaults;
+  final plan = contract.input.plan ?? RestageOutputLocationPlan.defaults;
   if (!plan.bundledRuntime) return null;
   final metadata = contract.input.bundleEntryMetadata;
   if (metadata == null) {
@@ -1664,6 +1780,7 @@ List<String> _generatedTopLevelSymbols(
       ..._referenceGeneratedTopLevelSymbols(screenName, events),
       if (mount != null) ...[
         generatedSurfaceName(screenName, fallback: 'SurfaceScreen'),
+        ...placementDefinitionSymbols(screenName),
         for (final binding in mount.constructor.defaultBindings) binding.name,
       ],
     ];
@@ -1715,12 +1832,9 @@ Iterable<Element> _topLevelElements(LibraryElement library) sync* {
   }
 }
 
-/// Returns the one generated screen part that this library actually declares.
-///
-/// The part path comes from the resolved placement plan, then is matched back
-/// against the library's analyzer fragments. This keeps the warm-build escape
-/// hatch exact: another `.g.dart` sibling, or a generated-looking file from a
-/// different package/path, remains a real collision.
+/// Returns the generated screen part declared by this library.
+/// Matches the resolved output path against analyzer fragments. Other generated
+/// siblings or paths remain collisions, including in warm builds.
 AssetId? _declaredGeneratedPart(
   ResolvedWidgetMountInput input,
 ) {
@@ -1843,7 +1957,7 @@ bool _validSlug(String value) =>
     value.isNotEmpty && value.trim() == value && !value.contains('\u0000');
 
 Issue _issue(
-  ResolvedStandaloneScreenContractInput input,
+  ResolvedWidgetMountInput input,
   IssueCode code,
   String message,
 ) =>

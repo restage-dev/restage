@@ -23,6 +23,54 @@ RenderEnv _environment({
     );
 
 void main() {
+  testWidgets('render environment owns unstyled text across host themes', (
+    tester,
+  ) async {
+    final library = parseLibraryFile('''
+import restage.core;
+widget Preview = Text(text: "Preview ink");
+''');
+
+    for (final brightness in Brightness.values) {
+      final environment = _environment(brightness: brightness.name);
+      final expected = ThemeData(
+        brightness: brightness,
+        useMaterial3: true,
+      ).textTheme.bodyMedium!.color;
+
+      for (final chromeInk in const <Color>[Colors.red, Colors.green]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DefaultTextStyle(
+              style: TextStyle(color: chromeInk),
+              child: RawRfwRenderSurface.library(
+                epoch: 1,
+                library: library,
+                data: const <String, Object?>{},
+                environment: environment,
+                registrations: const <RestageWidgetLibraryRegistration>[],
+                entryWidgetName: 'Preview',
+                onRemoteEvent: (_, __) {},
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final textContext = tester.element(find.text('Preview ink'));
+        expect(DefaultTextStyle.of(textContext).style.color, expected);
+        expect(DefaultTextStyle.of(textContext).style.color, isNot(chromeInk));
+        final richText = tester.widget<RichText>(
+          find.descendant(
+            of: find.text('Preview ink'),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect((richText.text as TextSpan).style?.color, expected);
+      }
+    }
+  });
+
   testWidgets('raw core decodes a blob, applies environment, and settles',
       (tester) async {
     final events = <RenderEvent>[];

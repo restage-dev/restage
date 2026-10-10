@@ -58,6 +58,7 @@ export 'src/render_bundle/render_bundle_engine_set.dart';
 export 'src/render_bundle/render_bundle_head.dart';
 export 'src/restage_bundle/restage_bundle.dart';
 export 'src/rfw_preview_reservation.dart';
+export 'src/rfw_reachability.dart';
 export 'src/surface_contract/sample_host_context.dart';
 export 'src/surface_contract/surface_publication_contract.dart';
 export 'src/surface_contract/surface_screen_contract_fingerprint.dart';

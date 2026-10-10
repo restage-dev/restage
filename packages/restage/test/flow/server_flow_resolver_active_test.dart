@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
+import 'package:flutter/services.dart'
+    show AssetBundle, CachingAssetBundle, MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -12,8 +14,11 @@ import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage/src/runtime/installed_libraries_carrier.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'flow_test_support.dart';
 
@@ -37,6 +42,19 @@ const int _refFloor = _installed + 2;
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  final support =
+      Directory.systemTemp.createTempSync('restage-flow-configure-');
+  const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+  binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    pathProvider,
+    (call) async => support.path,
+  );
+  tearDownAll(() async {
+    await Restage.debugResetAndWait();
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(pathProvider, null);
+    await support.delete(recursive: true);
+  });
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_abc123';
 
@@ -49,55 +67,194 @@ void main() {
   );
 
   setUp(Restage.debugReset);
+  tearDown(Restage.debugResetAndWait);
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  SurfaceFlowRef<Map<String, Object?>> compiledRef(Uint8List bytes) =>
+      SurfaceFlowRef<Map<String, Object?>>(
+        id: flowRef.id,
+        version: flowRef.version,
+        minClient: flowRef.minClient,
+        surface: flowRef.surface,
+        decodeResult: _decodeMapResult,
+        compiled: CompiledFlow(
+          documentJson: utf8.decode(
+              FlowDocumentCodec.encodeCanonicalJson(_doc(screenBytes: bytes))),
+          screens: {'welcome': () => const SizedBox()},
+        ),
+      );
+
+  test('hosted configure serves active flows through the configured RPC client',
+      () async {
+    final bytes = Uint8List.fromList([1, 2, 3]);
+    final activeBytes = Uint8List.fromList([4, 5, 6]);
+    Restage.configure(
+      apiKey: apiKey,
+      baseUrl: baseUrl,
+      analyticsEnabled: false,
+      measurementEnabled: false,
+      deliveryReceiptsEnabled: false,
+    );
+    final requests = <http.Request>[];
+    final client = RestageRpcClient(
+      apiKey: apiKey,
+      baseUrl: baseUrl,
+      httpClient: _server(
+          _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
+          onRequest: requests.add),
+    );
+    Restage.debugRestageRpcClient = client;
+    final resolver = Restage.defaultFlowResolver as ServerFlowResolver;
+    expect(resolver.activeArmEnabled, isTrue);
+
+    final resolved = await resolver.resolveActiveRoot(compiledRef(bytes));
+
+    expect(Restage.activeRpcClient, same(client));
+    expect(resolved.document.version, 2);
+    expect(requests, hasLength(1));
+    final body = jsonDecode(requests.single.body) as Map;
+    expect(body['surfaceType'], 'onboarding');
+    expect(body, isNot(contains('version')));
+    expect(body['sdkInstalledLibraries'], installedLibrariesCarrier());
+  });
+
+  for (final configuration in ['offline', 'key only', 'origin only']) {
+    test('$configuration configure resolves the compiled flow locally',
+        () async {
+      Restage.configure(
+        apiKey: configuration == 'key only' ? apiKey : null,
+        baseUrl: configuration == 'origin only' ? baseUrl : null,
+      );
+      expect(Restage.defaultFlowResolver, isA<AssetFlowResolver>());
+      final resolved = await Restage.defaultFlowResolver
+          .resolve(compiledRef(Uint8List.fromList([1, 2, 3])));
+      expect(resolved.compiled, isNotNull);
+      expect(resolved.document.version, 1);
+      expect(Restage.activeRpcClient, isNull);
+    });
+  }
+
+  test('explicit asset and custom flow resolvers make no hosted request',
+      () async {
+    final bytes = Uint8List.fromList([1, 2, 3]);
+    final custom = _FixedFlowResolver(compiledRef(bytes).compiled!.resolve());
+    for (final override in <FlowResolver>[const AssetFlowResolver(), custom]) {
+      Restage.configure(
+        apiKey: apiKey,
+        baseUrl: baseUrl,
+        flowResolver: override,
+        analyticsEnabled: false,
+        measurementEnabled: false,
+      );
+      var requests = 0;
+      Restage.debugRestageRpcClient = RestageRpcClient(
+        apiKey: apiKey,
+        baseUrl: baseUrl,
+        httpClient: MockClient((request) async {
+          requests++;
+          return http.Response('', 404);
+        }),
+      );
+      expect(Restage.defaultFlowResolver, same(override));
+      expect(
+          (await Restage.defaultFlowResolver.resolve(compiledRef(bytes)))
+              .document
+              .version,
+          1);
+      expect(requests, 0);
+    }
+    expect(custom.calls, 1);
+  });
+
+  test('an explicit inactive server resolver keeps its own exact request',
+      () async {
+    final bytes = Uint8List.fromList([1, 2, 3]);
+    final requests = <http.Request>[];
+    final override = ServerFlowResolver(
+      apiKey: apiKey,
+      baseUrl: baseUrl,
+      active: false,
+      httpClient: _server(_envelope(_doc(screenBytes: bytes), bytes),
+          onRequest: requests.add),
+    );
+    Restage.configure(
+        apiKey: apiKey,
+        baseUrl: baseUrl,
+        flowResolver: override,
+        analyticsEnabled: false,
+        measurementEnabled: false);
+    var defaultRequests = 0;
+    Restage.debugRestageRpcClient = RestageRpcClient(
+      apiKey: apiKey,
+      baseUrl: baseUrl,
+      httpClient: MockClient((request) async {
+        defaultRequests++;
+        return http.Response('', 404);
+      }),
+    );
+    expect(Restage.defaultFlowResolver, same(override));
+    expect(override.activeArmEnabled, isFalse);
+    await Restage.defaultFlowResolver.resolve(flowRef);
+    expect(defaultRequests, 0);
+    expect(requests, hasLength(1));
+    expect((jsonDecode(requests.single.body) as Map)['version'], 1);
+  });
 
   testWidgets(
       'explicit active surface host seals identity before its warm request',
       (tester) async {
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final activeBytes = screenBlob('Active', 'next');
-    final assignmentKey = Completer<String?>();
-    final requests = <http.Request>[];
-    SurfaceAssignmentKeyProvider.current = () => assignmentKey.future;
-    addTearDown(() {
-      if (!assignmentKey.isCompleted) assignmentKey.complete(null);
-      SurfaceAssignmentKeyProvider.clear();
-    });
-    final resolver = ServerFlowResolver(
-      baseUrl: baseUrl,
-      apiKey: apiKey,
-      active: true,
-      bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
-      httpClient: _server(
-        _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
-        onRequest: requests.add,
-      ),
-    );
+    final previousOnError = FlutterError.onError;
+    try {
+      final bundledBytes = screenBlob('Bundled', 'next');
+      final activeBytes = screenBlob('Active', 'next');
+      final assignmentKey = Completer<String?>();
+      final requests = <http.Request>[];
+      SurfaceAssignmentKeyProvider.current = () => assignmentKey.future;
+      addTearDown(() {
+        if (!assignmentKey.isCompleted) assignmentKey.complete(null);
+        SurfaceAssignmentKeyProvider.clear();
+      });
+      final resolver = ServerFlowResolver(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        active: true,
+        bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
+        httpClient: _server(
+          _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
+          onRequest: requests.add,
+        ),
+      );
 
-    await tester.pumpWidget(MaterialApp(
-      home: RestageFlowGraph<Map<String, Object?>>(
-        flow: flowRef,
-        resolver: resolver,
-        unavailable: const FlowUnavailablePolicy.hide(),
-      ),
-    ));
-    await tester.pump();
+      await tester.pumpWidget(MaterialApp(
+        home: RestageFlowGraph<Map<String, Object?>>(
+          flow: flowRef,
+          resolver: resolver,
+          unavailable: const FlowUnavailablePolicy.hide(),
+        ),
+      ));
+      await tester.pump();
 
-    expect(requests, isEmpty);
+      expect(requests, isEmpty);
 
-    assignmentKey.complete('anon-controlled');
-    await tester.pumpAndSettle();
+      assignmentKey.complete('anon-controlled');
+      await tester.pumpAndSettle();
 
-    expect(find.text('Active'), findsOneWidget);
-    expect(requests, hasLength(1));
-    final body = jsonDecode(requests.single.body) as Map<String, Object?>;
-    expect(body['assignmentKey'], 'anon-controlled');
-    expect(
-        withoutSupportedPolicyRevisions(body).keys,
-        unorderedEquals(<String>[
-          'surfaceType',
-          'surfaceSlug',
-          'assignmentKey',
-        ]));
+      expect(find.text('Active'), findsOneWidget);
+      expect(requests, hasLength(1));
+      final body = jsonDecode(requests.single.body) as Map<String, Object?>;
+      expect(body['assignmentKey'], 'anon-controlled');
+      expect(
+          withoutSupportedPolicyRevisions(body).keys,
+          unorderedEquals(<String>[
+            'surfaceType',
+            'surfaceSlug',
+            'assignmentKey',
+            'sdkInstalledLibraries',
+          ]));
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      FlutterError.onError = previousOnError;
+    }
   });
 
   test('old client → newer compatible active: renders the ACTIVE doc',
@@ -331,6 +488,7 @@ void main() {
           withoutSupportedPolicyRevisions(jsonDecode(requests.single.body)), {
         'surfaceType': surfaceType.wireName,
         'surfaceSlug': 'first_run',
+        'sdkInstalledLibraries': installedLibrariesCarrier(),
       });
     });
   }
@@ -393,6 +551,7 @@ void main() {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'first_run',
       'version': 1,
+      'sdkInstalledLibraries': installedLibrariesCarrier(),
     });
     expect(resolved.document.version, 1);
   });
@@ -422,6 +581,7 @@ void main() {
       'surfaceType': 'onboarding',
       'surfaceSlug': 'first_run',
       'version': 1,
+      'sdkInstalledLibraries': installedLibrariesCarrier(),
     });
     expect(resolved.document.version, 1);
   });
@@ -628,5 +788,18 @@ final class _TestBundle extends CachingAssetBundle {
       throw FlutterError('Unable to load asset: $key');
     }
     return ByteData.view(Uint8List.fromList(bytes).buffer);
+  }
+}
+
+final class _FixedFlowResolver implements FlowResolver {
+  _FixedFlowResolver(this.value);
+
+  final ResolvedFlow value;
+  int calls = 0;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    calls++;
+    return value;
   }
 }

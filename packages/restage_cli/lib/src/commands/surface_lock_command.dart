@@ -7,6 +7,7 @@ import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
@@ -44,6 +45,7 @@ class SurfaceLockCommand extends Command<int> implements LiveGuardedCommand {
       withType: fixedSurfaceType == null,
       withReason: true,
     );
+    addSurfaceMeasurementReviewOptions(argParser);
   }
 
   final bool _lock;
@@ -95,7 +97,19 @@ class SurfaceLockCommand extends Command<int> implements LiveGuardedCommand {
             '"$slug" in ${target.environment} (live).',
       );
       if (!confirmed) return 1;
-      final mutation = await SurfaceApi(ctx.api).setLock(
+      final surfaces = SurfaceApi(ctx.api);
+      final impact = await reviewSurfaceMeasurement(
+        io: _io,
+        arguments: argResults!,
+        api: surfaces,
+        target: target,
+        identity: identity,
+        operation: 'surfaceFreeze',
+        reason: reason,
+        frozen: _lock,
+      );
+      if (impact.exitCode case final code?) return code;
+      final mutation = await surfaces.setLock(
         project: target.project,
         app: target.app,
         surfaceType: identity.surface,
@@ -106,6 +120,7 @@ class SurfaceLockCommand extends Command<int> implements LiveGuardedCommand {
         environmentTargetId: target.environmentTargetId,
         runtimePlane: target.runtimePlane,
         organizationId: target.organizationId,
+        measurementProceed: impact.proceed,
       );
       _io.stdout.writeln(
         '${_lock ? 'Froze' : 'Unfroze'} "$slug" in ${target.environment}.',

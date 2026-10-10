@@ -19,6 +19,8 @@ SurfaceDeliveryObservations snapshot({
   String? device = 'phone',
   int? osVersion,
   int level = assignmentSdkApiLevel,
+  String? channel,
+  int? age,
 }) =>
     SurfaceDeliveryObservations(
       presentationCountry: country,
@@ -28,6 +30,8 @@ SurfaceDeliveryObservations snapshot({
       deviceClass: device,
       osVersion: osVersion,
       sdkApiLevel: level,
+      channel: channel,
+      daysSinceInstall: age,
     );
 
 const _deviceInfoChannel =
@@ -280,12 +284,12 @@ void main() {
 
   test('carrier retains the canonical five-field encoding', () {
     expect(snapshot().canonicalBuiltInsBase64(),
-        'eyJhcHBCdWlsZE9yZGluYWwiOjQyLCJjb3VudHJ5Ijoic2UiLCJkZXZpY2VDbGFzcyI6InBob25lIiwicGxhdGZvcm0iOiJpb3MiLCJzZGtBcGlMZXZlbCI6M30');
+        'eyJhcHBCdWlsZE9yZGluYWwiOjQyLCJjb3VudHJ5Ijoic2UiLCJkZXZpY2VDbGFzcyI6InBob25lIiwicGxhdGZvcm0iOiJpb3MiLCJzZGtBcGlMZXZlbCI6NH0');
   });
 
   test('absent country and device class retain the three-field encoding', () {
     expect(snapshot(country: null, device: null).canonicalBuiltInsBase64(),
-        'eyJhcHBCdWlsZE9yZGluYWwiOjQyLCJwbGF0Zm9ybSI6ImlvcyIsInNka0FwaUxldmVsIjozfQ');
+        'eyJhcHBCdWlsZE9yZGluYWwiOjQyLCJwbGF0Zm9ybSI6ImlvcyIsInNka0FwaUxldmVsIjo0fQ');
   });
 
   test('carrier folds country without changing the observation', () {
@@ -338,7 +342,7 @@ void main() {
 
   test('a carrier with neither new observation is byte-identical', () {
     expect(snapshot(language: null, osVersion: null).canonicalBuiltInsBase64(),
-        'eyJhcHBCdWlsZE9yZGluYWwiOjQyLCJjb3VudHJ5Ijoic2UiLCJkZXZpY2VDbGFzcyI6InBob25lIiwicGxhdGZvcm0iOiJpb3MiLCJzZGtBcGlMZXZlbCI6M30');
+        'eyJhcHBCdWlsZE9yZGluYWwiOjQyLCJjb3VudHJ5Ijoic2UiLCJkZXZpY2VDbGFzcyI6InBob25lIiwicGxhdGZvcm0iOiJpb3MiLCJzZGtBcGlMZXZlbCI6NH0');
   });
 
   test('both new observations travel together', () {
@@ -380,6 +384,8 @@ void main() {
     'device': snapshot(device: 'tablet'),
     'language': snapshot(language: 'sv'),
     'osVersion': snapshot(osVersion: 17),
+    'channel': snapshot(channel: 'beta'),
+    'install age': snapshot(age: 1),
     'level': snapshot(level: 2),
   }.entries) {
     test('changing ${entry.key} changes equality', () {
@@ -392,7 +398,8 @@ void main() {
         snapshot().toString(),
         'SurfaceDeliveryObservations(presentationCountry: SE, '
         'presentationLanguage: null, platform: ios, appBuildOrdinal: 42, '
-        'deviceClass: phone, osVersion: null, sdkApiLevel: 3)');
+        'deviceClass: phone, osVersion: null, sdkApiLevel: 4, '
+        'channel: null, daysSinceInstall: null)');
   });
 
   test('a thrown build source preserves other observations', () async {

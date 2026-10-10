@@ -297,6 +297,11 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     final environment = widget.environment;
     final revision = _lifecycleRevision;
     final epoch = widget.epoch;
+    final theme = ThemeData(
+      brightness:
+          environment.brightness == 'dark' ? Brightness.dark : Brightness.light,
+      useMaterial3: true,
+    );
     final rendered = MediaQuery(
       data: MediaQuery.of(context).copyWith(
         size: environment.frame,
@@ -306,20 +311,18 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
         context: context,
         locale: _parseLocale(environment.locale),
         child: Theme(
-          data: ThemeData(
-            brightness: environment.brightness == 'dark'
-                ? Brightness.dark
-                : Brightness.light,
-            useMaterial3: true,
-          ),
-          child: RemoteWidget(
-            runtime: _runtime,
-            data: _data,
-            widget: FullyQualifiedWidgetName(
-              _documentLibrary,
-              widget.entryWidgetName,
+          data: theme,
+          child: DefaultTextStyle(
+            style: theme.textTheme.bodyMedium!,
+            child: RemoteWidget(
+              runtime: _runtime,
+              data: _data,
+              widget: FullyQualifiedWidgetName(
+                _documentLibrary,
+                widget.entryWidgetName,
+              ),
+              onEvent: widget.onRemoteEvent,
             ),
-            onEvent: widget.onRemoteEvent,
           ),
         ),
       ),

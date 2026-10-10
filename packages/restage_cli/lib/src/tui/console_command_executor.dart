@@ -257,7 +257,7 @@ class _ApprovedInteractive implements Interactive {
 
   @override
   Future<bool> confirm(String question, {bool defaultYes = false}) async =>
-      true;
+      question == 'Proceed?';
 
   @override
   Future<T> select<T>(
