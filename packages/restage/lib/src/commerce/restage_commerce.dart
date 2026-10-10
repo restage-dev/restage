@@ -528,7 +528,7 @@ final class _RestageCommerce implements RestageCommerce {
     required Future<String> Function() applicationAnonymousTokenProvider,
     CommerceRuntimeContext? Function()? runtimeContextProvider,
     required Future<CommerceReportQueue> Function() reportQueueFactory,
-    Duration networkAttemptTimeout = const Duration(seconds: 15),
+    CommerceAttemptDeadline attemptDeadline = const CommerceAttemptDeadline(),
     DateTime Function() clock = DateTime.now,
   }) {
     final engine = _engine;
@@ -543,7 +543,7 @@ final class _RestageCommerce implements RestageCommerce {
       runtimeContextProvider: runtimeContextProvider,
       reportQueueFactory: reportQueueFactory,
       onState: _setState,
-      networkAttemptTimeout: networkAttemptTimeout,
+      attemptDeadline: attemptDeadline,
       clock: clock,
     );
   }
@@ -842,6 +842,22 @@ final class _OwnedQueryMember {
   }
 }
 
+/// Bounds each commerce network or store attempt.
+class CommerceAttemptDeadline {
+  /// Creates a deadline that expires each attempt after [timeout].
+  const CommerceAttemptDeadline([this.timeout = const Duration(seconds: 15)]);
+
+  /// How long one attempt may take.
+  final Duration timeout;
+
+  /// Returns [attempt], failing with a [TimeoutException] once it expires.
+  Future<T> bound<T>(Future<T> attempt) => attempt.timeout(timeout);
+}
+
+extension _BoundedAttempt<T> on Future<T> {
+  Future<T> within(CommerceAttemptDeadline deadline) => deadline.bound(this);
+}
+
 final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   _StoreAdapterCommerceEngine({
     required this.adapter,
@@ -850,7 +866,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     CommerceRuntimeContext? Function()? runtimeContextProvider,
     required Future<CommerceReportQueue> Function() reportQueueFactory,
     required void Function(CommercePurchaserState) onState,
-    Duration networkAttemptTimeout = const Duration(seconds: 15),
+    CommerceAttemptDeadline attemptDeadline = const CommerceAttemptDeadline(),
     DateTime Function() clock = DateTime.now,
   })  : _rpcClientProvider = rpcClientProvider,
         _runtimeContextProvider = runtimeContextProvider ??
@@ -861,7 +877,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
                 )),
         _reportQueueFactory = reportQueueFactory,
         _onState = onState,
-        _networkAttemptTimeout = networkAttemptTimeout,
+        _attemptDeadline = attemptDeadline,
         _clock = clock {
     _transactions = adapter.transactions.listen(
       _recordTransactionFromStore,
@@ -880,7 +896,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   final CommerceRuntimeContext? Function() _runtimeContextProvider;
   final Future<CommerceReportQueue> Function() _reportQueueFactory;
   final void Function(CommercePurchaserState) _onState;
-  final Duration _networkAttemptTimeout;
+  final CommerceAttemptDeadline _attemptDeadline;
   final DateTime Function() _clock;
   final Map<String, _RetainedCommerceTransaction> _transactionsByReportId =
       <String, _RetainedCommerceTransaction>{};
@@ -969,7 +985,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
                 appAnonymousToken: token,
               ),
             )
-            .timeout(_networkAttemptTimeout);
+            .within(_attemptDeadline);
         if (response == null ||
             response.intentId != intentId ||
             response.status != 'ready' ||
@@ -1038,7 +1054,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     try {
       token = await _applicationAnonymousToken(
         context,
-      ).timeout(_networkAttemptTimeout);
+      ).within(_attemptDeadline);
     } on Object {
       return _lastPublishedPurchaserState;
     }
@@ -1051,8 +1067,8 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       return _lastPublishedPurchaserState;
     }
     try {
-      final queried = await adapter.queryOwnedTransactions().timeout(
-            _networkAttemptTimeout,
+      final queried = await adapter.queryOwnedTransactions().within(
+            _attemptDeadline,
           );
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
@@ -1080,7 +1096,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             epoch: epoch,
             queryGeneration: queryGeneration,
           ),
-      ]).timeout(_networkAttemptTimeout);
+      ]).within(_attemptDeadline);
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
       }
@@ -1102,7 +1118,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       final knownTransactionIds = await _knownTransactionIds(
         context,
         token,
-      ).timeout(_networkAttemptTimeout);
+      ).within(_attemptDeadline);
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
       }
@@ -1113,7 +1129,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
               knownStoreTransactionIds: knownTransactionIds,
             ),
           )
-          .timeout(_networkAttemptTimeout);
+          .within(_attemptDeadline);
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
       }
@@ -1490,7 +1506,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       while (true) {
         final collision = _reportAttemptsById[record.reportId];
         if (collision == null) break;
-        await collision.timeout(_networkAttemptTimeout);
+        await collision.within(_attemptDeadline);
         record = await _durableReportForOwnedMember(
           member,
           context: context,
@@ -1665,7 +1681,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
               appAnonymousToken: currentReport.applicationAnonymousToken,
             ),
           )
-          .timeout(_networkAttemptTimeout);
+          .within(_attemptDeadline);
     } on Object {
       await _scheduleRetry(queue, currentReport.reportId);
       return null;
@@ -2111,7 +2127,7 @@ void activateRestageCommerce(
   CommerceRuntimeContext? Function()? runtimeContextProvider,
   Future<CommerceReportQueue> Function() reportQueueFactory =
       createCommerceReportQueue,
-  Duration networkAttemptTimeout = const Duration(seconds: 15),
+  CommerceAttemptDeadline attemptDeadline = const CommerceAttemptDeadline(),
   DateTime Function() clock = DateTime.now,
 }) =>
     _restageCommerceInstance.activate(
@@ -2120,7 +2136,7 @@ void activateRestageCommerce(
       applicationAnonymousTokenProvider: applicationAnonymousTokenProvider,
       runtimeContextProvider: runtimeContextProvider,
       reportQueueFactory: reportQueueFactory,
-      networkAttemptTimeout: networkAttemptTimeout,
+      attemptDeadline: attemptDeadline,
       clock: clock,
     );
 

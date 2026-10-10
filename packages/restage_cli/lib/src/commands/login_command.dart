@@ -5,7 +5,10 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/auth_api.dart';
 import 'package:restage_cli/src/api/auth_models.dart';
+import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -186,10 +189,19 @@ class LoginCommand extends Command<int> {
               continue;
             case DeviceAuthorizationStatus.success:
               spinner.stop();
-              await _persistCredential(store, endpoint, result);
+              final credential = await _persistCredential(
+                store,
+                endpoint,
+                result,
+              );
               final email = result.userInfo?.email;
               _stdout.writeln(
                 email == null ? 'Signed in.' : 'Signed in as $email.',
+              );
+              await _pointToFirstOrganization(
+                endpoint,
+                credential,
+                start.verificationUri,
               );
               return 0;
             case DeviceAuthorizationStatus.expired:
@@ -245,7 +257,33 @@ class LoginCommand extends Command<int> {
     return _defaultEndpoint;
   }
 
-  Future<void> _persistCredential(
+  /// Says where to create an organization when the account has none.
+  Future<void> _pointToFirstOrganization(
+    Uri endpoint,
+    Credential credential,
+    String verificationUri,
+  ) async {
+    final api = RestageApi(
+      endpoint: endpoint,
+      httpClient: _httpClient,
+      credential: credential,
+    );
+    try {
+      final organizations = await DiscoveryApi(api).listOrganizations();
+      if (organizations.isNotEmpty) return;
+      _stdout.writeln(noOrganizationSentence);
+      final dashboard = Uri.tryParse(verificationUri);
+      if (dashboard != null && dashboard.hasAuthority) {
+        _stdout.writeln(dashboard.origin);
+      }
+    } on Object {
+      // Signing in already succeeded; the pointer is a courtesy.
+    } finally {
+      if (_httpClient == null) api.close();
+    }
+  }
+
+  Future<Credential> _persistCredential(
     FileCredentialStore store,
     Uri endpoint,
     DeviceAuthorizationResult result,
@@ -256,12 +294,12 @@ class LoginCommand extends Command<int> {
       // Guard against a half-formed credential reaching disk.
       throw StateError('Backend returned success without AuthKey credentials.');
     }
-    await store.write(
-      Credential(
-        endpoint: endpoint.toString(),
-        kind: CredentialKind.authKey,
-        authToken: '$keyId:$key',
-      ),
+    final credential = Credential(
+      endpoint: endpoint.toString(),
+      kind: CredentialKind.authKey,
+      authToken: '$keyId:$key',
     );
+    await store.write(credential);
+    return credential;
   }
 }

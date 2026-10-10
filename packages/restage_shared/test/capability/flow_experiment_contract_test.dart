@@ -8,6 +8,83 @@ import 'package:test/test.dart';
 import 'flow_experiment_test_support.dart';
 
 void main() {
+  test('checks complete document closure without client capability evidence',
+      () {
+    final child = experimentDocumentContract(
+      document: experimentDocument(flow: 'details'),
+    );
+    final root = experimentDocumentContract(
+      document: experimentDocument(
+        states: {
+          'child': SubFlowState(
+            flow: child.flowId,
+            version: child.version,
+            schemaVersion: child.schemaVersion,
+            minClient: child.minClient,
+            contentHash: child.contentHash,
+            input: const {},
+            onComplete: const [],
+            defaultBranch: const FlowBranchTarget(target: 'done'),
+          ),
+          'done': const EndFlowState(result: {'completed': true}),
+        },
+      ),
+    );
+    void check(List<FlowExperimentDocumentContract> documents) {
+      FlowExperimentDocumentContract.checkCompleteClosure(
+        surfaceType: Surface.onboarding,
+        deliveryMode: FlowDeliveryMode.typed,
+        descriptor: const FlowExperimentDescriptor(
+          id: 'first_run',
+          version: 1,
+          minClient: 3,
+        ),
+        documents: documents,
+      );
+    }
+
+    expect(() => check([child, root]), returnsNormally);
+    final unrelated = experimentDocumentContract(
+      document: experimentDocument(flow: 'unrelated'),
+    );
+    List<FlowExperimentDocumentContract> select(
+      List<FlowExperimentDocumentContract> documents,
+    ) =>
+        FlowExperimentDocumentContract.selectCompleteClosure(
+          surfaceType: Surface.onboarding,
+          deliveryMode: FlowDeliveryMode.typed,
+          descriptor: const FlowExperimentDescriptor(
+            id: 'first_run',
+            version: 1,
+            minClient: 3,
+          ),
+          documents: documents,
+        );
+    expect(select([unrelated, child, root]).map((document) => document.flowId),
+        ['details', 'first_run']);
+    expect(() => select([root, unrelated]), throwsFormatException);
+    expect(() => select([root, child, child]), throwsFormatException);
+    for (final documents in [
+      [root],
+      [root, child, child],
+      [
+        root,
+        child,
+        experimentDocumentContract(
+          document: experimentDocument(flow: 'unrelated'),
+        ),
+      ],
+      [
+        root,
+        experimentDocumentContract(
+          document: experimentDocument(flow: 'details', version: 2),
+        ),
+      ],
+    ]) {
+      expect(() => check(documents), throwsFormatException);
+    }
+  });
+
   group('FlowExperimentClientContractV1', () {
     test('exports the frozen V1 wire kind and version', () {
       expect(
@@ -236,7 +313,7 @@ void main() {
       final source = utf8.decode(experimentClientContract().canonicalBytes);
       final mutations = [
         source.replaceFirst('"contractVersion":1', '"contractVersion":2'),
-        source.replaceFirst('"schemaVersion":1', '"schemaVersion":2'),
+        source.replaceFirst('"schemaVersion":1', '"schemaVersion":3'),
         source.replaceFirst('sha256:', 'md5:'),
         source.replaceFirst('"minClient":3', '"minClient":0'),
       ];
@@ -249,19 +326,91 @@ void main() {
       }
     });
 
-    test('rejects a schema version 2 document', () {
-      final document = experimentDocument(schemaVersion: 2);
+    test('round-trips ordered answers from a schema version 2 document', () {
+      final document = _orderedAnswerDocument();
+      final productionBytes = FlowDocumentCodec.encodeCanonicalJson(document);
+      final wrapped = experimentDocumentContract(document: document);
+      final original = experimentClientContract(documents: [wrapped]);
+      final decoded =
+          FlowExperimentClientContractV1.decode(original.canonicalBytes);
+
+      expect(decoded.canonicalBytes, original.canonicalBytes);
+      expect(decoded.contentHash, original.contentHash);
+      expect(wrapped.contentHash, FlowContentHash.compute(productionBytes));
+      expect(wrapped.canonicalFlowDocumentBytes, productionBytes);
+      expect(decoded.documents.single.schemaVersion, 2);
+      expect(decoded.documents.single.flowDocument.surveyQuestionOrder,
+          ['zeta', 'alpha']);
+      expect(
+        FlowDocumentCodec.encodeCanonicalJson(
+          decoded.documents.single.flowDocument,
+        ),
+        productionBytes,
+      );
+    });
+
+    test('delegates unsupported document versions to the canonical codec', () {
+      final document = experimentDocument(schemaVersion: 3);
 
       expect(
-        () => experimentDocumentContract(document: document),
+        () => FlowExperimentDocumentContract(
+          surfaceType: Surface.onboarding,
+          flowId: document.flow,
+          version: document.version,
+          schemaVersion: document.schemaVersion,
+          minClient: document.minClient,
+          contentHash: _placeholderHash,
+          requiredLibraries: const [],
+          flowDocument: document,
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.message,
+            'message',
+            contains('unsupportedSchemaVersion'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a wrapper schema that differs from its valid document', () {
+      final document = _orderedAnswerDocument();
+      expect(
+        () => FlowExperimentDocumentContract(
+          surfaceType: Surface.onboarding,
+          flowId: document.flow,
+          version: document.version,
+          schemaVersion: 1,
+          minClient: document.minClient,
+          contentHash: FlowContentHash.compute(
+            FlowDocumentCodec.encodeCanonicalJson(document),
+          ),
+          requiredLibraries: const [],
+          flowDocument: document,
+        ),
         throwsA(
           isA<FormatException>().having(
             (error) => error.message,
             'message',
-            contains('Unsupported flow document schemaVersion 2.'),
+            contains('wrapper metadata does not match'),
           ),
         ),
       );
+    });
+
+    test('retains canonical validation of complete answer order', () {
+      for (final order in [
+        const ['zeta'],
+        const ['zeta', 'zeta'],
+        const ['zeta', 'unknown'],
+      ]) {
+        expect(
+          () => experimentDocumentContract(
+            document: _orderedAnswerDocument(questionOrder: order),
+          ),
+          throwsA(isA<ArgumentError>()),
+        );
+      }
     });
 
     test('rejects duplicate semantic identities', () {
@@ -722,6 +871,38 @@ void main() {
 final FlowContentHash _placeholderHash = FlowContentHash.parse(
   'sha256:${List.filled(64, '0').join()}',
 );
+
+FlowDocument _orderedAnswerDocument({
+  List<String> questionOrder = const ['zeta', 'alpha'],
+}) =>
+    experimentDocument(
+      schemaVersion: 2,
+      flowState: const {
+        'zeta': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.exportable,
+          defaultValue: 'last',
+        ),
+        'alpha': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.exportable,
+          defaultValue: 'first',
+        ),
+      },
+      outbound: const FlowOutboundDeclarations(
+        surveyAnswers: FlowOutboundPayloadDeclaration(fields: {
+          'zeta': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'zeta'),
+          ),
+          'alpha': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'alpha'),
+          ),
+        }),
+      ),
+      states: const {'done': EndFlowState(result: {})},
+    ).copyWith(surveyQuestionOrder: questionOrder);
 
 FlowDocument _replaceSubFlowHash(
   FlowDocument document,

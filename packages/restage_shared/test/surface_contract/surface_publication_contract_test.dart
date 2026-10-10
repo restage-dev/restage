@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 void main() {
   _hostDataDeliveryTests();
+  _fitRequirementPublicationTests();
   group('SurfaceScreenEventSchema', () {
     test('matches the frozen empty and ordered canonical vectors', () {
       final empty = SurfaceScreenEventSchema(events: const []);
@@ -1171,6 +1172,115 @@ void main() {
     });
   });
 }
+
+void _fitRequirementPublicationTests() {
+  group('Publication fit requirement metadata', () {
+    test('ordinary publication carries no inferred fit requirement', () {
+      final publication = _screenFixture().publication;
+      expect(publication.fitRequirement, isNull);
+      expect(publication.fitRequirementHash, isNull);
+      expect(publication.toJson().containsKey('fitRequirement'), isFalse);
+      expect(publication.toJson().containsKey('fitRequirementHash'), isFalse);
+    });
+
+    test('exact requirement and hash survive manifest and upload codecs', () {
+      final fixture = _screenFixture();
+      final requirement = _fitRequirement(fixture.publication.capabilities!);
+      final publication = SurfacePublication.fromJson(
+        {
+          ...fixture.publication.toJson(),
+          'fitRequirement': requirement.toJson(),
+          'fitRequirementHash': requirement.contentHash,
+        },
+        path: 'publication',
+      );
+      final upload = SurfacePublicationUploadRequest(
+        publication: publication,
+        payload: fixture.payload.canonicalBytes,
+      );
+      final decoded = SurfacePublicationUploadRequestV1Codec.decodeJson(
+        SurfacePublicationUploadRequestV1Codec.encodeCanonicalJson(upload),
+      );
+      expect(
+        decoded.publication.fitRequirement?.canonicalBytes,
+        requirement.canonicalBytes,
+      );
+      expect(decoded.publication.fitRequirementHash, requirement.contentHash);
+      final manifest = SurfacePublicationManifest(
+        publications: [
+          SurfacePublicationManifestEntry(
+            publication: publication,
+            artifacts: fixture.manifest.publications.single.artifacts,
+          ),
+        ],
+      );
+      expect(
+        SurfacePublicationManifestV1Codec.decodeJson(
+          SurfacePublicationManifestV1Codec.encodeCanonicalJson(manifest),
+        ).publications.single.publication.fitRequirementHash,
+        requirement.contentHash,
+      );
+    });
+
+    test('missing, mismatched, malformed and null pair fields are refused', () {
+      final fixture = _screenFixture();
+      final requirement = _fitRequirement(fixture.publication.capabilities!);
+      final complete = <String, Object?>{
+        ...fixture.publication.toJson(),
+        'fitRequirement': requirement.toJson(),
+        'fitRequirementHash': requirement.contentHash,
+      };
+      for (final field in ['fitRequirement', 'fitRequirementHash']) {
+        expect(
+          () => SurfacePublication.fromJson(
+            {...complete}..remove(field),
+            path: 'publication',
+          ),
+          throwsFormatException,
+        );
+        expect(
+          () => SurfacePublication.fromJson(
+            {...complete, field: null},
+            path: 'publication',
+          ),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => SurfacePublication.fromJson(
+          {
+            ...complete,
+            'fitRequirementHash': 'sha256:${List.filled(64, '0').join()}',
+          },
+          path: 'publication',
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => SurfacePublication.fromJson(
+          {
+            ...complete,
+            'fitRequirement': {'pureBody': true},
+          },
+          path: 'publication',
+        ),
+        throwsFormatException,
+      );
+    });
+  });
+}
+
+SurfaceFitRequirementV1 _fitRequirement(CapabilityManifest capabilities) =>
+    SurfaceFitRequirementV1(
+      hosting: SurfaceHostingRequirementV1(
+        contentKind: SurfaceContentKindV1.single,
+        allowedPresentations: const {SurfacePresentationV1.inline},
+      ),
+      requiredContext: const SurfaceScreenHostDataSchema.empty(),
+      emittedEvents: SurfaceScreenEventSchema(events: const []),
+      capabilities: capabilities,
+      requiredVocabulary: WidgetVocabulary.empty,
+    );
 
 ({
   SurfacePublicationManifest manifest,

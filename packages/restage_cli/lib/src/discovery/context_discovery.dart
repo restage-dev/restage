@@ -16,7 +16,7 @@ Future<OrganizationSummary?> resolveActiveOrganization({
 }) async {
   final organizations = await api.listOrganizations();
   if (organizations.isEmpty) {
-    stderr.writeln('No organizations found for this account.');
+    stderr.writeln(noOrganizationSentence);
     return null;
   }
   if (preferredSlug != null && preferredSlug.isNotEmpty) {

@@ -99,7 +99,7 @@ void main() {
       ),
     );
 
-    await completion.future.timeout(const Duration(seconds: 5));
+    await completion.future.timeout(_progressTimeout);
 
     expect(events, <String>['report', 'complete']);
     expect(reports, hasLength(1));
@@ -281,15 +281,13 @@ void main() {
         );
         adapter.emit(_applePendingTransaction);
         if (variation == 'observed before finish') {
-          await completionStarted.future.timeout(const Duration(seconds: 2));
+          await completionStarted.future.timeout(_progressTimeout);
           holdDuplicateToken = true;
           adapter.emit(_applePendingTransaction);
-          await duplicateTokenStarted.future
-              .timeout(const Duration(seconds: 2));
+          await duplicateTokenStarted.future.timeout(_progressTimeout);
           releaseCompletion.complete();
         }
-        await temporary.acknowledgementStarted.future
-            .timeout(const Duration(seconds: 2));
+        await temporary.acknowledgementStarted.future.timeout(_progressTimeout);
         expect(adapter.completionCalls, 1);
         final original = (await _publishedReports(directory.path)).single;
         expect(original.reportId, reports.single['reportId']);
@@ -318,7 +316,7 @@ void main() {
         // This observer delegates enqueue to the actual file queue before
         // signalling, proving it is queued behind the held atomic rename.
         final pending =
-            await duplicateEnqueued.future.timeout(const Duration(seconds: 2));
+            await duplicateEnqueued.future.timeout(_progressTimeout);
         expect(pending.reportId, isNot(original.reportId));
         expect(
             (await _publishedReports(directory.path))
@@ -430,7 +428,7 @@ void main() {
         }),
       );
       adapter.emit(_applePendingTransaction);
-      await tokenStarted.future.timeout(const Duration(seconds: 2));
+      await tokenStarted.future.timeout(_progressTimeout);
       expect(await queue.open(), isEmpty);
       expect(adapter.completionCalls, isZero);
       generation += 1;
@@ -533,7 +531,7 @@ void main() {
         }),
       );
       adapter.emit(_applePendingTransaction);
-      await tokenStarted.future.timeout(const Duration(seconds: 2));
+      await tokenStarted.future.timeout(_progressTimeout);
       expect(await queue.open(), isEmpty);
       for (final owner in <String>[
         _applicationToken,
@@ -645,16 +643,15 @@ void main() {
         storeVerificationData: 'pending.apple.transaction.jws',
         requiresDeviceCompletion: false,
       ));
-      await temporary.acknowledgementStarted.future
-          .timeout(const Duration(seconds: 2));
+      await temporary.acknowledgementStarted.future.timeout(_progressTimeout);
       final original = (await _publishedReports(directory.path)).single;
       holdFirst = true;
       adapter.emit(_applePendingTransaction);
-      await firstStarted.future.timeout(const Duration(seconds: 2));
+      await firstStarted.future.timeout(_progressTimeout);
       generation = 1;
       notifyRestageCommerceConfigurationChanged();
       adapter.emit(_applePendingTransaction);
-      await secondStarted.future.timeout(const Duration(seconds: 2));
+      await secondStarted.future.timeout(_progressTimeout);
       temporary.release.complete();
       await _waitFor(() async => (await queue.open()).isEmpty,
           label: 'original unfulfilled row retires with two live observations');
@@ -662,10 +659,9 @@ void main() {
       generation = 2;
       notifyRestageCommerceConfigurationChanged();
       adapter.emit(_applePendingTransaction);
-      await freshResponseStarted.future.timeout(const Duration(seconds: 2));
+      await freshResponseStarted.future.timeout(_progressTimeout);
       firstToken.complete(_applicationToken);
-      final deduplicated =
-          await converged.future.timeout(const Duration(seconds: 2));
+      final deduplicated = await converged.future.timeout(_progressTimeout);
       expect(deduplicated.reportId, reports[1]['reportId']);
       expect((await queue.open()).single.hasSameContents(deduplicated), isTrue);
       // The completed enqueue and this queue observation let the engine finish
@@ -788,12 +784,12 @@ void main() {
 
       holdToken = true;
       adapter.emit(waiting);
-      await tokenStarted.future.timeout(const Duration(seconds: 2));
+      await tokenStarted.future.timeout(_progressTimeout);
       generation += 1;
       holdToken = false;
       notifyRestageCommerceConfigurationChanged();
       adapter.emit(preferred);
-      await freshEnqueued.future.timeout(const Duration(seconds: 2));
+      await freshEnqueued.future.timeout(_progressTimeout);
       // The same queue's serialized observation waits for the fresh enqueue;
       // it has deduplicated to the original owner, scope and provider evidence.
       expect((await queue.open()).single.hasSameContents(original), isTrue);
@@ -891,19 +887,17 @@ void main() {
         storeVerificationData: 'pending.apple.transaction.jws',
         requiresDeviceCompletion: false,
       ));
-      await temporary.acknowledgementStarted.future
-          .timeout(const Duration(seconds: 2));
+      await temporary.acknowledgementStarted.future.timeout(_progressTimeout);
       final original = (await _publishedReports(directory.path)).single;
       expect(adapter.completionCalls, isZero);
       holdToken = true;
       adapter.emit(_applePendingTransaction);
-      await tokenStarted.future.timeout(const Duration(seconds: 2));
+      await tokenStarted.future.timeout(_progressTimeout);
       generation += 1;
       holdToken = false;
       notifyRestageCommerceConfigurationChanged();
       adapter.emit(_applePendingTransaction);
-      final fresh =
-          await freshEnqueued.future.timeout(const Duration(seconds: 2));
+      final fresh = await freshEnqueued.future.timeout(_progressTimeout);
       expect(
           (await _publishedReports(directory.path))
               .single
@@ -1016,7 +1010,7 @@ void main() {
     expect((await queue.open()).single.hasSameContents(firstRetry), isTrue);
 
     await obstruction.delete();
-    await secondReport.future.timeout(const Duration(seconds: 3));
+    await secondReport.future.timeout(_progressTimeout);
     await _waitFor(() async {
       final published = await _publishedReports(directory.path);
       return published.length == 1 && published.single.retryAttempt == 2;
@@ -1034,7 +1028,7 @@ void main() {
     expect(reports, hasLength(2));
     expect(await queue.due(), isEmpty);
 
-    await thirdReport.future.timeout(const Duration(seconds: 4));
+    await thirdReport.future.timeout(_progressTimeout);
     await _waitFor(() async => (await queue.open()).isEmpty,
         label: 'recovered storage acknowledges the verified report');
     expect(reports, hasLength(3));
@@ -1078,7 +1072,7 @@ void main() {
       ),
     );
 
-    await reportSeen.future.timeout(const Duration(seconds: 2));
+    await reportSeen.future.timeout(_progressTimeout);
     await Future<void>.delayed(Duration.zero);
 
     expect(adapter.completionCalls, isZero);
@@ -1243,7 +1237,7 @@ void main() {
         requiresDeviceCompletion: true,
       ),
     );
-    await reportSeen.future.timeout(const Duration(seconds: 2));
+    await reportSeen.future.timeout(_progressTimeout);
     await _waitFor(
       () async {
         final records = await queue.open();
@@ -1287,8 +1281,7 @@ void main() {
         requiresDeviceCompletion: false,
       ),
     );
-    final firstBody =
-        await firstReport.future.timeout(const Duration(seconds: 2));
+    final firstBody = await firstReport.future.timeout(_progressTimeout);
     await _waitFor(
       () async {
         final records = await firstQueue.open();
@@ -1317,8 +1310,7 @@ void main() {
       queueFactory: () async => secondQueue,
     );
 
-    final secondBody =
-        await secondReport.future.timeout(const Duration(seconds: 3));
+    final secondBody = await secondReport.future.timeout(_progressTimeout);
 
     expect(secondBody['reportId'], firstBody['reportId']);
     await _waitFor(
@@ -1353,8 +1345,7 @@ void main() {
       queueFactory: () async => firstQueue,
     );
     firstAdapter.emit(_applePendingTransaction);
-    final firstBody =
-        await firstReport.future.timeout(const Duration(seconds: 2));
+    final firstBody = await firstReport.future.timeout(_progressTimeout);
     await _waitFor(() async {
       final records = await firstQueue.open();
       return records.length == 1 && records.single.retryAttempt >= 1;
@@ -1386,9 +1377,8 @@ void main() {
     );
     secondAdapter.emit(_applePendingTransaction);
 
-    final secondBody =
-        await secondReport.future.timeout(const Duration(seconds: 3));
-    await verified.future.timeout(const Duration(seconds: 2));
+    final secondBody = await secondReport.future.timeout(_progressTimeout);
+    await verified.future.timeout(_progressTimeout);
 
     expect(secondBody['reportId'], firstBody['reportId']);
     expect(secondAdapter.completionCalls, 1);
@@ -1473,7 +1463,7 @@ void main() {
         requiresDeviceCompletion: false,
       ),
     );
-    await firstRequest.future.timeout(const Duration(seconds: 2));
+    await firstRequest.future.timeout(_progressTimeout);
     adapter.emit(
       const _TestTransaction(
         store: CommerceStore.playStore,
@@ -1614,7 +1604,7 @@ void main() {
       label: 'timed out report remains durable',
     );
     expect(adapter.completionCalls, isZero);
-    await completed.future.timeout(const Duration(seconds: 3));
+    await completed.future.timeout(_progressTimeout);
 
     expect(reports, hasLength(2));
     expect(reports[1]['reportId'], reports[0]['reportId']);
@@ -1668,7 +1658,7 @@ void main() {
     expect(adapter.completionCalls, isZero);
 
     await obstruction.delete();
-    await completed.future.timeout(const Duration(seconds: 5));
+    await completed.future.timeout(_progressTimeout);
 
     expect(reports, 1);
     expect(adapter.completionCalls, 1);
@@ -1719,7 +1709,7 @@ void main() {
     expect(queueFactoryCalls, greaterThanOrEqualTo(1));
 
     queueAvailable = true;
-    await reportSeen.future.timeout(const Duration(seconds: 3));
+    await reportSeen.future.timeout(_progressTimeout);
 
     expect(queueFactoryCalls, greaterThanOrEqualTo(2));
     await _waitFor(
@@ -1771,7 +1761,7 @@ void main() {
     expect(reportSeen.isCompleted, isFalse);
 
     tokenAvailable = true;
-    final body = await reportSeen.future.timeout(const Duration(seconds: 3));
+    final body = await reportSeen.future.timeout(_progressTimeout);
 
     expect(body['appAnonymousToken'], _applicationToken);
     await _waitFor(
@@ -2079,15 +2069,14 @@ void main() {
       rpcClientProvider: () => activeClient,
     );
     adapter.emit(transaction);
-    await firstTokenStarted.future.timeout(const Duration(seconds: 2));
+    await firstTokenStarted.future.timeout(_progressTimeout);
 
     generation += 1;
     fingerprint = 'scope-b';
     activeClient = scopeBClient;
     notifyRestageCommerceConfigurationChanged();
     adapter.emit(transaction);
-    final deliveredToB =
-        await scopeBReport.future.timeout(const Duration(seconds: 2));
+    final deliveredToB = await scopeBReport.future.timeout(_progressTimeout);
     expect(deliveredToB['appAnonymousToken'], _secondApplicationToken);
 
     firstToken.complete(_applicationToken);
@@ -2127,8 +2116,7 @@ void main() {
     fingerprint = 'scope-a';
     activeClient = scopeAClient;
     notifyRestageCommerceConfigurationChanged();
-    final deliveredToA =
-        await scopeAReport.future.timeout(const Duration(seconds: 2));
+    final deliveredToA = await scopeAReport.future.timeout(_progressTimeout);
     expect(deliveredToA['reportId'], original.reportId);
     expect(deliveredToA['appAnonymousToken'], _applicationToken);
     await _waitFor(
@@ -2192,7 +2180,7 @@ void main() {
         requiresDeviceCompletion: false,
       ),
     );
-    await originalTokenStarted.future.timeout(const Duration(seconds: 2));
+    await originalTokenStarted.future.timeout(_progressTimeout);
 
     generation += 1;
     fingerprint = 'scope-b';
@@ -2222,7 +2210,7 @@ void main() {
     generation += 1;
     fingerprint = 'scope-a';
     notifyRestageCommerceConfigurationChanged();
-    final report = await reportSeen.future.timeout(const Duration(seconds: 2));
+    final report = await reportSeen.future.timeout(_progressTimeout);
     expect(report['appAnonymousToken'], _applicationToken);
     await _waitFor(
       () async => (await queue.open()).isEmpty,
@@ -2312,7 +2300,7 @@ void main() {
         requiresDeviceCompletion: false,
       ),
     );
-    await preferenceReadStarted.future.timeout(const Duration(seconds: 2));
+    await preferenceReadStarted.future.timeout(_progressTimeout);
 
     Restage.configure(
       apiKey: 'scope-b-key',
@@ -2329,7 +2317,7 @@ void main() {
       analyticsEnabled: false,
     );
     Restage.debugRestageRpcClient = client;
-    final report = await reportSeen.future.timeout(const Duration(seconds: 3));
+    final report = await reportSeen.future.timeout(_progressTimeout);
     expect(report['appAnonymousToken'], _applicationToken);
     await _waitFor(
       () =>
@@ -2391,7 +2379,7 @@ void main() {
       requiresDeviceCompletion: false,
     );
     adapter.emit(replay);
-    await originalTokenStarted.future.timeout(const Duration(seconds: 2));
+    await originalTokenStarted.future.timeout(_progressTimeout);
 
     generation += 1;
     notifyRestageCommerceIdentityChanged();
@@ -2449,13 +2437,13 @@ void main() {
     final subscription = Restage.commerce.states.listen(states.add);
     addTearDown(subscription.cancel);
     adapter.emit(_applePendingTransaction);
-    await reportStarted.future.timeout(const Duration(seconds: 2));
+    await reportStarted.future.timeout(_progressTimeout);
 
     final refreshed = await Restage.commerce.refresh();
     expect(refreshed.entitlements, isEmpty);
     reportResponse.complete(_jsonResponse(_verifiedState().toJson()));
 
-    await completed.future.timeout(const Duration(seconds: 2));
+    await completed.future.timeout(_progressTimeout);
     await _waitFor(
       () async => (await queue.open()).isEmpty,
       label: 'older verified report is reconciled and acknowledged',
@@ -2531,7 +2519,7 @@ void main() {
       label: 'initial complete query',
     );
     final refresh = Restage.commerce.refresh();
-    await refreshStarted.future.timeout(const Duration(seconds: 2));
+    await refreshStarted.future.timeout(_progressTimeout);
     adapter.emit(
       const _TestTransaction(
         store: CommerceStore.playStore,
@@ -2561,7 +2549,7 @@ void main() {
       ),
     );
 
-    final refreshed = await refresh.timeout(const Duration(seconds: 2));
+    final refreshed = await refresh.timeout(_progressTimeout);
     expect(refreshed.status, CommercePurchaserStateStatusCode.stale);
     expect(refreshed.entitlements, isEmpty);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
@@ -2631,7 +2619,7 @@ void main() {
       label: 'initial complete query',
     );
     final refresh = Restage.commerce.refresh();
-    await refreshStarted.future.timeout(const Duration(seconds: 2));
+    await refreshStarted.future.timeout(_progressTimeout);
     adapter.emit(_applePendingTransaction);
     await _waitFor(
       () async => ordinaryReportCalls == 1 && (await queue.open()).isEmpty,
@@ -2642,7 +2630,7 @@ void main() {
     expect(Restage.commerce.currentState.entitlements, isEmpty);
 
     refreshResponse.complete(http.Response('', 503));
-    final result = await refresh.timeout(const Duration(seconds: 2));
+    final result = await refresh.timeout(_progressTimeout);
 
     expect(result, same(Restage.commerce.currentState));
     expect(result.status, CommercePurchaserStateStatusCode.stale);
@@ -2710,7 +2698,7 @@ void main() {
       label: 'initial complete query',
     );
     final refresh = Restage.commerce.refresh();
-    await refreshStarted.future.timeout(const Duration(seconds: 2));
+    await refreshStarted.future.timeout(_progressTimeout);
     adapter.emit(_applePendingTransaction);
     await _waitFor(
       () async => ordinaryReportCalls == 1 && (await queue.open()).isEmpty,
@@ -2720,7 +2708,7 @@ void main() {
         CommercePurchaserStateStatusCode.stale);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
 
-    final result = await refresh.timeout(const Duration(seconds: 2));
+    final result = await refresh.timeout(_progressTimeout);
 
     expect(result, same(Restage.commerce.currentState));
     expect(result.status, CommercePurchaserStateStatusCode.stale);
@@ -2910,7 +2898,7 @@ void main() {
         requiresDeviceCompletion: false,
       ),
     );
-    await requestStarted.future.timeout(const Duration(seconds: 2));
+    await requestStarted.future.timeout(_progressTimeout);
 
     generation += 1;
     fingerprint = 'scope-b';
@@ -3148,7 +3136,7 @@ void main() {
       label: 'initial query completes before held refresh',
     );
     final refresh = Restage.commerce.refresh();
-    await requestStarted.future.timeout(const Duration(seconds: 2));
+    await requestStarted.future.timeout(_progressTimeout);
     generation += 1;
     notifyRestageCommerceIdentityChanged();
     release.complete(
@@ -3168,7 +3156,7 @@ void main() {
       ),
     );
 
-    final result = await refresh.timeout(const Duration(seconds: 2));
+    final result = await refresh.timeout(_progressTimeout);
     expect(result.status, CommercePurchaserStateStatusCode.stale);
     await _waitFor(
       () =>
@@ -3220,7 +3208,7 @@ void main() {
       client: client,
       queueFactory: () async => queue,
     );
-    await reportSeen.future.timeout(const Duration(seconds: 3));
+    await reportSeen.future.timeout(_progressTimeout);
     expect(adapter.ownedQueryCalls, 2);
     expect(adapter.completionCalls, isZero);
 
@@ -3283,7 +3271,7 @@ void main() {
 
     configured = true;
     notifyRestageCommerceConfigurationChanged();
-    await reportSeen.future.timeout(const Duration(seconds: 2));
+    await reportSeen.future.timeout(_progressTimeout);
     expect(adapter.ownedQueryCalls, 1);
     expect(adapter.completionCalls, isZero);
     await _waitFor(
@@ -3340,7 +3328,7 @@ void main() {
       queueFactory: () async => queue,
     );
 
-    await reportSeen.future.timeout(const Duration(seconds: 2));
+    await reportSeen.future.timeout(_progressTimeout);
     expect(adapter.ownedQueryCalls, 1);
     await _waitFor(
       () =>
@@ -3423,7 +3411,7 @@ void main() {
       measurementEnabled: false,
     );
     Restage.debugRestageRpcClient = client;
-    final report = await reportSeen.future.timeout(const Duration(seconds: 3));
+    final report = await reportSeen.future.timeout(_progressTimeout);
     expect(report['appAnonymousToken'], _applicationToken);
     expect(adapter.ownedQueryCalls, 1);
     expect(adapter.completionCalls, isZero);
@@ -3514,14 +3502,14 @@ void main() {
         'subscription.monthly');
 
     final pending = Restage.commerce.refresh();
-    await refreshStarted.future.timeout(const Duration(seconds: 3));
+    await refreshStarted.future.timeout(_progressTimeout);
     Restage.reset();
     expect(Restage.commerce.currentState.status,
         CommercePurchaserStateStatusCode.stale);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
     heldRefresh
         .complete(_jsonResponse(_verifiedState().purchaserState.toJson()));
-    final stale = await pending.timeout(const Duration(seconds: 3));
+    final stale = await pending.timeout(_progressTimeout);
     expect(stale.status, CommercePurchaserStateStatusCode.stale);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
 
@@ -3587,7 +3575,7 @@ void main() {
     );
 
     adapter.emit(purchased);
-    await reportStarted.future.timeout(const Duration(seconds: 2));
+    await reportStarted.future.timeout(_progressTimeout);
     adapter.ownedTransactions = <CommerceStoreTransaction>[restored];
     final restore = Restage.commerce.restore();
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -3595,7 +3583,7 @@ void main() {
 
     reportResponse.complete(_jsonResponse(_emptyVerifiedState().toJson()));
     expect(
-      await completion.future.timeout(const Duration(seconds: 2)),
+      await completion.future.timeout(_progressTimeout),
       same(purchased),
     );
     expect(
@@ -3670,12 +3658,12 @@ void main() {
       ..emit(purchased);
     await Future<void>.delayed(Duration.zero);
     token.complete(_applicationToken);
-    await queueRequested.future.timeout(const Duration(seconds: 2));
+    await queueRequested.future.timeout(_progressTimeout);
     adapter.emit(restored);
     await Future<void>.delayed(Duration.zero);
     queueReady.complete(queue);
 
-    await firstReport.future.timeout(const Duration(seconds: 2));
+    await firstReport.future.timeout(_progressTimeout);
     await _waitFor(
       () async {
         final records = await queue.open();
@@ -3686,7 +3674,7 @@ void main() {
     expect(adapter.completionCalls, isZero);
 
     expect(
-      await completion.future.timeout(const Duration(seconds: 3)),
+      await completion.future.timeout(_progressTimeout),
       same(purchased),
     );
     expect(reportCalls, 2);
@@ -3729,7 +3717,7 @@ void main() {
       queueFactory: () async => queue,
     );
 
-    await reportStarted.future.timeout(const Duration(seconds: 2));
+    await reportStarted.future.timeout(_progressTimeout);
     await Future<void>.delayed(const Duration(milliseconds: 250));
     expect(adapter.ownedQueryCalls, 1);
     expect(adapter.completionCalls, isZero);
@@ -4044,7 +4032,7 @@ void main() {
       requiresDeviceCompletion: false,
     );
     adapter.emit(transaction);
-    final first = await firstStarted.future.timeout(const Duration(seconds: 2));
+    final first = await firstStarted.future.timeout(_progressTimeout);
     adapter.ownedTransactions = const <CommerceStoreTransaction>[transaction];
     final refresh = Restage.commerce.refresh();
     await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -4057,8 +4045,7 @@ void main() {
         ).toJson(),
       ),
     );
-    final second =
-        await secondStarted.future.timeout(const Duration(seconds: 2));
+    final second = await secondStarted.future.timeout(_progressTimeout);
     final durableDuringFreshAttempt = await queue.open();
     expect(durableDuringFreshAttempt, hasLength(1));
     expect(durableDuringFreshAttempt.single.reportId, second['reportId']);
@@ -4071,7 +4058,7 @@ void main() {
       ),
     );
 
-    final state = await refresh.timeout(const Duration(seconds: 2));
+    final state = await refresh.timeout(_progressTimeout);
     expect(state.status, CommercePurchaserStateStatusCode.available);
     expect(state.entitlements.single.entitlementId, 'entitlement.collision');
   });
@@ -4142,18 +4129,17 @@ void main() {
       label: 'initial complete empty snapshot',
     );
     adapter.emit(_applePendingTransaction);
-    await finishStarted.future.timeout(const Duration(seconds: 2));
+    await finishStarted.future.timeout(_progressTimeout);
     adapter.ownedTransactions = const <CommerceStoreTransaction>[
       _applePendingTransaction,
     ];
     final refresh = Restage.commerce.refresh();
-    final collisionRow =
-        await admitted.future.timeout(const Duration(seconds: 2));
+    final collisionRow = await admitted.future.timeout(_progressTimeout);
     expect(collisionRow.reportId, reports.single['reportId']);
     expect(adapter.completionCalls, 1);
     releaseFinish.complete();
 
-    final result = await refresh.timeout(const Duration(seconds: 3));
+    final result = await refresh.timeout(_progressTimeout);
     expect(result.status, CommercePurchaserStateStatusCode.available);
     expect(reports, hasLength(2));
     expect(reports.last['reportId'], isNot(reports.first['reportId']));
@@ -4225,7 +4211,7 @@ void main() {
       ),
       usesPurchaserStateHandler: true,
     );
-    await oldStarted.future.timeout(const Duration(seconds: 2));
+    await oldStarted.future.timeout(_progressTimeout);
     await _waitFor(
       () =>
           Restage.commerce.currentState.status ==
@@ -4606,7 +4592,7 @@ void main() {
       }),
     );
 
-    await unrelatedStarted.future.timeout(const Duration(seconds: 2));
+    await unrelatedStarted.future.timeout(_progressTimeout);
     native.complete(
       const <CommerceStoreTransaction>[
         _TestTransaction(
@@ -4695,7 +4681,7 @@ void main() {
       }),
     );
 
-    await unrelatedStarted.future.timeout(const Duration(seconds: 2));
+    await unrelatedStarted.future.timeout(_progressTimeout);
     native.complete(
       const <CommerceStoreTransaction>[
         _TestTransaction(
@@ -4787,7 +4773,7 @@ void main() {
     );
 
     adapter.emit(_applePendingTransaction);
-    await tokenStarted.future.timeout(const Duration(seconds: 2));
+    await tokenStarted.future.timeout(_progressTimeout);
     generation += 1;
     notifyRestageCommerceConfigurationChanged();
     tokenRelease.complete(_applicationToken);
@@ -4848,7 +4834,7 @@ void main() {
       }),
     );
 
-    await firstStarted.future.timeout(const Duration(seconds: 2));
+    await firstStarted.future.timeout(_progressTimeout);
     await Future<void>.delayed(const Duration(milliseconds: 100));
     firstRelease.complete(
       _jsonResponse(
@@ -4868,7 +4854,7 @@ void main() {
     await _waitFor(
       () async => reportCalls == 2 && (await fileQueue.open()).isEmpty,
       label: 'retained query report retries without an external event',
-      timeout: const Duration(seconds: 3),
+      timeout: _progressTimeout,
     );
     expect(adapter.completionCalls, 1);
   });
@@ -5060,7 +5046,7 @@ void main() {
       usesPurchaserStateHandler: true,
     );
     expect(
-      await completed.future.timeout(const Duration(seconds: 2)),
+      await completed.future.timeout(_progressTimeout),
       same(purchased),
     );
     await _waitFor(
@@ -5109,6 +5095,7 @@ void main() {
       addTearDown(() {
         if (!releaseFinish.isCompleted) releaseFinish.complete();
       });
+      final deadline = _ControlledAttemptDeadline();
       _activate(
         adapter: adapter,
         queueFactory: () async => queue,
@@ -5116,9 +5103,7 @@ void main() {
           fingerprint: 'native-deadline-scope',
           token: owner,
         ),
-        networkAttemptTimeout: matching
-            ? const Duration(milliseconds: 100)
-            : const Duration(seconds: 1),
+        attemptDeadline: deadline,
         client: MockClient((request) async {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           final saved = (await queue.open()).singleWhere(
@@ -5143,7 +5128,9 @@ void main() {
         _applePendingTransaction,
       ];
       final restore = Restage.commerce.restore();
-      await finishStarted.future.timeout(const Duration(seconds: 3));
+      await finishStarted.future.timeout(_progressTimeout);
+      // The native finish is held, so the restore attempt expires.
+      deadline.expirePending();
       expect((await restore).status, CommerceActionStatusCode.failed);
       expect(Restage.commerce.currentState.status,
           CommercePurchaserStateStatusCode.stale);
@@ -5165,8 +5152,16 @@ void main() {
       adapter.ownedTransactions = <CommerceStoreTransaction>[queried];
       // A new caller has a deadline, while the original native finish remains
       // live. Exact-subject collisions keep its owner; other subjects proceed.
-      final retried =
-          await Restage.commerce.refresh().timeout(const Duration(seconds: 3));
+      final retrying = Restage.commerce.refresh();
+      if (matching) {
+        // Expire the caller once it waits on the live native finish.
+        await _waitFor(
+          () => deadline.pending >= 2,
+          label: 'retry waits on the live native finish',
+        );
+        deadline.expirePending();
+      }
+      final retried = await retrying.timeout(_progressTimeout);
       expect(adapter.completionCalls, matching ? 1 : 2);
       expect(
         retried.status,
@@ -5271,6 +5266,7 @@ void _activate({
   CommerceRuntimeContext? Function()? runtimeContextProvider,
   RestageRpcClient? Function()? rpcClientProvider,
   Duration networkAttemptTimeout = const Duration(seconds: 15),
+  CommerceAttemptDeadline? attemptDeadline,
   DateTime Function() clock = DateTime.now,
   bool usesPurchaserStateHandler = false,
 }) {
@@ -5290,7 +5286,8 @@ void _activate({
     runtimeContextProvider: runtimeContextProvider,
     reportQueueFactory: queueFactory ??
         () async => CommerceFileReportQueue(directoryPath: journalPath!),
-    networkAttemptTimeout: networkAttemptTimeout,
+    attemptDeadline:
+        attemptDeadline ?? CommerceAttemptDeadline(networkAttemptTimeout),
     clock: clock,
   );
 }
@@ -5302,6 +5299,44 @@ final class _HeldClock {
   DateTime now() => _now;
 
   void advance(Duration duration) => _now = _now.add(duration);
+}
+
+/// Attempts expire only when the test calls [expirePending].
+final class _ControlledAttemptDeadline extends CommerceAttemptDeadline {
+  final Set<void Function()> _pending = <void Function()>{};
+
+  /// How many attempts are still running.
+  int get pending => _pending.length;
+
+  @override
+  Future<T> bound<T>(Future<T> attempt) {
+    final result = Completer<T>();
+    late final void Function() expire;
+    expire = () {
+      _pending.remove(expire);
+      if (!result.isCompleted) {
+        result.completeError(TimeoutException('commerce attempt expired'));
+      }
+    };
+    _pending.add(expire);
+    attempt.then(
+      (value) {
+        _pending.remove(expire);
+        if (!result.isCompleted) result.complete(value);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        _pending.remove(expire);
+        if (!result.isCompleted) result.completeError(error, stackTrace);
+      },
+    );
+    return result.future;
+  }
+
+  void expirePending() {
+    for (final expire in List<void Function()>.of(_pending)) {
+      expire();
+    }
+  }
 }
 
 final class _TestCommerceClient extends http.BaseClient {
@@ -5456,7 +5491,7 @@ const _progressTimeout = Duration(seconds: 10);
 Future<void> _waitFor(
   FutureOr<bool> Function() condition, {
   String? label,
-  Duration timeout = const Duration(seconds: 2),
+  Duration timeout = _progressTimeout,
 }) async {
   final deadline = DateTime.now().add(timeout);
   while (!await condition()) {

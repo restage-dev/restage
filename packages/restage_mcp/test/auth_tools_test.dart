@@ -71,6 +71,9 @@ void main() {
   fakeBackend({
     List<Map<String, dynamic>> exchanges = const [],
     Map<String, dynamic>? whoamiUser,
+    List<Map<String, dynamic>> organizations = const [
+      {'organizationId': 1, 'slug': 'acme', 'name': 'Acme', 'role': 'owner'},
+    ],
   }) {
     final calls = <Map<String, dynamic>>[];
     final opened = <String>[];
@@ -93,6 +96,8 @@ void main() {
           );
         case 'logout':
           return http.Response('null', 200);
+        case 'listMine':
+          return http.Response(jsonEncode(organizations), 200);
         default:
           return http.Response('null', 200);
       }
@@ -180,6 +185,40 @@ void main() {
         final persisted = await store.read();
         expect(persisted!.authToken, _authToken);
         expect(persisted.endpoint, 'https://api.test/');
+      },
+    );
+
+    test(
+      'signing in to an account with no organization says where to make one',
+      () async {
+        final backend = fakeBackend(
+          exchanges: [_success],
+          organizations: const [],
+        );
+        final clock = fakeClock();
+        final connection = await connectServer(
+          store: store,
+          httpClient: backend.client,
+          loginEndpoint: Uri.parse('https://api.test/'),
+          sleep: clock.sleep,
+          now: clock.now,
+          openBrowser: (_) async {},
+        );
+
+        await connection.callTool(
+          CallToolRequest(name: 'restage_login', arguments: {}),
+        );
+        final result = await connection.callTool(
+          CallToolRequest(name: 'restage_login', arguments: {}),
+        );
+
+        expect(result.structuredContent!['status'], 'signed_in');
+        expect(
+          result.structuredContent!['createOrganizationAt'],
+          'https://verify.test',
+        );
+        expect(_text(result), contains(noOrganizationSentence));
+        _assertNoSecrets(result);
       },
     );
 

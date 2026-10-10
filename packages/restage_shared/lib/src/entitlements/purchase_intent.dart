@@ -1,4 +1,6 @@
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MountSelectionAttributionV1, PresentationAssignmentCarrierV2;
 import 'package:restage_shared/src/entitlements/commerce_wire.dart';
 import 'package:restage_shared/src/offers/offer_signature_response.dart';
 
@@ -11,6 +13,9 @@ const _intentRequestFields = {
   'surfaceKind',
   'variantSlug',
   'publishedVersion',
+  'attribution',
+  'routingSelectionReceipt',
+  'assignment',
 };
 
 /// A request to resolve one logical offer for a store purchase.
@@ -26,6 +31,9 @@ final class CommerceIntentRequest {
     String? surfaceKind,
     String? variantSlug,
     int? publishedVersion,
+    MountSelectionAttributionV1? attribution,
+    String? routingSelectionReceipt,
+    PresentationAssignmentCarrierV2? assignment,
   }) {
     requireCommerceUuidV4(intentId, 'intentId');
     requireCommerceOfferId(offerId, 'offerId');
@@ -37,6 +45,12 @@ final class CommerceIntentRequest {
       'appAnonymousToken',
       lowercase: false,
     );
+    if (routingSelectionReceipt != null &&
+        (routingSelectionReceipt.isEmpty ||
+            routingSelectionReceipt.length > 4096)) {
+      throw ArgumentError.value(
+          routingSelectionReceipt, 'routingSelectionReceipt');
+    }
     _requireOptionalString(surfaceId, 'surfaceId');
     _requireOptionalString(surfaceKind, 'surfaceKind');
     _requireOptionalString(variantSlug, 'variantSlug');
@@ -70,6 +84,9 @@ final class CommerceIntentRequest {
       surfaceKind: surfaceKind,
       variantSlug: variantSlug,
       publishedVersion: publishedVersion,
+      attribution: attribution,
+      routingSelectionReceipt: routingSelectionReceipt,
+      assignment: assignment,
     );
   }
 
@@ -82,6 +99,9 @@ final class CommerceIntentRequest {
     required this.surfaceKind,
     required this.variantSlug,
     required this.publishedVersion,
+    this.attribution,
+    this.routingSelectionReceipt,
+    this.assignment,
   });
 
   /// Parses the request sent by an application.
@@ -100,6 +120,16 @@ final class CommerceIntentRequest {
       surfaceKind: optionalCommerceString(json, 'surfaceKind'),
       variantSlug: optionalCommerceString(json, 'variantSlug'),
       publishedVersion: optionalCommerceInt(json, 'publishedVersion'),
+      attribution: json.containsKey('attribution')
+          ? MountSelectionAttributionV1.fromJson(
+              _attributionObject(json['attribution']))
+          : null,
+      routingSelectionReceipt:
+          optionalCommerceString(json, 'routingSelectionReceipt'),
+      assignment: json.containsKey('assignment')
+          ? PresentationAssignmentCarrierV2.fromJson(
+              _attributionObject(json['assignment']))
+          : null,
     );
   }
 
@@ -127,6 +157,15 @@ final class CommerceIntentRequest {
   /// Published surface version, when one was presented.
   final int? publishedVersion;
 
+  /// The whole safe tuple frozen at the committed root mount.
+  final MountSelectionAttributionV1? attribution;
+
+  /// Server-issued selection signature, independently verified by the backend.
+  final String? routingSelectionReceipt;
+
+  /// Opaque original path authority when the mount was assigned.
+  final PresentationAssignmentCarrierV2? assignment;
+
   /// Converts this request to its wire representation.
   Map<String, dynamic> toJson() => {
         'intentId': intentId,
@@ -137,6 +176,10 @@ final class CommerceIntentRequest {
         if (surfaceKind != null) 'surfaceKind': surfaceKind,
         if (variantSlug != null) 'variantSlug': variantSlug,
         if (publishedVersion != null) 'publishedVersion': publishedVersion,
+        if (attribution != null) 'attribution': attribution!.toJson(),
+        if (routingSelectionReceipt != null)
+          'routingSelectionReceipt': routingSelectionReceipt,
+        if (assignment != null) 'assignment': assignment!.toJson(),
       };
 
   @override
@@ -150,7 +193,10 @@ final class CommerceIntentRequest {
           other.surfaceId == surfaceId &&
           other.surfaceKind == surfaceKind &&
           other.variantSlug == variantSlug &&
-          other.publishedVersion == publishedVersion;
+          other.publishedVersion == publishedVersion &&
+          other.attribution == attribution &&
+          other.routingSelectionReceipt == routingSelectionReceipt &&
+          other.assignment == assignment;
 
   @override
   int get hashCode => Object.hash(
@@ -162,6 +208,9 @@ final class CommerceIntentRequest {
         surfaceKind,
         variantSlug,
         publishedVersion,
+        attribution,
+        routingSelectionReceipt,
+        assignment,
       );
 }
 
@@ -358,4 +407,11 @@ void _requireString(String value, String key) {
 
 void _requireOptionalString(String? value, String key) {
   if (value != null) _requireString(value, key);
+}
+
+Map<String, Object?> _attributionObject(Object? value) {
+  if (value is! Map<String, dynamic>) {
+    throw ArgumentError('Expected an exact attribution object');
+  }
+  return Map<String, Object?>.from(value);
 }

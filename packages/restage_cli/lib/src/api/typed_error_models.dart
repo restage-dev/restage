@@ -158,6 +158,9 @@ enum UnauthorizedReason {
   /// This needs a paid plan.
   paidPlanRequired,
 
+  /// This needs the Custom plan.
+  customPlanRequired,
+
   /// The sample workspace is read-only.
   sampleWorkspaceReadOnly,
 

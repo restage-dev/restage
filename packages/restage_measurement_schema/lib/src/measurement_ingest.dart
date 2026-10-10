@@ -1,4 +1,5 @@
 import 'presentation_diagnostic.dart';
+import 'presentation_attribution.dart';
 import 'ordered_capture.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -633,6 +634,8 @@ final class MeasurementFactFrameV1 {
   MeasurementFactFrameV1._({
     required Uint8List canonicalBytes,
     required this.bounds,
+    this.attribution,
+    this.assignment,
     required this.orderedCaptureIncompleteV1,
     required this.captureSessionNonce,
     required this.experimentAssignment,
@@ -647,6 +650,57 @@ final class MeasurementFactFrameV1 {
   })  : _canonicalBytes = Uint8List.fromList(canonicalBytes),
         frameSha256 = _rawSha256(canonicalBytes);
 
+  /// Encodes a frozen frame through the same closed admission codec.
+  factory MeasurementFactFrameV1.encode({
+    required MeasurementFactBounds bounds,
+    required String captureSessionNonce,
+    required List<MeasurementFact> facts,
+    required bool isFinal,
+    required List<MeasurementMissingness> missingness,
+    required ExactMeasurementPublicationContextRefV1 publishedContext,
+    required MeasurementSuccessfulRootPresentationV1 rootPresentation,
+    required int sequence,
+    required MeasurementTruncation truncation,
+    MountSelectionAttributionV1? attribution,
+    PresentationAssignmentCarrierV2? assignment,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+    int? frameElapsedMicros,
+    bool? orderedCaptureIncompleteV1,
+  }) =>
+      MeasurementFactFrameV1.fromCanonicalBytes(CanonicalJsonCodec.encode({
+        'kind': 'measurementFactFrame',
+        'schemaVersion': kMeasurementSchemaVersion,
+        'bounds': {
+          'maximumCounterValue': bounds.maximumCounterValue,
+          'maximumPresentedPoints': bounds.maximumPresentedPoints,
+          'maximumInteractionCounters': bounds.maximumInteractionCounters,
+          'maximumMissingnessEntries': bounds.maximumMissingnessEntries,
+        },
+        'captureSessionNonce': captureSessionNonce,
+        'facts': [for (final fact in facts) fact.toJson()],
+        'finality': {'kind': isFinal ? 'final' : 'pending'},
+        'missingness': [
+          for (final value in missingness)
+            {'state': value.state.wireName, 'count': value.count}
+        ],
+        'publishedContext': publishedContext.toJson(),
+        'rootPresentation': rootPresentation.toJson(),
+        'sequence': sequence,
+        'truncation': truncation.toJson(),
+        'retryPolicy': {'kind': 'byteIdenticalSameSequence'},
+        if (attribution != null) 'attribution': attribution.toJson(),
+        if (assignment != null) 'assignment': assignment.toJson(),
+        if (experimentAssignment != null)
+          'experimentAssignment': experimentAssignment.toJson(),
+        if (frameElapsedMicros != null)
+          'frameElapsedMicros': frameElapsedMicros,
+        if (orderedCaptureIncompleteV1 != null)
+          'orderedCaptureV1': {
+            'schemaVersion': 1,
+            'incomplete': orderedCaptureIncompleteV1
+          },
+      }));
+
   /// Strictly decodes the canonical bytes for one accepted fact frame.
   factory MeasurementFactFrameV1.fromCanonicalBytes(List<int> suppliedBytes) {
     if (suppliedBytes.length > measurementIngestMaximumFactFrameBytes) {
@@ -658,6 +712,8 @@ final class MeasurementFactFrameV1 {
         decodeCanonicalObject(canonicalBytes),
         allowedKeys: const {
           'orderedCaptureV1',
+          'attribution',
+          'assignment',
           'bounds',
           'captureSessionNonce',
           'experimentAssignment',
@@ -714,7 +770,13 @@ final class MeasurementFactFrameV1 {
         reader.object('truncation'),
         maximumCounterValue: bounds.maximumCounterValue,
       );
+      final attributionValues = reader.optionalObject('attribution');
+      final carrierValues = reader.optionalObject('assignment');
       final assignmentValues = reader.optionalObject('experimentAssignment');
+      if (carrierValues != null && assignmentValues != null) {
+        throw const MeasurementIngestCodecException(
+            'duplicate_assignment_authority');
+      }
       final elapsed = reader.optionalInteger('frameElapsedMicros');
       final orderedRaw = reader.optionalObject('orderedCaptureV1');
       bool? orderedIncomplete;
@@ -760,7 +822,8 @@ final class MeasurementFactFrameV1 {
         throw const MeasurementIngestCodecException(
             'frame_elapsed_out_of_range');
       }
-      if (assignmentValues != null && elapsed == null) {
+      if ((assignmentValues != null || carrierValues != null) &&
+          elapsed == null) {
         throw const MeasurementIngestCodecException(
             'assigned_frame_missing_elapsed');
       }
@@ -779,6 +842,12 @@ final class MeasurementFactFrameV1 {
         canonicalBytes: canonicalBytes,
         orderedCaptureIncompleteV1: orderedIncomplete,
         bounds: bounds,
+        attribution: attributionValues == null
+            ? null
+            : MountSelectionAttributionV1.fromJson(attributionValues),
+        assignment: carrierValues == null
+            ? null
+            : PresentationAssignmentCarrierV2.fromJson(carrierValues),
         captureSessionNonce: nonce,
         experimentAssignment: assignmentValues == null
             ? null
@@ -809,6 +878,12 @@ final class MeasurementFactFrameV1 {
 
   /// Null for unsupported capture; true means its ordered prefix lost a tail.
   final bool? orderedCaptureIncompleteV1;
+
+  /// Exact safe evidence frozen at the successful root admission.
+  final MountSelectionAttributionV1? attribution;
+
+  /// Opaque original assignment authority; never interpreted by this codec.
+  final PresentationAssignmentCarrierV2? assignment;
 
   /// Per-frame hard bounds.
   final MeasurementFactBounds bounds;

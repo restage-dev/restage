@@ -166,6 +166,7 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
     required this.maximumSessions,
     List<MeasurementWorkerOwnedDeliveryHeader> headers = const [],
     this.debugTracing = false,
+    this.debugHeldClockMicros,
   }) : headers = List.unmodifiable(headers) {
     if (maximumSessions <= 0 ||
         maximumSessions > kMeasurementWorkerMaximumSessionCount ||
@@ -194,6 +195,10 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
   /// Test-only causal ownership trace; disabled in normal runtime configuration.
   final bool debugTracing;
 
+  /// Test-only fixed time for the worker's outbox, which holds every retry;
+  /// null in normal runtime configuration.
+  final int? debugHeldClockMicros;
+
   /// Whether the admitted configuration can be passed to the native worker.
   bool get isValidForStartup {
     final rawEndpoint = endpoint;
@@ -212,13 +217,14 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
         [for (final header in headers) header.toWorkerWire()],
         maximumSessions,
         debugTracing,
+        debugHeldClockMicros,
       ];
 
   /// Parses the primitive-only bootstrap configuration inside the worker.
   static MeasurementWorkerOwnedDeliveryConfiguration fromWorkerBootstrapWire(
     Object? value,
   ) {
-    final values = _requireList(value, expectedLength: 6);
+    final values = _requireList(value, expectedLength: 7);
     final rawHeaders = _requireList(values[3]);
     final configuration = MeasurementWorkerOwnedDeliveryConfiguration(
       admission: const MeasurementWorkerOwnedDeliveryAdmission(
@@ -236,6 +242,7 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
           MeasurementWorkerOwnedDeliveryHeader.fromWorkerWire(header),
       ],
       debugTracing: _requireBool(values[5]),
+      debugHeldClockMicros: values[6] == null ? null : _requireInt(values[6]),
     );
     if (_requireString(values[0]).trim().isEmpty ||
         !configuration.isValidForStartup) {

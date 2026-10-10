@@ -605,12 +605,6 @@ void _validateDocumentAdmission({
       'Closure node crosses the anchored surface or delivery mode.',
     );
   }
-  if (document.schemaVersion != _flowDocumentSchemaVersion) {
-    throw const _EligibilityFailure(
-      FlowExperimentRejectionReason.documentInvalid,
-      'Unsupported FlowDocument schema version.',
-    );
-  }
   final issues = FlowDocumentValidation.validate(document);
   if (issues.isNotEmpty) {
     throw _EligibilityFailure(
@@ -626,7 +620,7 @@ void _validateDocumentAdmission({
     );
   }
   for (final artifact in document.screenArtifacts.values) {
-    if (artifact.schemaVersion != _flowDocumentSchemaVersion) {
+    if (artifact.schemaVersion != _flowScreenArtifactSchemaVersion) {
       throw const _EligibilityFailure(
         FlowExperimentRejectionReason.documentInvalid,
         'Unsupported screen artifact schema version.',
@@ -662,13 +656,10 @@ void _validateDocumentAdmission({
   for (final entry in document.actions.entries) {
     final expected = entry.value;
     final actual = actions[entry.key];
-    if (actual == null ||
-        actual.actionName != expected.actionName ||
-        actual.contractVersion != expected.contractVersion ||
-        actual.argsSchemaHash != expected.argsSchemaHash ||
-        actual.resultSchemaHash != expected.resultSchemaHash ||
-        actual.minClient < expected.minClient ||
-        actual.idempotent != expected.idempotent) {
+    if (!flowActionBindingSatisfiesContract(
+      installed: actual,
+      required: expected,
+    )) {
       throw _EligibilityFailure(
         FlowExperimentRejectionReason.actionBindingUnsatisfied,
         'Installed action binding "${entry.key}" does not satisfy the '
@@ -689,6 +680,21 @@ void _validateDocumentAdmission({
     }
   }
 }
+
+/// Whether an installed binding satisfies an exact document action contract.
+///
+/// Callers select [installed] by the document's action registry key.
+bool flowActionBindingSatisfiesContract({
+  required FlowActionBindingFingerprint? installed,
+  required FlowActionContract required,
+}) =>
+    installed != null &&
+    installed.actionName == required.actionName &&
+    installed.contractVersion == required.contractVersion &&
+    installed.argsSchemaHash == required.argsSchemaHash &&
+    installed.resultSchemaHash == required.resultSchemaHash &&
+    installed.minClient >= required.minClient &&
+    installed.idempotent == required.idempotent;
 
 void _checkActionResultPredicates(FlowDocument document) {
   for (final state in document.states.values) {

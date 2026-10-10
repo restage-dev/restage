@@ -12,7 +12,7 @@ class ProgrammaticScopeSnapshot {
 
   final Map<String, dynamic> document;
 
-  int get organizationId => document['organizationId']! as int;
+  int? get organizationId => document['organizationId'] as int?;
 
   Map<String, dynamic> get session =>
       document['session']! as Map<String, dynamic>;

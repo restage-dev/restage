@@ -20,15 +20,15 @@ void main() {
         endpoint: Uri.parse('https://api.example.com/'),
         httpClient: client,
       );
-      await api.call('auth', 'requestMagicLink', <String, dynamic>{
-        'email': 'jane@example.com',
+      await api.call('auth', 'exchangeDeviceCode', <String, dynamic>{
+        'deviceCode': 'abc123',
       });
       expect(seen.method, 'POST');
       expect(seen.url.toString(), 'https://api.example.com/auth');
       expect(seen.headers['content-type'], contains('application/json'));
       final body = jsonDecode(seen.body) as Map<String, dynamic>;
-      expect(body['method'], 'requestMagicLink');
-      expect(body['email'], 'jane@example.com');
+      expect(body['method'], 'exchangeDeviceCode');
+      expect(body['deviceCode'], 'abc123');
     });
 
     test('sends the Authorization header when a credential is supplied; '

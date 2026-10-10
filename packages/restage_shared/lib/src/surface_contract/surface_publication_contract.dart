@@ -10,8 +10,15 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/capability/capability_sidecar.dart';
+import 'package:restage_shared/src/capability/surface_fit.dart';
+import 'package:restage_shared/src/capability/widget_vocabulary.dart';
+import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
+import 'package:restage_shared/flow_experiment.dart' as flow;
+import 'package:restage_shared/rfw_formats.dart' as rfw;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
+import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
 import 'package:restage_shared/src/generated_output_path_order.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_contract_fingerprint.dart';
@@ -123,6 +130,71 @@ final class SurfacePublicationArtifact {
   }
 }
 
+/// Typed source and catalog facts for one final compiled screen blob.
+///
+/// Publication keys bind these facts to the final blob hash. Hosting is derived
+/// from the reachable emitted body; these facts contain no purity assertion.
+@immutable
+final class SurfaceCompiledScreenContractV1 {
+  factory SurfaceCompiledScreenContractV1({
+    required SurfaceScreenHostDataSchema context,
+    required SurfaceScreenEventSchema events,
+    required rfw.RfwCatalogOccurrenceResolutionInput catalogResolution,
+    required Catalog catalog,
+  }) =>
+      SurfaceCompiledScreenContractV1._(
+        context: SurfaceScreenHostDataSchema.fromJson(context.toJson()),
+        events: SurfaceScreenEventSchemaV1Codec.decode(
+            SurfaceScreenEventSchemaV1Codec.encode(events)),
+        catalogResolution: rfw.RfwCatalogOccurrenceResolutionInput.fromJson(
+            catalogResolution.toJson()),
+        catalog: decodeCatalog(encodeCatalog(catalog)),
+      );
+
+  const SurfaceCompiledScreenContractV1._({
+    required this.context,
+    required this.events,
+    required this.catalogResolution,
+    required this.catalog,
+  });
+
+  final SurfaceScreenHostDataSchema context;
+  final SurfaceScreenEventSchema events;
+  final rfw.RfwCatalogOccurrenceResolutionInput catalogResolution;
+
+  /// Exact selected entries from the compiler's validated catalog.
+  final Catalog catalog;
+
+  Map<String, Object?> toJson() => {
+        'context': context.toJson(),
+        'events': SurfaceScreenEventSchemaV1Codec.encode(events),
+        'catalogResolution': catalogResolution.toJson(),
+        'catalog': encodeCatalog(catalog),
+      };
+
+  factory SurfaceCompiledScreenContractV1.fromJson(Object? value) {
+    final json =
+        SurfaceContractJson.requireObject(value, r'$.compiledScreenContract');
+    SurfaceContractJson.exactKeys(
+        json,
+        const {
+          'context',
+          'events',
+          'catalogResolution',
+          'catalog',
+        },
+        r'$.compiledScreenContract');
+    return SurfaceCompiledScreenContractV1(
+      context: SurfaceScreenHostDataSchema.fromJson(json['context']),
+      events: SurfaceScreenEventSchemaV1Codec.decode(json['events']),
+      catalogResolution: rfw.RfwCatalogOccurrenceResolutionInput.fromJson(
+          json['catalogResolution']),
+      catalog: decodeCatalog(SurfaceContractJson.requiredString(
+          json, 'catalog', r'$.compiledScreenContract')),
+    );
+  }
+}
+
 @immutable
 final class SurfacePublication {
   factory SurfacePublication({
@@ -140,8 +212,21 @@ final class SurfacePublication {
     SurfaceScreenHostDataSchema? hostDataContract,
     String? hostDataContractHash,
     String? mountName,
+    SurfaceFitRequirementV1? fitRequirement,
+    String? fitRequirementHash,
+    Map<String, SurfaceCompiledScreenContractV1> compiledScreenContracts =
+        const {},
+    SurfacePresentationV1? declaredPresentation,
   }) {
     _requireIdentity(slug, 'publication.slug');
+    final frozenScreenContracts = <String, SurfaceCompiledScreenContractV1>{};
+    for (final hash in compiledScreenContracts.keys.toList()..sort()) {
+      SurfaceContractJson.requireSha256(
+          hash, 'publication.compiledScreenContracts');
+      frozenScreenContracts[hash] = SurfaceCompiledScreenContractV1.fromJson(
+          compiledScreenContracts[hash]!.toJson());
+    }
+
     if (mountName != null && !_mountNamePattern.hasMatch(mountName)) {
       throw const FormatException(
         'publication.mountName must be a public Dart class name.',
@@ -151,6 +236,30 @@ final class SurfacePublication {
       payloadContentHash,
       'publication.payloadContentHash',
     );
+    if ((fitRequirement == null) != (fitRequirementHash == null)) {
+      throw const FormatException(
+        'A publication fit requirement requires its hash, and vice versa.',
+      );
+    }
+    if (fitRequirement != null) {
+      SurfaceContractJson.requireSha256(
+        fitRequirementHash!,
+        'publication.fitRequirementHash',
+      );
+      if (fitRequirementHash != fitRequirement.contentHash) {
+        throw const FormatException(
+          'Publication fitRequirementHash does not match fitRequirement.',
+        );
+      }
+      final expectedKind = payloadKind == SurfacePayloadKind.blob
+          ? SurfaceContentKindV1.single
+          : SurfaceContentKindV1.flow;
+      if (fitRequirement.hosting.contentKind != expectedKind) {
+        throw const FormatException(
+          'Publication fit requirement has a different content kind.',
+        );
+      }
+    }
 
     switch (sourceKind) {
       case SurfaceSourceKind.screen:
@@ -284,6 +393,10 @@ final class SurfacePublication {
       hostDataContract: hostDataContract,
       hostDataContractHash: hostDataContractHash,
       mountName: mountName,
+      fitRequirement: fitRequirement,
+      fitRequirementHash: fitRequirementHash,
+      compiledScreenContracts: Map.unmodifiable(frozenScreenContracts),
+      declaredPresentation: declaredPresentation,
     );
   }
 
@@ -302,6 +415,10 @@ final class SurfacePublication {
     required this.hostDataContract,
     required this.hostDataContractHash,
     required this.mountName,
+    required this.fitRequirement,
+    required this.fitRequirementHash,
+    required this.compiledScreenContracts,
+    required this.declaredPresentation,
   });
 
   final Surface surface;
@@ -327,6 +444,18 @@ final class SurfacePublication {
   /// generated.
   final String? mountName;
 
+  /// Declared replacement requirements; absence cannot qualify a replacement.
+  final SurfaceFitRequirementV1? fitRequirement;
+
+  /// Content hash of [fitRequirement], present exactly with it.
+  final String? fitRequirementHash;
+
+  /// Typed producer facts bound to each exact final screen blob.
+  final Map<String, SurfaceCompiledScreenContractV1> compiledScreenContracts;
+
+  /// Explicit authored presentation constraint; absence means infer from body.
+  final SurfacePresentationV1? declaredPresentation;
+
   Map<String, Object?> toJson() {
     if (sourceKind == SurfaceSourceKind.screen) {
       return <String, Object?>{
@@ -346,6 +475,16 @@ final class SurfacePublication {
         if (hostDataContractHash != null)
           'hostDataContractHash': hostDataContractHash,
         if (mountName != null) 'mountName': mountName,
+        if (compiledScreenContracts.isNotEmpty)
+          'compiledScreenContracts': {
+            for (final entry in compiledScreenContracts.entries)
+              entry.key: entry.value.toJson(),
+          },
+        if (declaredPresentation != null)
+          'declaredPresentation': declaredPresentation!.name,
+        if (fitRequirement != null) 'fitRequirement': fitRequirement!.toJson(),
+        if (fitRequirementHash != null)
+          'fitRequirementHash': fitRequirementHash,
         'payloadContentHash': payloadContentHash,
         'payloadKind': payloadKind.wireName,
         'slug': slug,
@@ -357,6 +496,15 @@ final class SurfacePublication {
     return <String, Object?>{
       if (deliveryMode != null) 'deliveryMode': deliveryMode!.wireName,
       if (mountName != null) 'mountName': mountName,
+      if (compiledScreenContracts.isNotEmpty)
+        'compiledScreenContracts': {
+          for (final entry in compiledScreenContracts.entries)
+            entry.key: entry.value.toJson(),
+        },
+      if (declaredPresentation != null)
+        'declaredPresentation': declaredPresentation!.name,
+      if (fitRequirement != null) 'fitRequirement': fitRequirement!.toJson(),
+      if (fitRequirementHash != null) 'fitRequirementHash': fitRequirementHash,
       'payloadContentHash': payloadContentHash,
       'payloadKind': payloadKind.wireName,
       'slug': slug,
@@ -390,6 +538,16 @@ final class SurfacePublication {
         ..add('hostDataContractHash');
     }
     if (json.containsKey('mountName')) expected.add('mountName');
+    if (json.containsKey('compiledScreenContracts'))
+      expected.add('compiledScreenContracts');
+    if (json.containsKey('declaredPresentation'))
+      expected.add('declaredPresentation');
+    if (json.containsKey('fitRequirement') ||
+        json.containsKey('fitRequirementHash')) {
+      expected
+        ..add('fitRequirement')
+        ..add('fitRequirementHash');
+    }
     SurfaceContractJson.exactKeys(json, expected, path);
     return SurfacePublication(
       surface: Surface.fromWireName(
@@ -450,6 +608,26 @@ final class SurfacePublication {
           : null,
       mountName: json.containsKey('mountName')
           ? SurfaceContractJson.requiredString(json, 'mountName', path)
+          : null,
+      compiledScreenContracts: json.containsKey('compiledScreenContracts')
+          ? SurfaceContractJson.requireObject(json['compiledScreenContracts'],
+                  '$path.compiledScreenContracts')
+              .map((hash, contract) => MapEntry(
+                  hash, SurfaceCompiledScreenContractV1.fromJson(contract)))
+          : const {},
+      declaredPresentation: json.containsKey('declaredPresentation')
+          ? SurfacePresentationV1.values.firstWhere(
+              (mode) => mode.name == json['declaredPresentation'],
+              orElse: () =>
+                  throw const FormatException('Unknown declared presentation.'))
+          : null,
+      fitRequirement: json.containsKey('fitRequirement')
+          ? SurfaceFitRequirementV1.fromJson(
+              SurfaceContractJson.requiredValue(json, 'fitRequirement', path),
+            )
+          : null,
+      fitRequirementHash: json.containsKey('fitRequirementHash')
+          ? SurfaceContractJson.requiredString(json, 'fitRequirementHash', path)
           : null,
     );
   }
@@ -738,6 +916,252 @@ final class SurfacePublicationArtifactClosure {
 
   List<String> get screenIds => List.unmodifiable(_screenBlobs.keys);
 
+  /// Reassembles the canonical payload from these already verified raw files.
+  SurfacePayload assemblePayload() {
+    final capabilities = _capabilityUnion(_sidecarCapabilities.values);
+    final document = flowDocument;
+    final SurfacePayload payload = document == null
+        ? BlobSurfacePayload(
+            minClient: capabilities.builtInFloor,
+            blob: _screenBlobs[publication.slug]!,
+            requiredLibraries: capabilities.requiredLibraries,
+            iconFonts: iconFonts,
+            localSeeds: localSeeds)
+        : FlowSurfacePayload(
+            flowDocument: document,
+            screenBlobs: _screenBlobs,
+            requiredLibraries: capabilities.requiredLibraries,
+            iconFonts: iconFonts,
+            localSeeds: localSeeds);
+    validateAssembledPayload(payload.canonicalBytes);
+    return payload;
+  }
+
+  /// Projects replacement requirements from this exact complete artifact closure.
+  ///
+  /// Typed source facts are rebound to every final blob. The existing flow
+  /// closure owner validates descendant identity and hashes before aggregation.
+  SurfaceFitRequirementV1 projectFitRequirement({
+    List<SurfacePublicationArtifactClosure> subflows = const [],
+  }) {
+    final nodes = [this, ...subflows];
+    final rootDocument = flowDocument;
+    if (rootDocument == null && subflows.isNotEmpty) {
+      throw const FormatException('Unrelated subflow fit contracts.');
+    }
+    if (rootDocument != null) {
+      flow.FlowExperimentDocumentContract.checkCompleteClosure(
+        surfaceType: publication.surface,
+        deliveryMode: rootDocument.deliveryMode,
+        descriptor: flow.FlowExperimentDescriptor(
+            id: rootDocument.flow,
+            version: rootDocument.version,
+            minClient: rootDocument.minClient),
+        documents: [
+          for (final node in nodes)
+            flow.FlowExperimentDocumentContract(
+              surfaceType: node.publication.surface,
+              flowId: node.flowDocument!.flow,
+              version: node.flowDocument!.version,
+              schemaVersion: node.flowDocument!.schemaVersion,
+              minClient: node.flowDocument!.minClient,
+              contentHash: FlowContentHash.compute(
+                  FlowDocumentCodec.encodeCanonicalJson(node.flowDocument!)),
+              requiredLibraries:
+                  _capabilityUnion(node._sidecarCapabilities.values)
+                      .requiredLibraries,
+              flowDocument: node.flowDocument!,
+            ),
+        ],
+      );
+    }
+    final context = <String, SurfaceScreenHostDataShape>{};
+    final events = <String, SurfaceScreenEvent>{};
+    var vocabulary =
+        WidgetVocabulary(widgetNames: const {}, iconCodePoints: const {});
+    final modes = SurfacePresentationV1.values.toSet();
+    final manifests = <CapabilityManifest>[];
+    for (final node in nodes) {
+      final contracts = node.publication.compiledScreenContracts;
+      final blobHashes =
+          node._screenBlobs.values.map(CapabilitySidecar.hashBlob).toSet();
+      if (contracts.length != blobHashes.length ||
+          !blobHashes.containsAll(contracts.keys)) {
+        throw const FormatException(
+            r'$.publication.compiledScreenContracts: missing exact final screen contracts.');
+      }
+      if (node.publication.declaredPresentation case final mode?) {
+        modes.retainAll({mode});
+      }
+      final document = node.flowDocument;
+      if (document != null) {
+        manifests.add(CapabilityManifest(
+            builtInFloor: document.minClient, requiredLibraries: const []));
+      }
+      manifests.addAll(node._sidecarCapabilities.values);
+      for (final entry in node._screenBlobs.entries) {
+        final contract = contracts[CapabilitySidecar.hashBlob(entry.value)]!;
+        final renderRoot = node.flowDocument == null &&
+                node.publication.sourceKind == SurfaceSourceKind.paywall
+            ? 'Paywall'
+            : 'OnboardingScreen';
+        if (contract.catalogResolution.renderEntryNames.length != 1 ||
+            !contract.catalogResolution.renderEntryNames.contains(renderRoot)) {
+          throw const FormatException(
+              'Compiled contracts omit the actual surface render root.');
+        }
+        final library = rfw.decodeLibraryBlob(entry.value);
+        final resolved = rfw.ResolvedRfwCatalogOccurrenceSet.resolve(
+            parsedLibrary: library, input: contract.catalogResolution);
+        final body = resolved.inspectFinalBody(library);
+        final imports =
+            library.imports.map((value) => value.name.parts.join('.')).toSet();
+        final names = <String>{};
+        for (final call in body.constructorCalls) {
+          if (contract.catalogResolution.localSymbolForName(call.name) != null)
+            continue;
+          final origin =
+              contract.catalogResolution.catalogConstructorForName(call.name);
+          if (origin == null) {
+            final installed = rfw.kHostInstalledRfwLibraries.where((host) =>
+                imports.contains(host.namespace) &&
+                host.constructors.contains(call.name));
+            if (installed.length == 1 &&
+                installed.single != rfw.kPreviewInstrumentationRfwLibrary)
+              continue;
+            throw FormatException(
+                'Unsupported hosting: unresolved RFW constructor "${call.name}".');
+          }
+          final catalogEntry = contract.catalog.findByName(call.name,
+              WidgetLibrary.fromNamespace(origin.catalogLibraryNamespace));
+          if (catalogEntry == null ||
+              catalogEntry.wireId != origin.catalogWidgetWireId ||
+              !imports.contains(origin.catalogLibraryNamespace)) {
+            throw FormatException(
+                'Catalog origin does not resolve for "${call.name}".');
+          }
+          if (WidgetLibrary.builtInByNamespace(
+                  origin.catalogLibraryNamespace) ==
+              null) {
+            throw FormatException(
+                'Unsupported hosting: opaque native factory "${origin.catalogLibraryNamespace}:${call.name}".');
+          }
+          // Curated built-in factories render these catalog constructors. All
+          // application-defined bodies must be lowered and inspected locally.
+          names.add(WidgetVocabulary.qualifiedName(
+              origin.catalogLibraryNamespace, call.name));
+          if (node._sidecarCapabilities[entry.key]!.builtInFloor <
+              catalogEntry.sinceVersion) {
+            throw FormatException(
+                'Capability sidecar understates "${call.name}".');
+          }
+          for (final argument in call.arguments.entries) {
+            if (argument.key == 'iconCodepoint' ||
+                argument.key.endsWith('IconCodepoint')) {
+              if (!_literalFitIcon(argument.value)) {
+                throw const FormatException(
+                    'Unknown data-bound icon vocabulary.');
+              }
+            }
+          }
+        }
+        vocabulary = vocabulary.union(WidgetVocabulary(
+            widgetNames: names,
+            iconCodePoints: literalIconCodePoints(library)));
+        for (final reference in body.dataReferences) {
+          if (reference.parts.isEmpty || reference.parts.first != 'context')
+            continue;
+          if (reference.parts.length < 2 || reference.parts[1] is! String) {
+            throw const FormatException('Unknown whole-context read.');
+          }
+          final name = reference.parts[1] as String;
+          final shape = contract.context.inputs[name];
+          if (shape == null)
+            throw FormatException('Missing typed context read "$name".');
+          _fitContextShape(reference.parts.skip(2), shape);
+          final prior = context[name];
+          if (prior != null && !_sameFitJson(prior.toJson(), shape.toJson())) {
+            throw FormatException('Conflicting closure context "$name".');
+          }
+          context[name] = shape;
+        }
+        final typedEvents = {
+          for (final event in contract.events.events) event.id: event
+        };
+        for (final emitted in body.events) {
+          if (emitted.eventName == kLocalValueSetEventName ||
+              emitted.eventName == kMeasurementPublicationTapEventNameV1)
+            continue;
+          final typed = typedEvents[emitted.eventName];
+          final internal = document != null &&
+              (emitted.eventName == 'back' ||
+                  document.states.values.whereType<ScreenFlowState>().any(
+                      (state) =>
+                          state.screen == entry.key &&
+                          state.on.containsKey(emitted.eventName)));
+          // Synthesized navigation events have no user payload and are consumed
+          // by their exact compiled screen transition.
+          if (typed == null && internal && emitted.eventArguments.isEmpty)
+            continue;
+          if (typed == null)
+            throw FormatException(
+                'Missing typed emitted event "${emitted.eventName}".');
+          _validateFitEvent(emitted, typed, contract.context);
+          if (internal) continue;
+          if (document != null) {
+            if (!document.outbound.customEvents
+                .containsKey(emitted.eventName)) {
+              throw FormatException(
+                  'Unknown flow event egress "${emitted.eventName}".');
+            }
+            final outward = document.outbound.customEvents[emitted.eventName]!;
+            for (final field in outward.fields.values) {
+              if (field.ref case final EventFlowOutboundRef reference) {
+                _validateFitOutboundEventValue(
+                  emitted.eventArguments[reference.key],
+                  reference.path,
+                  SurfaceScreenEventScalarShapeV1(switch (field.type) {
+                    FlowDataType.bool => SurfaceScreenEventScalarKind.boolean,
+                    FlowDataType.int => SurfaceScreenEventScalarKind.integer,
+                    FlowDataType.string => SurfaceScreenEventScalarKind.string,
+                  }),
+                  contract.context,
+                );
+              }
+            }
+            continue;
+          }
+          final prior = events[typed.id];
+          if (prior != null && !_sameFitJson(prior.toJson(), typed.toJson())) {
+            throw FormatException('Conflicting closure event "${typed.id}".');
+          }
+          events[typed.id] = typed;
+        }
+      }
+    }
+    if (modes.isEmpty)
+      throw const FormatException(
+          'Incompatible closure presentation constraints.');
+    final boundary = rootDocument == null
+        ? null
+        : FlowHostBoundaryV1.fromDocuments(
+            root: rootDocument,
+            descendants: [for (final node in subflows) node.flowDocument!],
+          );
+    return SurfaceFitRequirementV1(
+      hosting: SurfaceHostingRequirementV1(
+          contentKind: rootDocument == null
+              ? SurfaceContentKindV1.single
+              : SurfaceContentKindV1.flow,
+          allowedPresentations: modes),
+      requiredContext: SurfaceScreenHostDataSchema(context),
+      emittedEvents: SurfaceScreenEventSchema(events: events.values.toList()),
+      capabilities: _capabilityUnion(manifests),
+      requiredVocabulary: vocabulary,
+      flowBoundary: boundary,
+    );
+  }
+
   void validateAssembledPayload(List<int> payloadBytes) {
     final payload = _decodeCanonicalPayload(payloadBytes);
     publication.validatePayload(payload);
@@ -968,24 +1392,82 @@ final class SurfacePublicationUploadRequest {
   factory SurfacePublicationUploadRequest({
     required SurfacePublication publication,
     required List<int> payload,
+    SurfacePublicationManifest? artifactManifest,
+    Map<String, List<int>> artifactBytesByPath = const {},
   }) {
+    if (artifactBytesByPath.isNotEmpty && artifactManifest == null) {
+      throw const FormatException(
+          'Declared artifacts require their actual manifest.');
+    }
+    if (artifactBytesByPath.length > maxArtifactCount) {
+      throw const FormatException('Too many declared publication artifacts.');
+    }
+    var artifactByteLength = 0;
+    final bytes = <String, Uint8List>{};
+    final declaredPaths = artifactManifest?.publications
+            .expand((entry) => entry.artifacts)
+            .map((artifact) => artifact.path)
+            .toSet() ??
+        <String>{};
+    if (declaredPaths.length > maxArtifactCount ||
+        (artifactManifest?.publications.length ?? 0) > maxArtifactCount) {
+      throw const FormatException('Too many declared publication artifacts.');
+    }
+    for (final entry in artifactBytesByPath.entries) {
+      if (!declaredPaths.contains(entry.key)) {
+        throw FormatException(
+            'Undeclared publication artifact "${entry.key}".');
+      }
+      artifactByteLength += entry.value.length;
+      if (artifactByteLength > maxArtifactBytes) {
+        throw const FormatException(
+            'Declared publication artifacts exceed the byte limit.');
+      }
+      bytes[entry.key] = Uint8List.fromList(entry.value);
+    }
+    if (artifactManifest != null &&
+        !artifactManifest.publications.any((entry) =>
+            _sameFitJson(entry.publication.toJson(), publication.toJson()))) {
+      throw const FormatException(
+          'Artifact manifest omits the exact root publication.');
+    }
     final canonicalPayload = _decodeCanonicalPayload(payload);
     publication.validatePayload(canonicalPayload);
     return SurfacePublicationUploadRequest._(
       publication: publication,
       payload: Uint8List.fromList(payload),
+      artifactManifest: artifactManifest,
+      artifactBytesByPath: Map.unmodifiable(bytes),
     );
   }
 
   const SurfacePublicationUploadRequest._({
     required this.publication,
     required Uint8List payload,
-  }) : _payload = payload;
+    required this.artifactManifest,
+    required Map<String, Uint8List> artifactBytesByPath,
+  })  : _payload = payload,
+        _artifactBytesByPath = artifactBytesByPath;
+
+  /// Bounded exact file closure, including reachable descendant publications.
+  static const int maxArtifactCount = 1024;
+  static const int maxArtifactBytes = 64 * 1024 * 1024;
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
 
   final SurfacePublication publication;
   final Uint8List _payload;
+
+  /// Actual compiler manifest for the selected complete publication closure.
+  final SurfacePublicationManifest? artifactManifest;
+  final Map<String, Uint8List> _artifactBytesByPath;
+
+  /// Exact deduplicated raw files; bound uploads may supply root files outside
+  /// this canonical request through their existing declared-artifact transport.
+  Map<String, Uint8List> get artifactBytesByPath => Map.unmodifiable({
+        for (final entry in _artifactBytesByPath.entries)
+          entry.key: Uint8List.fromList(entry.value),
+      });
 
   Uint8List get payload => Uint8List.fromList(_payload);
 
@@ -993,17 +1475,41 @@ final class SurfacePublicationUploadRequest {
         'schemaVersion': schemaVersion,
         'publication': publication.toJson(),
         'payload': SurfaceContractJson.encodeBase64Url(_payload),
+        if (artifactManifest != null)
+          'artifactManifest': artifactManifest!.toJson(),
+        if (_artifactBytesByPath.isNotEmpty)
+          'declaredArtifactClosure': [
+            for (final path
+                in _artifactBytesByPath.keys.toList()
+                  ..sort(compareGeneratedOutputPaths))
+              {
+                'path': path,
+                'bytes': SurfaceContractJson.encodeBase64Url(
+                    _artifactBytesByPath[path]!)
+              },
+          ],
       };
 
   static SurfacePublicationUploadRequest fromJson(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.exactKeys(
       json,
-      const {'schemaVersion', 'publication', 'payload'},
+      {
+        'schemaVersion',
+        'publication',
+        'payload',
+        if (json.containsKey('artifactManifest')) 'artifactManifest',
+        if (json.containsKey('declaredArtifactClosure'))
+          'declaredArtifactClosure',
+      },
       r'$',
     );
     _requireSchemaVersion(json, 'surface publication upload request');
     return SurfacePublicationUploadRequest(
+      artifactManifest: json.containsKey('artifactManifest')
+          ? SurfacePublicationManifest.fromJson(json['artifactManifest'])
+          : null,
+      artifactBytesByPath: _decodeUploadArtifactBytes(json),
       publication: SurfacePublication.fromJson(
         SurfaceContractJson.requiredValue(json, 'publication', r'$'),
         path: r'$.publication',
@@ -1857,6 +2363,10 @@ const Set<String> _publicationFields = <String>{
   'deliveryMode',
   'eventContract',
   'eventContractHash',
+  'fitRequirement',
+  'fitRequirementHash',
+  'compiledScreenContracts',
+  'declaredPresentation',
   'hostDataContract',
   'hostDataContractHash',
   'mountName',
@@ -2228,4 +2738,160 @@ void _requireSchemaVersion(Map<String, Object?> json, String label) {
   if (version != _surfacePublicationSchemaVersion) {
     throw FormatException('Unsupported $label schemaVersion $version.');
   }
+}
+
+bool _sameFitJson(Object? first, Object? second) =>
+    SurfaceContractJson.bytesEqual(
+        CanonicalJsonCodec.encode(first), CanonicalJsonCodec.encode(second));
+
+bool _literalFitIcon(Object? value) =>
+    value == null ||
+    value is int ||
+    value is rfw.Switch && value.outputs.values.every(_literalFitIcon);
+
+SurfaceScreenHostDataShape _fitContextShape(
+    Iterable<Object> parts, SurfaceScreenHostDataShape shape) {
+  var current = shape;
+  for (final part in parts) {
+    while (current is SurfaceScreenHostDataNullableShapeV1) {
+      current = current.value;
+    }
+    current = switch (current) {
+      SurfaceScreenHostDataObjectShapeV1(:final fields)
+          when fields.containsKey(part) =>
+        fields[part]!,
+      SurfaceScreenHostDataMapShapeV1(:final values) when part is String =>
+        values,
+      SurfaceScreenHostDataListShapeV1(:final items)
+          when part is int && part >= 0 =>
+        items,
+      _ =>
+        throw FormatException('Unknown typed context path component "$part".'),
+    };
+  }
+  return current;
+}
+
+void _validateFitEvent(rfw.EventHandler emitted, SurfaceScreenEvent typed,
+    SurfaceScreenHostDataSchema context) {
+  final arguments = <String, Object?>{
+    for (final entry in emitted.eventArguments.entries)
+      if (!entry.key
+          .startsWith(kMeasurementPublicationReservedArgumentPrefixV1))
+        entry.key: entry.value,
+  };
+  switch (typed.arguments) {
+    case SurfaceScreenEventNoArguments():
+      typed.arguments.validate(arguments, eventId: typed.id);
+    case SurfaceScreenEventValueArguments(:final shape):
+      if (arguments.length != 1 || !arguments.containsKey('value')) {
+        throw FormatException(
+            'Emitted event "${typed.id}" has a different value wrapper.');
+      }
+      _validateFitEventValue(arguments['value'], shape, context);
+    case SurfaceScreenEventObjectArguments(:final shape):
+      _validateFitEventValue(arguments, shape, context);
+  }
+}
+
+void _validateFitEventValue(Object? value, SurfaceScreenEventShape shape,
+    SurfaceScreenHostDataSchema context) {
+  if (value is rfw.DataReference) {
+    if (value.parts.length < 2 ||
+        value.parts.first != 'context' ||
+        value.parts[1] is! String) {
+      throw const FormatException('Unknown emitted event data type.');
+    }
+    final source = context.inputs[value.parts[1]];
+    if (source == null)
+      throw const FormatException('Missing emitted event context type.');
+    final actual = _fitContextShape(value.parts.skip(2), source);
+    if (!_sameFitJson(actual.toJson(), shape.toJson())) {
+      throw const FormatException(
+          'Emitted event context type differs from its schema.');
+    }
+    return;
+  }
+  if (value is rfw.Switch) {
+    for (final output in value.outputs.values) {
+      _validateFitEventValue(output, shape, context);
+    }
+    return;
+  }
+  switch (shape) {
+    case SurfaceScreenEventNullableShapeV1():
+      if (value != null) _validateFitEventValue(value, shape.value, context);
+    case SurfaceScreenEventListShapeV1(:final items):
+      if (value is! List)
+        throw const FormatException('Unknown emitted event list type.');
+      for (final item in value) {
+        _validateFitEventValue(item, items, context);
+      }
+    case SurfaceScreenEventMapShapeV1(:final values):
+      if (value is! Map<String, Object?>)
+        throw const FormatException('Unknown emitted event map type.');
+      for (final item in value.values) {
+        _validateFitEventValue(item, values, context);
+      }
+    case SurfaceScreenEventScalarShapeV1():
+      shape.validate(value);
+  }
+}
+
+void _validateFitOutboundEventValue(
+  Object? value,
+  List<String> path,
+  SurfaceScreenEventShape shape,
+  SurfaceScreenHostDataSchema context,
+) {
+  if (value is rfw.Switch) {
+    for (final output in value.outputs.values) {
+      _validateFitOutboundEventValue(output, path, shape, context);
+    }
+  } else if (value is rfw.DataReference) {
+    _validateFitEventValue(
+        rfw.DataReference([...value.parts, ...path]), shape, context);
+  } else if (path.isEmpty) {
+    _validateFitEventValue(value, shape, context);
+  } else if (value is Map<String, Object?> && value.containsKey(path.first)) {
+    _validateFitOutboundEventValue(
+        value[path.first], path.skip(1).toList(), shape, context);
+  } else {
+    throw const FormatException('Unknown typed flow event egress field.');
+  }
+}
+
+Map<String, List<int>> _decodeUploadArtifactBytes(Map<String, Object?> json) {
+  if (!json.containsKey('declaredArtifactClosure')) return const {};
+  final raw = SurfaceContractJson.requireList(
+      json['declaredArtifactClosure'], r'$.declaredArtifactClosure');
+  if (raw.length > SurfacePublicationUploadRequest.maxArtifactCount) {
+    throw const FormatException('Too many declared publication artifacts.');
+  }
+  final bytes = <String, List<int>>{};
+  var byteLength = 0;
+  for (final value in raw) {
+    final item =
+        SurfaceContractJson.requireObject(value, r'$.declaredArtifactClosure');
+    SurfaceContractJson.exactKeys(
+        item, const {'path', 'bytes'}, r'$.declaredArtifactClosure');
+    final path = SurfaceContractJson.requiredString(
+        item, 'path', r'$.declaredArtifactClosure');
+    if (bytes.containsKey(path))
+      throw const FormatException('Duplicate declared artifact path.');
+    final encoded = SurfaceContractJson.requiredString(
+        item, 'bytes', r'$.declaredArtifactClosure');
+    if (encoded.length >
+        SurfacePublicationUploadRequest.maxArtifactBytes * 4 ~/ 3 + 4) {
+      throw const FormatException('Declared artifact exceeds the byte limit.');
+    }
+    final decoded = SurfaceContractJson.decodeCanonicalBase64Url(
+        encoded, r'$.declaredArtifactClosure.bytes');
+    byteLength += decoded.length;
+    if (byteLength > SurfacePublicationUploadRequest.maxArtifactBytes) {
+      throw const FormatException('Declared artifacts exceed the byte limit.');
+    }
+    bytes[path] = decoded;
+  }
+  return bytes;
 }

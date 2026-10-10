@@ -1,10 +1,58 @@
 import 'package:restage_shared/commerce.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:test/test.dart';
 
 const _intentId = '550e8400-e29b-41d4-a716-446655440000';
 const _token = '550e8400-e29b-41d4-a716-446655440001';
 
 void main() {
+  test('whole mount evidence is additive exact commerce transport', () {
+    final local = MountSelectionAttributionV1(
+        placementKey: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('screen'), slug: 'welcome'),
+        resolutionKind: MountResolutionKindV1.compiledFallback,
+        evidenceStrength: MountEvidenceStrengthV1.reportedLocal,
+        mountNonceDigest: CanonicalDigest('a' * 64));
+    final old = CommerceIntentRequest(
+        intentId: _intentId,
+        offerId: 'pro.monthly',
+        store: 'app_store',
+        appAnonymousToken: _token);
+    final request = CommerceIntentRequest(
+        intentId: _intentId,
+        offerId: 'pro.monthly',
+        store: 'app_store',
+        appAnonymousToken: _token,
+        attribution: local,
+        routingSelectionReceipt: 'opaque-server-receipt');
+    final read = CommerceIntentRequest.fromJson(request.toJson());
+    expect(read, request);
+    expect(
+        read.attribution!.canonicalBytes, orderedEquals(local.canonicalBytes));
+    expect(read.routingSelectionReceipt, 'opaque-server-receipt');
+    expect(read.assignment, isNull);
+    expect(old.toJson().keys, isNot(contains('attribution')));
+    expect(request, isNot(old));
+    expect(
+        () => CommerceIntentRequest.fromJson(
+            {...request.toJson(), 'attribution': null}),
+        throwsArgumentError);
+    expect(
+        () => CommerceIntentRequest.fromJson({
+              ...request.toJson(),
+              'attribution': {...local.toJson(), 'inventedAuthority': true}
+            }),
+        throwsA(isA<CanonicalFormatException>()));
+    expect(
+        () => CommerceIntentRequest(
+            intentId: _intentId,
+            offerId: 'pro.monthly',
+            store: 'app_store',
+            appAnonymousToken: _token,
+            routingSelectionReceipt: 'r' * 4097),
+        throwsArgumentError);
+  });
+
   group('CommerceIntentRequest', () {
     test('round-trips a logical offer and surface attribution', () {
       final request = CommerceIntentRequest(

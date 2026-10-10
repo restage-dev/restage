@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:test/test.dart';
@@ -71,6 +73,30 @@ void main() {
       out.toString(),
       'ID\tSLUG\tNAME\tROLE\n7\trestage\tRestage\towner\n',
     );
+  });
+
+  test('orgs says where to create one when the account has none', () async {
+    final code = await RestageCli(
+      stdout: out,
+      stderr: err,
+      credentialStore: store,
+      // A signed-in account in no organization reads a session-only scope.
+      httpClient: mockHttpClient(
+        (_) => http.Response(
+          jsonEncode({
+            'session': {
+              'memberships': <Object>[],
+              'workspaceExperiences': <Object>[],
+            },
+          }),
+          200,
+        ),
+        withDefaultTargetDiscovery: false,
+      ),
+    ).run(['orgs', '-C', tempDir.path]);
+
+    expect(code, 0, reason: err.toString());
+    expect(out.toString(), '$noOrganizationSentence\n');
   });
 
   test('app-config show and set read and change the app', () async {

@@ -17,6 +17,27 @@ const int renderBundleSnapshotMaxDecodedBytes = 2 * 1024 * 1024;
 /// Maximum accepted width or height for one render-bundle gallery snapshot.
 const int renderBundleSnapshotMaxDimension = 4096;
 
+/// Maximum accepted encoded size for one placement screen sample.
+const int placementScreenSampleMaxBytes = 4 * 1024 * 1024;
+
+/// Maximum decoded scanline work for one placement screen sample.
+const int placementScreenSampleMaxDecodedBytes = 16 * 1024 * 1024;
+
+/// Maximum accepted width or height for one placement screen sample.
+const int placementScreenSampleMaxDimension = 4096;
+
+const _renderBundleSnapshotProfile = _PngProfile(
+  maxBytes: renderBundleSnapshotMaxBytes,
+  maxDecodedBytes: renderBundleSnapshotMaxDecodedBytes,
+  maxDimension: renderBundleSnapshotMaxDimension,
+);
+const _placementScreenSampleProfile = _PngProfile(
+  maxBytes: placementScreenSampleMaxBytes,
+  maxDecodedBytes: placementScreenSampleMaxDecodedBytes,
+  maxDimension: placementScreenSampleMaxDimension,
+  rejectMetadata: true,
+);
+
 /// Validated PNG dimensions.
 final class BoundedPngDimensions {
   /// Creates validated dimensions.
@@ -63,16 +84,32 @@ final class ValidatedRenderBundleSnapshotPng {
 /// more than the already-approved decoded bound.
 ValidatedRenderBundleSnapshotPng validateRenderBundleSnapshotPng(
   Uint8List source,
+) =>
+    _validateSnapshotPng(source, _renderBundleSnapshotProfile);
+
+/// Validates and snapshots one bounded placement screen-sample PNG.
+///
+/// Text and EXIF chunks are refused; decoded scanline work is capped at 16 MiB.
+ValidatedRenderBundleSnapshotPng validatePlacementScreenSamplePng(
+  Uint8List source,
+) =>
+    _validateSnapshotPng(source, _placementScreenSampleProfile);
+
+ValidatedRenderBundleSnapshotPng _validateSnapshotPng(
+  Uint8List source,
+  _PngProfile profile,
 ) {
-  final dimensions = validateBoundedPng(
+  final dimensions = _validateBoundedPng(
     source,
-    maxBytes: renderBundleSnapshotMaxBytes,
-    maxDimension: renderBundleSnapshotMaxDimension,
+    maxBytes: profile.maxBytes,
+    maxDimension: profile.maxDimension,
+    rejectMetadata: profile.rejectMetadata,
   );
   _validateSnapshotScanlines(
     source,
     width: dimensions.width,
     height: dimensions.height,
+    maxDecodedBytes: profile.maxDecodedBytes,
   );
   final bytes = Uint8List.fromList(source).asUnmodifiableView();
   return ValidatedRenderBundleSnapshotPng(
@@ -89,6 +126,14 @@ BoundedPngDimensions validateBoundedPng(
   Uint8List source, {
   required int maxBytes,
   required int maxDimension,
+}) =>
+    _validateBoundedPng(source, maxBytes: maxBytes, maxDimension: maxDimension);
+
+BoundedPngDimensions _validateBoundedPng(
+  Uint8List source, {
+  required int maxBytes,
+  required int maxDimension,
+  bool rejectMetadata = false,
 }) {
   if (maxBytes < 45 ||
       maxDimension < 1 ||
@@ -121,6 +166,13 @@ BoundedPngDimensions validateBoundedPng(
     if (!_validChunkType(type)) throw const FormatException('Invalid PNG.');
     if (_crc32(source, typeOffset, crcOffset) != data.getUint32(crcOffset)) {
       throw const FormatException('Invalid PNG.');
+    }
+    if (rejectMetadata &&
+        const <String>{'tEXt', 'zTXt', 'iTXt', 'eXIf'}
+            .contains(String.fromCharCodes(type))) {
+      throw const FormatException(
+        'PNG metadata is not allowed in screen samples.',
+      );
     }
 
     if (chunkIndex == 0) {
@@ -178,6 +230,7 @@ void _validateSnapshotScanlines(
   Uint8List source, {
   required int width,
   required int height,
+  required int maxDecodedBytes,
 }) {
   if (source[28] != 0) {
     throw const FormatException('Invalid PNG scanlines.');
@@ -193,8 +246,7 @@ void _validateSnapshotScanlines(
   };
   final rowBytes = (width * bitDepth * channels + 7) ~/ 8;
   final stride = rowBytes + 1;
-  if (stride > renderBundleSnapshotMaxDecodedBytes ||
-      height > renderBundleSnapshotMaxDecodedBytes ~/ stride) {
+  if (stride > maxDecodedBytes || height > maxDecodedBytes ~/ stride) {
     throw const FormatException('Invalid PNG scanlines.');
   }
   final expectedDecodedBytes = stride * height;
@@ -217,6 +269,20 @@ void _validateSnapshotScanlines(
     stride: stride,
     expectedBytes: expectedDecodedBytes,
   );
+}
+
+final class _PngProfile {
+  const _PngProfile({
+    required this.maxBytes,
+    required this.maxDecodedBytes,
+    required this.maxDimension,
+    this.rejectMetadata = false,
+  });
+
+  final int maxBytes;
+  final int maxDecodedBytes;
+  final int maxDimension;
+  final bool rejectMetadata;
 }
 
 void _inflateScanlines(

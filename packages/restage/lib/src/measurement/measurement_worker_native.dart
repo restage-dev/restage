@@ -2695,7 +2695,7 @@ Future<void> _runMeasurementWorkerOwnedDeliveryIsolate(
   try {
     final rawConfiguration = bootstrap[1];
     if (rawConfiguration is! List ||
-        rawConfiguration.length != 6 ||
+        rawConfiguration.length != 7 ||
         rawConfiguration[0] is! String) {
       events.send(MeasurementWorkerOwnedDeliveryProtocol.fatal());
       return;
@@ -2710,7 +2710,13 @@ Future<void> _runMeasurementWorkerOwnedDeliveryIsolate(
         applicationSupportPath: supportPath,
         configurationFingerprint: configuration.configurationFingerprint,
       ),
-      clock: DateTime.now,
+      clock: switch (configuration.debugHeldClockMicros) {
+        final held? => () => DateTime.fromMicrosecondsSinceEpoch(
+              held,
+              isUtc: true,
+            ),
+        null => DateTime.now,
+      },
     );
     final opened = await outbox.open();
     if (!opened.isOpened) {

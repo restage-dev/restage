@@ -18,6 +18,79 @@ void main() {
       expect(verdict, isA<FlowExperimentAccepted>());
     });
 
+    test('admits valid ordered schema version 2 answers through the owner', () {
+      final document = experimentDocumentContract(
+        document: _orderedAnswerDocument(),
+      );
+      expect(
+        evaluate(
+          baseline: experimentClosure(root: document),
+          candidate: experimentClosure(root: document),
+        ),
+        isA<FlowExperimentAccepted>(),
+      );
+    });
+
+    test('retains both capability floors for schema version 2 answers', () {
+      final document = experimentDocumentContract(
+        document: _orderedAnswerDocument(),
+      );
+      for (final floors in [
+        (retained: 2, installed: 5),
+        (retained: 3, installed: 2)
+      ]) {
+        expect(
+          evaluate(
+            baseline: experimentClosure(
+              root: document,
+              rootCapability: floors.retained,
+            ),
+            candidate: experimentClosure(
+              root: document,
+              rootCapability: floors.retained,
+            ),
+            capability: InstalledCapability(
+              builtInCatalogVersion: floors.installed,
+              installedLibraries: const [],
+            ),
+          ),
+          isA<FlowExperimentRejected>().having(
+            (value) => value.reason,
+            'reason',
+            FlowExperimentRejectionReason.capabilityFloorRaised,
+          ),
+        );
+      }
+    });
+
+    test('rejects changed or incomplete schema version 2 answer order', () {
+      final baseline = experimentDocumentContract(
+        document: _orderedAnswerDocument(),
+      );
+      final reordered = experimentDocumentContract(
+        document: _orderedAnswerDocument(
+          questionOrder: const ['alpha', 'zeta'],
+        ),
+      );
+      expect(
+        evaluate(
+          baseline: experimentClosure(root: baseline),
+          candidate: experimentClosure(root: reordered),
+        ),
+        isA<FlowExperimentRejected>().having(
+          (value) => value.reason,
+          'reason',
+          FlowExperimentRejectionReason.typedCompatibilityRejected,
+        ),
+      );
+      expect(
+        () => experimentDocumentContract(
+          document: _orderedAnswerDocument(questionOrder: const ['zeta']),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
     test('accepts a general topology change when all capabilities are present',
         () {
       final baseline = experimentDocumentContract(
@@ -796,6 +869,38 @@ FlowExperimentVerdict evaluate({
 final FlowContentHash _placeholderHash = FlowContentHash.parse(
   'sha256:${List.filled(64, '0').join()}',
 );
+
+FlowDocument _orderedAnswerDocument({
+  List<String> questionOrder = const ['zeta', 'alpha'],
+}) =>
+    experimentDocument(
+      schemaVersion: 2,
+      flowState: const {
+        'zeta': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.exportable,
+          defaultValue: 'last',
+        ),
+        'alpha': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.exportable,
+          defaultValue: 'first',
+        ),
+      },
+      outbound: const FlowOutboundDeclarations(
+        surveyAnswers: FlowOutboundPayloadDeclaration(fields: {
+          'zeta': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'zeta'),
+          ),
+          'alpha': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'alpha'),
+          ),
+        }),
+      ),
+      states: const {'done': EndFlowState(result: {})},
+    ).copyWith(surveyQuestionOrder: questionOrder);
 
 FlowDocument _subFlowParent({
   required String flow,
