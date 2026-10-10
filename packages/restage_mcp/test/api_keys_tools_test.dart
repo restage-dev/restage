@@ -193,17 +193,30 @@ void main() {
     final client = MockClient((request) async {
       bodies.add(request.body);
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      final Object result = switch (body['method']) {
-        'listMine' => [
-          {'organizationId': 3, 'slug': 'acme', 'name': 'Acme'},
+      expect(body['method'], 'read');
+      final result = {
+        'organizationId': 3,
+        'session': {
+          'memberships': [
+            {
+              'organizationId': 3,
+              'slug': 'acme',
+              'name': 'Acme',
+              'role': 'owner',
+            },
+          ],
+          'workspaceExperiences': <Object>[],
+        },
+        'projects': [
+          {'id': 1, 'slug': 'default', 'name': 'Default'},
         ],
-        'listProjects' => [
-          {'slug': 'default', 'name': 'Default'},
+        'apps': [
+          {'id': 9, 'projectId': 1, 'slug': 'default', 'name': 'Default'},
         ],
-        'listApps' => [
-          {'id': 9, 'slug': 'default', 'name': 'Default'},
+        'environments': [
+          {'id': 21, 'appId': 9, 'namedEnvironmentId': 31, 'slug': 'prod'},
         ],
-        'listEnvironmentTargets' => [
+        'environmentTargets': [
           {
             'environmentTargetId': 21,
             'namedEnvironmentId': 31,
@@ -211,14 +224,16 @@ void main() {
             'runtimePlane': 'live',
           },
         ],
-        'listKeys' => [
+        'apiKeys': [
           {
             'id': 5,
+            'environmentId': 21,
             'kind': 'publishable',
             'keyPrefix': 'rs_pk_live_prod_abcdef...',
+            'revokedAt': null,
           },
         ],
-        final method => throw StateError('unexpected $method'),
+        'surfaces': <Object>[],
       };
       return http.Response(jsonEncode(result), 200);
     });
@@ -229,6 +244,7 @@ void main() {
     );
 
     expect(result.isError, isNot(true));
+    expect(bodies, hasLength(1));
     expect(bodies.where((body) => body.contains('0123456789')), isEmpty);
     final match = (result.structuredContent!['matches']! as List).single as Map;
     expect(match['organizationId'], 3);

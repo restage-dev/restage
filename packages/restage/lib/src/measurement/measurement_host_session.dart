@@ -463,6 +463,8 @@ final class MeasurementHostSessionController
       final canonicalAssignment = measurementExperimentAssignmentFor(
         provenanceOwner,
       );
+      final registrationFingerprint =
+          measurementRegistrationFingerprintFor(provenanceOwner);
       final experimentAssignment = canonicalAssignment == null
           ? null
           : MeasurementExperimentAssignmentV1.fromJson({
@@ -488,6 +490,7 @@ final class MeasurementHostSessionController
           ),
           authority,
           experimentAssignment: experimentAssignment,
+          registrationFingerprint: registrationFingerprint,
           presentationObservations: presentationObservations,
           routingSelectionReceipt: routingSelectionReceipt,
         );
@@ -520,6 +523,7 @@ final class MeasurementHostSessionController
     MeasurementHostSessionOpenRequest request,
     MeasurementHostSessionConstructionAuthority authority, {
     MeasurementExperimentAssignmentV1? experimentAssignment,
+    String? registrationFingerprint,
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
     String? routingSelectionReceipt,
   }) async {
@@ -572,6 +576,7 @@ final class MeasurementHostSessionController
           routeTable: routeTable,
           capabilityAdmission: admission,
           experimentAssignment: experimentAssignment,
+          registrationFingerprint: registrationFingerprint,
           presentationContext: presentationContext,
           routingSelectionReceipt: routingSelectionReceipt,
           captureSessionNonceSource: () =>

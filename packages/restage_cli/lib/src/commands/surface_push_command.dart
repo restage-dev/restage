@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -100,6 +101,10 @@ class SurfacePushCommand extends Command<int> {
             'Directory to locate restage_config.yaml and generated publication '
             'metadata. It does not select artifacts.',
       )
+      ..addOption(
+        'name',
+        help: 'A name for the pushed version, 60 characters or fewer.',
+      )
       ..addFlag(
         'record-git',
         help:
@@ -160,6 +165,12 @@ class SurfacePushCommand extends Command<int> {
 
     final type = _parseType(argResults?['type'] as String?);
     if (argResults?['type'] != null && type == null) return 1;
+    final rawName = (argResults?['name'] as String?)?.trim();
+    final versionName = rawName == null || rawName.isEmpty ? null : rawName;
+    if ((versionName?.length ?? 0) > 60) {
+      _stderr.writeln('Names are 60 characters or fewer.');
+      return 1;
+    }
 
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loadedConfig = await loadRestageConfig(from: directory);
@@ -308,6 +319,8 @@ class SurfacePushCommand extends Command<int> {
           loadedConfig?.config.organization,
       runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
       configuredPlane: loadedConfig?.config.plane,
+      config: loadedConfig?.config,
+      configSource: loadedConfig?.source,
       assembled: assembled,
       buildFailed: buildCode != 0,
       declareAssets:
@@ -316,6 +329,7 @@ class SurfacePushCommand extends Command<int> {
       recorder: recorder,
       recordedSource: recordedSource,
       generationFingerprint: generationFingerprint,
+      versionName: versionName,
     );
     if (buildCode == 0) return code;
     reportBuildNotPushed(
@@ -358,12 +372,15 @@ class SurfacePushCommand extends Command<int> {
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
     required RuntimePlane? configuredPlane,
+    required RestageConfig? config,
+    required File? configSource,
     required List<AssembledSurfacePublication> assembled,
     required bool buildFailed,
     required bool declareAssets,
     required ReleaseRecorder? recorder,
     required ReceiptSource? recordedSource,
     required String generationFingerprint,
+    required String? versionName,
   }) async {
     final RestageApi api;
     try {
@@ -387,15 +404,37 @@ class SurfacePushCommand extends Command<int> {
           appSlug: app,
           environmentSlug: environment,
           organizationSlug: preferredOrganizationSlug,
-          organizationId: organizationIdOption(argResults),
+          organizationId:
+              organizationIdOption(argResults) ??
+              (config?.organization == preferredOrganizationSlug
+                  ? config?.organizationId
+                  : null),
+          environmentTargetId:
+              config?.project == project &&
+                  config?.app == app &&
+                  config?.defaultEnvironment == environment &&
+                  !(argResults?.wasParsed('plane') ?? false)
+              ? config?.environmentTargetId
+              : null,
           runtimePlane: runtimePlane,
           configuredPlane: configuredPlane,
         );
+      } on TargetSelectionException catch (error) {
+        _stderr.writeln(error.message);
+        return 1;
       } on RestageApiException catch (error) {
         return _handleApiException(error);
       } on SocketException catch (error) {
         _stderr.writeln('Could not contact the backend: $error');
         return 2;
+      }
+
+      if (recorder == null) {
+        await persistConfirmedTargetIds(
+          configSource: configSource,
+          config: config,
+          target: target,
+        );
       }
 
       var recordFailed = false;
@@ -416,9 +455,25 @@ class SurfacePushCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
         declareAssets: declareAssets,
-        onPushed: recorder == null
+        onPushed: recorder == null && versionName == null
             ? null
             : (publication, result) async {
+                if (versionName != null) {
+                  await SurfaceApi(api).renameVersion(
+                    project: project,
+                    app: app,
+                    surfaceType: publication.entry.publication.surface,
+                    surfaceSlug: publication.entry.publication.slug,
+                    environment: environment,
+                    version: result.storedRevision,
+                    label: versionName,
+                    environmentTargetId: target.target.environmentTargetId,
+                    runtimePlane: target.target.runtimePlane,
+                    organizationId: target.organizationId,
+                    contractVersion: result.family.contractVersion,
+                  );
+                }
+                if (recorder == null) return;
                 recordedPushes.add(
                   '${result.family.surfaceSlug} r${result.storedRevision}',
                 );

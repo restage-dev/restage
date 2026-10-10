@@ -39,7 +39,7 @@ void main() {
   test('prints the family history the server resolves', () async {
     Map<String, dynamic>? historyBody;
     final client = scriptedHttpClient([
-      resolveTargetStep(
+      scopeTargetStep(
         {
           'environmentTargetId': 12,
           'namedEnvironmentId': 22,
@@ -47,9 +47,7 @@ void main() {
           'runtimePlane': 'sandbox',
         },
         inspect: (body) {
-          expect(body['organizationSlug'], 'restage');
-          expect(body['projectSlug'], 'alpha');
-          expect(body['appSlug'], 'mobile');
+          expect(body['method'], 'read');
           expect(body, isNot(contains('runtimePlane')));
         },
       ),

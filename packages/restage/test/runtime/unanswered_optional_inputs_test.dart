@@ -20,15 +20,14 @@ import '../surface_screen/surface_screen_test_support.dart';
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_screen';
 const _surfacePath = '/sdk/v1/surface';
-const _credentialPath = '/sdk/v1/measurement-assignment-credential';
 const _bindingPath = '/sdk/v1/measurement-publication-binding';
-const _credentialHandle = 'handle-1';
+final _credentialHandle = 'ic1.${'a' * 64}';
 
 const _packageInfoChannel = 'dev.fluttercommunity.plus/package_info';
 const _deviceInfoChannel = 'dev.fluttercommunity.plus/device_info';
 
 /// Where an optional request input can stop answering.
-enum _Silent { preferences, packageInfo, deviceInfo, credentialRequest }
+enum _Silent { preferences, packageInfo, deviceInfo, registrationConfirmation }
 
 void main() {
   setUp(() {
@@ -41,17 +40,43 @@ void main() {
   tearDown(Restage.debugReset);
 
   for (final silent in _Silent.values) {
-    testWidgets('renders the hosted screen when ${silent.name} never answers',
+    testWidgets(
+        silent == _Silent.preferences
+            ? 'uses the bundled screen when preferences never answer'
+            : silent == _Silent.registrationConfirmation
+                ? 'renders hosted content without folded confirmation'
+                : 'renders the hosted screen when ${silent.name} never answers',
         (tester) async {
       final harness = _Harness(tester, silent: {silent});
 
       await harness.mount();
       await tester.pump(DeliveryInputBudget.defaultTotal);
-      await tester.pump();
-
-      expect(find.text('Hosted screen'), findsOneWidget);
-      expect(harness.surfaceRequests, hasLength(1));
+      await harness.settle(
+        done: () => find
+            .text(silent == _Silent.preferences
+                ? 'Bundled screen'
+                : 'Hosted screen')
+            .evaluate()
+            .isNotEmpty,
+      );
+      final hostedCount = find.text('Hosted screen').evaluate().length;
+      final bundledCount = find.text('Bundled screen').evaluate().length;
+      final requests = List<Map<String, dynamic>>.of(harness.surfaceRequests);
       await harness.unmount();
+
+      if (silent == _Silent.preferences) {
+        expect(bundledCount, 1);
+        expect(hostedCount, 0);
+        expect(requests, isEmpty);
+      } else {
+        expect(hostedCount, 1);
+        expect(requests, hasLength(1));
+        if (silent == _Silent.registrationConfirmation) {
+          expect(requests.single['registrationNonce'], isA<String>());
+          expect(requests.single['registrationCreatedAtMicros'], isA<int>());
+          expect(requests.single, isNot(contains('assignmentKey')));
+        }
+      }
     });
   }
 
@@ -59,28 +84,48 @@ void main() {
       (tester) async {
     final harness = _Harness(
       tester,
-      silent: _Silent.values.toSet(),
+      silent: {
+        _Silent.packageInfo,
+        _Silent.deviceInfo,
+        _Silent.registrationConfirmation,
+      },
       published: false,
     );
 
     await harness.mount();
     await tester.pump(DeliveryInputBudget.defaultTotal);
-    await tester.pump();
-
-    expect(find.text('Bundled screen'), findsOneWidget);
-    expect(harness.surfaceRequests, hasLength(1));
+    await harness.settle(
+      done: () => find.text('Bundled screen').evaluate().isNotEmpty,
+    );
+    final bundledCount = find.text('Bundled screen').evaluate().length;
+    final requestCount = harness.surfaceRequests.length;
     await harness.unmount();
+
+    expect(bundledCount, 1);
+    expect(requestCount, 1);
   });
 
-  testWidgets('registers the assignment key at configuration', (tester) async {
-    final harness = _Harness(tester, credentialDelay: Duration.zero);
+  testWidgets('sends a durable registration tuple on the first surface serve',
+      (tester) async {
+    final harness = _Harness(tester);
 
     await harness.configureOnly();
-    await harness.settle(done: () => harness.credentialRequests > 0);
-
-    expect(harness.credentialRequests, 1);
     expect(harness.surfaceRequests, isEmpty);
+    await harness.mount();
+    await harness.settle(
+      done: () => find.text('Hosted screen').evaluate().isNotEmpty,
+    );
+    final hostedCount = find.text('Hosted screen').evaluate().length;
+    final requests = List<Map<String, dynamic>>.of(harness.surfaceRequests);
     await harness.unmount();
+
+    expect(hostedCount, 1);
+    expect(requests, hasLength(1));
+    final request = requests.single;
+    expect(request['registrationNonce'], matches(r'^[A-Za-z0-9_-]{43}$'));
+    expect(request['registrationCreatedAtMicros'], isA<int>());
+    expect(request['registrationCreatedAtMicros'] as int, greaterThan(0));
+    expect(request, isNot(contains('assignmentKey')));
   });
 
   testWidgets('renders when the measurement session never opens',
@@ -89,14 +134,18 @@ void main() {
 
     await harness.mount();
     await harness.settle(done: () => harness.bindingReads > 0);
-    expect(harness.bindingReads, 1);
-    expect(find.text('Hosted screen'), findsNothing);
+    final bindingReads = harness.bindingReads;
+    final hostedBeforeDeadline = find.text('Hosted screen').evaluate().length;
 
     await tester.pump(MeasurementHostSessionController.openBudget);
     await tester.pump();
 
-    expect(find.text('Hosted screen'), findsOneWidget);
+    final hostedAfterDeadline = find.text('Hosted screen').evaluate().length;
     await harness.unmount();
+
+    expect(bindingReads, 1);
+    expect(hostedBeforeDeadline, 0);
+    expect(hostedAfterDeadline, 1);
   });
 
   testWidgets('answered inputs are sent without waiting on the deadline',
@@ -108,12 +157,16 @@ void main() {
       done: () => find.text('Hosted screen').evaluate().isNotEmpty,
     );
 
-    expect(find.text('Hosted screen'), findsOneWidget);
-    final body = harness.surfaceRequests.single;
+    final hostedCount = find.text('Hosted screen').evaluate().length;
+    final requests = List<Map<String, dynamic>>.of(harness.surfaceRequests);
+    await harness.unmount();
+
+    expect(hostedCount, 1);
+    expect(requests, hasLength(1));
+    final body = requests.single;
     expect(body['meteringKey'], isA<String>());
     expect(body['analyticsAnonymousId'], isA<String>());
     expect(body['sdkBuiltInsCanonicalBase64'], isA<String>());
-    await harness.unmount();
   });
 
   testWidgets('an input answered before the deadline is still sent',
@@ -129,9 +182,13 @@ void main() {
       done: () => find.text('Hosted screen').evaluate().isNotEmpty,
     );
 
-    expect(find.text('Hosted screen'), findsOneWidget);
-    expect(harness.surfaceRequests.single['meteringKey'], isA<String>());
+    final hostedCount = find.text('Hosted screen').evaluate().length;
+    final requests = List<Map<String, dynamic>>.of(harness.surfaceRequests);
     await harness.unmount();
+
+    expect(hostedCount, 1);
+    expect(requests, hasLength(1));
+    expect(requests.single['meteringKey'], isA<String>());
   });
 
   testWidgets('a surface fetch completes when preferences never answer',
@@ -152,9 +209,9 @@ void main() {
     Restage.debugRestageRpcClient = client;
 
     var done = false;
-    unawaited(client
-        .fetchSurface(surfaceType: 'paywall', surfaceSlug: 'offer')
-        .whenComplete(() => done = true));
+    final fetch =
+        client.fetchSurface(surfaceType: 'paywall', surfaceSlug: 'offer');
+    unawaited(fetch.whenComplete(() => done = true));
     await tester.pump();
     expect(done, isFalse);
 
@@ -162,8 +219,8 @@ void main() {
     await tester.pump();
 
     expect(done, isTrue);
-    expect(bodies.single, isNot(contains('meteringKey')));
-    expect(bodies.single, isNot(contains('analyticsAnonymousId')));
+    expect(await fetch, isNull);
+    expect(bodies, isEmpty);
   });
 }
 
@@ -223,7 +280,6 @@ final class _Harness {
     this.published = true,
     this.silentBindingRead = false,
     this.delayedPreferences = false,
-    this.credentialDelay,
   });
 
   final WidgetTester tester;
@@ -232,11 +288,9 @@ final class _Harness {
   final bool silentBindingRead;
   final bool delayedPreferences;
 
-  /// When set, the credential request answers with a key after this long.
-  final Duration? credentialDelay;
   final surfaceRequests = <Map<String, dynamic>>[];
   var bindingReads = 0;
-  var credentialRequests = 0;
+  var _configured = false;
   late final _fixture = stringScreenFixture();
   late final RestageRpcClient _client = _buildClient();
 
@@ -244,6 +298,7 @@ final class _Harness {
   Future<void> configureOnly() async {
     Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
     Restage.debugRestageRpcClient = _client;
+    _configured = true;
   }
 
   Future<void> mount() async {
@@ -272,7 +327,7 @@ final class _Harness {
 
     final fixture = _fixture;
     final client = _client;
-    await configureOnly();
+    if (!_configured) await configureOnly();
 
     await tester.pumpWidget(MaterialApp(
       home: RestageScreen<String>(
@@ -305,9 +360,17 @@ final class _Harness {
             );
             if (!published) return http.Response('', 204);
             return http.Response(
-              jsonEncode(SurfaceScreenDeliveryDescriptorV1Codec.encode(
-                fixture.delivery(hostedBlob: hostedBlob),
-              )),
+              jsonEncode({
+                ...SurfaceScreenDeliveryDescriptorV1Codec.encode(
+                  fixture.delivery(hostedBlob: hostedBlob),
+                ),
+                if (!silent.contains(_Silent.registrationConfirmation)) ...{
+                  'credentialHandle': _credentialHandle,
+                  'expiresAtMicros': DateTime.utc(2100).microsecondsSinceEpoch,
+                  'serverNowMicros':
+                      DateTime.now().toUtc().microsecondsSinceEpoch,
+                },
+              }),
               200,
               headers: {
                 if (silentBindingRead)
@@ -315,18 +378,6 @@ final class _Harness {
                       base64UrlEncode(_bindingReference().canonicalBytes)
                           .replaceAll('=', ''),
               },
-            );
-          case _credentialPath when silent.contains(_Silent.credentialRequest):
-            return Completer<http.Response>().future;
-          case _credentialPath when credentialDelay != null:
-            credentialRequests += 1;
-            await Future<void>.delayed(credentialDelay!);
-            return http.Response(
-              jsonEncode({
-                'credentialHandle': _credentialHandle,
-                'expiresAtMicros': DateTime.utc(2100).microsecondsSinceEpoch,
-              }),
-              200,
             );
           case _bindingPath:
             bindingReads += 1;
@@ -349,10 +400,10 @@ final class _Harness {
     }
   }
 
-  /// Lets stalled requests time out, then removes the screen.
+  /// Removes the screen and its error handler before advancing stalled I/O.
   Future<void> unmount() async {
-    await tester.pump(BoundedHttpClient.defaultTimeout);
     await tester.pumpWidget(const SizedBox());
+    await tester.pump(BoundedHttpClient.defaultTimeout);
   }
 }
 

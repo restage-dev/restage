@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -36,6 +35,11 @@ class SurfaceListCommand extends Command<int> {
             'survey, general. Lists every type when left out.',
       )
       ..addFlag(
+        'archived',
+        negatable: false,
+        help: 'Include archived surfaces.',
+      )
+      ..addFlag(
         'json',
         negatable: false,
         help: 'Emit JSON instead of the default text output.',
@@ -55,22 +59,19 @@ class SurfaceListCommand extends Command<int> {
     final surfaceTypes = _resolveSurfaceTypes();
     if (surfaceTypes == null) return 1;
 
+    final archived = argResults?['archived'] as bool? ?? false;
     return runAuthed(_io, argResults, OperationScope.app, (ctx) async {
-      final surfaceApi = SurfaceApi(ctx.api);
-      final summaries = <SurfaceSummary>[
-        for (final surfaceType in surfaceTypes)
-          ...await surfaceApi.list(
-            project: ctx.project!,
-            app: ctx.app!.slug,
-            surfaceType: surfaceType,
-            organizationId: ctx.organizationId,
-            appId: ctx.app!.appId,
-          ),
-      ];
+      final summaries = ctx.snapshot!.surfaces(
+        appId: ctx.app!.appId!,
+        surfaceType: surfaceTypes.length == 1
+            ? surfaceTypes.single.wireName
+            : null,
+        includeArchived: archived,
+      );
       if (argResults?['json'] as bool? ?? false) {
         _io.stdout.writeln(jsonEncode([for (final s in summaries) s.toJson()]));
       } else {
-        _renderTable(summaries);
+        _renderTable(summaries, archived: archived);
       }
       return 0;
     });
@@ -94,26 +95,20 @@ class SurfaceListCommand extends Command<int> {
     return [type];
   }
 
-  void _renderTable(List<SurfaceSummary> summaries) {
-    _io.stdout.writeln('TYPE\tSLUG\tNAME\tDRAFT-UPDATED\tPUBLISHED');
+  void _renderTable(List<SurfaceSummary> summaries, {required bool archived}) {
+    _io.stdout.writeln(
+      'TYPE\tSLUG\tNAME\tDRAFT-UPDATED\tPUBLISHED${archived ? '\tARCHIVED' : ''}',
+    );
     for (final summary in summaries) {
       final draft = summary.draftUpdatedAt.toUtc().toIso8601String();
-      final published = _formatPublishedColumn(
-        summary.publishedVersionByEnvironment,
-      );
+      final published = formatPublishedColumn(summary);
+      final archivedAt = archived
+          ? '\t${summary.archivedAt?.toUtc().toIso8601String() ?? '-'}'
+          : '';
       _io.stdout.writeln(
-        '${summary.surfaceType}\t${summary.slug}\t${summary.name}\t$draft\t$published',
+        '${summary.surfaceType}\t${summary.slug}\t${summary.name}\t$draft\t$published$archivedAt',
       );
     }
-  }
-
-  String _formatPublishedColumn(Map<String, int?> byEnv) {
-    final published = <String>[
-      for (final entry in byEnv.entries)
-        if (entry.value != null) '${entry.key}=${entry.value}',
-    ];
-    if (published.isEmpty) return '-';
-    return published.join(', ');
   }
 }
 

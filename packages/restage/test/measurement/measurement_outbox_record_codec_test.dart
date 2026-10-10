@@ -60,6 +60,40 @@ void main() {
   });
 
   group('MeasurementOutboxPreparedBatch', () {
+    test(
+        'assigned frame restores private fingerprint without changing HTTP bytes',
+        () {
+      const fingerprint =
+          '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      final request = ingestRequest(outcomeLinkCarrier: 'Y2Fycmllcg');
+      final legacy = MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(
+        workerPreparedBatchForRequest(request),
+      );
+      final assigned = MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(
+        workerPreparedBatchForRequest(request),
+        registrationFingerprint: fingerprint,
+      );
+      final assignedRecord = MeasurementOutboxRecord(
+        batch: assigned,
+        createdAtUtcMicros: 1,
+        configurationFingerprint: 'config.test',
+      );
+      final restored = MeasurementOutboxRecordCodec.decode(
+        MeasurementOutboxRecordCodec.encode(assignedRecord),
+      );
+      expect(restored.batch.registrationFingerprint, fingerprint);
+      expect(restored.batch.exactRequestBytes, legacy.exactRequestBytes);
+      expect(
+          MeasurementOutboxRecordCodec.decode(
+            MeasurementOutboxRecordCodec.encode(MeasurementOutboxRecord(
+              batch: legacy,
+              createdAtUtcMicros: 1,
+              configurationFingerprint: 'config.test',
+            )),
+          ).batch.registrationFingerprint,
+          isNull);
+    });
+
     test('builds the exact sole-route body from a validated worker batch', () {
       final request = ingestRequest(sequence: 7, isFinal: true);
       final batch = MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(

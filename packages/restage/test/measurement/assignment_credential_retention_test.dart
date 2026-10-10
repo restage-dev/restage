@@ -1,195 +1,219 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  tearDown(SurfaceAssignmentKeyProvider.clear);
 
-  test('only retained server expiry rolls the nonce and identity lease',
-      () async {
+  test('only the confirmed server lifetime rolls the durable tuple', () async {
     var now = 1000000;
     var rollovers = 0;
-    final requests = <Map<String, dynamic>>[];
-    final client = RestageRpcClient(
-      baseUrl: 'https://surfaces.example.com',
-      apiKey: 'rs_pk_retention',
-      httpClient: MockClient((request) async {
-        requests.add(jsonDecode(request.body) as Map<String, dynamic>);
-        if (requests.length == 2) return http.Response('{}', 503);
-        return http.Response(
-            jsonEncode({
-              'credentialHandle': requests.length == 1
-                  ? 'credential.first'
-                  : 'credential.second',
-              'expiresAtMicros': now + 100,
-            }),
-            200);
-      }),
-    );
-    final store = SurfaceAssignmentCredentialStore(
-      namespace: 'configured-target',
-      actor: () async => 'local-actor',
-      identityGeneration: () => 1,
-      client: () => client,
-      nowMicros: () => now,
-      onRetentionRollover: () => rollovers++,
-    );
-    final firstGeneration = store.generation;
-    expect(await store.resolve(), 'credential.first');
+    SurfaceAssignmentCredentialStore store() =>
+        SurfaceAssignmentCredentialStore(
+          namespace: 'configured-target',
+          actor: () async => 'local-actor',
+          identityGeneration: () => 1,
+          nowMicros: () => now,
+          onRetentionRollover: () => rollovers++,
+        );
+    final firstStore = store();
+    final first = (await firstStore.capture())!;
+    expect(
+        await firstStore.confirm(
+          attempt: first,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: 1100,
+          serverNowMicros: 1000,
+        ),
+        isTrue);
     now += 50;
-    expect(await store.resolve(), 'credential.first');
-    expect(requests, hasLength(1));
+    expect((await store().capture())!.credentialHandle, 'ic1.${'a' * 64}');
     now += 51;
-    expect(await store.resolve(), isNull);
+    final renewed = (await store().capture())!;
+    expect(renewed.registrationNonce, isNot(first.registrationNonce));
+    expect(renewed.credentialHandle, isNull);
     expect(rollovers, 1);
-    expect(store.generation, greaterThan(firstGeneration));
-    expect(requests[1]['registrationNonce'],
-        isNot(requests[0]['registrationNonce']));
-    expect(requests[1].containsKey('credentialHandle'), isFalse);
-    now++;
-    expect(await store.resolve(), 'credential.second');
-    expect(requests[2], requests[1],
-        reason: 'pending retry keeps nonce and creation time');
-    expect(rollovers, 1);
+
+    // A lost serve response and process restart must resend the same tuple.
+    expect((await store().capture())!.tuple, renewed.tuple);
     final prefs = await SharedPreferences.getInstance();
     final retained = jsonDecode(prefs.getString(prefs.getKeys().single)!);
-    expect(retained['credentialHandle'], 'credential.second');
-    expect(retained['expiresAtMicros'], now + 100);
+    expect(retained['registrationNonce'], renewed.registrationNonce);
+    expect(retained.containsKey('credentialHandle'), isFalse);
   });
 
   for (final failedWrite in [1, 2]) {
-    test(
-        'credential persistence write $failedWrite recovers without changing attempt',
+    test('failed durable write $failedWrite cannot publish a false handle',
         () async {
+      final previous = SharedPreferencesStorePlatform.instance;
       final storage = _FailingPreferenceStore(failedWrite);
       SharedPreferencesStorePlatform.instance = storage;
-      final requests = <Map<String, dynamic>>[];
-      final client = RestageRpcClient(
-        baseUrl: 'https://surfaces.example.com',
-        apiKey: 'rs_pk_persistence',
-        httpClient: MockClient((request) async {
-          final body = jsonDecode(request.body) as Map<String, dynamic>;
-          final durable = await storage.getAll();
-          final saved = jsonDecode(durable.values.single as String);
-          expect(saved['registrationNonce'], body['registrationNonce']);
-          expect(saved['registrationCreatedAtMicros'],
-              body['registrationCreatedAtMicros']);
-          requests.add(body);
-          return http.Response(
-              jsonEncode({
-                'credentialHandle': 'credential.durable',
-                'expiresAtMicros': 2000
-              }),
-              200);
-        }),
-      );
-      final store = SurfaceAssignmentCredentialStore(
-        namespace: 'persistence',
-        actor: () async => 'actor',
-        identityGeneration: () => 0,
-        client: () => client,
-        onRetentionRollover: () => fail('no retention rollover'),
-        nowMicros: () => 1000,
-      );
-      expect(await store.resolve(), isNull);
-      expect(requests, hasLength(failedWrite == 1 ? 0 : 1));
-      final prefs = await SharedPreferences.getInstance();
-      final failedAttempt =
-          jsonDecode(prefs.getString(prefs.getKeys().single)!);
-      expect(await store.resolve(), 'credential.durable');
-      expect(requests.last['registrationNonce'],
-          failedAttempt['registrationNonce']);
-      expect(requests.last['registrationCreatedAtMicros'],
-          failedAttempt['registrationCreatedAtMicros']);
-      if (failedWrite == 2) {
-        expect(requests.last['credentialHandle'], 'credential.durable');
+      addTearDown(() => SharedPreferencesStorePlatform.instance = previous);
+      SurfaceAssignmentCredentialStore store() =>
+          SurfaceAssignmentCredentialStore(
+            namespace: 'persistence',
+            actor: () async => 'actor',
+            identityGeneration: () => 0,
+            onRetentionRollover: () => fail('no retention rollover'),
+            nowMicros: () => 1000,
+          );
+      final firstStore = store();
+      final first = await firstStore.capture();
+      if (failedWrite == 1) {
+        expect(first, isNull, reason: 'an unpersisted tuple cannot be sent');
+        expect(await storage.getAll(), isEmpty);
+        expect(await store().capture(), isNotNull);
+        return;
       }
-      final durable =
-          jsonDecode((await storage.getAll()).values.single as String);
-      expect(durable['credentialHandle'], 'credential.durable');
-      expect(durable['expiresAtMicros'], 2000);
+
+      final tuple = first!;
+      expect(
+          await firstStore.confirm(
+            attempt: tuple,
+            localRequestStartMicros: 1000,
+            credentialHandle: 'ic1.${'a' * 64}',
+            expiresAtMicros: 2000,
+            serverNowMicros: 1000,
+          ),
+          isFalse);
+      // SharedPreferences may update its cache even when the platform write
+      // fails; a new process observes the durable platform value.
+      await (await SharedPreferences.getInstance()).reload();
+      final restarted = store();
+      final retry = (await restarted.capture())!;
+      expect(retry.tuple, tuple.tuple);
+      expect(retry.credentialHandle, isNull);
+      expect(
+          await restarted.confirm(
+            attempt: retry,
+            localRequestStartMicros: 1000,
+            credentialHandle: 'ic1.${'a' * 64}',
+            expiresAtMicros: 2000,
+            serverNowMicros: 1000,
+          ),
+          isTrue);
+      expect((await store().capture())!.credentialHandle, 'ic1.${'a' * 64}');
     });
   }
 
-  test(
-      'stale configuration cannot trigger retention rollover after awaited identity',
-      () async {
+  test('stale identity cannot roll retention after an awaited actor', () async {
     var now = 1000;
+    var identityGeneration = 0;
     var rollovers = 0;
     final pendingIdentity = Completer<String>();
     var waitForIdentity = false;
-    RestageRpcClient? client = RestageRpcClient(
-      baseUrl: 'https://surfaces.example.com',
-      apiKey: 'rs_pk_old_config',
-      httpClient: MockClient((_) async => http.Response(
-          jsonEncode(
-              {'credentialHandle': 'credential.old', 'expiresAtMicros': 1100}),
-          200)),
-    );
     final store = SurfaceAssignmentCredentialStore(
       namespace: 'old-config',
       actor: () =>
           waitForIdentity ? pendingIdentity.future : Future.value('actor'),
-      identityGeneration: () => 0,
-      client: () => client,
+      identityGeneration: () => identityGeneration,
       onRetentionRollover: () => rollovers++,
       nowMicros: () => now,
     );
-    expect(await store.resolve(), 'credential.old');
+    final first = (await store.capture())!;
+    expect(
+        await store.confirm(
+          attempt: first,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: 1100,
+          serverNowMicros: 1000,
+        ),
+        isTrue);
     now = 1200;
     waitForIdentity = true;
-    final staleResolve = store.resolve();
-    client = null;
+    final staleCapture = store.capture();
+    identityGeneration++;
     pendingIdentity.complete('actor');
-    expect(await staleResolve, isNull);
+    expect(await staleCapture, isNull);
     expect(rollovers, 0,
-        reason: 'old config must not clear newer held assignments');
+        reason: 'old identity must not clear newer held assignments');
   });
 
-  test('malformed expiry responses cannot authorize retention rollover',
-      () async {
-    for (final response in <Map<String, Object?>>[
-      {'credentialHandle': 'credential.only'},
-      {'credentialHandle': 'credential.bad', 'expiresAtMicros': -1},
-      {'credentialHandle': 'credential.bad', 'expiresAtMicros': 'later'},
+  test('malformed folded metadata never confirms or rotates a tuple', () async {
+    final invalidBodies = <Map<String, Object?>>[
+      {'credentialHandle': 'ic1.${'a' * 64}'},
       {
-        'credentialHandle': 'credential.bad',
-        'expiresAtMicros': 100,
-        'extra': true
+        'credentialHandle': 'ic1.${'a' * 64}',
+        'expiresAtMicros': -1,
+        'serverNowMicros': 1000,
       },
-    ]) {
-      var now = 1000;
-      final requests = <Map<String, dynamic>>[];
+      {
+        'credentialHandle': 'ic1.${'a' * 64}',
+        'expiresAtMicros': 'later',
+        'serverNowMicros': 1000,
+      },
+      {
+        'credentialHandle': 'ic1.${'a' * 64}',
+        'expiresAtMicros': 2000,
+        'serverNowMicros': 0,
+      },
+    ];
+    for (var index = 0; index < invalidBodies.length; index++) {
       var rollovers = 0;
+      final store = SurfaceAssignmentCredentialStore(
+        namespace: 'invalid-$index',
+        actor: () async => 'local',
+        identityGeneration: () => 1,
+        nowMicros: () => 1000,
+        onRetentionRollover: () => rollovers++,
+      );
+      SurfaceAssignmentKeyProvider.install(
+        key: store.resolve,
+        identityGeneration: () => store.generation,
+        registration: store.capture,
+        confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+            store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: start,
+          credentialHandle: handle,
+          expiresAtMicros: expiry,
+          serverNowMicros: serverNow,
+        ),
+        refuseRegistration: store.refuse,
+      );
+      final first = (await store.capture())!;
+      final sent = <Map<String, dynamic>>[];
       final client = RestageRpcClient(
         baseUrl: 'https://surfaces.example.com',
         apiKey: 'rs_pk_refused',
         httpClient: MockClient((request) async {
-          requests.add(jsonDecode(request.body) as Map<String, dynamic>);
-          return http.Response(jsonEncode(response), 200);
+          sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response(jsonEncode(invalidBodies[index]), 200);
         }),
       );
-      final store = SurfaceAssignmentCredentialStore(
-        namespace: 'target.${response.toString()}',
-        actor: () async => 'local',
-        identityGeneration: () => 1,
-        client: () => client,
-        nowMicros: () => now,
-        onRetentionRollover: () => rollovers++,
-      );
-      expect(await store.resolve(), isNull);
-      now += 1000000000;
-      expect(await store.resolve(), isNull);
-      expect(requests[1], requests[0]);
+      for (var attempt = 0; attempt < 2; attempt++) {
+        final lease = await SurfaceAssignmentKeyProvider.captureLease();
+        expect(
+          await client.fetchSurfaceScreen(
+            SurfaceScreenDeliveryRequest(
+              surface: Surface.general,
+              slug: 'feature_announcement',
+              contractVersion: 7,
+            ),
+            registrationLease: lease,
+          ),
+          isA<SurfaceScreenDeliveryInvalidResponse>(),
+        );
+      }
+      expect(sent, hasLength(2));
+      expect(sent[0]['registrationNonce'], first.registrationNonce);
+      expect(sent[1]['registrationNonce'], first.registrationNonce);
+      expect((await store.capture())!.credentialHandle, isNull);
       expect(rollovers, 0);
+      SurfaceAssignmentKeyProvider.clear();
     }
   });
 }

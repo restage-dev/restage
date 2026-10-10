@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Slim view of the backend's `SurfaceSummary` — the fields the command-line
@@ -15,10 +16,11 @@ class SurfaceSummary {
     required this.slug,
     required this.name,
     required this.draftUpdatedAt,
-    required this.publishedVersionByEnvironment,
+    required this.published,
     this.contractVersion,
     this.sourceKind,
     this.payloadKind,
+    this.archivedAt,
   });
 
   /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey` /
@@ -34,10 +36,9 @@ class SurfaceSummary {
   /// Wall-clock instant the draft was last saved.
   final DateTime draftUpdatedAt;
 
-  /// One entry per environment under the resolved app. The value is the
-  /// most-recent published version, or null when the surface has never been
-  /// published to that environment.
-  final Map<String, int?> publishedVersionByEnvironment;
+  /// The version each environment target serves, one entry per target that
+  /// serves one. An environment has a target on each runtime plane.
+  final List<SurfaceTargetVersion> published;
 
   /// Current generated contract version for a standalone screen, when the
   /// backend includes publication identity metadata.
@@ -51,24 +52,35 @@ class SurfaceSummary {
   /// metadata.
   final String? payloadKind;
 
-  /// Decode from the backend's JSON-shaped wire payload. Tolerates an absent
-  /// `publishedVersionByEnvironment` (treated as empty) and the trailing
-  /// `__className__` discriminator the server emits. `surfaceType` is read
-  /// defensively (the server serializes the enum byName).
+  /// When the surface was archived; null for a live surface.
+  final DateTime? archivedAt;
+
+  /// Decode from the backend's JSON-shaped wire payload. Tolerates absent
+  /// `targetPublications` (treated as none) and the trailing `__className__`
+  /// discriminator the server emits. `surfaceType` is read defensively (the
+  /// server serializes the enum byName).
   factory SurfaceSummary.fromJson(Map<String, dynamic> json) {
-    final raw =
-        json['publishedVersionByEnvironment'] as Map<String, dynamic>? ?? {};
+    final publications = json['targetPublications'] as List<dynamic>? ?? [];
     return SurfaceSummary(
       surfaceType: json['surfaceType']?.toString() ?? '',
       slug: json['slug']! as String,
       name: json['name']! as String,
       draftUpdatedAt: DateTime.parse(json['draftUpdatedAt']! as String),
-      publishedVersionByEnvironment: <String, int?>{
-        for (final entry in raw.entries) entry.key: entry.value as int?,
-      },
+      published: <SurfaceTargetVersion>[
+        for (final publication in publications.cast<Map<String, dynamic>>())
+          if (_asInt(publication['publishedVersion']) case final version?)
+            SurfaceTargetVersion.fromJson(
+              publication['target']! as Map<String, dynamic>,
+              version: version,
+            ),
+      ],
       contractVersion: _asInt(json['contractVersion']),
       sourceKind: json['sourceKind'] as String?,
       payloadKind: json['payloadKind'] as String?,
+      archivedAt: switch (json['archivedAt']) {
+        final String value => DateTime.parse(value),
+        _ => null,
+      },
     );
   }
 
@@ -78,12 +90,69 @@ class SurfaceSummary {
     'slug': slug,
     'name': name,
     'draftUpdatedAt': draftUpdatedAt.toUtc().toIso8601String(),
-    'publishedVersionByEnvironment': publishedVersionByEnvironment,
+    'published': [for (final target in published) target.toJson()],
     if (contractVersion != null) 'contractVersion': contractVersion,
     if (sourceKind != null) 'sourceKind': sourceKind,
     if (payloadKind != null) 'payloadKind': payloadKind,
+    if (archivedAt case final archivedAt?)
+      'archivedAt': archivedAt.toUtc().toIso8601String(),
   };
 }
+
+/// The version one environment target serves.
+@experimental
+@immutable
+class SurfaceTargetVersion {
+  /// Construct a served version.
+  const SurfaceTargetVersion({
+    required this.environmentTargetId,
+    required this.environmentSlug,
+    required this.runtimePlane,
+    required this.version,
+  });
+
+  /// Decode a target reference serving [version].
+  factory SurfaceTargetVersion.fromJson(
+    Map<String, dynamic> target, {
+    required int version,
+  }) => SurfaceTargetVersion(
+    environmentTargetId: _asInt(target['environmentTargetId'])!,
+    environmentSlug: target['environmentSlug']! as String,
+    runtimePlane: RuntimePlane.fromWireName(target['runtimePlane']! as String),
+    version: version,
+  );
+
+  /// The target's numeric id.
+  final int environmentTargetId;
+
+  /// The environment the target belongs to.
+  final String environmentSlug;
+
+  /// The plane the target serves.
+  final RuntimePlane runtimePlane;
+
+  /// The version it serves.
+  final int version;
+
+  /// Encode for `--json` CLI output.
+  Map<String, dynamic> toJson() => {
+    'environmentTargetId': environmentTargetId,
+    'environmentSlug': environmentSlug,
+    'runtimePlane': runtimePlane.wireName,
+    'version': version,
+  };
+}
+
+/// The `PUBLISHED` column: `dev/sandbox v3, prod/live v2`, or `-` when no
+/// target serves a version.
+String formatPublishedColumn(SurfaceSummary summary) =>
+    summary.published.isEmpty
+    ? '-'
+    : [
+        for (final target in summary.published)
+          '${target.environmentSlug}/${target.runtimePlane.wireName} '
+              'v${target.version}',
+      ].join(', ');
 
 /// Exact generated family address returned by the surface control plane.
 @experimental
@@ -627,8 +696,7 @@ class SurfaceFamilyStatus {
           familyJson['sourceKind']?.toString() ??
           '',
       payloadKind:
-          json['payloadKind']?.toString() ??
-          familyJson['payloadKind']?.toString(),
+          json['payloadKind']?.toString() ?? _revisionPayloadKind(rawVersions),
       publishedRevision: _asInt(
         json['publishedRevision'] ??
             json['latestRevision'] ??
@@ -1408,6 +1476,64 @@ class SurfaceFamilyRefused extends SurfaceException {
   String toString() => 'SurfaceFamilyRefused(code: $code, message: $message)';
 }
 
+/// A write named an archived surface.
+@experimental
+class SurfaceArchived extends SurfaceException {
+  /// Construct with the archived [surfaceSlug].
+  const SurfaceArchived({required this.surfaceSlug});
+  final String surfaceSlug;
+}
+
+/// A delete named a surface that is not archived.
+@experimental
+class SurfaceNotArchived extends SurfaceException {
+  /// Construct with the [surfaceSlug] that is still in use.
+  const SurfaceNotArchived({required this.surfaceSlug});
+  final String surfaceSlug;
+}
+
+/// A version name was refused; [message] says why.
+@experimental
+class SurfaceVersionLabelRejected extends SurfaceException {
+  /// Construct with the server's [message].
+  const SurfaceVersionLabelRejected({required this.message});
+  final String message;
+}
+
+/// What keeps a surface from being deleted for good.
+@experimental
+enum SurfaceDeleteBlockerKind {
+  /// A running experiment uses it.
+  runningExperiment,
+
+  /// A delivery rule routes it.
+  deliveryRule,
+
+  /// Devices asked for it in the last 30 days.
+  recentRequests,
+}
+
+/// One reason a delete was refused.
+typedef SurfaceDeleteBlocker = ({
+  SurfaceDeleteBlockerKind kind,
+  String? experimentName,
+  String? environmentSlug,
+  int? requestCount,
+  DateTime? lastRequestAt,
+});
+
+/// A delete for good was refused while [blockers] still use the surface.
+@experimental
+class SurfaceDeleteRefused extends SurfaceException {
+  /// Construct with the [surfaceSlug] and each blocker.
+  const SurfaceDeleteRefused({
+    required this.surfaceSlug,
+    required this.blockers,
+  });
+  final String surfaceSlug;
+  final List<SurfaceDeleteBlocker> blockers;
+}
+
 /// Attempt to decode [body] as one of the typed surface exceptions.
 ///
 /// Returns null when [body] is not a surface typed-exception payload (the
@@ -1456,6 +1582,42 @@ SurfaceException? decodeSurfaceTypedException(String body) {
       return SurfaceVersionNotFound(
         surfaceSlug: versionSlug,
         toVersion: versionNum,
+      );
+    case 'SurfaceArchivedException':
+      final slug = data['surfaceSlug'];
+      if (slug is! String) return null;
+      return SurfaceArchived(surfaceSlug: slug);
+    case 'SurfaceNotArchivedException':
+      final slug = data['surfaceSlug'];
+      if (slug is! String) return null;
+      return SurfaceNotArchived(surfaceSlug: slug);
+    case 'SurfaceVersionLabelRejectedException':
+      final message = data['message'];
+      if (message is! String) return null;
+      return SurfaceVersionLabelRejected(message: message);
+    case 'SurfaceDeleteRefusedException':
+      final slug = data['surfaceSlug'];
+      final blockers = data['blockers'];
+      if (slug is! String || blockers is! List<dynamic>) return null;
+      return SurfaceDeleteRefused(
+        surfaceSlug: slug,
+        blockers: [
+          for (final raw in blockers.whereType<Map<String, dynamic>>())
+            if (SurfaceDeleteBlockerKind.values
+                    .where((kind) => kind.name == raw['kind'])
+                    .firstOrNull
+                case final kind?)
+              (
+                kind: kind,
+                experimentName: raw['experimentName'] as String?,
+                environmentSlug: raw['environmentSlug'] as String?,
+                requestCount: _asInt(raw['requestCount']),
+                lastRequestAt: switch (raw['lastRequestAt']) {
+                  final String text => DateTime.tryParse(text)?.toUtc(),
+                  _ => null,
+                },
+              ),
+        ],
       );
     case 'SurfaceContractFamilyViolation':
       final code = data['code'];
@@ -1560,4 +1722,17 @@ Map<String, String> _stringMap(Object? raw) {
 DateTime? _optionalDateTime(Object? raw) {
   if (raw == null) return null;
   return DateTime.parse(raw as String);
+}
+
+/// A family's payload shape from its revisions: the active one's, else the
+/// newest's.
+String? _revisionPayloadKind(Object? revisions) {
+  if (revisions is! List<dynamic>) return null;
+  final maps = revisions.whereType<Map<String, dynamic>>().toList();
+  for (final revision in maps) {
+    if (revision['isActive'] == true) {
+      return revision['payloadKind']?.toString();
+    }
+  }
+  return maps.firstOrNull?['payloadKind']?.toString();
 }

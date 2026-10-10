@@ -4,14 +4,18 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/commerce.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../measurement/measurement_sdk_runtime_session.dart'
     show measurementReportedSdkVersion;
+import '../measurement/measurement_resolved_publication_provenance.dart'
+    show stampAssignmentRegistrationFingerprint;
 import '../resolver/delivery_input_budget.dart';
 import '../resolver/surface_assignment_built_ins.dart'
     show assignmentSdkApiLevel;
 import '../resolver/surface_canonical_carrier_provider.dart';
+import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_delivery_observations.dart'
     show normalizeDeliveryPlatform;
 import '../resolver/surface_request_inputs.dart';
@@ -56,6 +60,9 @@ enum SurfaceAssignmentDiagnostic {
 
   /// The device is enrolled and presented no assignment to confirm.
   assignmentNotPresented,
+
+  /// The current device registration or credential is no longer authorized.
+  registrationRefused,
 }
 
 /// Reads the closed cause the delivery service echoed, or null for anything
@@ -70,6 +77,7 @@ SurfaceAssignmentDiagnostic? surfaceAssignmentDiagnosticFrom(Object? value) {
     'notDelivered' => SurfaceAssignmentDiagnostic.notDelivered,
     'assignmentNotPresented' =>
       SurfaceAssignmentDiagnostic.assignmentNotPresented,
+    'registrationRefused' => SurfaceAssignmentDiagnostic.registrationRefused,
     _ => null,
   };
 }
@@ -663,6 +671,8 @@ class RestageRpcClient {
     String canonicalRequestBase64,
   ) async {
     final uri = Uri.parse('$_baseUrl/sdk/v1/measurement');
+    final registrationAttempt =
+        await SurfaceAssignmentKeyProvider.captureRegistrationAttempt();
     final http.Response response;
     try {
       response = await _client.post(
@@ -686,6 +696,13 @@ class RestageRpcClient {
       case 200:
         return _parseMeasurementIngestAcceptedResponse(response.body);
       case 400:
+        if (registrationAttempt != null &&
+            _isRegistrationRefusal(response.body)) {
+          await SurfaceAssignmentKeyProvider.refuseRegistration(
+            registrationAttempt,
+          );
+        }
+        return const MeasurementIngestRpcRejected();
       case 413:
         return const MeasurementIngestRpcRejected();
       case 401:
@@ -709,6 +726,18 @@ class RestageRpcClient {
         return const MeasurementIngestRpcUnavailable(
           MeasurementIngestRpcUnavailableReason.unexpectedStatus,
         );
+    }
+  }
+
+  static bool _isRegistrationRefusal(String source) {
+    try {
+      final body = jsonDecode(source);
+      return body is Map<String, dynamic> &&
+          body.length == 2 &&
+          body['error'] == 'refused' &&
+          body['reason'] == 'registrationRefused';
+    } on Object {
+      return false;
     }
   }
 
@@ -744,37 +773,6 @@ class RestageRpcClient {
     } on Object {
       return null;
     }
-  }
-
-  /// Registers or resumes an opaque assignment credential for this installation.
-  Future<({String credentialHandle, int expiresAtMicros})?>
-      registerAssignmentCredential({
-    required String registrationNonce,
-    required int registrationCreatedAtMicros,
-    String? credentialHandle,
-  }) async {
-    final response = await _postJsonObjectAnyStatus(
-      path: '/sdk/v1/measurement-assignment-credential',
-      body: {
-        'registrationNonce': registrationNonce,
-        'registrationCreatedAtMicros': registrationCreatedAtMicros,
-        if (credentialHandle != null) 'credentialHandle': credentialHandle,
-      },
-    );
-    if (response == null || response.statusCode != 200) return null;
-    final json = response.json;
-    if (json == null) return null;
-    if (json.length != 2) return null;
-    final handle = json['credentialHandle'];
-    final expiry = json['expiresAtMicros'];
-    if (handle is! String ||
-        !_ittCredentialHandle.hasMatch(handle) ||
-        expiry is! int ||
-        expiry <= 0 ||
-        expiry > kMaximumPortableJsonInteger) {
-      return null;
-    }
-    return (credentialHandle: handle, expiresAtMicros: expiry);
   }
 
   /// Delivers one strict authenticated assignment carrier.
@@ -992,6 +990,7 @@ class RestageRpcClient {
               assignmentKey: assignmentKey,
             );
         final lease = gathered.lease;
+        if (!lease.canSend) return null;
         assignmentKey ??= lease.assignmentKey;
         final meteringKey = gathered.meteringKey;
         // An explicit version asks for that version, so no decision reads it.
@@ -1001,6 +1000,7 @@ class RestageRpcClient {
         // wire grammar, so a malformed one is never sent as if it were readable.
         final builtIns = _carrierOrNull(gathered.builtIns);
         final heldAssignment = _carrierOrNull(gathered.heldAssignment);
+        final registration = lease.registration;
         if (publicationGuard != null) {
           final bool canPublish;
           try {
@@ -1012,6 +1012,7 @@ class RestageRpcClient {
             throw const SurfaceRequestPublicationRejected();
           }
         }
+        final requestStartedAtMicros = _utcNowMicros();
         final httpResult = await _postJsonObjectAnyStatus(
           path: '/sdk/v1/surface',
           body: {
@@ -1027,6 +1028,8 @@ class RestageRpcClient {
             if (builtIns != null) 'sdkBuiltInsCanonicalBase64': builtIns,
             if (heldAssignment != null)
               'assignmentCanonicalBase64': heldAssignment,
+            if (registration != null && registration.credentialHandle == null)
+              ...registration.tuple,
           },
         );
         if (httpResult == null) return null;
@@ -1061,6 +1064,13 @@ class RestageRpcClient {
         }
         final json = httpResult.json;
         if (json == null) return null;
+        if (!await _acceptFoldedRegistration(
+          json,
+          lease,
+          requestStartedAtMicros,
+        )) {
+          return null;
+        }
         if (_containsRetiredSurfaceResponseField(json)) {
           debugPrint(
               '[restage] surface delivery contains an unsupported field');
@@ -1101,7 +1111,17 @@ class RestageRpcClient {
           return null;
         }
 
-        if (assignmentKey == lease.assignmentKey) {
+        final attempt = lease.registration;
+        if (assignment != null &&
+            attempt != null &&
+            assignmentKey == lease.sentAssignmentKey) {
+          stampAssignmentRegistrationFingerprint(
+            assignment,
+            attempt.fingerprint,
+          );
+        }
+
+        if (assignmentKey == lease.sentAssignmentKey) {
           await budget.bound(SurfaceCanonicalCarrierProvider.retain(
             surface: surfaceType,
             slug: surfaceSlug,
@@ -1127,6 +1147,56 @@ class RestageRpcClient {
   /// The carrier when it satisfies the wire grammar, else null.
   static String? _carrierOrNull(String? value) =>
       (value != null && _isCanonicalBase64UrlCarrier(value)) ? value : null;
+
+  Future<bool> _acceptFoldedRegistration(
+    Map<String, dynamic> body,
+    SurfaceAssignmentResolutionLease lease,
+    int requestStartedAtMicros,
+  ) async {
+    if (!lease.isCurrent) return false;
+    final attempt = lease.registration;
+    if (surfaceAssignmentDiagnosticFrom(body['assignment']) ==
+        SurfaceAssignmentDiagnostic.registrationRefused) {
+      if (attempt != null && lease.refuseRegistration != null) {
+        await lease.refuseRegistration!(attempt);
+      }
+      return false;
+    }
+    const keys = {'credentialHandle', 'expiresAtMicros', 'serverNowMicros'};
+    if (!keys.any(body.containsKey)) return true;
+    if (attempt == null ||
+        lease.confirmRegistration == null ||
+        !keys.every(body.containsKey)) {
+      return false;
+    }
+    final handle = body['credentialHandle'];
+    final expiry = body['expiresAtMicros'];
+    final serverNow = body['serverNowMicros'];
+    if (handle is! String ||
+        !_foldedCredentialHandle.hasMatch(handle) ||
+        expiry is! int ||
+        expiry <= 0 ||
+        expiry > kMaximumPortableJsonInteger ||
+        serverNow is! int ||
+        serverNow <= 0 ||
+        serverNow > kMaximumPortableJsonInteger) {
+      return false;
+    }
+    final accepted = await lease.confirmRegistration!(
+      attempt,
+      requestStartedAtMicros,
+      handle,
+      expiry,
+      serverNow,
+    );
+    if (accepted && lease.isCurrent) {
+      lease.confirmHandle(handle);
+      return true;
+    }
+    return false;
+  }
+
+  static int _utcNowMicros() => DateTime.now().toUtc().microsecondsSinceEpoch;
 
   bool _containsRetiredSurfaceResponseField(Map<String, dynamic> json) {
     return json.containsKey('decision') ||
@@ -1267,11 +1337,20 @@ class RestageRpcClient {
   Future<SurfaceScreenDeliveryResult> fetchSurfaceScreen(
     SurfaceScreenDeliveryRequest request, {
     String? readerHostDataContractHash,
+    SurfaceAssignmentResolutionLease? registrationLease,
   }) async {
+    if (registrationLease != null && !registrationLease.canSend) {
+      return const SurfaceScreenDeliveryTransportUnavailable();
+    }
     final uri = Uri.parse('$_baseUrl/sdk/v1/surface');
-    final body = SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(
-      request,
-    );
+    final registration = registrationLease?.registration;
+    final body = registration == null || registration.credentialHandle != null
+        ? SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(request)
+        : jsonEncode({
+            ...SurfaceScreenDeliveryRequestV1Codec.encode(request),
+            ...registration.tuple,
+          });
+    final requestStartedAtMicros = _utcNowMicros();
 
     final http.Response response;
     try {
@@ -1343,7 +1422,18 @@ class RestageRpcClient {
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Expected a screen delivery object.');
       }
+      if (registrationLease != null &&
+          !await _acceptFoldedRegistration(
+            decoded,
+            registrationLease,
+            requestStartedAtMicros,
+          )) {
+        throw const FormatException('Invalid registration metadata.');
+      }
       final descriptor = Map<String, dynamic>.of(decoded);
+      descriptor.remove('credentialHandle');
+      descriptor.remove('expiresAtMicros');
+      descriptor.remove('serverNowMicros');
       routingSelectionProvenance =
           SurfaceRoutingSelectionProvenanceV1.normalize(
         descriptor.remove('routingSelectionProvenance'),
@@ -1356,6 +1446,15 @@ class RestageRpcClient {
       assignment = rawAssignment == null || diagnostic != null
           ? null
           : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
+      final screenAttempt = registrationLease?.registration;
+      if (assignment != null &&
+          screenAttempt != null &&
+          request.assignmentKey == registrationLease!.sentAssignmentKey) {
+        stampAssignmentRegistrationFingerprint(
+          assignment,
+          screenAttempt.fingerprint,
+        );
+      }
       described = SurfaceScreenDeliveryDescriptorV1Codec.decode(descriptor);
     } on Object {
       debugPrint('[restage] standalone-screen delivery response was malformed');
@@ -1485,6 +1584,60 @@ class RestageRpcClient {
     );
   }
 
+  /// Resolves one logical offer before the store can present it.
+  @internal
+  Future<CommerceIntentResponse?> createCommerceIntent(
+    CommerceIntentRequest request,
+  ) =>
+      _postCommerceResponse(
+        path: '/sdk/v1/commerce/intents',
+        body: request.toJson(),
+        decode: CommerceIntentResponse.fromJson,
+      );
+
+  /// Sends durable store evidence to the commerce authority.
+  @internal
+  Future<CommerceReportResponse?> reportCommerce(
+    CommerceReportRequest request,
+  ) =>
+      _postCommerceResponse(
+        path: '/sdk/v1/commerce/reports',
+        body: request.toJson(),
+        decode: CommerceReportResponse.fromJson,
+      );
+
+  /// Reads the current authoritative purchaser state.
+  @internal
+  Future<CommercePurchaserStateResponse?> fetchCommercePurchaserState(
+    CommercePurchaserStateRequest request,
+  ) =>
+      _postCommerceResponse(
+        path: '/sdk/v1/commerce/purchaser-state',
+        body: request.toJson(),
+        decode: CommercePurchaserStateResponse.fromJson,
+      );
+
+  Future<T?> _postCommerceResponse<T>({
+    required String path,
+    required Map<String, dynamic> body,
+    required T Function(Map<String, dynamic>) decode,
+  }) async {
+    final response = await _postJsonObjectAnyStatus(path: path, body: body);
+    if (response == null ||
+        response.statusCode < 200 ||
+        response.statusCode >= 300) {
+      return null;
+    }
+    final json = response.json;
+    if (json == null) return null;
+    try {
+      return decode(json);
+    } on Object {
+      debugPrint('[restage] commerce response did not match its contract');
+      return null;
+    }
+  }
+
   /// Releases the underlying HTTP resources. Callers that constructed
   /// the client should invoke this when they're done with it; callers
   /// that supplied a custom [http.Client] in the constructor own its
@@ -1561,6 +1714,7 @@ const _measurementPublicationBindingHeaderV1 =
 const _maximumMeasurementPublicationBindingHeaderCharacters = 4096;
 final _base64UrlNoPadding = RegExp(r'^[A-Za-z0-9_-]+$');
 final _ittCredentialHandle = RegExp(r'^[A-Za-z0-9._-]{1,256}$');
+final _foldedCredentialHandle = RegExp(r'^ic1\.[0-9a-f]{64}$');
 const _maximumMeasurementPublicationBindingReadResponseBodyBytes =
     8 * 1024 * 1024;
 final _exactMeasurementPublicationBindingReadResponseBody = RegExp(

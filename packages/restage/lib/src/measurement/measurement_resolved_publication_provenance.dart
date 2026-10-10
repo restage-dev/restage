@@ -22,6 +22,26 @@ final Expando<CanonicalSurfaceExperimentAssignmentV1>
   'restage.measurement.resolvedExperimentAssignment',
 );
 
+final Expando<String> _resolvedRegistrationFingerprints = Expando<String>(
+  'restage.measurement.resolvedRegistrationFingerprint',
+);
+final Expando<String> _assignmentRegistrationFingerprints = Expando<String>(
+  'restage.measurement.assignmentRegistrationFingerprint',
+);
+
+/// Captures the serve lease beside the exact assignment object before delivery.
+@internal
+void stampAssignmentRegistrationFingerprint(
+  CanonicalSurfaceExperimentAssignmentV1 assignment,
+  String fingerprint,
+) {
+  final existing = _assignmentRegistrationFingerprints[assignment];
+  if (existing != null && existing != fingerprint) {
+    throw StateError('An assignment cannot be rebound to a registration.');
+  }
+  _assignmentRegistrationFingerprints[assignment] = fingerprint;
+}
+
 final Expando<String> _resolvedRoutingSelectionReceipts = Expando<String>(
   'restage.measurement.resolvedRoutingSelectionReceipt',
 );
@@ -41,6 +61,7 @@ T attachMeasurementPublicationBindingReference<T extends Object>(
   T resolved,
   MeasurementPublicationBindingReferenceV1? reference, {
   CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment,
+  String? registrationFingerprint,
   String? routingSelectionReceipt,
   SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
   SurfaceResolutionSource? surfaceResolutionSource,
@@ -58,6 +79,16 @@ T attachMeasurementPublicationBindingReference<T extends Object>(
     throw StateError(
       'A resolved payload cannot be rebound to a different experiment assignment.',
     );
+  }
+  registrationFingerprint ??= canonicalExperimentAssignment == null
+      ? null
+      : _assignmentRegistrationFingerprints[canonicalExperimentAssignment];
+  final existingFingerprint = _resolvedRegistrationFingerprints[resolved];
+  if (registrationFingerprint != null &&
+      (canonicalExperimentAssignment == null ||
+          existingFingerprint != null &&
+              existingFingerprint != registrationFingerprint)) {
+    throw StateError('A resolved payload cannot be rebound to a registration.');
   }
   final existingReceipt = _resolvedRoutingSelectionReceipts[resolved];
   if (routingSelectionReceipt != null &&
@@ -82,6 +113,9 @@ T attachMeasurementPublicationBindingReference<T extends Object>(
   }
   if (canonicalExperimentAssignment != null) {
     _resolvedExperimentAssignments[resolved] = canonicalExperimentAssignment;
+  }
+  if (registrationFingerprint != null) {
+    _resolvedRegistrationFingerprints[resolved] = registrationFingerprint;
   }
   if (routingSelectionReceipt != null) {
     _resolvedRoutingSelectionReceipts[resolved] = routingSelectionReceipt;
@@ -108,6 +142,11 @@ CanonicalSurfaceExperimentAssignmentV1? measurementExperimentAssignmentFor(
   Object resolved,
 ) =>
     _resolvedExperimentAssignments[resolved];
+
+/// Returns the exact local registration identity captured with the assignment.
+@internal
+String? measurementRegistrationFingerprintFor(Object resolved) =>
+    _resolvedRegistrationFingerprints[resolved];
 
 /// Returns the exact opaque receipt delivered with [resolved], if any.
 @internal

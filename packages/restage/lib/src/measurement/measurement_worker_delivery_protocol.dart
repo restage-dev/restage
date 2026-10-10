@@ -552,6 +552,11 @@ abstract interface class MeasurementWorkerOwnedDeliveryRuntimeState {
   void debugKillWorkerForTesting();
 }
 
+/// Optional native worker signal; test runtime states need no upload channel.
+abstract interface class MeasurementWorkerRegistrationRefusalSource {
+  Stream<String> get registrationRefusals;
+}
+
 /// Internal active session contract for the worker-owned delivery runtime.
 abstract interface class MeasurementWorkerOwnedDeliverySessionState {
   MeasurementWorkerAppendOutcome append(MeasurementWorkerAppendRecord record);
@@ -852,6 +857,15 @@ final class MeasurementWorkerOwnedDeliveryDebugMessage
   final int workerIsolateId;
 }
 
+final class MeasurementWorkerOwnedDeliveryRegistrationRefusedMessage
+    extends MeasurementWorkerOwnedDeliveryOutboundMessage {
+  const MeasurementWorkerOwnedDeliveryRegistrationRefusedMessage(
+    this.fingerprint,
+  );
+
+  final String fingerprint;
+}
+
 final class MeasurementWorkerOwnedDeliveryFatalMessage
     extends MeasurementWorkerOwnedDeliveryOutboundMessage {
   const MeasurementWorkerOwnedDeliveryFatalMessage();
@@ -879,6 +893,7 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   static const int _debug = 108;
   static const int _fatal = 109;
   static const int _discardResult = 110;
+  static const int _registrationRefused = 111;
 
   static List<Object?> activate() => [_activate, _version];
 
@@ -1051,6 +1066,9 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
   }) =>
       [_debug, _version, stage.wireCode, workerIsolateId];
 
+  static List<Object?> registrationRefused(String fingerprint) =>
+      [_registrationRefused, _version, fingerprint];
+
   static List<Object?> fatal() => [_fatal, _version];
 
   static MeasurementWorkerOwnedDeliveryInboundMessage decodeInbound(
@@ -1150,6 +1168,13 @@ abstract final class MeasurementWorkerOwnedDeliveryProtocol {
           stage: _requireDebugStage(_requireIntAt(values, 2)),
           workerIsolateId:
               _requireNonNegativeIntAt(values, 3, expectedLength: 4),
+        ),
+      _registrationRefused
+          when values.length == 3 &&
+              values[2] is String &&
+              RegExp(r'^[0-9a-f]{64}$').hasMatch(values[2]! as String) =>
+        MeasurementWorkerOwnedDeliveryRegistrationRefusedMessage(
+          values[2]! as String,
         ),
       _fatal => _decodeFatal(values),
       _ => throw const MeasurementWorkerOwnedDeliveryProtocolException(

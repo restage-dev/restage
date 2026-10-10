@@ -309,6 +309,7 @@ final class UserA2uiCatalogBuilder implements Builder {
   Future<_CustomWalk> _walkCustomWidgets(BuildStep buildStep) async {
     final widgets = <A2uiWidgetElement>[];
     final capabilityVersions = <WidgetLibrary, int?>{};
+    final compatibleSince = <WidgetLibrary, int>{};
     final usageByWidget = <String, String>{};
     final writeBackValuesByWidget = <String, Map<String, String>>{};
     final exclusions = <PropertyExclusion>[];
@@ -448,6 +449,19 @@ final class UserA2uiCatalogBuilder implements Builder {
           );
         }
         capabilityVersions[declaration.library] = declaration.capabilityVersion;
+        final since = compatibleSince[declaration.library];
+        if (since != null && since != declaration.compatibleSince) {
+          issues.add(
+            Issue(
+              code: IssueCode.duplicateId,
+              message: 'conflicting @RestageLibrary compatibleSince for '
+                  '"${declaration.library.namespace}": $since vs '
+                  '${declaration.compatibleSince}.',
+              location: assetId.path,
+            ),
+          );
+        }
+        compatibleSince[declaration.library] = declaration.compatibleSince;
       }
     }
 
@@ -497,6 +511,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       widgets: widgets,
       hasWidgetDeclarations: packageFacts.hasWidgetDeclarations,
       capabilityVersions: capabilityVersions,
+      compatibleSince: compatibleSince,
       usageByWidget: usageByWidget,
       writeBackValuesByWidget: writeBackValuesByWidget,
       exclusions: exclusions,
@@ -657,6 +672,7 @@ final class UserA2uiCatalogBuilder implements Builder {
           library: LibraryInfo(
             version: _customLibraryVersion,
             capabilityVersion: walk.capabilityVersions[library],
+            compatibleSince: walk.compatibleSince[library] ?? 1,
           ),
       },
       widgets: [for (final w in walk.widgets) w.entry],
@@ -674,6 +690,7 @@ typedef _CustomWalk = ({
   List<A2uiWidgetElement> widgets,
   bool hasWidgetDeclarations,
   Map<WidgetLibrary, int?> capabilityVersions,
+  Map<WidgetLibrary, int> compatibleSince,
   Map<String, String> usageByWidget,
   Map<String, Map<String, String>> writeBackValuesByWidget,
   List<PropertyExclusion> exclusions,

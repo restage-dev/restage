@@ -21,6 +21,7 @@ export 'src/publication_candidate.dart';
 export 'src/publication_draft.dart';
 export 'src/publication_route.dart';
 export 'src/published_identity.dart';
+export 'src/sdk_installed_libraries.dart';
 export 'src/supported_policy_revisions.dart';
 export 'src/surface_funnel.dart';
 export 'src/target.dart';

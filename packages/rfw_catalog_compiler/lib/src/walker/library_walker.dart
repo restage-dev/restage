@@ -14,6 +14,7 @@ final class RestageLibraryDeclaration {
     required this.library,
     this.package,
     this.capabilityVersion,
+    this.compatibleSince = 1,
   });
 
   /// The namespace this package contributes catalog entries to.
@@ -28,6 +29,10 @@ final class RestageLibraryDeclaration {
   /// the render-support line the delivery-time capability floor is derived
   /// against (recorded as `LibraryInfo.capabilityVersion` in the catalog).
   final int? capabilityVersion;
+
+  /// The oldest capability version this build still renders; `1` when the
+  /// annotation declares no break.
+  final int compatibleSince;
 }
 
 /// Result of walking a barrel library for an `@RestageLibrary` declaration.
@@ -164,6 +169,8 @@ LibraryWalkResult walkRestageLibrary({
   // hand-built/mis-threaded catalog.
   final declaredCapabilityVersion =
       annotationConst.getField('capabilityVersion')?.toIntValue();
+  final declaredCompatibleSince =
+      annotationConst.getField('compatibleSince')?.toIntValue() ?? 1;
   // Filter B/C: effective package is the declared package, falling back to
   // the barrel's own package when @RestageLibrary.package is null.
   final effectivePackage = declaredPackage ?? barrelAssetId.package;
@@ -180,6 +187,7 @@ LibraryWalkResult walkRestageLibrary({
       library: library,
       package: declaredPackage,
       capabilityVersion: declaredCapabilityVersion,
+      compatibleSince: declaredCompatibleSince,
     ),
     widgetClasses: widgetClasses,
     diagnostics: filterDiagnostics,

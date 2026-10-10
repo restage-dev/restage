@@ -1,7 +1,7 @@
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
-    show classifyA2uiCatalogDart;
+    show classifyA2uiCatalogDart, emitA2uiCatalogDart;
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -10,7 +10,10 @@ import '../helpers.dart';
 
 /// A catalog mixing built-in widgets with a custom library that declares a
 /// capability version.
-Catalog _mixedCatalog({int? acmeCapabilityVersion = 3}) {
+Catalog _mixedCatalog({
+  int? acmeCapabilityVersion = 3,
+  int acmeCompatibleSince = 1,
+}) {
   const acme = WidgetLibrary.custom('acme.widgets');
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
@@ -20,6 +23,7 @@ Catalog _mixedCatalog({int? acmeCapabilityVersion = 3}) {
       acme: LibraryInfo(
         version: '1.0.0',
         capabilityVersion: acmeCapabilityVersion,
+        compatibleSince: acmeCompatibleSince,
       ),
     },
     widgets: [
@@ -223,6 +227,50 @@ void main() {
       );
     });
 
+    test('carries a declared break into the stamp and the generated catalog',
+        () {
+      final catalog = _mixedCatalog(acmeCompatibleSince: 3);
+      final result = emitA2uiCatalog(catalog);
+      expect(result.stamp.availableLibraries, [
+        const A2uiLibraryCapability(
+          namespace: 'acme.widgets',
+          version: 3,
+          compatibleSince: 3,
+        ),
+      ]);
+      expect(
+        result.stamp.toJson()['availableLibraries'],
+        [
+          {'namespace': 'acme.widgets', 'version': 3, 'compatibleSince': 3},
+        ],
+      );
+      expect(
+        _packed(emitA2uiCatalogDart(catalog, registration: result)),
+        contains(
+          "A2uiAvailableLibrary(namespace:'acme.widgets',version:3,"
+          'compatibleSince:3)',
+        ),
+      );
+    });
+
+    test('leaves compatibleSince 1 out of the stamp and the generated catalog',
+        () {
+      final catalog = _mixedCatalog();
+      final result = emitA2uiCatalog(catalog);
+      expect(
+        result.stamp.toJson()['availableLibraries'],
+        [
+          {'namespace': 'acme.widgets', 'version': 3},
+        ],
+      );
+      final source = emitA2uiCatalogDart(catalog, registration: result);
+      expect(
+        _packed(source),
+        contains("A2uiAvailableLibrary(namespace:'acme.widgets',version:3)"),
+      );
+      expect(source, isNot(contains('compatibleSince')));
+    });
+
     test('throws when a present custom library declares no capability version',
         () {
       expect(
@@ -298,3 +346,5 @@ void main() {
     });
   });
 }
+
+String _packed(String source) => source.replaceAll(RegExp(r'\s+'), '');

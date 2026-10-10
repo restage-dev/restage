@@ -47,6 +47,15 @@ final class RestageHostedUpdateChannel implements SurfaceUpdateChannel {
       ).stream;
 }
 
+/// The close code the edge sends when a watch token expires.
+const _tokenExpiredCloseCode = 4401;
+
+/// The longest random delay before reconnecting after a token expiry.
+const _maxExpiryReconnectDelay = Duration(seconds: 5);
+
+/// Frames above this many characters are refused.
+const _maxFrameLength = 64 * 1024;
+
 final class _HostedWatch {
   _HostedWatch({
     required this.surface,
@@ -101,12 +110,21 @@ final class _HostedWatch {
   Future<void> _run() async {
     var reconnectAttempt = 0;
     Duration? retryAfter;
+    var tokenExpired = false;
     while (!_stopped) {
-      if (reconnectAttempt > 0) {
-        await _waitForBackoff(reconnectAttempt, retryAfter);
+      if (tokenExpired) {
+        // Spread the reconnects of sockets that expire together.
+        await _wait(_maxExpiryReconnectDelay * random.nextDouble());
+        if (_stopped) return;
+      } else if (reconnectAttempt > 0) {
+        final backoff = _backoffDelay(reconnectAttempt);
+        await _wait(
+          retryAfter != null && retryAfter > backoff ? retryAfter : backoff,
+        );
         retryAfter = null;
         if (_stopped) return;
       }
+      tokenExpired = false;
 
       try {
         final stamp = await rpcClient.fetchSurfaceStamp(
@@ -143,13 +161,15 @@ final class _HostedWatch {
         // A reconnect delivers a duplicate frame here; it forces a full
         // re-resolve, bounded by the registry's canSwap()/_refreshing guard.
         await socketDone;
+        tokenExpired = socket.closeCode == _tokenExpiredCloseCode;
       } catch (_) {
         // Transport and decoding failures are retryable while the surface is
         // still watched. They never reach the stream as errors.
       } finally {
         await _closeSocket();
       }
-      reconnectAttempt++;
+      // An expired token is routine: reconnect soon with a fresh stamp.
+      reconnectAttempt = tokenExpired ? 0 : reconnectAttempt + 1;
     }
   }
 
@@ -170,7 +190,19 @@ final class _HostedWatch {
   }
 
   void _handleFrame(Object? frame) {
-    if (_stopped || frame is! String) return;
+    if (_stopped) return;
+    final length = switch (frame) {
+      final String text => text.length,
+      final List<int> bytes => bytes.length,
+      _ => 0,
+    };
+    if (length > _maxFrameLength) {
+      // An oversized frame fails the connection; the loop backs off.
+      final done = _socketDone;
+      if (done != null && !done.isCompleted) done.complete();
+      return;
+    }
+    if (frame is! String) return;
     try {
       final message = jsonDecode(frame);
       if (message is Map && message['type'] == 'surface_update') {
@@ -181,13 +213,10 @@ final class _HostedWatch {
     }
   }
 
-  Future<void> _waitForBackoff(int attempt, Duration? retryAfter) {
+  Future<void> _wait(Duration delay) {
     if (_stopped) return Future<void>.value();
     final done = Completer<void>();
     _backoffDone = done;
-    final backoff = _backoffDelay(attempt);
-    final delay =
-        retryAfter != null && retryAfter > backoff ? retryAfter : backoff;
     _backoffTimer = Timer(delay, () {
       _backoffTimer = null;
       if (identical(_backoffDone, done)) _backoffDone = null;

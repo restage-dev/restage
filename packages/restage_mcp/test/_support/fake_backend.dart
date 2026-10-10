@@ -34,6 +34,7 @@ MockClient fakeBackend(
   ],
   String appSlug = 'mobile',
   List<FakeTarget> targets = defaultTargets,
+  List<Map<String, Object?>> scopeSurfaces = const [],
 }) {
   return MockClient((request) async {
     final call = BackendCall(
@@ -42,6 +43,44 @@ MockClient fakeBackend(
     );
     calls?.add(call);
     switch (call.method) {
+      case 'read':
+        if (call.endpoint != 'scope') break;
+        final selectedOrganizationId =
+            call.body['organizationId'] as int? ??
+            (organizations.firstOrNull?['organizationId'] as int? ?? 0);
+        return http.Response(
+          jsonEncode({
+            'organizationId': selectedOrganizationId,
+            'session': {
+              'memberships': organizations,
+              'workspaceExperiences': <Object>[],
+            },
+            'projects': [
+              for (final slug in ['demo', 'default', 'checkout', 'project'])
+                {'id': 1, 'slug': slug, 'name': slug},
+            ],
+            'apps': [
+              {'id': 11, 'projectId': 1, 'slug': appSlug, 'name': appSlug},
+            ],
+            'environments': [
+              for (final target in targets)
+                {
+                  'id': target.id,
+                  'appId': 11,
+                  'namedEnvironmentId': target.id * 10,
+                  'slug': target.slug,
+                },
+            ],
+            'environmentTargets': [
+              for (final target in targets) _targetJson(target),
+            ],
+            'surfaces': [
+              for (final surface in scopeSurfaces) {'appId': 11, ...surface},
+            ],
+            'apiKeys': <Object>[],
+          }),
+          200,
+        );
       case 'listMine':
         return http.Response(jsonEncode(organizations), 200);
       case 'listApps':

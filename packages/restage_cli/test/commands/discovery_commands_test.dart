@@ -76,7 +76,7 @@ void main() {
       ).run(['envs', '-C', tempDir.path]);
 
       expect(exitCode, 0);
-      expect(stdout.toString(), 'SLUG\nstaging\nproduction\n');
+      expect(stdout.toString(), 'SLUG\nstaging\nproduction\ndev\n');
     },
   );
 
@@ -122,103 +122,64 @@ void main() {
   );
 }
 
-http.Client _discoveryClient() {
-  return mockHttpClient((request) {
-    final body = jsonDecode(request.body) as Map<String, dynamic>;
-    switch (body['method'] as String?) {
-      case 'listMine':
-        return http.Response(
-          jsonEncode([
-            {
-              'organizationId': 7,
-              'slug': 'default',
-              'name': 'Default',
-              'role': 'owner',
-            },
-          ]),
-          200,
-        );
-      case 'listProjects':
-        expect(body['organizationId'], 7);
-        return http.Response(
-          jsonEncode([
-            {'slug': 'alpha', 'name': 'Alpha'},
-            {'slug': 'beta', 'name': 'Beta'},
-          ]),
-          200,
-        );
-      case 'listApps':
-        expect(body['organizationId'], 7);
-        expect(body['projectSlug'], 'alpha');
-        return http.Response(
-          jsonEncode([
-            {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
-            {'id': 6, 'slug': 'tablet', 'name': 'Tablet'},
-          ]),
-          200,
-        );
-      case 'listEnvironments':
-        expect(body['organizationId'], 7);
-        expect(body['projectSlug'], 'alpha');
-        return http.Response(
-          jsonEncode([
-            {'slug': 'staging'},
-            {'slug': 'production'},
-          ]),
-          200,
-        );
-      case 'listEnvironmentTargets':
-        expect(body['organizationId'], 7);
-        expect(body['projectSlug'], 'alpha');
-        expect(body['appSlug'], 'mobile');
-        expect(body['appId'], 5);
-        expect(body['runtimePlane'], 'sandbox');
-        return http.Response(
-          jsonEncode([
-            {
-              'environmentTargetId': 21,
-              'namedEnvironmentId': 3,
-              'environmentSlug': 'dev',
-              'runtimePlane': 'sandbox',
-            },
-            {
-              'environmentTargetId': 12,
-              'namedEnvironmentId': 4,
-              'environmentSlug': 'production',
-              'runtimePlane': 'sandbox',
-            },
-          ]),
-          200,
-        );
-      default:
-        fail('Unexpected method ${body['method']}');
-    }
-  }, withDefaultTargetDiscovery: false);
-}
+http.Client _discoveryClient() => mockHttpClient((request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(request.url.path, '/scope');
+  expect(body['method'], 'read');
+  return http.Response(_scopePayload(), 200);
+}, withDefaultTargetDiscovery: false);
+
+String _scopePayload() => jsonEncode({
+  'organizationId': 7,
+  'session': {
+    'memberships': [
+      {
+        'organizationId': 7,
+        'slug': 'default',
+        'name': 'Default',
+        'role': 'owner',
+      },
+    ],
+    'workspaceExperiences': <Object>[],
+  },
+  'projects': [
+    {'id': 1, 'slug': 'alpha', 'name': 'Alpha'},
+    {'id': 2, 'slug': 'beta', 'name': 'Beta'},
+  ],
+  'apps': [
+    {'id': 5, 'projectId': 1, 'slug': 'mobile', 'name': 'Mobile'},
+    {'id': 6, 'projectId': 1, 'slug': 'tablet', 'name': 'Tablet'},
+  ],
+  'environments': [
+    {'id': 10, 'appId': 5, 'namedEnvironmentId': 2, 'slug': 'staging'},
+    {'id': 12, 'appId': 5, 'namedEnvironmentId': 4, 'slug': 'production'},
+    {'id': 21, 'appId': 5, 'namedEnvironmentId': 3, 'slug': 'dev'},
+  ],
+  'environmentTargets': [
+    {
+      'environmentTargetId': 12,
+      'namedEnvironmentId': 4,
+      'environmentSlug': 'production',
+      'runtimePlane': 'sandbox',
+    },
+    {
+      'environmentTargetId': 21,
+      'namedEnvironmentId': 3,
+      'environmentSlug': 'dev',
+      'runtimePlane': 'sandbox',
+    },
+  ],
+  'surfaces': <Object>[],
+});
 
 Future<HttpServer> _serveDiscoveryBackend() async {
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   server.listen((request) async {
     final raw = await utf8.decoder.bind(request).join();
     final body = jsonDecode(raw) as Map<String, dynamic>;
-    final payload = switch (body['method'] as String?) {
-      'listMine' => [
-        {
-          'organizationId': 7,
-          'slug': 'default',
-          'name': 'Default',
-          'role': 'owner',
-        },
-      ],
-      'listProjects' => [
-        {'slug': 'alpha', 'name': 'Alpha'},
-      ],
-      'listEnvironments' => [
-        {'slug': 'staging'},
-        {'slug': 'production'},
-      ],
-      _ => {'error': 'unexpected method ${body['method']}'},
-    };
+    final payload = body['method'] == 'read'
+        ? jsonDecode(_scopePayload())
+        : {'error': 'unexpected method ${body['method']}'};
     if (payload is Map<String, dynamic> && payload.containsKey('error')) {
       request.response.statusCode = HttpStatus.badRequest;
     } else {

@@ -267,6 +267,8 @@ class PaywallPushCommand extends Command<int> {
           loadedConfig?.config.organization,
       runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
       configuredPlane: loadedConfig?.config.plane,
+      config: loadedConfig?.config,
+      configSource: loadedConfig?.source,
       assembled: assembled,
       buildFailed: buildCode != 0,
       declareAssets:
@@ -293,6 +295,8 @@ class PaywallPushCommand extends Command<int> {
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
     required RuntimePlane? configuredPlane,
+    required RestageConfig? config,
+    required File? configSource,
     required List<AssembledSurfacePublication> assembled,
     required bool buildFailed,
     required bool declareAssets,
@@ -319,15 +323,34 @@ class PaywallPushCommand extends Command<int> {
           appSlug: app,
           environmentSlug: environment,
           organizationSlug: preferredOrganizationSlug,
+          organizationId: config?.organization == preferredOrganizationSlug
+              ? config?.organizationId
+              : null,
+          environmentTargetId:
+              config?.project == project &&
+                  config?.app == app &&
+                  config?.defaultEnvironment == environment &&
+                  !(argResults?.wasParsed('plane') ?? false)
+              ? config?.environmentTargetId
+              : null,
           runtimePlane: runtimePlane,
           configuredPlane: configuredPlane,
         );
+      } on TargetSelectionException catch (error) {
+        _stderr.writeln(error.message);
+        return 1;
       } on RestageApiException catch (error) {
         return _handleApiException(error);
       } on SocketException catch (error) {
         _stderr.writeln('Could not contact the backend: $error');
         return 2;
       }
+
+      await persistConfirmedTargetIds(
+        configSource: configSource,
+        config: config,
+        target: target,
+      );
 
       final pushCode = await runPush(
         api: api,

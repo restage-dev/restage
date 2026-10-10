@@ -9,7 +9,11 @@ import 'package:meta/meta.dart';
 @immutable
 final class LibraryInfo {
   /// Const constructor.
-  const LibraryInfo({required this.version, this.capabilityVersion});
+  const LibraryInfo({
+    required this.version,
+    this.capabilityVersion,
+    this.compatibleSince = 1,
+  });
 
   /// Semver of the library package this entry was generated from.
   final String version;
@@ -27,12 +31,17 @@ final class LibraryInfo {
   /// referenced); an unreferenced custom library that omits it is left alone.
   final int? capabilityVersion;
 
+  /// The oldest capability version this build still renders, from
+  /// `@RestageLibrary(compatibleSince: …)`. `1` means no declared break.
+  final int compatibleSince;
+
   @override
   bool operator ==(Object other) =>
       other is LibraryInfo &&
       other.version == version &&
-      other.capabilityVersion == capabilityVersion;
+      other.capabilityVersion == capabilityVersion &&
+      other.compatibleSince == compatibleSince;
 
   @override
-  int get hashCode => Object.hash(version, capabilityVersion);
+  int get hashCode => Object.hash(version, capabilityVersion, compatibleSince);
 }

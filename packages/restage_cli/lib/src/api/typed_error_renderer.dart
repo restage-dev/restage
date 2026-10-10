@@ -65,7 +65,31 @@ String renderSurfaceException(SurfaceException e) => switch (e) {
   SurfaceVersionNotFound(:final surfaceSlug, :final toVersion) =>
     "Version v$toVersion not found for '$surfaceSlug'.",
   SurfaceFamilyRefused(:final message) => message,
+  SurfaceArchived(:final surfaceSlug) =>
+    "'$surfaceSlug' is archived. Restore it first.",
+  SurfaceNotArchived(:final surfaceSlug) =>
+    "Archive '$surfaceSlug' before deleting it for good.",
+  SurfaceVersionLabelRejected(:final message) => message,
+  final SurfaceDeleteRefused refused => surfaceDeleteRefusedSentence(refused),
 };
+
+/// The refusal of a delete for good: its title, then one line per blocker.
+String surfaceDeleteRefusedSentence(SurfaceDeleteRefused refused) => [
+  'Surface not deleted',
+  for (final blocker in refused.blockers)
+    '  ${switch (blocker.kind) {
+      SurfaceDeleteBlockerKind.runningExperiment => 'Running experiment ${blocker.experimentName ?? ''}'.trimRight(),
+      SurfaceDeleteBlockerKind.deliveryRule => 'Delivery rule in ${blocker.environmentSlug ?? ''}'.trimRight(),
+      SurfaceDeleteBlockerKind.recentRequests => ['${blocker.requestCount ?? 0} requests in the last 30 days', if (blocker.lastRequestAt case final last?) '(last at ${_utcMinute(last)})'].join(' '),
+    }}',
+].join('\n');
+
+String _utcMinute(DateTime at) {
+  final utc = at.toUtc();
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${utc.year}-${two(utc.month)}-${two(utc.day)} '
+      '${two(utc.hour)}:${two(utc.minute)} UTC';
+}
 
 /// The sentence for an app slug with no app under [projectSlug].
 String appNotFoundSentence(String appSlug, String projectSlug) =>

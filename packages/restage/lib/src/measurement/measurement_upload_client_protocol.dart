@@ -123,6 +123,7 @@ final class MeasurementUploadOutcome {
     required this.acknowledgement,
     required this.holdReason,
     required this.quarantineReason,
+    this.registrationFingerprint,
   });
 
   /// The exact response proved a strict acknowledgement identity.
@@ -164,6 +165,17 @@ final class MeasurementUploadOutcome {
           quarantineReason: reason,
         );
 
+  /// The typed server refusal for the assignment carried by this exact frame.
+  const MeasurementUploadOutcome.registrationRefused(String fingerprint)
+      : this._(
+          kind: MeasurementUploadOutcomeKind.rejected,
+          acknowledgement: null,
+          holdReason: null,
+          quarantineReason:
+              MeasurementOutboxQuarantineReason.permanentRejection,
+          registrationFingerprint: fingerprint,
+        );
+
   /// The exact body is retained in conflict quarantine.
   const MeasurementUploadOutcome.conflict()
       : this._(
@@ -202,6 +214,9 @@ final class MeasurementUploadOutcome {
 
   /// Quarantine reason only for rejected/conflict outcomes.
   final MeasurementOutboxQuarantineReason? quarantineReason;
+
+  /// Local-only digest of the refused frame's assignment carrier.
+  final String? registrationFingerprint;
 }
 
 /// Worker-local client that sends one exact leased body without re-encoding it.
@@ -247,10 +262,16 @@ enum MeasurementOutboxUploadOutcome {
 @immutable
 final class MeasurementOutboxUploadResult {
   /// Creates one upload coordinator result.
-  const MeasurementOutboxUploadResult(this.outcome);
+  const MeasurementOutboxUploadResult(
+    this.outcome, {
+    this.registrationFingerprint,
+  });
 
   /// Closed coordinator result.
   final MeasurementOutboxUploadOutcome outcome;
+
+  /// Present only after a typed refusal was durably quarantined.
+  final String? registrationFingerprint;
 }
 
 /// Serializes delivery of one durable ready record at a time.
@@ -311,7 +332,14 @@ final class MeasurementOutboxUploadCoordinator {
           _hold(lease, upload.holdReason!),
         MeasurementUploadOutcomeKind.rejected ||
         MeasurementUploadOutcomeKind.conflict =>
-          _quarantine(lease, upload.quarantineReason!),
+          _quarantine(
+            lease,
+            upload.quarantineReason!,
+            registrationFingerprint:
+                upload.registrationFingerprint == lease.registrationFingerprint
+                    ? upload.registrationFingerprint
+                    : null,
+          ),
         MeasurementUploadOutcomeKind.unavailable =>
           const MeasurementOutboxUploadResult(
             MeasurementOutboxUploadOutcome.unavailable,
@@ -395,21 +423,25 @@ final class MeasurementOutboxUploadCoordinator {
   }
 
   Future<MeasurementOutboxUploadResult> _quarantine(
-    MeasurementOutboxLease lease,
-    MeasurementOutboxQuarantineReason reason,
-  ) async {
+      MeasurementOutboxLease lease, MeasurementOutboxQuarantineReason reason,
+      {String? registrationFingerprint}) async {
     final result = await _store.quarantine(lease, reason);
+    final outcome = switch (result.outcome) {
+      MeasurementOutboxStateOutcome.quarantined =>
+        MeasurementOutboxUploadOutcome.quarantined,
+      MeasurementOutboxStateOutcome.unavailable =>
+        MeasurementOutboxUploadOutcome.unavailable,
+      MeasurementOutboxStateOutcome.held ||
+      MeasurementOutboxStateOutcome.unknownLease ||
+      MeasurementOutboxStateOutcome.persistenceFailure =>
+        MeasurementOutboxUploadOutcome.persistenceFailure,
+    };
     return MeasurementOutboxUploadResult(
-      switch (result.outcome) {
-        MeasurementOutboxStateOutcome.quarantined =>
-          MeasurementOutboxUploadOutcome.quarantined,
-        MeasurementOutboxStateOutcome.unavailable =>
-          MeasurementOutboxUploadOutcome.unavailable,
-        MeasurementOutboxStateOutcome.held ||
-        MeasurementOutboxStateOutcome.unknownLease ||
-        MeasurementOutboxStateOutcome.persistenceFailure =>
-          MeasurementOutboxUploadOutcome.persistenceFailure,
-      },
+      outcome,
+      registrationFingerprint:
+          outcome == MeasurementOutboxUploadOutcome.quarantined
+              ? registrationFingerprint
+              : null,
     );
   }
 }

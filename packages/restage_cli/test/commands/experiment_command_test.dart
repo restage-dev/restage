@@ -27,9 +27,7 @@ const _routes = <String, String>{
   'pause': 'pauseExperiment',
   'resume': 'resumeExperiment',
   'conclude': 'concludeExperiment',
-  'list': 'listExperiments',
   'read': 'readExperiment',
-  'results': 'readExperimentResults',
   'archive': 'setExperimentArchived',
   'register-build': 'registerBuildCapabilities',
   'readiness': 'readExperimentReadiness',
@@ -80,14 +78,7 @@ const _selectors = <String, List<String>>{
   'pause': _lifecycleSelectors,
   'resume': _lifecycleSelectors,
   'conclude': _lifecycleSelectors,
-  'list': [],
   'read': ['--experiment-id=experiment.checkout'],
-  'results': [
-    '--experiment-id=experiment.checkout',
-    '--activation-ordinal=7',
-    '--result-digest=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-  ],
   'archive': [
     '--experiment-id=experiment.checkout',
     '--expected-control-plane-ordinal=8',
@@ -328,12 +319,13 @@ void main() {
       }
     });
 
-    test('the twenty semantic subcommands cover the twenty operations', () {
-      expect(_routes, hasLength(20));
-      expect(
-        _routes.values.toSet(),
-        ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet(),
-      );
+    test('the eighteen semantic subcommands cover the operations they own', () {
+      expect(_routes, hasLength(18));
+      expect({
+        ..._routes.values,
+        'listExperiments',
+        'readExperimentResults',
+      }, ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet());
     });
 
     test('the operator subcommand names no semantic operation', () {
@@ -345,7 +337,7 @@ void main() {
       );
     });
 
-    test('draft, experiment, and results reads stay separate routes', () async {
+    test('draft and experiment reads stay separate routes', () async {
       final resolved = await run([
         'resolve-draft',
         ..._selectors['resolve-draft']!,
@@ -353,11 +345,9 @@ void main() {
       expect(resolved.methods, ['resolveDraft']);
       final draft = await run(['read-draft', ..._selectors['read-draft']!]);
       final experiment = await run(['read', ..._selectors['read']!]);
-      final results = await run(['results', ..._selectors['results']!]);
 
       expect(draft.methods, ['readDraft']);
       expect(experiment.methods, ['readExperiment']);
-      expect(results.methods, ['readExperimentResults']);
     });
 
     test('help lists the semantic and operator subcommands', () async {
@@ -372,7 +362,7 @@ void main() {
 
       expect(
         _subcommandsInHelp(stdout.toString()),
-        [..._routes.keys, ..._operatorRoutes.keys]..sort(),
+        [..._routes.keys, ..._operatorRoutes.keys, 'list', 'results']..sort(),
       );
     });
 
@@ -437,35 +427,6 @@ void main() {
       expect(stdout.toString(), contains('--surface-revision-id'));
       expect(stdout.toString(), contains('inactive'));
       expect(stdout.toString(), contains('live delivery'));
-    });
-  });
-
-  group('results', () {
-    test(
-      'forwards the capability refusal from the route rather than stubbing it',
-      () async {
-        final result = await run(['results', ..._selectors['results']!]);
-
-        expect(result.methods, ['readExperimentResults']);
-        expect(result.code, 1);
-        expect(result.err, contains('capabilityUnavailable'));
-      },
-    );
-
-    test('prints the exact semantic refusal with --json', () async {
-      final result = await run([
-        'results',
-        ..._selectors['results']!,
-        '--json',
-      ]);
-
-      final decoded = jsonDecode(result.out.trim()) as Map<String, Object?>;
-      expect(decoded['kind'], 'refused');
-      expect(decoded['operation'], 'readExperimentResults');
-      expect(
-        (decoded['refusal']! as Map<String, Object?>)['code'],
-        'capabilityUnavailable',
-      );
     });
   });
 
@@ -943,230 +904,16 @@ void main() {
       },
     );
 
-    test('results print the digits the result carries, unchanged', () async {
-      final result = await run(
-        ['results', ..._selectors['results']!],
-        reply: (method, sent) => resultsView(correlationId: sent.correlationId),
-      );
-
-      expect(result.code, 0);
-      expect(result.err, isEmpty);
-      expect(
-        result.out,
-        contains(
-          '  arm.variant: rate 0.105000000 (525/5000 of 5000) '
-          'effect 0.005000000, '
-          'interval -0.000976563 to 0.008789063',
-        ),
-      );
-      expect(
-        result.out,
-        contains('  guardrail guardrail.checkout-errors: withinBound'),
-      );
-    });
-
-    test(
-      'results --json keep the exact fraction behind every figure',
-      () async {
-        final result = await run(
-          ['results', ..._selectors['results']!, '--json'],
-          reply: (method, sent) =>
-              resultsView(correlationId: sent.correlationId),
-        );
-
-        final decoded = jsonDecode(result.out.trim()) as Map<String, Object?>;
-        final response = decoded['response']! as Map<String, Object?>;
-        final arms = (response['armResults']! as List<Object?>)
-            .cast<Map<String, Object?>>();
-        final variant = arms.last;
-        final interval = variant['interval']! as Map<String, Object?>;
-
-        expect(variant['rateExact'], {'denominator': '200', 'numerator': '21'});
-        expect(variant['effectExact'], {
-          'denominator': '200',
-          'numerator': '1',
-        });
-        expect(interval['lowerExact'], {
-          'denominator': '1024',
-          'numerator': '-1',
-        });
-        expect(interval['upperExact'], {
-          'denominator': '1024',
-          'numerator': '9',
-        });
-      },
-    );
-
-    test('list renders each accepted entry and exits zero', () async {
-      final result = await run(
-        const ['list'],
-        reply: (method, sent) => listPage(
-          experimentIds: const ['experiment.a', 'experiment.b'],
-          correlationId: sent.correlationId,
-        ),
-      );
-
-      expect(result.code, 0);
-      expect(result.out, contains('experiment.a'));
-      expect(result.out, contains('experiment.b'));
-    });
-
-    test('list --results prints each entry beside its figures', () async {
-      final result = await run(
-        const ['list', '--results'],
-        reply: (method, sent) => switch (method) {
-          'listExperiments' => _activatedListPage(sent.correlationId),
-          _ => resultsView(correlationId: sent.correlationId),
-        },
-      );
-
-      expect(result.code, 0, reason: result.err);
-      expect(result.methods, ['listExperiments', 'readExperimentResults']);
-      expect(result.out, contains('experiment.checkout (active):'));
-      expect(
-        result.out,
-        contains(
-          '  arm.variant: rate 0.105000000 (525/5000 of 5000) '
-          'effect 0.005000000, '
-          'interval -0.000976563 to 0.008789063',
-        ),
-      );
-    });
-
-    test('list --results reads no result for an entry naming none', () async {
-      final result = await run(
-        const ['list', '--results'],
-        reply: (method, sent) => listPage(
-          experimentIds: const ['experiment.a'],
-          correlationId: sent.correlationId,
-        ),
-      );
-
-      expect(result.code, 0, reason: result.err);
-      expect(result.methods, ['listExperiments']);
-      expect(result.out, contains('experiment.a: no result'));
-    });
-
-    test('list --results keeps the rows around a refused entry', () async {
-      var reads = 0;
-      final result = await run(
-        const ['list', '--results'],
-        reply: (method, sent) => switch (method) {
-          'listExperiments' => _activatedListPage(
-            sent.correlationId,
-            experimentIds: const ['experiment.a', 'experiment.b'],
-          ),
-          _ =>
-            ++reads == 1
-                ? refusalFor(
-                    method,
-                    ExperimentAuthoringRefusalCodeV1.capabilityUnavailable,
-                    correlationId: sent.correlationId,
-                  )
-                : resultsView(correlationId: sent.correlationId),
-        },
-      );
-
-      expect(result.code, 0, reason: result.err);
-      expect(result.methods, [
-        'listExperiments',
-        'readExperimentResults',
-        'readExperimentResults',
-      ]);
-      expect(
-        result.out,
-        contains('experiment.a: no result (capabilityUnavailable)'),
-      );
-      expect(result.out, contains('experiment.b (active):'));
-      expect(result.out, contains('  arm.variant: rate 0.105000000'));
-    });
-
-    test('list --results --json keeps each entry beside its result', () async {
-      final result = await run(
-        const ['list', '--results', '--json'],
-        reply: (method, sent) => switch (method) {
-          'listExperiments' => _activatedListPage(sent.correlationId),
-          _ => resultsView(correlationId: sent.correlationId),
-        },
-      );
-
-      final rows = (jsonDecode(result.out.trim())! as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(rows, hasLength(1));
-      final entry = rows.single['entry']! as Map<String, Object?>;
-      expect(entry['kind'], 'experimentSummary');
-      final results = rows.single['results']! as Map<String, Object?>;
-      final arms = (results['armResults']! as List<Object?>)
-          .cast<Map<String, Object?>>();
-      expect(arms.last['rate'], '0.105000000');
-      expect(arms.last['rateExact'], {'denominator': '200', 'numerator': '21'});
-    });
-
-    test('the drain follows every cursor and keeps every entry', () async {
-      final cursors = <String?>[];
-      final result = await run(
-        const ['list'],
-        reply: (method, sent) {
-          cursors.add(sent.payload['pageCursor'] as String?);
-          return switch (cursors.length) {
-            1 => listPage(
-              experimentIds: const ['experiment.a'],
-              nextPageCursor: 'cursor-2',
-              correlationId: sent.correlationId,
-            ),
-            2 => listPage(
-              experimentIds: const ['experiment.b'],
-              nextPageCursor: 'cursor-3',
-              correlationId: sent.correlationId,
-            ),
-            _ => listPage(
-              experimentIds: const ['experiment.c'],
-              correlationId: sent.correlationId,
-            ),
-          };
-        },
-      );
-
-      expect(result.code, 0);
-      expect(cursors, [null, 'cursor-2', 'cursor-3']);
-      for (final id in const ['experiment.a', 'experiment.b', 'experiment.c']) {
-        expect(result.out, contains(id));
-      }
-    });
-
-    // Nothing bounds how many entries a drain returns. A page size is bounded;
-    // a total is not, so this asserts an absence the route must keep.
-    test('the drain keeps every entry past any one page size', () async {
-      final expected = [for (var index = 0; index < 250; index++) 'e.$index'];
-      var page = 0;
-      final result = await run(
-        const ['list'],
-        reply: (method, sent) {
-          final start = page * 100;
-          final end = start + 100 > expected.length
-              ? expected.length
-              : start + 100;
-          page += 1;
-          return listPage(
-            experimentIds: expected.sublist(start, end),
-            nextPageCursor: end < expected.length ? 'cursor-$page' : null,
-            correlationId: sent.correlationId,
-          );
-        },
-      );
-
-      expect(result.code, 0);
-      expect(page, 3);
-      expect(result.out.trim().split('\n'), expected);
-    });
-
     test('every request says this build reads an issue locator', () async {
       final declared = <bool>[];
       await run(
-        const ['list'],
+        const ['discover'],
         reply: (method, sent) {
           declared.add(sent.issueLocators);
-          return listPage(correlationId: sent.correlationId);
+          return discoveryPage(
+            nextPageCursor: null,
+            correlationId: sent.correlationId,
+          );
         },
       );
 
@@ -1548,16 +1295,16 @@ void main() {
   });
 
   group('the experimental gate', () {
-    test('hides the command until the host opts in', () async {
+    test('lists only the reads until the host opts in', () async {
       final stdout = StringBuffer();
       await RestageCli(
         stdout: stdout,
         stderr: StringBuffer(),
         credentialStore: store,
         environment: const {},
-      ).run(const ['--help']);
+      ).run(const ['experiment', '--help']);
 
-      expect(stdout.toString(), isNot(contains('experiment ')));
+      expect(_subcommandsInHelp(stdout.toString()), ['list', 'results']);
     });
 
     test('a subcommand refuses and reaches no route without it', () async {
@@ -1615,53 +1362,6 @@ List<String> _subcommandsInHelp(String help) {
   return names..sort();
 }
 
-/// One accepted list page carrying an activated, evaluated entry per id.
-Uint8List _activatedListPage(
-  String correlationId, {
-  List<String> experimentIds = const ['experiment.checkout'],
-}) => ExperimentAuthoringResultV1.fromJson({
-  'correlationId': correlationId,
-  'kind': 'accepted',
-  'operation': 'listExperiments',
-  'response': {
-    'experiments': [
-      for (final experimentId in experimentIds)
-        {
-          'acceptedAtMicros': 1788091300000000,
-          'activationOrdinal': 7,
-          'archivedAtMicros': null,
-          'controlPlaneOrdinal': 9,
-          'experimentId': experimentId,
-          'inferenceReference': {
-            'inferenceRevisionId': 'inference.checkout.v2',
-            'kind': 'exact',
-            'resultDigest': _audienceDigest,
-          },
-          'integrityState': 'verified',
-          'kind': 'experimentSummary',
-          'label': experimentId,
-          'lifecycleOrdinal': 8,
-          'lifecycleState': 'active',
-          'liveReadReference': {
-            'activationOrdinal': 7,
-            'experimentId': experimentId,
-            'kind': 'experimentLiveReadReference',
-            'receiptDigest': _schemaDigest,
-            'target': fixtureTarget.toJson(),
-          },
-          'pendingDraft': const {'kind': 'none'},
-          'schemaVersion': kMeasurementSchemaVersion,
-          'target': fixtureTarget.toJson(),
-        },
-    ],
-    'kind': 'experimentListView',
-    'nextPageCursor': null,
-    'schemaVersion': kMeasurementSchemaVersion,
-    'target': fixtureTarget.toJson(),
-  },
-  'schemaVersion': kMeasurementSchemaVersion,
-}).canonicalBytes;
-
 /// Answers the directory reads the shared target resolution performs.
 ///
 /// Returns null for anything else, so the caller handles the semantic route.
@@ -1673,6 +1373,34 @@ const _experimentTarget = {
 };
 
 http.Response? targetDirectoryResponse(String method) => switch (method) {
+  'read' => http.Response(
+    jsonEncode({
+      'organizationId': 11,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': 11,
+            'slug': 'restage',
+            'name': 'Restage',
+            'role': 'owner',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
+      },
+      'projects': [
+        {'id': 1, 'slug': 'checkout', 'name': 'Checkout'},
+      ],
+      'apps': [
+        {'id': 23, 'projectId': 1, 'slug': 'app', 'name': 'App'},
+      ],
+      'environments': [
+        {'id': 31, 'appId': 23, 'namedEnvironmentId': 37, 'slug': 'production'},
+      ],
+      'environmentTargets': [_experimentTarget],
+      'surfaces': <Object>[],
+    }),
+    200,
+  ),
   'listMine' => http.Response(
     jsonEncode([
       {'organizationId': 11, 'slug': 'restage', 'name': 'Restage'},

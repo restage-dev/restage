@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
 
+import '../delivery/surface_delivery_receipt.dart';
 import 'restage_widget_factory.dart';
 import 'restage_widget_library_registration.dart';
 
@@ -22,29 +23,24 @@ abstract final class LibraryRuntimeRegistry {
   /// Mount installs that only add libraries or widgets leave it unchanged.
   static int get generation => _generation;
 
-  /// Record [library] under its namespace, replacing any prior registration.
+  /// Registers [widgets] under [library], replacing that namespace.
+  /// [capabilityVersion] must satisfy the surface's required version;
+  /// unversioned registrations satisfy no positive requirement.
+  /// [compatibleSince] (default 1) is the oldest required version supported.
   ///
-  /// [capabilityVersion] is the library's declared monotonic capability version
-  /// (from its `@RestageLibrary(capabilityVersion: …)` declaration), recorded so
-  /// the resolvers can verify a delivered surface's required-library floor
-  /// before render. A registration that omits it (`null`) is treated as
-  /// **unversioned** and satisfies no positive requirement (fail-closed) — a
-  /// surface requiring `acme.widgets >= 2` needs a registration declaring a
-  /// capability version at or above 2.
-  ///
-  /// A reserved built-in namespace (`restage.core` etc.) is rejected so it can
-  /// never shadow the genuine built-in library on a mount: the debug assert is
-  /// a hard stop in development, and release ignores the registration and logs
-  /// (never throws). Asserts that [widgets] contains no duplicate names.
+  /// Reserved namespaces assert in debug and are logged and ignored in release.
+  /// Duplicate widget names also assert.
   static void register(
     WidgetLibrary library,
     List<RestageWidgetFactory> widgets, {
     int? capabilityVersion,
+    int? compatibleSince,
   }) =>
       _register(
         library,
         widgets,
         capabilityVersion: capabilityVersion,
+        compatibleSince: compatibleSince,
         additive: false,
       );
 
@@ -52,6 +48,7 @@ abstract final class LibraryRuntimeRegistry {
     WidgetLibrary library,
     List<RestageWidgetFactory> widgets, {
     required int? capabilityVersion,
+    required int? compatibleSince,
     required bool additive,
   }) {
     if (hostInstalledRfwLibrary(library.namespace) != null) {
@@ -114,6 +111,7 @@ abstract final class LibraryRuntimeRegistry {
       library: library,
       widgets: widgets,
       capabilityVersion: capabilityVersion,
+      compatibleSince: compatibleSince,
     );
     final builders = <String, rfw.LocalWidgetBuilder>{};
     for (final w in registration.widgets) {
@@ -131,6 +129,7 @@ abstract final class LibraryRuntimeRegistry {
       libraryName: rfw.LibraryName(library.namespace.split('.')),
       widgets: rfw.LocalWidgetLibrary(builders),
       capabilityVersion: capabilityVersion,
+      compatibleSince: compatibleSince,
       registration: registration,
     );
     if (!additive) _generation += 1;
@@ -154,6 +153,7 @@ abstract final class LibraryRuntimeRegistry {
         registration.library,
         registration.widgets,
         capabilityVersion: registration.capabilityVersion,
+        compatibleSince: registration.compatibleSince,
         additive: true,
       );
       return;
@@ -165,15 +165,32 @@ abstract final class LibraryRuntimeRegistry {
     ];
     final existingVersion = existing.capabilityVersion;
     final addedVersion = registration.capabilityVersion;
-    final version = existingVersion == null ||
-            addedVersion != null && addedVersion > existingVersion
-        ? addedVersion
-        : existingVersion;
-    if (added.isEmpty && version == existingVersion) return;
+    // The higher version carries its compatibleSince; on a tie the higher
+    // compatibleSince wins so a declared break is never dropped.
+    final int? version;
+    final int? compatibleSince;
+    if (existingVersion == null ||
+        addedVersion != null && addedVersion > existingVersion) {
+      version = addedVersion;
+      compatibleSince = registration.compatibleSince;
+    } else if (addedVersion == existingVersion &&
+        (registration.compatibleSince ?? 1) > (existing.compatibleSince ?? 1)) {
+      version = existingVersion;
+      compatibleSince = registration.compatibleSince;
+    } else {
+      version = existingVersion;
+      compatibleSince = existing.compatibleSince;
+    }
+    if (added.isEmpty &&
+        version == existingVersion &&
+        compatibleSince == existing.compatibleSince) {
+      return;
+    }
     _register(
       existing.library,
       [...existing.widgets, ...added],
       capabilityVersion: version,
+      compatibleSince: compatibleSince,
       additive: true,
     );
   }
@@ -198,6 +215,7 @@ abstract final class LibraryRuntimeRegistry {
           InstalledLibrary(
             namespace: entry.key,
             version: entry.value.capabilityVersion,
+            compatibleSince: entry.value.compatibleSince,
           ),
       ];
 
@@ -207,26 +225,52 @@ abstract final class LibraryRuntimeRegistry {
         _entries.values.map((entry) => entry.registration),
       );
 
-  /// Whether the installed registry satisfies [requirement]: the namespace is
-  /// registered AND was registered with a capability version at or above the
-  /// requirement's `minVersion`. Fail-closed — an unregistered or unversioned
-  /// library satisfies nothing.
-  static bool satisfies(LibraryRequirement requirement) {
-    final version = _entries[requirement.namespace]?.capabilityVersion;
-    return version != null && version >= requirement.minVersion;
-  }
+  /// How the registered library compares with [requirement].
+  static LibraryCompatibility compatibilityOf(LibraryRequirement requirement) =>
+      LibraryCompatibility.evaluate(
+        _installedLibrary(requirement.namespace),
+        requirement,
+      );
 
-  /// A short phrase describing why [requirement] is unsatisfied, for a
-  /// resolver's rejection diagnostic. Single-sourced so both resolvers name the
-  /// gap the same way. (Undefined when [requirement] is satisfied — call only
-  /// after [satisfies] returns false.)
-  static String describeGap(LibraryRequirement requirement) {
-    final entry = _entries[requirement.namespace];
-    if (entry == null) return 'not registered';
-    final version = entry.capabilityVersion;
-    return version == null
-        ? 'registered without a capability version'
-        : 'installed v$version';
+  /// Whether the registered library renders content needing [requirement].
+  /// Fail-closed: an unregistered or unversioned library satisfies nothing.
+  static bool satisfies(LibraryRequirement requirement) =>
+      compatibilityOf(requirement) == LibraryCompatibility.satisfied;
+
+  /// The receipt reason for refusing content needing [manifest]:
+  /// `incompatibleLibrary` when a registered library declared a break past a
+  /// requirement, otherwise `unsupported`.
+  static SurfaceDeliveryReceiptReason receiptReasonFor(
+    CapabilityManifest manifest,
+  ) =>
+      receiptReasonForLibraries(manifest.requiredLibraries);
+
+  /// [receiptReasonFor] over a bare list of required libraries.
+  static SurfaceDeliveryReceiptReason receiptReasonForLibraries(
+    Iterable<LibraryRequirement> requiredLibraries,
+  ) =>
+      requiredLibraries.any(
+        (requirement) =>
+            compatibilityOf(requirement) == LibraryCompatibility.contractBroken,
+      )
+          ? SurfaceDeliveryReceiptReason.incompatibleLibrary
+          : SurfaceDeliveryReceiptReason.unsupported;
+
+  /// A short phrase naming what is registered for [requirement], for a
+  /// rejection diagnostic after [satisfies] returned false.
+  static String describeGap(LibraryRequirement requirement) =>
+      LibraryCompatibility.describeInstalled(
+        _installedLibrary(requirement.namespace),
+      );
+
+  static InstalledLibrary? _installedLibrary(String namespace) {
+    final entry = _entries[namespace];
+    if (entry == null) return null;
+    return InstalledLibrary(
+      namespace: namespace,
+      version: entry.capabilityVersion,
+      compatibleSince: entry.compatibleSince,
+    );
   }
 
   /// Register every recorded custom library on [runtime] via
@@ -251,6 +295,7 @@ class _CustomLibraryEntry {
     required this.libraryName,
     required this.widgets,
     required this.capabilityVersion,
+    required this.compatibleSince,
     required this.registration,
   });
 
@@ -261,4 +306,8 @@ class _CustomLibraryEntry {
   /// The library's declared monotonic capability version, or `null` when the
   /// registration omitted it (unversioned).
   final int? capabilityVersion;
+
+  /// The oldest capability version whose content the library still renders,
+  /// or `null` for 1.
+  final int? compatibleSince;
 }

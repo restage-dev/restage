@@ -2,7 +2,6 @@ import 'package:meta/meta.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Direction of a `required`-flag flip on a property or structured field.
-@experimental
 enum RequiredFlagDirection {
   /// `required: true` → `required: false`. Additive — blobs authored
   /// against the prior catalog still decode.
@@ -20,7 +19,6 @@ enum RequiredFlagDirection {
 /// — a new change shape forces a classifier update at compile time rather
 /// than falling through to a silent default.
 @immutable
-@experimental
 sealed class CatalogChange {
   /// Creates a catalog change affecting the entry referenced by [affected].
   const CatalogChange({required this.kind, required this.affected});
@@ -44,7 +42,6 @@ sealed class CatalogChange {
 
 /// A new entry appeared in the new catalog version. Additive — no existing
 /// blob references it.
-@experimental
 final class EntryAdded extends CatalogChange {
   /// Creates an entry-added change.
   const EntryAdded({required super.kind, required super.affected});
@@ -52,24 +49,28 @@ final class EntryAdded extends CatalogChange {
 
 /// An entry present in the old version is absent from the new version.
 /// Breaking — blobs referencing the wire ID no longer resolve.
-@experimental
 final class EntryRemoved extends CatalogChange {
   /// Creates an entry-removed change.
   const EntryRemoved({required super.kind, required super.affected});
 }
 
-/// An entry's advisory label (display name, source path, or variant
-/// accessor) shifted while its wire ID stayed stable. Free under wire IDs.
-@experimental
+/// An entry's name or variant accessor changed while its wire ID stayed
+/// stable. Breaking: installed apps resolve by name.
 final class EntryRenamed extends CatalogChange {
   /// Creates an entry-renamed change.
   const EntryRenamed({required super.kind, required super.affected});
 }
 
+/// An entry's source path moved while its name and wire ID stayed the same.
+/// Free: installed apps resolve by name.
+final class EntrySourceMoved extends CatalogChange {
+  /// Creates an entry-source-moved change.
+  const EntrySourceMoved({required super.kind, required super.affected});
+}
+
 /// An entry gained a catalog-lifecycle deprecation — `deprecated.catalog`
 /// is present in the new version and absent in the old. Additive — blobs
 /// continue to resolve; the editor warns.
-@experimental
 final class EntryDeprecated extends CatalogChange {
   /// Creates an entry-deprecated change.
   const EntryDeprecated({required super.kind, required super.affected});
@@ -78,7 +79,6 @@ final class EntryDeprecated extends CatalogChange {
 /// An entry gained a successor via a `replace` event — its
 /// `deprecated.catalog.replaceWith` is present in the new version.
 /// Forwarding — the decoder remaps old references to [successor].
-@experimental
 final class EntryReplaced extends CatalogChange {
   /// Creates an entry-replaced change forwarding to [successor].
   const EntryReplaced({
@@ -106,9 +106,38 @@ final class EntryReplaced extends CatalogChange {
   int get hashCode => Object.hash(super.hashCode, successor, transitionId);
 }
 
+/// A property's or structured field's value shape changed without a
+/// [PropertyType] change: its callback signature, enum type, widget type,
+/// positional flag, structured or union reference, or value shape.
+/// Always `kind == WireIdKind.property`.
+final class PropertyShapeChanged extends CatalogChange {
+  /// Creates a shape change naming the [fields] that differ.
+  const PropertyShapeChanged({required super.affected, required this.fields})
+      : super(kind: WireIdKind.property);
+
+  /// The names of the changed shape fields, in a fixed order.
+  final List<String> fields;
+
+  @override
+  bool operator ==(Object other) =>
+      super == other &&
+      other is PropertyShapeChanged &&
+      _listEquals(other.fields, fields);
+
+  @override
+  int get hashCode => Object.hash(super.hashCode, Object.hashAll(fields));
+}
+
+bool _listEquals(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 /// A property's or structured field's catalog [PropertyType] changed.
 /// Always `kind == WireIdKind.property`.
-@experimental
 final class PropertyTypeChanged extends CatalogChange {
   /// Creates a property-type change from [from] to [to].
   const PropertyTypeChanged({
@@ -135,7 +164,6 @@ final class PropertyTypeChanged extends CatalogChange {
 }
 
 /// A property's or structured field's `required` flag flipped.
-@experimental
 final class RequiredFlagChanged extends CatalogChange {
   /// Creates a required-flag change in [direction].
   const RequiredFlagChanged({
@@ -160,7 +188,6 @@ final class RequiredFlagChanged extends CatalogChange {
 /// A property's or structured field's `defaultSource` changed — including a
 /// `null` ↔ non-`null` transition or a change of `DefaultValueSourceKind`.
 /// Additive — blobs carrying an explicit value are unaffected.
-@experimental
 final class PropertyDefaultChanged extends CatalogChange {
   /// Creates a property-default change.
   const PropertyDefaultChanged({required super.affected})
@@ -169,7 +196,6 @@ final class PropertyDefaultChanged extends CatalogChange {
 
 /// A property's editor metadata (`category` / `priority`) changed.
 /// Additive — editor-surface metadata only.
-@experimental
 final class PropertyMetadataChanged extends CatalogChange {
   /// Creates a property-metadata change.
   const PropertyMetadataChanged({required super.affected})
@@ -178,7 +204,6 @@ final class PropertyMetadataChanged extends CatalogChange {
 
 /// A property's `synthetic` codegen strategy changed. Breaking — the
 /// decoder semantics for the slot shift.
-@experimental
 final class SyntheticStrategyChanged extends CatalogChange {
   /// Creates a synthetic-strategy change.
   const SyntheticStrategyChanged({required super.affected})
@@ -187,7 +212,6 @@ final class SyntheticStrategyChanged extends CatalogChange {
 
 /// A widget's `childrenSlot` changed (none ↔ single ↔ list). Breaking — a
 /// structural blob change is required.
-@experimental
 final class WidgetChildrenSlotChanged extends CatalogChange {
   /// Creates a children-slot change from [from] to [to].
   const WidgetChildrenSlotChanged({
@@ -215,7 +239,6 @@ final class WidgetChildrenSlotChanged extends CatalogChange {
 
 /// A member structured type was added to a union. Additive — a new option;
 /// existing blobs are unaffected.
-@experimental
 final class UnionMemberAdded extends CatalogChange {
   /// Creates a union-member-added change for [member].
   const UnionMemberAdded({required super.affected, required this.member})
@@ -234,7 +257,6 @@ final class UnionMemberAdded extends CatalogChange {
 
 /// A member structured type was removed from a union. Breaking — blobs
 /// carrying that discriminator value fail.
-@experimental
 final class UnionMemberRemoved extends CatalogChange {
   /// Creates a union-member-removed change for [member].
   const UnionMemberRemoved({required super.affected, required this.member})
@@ -253,7 +275,6 @@ final class UnionMemberRemoved extends CatalogChange {
 
 /// A union's discriminator field changed. Breaking — the on-wire format
 /// for the union slot shifts.
-@experimental
 final class UnionDiscriminatorChanged extends CatalogChange {
   /// Creates a discriminator change.
   const UnionDiscriminatorChanged({required super.affected})
@@ -263,7 +284,6 @@ final class UnionDiscriminatorChanged extends CatalogChange {
 /// A factory variant's argument shape changed — its `sourceKind` or
 /// arg-to-field `argMappings` differ. Breaking — the decoder semantics for
 /// the variant shift.
-@experimental
 final class VariantArgumentsChanged extends CatalogChange {
   /// Creates a variant-arguments change.
   const VariantArgumentsChanged({required super.affected})
@@ -272,7 +292,6 @@ final class VariantArgumentsChanged extends CatalogChange {
 
 /// A design token's `resolver` (theme-binding path) changed. Additive —
 /// existing blobs see the new resolved value at render time.
-@experimental
 final class TokenResolverChanged extends CatalogChange {
   /// Creates a token-resolver change.
   const TokenResolverChanged({required super.affected})
@@ -281,7 +300,6 @@ final class TokenResolverChanged extends CatalogChange {
 
 /// A design token's `literalFallback` changed. Additive — same render-time
 /// resolution contract as a resolver change.
-@experimental
 final class TokenFallbackChanged extends CatalogChange {
   /// Creates a token-fallback change.
   const TokenFallbackChanged({required super.affected})
@@ -290,7 +308,6 @@ final class TokenFallbackChanged extends CatalogChange {
 
 /// A design token's [DesignTokenType] changed. Breaking — properties
 /// referencing the token may have type-mismatched defaults.
-@experimental
 final class TokenTypeChanged extends CatalogChange {
   /// Creates a token-type change from [from] to [to].
   const TokenTypeChanged({

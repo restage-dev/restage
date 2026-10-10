@@ -245,4 +245,89 @@ void main() {
       );
     });
   });
+
+  group('custom compatibleSince', () {
+    String library({required int compatibleSince}) => '''
+      import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+      @RestageLibrary(
+        library: WidgetLibrary.custom('acme.simple'),
+        capabilityVersion: 4,
+        compatibleSince: $compatibleSince,
+      )
+      const acmeSimpleLibrary = 0;
+
+      @RestageWidget(
+        name: 'PlainButton',
+        library: WidgetLibrary.custom('acme.simple'),
+        category: WidgetCategory.input,
+        description: 'CTA.',
+      )
+      class PlainButton {
+        const PlainButton({required this.label});
+        @RestageProperty(description: 'The label.')
+        final String label;
+      }
+    ''';
+
+    Future<void> expectOutputs(
+      String source, {
+      required Matcher catalog,
+      required Matcher registration,
+    }) async {
+      Future<TestReaderWriter> readerWriter() async {
+        final rw = await readerWriterWithFilesystemSources(
+          rootPackage: 'restage_codegen',
+        );
+        rw.testing
+            .writeString(AssetId('apps_examples', 'lib/widgets.dart'), source);
+        return rw;
+      }
+
+      await testBuilder(
+        const UserCatalogBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/widgets.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: await readerWriter(),
+        outputs: {
+          'apps_examples|lib/user_catalog.g.dart': decodedMatches(catalog),
+        },
+      );
+      await testBuilder(
+        const UserFactoryBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/widgets.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: await readerWriter(),
+        outputs: {
+          'apps_examples|lib/user_factories.g.dart':
+              decodedMatches(registration),
+        },
+      );
+    }
+
+    test('a declared break reaches the catalog and the registration', () async {
+      await expectOutputs(
+        library(compatibleSince: 4),
+        catalog: contains('capabilityVersion: 4, compatibleSince: 4'),
+        registration: allOf(
+          contains('capabilityVersion: 4,'),
+          contains('compatibleSince: 4,'),
+        ),
+      );
+    });
+
+    test('compatibleSince 1 is omitted from both outputs', () async {
+      await expectOutputs(
+        library(compatibleSince: 1),
+        catalog: allOf(
+          contains('capabilityVersion: 4'),
+          isNot(contains('compatibleSince')),
+        ),
+        registration: allOf(
+          contains('capabilityVersion: 4,'),
+          isNot(contains('compatibleSince')),
+        ),
+      );
+    });
+  });
 }

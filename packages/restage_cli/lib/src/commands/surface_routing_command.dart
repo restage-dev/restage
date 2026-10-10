@@ -726,7 +726,7 @@ List<String> _renderDeliveryDiagnostics(
   'UTC window: ${_formatUtcDay(diagnostics.windowStartDayUtc)} through '
       '${_formatUtcDay(diagnostics.windowEndDayExclusiveUtc)} (end exclusive).',
   'Disclosure floor: ${diagnostics.disclosureFloor}.',
-  'These are observed decision counts, not people or device counts.',
+  'These are observed decision counts.',
   ..._renderDiagnosticsSection(
     label: 'Served default presentations',
     section: diagnostics.servedDefaults,

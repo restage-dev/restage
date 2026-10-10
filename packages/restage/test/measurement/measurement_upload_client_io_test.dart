@@ -180,6 +180,43 @@ void main() {
     }
   });
 
+  test('exact registration refusal carries only the assigned frame identity',
+      () async {
+    const fingerprint =
+        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    final batch = outboxPreparedBatch(
+      outcomeLinkCarrier: 'Y2Fycmllcg',
+      registrationFingerprint: fingerprint,
+    );
+    final lease = MeasurementOutboxLease(record: _recordForBatch(batch));
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    unawaited(server.forEach((request) async {
+      await request.drain<void>();
+      request.response
+        ..statusCode = HttpStatus.badRequest
+        ..write(request.uri.path == '/typed'
+            ? '{"error":"refused","reason":"registrationRefused"}'
+            : '{"error":"invalid_request"}');
+      await request.response.close();
+    }));
+    for (final path in ['/typed', '/ordinary']) {
+      final outcome = await createMeasurementUploadClient(
+        configuration: MeasurementUploadConfiguration(
+          endpoint: Uri.parse(
+            'http://${server.address.host}:${server.port}$path',
+          ),
+          headersProvider: () => const {},
+        ),
+      ).send(lease);
+      expect(outcome.kind, MeasurementUploadOutcomeKind.rejected);
+      expect(
+        outcome.registrationFingerprint,
+        path == '/typed' ? fingerprint : isNull,
+      );
+    }
+  });
+
   test('rejects every malformed or mismatched receipt without ready deletion',
       () async {
     final batch = _batch(sessionId: 'session.mutation', variant: 'mutation');
@@ -498,11 +535,15 @@ MeasurementOutboxPreparedBatch _batch({
   String sessionId = 'session.upload',
   int sequence = 1,
   String variant = 'upload',
+  String? registrationFingerprint,
+  String? outcomeLinkCarrier,
 }) =>
     outboxPreparedBatch(
       sessionId: sessionId,
       sequence: sequence,
       variant: variant,
+      registrationFingerprint: registrationFingerprint,
+      outcomeLinkCarrier: outcomeLinkCarrier,
     );
 
 MeasurementOutboxRecord _recordForBatch(MeasurementOutboxPreparedBatch batch) =>

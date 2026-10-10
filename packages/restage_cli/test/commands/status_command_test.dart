@@ -29,6 +29,7 @@ void main() {
   });
 
   test('prints identity, endpoint, and active config context', () async {
+    final calls = <Map<String, dynamic>>[];
     await seedCredential(store, endpoint: 'https://api.example.com/');
     await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString('''
 project: alpha
@@ -43,6 +44,7 @@ endpoint: https://api.example.com/
       stderr: stderr,
       credentialStore: store,
       httpClient: _statusClient(
+        calls: calls,
         organizations: const <Map<String, dynamic>>[
           {'organizationId': 7, 'slug': 'default', 'name': 'Default'},
           {'organizationId': 8, 'slug': 'sample', 'name': 'Sample'},
@@ -65,6 +67,7 @@ endpoint: https://api.example.com/
     ).run(['status', '-C', tempDir.path]);
 
     expect(exitCode, 0);
+    expect(calls, hasLength(1));
     final out = stdout.toString();
     expect(out, contains('signed in as dev@example.com'));
     expect(out, contains('endpoint: https://api.example.com/'));
@@ -318,6 +321,7 @@ endpoint: https://[bad
 }
 
 http.Client _statusClient({
+  List<Map<String, dynamic>>? calls,
   List<Map<String, dynamic>> organizations = const <Map<String, dynamic>>[],
   required List<Map<String, dynamic>> workspaces,
   Map<int, List<String>> projects = const {
@@ -327,25 +331,51 @@ http.Client _statusClient({
   List<String> apps = const ['mobile'],
   List<String> environments = const ['staging'],
 }) {
-  List<Map<String, dynamic>> named(List<String> slugs) => [
-    for (final slug in slugs) {'slug': slug, 'name': slug},
-  ];
   return mockHttpClient((request) {
     final body = jsonDecode(request.body) as Map<String, dynamic>;
-    return switch (body['method']) {
-      'whoami' => http.Response(
-        jsonEncode({'id': 42, 'email': 'dev@example.com'}),
-        200,
-      ),
-      'listMine' => http.Response(jsonEncode(organizations), 200),
-      'listWorkspaceExperiences' => http.Response(jsonEncode(workspaces), 200),
-      'listProjects' => http.Response(
-        jsonEncode(named(projects[body['organizationId']] ?? const [])),
-        200,
-      ),
-      'listApps' => http.Response(jsonEncode(named(apps)), 200),
-      'listEnvironments' => http.Response(jsonEncode(named(environments)), 200),
-      final method => throw StateError('Unexpected method: $method'),
-    };
+    calls?.add(body);
+    expect(request.url.path, '/scope');
+    expect(body['method'], 'read');
+    final selectedId = body['organizationId'] as int? ?? 7;
+    final selectedProjects = projects[selectedId] ?? const <String>[];
+    return http.Response(
+      jsonEncode({
+        'organizationId': selectedId,
+        'session': {
+          'email': 'dev@example.com',
+          'memberships': organizations,
+          'workspaceExperiences': workspaces,
+          'apps': [
+            for (final entry in projects.entries)
+              for (final project in entry.value)
+                {
+                  'organizationId': entry.key,
+                  'projectSlug': project,
+                  'appId': 5,
+                  'appSlug': apps.firstOrNull ?? '',
+                },
+          ],
+        },
+        'projects': [
+          for (var i = 0; i < selectedProjects.length; i++)
+            {
+              'id': i + 1,
+              'slug': selectedProjects[i],
+              'name': selectedProjects[i],
+            },
+        ],
+        'apps': [
+          for (var i = 0; i < apps.length; i++)
+            {'id': i + 5, 'projectId': 1, 'slug': apps[i], 'name': apps[i]},
+        ],
+        'environments': [
+          for (var i = 0; i < environments.length; i++)
+            {'id': i + 10, 'appId': 5, 'slug': environments[i]},
+        ],
+        'environmentTargets': <Object>[],
+        'surfaces': <Object>[],
+      }),
+      200,
+    );
   }, withDefaultTargetDiscovery: false);
 }

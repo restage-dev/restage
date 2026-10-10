@@ -6,6 +6,8 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/audit_rendering.dart';
 import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
+import 'package:restage_cli/src/measurement/page_views/page_view_support.dart'
+    show kFigureUnavailable;
 import 'package:restage_cli/src/tui/console_models.dart';
 
 class RestageConsoleApp extends StatefulComponent {
@@ -1548,25 +1550,20 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           maxLines: 1,
           style: const TextStyle(color: _ConsoleTheme.text),
         ),
-        const Text(
-          '30-day views -',
-          maxLines: 1,
-          style: TextStyle(color: _ConsoleTheme.muted),
+        _figure(
+          'App sessions that saw a surface',
+          state.overview?.sessions,
+          state.overview?.appLines['sessions'],
         ),
-        const Text(
-          'Conversion rate -',
-          maxLines: 1,
-          style: TextStyle(color: _ConsoleTheme.muted),
+        _figure(
+          'Onboarding and surveys finished',
+          state.overview?.finished,
+          state.overview?.appLines['finished'],
         ),
-        const Text(
-          r'MAR consumed $0 / $10k',
-          maxLines: 1,
-          style: TextStyle(color: _ConsoleTheme.text),
-        ),
-        const Text(
-          'Free tier',
-          maxLines: 1,
-          style: TextStyle(color: _ConsoleTheme.muted),
+        _figure(
+          'Revenue from surfaces',
+          state.overview?.revenue,
+          state.overview?.appLines['revenue'],
         ),
         if (context != null)
           Text(
@@ -1578,6 +1575,30 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       ],
     );
   }
+
+  /// One overview figure: its label, then its value.
+  Component _figure(String label, String? value, [List<String>? apps]) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            label,
+            maxLines: 2,
+            style: const TextStyle(color: _ConsoleTheme.muted),
+          ),
+          Text(
+            value ?? kFigureUnavailable,
+            maxLines: 1,
+            style: const TextStyle(color: _ConsoleTheme.text),
+          ),
+          for (final line in apps ?? const <String>[])
+            Text(
+              line,
+              maxLines: 1,
+              style: const TextStyle(color: _ConsoleTheme.muted),
+            ),
+        ],
+      );
 
   /// The app's build for the selected environment, or its absence.
   Component _buildLine(ConsoleState state) {

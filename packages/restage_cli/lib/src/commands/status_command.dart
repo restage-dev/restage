@@ -2,10 +2,9 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/auth_api.dart';
-import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/config/config_target_check.dart';
@@ -80,13 +79,13 @@ class StatusCommand extends Command<int> {
     }
 
     try {
-      final user = await AuthApi(api).whoami();
-      if (user == null) {
-        _stderr.writeln(staleCredentialSentence(currentSelectorSyntax));
-        return 1;
-      }
-
-      _stdout.writeln('signed in as ${user.email ?? '(unknown identity)'}');
+      var scope = await readProgrammaticScope(
+        api,
+        organizationId: loaded?.config.organizationId,
+      );
+      _stdout.writeln(
+        'signed in as ${scope.session['email'] ?? '(unknown identity)'}',
+      );
       _stdout.writeln('endpoint: $apiEndpoint');
 
       if (loaded == null) {
@@ -95,7 +94,7 @@ class StatusCommand extends Command<int> {
           'no restage_config.yaml. ${syntax.run} '
           '${syntax.command(initFollowUp)} to set one up.',
         );
-        await _writeWorkspaceStatus(api, null);
+        await _writeWorkspaceStatus(scope, null);
         return 0;
       }
 
@@ -108,7 +107,19 @@ class StatusCommand extends Command<int> {
       if (config.defaultEnvironment != null) {
         _stdout.writeln('environment: ${config.defaultEnvironment}');
       }
-      await _writeWorkspaceStatus(api, config);
+      if (config.organization != null) {
+        final requested = scope.organizations
+            .where((organization) => organization.slug == config.organization)
+            .firstOrNull;
+        if (requested != null &&
+            requested.organizationId != scope.organizationId) {
+          scope = await readProgrammaticScope(
+            api,
+            organizationId: requested.organizationId,
+          );
+        }
+      }
+      await _writeWorkspaceStatus(scope, config);
       return 0;
     } on RestageApiException catch (e) {
       if (e.statusCode == 401 || e.statusCode == 403) {
@@ -126,11 +137,10 @@ class StatusCommand extends Command<int> {
   }
 
   Future<void> _writeWorkspaceStatus(
-    RestageApi api,
+    ProgrammaticScopeSnapshot scope,
     RestageConfig? config,
   ) async {
-    final discovery = DiscoveryApi(api);
-    final organizations = await discovery.listOrganizations();
+    final organizations = scope.organizations;
     if (organizations.isEmpty) {
       _stdout.writeln('workspace: no organizations for this account');
       return;
@@ -138,14 +148,19 @@ class StatusCommand extends Command<int> {
 
     OrganizationSummary? organization;
     if (config != null) {
-      final check = await checkConfigTarget(discovery, config);
-      for (final problem in check.problems) {
+      final problems = _configProblems(scope, config);
+      for (final problem in problems) {
         _stdout.writeln('config problem: $problem');
       }
-      if (check.problems.isEmpty) {
+      if (problems.isEmpty) {
         _stdout.writeln('config: ${configTargetConfirmed(config)}');
       }
-      organization = check.organization;
+      organization = scope.organizations
+          .where(
+            (candidate) => candidate.organizationId == scope.organizationId,
+          )
+          .firstOrNull;
+      if (problems.isNotEmpty) organization = null;
     } else if (organizations.length == 1) {
       organization = organizations.single;
     } else {
@@ -155,7 +170,7 @@ class StatusCommand extends Command<int> {
     }
     if (organization == null) return;
 
-    final workspaces = await discovery.listWorkspaceExperiences();
+    final workspaces = scope.workspaceExperiences;
     final matchingWorkspaces = workspaces
         .where(
           (workspace) =>
@@ -171,6 +186,67 @@ class StatusCommand extends Command<int> {
     );
     _renderWorkspace(matchingWorkspaces.single);
   }
+
+  List<String> _configProblems(
+    ProgrammaticScopeSnapshot scope,
+    RestageConfig config,
+  ) {
+    final organizations = scope.organizations;
+    final configured = config.organization;
+    if (configured != null &&
+        !organizations.any((organization) => organization.slug == configured)) {
+      return [
+        'restage_config.yaml names organization `$configured`, which is not one of yours.',
+      ];
+    }
+    final projectOrganizations = {
+      for (final app in scope.session['apps'] as List<dynamic>? ?? const [])
+        if ((app as Map<String, dynamic>)['projectSlug'] == config.project)
+          app['organizationId'] as int,
+    };
+    if (configured == null &&
+        organizations.length > 1 &&
+        projectOrganizations.length != 1) {
+      return [ambiguousOrganizationSentence(organizations)];
+    }
+    final projectSlugs = scope.projects.map((project) => project.slug).toList();
+    if (!projectSlugs.contains(config.project)) {
+      return [
+        'restage_config.yaml names project `${config.project}`, which does not '
+            'exist in `${configured ?? organizations.first.slug}`. Projects: '
+            '${_list(projectSlugs)}.',
+      ];
+    }
+    final problems = <String>[];
+    final appSlugs = scope.apps(config.project).map((app) => app.slug).toList();
+    if (!appSlugs.contains(config.app)) {
+      problems.add(
+        'restage_config.yaml names app `${config.app}`, which does not exist in '
+        'project `${config.project}` of `${configured ?? organizations.first.slug}`. '
+        'Apps there: ${_list(appSlugs)}.',
+      );
+    }
+    if (config.defaultEnvironment case final environment?) {
+      final environmentSlugs =
+          scope
+              .environments(config.project)
+              .map((environment) => environment.slug)
+              .toSet()
+              .toList()
+            ..sort();
+      if (!environmentSlugs.contains(environment)) {
+        problems.add(
+          'restage_config.yaml names environment `$environment`, which does '
+          'not exist in project `${config.project}`. Environments there: '
+          '${_list(environmentSlugs)}.',
+        );
+      }
+    }
+    return problems;
+  }
+
+  String _list(List<String> slugs) =>
+      slugs.isEmpty ? 'none' : slugs.map((slug) => '`$slug`').join(', ');
 
   void _renderWorkspace(WorkspaceExperienceSummary workspace) {
     _stdout.writeln('workspace provenance: ${workspace.provenance}');

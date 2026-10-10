@@ -982,6 +982,33 @@ void main() {
       );
     });
 
+    test('carries the installed-libraries report without changing other bytes',
+        () {
+      final plain = SurfaceScreenDeliveryRequest(
+        surface: Surface.general,
+        slug: 'feature_announcement',
+        contractVersion: 7,
+      );
+      const plainJson = '{"schemaVersion":1,"surface":"general",'
+          '"slug":"feature_announcement","contractVersion":7}';
+      expect(
+        SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(plain),
+        plainJson,
+      );
+      expect(
+        SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(
+          SurfaceScreenDeliveryRequestV1Codec.decodeJson(plainJson),
+        ),
+        plainJson,
+      );
+
+      final decoded = SurfaceScreenDeliveryRequestV1Codec.decode(
+        <String, Object?>{...plain.toJson(), 'sdkInstalledLibraries': 'abc_-'},
+      );
+      expect(decoded.sdkInstalledLibraries, 'abc_-');
+      expect(decoded.toJson()['sdkInstalledLibraries'], 'abc_-');
+    });
+
     test('freezes complete responses and rejects partial present metadata', () {
       // The response type is no longer a wire type — it is what a reader
       // ASSEMBLES once it has fetched the content a descriptor names. So this

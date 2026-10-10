@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:meta/meta.dart';
 
 import 'measurement_worker_delivery_unsupported.dart'
@@ -152,6 +154,13 @@ final class MeasurementWorkerOwnedDeliveryRuntime {
   /// Test-only causal trace proving CPU, journal, and HTTP ownership.
   Stream<MeasurementWorkerOwnedDeliveryDebugEvent> get debugEvents =>
       _state.debugEvents;
+
+  /// Typed refusal identities emitted by the native worker after quarantine.
+  Stream<String> get registrationRefusals =>
+      _state is MeasurementWorkerRegistrationRefusalSource
+          ? (_state as MeasurementWorkerRegistrationRefusalSource)
+              .registrationRefusals
+          : const Stream<String>.empty();
 
   /// Registers one capture session before it can synchronously append records.
   Future<MeasurementWorkerOwnedDeliveryOpenSessionResult> openSession(

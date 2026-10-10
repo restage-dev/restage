@@ -54,6 +54,7 @@ void main() {
   group('restage login', () {
     test('happy path: start, single pending poll, success poll → persists '
         'credential and prints the user email', () async {
+      String? opened;
       final client = _scriptedClient(<_ScriptStep>[
         // 1. startDeviceAuthorization
         (req, _) {
@@ -96,13 +97,20 @@ void main() {
         defaultEndpoint: Uri.parse('https://api.example.com/'),
         httpClient: client,
         sleep: (_) async {},
-        openBrowser: (_) async {},
+        openBrowser: (url) async => opened = url,
       );
+      final before = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final exit = await cli.run(const ['login']);
 
       expect(exit, 0, reason: stderr.toString());
       expect(stdout.toString(), contains('ABCD-EFGH'));
       expect(stdout.toString(), contains('https://dash.example.com/device'));
+      final link = Uri.parse(opened!);
+      expect(link.path, '/device');
+      expect(link.queryParameters['code'], 'ABCD-EFGH');
+      final expires = int.parse(link.queryParameters['expires']!);
+      expect(expires, inInclusiveRange(before + 600, before + 610));
+      expect(stdout.toString(), contains(opened));
       expect(stdout.toString(), contains('Signed in as jane@example.com'));
 
       final stored = await store.read();
@@ -568,15 +576,31 @@ environment:
 http.Client _ambiguousOrganizationsClient() => _scriptedClient(<_ScriptStep>[
   (req, _) {
     final body = jsonDecode(req.body) as Map<String, dynamic>;
-    expect(body['method'], 'listMine');
-    return _jsonResponse([
-      {
-        'organizationId': 7,
-        'slug': 'default',
-        'name': 'Default',
-        'role': 'owner',
+    expect(body['method'], 'read');
+    return _jsonResponse({
+      'organizationId': 7,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': 7,
+            'slug': 'default',
+            'name': 'Default',
+            'role': 'owner',
+          },
+          {
+            'organizationId': 8,
+            'slug': 'team',
+            'name': 'Team',
+            'role': 'member',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
       },
-      {'organizationId': 8, 'slug': 'team', 'name': 'Team', 'role': 'member'},
-    ]);
+      'projects': <Object>[],
+      'apps': <Object>[],
+      'environments': <Object>[],
+      'environmentTargets': <Object>[],
+      'surfaces': <Object>[],
+    });
   },
 ]);

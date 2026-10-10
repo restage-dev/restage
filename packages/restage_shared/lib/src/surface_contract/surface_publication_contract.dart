@@ -963,6 +963,7 @@ final class SurfaceScreenDeliveryRequest {
     String? sdkSupportedPolicyRevisions,
     String? assignmentCanonicalBase64,
     String? sdkBuiltInsCanonicalBase64,
+    String? sdkInstalledLibraries,
   }) {
     _requireIdentity(slug, 'delivery request.slug');
     if (contractVersion < 1) {
@@ -979,6 +980,7 @@ final class SurfaceScreenDeliveryRequest {
       sdkSupportedPolicyRevisions: sdkSupportedPolicyRevisions,
       assignmentCanonicalBase64: assignmentCanonicalBase64,
       sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
+      sdkInstalledLibraries: sdkInstalledLibraries,
     );
   }
 
@@ -992,6 +994,7 @@ final class SurfaceScreenDeliveryRequest {
     required this.sdkSupportedPolicyRevisions,
     required this.assignmentCanonicalBase64,
     required this.sdkBuiltInsCanonicalBase64,
+    required this.sdkInstalledLibraries,
   });
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
@@ -1034,6 +1037,9 @@ final class SurfaceScreenDeliveryRequest {
   /// The device's canonical audience observations, passed through as sent.
   final String? sdkBuiltInsCanonicalBase64;
 
+  /// The build's installed custom widget libraries, as the base64url report.
+  final String? sdkInstalledLibraries;
+
   Map<String, Object?> toJson() => <String, Object?>{
         'schemaVersion': schemaVersion,
         'surface': surface.wireName,
@@ -1049,6 +1055,8 @@ final class SurfaceScreenDeliveryRequest {
           'assignmentCanonicalBase64': assignmentCanonicalBase64,
         if (sdkBuiltInsCanonicalBase64 != null)
           'sdkBuiltInsCanonicalBase64': sdkBuiltInsCanonicalBase64,
+        if (sdkInstalledLibraries != null)
+          'sdkInstalledLibraries': sdkInstalledLibraries,
       };
 
   static SurfaceScreenDeliveryRequest fromJson(Object? value) {
@@ -1066,6 +1074,7 @@ final class SurfaceScreenDeliveryRequest {
         'sdkSupportedPolicyRevisions',
         'assignmentCanonicalBase64',
         'sdkBuiltInsCanonicalBase64',
+        'sdkInstalledLibraries',
       },
       r'$',
     );
@@ -1099,6 +1108,11 @@ final class SurfaceScreenDeliveryRequest {
       sdkBuiltInsCanonicalBase64: SurfaceContractJson.optionalString(
         json,
         'sdkBuiltInsCanonicalBase64',
+        r'$',
+      ),
+      sdkInstalledLibraries: SurfaceContractJson.optionalString(
+        json,
+        'sdkInstalledLibraries',
         r'$',
       ),
     );

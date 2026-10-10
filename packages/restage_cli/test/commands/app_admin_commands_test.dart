@@ -38,13 +38,18 @@ void main() {
   /// Run the CLI against a backend answering discovery, then [respond].
   Future<int> run(
     List<String> args,
-    http.Response Function(Map<String, dynamic> body) respond,
-  ) => RestageCli(
+    http.Response Function(Map<String, dynamic> body) respond, {
+    http.Response? scopeResponse,
+  }) => RestageCli(
     stdout: out,
     stderr: err,
     credentialStore: store,
     httpClient: mockHttpClient((request) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
+      if (scopeResponse != null && body['method'] == 'read') {
+        calls.add(body);
+        return scopeResponse;
+      }
       if (body['method'] == 'listProjects') {
         return http.Response(
           jsonEncode([
@@ -55,14 +60,17 @@ void main() {
       }
       calls.add(body);
       return respond(body);
-    }),
+    }, withDefaultTargetDiscovery: scopeResponse == null),
   ).run([...args, '-C', tempDir.path]);
 
   test('orgs lists every membership with its role', () async {
     final code = await run(['orgs'], (_) => http.Response('[]', 200));
 
     expect(code, 0, reason: err.toString());
-    expect(out.toString(), 'ID\tSLUG\tNAME\tROLE\n7\trestage\tRestage\t-\n');
+    expect(
+      out.toString(),
+      'ID\tSLUG\tNAME\tROLE\n7\trestage\tRestage\towner\n',
+    );
   });
 
   test('app-config show and set read and change the app', () async {
@@ -259,29 +267,76 @@ void main() {
   test('keys resolve finds the target a key belongs to without sending '
       'it', () async {
     const key = 'rs_pk_sandbox_staging_6326f3aa99bb00cc';
-    final code = await run(['keys', 'resolve', key], (body) {
-      if (body['method'] != 'listKeys') return http.Response('[]', 200);
-      final staging = body['environmentSlug'] == 'staging';
-      return http.Response(
-        jsonEncode([
+    final scopeResponse = http.Response(
+      jsonEncode({
+        'organizationId': 7,
+        'session': {
+          'memberships': [
+            {
+              'organizationId': 7,
+              'slug': 'restage',
+              'name': 'Restage',
+              'role': 'owner',
+            },
+          ],
+          'workspaceExperiences': <Object>[],
+        },
+        'projects': [
+          {'id': 1, 'slug': 'alpha', 'name': 'Alpha'},
+        ],
+        'apps': [
+          {'id': 5, 'projectId': 1, 'slug': 'mobile', 'name': 'Mobile'},
+        ],
+        'environments': [
+          {'id': 11, 'appId': 5, 'namedEnvironmentId': 21, 'slug': 'dev'},
+          {'id': 12, 'appId': 5, 'namedEnvironmentId': 22, 'slug': 'staging'},
+        ],
+        'environmentTargets': [
           {
-            'id': staging ? 40 : 41,
-            'kind': 'publishable',
-            'keyPrefix': staging
-                ? 'rs_pk_sandbox_staging_6326f3...'
-                : 'rs_pk_sandbox_dev_0a0a0a...',
+            'environmentTargetId': 11,
+            'namedEnvironmentId': 21,
+            'environmentSlug': 'dev',
+            'runtimePlane': 'sandbox',
           },
-        ]),
-        200,
-      );
-    });
+          {
+            'environmentTargetId': 12,
+            'namedEnvironmentId': 22,
+            'environmentSlug': 'staging',
+            'runtimePlane': 'sandbox',
+          },
+        ],
+        'surfaces': <Object>[],
+        'apiKeys': [
+          {
+            'id': 40,
+            'environmentId': 12,
+            'kind': 'publishable',
+            'keyPrefix': 'rs_pk_sandbox_staging_6326f3...',
+            'revokedAt': null,
+          },
+          {
+            'id': 41,
+            'environmentId': 11,
+            'kind': 'publishable',
+            'keyPrefix': 'rs_pk_sandbox_dev_0a0a0a...',
+            'revokedAt': null,
+          },
+        ],
+      }),
+      200,
+    );
+    final code = await run(
+      ['keys', 'resolve', key],
+      (_) => fail('key resolution uses the admitted scope only'),
+      scopeResponse: scopeResponse,
+    );
 
     expect(code, 0, reason: err.toString());
     for (final call in calls) {
       expect(jsonEncode(call), isNot(contains('aa99bb00cc')));
     }
-    final listed = calls.where((call) => call['method'] == 'listKeys');
-    expect(listed.map((call) => call['runtimePlane']), everyElement('sandbox'));
+    expect(calls, hasLength(1));
+    expect(calls.single['method'], 'read');
     expect(
       out.toString(),
       contains(
@@ -294,11 +349,11 @@ void main() {
 
     out.clear();
     err.clear();
-    final missing = await run([
-      'keys',
-      'resolve',
-      'rs_pk_sandbox_prod_ffffff',
-    ], (_) => http.Response('[]', 200));
+    final missing = await run(
+      ['keys', 'resolve', 'rs_pk_sandbox_prod_ffffff'],
+      (_) => fail('key resolution uses the admitted scope only'),
+      scopeResponse: scopeResponse,
+    );
     expect(missing, 1);
     expect(err.toString(), contains('No active API key in restage matches'));
     expect(err.toString(), isNot(contains('ffffff')));

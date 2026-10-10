@@ -177,6 +177,34 @@ final _acceptedResponse = measurement.CanonicalJsonCodec.encode(const {
 String _wire(List<int> bytes) => "decode('${base64Encode(bytes)}', 'base64')";
 
 http.Response? _targetDirectory(String method) => switch (method) {
+  'read' => http.Response(
+    jsonEncode({
+      'organizationId': 11,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': 11,
+            'slug': 'restage',
+            'name': 'Restage',
+            'role': 'owner',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
+      },
+      'projects': [
+        {'id': 1, 'slug': 'checkout', 'name': 'Checkout'},
+      ],
+      'apps': [
+        {'id': 23, 'projectId': 1, 'slug': 'app', 'name': 'App'},
+      ],
+      'environments': [
+        {'id': 31, 'appId': 23, 'namedEnvironmentId': 37, 'slug': 'production'},
+      ],
+      'environmentTargets': [_directoryTarget],
+      'surfaces': <Object>[],
+    }),
+    200,
+  ),
   'listMine' => http.Response(
     jsonEncode([
       {'organizationId': 11, 'slug': 'restage', 'name': 'Restage'},

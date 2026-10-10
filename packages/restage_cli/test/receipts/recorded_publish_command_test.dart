@@ -222,10 +222,22 @@ void main() {
         'restage: publish pro r17 to staging',
         'app/${p.relative(_publishReceipt(app).path, from: app.path)}',
       ]);
-      // The unrelated edit is still exactly where the developer left it.
+      // Confirmed target IDs persist in config; the unrelated edit stays put.
+      final config = File(
+        p.join(app.path, 'restage_config.yaml'),
+      ).readAsStringSync();
+      expect(config, contains('organizationId: 7\n'));
+      expect(config, contains('appId: 5\n'));
+      expect(config, contains('environmentTargetId: 12\n'));
+      expect(config, contains('namedEnvironmentId: 22\n'));
+      expect(
+        File(p.join(app.path, 'lib/screen.dart')).readAsStringSync(),
+        'const screen = 99;\n',
+      );
       final status = await _git(root, ['status', '--porcelain=v1']);
       expect((status.stdout as String).trimRight().split('\n'), [
         ' M app/lib/screen.dart',
+        ' M app/restage_config.yaml',
       ]);
     },
   );

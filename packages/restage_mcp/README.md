@@ -131,6 +131,10 @@ that leaves the plane out for such an environment is refused rather than sent
 to either. `environmentTargetId` names a target exactly. `organizationId` is
 needed only when you belong to more than one organization.
 
+The list tools read one current admitted scope and filter its project, app,
+environment, target, and surface rows. A target ID is checked against that
+scope on each call.
+
 Every tool that names a project also takes `projectDirectory`. The
 `restage_config.yaml` there supplies the project, app, environment,
 organization, and plane the call leaves out. An argument you pass wins over
@@ -257,6 +261,21 @@ command that fixes it.
 | `restage_audit_export` | The organization's compliance audit rows. |
 | `restage_audit_verdict` | Whether the organization's audit chain verifies. |
 
+**Analytics and experiment reads**
+
+These tools are always registered. Each reads one page for an exact target and
+a window, and returns the service's reply unchanged.
+
+| Tool | What it does |
+| --- | --- |
+| `restage_read_analytics_overview` | Totals for one app and period. |
+| `restage_read_explore` | Views and users by one dimension. |
+| `restage_read_surface_analytics` | One surface's versions, steps and metrics. |
+| `restage_read_surface_taps` | Taps per element on one published version. |
+| `restage_read_data_health` | What the app is sending. |
+| `restage_read_experiments` | Experiments with their status. |
+| `restage_read_experiment` | One experiment's summary, variants and safety metrics. |
+
 **Experiments (beta)**
 
 These tools register only when the host sets `RESTAGE_EXPERIMENTAL=1` in the
@@ -266,8 +285,6 @@ yet.
 | Tool | What it does |
 | --- | --- |
 | `restage_experiment_apply` | Apply one experiment operation at a target: drafting, validation, review, activation, pausing, concluding, archiving, and reads. |
-| `restage_read_experiment_results` | Read one experiment's results. |
-| `restage_read_experiment_roster` | List every experiment at a target with its results. |
 | `restage_rebuild_serving_records` | Create any serving records an experiment target is missing, and report what is still missing. |
 | `restage_apply_canonical_mutation` | Apply one pre-encoded (base64) measurement or experiment request. For tooling that already produces these requests. |
 
@@ -283,7 +300,7 @@ Results come back as decimals together with the counts they were computed
 from, unrounded.
 
 An agent can work in a loop: read results with
-`restage_read_experiment_roster` or `restage_read_experiment_results`, read a
+`restage_read_experiments` or `restage_read_experiment`, read a
 surface's funnel with `restage_read_surface_funnel`, push the next onboarding
 flow, survey, message, or paywall with `restage_push_surface`, publish it with
 `restage_publish_surface`, and roll back with `restage_rollback_surface` if the numbers say so.

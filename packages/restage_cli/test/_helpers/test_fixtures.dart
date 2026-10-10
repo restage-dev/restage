@@ -470,9 +470,9 @@ http.Response resolveTargetResponse(
   );
 }
 
-/// A script step answering `environment.resolveTarget` with [target];
-/// [inspect] sees the request body first.
-ScriptStep resolveTargetStep(
+/// A script step returning one admitted scope with [target] for target-aware
+/// command tests. [inspect] sees the scope read request first.
+ScriptStep scopeTargetStep(
   Map<String, dynamic> target, {
   int organizationId = 7,
   String organizationSlug = 'restage',
@@ -480,14 +480,42 @@ ScriptStep resolveTargetStep(
   void Function(Map<String, dynamic> body)? inspect,
 }) => (request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'resolveTarget');
+  expect(body['method'], 'read');
   inspect?.call(body);
-  return resolveTargetResponse(
-    body,
-    targets: [target],
-    organizationId: organizationId,
-    organizationSlug: organizationSlug,
-    appId: appId,
+  return http.Response(
+    jsonEncode({
+      'organizationId': organizationId,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': organizationId,
+            'slug': organizationSlug,
+            'name': organizationSlug,
+            'role': 'owner',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
+      },
+      'projects': [
+        for (final project in ['p', 'demo', 'alpha', 'default'])
+          {'id': 1, 'slug': project, 'name': project},
+      ],
+      'apps': [
+        for (final app in ['a', 'mobile', 'default'])
+          {'id': appId, 'projectId': 1, 'slug': app, 'name': app},
+      ],
+      'environments': [
+        {
+          'id': target['environmentTargetId'],
+          'appId': appId,
+          'namedEnvironmentId': target['namedEnvironmentId'],
+          'slug': target['environmentSlug'],
+        },
+      ],
+      'environmentTargets': [target],
+      'surfaces': <Object>[],
+    }),
+    200,
   );
 };
 
@@ -507,6 +535,59 @@ http.Response typedErrorResponse(
 http.Response? _defaultTargetDiscoveryResponse(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   switch (body['method']) {
+    case 'read':
+      if (request.url.path != '/scope') return null;
+      return http.Response(
+        jsonEncode({
+          'organizationId': 7,
+          'session': {
+            'memberships': [
+              {
+                'organizationId': 7,
+                'slug': 'restage',
+                'name': 'Restage',
+                'role': 'owner',
+              },
+            ],
+            'workspaceExperiences': <Object>[],
+          },
+          'projects': [
+            for (final project in [
+              'demo',
+              'alpha',
+              'p',
+              'other',
+              'default',
+              'config-proj',
+              'flag-proj',
+            ])
+              {'id': 1, 'slug': project, 'name': project},
+          ],
+          'apps': [
+            for (final app in _defaultAppIds.entries)
+              {
+                'id': app.value,
+                'projectId': 1,
+                'slug': app.key,
+                'name': app.key,
+              },
+          ],
+          'environments': [
+            for (final appId in _defaultAppIds.values)
+              for (final target in defaultEnvironmentTargets)
+                {
+                  'id': target['environmentTargetId'],
+                  'appId': appId,
+                  'namedEnvironmentId': target['namedEnvironmentId'],
+                  'slug': target['environmentSlug'],
+                },
+          ],
+          'environmentTargets': defaultEnvironmentTargets,
+          'surfaces': <Object>[],
+          'apiKeys': <Object>[],
+        }),
+        200,
+      );
     case 'listMine':
       return http.Response(
         jsonEncode([

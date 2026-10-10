@@ -212,12 +212,12 @@ void main() {
       Map<String, dynamic>? preflightBody;
       Map<String, dynamic>? rollbackBody;
       final client = scriptedHttpClient([
-        resolveTargetStep({
+        scopeTargetStep({
           'environmentTargetId': 12,
           'namedEnvironmentId': 22,
           'environmentSlug': 'staging',
           'runtimePlane': 'sandbox',
-        }, inspect: (body) => expect(body['organizationSlug'], 'restage')),
+        }, inspect: (body) => expect(body['method'], 'read')),
         (_) => statusResponse(),
         (req) {
           preflightBody = jsonDecode(req.body) as Map<String, dynamic>;
@@ -348,12 +348,12 @@ void main() {
     test('live dev and staging --yes are denied before rollback', () async {
       for (final environment in const ['dev', 'staging']) {
         final client = scriptedHttpClient([
-          resolveTargetStep({
+          scopeTargetStep({
             'environmentTargetId': environment == 'dev' ? 102 : 104,
             'namedEnvironmentId': environment == 'dev' ? 11 : 12,
             'environmentSlug': environment,
             'runtimePlane': 'live',
-          }, inspect: (body) => expect(body['runtimePlane'], 'live')),
+          }, inspect: (body) => expect(body['method'], 'read')),
           (_) => statusResponse(environmentSlug: environment),
           (_) => preflightResponse(environmentSlug: environment),
         ], withDefaultTargetDiscovery: false);

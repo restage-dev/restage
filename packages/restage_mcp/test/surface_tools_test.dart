@@ -112,12 +112,18 @@ void main() {
     Future<http.Response> Function(BackendCall call) handler, {
     List<BackendCall>? calls,
     List<Map<String, Object?>>? organizations,
+    List<Map<String, Object?>> scopeSurfaces = const [],
     CliRunner? cliRunner,
   }) => connectServer(
     store: store,
     httpClient: organizations == null
-        ? fakeBackend(handler, calls: calls)
-        : fakeBackend(handler, calls: calls, organizations: organizations),
+        ? fakeBackend(handler, calls: calls, scopeSurfaces: scopeSurfaces)
+        : fakeBackend(
+            handler,
+            calls: calls,
+            organizations: organizations,
+            scopeSurfaces: scopeSurfaces,
+          ),
     cliRunner: cliRunner,
   );
 
@@ -735,10 +741,61 @@ void main() {
     expect(_text(result), isNot(contains("decode('")));
   });
 
+  test('list passes includeArchived and returns archivedAt', () async {
+    final calls = <BackendCall>[];
+    final connection = await connect(
+      (_) async => fail('surface list uses the admitted scope only'),
+      scopeSurfaces: [
+        {
+          '__className__': 'SurfaceSummary',
+          'surfaceType': 'paywall',
+          'slug': 'old',
+          'name': 'Old',
+          'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
+          'publishedVersionByEnvironment': <String, int?>{},
+          'archivedAt': '2026-09-01T08:00:00.000Z',
+        },
+      ],
+      calls: calls,
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_list_surfaces',
+        arguments: {
+          'projectSlug': 'demo',
+          'appSlug': 'mobile',
+          'surfaceType': 'paywall',
+          'includeArchived': true,
+        },
+      ),
+    );
+
+    expect(result.isError, isNot(true), reason: _text(result));
+    expect(calls, hasLength(1));
+    expect(calls.single.method, 'read');
+    final surfaces = result.structuredContent!['surfaces']! as List<dynamic>;
+    expect((surfaces.single as Map)['archivedAt'], '2026-09-01T08:00:00.000Z');
+
+    final visible = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_list_surfaces',
+        arguments: {
+          'projectSlug': 'demo',
+          'appSlug': 'mobile',
+          'surfaceType': 'paywall',
+        },
+      ),
+    );
+    expect(visible.isError, isNot(true), reason: _text(visible));
+    expect(visible.structuredContent!['surfaces'], isEmpty);
+    expect(calls, hasLength(2));
+  });
+
   test('list without a type reads every surface type', () async {
     final calls = <BackendCall>[];
     final connection = await connect(
-      (_) async => http.Response('[]', 200),
+      (_) async => fail('surface list uses the admitted scope only'),
       calls: calls,
     );
 
@@ -750,13 +807,8 @@ void main() {
     );
 
     expect(result.isError, isNot(true), reason: _text(result));
-    expect(calls.map((call) => call.body['surfaceType']).toSet(), {
-      'paywall',
-      'onboarding',
-      'message',
-      'survey',
-      'general',
-    });
+    expect(calls, hasLength(1));
+    expect(calls.single.method, 'read');
   });
 
   group('status and history without a surfaceType look the type up', () {

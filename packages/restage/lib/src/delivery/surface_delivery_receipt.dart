@@ -11,6 +11,10 @@ enum SurfaceDeliveryReceiptReason {
   serverError,
   unsupported,
   decodeFailed,
+
+  /// An installed widget library no longer renders the version the content
+  /// needs.
+  incompatibleLibrary,
 }
 
 /// What became of the content once it was resolved.

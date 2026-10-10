@@ -29,6 +29,10 @@ class RestageConfig {
     this.recordGit,
     this.flutterRoot,
     this.declareAssets,
+    this.organizationId,
+    this.appId,
+    this.environmentTargetId,
+    this.namedEnvironmentId,
   });
 
   /// Project slug the host repository belongs to.
@@ -62,6 +66,74 @@ class RestageConfig {
   /// Whether a push adds the files it writes into the app to
   /// `flutter.assets` in pubspec.yaml.
   final bool? declareAssets;
+
+  /// Last resolved ids for the selectors above. Each use rechecks a fresh
+  /// admitted scope before treating these as current authority.
+  final int? organizationId;
+  final int? appId;
+  final int? environmentTargetId;
+  final int? namedEnvironmentId;
+
+  /// Keep only ids still tied to this confirmed organization.
+  RestageConfig withConfirmedOrganizationId(int id) => RestageConfig(
+    project: project,
+    app: app,
+    defaultEnvironment: defaultEnvironment,
+    organization: organization,
+    endpoint: endpoint,
+    plane: plane,
+    recordGit: recordGit,
+    flutterRoot: flutterRoot,
+    declareAssets: declareAssets,
+    organizationId: id,
+    appId: organizationId == id ? appId : null,
+    environmentTargetId: organizationId == id ? environmentTargetId : null,
+    namedEnvironmentId: organizationId == id ? namedEnvironmentId : null,
+  );
+
+  /// Keep target ids only while the confirmed app identity is unchanged.
+  RestageConfig withConfirmedAppIds(int organizationId, int appId) {
+    final sameApp =
+        this.organizationId == organizationId && this.appId == appId;
+    final scoped = withConfirmedOrganizationId(organizationId);
+    return RestageConfig(
+      project: scoped.project,
+      app: scoped.app,
+      defaultEnvironment: scoped.defaultEnvironment,
+      organization: scoped.organization,
+      endpoint: scoped.endpoint,
+      plane: scoped.plane,
+      recordGit: scoped.recordGit,
+      flutterRoot: scoped.flutterRoot,
+      declareAssets: scoped.declareAssets,
+      organizationId: organizationId,
+      appId: appId,
+      environmentTargetId: sameApp ? environmentTargetId : null,
+      namedEnvironmentId: sameApp ? namedEnvironmentId : null,
+    );
+  }
+
+  /// The same project defaults with the ids confirmed by a scope read.
+  RestageConfig withResolvedIds({
+    required int organizationId,
+    required int appId,
+    required int environmentTargetId,
+    required int namedEnvironmentId,
+  }) => RestageConfig(
+    project: project,
+    app: app,
+    defaultEnvironment: defaultEnvironment,
+    organization: organization,
+    endpoint: endpoint,
+    plane: plane,
+    recordGit: recordGit,
+    flutterRoot: flutterRoot,
+    declareAssets: declareAssets,
+    organizationId: organizationId,
+    appId: appId,
+    environmentTargetId: environmentTargetId,
+    namedEnvironmentId: namedEnvironmentId,
+  );
 
   /// Decode from a YAML string. Throws [RestageConfigFormatException] when
   /// required keys are missing or have the wrong shape.
@@ -97,6 +169,10 @@ class RestageConfig {
       recordGit: recordGit,
       flutterRoot: flutterRoot,
       declareAssets: declareAssets,
+      organizationId: _optionalInt(map, 'organizationId'),
+      appId: _optionalInt(map, 'appId'),
+      environmentTargetId: _optionalInt(map, 'environmentTargetId'),
+      namedEnvironmentId: _optionalInt(map, 'namedEnvironmentId'),
     );
   }
 
@@ -112,6 +188,18 @@ class RestageConfig {
     }
     if (organization != null) {
       buffer.writeln('organization: $organization');
+    }
+    if (organizationId != null) {
+      buffer.writeln('organizationId: $organizationId');
+    }
+    if (appId != null) {
+      buffer.writeln('appId: $appId');
+    }
+    if (environmentTargetId != null) {
+      buffer.writeln('environmentTargetId: $environmentTargetId');
+    }
+    if (namedEnvironmentId != null) {
+      buffer.writeln('namedEnvironmentId: $namedEnvironmentId');
     }
     if (endpoint != null) {
       buffer.writeln('endpoint: $endpoint');
@@ -273,6 +361,17 @@ bool? _optionalBool(Map<dynamic, dynamic> map, String key) {
   if (value is! bool) {
     throw RestageConfigFormatException(
       'Expected `$key` to be true or false, got ${value.runtimeType}.',
+    );
+  }
+  return value;
+}
+
+int? _optionalInt(Map<dynamic, dynamic> map, String key) {
+  final value = map[key];
+  if (value == null) return null;
+  if (value is! int || value <= 0) {
+    throw RestageConfigFormatException(
+      'Expected `$key` to be a positive integer, got `$value`.',
     );
   }
   return value;

@@ -239,12 +239,12 @@ void main() {
         );
         Map<String, dynamic>? capturedStatusBody;
         final client = scriptedHttpClient([
-          resolveTargetStep({
+          scopeTargetStep({
             'environmentTargetId': 12,
             'namedEnvironmentId': 22,
             'environmentSlug': 'staging',
             'runtimePlane': 'sandbox',
-          }, inspect: (body) => expect(body['organizationSlug'], 'restage')),
+          }, inspect: (body) => expect(body['method'], 'read')),
           (req) {
             capturedStatusBody = jsonDecode(req.body) as Map<String, dynamic>;
             return http.Response(

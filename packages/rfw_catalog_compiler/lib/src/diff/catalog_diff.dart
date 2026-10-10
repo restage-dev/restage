@@ -1,4 +1,3 @@
-import 'package:meta/meta.dart';
 import 'package:rfw_catalog_compiler/src/diff/catalog_change.dart';
 import 'package:rfw_catalog_compiler/src/factory_variant_fields.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -14,11 +13,6 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// (widget, property, structured, variant, union, design token), then by
 /// `(library, wireId)` within each kind. One entry may produce several
 /// changes (e.g. renamed *and* children-slot-changed).
-///
-/// Infrastructure ahead of application: this catalog-diff path has no
-/// production consumer yet (the emitted `CompatRule` type is production; the
-/// diff/classifier logic that produces it is not wired in).
-@experimental
 List<CatalogChange> diffCatalogs(Catalog baseline, Catalog current) {
   final out = <CatalogChange>[];
   _diffKind(
@@ -97,8 +91,10 @@ Iterable<CatalogChange> _widgetPair(
   WidgetEntry before,
   WidgetEntry after,
 ) sync* {
-  if (before.name != after.name || before.flutterType != after.flutterType) {
+  if (before.name != after.name) {
     yield EntryRenamed(kind: WireIdKind.widget, affected: key);
+  } else if (before.flutterType != after.flutterType) {
+    yield EntrySourceMoved(kind: WireIdKind.widget, affected: key);
   }
   final lifecycle = _lifecycleChange(
     WireIdKind.widget,
@@ -163,6 +159,19 @@ Iterable<CatalogChange> _propertyPair(
   if (before.synthetic != after.synthetic) {
     yield SyntheticStrategyChanged(affected: key);
   }
+  final shape = <String>[
+    if (before.positional != after.positional) 'positional',
+    if (before.enumType != after.enumType) 'enumType',
+    if (before.widgetType != after.widgetType) 'widgetType',
+    if (before.callbackSignature != after.callbackSignature)
+      'callbackSignature',
+    if (before.structuredRef != after.structuredRef) 'structuredRef',
+    if (before.unionRef != after.unionRef) 'unionRef',
+    if (before.valueShape != after.valueShape) 'valueShape',
+  ];
+  if (shape.isNotEmpty) {
+    yield PropertyShapeChanged(affected: key, fields: shape);
+  }
 }
 
 /// Collects every property and structured-field entry in [catalog] into one
@@ -200,7 +209,14 @@ final class _PropertyView {
         category = property.category,
         priority = property.priority,
         synthetic = property.synthetic,
-        deprecated = property.deprecated;
+        deprecated = property.deprecated,
+        positional = property.positional,
+        enumType = property.enumType,
+        widgetType = property.widgetType,
+        callbackSignature = property.callbackSignature,
+        structuredRef = property.structuredRef,
+        unionRef = null,
+        valueShape = property.valueShape;
 
   _PropertyView.fromField(StructuredField field)
       : name = field.name,
@@ -210,7 +226,14 @@ final class _PropertyView {
         category = field.category,
         priority = field.priority,
         synthetic = null,
-        deprecated = field.deprecated;
+        deprecated = field.deprecated,
+        positional = false,
+        enumType = null,
+        widgetType = null,
+        callbackSignature = null,
+        structuredRef = field.structuredRef,
+        unionRef = field.unionRef,
+        valueShape = field.valueShape;
 
   final String name;
   final PropertyType type;
@@ -220,6 +243,13 @@ final class _PropertyView {
   final PropertyPriority? priority;
   final String? synthetic;
   final DeprecationInfo? deprecated;
+  final bool positional;
+  final String? enumType;
+  final String? widgetType;
+  final String? callbackSignature;
+  final WireIdRef? structuredRef;
+  final WireIdRef? unionRef;
+  final CatalogValueShape? valueShape;
 }
 
 // --- structured types --------------------------------------------------
@@ -229,8 +259,10 @@ Iterable<CatalogChange> _structuredPair(
   StructuredEntry before,
   StructuredEntry after,
 ) sync* {
-  if (before.name != after.name || before.sourceType != after.sourceType) {
+  if (before.name != after.name) {
     yield EntryRenamed(kind: WireIdKind.structured, affected: key);
+  } else if (before.sourceType != after.sourceType) {
+    yield EntrySourceMoved(kind: WireIdKind.structured, affected: key);
   }
   final lifecycle = _lifecycleChange(
     WireIdKind.structured,
@@ -293,8 +325,10 @@ Iterable<CatalogChange> _unionPair(
   UnionEntry before,
   UnionEntry after,
 ) sync* {
-  if (before.name != after.name || before.sourceType != after.sourceType) {
+  if (before.name != after.name) {
     yield EntryRenamed(kind: WireIdKind.union, affected: key);
+  } else if (before.sourceType != after.sourceType) {
+    yield EntrySourceMoved(kind: WireIdKind.union, affected: key);
   }
   final lifecycle = _lifecycleChange(
     WireIdKind.union,

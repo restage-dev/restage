@@ -247,6 +247,7 @@ void main() {
         'notDelivered': SurfaceAssignmentDiagnostic.notDelivered,
         'assignmentNotPresented':
             SurfaceAssignmentDiagnostic.assignmentNotPresented,
+        'registrationRefused': SurfaceAssignmentDiagnostic.registrationRefused,
       };
       for (final entry in causes.entries) {
         expect(
@@ -262,6 +263,12 @@ void main() {
       expect(surfaceAssignmentDiagnosticFrom({'result': 'invented'}), isNull);
       expect(surfaceAssignmentDiagnosticFrom({'result': 7}), isNull);
       expect(surfaceAssignmentDiagnosticFrom('assignmentDisagrees'), isNull);
+      expect(
+        surfaceAssignmentDiagnosticFrom(
+          {'result': 'registrationRefused', 'extra': true},
+        ),
+        isNull,
+      );
       expect(surfaceAssignmentDiagnosticFrom(null), isNull);
     });
   });

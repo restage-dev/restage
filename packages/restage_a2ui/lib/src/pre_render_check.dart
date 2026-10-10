@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:genui/genui.dart';
-import 'package:restage_shared/restage_shared.dart' show CapabilityManifest;
+import 'package:restage_shared/restage_shared.dart'
+    show CapabilityManifest, LibraryCompatibility;
 
 import 'a2ui_payload_scan.dart';
 import 'installed_capability.dart';
@@ -140,17 +141,25 @@ final class RestageA2uiPreRenderCheck {
       );
     }
     for (final requirement in required.requiredLibraries) {
-      final match = _availableLibrary(available, requirement.namespace);
-      if (match == null || match.version < requirement.minVersion) {
-        final have = match == null ? 'absent' : 'installed v${match.version}';
-        return A2uiRejected(
-          'A2UI payload requires a custom library this build does not provide '
-          'at the needed version',
-          gap:
-              'requires library "${requirement.namespace}" '
-              '>= v${requirement.minVersion} ($have)',
-        );
-      }
+      final match = _availableLibrary(
+        available,
+        requirement.namespace,
+      )?.asInstalledLibrary;
+      final compatibility = LibraryCompatibility.evaluate(match, requirement);
+      if (compatibility == LibraryCompatibility.satisfied) continue;
+      final have = match == null
+          ? 'absent'
+          : LibraryCompatibility.describeInstalled(match);
+      return A2uiRejected(
+        compatibility == LibraryCompatibility.contractBroken
+            ? 'A2UI payload requires a custom library version this build no '
+                  'longer renders'
+            : 'A2UI payload requires a custom library this build does not '
+                  'provide at the needed version',
+        gap:
+            'requires library "${requirement.namespace}" '
+            '>= v${requirement.minVersion} ($have)',
+      );
     }
     return const A2uiRenderable();
   }

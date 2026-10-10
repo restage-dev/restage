@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+An error inside a helper or custom widget declared in another file now points at that
+file. A refused helper says why: it is from another package, or it returns a type a
+helper can't have.
+
+Helpers are inlined from anywhere in the surface's package. A
+static method such as `PlanBadge.pro()` or `.pro()`, or a function such as
+`Spacing.page()` declared in another file, compiles like the code it returns. A helper
+from another package is refused by name; it used to compile to a bare construction of
+its class.
+
 Dot shorthands such as `.center`, `const .all(4)` and `.circular(8)` compile exactly
 like the long form they stand for, in surfaces, flow screens and custom widgets. A
 `@RestageWidget` may take private named parameters (`this._label`); its catalog

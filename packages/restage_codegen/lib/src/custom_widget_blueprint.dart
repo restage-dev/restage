@@ -341,7 +341,8 @@ final class _ArtifactHelperCallCollector extends RecursiveAstVisitor<void> {
   }
 }
 
-/// Whether [invocation] is statically bound within its source artifact.
+/// Whether [invocation] calls a helper the compiler inlines: an own instance
+/// method, or a top-level or static function from the caller's own package.
 bool isArtifactHelperInvocation(MethodInvocation invocation) {
   final element = invocation.methodName.element;
   if (element is! ExecutableElement ||
@@ -359,11 +360,29 @@ bool isArtifactHelperInvocation(MethodInvocation invocation) {
   }
   if (element is TopLevelFunctionElement ||
       (element is MethodElement && element.isStatic)) {
-    final root = invocation.root;
-    return root is CompilationUnit &&
-        element.library == root.declaredFragment?.element;
+    return isInCallersPackage(invocation, element);
   }
   return false;
+}
+
+/// Whether [element] is declared in the library or package that contains
+/// [invocation].
+bool isInCallersPackage(MethodInvocation invocation, Element element) {
+  final root = invocation.root;
+  if (root is! CompilationUnit) return false;
+  final library = root.declaredFragment?.element;
+  final declaring = element.library;
+  if (library == null || declaring == null) return false;
+  if (declaring == library) return true;
+  final package = _packageOf(library.identifier);
+  return package != null && package == _packageOf(declaring.identifier);
+}
+
+String? _packageOf(String libraryUri) {
+  final uri = Uri.tryParse(libraryUri);
+  if (uri == null || uri.scheme != 'package') return null;
+  final segments = uri.pathSegments;
+  return segments.isEmpty ? null : segments.first;
 }
 
 final Expando<_HelperIndex> _helperIndexCache = Expando<_HelperIndex>();

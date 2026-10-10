@@ -2006,13 +2006,8 @@ class AcmeCard extends StatelessWidget {
     });
 
     test(
-        'a same-NAMED static helper on a DIFFERENT-library class does NOT '
-        'inline — it defers (the same-library S13 boundary)', () async {
-      // `Helpers.row` resolves to a class in `deps.dart`, a different library
-      // than the widget's `card.dart`. Element identity (not the name) is the
-      // gate: a same-named static in another library must NOT be inlined —
-      // it falls through to the existing `dartCall` defer, never substituting
-      // an unrelated library's helper body.
+        'a static helper in another library of the same package '
+        'resolves-through to ComposableWidget', () async {
       final result = await classifyFixture(
         {
           'lib/deps.dart': '''
@@ -2055,15 +2050,7 @@ class AcmeCard extends StatelessWidget {
         catalog: _stubCatalog(file: 'deps.dart'),
       );
 
-      expect(result, isA<ImperativeWidget>());
-      expect(
-        (result as ImperativeWidget).blockers.any(
-              (b) => b.kind == BlockerKind.dartCall,
-            ),
-        isTrue,
-        reason: 'a different-library static must defer as a dartCall, never '
-            'inline a same-named helper from an unrelated library',
-      );
+      expect(result, isA<ComposableWidget>());
     });
 
     test(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -7,13 +8,16 @@ import 'package:http/http.dart' as http;
 import 'package:restage/src/measurement/bundled_measurement_publication_binding_read_port.dart';
 import 'package:restage/src/measurement/bundled_measurement_target_profile_loader.dart';
 import 'package:restage/src/measurement/measurement_host_session.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/measurement/presentation_commit.dart';
 import 'package:restage/src/resolver/resolved_variant.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/hosted_artifact_delivery.dart';
 import 'admitted_bundled_publication_fixture.dart';
@@ -21,6 +25,77 @@ import 'measurement_host_construction_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('owner forwards worker refusal to the captured credential store',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'owner-refusal',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: () {},
+    );
+    final initial = (await store.capture())!;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    expect(
+        await store.confirm(
+          attempt: initial,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: now + 30 * Duration.microsecondsPerDay,
+          serverNowMicros: now,
+        ),
+        isTrue);
+    final fingerprint = (await store.capture())!.fingerprint;
+    final handled = Completer<void>();
+    final attempt = _Attempt(onRegistrationRefused: (value) async {
+      await store.refuseFingerprint(value);
+      handled.complete();
+    });
+    addTearDown(attempt.close);
+    await attempt.open();
+    attempt.harness.worker.emitRegistrationRefusal(fingerprint);
+    await handled.future;
+    expect((await store.capture())!.credentialHandle, isNull);
+    expect((await store.capture())!.fingerprint, isNot(fingerprint));
+  });
+
+  test('hosted serve provenance reaches the owned worker session', () async {
+    final fixture = AdmittedBundledPublicationFixture.build();
+    final harness = AdmittedConstructionOwnerHostTestHarness.install(
+      publicationContext: fixture.publicationContextRef,
+      hostedBindingReadPortLookup: () => _HostedFixtureBindingPort(fixture),
+    );
+    addTearDown(harness.close);
+    final assignment = CanonicalSurfaceExperimentAssignmentV1(
+      experimentId: ExperimentPublicIdV1('experiment-a'),
+      experimentRevisionId: ExperimentPublicRevisionIdV1('revision-a'),
+      experimentEpochId: ExperimentPublicEpochIdV1('epoch-a'),
+      armId: ExperimentPublicArmIdV1('arm-a'),
+      outcomeLinkCarrier: 'A' * 43,
+    );
+    final bytes =
+        Uint8List.fromList(AdmittedBundledPublicationFixture.artifactBytes);
+    final resolved = attachMeasurementPublicationBindingReference(
+      ResolvedVariant(
+        bytes: bytes,
+        paywallId: 'fixture-artifact',
+        surfaceVersion: FlowContentHash.compute(bytes).value,
+      ),
+      fixture.binding.reference,
+      canonicalExperimentAssignment: assignment,
+      registrationFingerprint: 'b' * 64,
+    );
+    final session =
+        await MeasurementHostSessionController.openForResolvedArtifact(
+      resolved,
+    );
+    addTearDown(session.teardown);
+
+    expect(session.debugState, MeasurementHostSessionDebugState.active);
+    expect(
+        harness.worker.registrations.single.registrationFingerprint, 'b' * 64);
+  });
 
   test('a bundled measured presentation registers its device with one read',
       () async {
@@ -378,6 +453,7 @@ final class _Attempt {
     bool metadataAdmitted = true,
     int maximumSessions = 16,
     int remainingSessionBudget = 16,
+    Future<void> Function(String fingerprint)? onRegistrationRefused,
   }) {
     harness = AdmittedConstructionOwnerHostTestHarness.install(
       publicationContext: fixture.publicationContextRef,
@@ -389,6 +465,7 @@ final class _Attempt {
       presentationMetadataAdmitted: metadataAdmitted,
       maximumSessions: maximumSessions,
       remainingSessionBudget: remainingSessionBudget,
+      onRegistrationRefused: onRegistrationRefused,
     );
   }
 
@@ -445,5 +522,25 @@ final class _RejectCapture implements MeasurementPresentationCaptureSink {
   void recordSuccessfulPresentation(
       MeasurementSuccessfulPresentationFact fact) {
     throw StateError('capture unavailable');
+  }
+}
+
+final class _HostedFixtureBindingPort
+    implements MeasurementPublicationBindingReadPort {
+  _HostedFixtureBindingPort(this.fixture);
+
+  final AdmittedBundledPublicationFixture fixture;
+
+  @override
+  Future<MeasurementPublicationBindingReadResult> readExact(
+    MeasurementPublicationBindingReferenceV1 reference,
+  ) async {
+    expect(reference, fixture.binding.reference);
+    return MeasurementPublicationBindingReadAccepted(
+      reference: reference,
+      binding: fixture.binding,
+      registeredPublicationAttestation:
+          fixture.entry.registeredPublicationAttestation,
+    );
   }
 }

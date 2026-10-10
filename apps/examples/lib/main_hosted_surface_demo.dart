@@ -16,7 +16,7 @@ import 'user_factories.g.dart';
 /// `restage surface publish <slug> --type paywall`):
 ///
 ///     flutter run -t lib/main_hosted_surface_demo.dart \
-///       --dart-define=RESTAGE_BASE_URL=https://your-backend.example \
+///       --dart-define=RESTAGE_BASE_URL=https://your-edge.example \
 ///       --dart-define=RESTAGE_API_KEY=rs_pk_... \
 ///       --dart-define=RESTAGE_SURFACE=<slug> \
 ///       --dart-define=RESTAGE_SURFACE_TYPE=paywall

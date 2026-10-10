@@ -9,18 +9,33 @@ import 'package:test/test.dart';
 
 import '_support/harness.dart';
 
-/// One canned paywall as the backend's `surface.list` wire shape (paywalls
-/// list via the surface substrate, so the row is a `SurfaceSummary`).
-final _onePaywallBody = jsonEncode([
-  {
-    'surfaceType': 'paywall',
-    'slug': 'pro',
-    'name': 'Pro',
-    'draftUpdatedAt': '2026-06-01T00:00:00.000Z',
-    'publishedVersionByEnvironment': {'production': 3},
-    '__className__': 'SurfaceSummary',
+final _onePaywallBody = jsonEncode({
+  'organizationId': 7,
+  'session': {
+    'memberships': [
+      {'organizationId': 7, 'slug': 'acme', 'name': 'Acme', 'role': 'admin'},
+    ],
+    'workspaceExperiences': <Object>[],
   },
-]);
+  'projects': [
+    {'id': 1, 'slug': 'acme', 'name': 'Acme'},
+  ],
+  'apps': [
+    {'id': 5, 'projectId': 1, 'slug': 'ios', 'name': 'iOS'},
+  ],
+  'environments': <Object>[],
+  'environmentTargets': <Object>[],
+  'surfaces': [
+    {
+      'appId': 5,
+      'surfaceType': 'paywall',
+      'slug': 'pro',
+      'name': 'Pro',
+      'draftUpdatedAt': '2026-06-01T00:00:00.000Z',
+      'publishedVersionByEnvironment': {'production': 3},
+    },
+  ],
+});
 
 void main() {
   late Directory tempDir;
@@ -109,14 +124,10 @@ void main() {
         isA<Map<String, dynamic>>(),
       );
 
-      // The wire call hit <endpoint>/surface with method=list, surfaceType
-      // paywall, and the slugs (paywalls list via the surface substrate).
+      // The list is derived from one admitted scope read.
       expect(seenMethod, 'POST');
-      expect(seenUrl.toString(), 'https://api.test/surface');
-      expect(seenBody!['method'], 'list');
-      expect(seenBody!['surfaceType'], 'paywall');
-      expect(seenBody!['projectSlug'], 'acme');
-      expect(seenBody!['appSlug'], 'ios');
+      expect(seenUrl.toString(), 'https://api.test/scope');
+      expect(seenBody!['method'], 'read');
 
       // The load-bearing capital-`B` device-code header (no secret in output).
       expect(seenAuth, 'Basic ${base64Encode(utf8.encode('keyId:key'))}');

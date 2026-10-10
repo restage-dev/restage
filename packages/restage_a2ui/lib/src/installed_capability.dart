@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:restage_shared/restage_shared.dart' show InstalledLibrary;
 
 /// One custom widget library an installed A2UI catalog provides, with the
 /// capability [version] of that library the catalog has.
@@ -10,11 +11,20 @@ import 'package:flutter/foundation.dart';
 /// is satisfied.
 @immutable
 final class A2uiAvailableLibrary {
-  /// Creates an available-library entry. [namespace] must be non-empty and
-  /// [version] a positive capability version.
-  const A2uiAvailableLibrary({required this.namespace, required this.version})
-    : assert(namespace.length > 0, 'namespace must not be empty'),
-      assert(version >= 1, 'version must be a positive capability version');
+  /// Creates an available-library entry. [namespace] must be non-empty,
+  /// [version] a positive capability version, and [compatibleSince] (when
+  /// given) between 1 and [version].
+  const A2uiAvailableLibrary({
+    required this.namespace,
+    required this.version,
+    this.compatibleSince,
+  }) : assert(namespace.length > 0, 'namespace must not be empty'),
+       assert(version >= 1, 'version must be a positive capability version'),
+       assert(
+         compatibleSince == null ||
+             (compatibleSince >= 1 && compatibleSince <= version),
+         'compatibleSince must be between 1 and version',
+       );
 
   /// The custom library's namespace, e.g. `acme.widgets`.
   final String namespace;
@@ -22,15 +32,27 @@ final class A2uiAvailableLibrary {
   /// The capability version of the library the catalog provides.
   final int version;
 
+  /// The oldest capability version whose content this library still renders,
+  /// or `null` for 1.
+  final int? compatibleSince;
+
+  /// This entry as the shared installed-library shape.
+  InstalledLibrary get asInstalledLibrary => InstalledLibrary(
+    namespace: namespace,
+    version: version,
+    compatibleSince: compatibleSince,
+  );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is A2uiAvailableLibrary &&
           other.namespace == namespace &&
-          other.version == version;
+          other.version == version &&
+          (other.compatibleSince ?? 1) == (compatibleSince ?? 1);
 
   @override
-  int get hashCode => Object.hash(namespace, version);
+  int get hashCode => Object.hash(namespace, version, compatibleSince ?? 1);
 }
 
 /// What the A2UI catalog an app registered PROVIDES — the *available* side the
@@ -63,14 +85,8 @@ final class A2uiInstalledCapability {
            ..sort((a, b) => a.namespace.compareTo(b.namespace)),
        );
 
-  /// Parses the descriptor from a Restage catalog capability stamp block — the
-  /// `restageCapability` object the toolchain emits next to an A2UI catalog
-  /// (`{catalogContentVersion, availableLibraries:[{namespace,version}],
-  /// perItemSinceVersion}`). `perItemSinceVersion` is not read here; the
-  /// available side needs only the content version and the library set.
-  ///
-  /// Fails closed: a malformed stamp throws [FormatException] rather than
-  /// yielding a partial descriptor.
+  /// Parses `restageCapability` content version and available libraries.
+  /// Ignores `perItemSinceVersion`. Malformed stamps throw [FormatException].
   factory A2uiInstalledCapability.fromStampJson(Map<String, Object?> json) {
     final version = json['catalogContentVersion'];
     if (version is! int) {
@@ -106,10 +122,21 @@ final class A2uiInstalledCapability {
     }
     final namespace = entry['namespace'];
     final version = entry['version'];
-    if (namespace is! String || version is! int) {
+    final compatibleSince = entry['compatibleSince'];
+    if (namespace is! String ||
+        version is! int ||
+        compatibleSince != null &&
+            !InstalledLibrary.isValidCompatibleSince(
+              compatibleSince,
+              version,
+            )) {
       throw FormatException('malformed A2UI available library: $entry');
     }
-    return A2uiAvailableLibrary(namespace: namespace, version: version);
+    return A2uiAvailableLibrary(
+      namespace: namespace,
+      version: version,
+      compatibleSince: compatibleSince as int?,
+    );
   }
 
   /// The built-in content version the registered catalog provides.

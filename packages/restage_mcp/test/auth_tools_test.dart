@@ -131,13 +131,15 @@ void main() {
         expect(result.structuredContent!['status'], 'authorization_pending');
         expect(result.structuredContent!['userCode'], 'WXYZ-1234');
         final text = _text(result);
-        expect(text, contains('https://verify.test/device'));
+        const link =
+            'https://verify.test/device?code=WXYZ-1234&expires=1767269100';
+        expect(text, contains(link));
         expect(text, contains('WXYZ-1234'));
         expect(
           text.toLowerCase(),
           contains('again'),
         ); // "call restage_login again"
-        expect(backend.opened, ['https://verify.test/device']);
+        expect(backend.opened, [link]);
         _assertNoSecrets(result);
         // Only the start call hit the backend; no polling yet.
         expect(backend.calls.map((c) => c['method']), [

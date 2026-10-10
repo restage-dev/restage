@@ -34,7 +34,7 @@ void main() {
       );
     });
 
-    test('detects a rename when only the flutterType shifts', () {
+    test('detects a source move when only the flutterType shifts', () {
       final before = catalog(
         widgets: [widgetEntry(wireId: 'w0001', flutterType: 'pkg#Old')],
       );
@@ -43,7 +43,7 @@ void main() {
       );
       expect(
         diffCatalogs(before, after),
-        [EntryRenamed(kind: WireIdKind.widget, affected: ref('w0001'))],
+        [EntrySourceMoved(kind: WireIdKind.widget, affected: ref('w0001'))],
       );
     });
 
@@ -144,6 +144,62 @@ void main() {
           widgetWith([propertyEntry(wireId: 'p0001', name: 'b')]),
         ),
         [EntryRenamed(kind: WireIdKind.property, affected: ref('p0001'))],
+      );
+    });
+
+    test('detects a property callback-signature change', () {
+      expect(
+        diffCatalogs(
+          widgetWith([
+            propertyEntry(
+              wireId: 'p0001',
+              type: PropertyType.event,
+              callbackSignature: 'void Function()',
+            ),
+          ]),
+          widgetWith([
+            propertyEntry(
+              wireId: 'p0001',
+              type: PropertyType.event,
+              callbackSignature: 'void Function(String)',
+            ),
+          ]),
+        ),
+        [
+          PropertyShapeChanged(
+            affected: ref('p0001'),
+            fields: const ['callbackSignature'],
+          ),
+        ],
+      );
+    });
+
+    test('names every changed shape field in a fixed order', () {
+      expect(
+        diffCatalogs(
+          widgetWith([
+            propertyEntry(
+              wireId: 'p0001',
+              type: PropertyType.enumValue,
+              enumType: 'pkg#Tone',
+              callbackSignature: 'a',
+            ),
+          ]),
+          widgetWith([
+            propertyEntry(
+              wireId: 'p0001',
+              type: PropertyType.enumValue,
+              enumType: 'pkg#Mood',
+              callbackSignature: 'b',
+            ),
+          ]),
+        ),
+        [
+          PropertyShapeChanged(
+            affected: ref('p0001'),
+            fields: const ['enumType', 'callbackSignature'],
+          ),
+        ],
       );
     });
 
@@ -326,13 +382,19 @@ void main() {
       );
     });
 
-    test('detects a structured rename when only the sourceType shifts', () {
+    test('detects a structured source move when only the sourceType shifts',
+        () {
       expect(
         diffCatalogs(
           structuredOf(structuredEntry(wireId: 's0001', sourceType: 'p#Old')),
           structuredOf(structuredEntry(wireId: 's0001', sourceType: 'p#New')),
         ),
-        [EntryRenamed(kind: WireIdKind.structured, affected: ref('s0001'))],
+        [
+          EntrySourceMoved(
+            kind: WireIdKind.structured,
+            affected: ref('s0001'),
+          ),
+        ],
       );
     });
 

@@ -334,6 +334,16 @@ final class FlowMountContractSnapshot {
   final Uint8List _canonicalBytes;
   final FlowContentHash contentHash;
 
+  FlowMountContractSnapshot withAssignmentKey(String? key) =>
+      FlowMountContractSnapshot(
+        seed: seed,
+        assignmentKey: key,
+        clientBaselineClosure: clientBaselineClosure,
+        contract: contract,
+        baselineRoot: baselineRoot,
+        baselineResolver: baselineResolver,
+      );
+
   Uint8List get canonicalBytes => _canonicalBytes;
 
   bool revalidate(

@@ -69,6 +69,8 @@ PropertyEntry propertyEntry({
   PropertyCategory? category,
   PropertyPriority? priority,
   DeprecationInfo? deprecated,
+  String? callbackSignature,
+  String? enumType,
 }) =>
     PropertyEntry(
       wireId: WireId(wireId),
@@ -77,6 +79,8 @@ PropertyEntry propertyEntry({
       description: description,
       required: required,
       synthetic: synthetic,
+      callbackSignature: callbackSignature,
+      enumType: enumType,
       defaultSource: defaultSource,
       category: category,
       priority: priority,

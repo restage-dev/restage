@@ -511,7 +511,12 @@ InstalledLibrary _decodeInstalledLibrary(
   Map<String, Object?> json,
   String path,
 ) {
-  _checkExactKeys(json, const {'namespace', 'version'}, path);
+  _checkExactKeys(
+    json,
+    const {'namespace', 'version'},
+    path,
+    optional: const {'compatibleSince'},
+  );
   final namespace = _requiredString(json, 'namespace', path);
   _checkNamespace(namespace, '$path.namespace');
   if (!json.containsKey('version')) {
@@ -523,7 +528,21 @@ InstalledLibrary _decodeInstalledLibrary(
       'Expected "$path.version" to be null or a positive integer.',
     );
   }
-  return InstalledLibrary(namespace: namespace, version: version as int?);
+  final compatibleSince = json['compatibleSince'];
+  if (json.containsKey('compatibleSince') &&
+      !InstalledLibrary.isValidCompatibleSince(
+        compatibleSince,
+        version as int?,
+      )) {
+    throw FormatException(
+      'Expected "$path.compatibleSince" to be between 1 and "$path.version".',
+    );
+  }
+  return InstalledLibrary(
+    namespace: namespace,
+    version: version as int?,
+    compatibleSince: compatibleSince as int?,
+  );
 }
 
 FlowActionBindingFingerprint _decodeActionBinding(
@@ -598,6 +617,8 @@ List<int> _encodeClientContract(FlowExperimentClientContractV1 contract) {
           <String, Object?>{
             'namespace': library.namespace,
             'version': library.version,
+            if (library.effectiveCompatibleSince > 1)
+              'compatibleSince': library.effectiveCompatibleSince,
           },
       ],
     },
@@ -661,6 +682,14 @@ InstalledCapability _canonicalInstalledCapability(
       _checkPositiveInt(
         version,
         r'$.installedCapability.installedLibraries.version',
+      );
+    }
+    final compatibleSince = library.compatibleSince;
+    if (compatibleSince != null &&
+        !InstalledLibrary.isValidCompatibleSince(compatibleSince, version)) {
+      throw const FormatException(
+        r'Expected "$.installedCapability.installedLibraries.compatibleSince" '
+        'to be between 1 and the library version.',
       );
     }
     if (!namespaces.add(library.namespace)) {
@@ -917,10 +946,11 @@ void _checkPositiveInt(int value, String path) {
 void _checkExactKeys(
   Map<String, Object?> json,
   Set<String> expected,
-  String path,
-) {
+  String path, {
+  Set<String> optional = const {},
+}) {
   for (final key in json.keys) {
-    if (!expected.contains(key)) {
+    if (!expected.contains(key) && !optional.contains(key)) {
       throw FormatException('Unsupported field "$path.$key".');
     }
   }

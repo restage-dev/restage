@@ -214,6 +214,7 @@ class SpecCommand extends Command<int> {
         runtimePlane: resolved?.runtimePlane,
         planeIsImplicit: resolved?.planeIsImplicit ?? true,
         identity: identity,
+        snapshot: ctx.snapshot,
       );
       final value = await operation.call(target, args);
       final out = _io.stdout;

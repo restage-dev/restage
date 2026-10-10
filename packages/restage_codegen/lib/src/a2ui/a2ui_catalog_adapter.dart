@@ -156,7 +156,11 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
       );
     }
     availableLibraries.add(
-      A2uiLibraryCapability(namespace: library.namespace, version: version),
+      A2uiLibraryCapability(
+        namespace: library.namespace,
+        version: version,
+        compatibleSince: catalog.libraries[library]!.compatibleSince,
+      ),
     );
   }
 

@@ -144,6 +144,43 @@ void main() {
       expect((missingLib as A2uiRejected).gap, contains('other.lib'));
     });
 
+    test('rejects content older than a declared break; renders an additive '
+        'bump', () {
+      RestageA2uiPreRenderCheck checkWith(int? compatibleSince) =>
+          RestageA2uiPreRenderCheck(
+            catalog: _catalogOf(['Text']),
+            installed: A2uiInstalledCapability(
+              catalogContentVersion: 3,
+              availableLibraries: [
+                A2uiAvailableLibrary(
+                  namespace: 'acme.widgets',
+                  version: 4,
+                  compatibleSince: compatibleSince,
+                ),
+              ],
+            ),
+          );
+      final payload = _sidecar(
+        ['Text'],
+        CapabilityManifest(
+          builtInFloor: 1,
+          requiredLibraries: const [
+            LibraryRequirement(namespace: 'acme.widgets', minVersion: 3),
+          ],
+        ),
+      );
+
+      final broken = checkWith(4).check(payload);
+      expect(broken, isA<A2uiRejected>());
+      expect(
+        (broken as A2uiRejected).gap,
+        'requires library "acme.widgets" >= v3 '
+        '(installed v4, compatible since v4)',
+      );
+      expect(checkWith(null).check(payload), isA<A2uiRenderable>());
+      expect(checkWith(3).check(payload), isA<A2uiRenderable>());
+    });
+
     test(
       'FAIL-CLOSED: a stamped payload with no installed descriptor rejects',
       () {

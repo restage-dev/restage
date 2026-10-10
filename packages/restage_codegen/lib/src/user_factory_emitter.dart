@@ -43,6 +43,7 @@ String? emitUserFactoriesDart(
   Map<String, MapPlan> mapPlans = const {},
   Map<String, RecordPlan> recordPlans = const {},
   Map<String, int> stampedCapabilityVersions = const {},
+  Map<String, int> compatibleSinceVersions = const {},
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
 }) {
@@ -174,6 +175,10 @@ String? emitUserFactoriesDart(
       ..writeln('    ${_libraryFieldRef(library)},');
     if (capabilityVersion != null) {
       buf.writeln('    capabilityVersion: $capabilityVersion,');
+    }
+    final compatibleSince = compatibleSinceVersions[library.namespace];
+    if (compatibleSince != null && compatibleSince > 1) {
+      buf.writeln('    compatibleSince: $compatibleSince,');
     }
     buf.writeln('    widgets: const <RestageWidgetFactory>[');
     for (final (entry, _) in entries) {

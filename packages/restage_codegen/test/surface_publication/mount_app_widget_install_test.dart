@@ -174,6 +174,37 @@ void main() {
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
+    test('a declared break carries compatibleSince into the registration',
+        () async {
+      final sources = {
+        'lib/widgets/streak_badge.dart': _widgetSource,
+        'lib/app_widgets.dart': _barrelSource.replaceFirst(
+          'capabilityVersion: 1)',
+          'capabilityVersion: 4, compatibleSince: 4)',
+        ),
+        'lib/messages/recap.dart':
+            _messageSource("import '../app_widgets.dart';", 'StreakBadge'),
+      };
+      final part = (await _build(sources)).parts[_recapPart]!;
+
+      expect(
+        _packed(part),
+        contains(_packed('capabilityVersion:4,compatibleSince:4,widgets:')),
+      );
+    });
+
+    test('compatibleSince 1 stays out of the registration', () async {
+      final sources = {
+        'lib/widgets/streak_badge.dart': _widgetSource,
+        'lib/app_widgets.dart': _barrelSource,
+        'lib/messages/recap.dart':
+            _messageSource("import '../app_widgets.dart';", 'StreakBadge'),
+      };
+      final part = (await _build(sources)).parts[_recapPart]!;
+
+      expect(part, isNot(contains('compatibleSince')));
+    });
+
     test('a prefixed import spells the widget through its prefix', () async {
       final sources = {
         'lib/widgets/streak_badge.dart': _widgetSource,

@@ -212,16 +212,27 @@ CommandRunner<int> _runner({
 
 http.Response _listOrganizations(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listMine');
+  expect(body['method'], 'read');
   return http.Response(
-    jsonEncode([
-      {
-        'organizationId': 7,
-        'slug': 'restage',
-        'name': 'Restage',
-        'role': 'owner',
+    jsonEncode({
+      'organizationId': 7,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': 7,
+            'slug': 'restage',
+            'name': 'Restage',
+            'role': 'owner',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
       },
-    ]),
+      'projects': <Object>[],
+      'apps': <Object>[],
+      'environments': <Object>[],
+      'environmentTargets': <Object>[],
+      'surfaces': <Object>[],
+    }),
     200,
   );
 }

@@ -75,13 +75,44 @@ void main() {
     final copy = registration.presentationContextCanonicalBytes!;
     copy[0] ^= 1;
     final wire = registration.toWire();
-    expect(wire, hasLength(12));
+    expect(wire, hasLength(13));
+    expect(wire[12], isNull);
     final decoded = MeasurementWorkerSessionRegistration.fromWire(wire);
     expect(decoded.presentationContextCanonicalBytes,
         orderedEquals(context.canonicalBytes));
     expect(decoded.routingSelectionReceipt, receipt);
     expect(decoded.sdkRuntimeSessionNonce, 'a' * 64);
     expect(decoded.reportedSdkVersion, '1.0.0');
+    expect(decoded.registrationFingerprint, isNull);
+  });
+
+  test('registration rejects a malformed fingerprint slot', () {
+    final wire = _registration(bytes: context.canonicalBytes).toWire();
+    final wrongType = List<Object?>.of(wire)..[12] = 7;
+    expect(
+      () => MeasurementWorkerSessionRegistration.fromWire(wrongType),
+      throwsA(isA<MeasurementWorkerProtocolException>()),
+    );
+    final missingAssignment = List<Object?>.of(wire)..[12] = 'a' * 64;
+    expect(
+      () => MeasurementWorkerSessionRegistration.fromWire(missingAssignment),
+      throwsArgumentError,
+    );
+  });
+
+  test('registration carries the assignment fingerprint in its final slot', () {
+    final registration = _registration(
+      assignmentBytes: [1],
+      fingerprint: 'b' * 64,
+    );
+    final wire = registration.toWire();
+    expect(wire, hasLength(13));
+    expect(wire[12], 'b' * 64);
+    expect(
+      MeasurementWorkerSessionRegistration.fromWire(wire)
+          .registrationFingerprint,
+      'b' * 64,
+    );
   });
 
   test('older ten-entry registration decodes without presentation metadata',
@@ -182,7 +213,10 @@ const _limits = MeasurementWorkerSessionLimits(
 );
 
 MeasurementWorkerSessionRegistration _registration(
-        {List<int>? bytes, String? receipt}) =>
+        {List<int>? bytes,
+        String? receipt,
+        List<int>? assignmentBytes,
+        String? fingerprint}) =>
     MeasurementWorkerSessionRegistration(
       sessionId: 'session.test',
       captureSessionNonce: 'capture.test',
@@ -193,6 +227,8 @@ MeasurementWorkerSessionRegistration _registration(
       routes: [],
       limits: _limits,
       firstSequence: 1,
+      experimentAssignmentCanonicalBytes: assignmentBytes,
       presentationContextCanonicalBytes: bytes,
       routingSelectionReceipt: receipt,
+      registrationFingerprint: fingerprint,
     );

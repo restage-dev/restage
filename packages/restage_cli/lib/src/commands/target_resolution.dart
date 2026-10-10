@@ -1,10 +1,12 @@
+import 'dart:io';
+
 import 'package:args/args.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
-import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -65,14 +67,39 @@ class ResolvedEnvironmentTargetContext {
   final bool planeIsImplicit;
 }
 
+/// Save IDs only when the resolved target confirms the configured selectors.
+Future<void> persistConfirmedTargetIds({
+  required File? configSource,
+  required RestageConfig? config,
+  required ResolvedEnvironmentTargetContext target,
+}) async {
+  if (configSource == null ||
+      config == null ||
+      config.project != target.projectSlug ||
+      config.app != target.appSlug ||
+      config.defaultEnvironment != target.target.environmentSlug ||
+      (config.organization != null &&
+          config.organization != target.organizationSlug) ||
+      (config.plane != null && config.plane != target.target.runtimePlane)) {
+    return;
+  }
+  final confirmed = config.withResolvedIds(
+    organizationId: target.organizationId,
+    appId: target.appId,
+    environmentTargetId: target.target.environmentTargetId,
+    namedEnvironmentId: target.target.namedEnvironmentId,
+  );
+  if (confirmed.toYaml() != config.toYaml()) {
+    await writeRestageConfig(configSource, confirmed);
+  }
+}
+
 /// The plane argument a follow-up needs, or none when [implicit].
 List<FollowUpArg> planeArgs(RuntimePlane plane, {required bool implicit}) => [
   if (!implicit) FollowUpArg('runtimePlane', plane.wireName, flag: 'plane'),
 ];
 
-/// Resolve selectors to one exact target on the server.
-///
-/// Refusals surface as [RestageApiException] carrying the typed refusal.
+/// Resolve selectors against one current, admitted scope snapshot.
 @experimental
 Future<ResolvedEnvironmentTargetContext> resolveTargetSelection({
   required RestageApi api,
@@ -84,22 +111,87 @@ Future<ResolvedEnvironmentTargetContext> resolveTargetSelection({
   int? organizationId,
   String? organizationSlug,
 }) async {
-  final selection = await DiscoveryApi(api).resolveTarget(
+  final snapshot = await readProgrammaticScope(
+    api,
+    organizationId: organizationId,
+  );
+  if (organizationId == null &&
+      organizationSlug == null &&
+      snapshot.organizations.length != 1) {
+    throw const TargetSelectionException(
+      'You belong to multiple organizations. Select one organization.',
+    );
+  }
+  return _selectionInSnapshot(
+    snapshot,
     projectSlug: projectSlug,
     appSlug: appSlug,
     environmentSlug: environmentSlug,
     runtimePlane: runtimePlane,
     environmentTargetId: environmentTargetId,
-    organizationId: organizationId,
     organizationSlug: organizationSlug,
   );
+}
+
+ResolvedEnvironmentTargetContext _selectionInSnapshot(
+  ProgrammaticScopeSnapshot snapshot, {
+  required String projectSlug,
+  required String appSlug,
+  required String environmentSlug,
+  RuntimePlane? runtimePlane,
+  int? environmentTargetId,
+  String? organizationSlug,
+}) {
+  final organization = snapshot.organizations
+      .where((candidate) => candidate.organizationId == snapshot.organizationId)
+      .firstOrNull;
+  if (organization == null ||
+      (organizationSlug != null && organization.slug != organizationSlug)) {
+    throw const TargetSelectionException(
+      'No organization matches those selectors.',
+    );
+  }
+  if (!snapshot.projects.any((project) => project.slug == projectSlug)) {
+    throw const TargetSelectionException('No project matches those selectors.');
+  }
+  final apps = snapshot
+      .apps(projectSlug)
+      .where((candidate) => candidate.slug == appSlug)
+      .toList();
+  if (apps.length != 1 || apps.single.appId == null) {
+    throw const TargetSelectionException('No app matches those selectors.');
+  }
+  final candidates = snapshot
+      .targets(
+        projectSlug: projectSlug,
+        appSlug: appSlug,
+        runtimePlane: runtimePlane,
+      )
+      .where(
+        (target) =>
+            target.environmentSlug == environmentSlug &&
+            (environmentTargetId == null ||
+                target.environmentTargetId == environmentTargetId),
+      )
+      .toList();
+  if (candidates.isEmpty) {
+    throw const TargetSelectionException(
+      'No environment target matches those selectors.',
+    );
+  }
+  if (candidates.length != 1) {
+    throw TargetSelectionException(
+      "Environment '$environmentSlug' exists on both runtime planes. Pass "
+      '${currentSelectorSyntax.plane}.',
+    );
+  }
   return ResolvedEnvironmentTargetContext(
-    projectSlug: selection.projectSlug,
-    appSlug: selection.appSlug,
-    organizationId: selection.organizationId,
-    organizationSlug: selection.organizationSlug,
-    appId: selection.appId,
-    target: selection.target!,
+    projectSlug: projectSlug,
+    appSlug: appSlug,
+    organizationId: snapshot.organizationId,
+    organizationSlug: organization.slug,
+    appId: apps.single.appId!,
+    target: candidates.single,
   );
 }
 
@@ -116,49 +208,68 @@ Future<ResolvedEnvironmentTargetContext> resolveTargetInteractively({
   required String environmentSlug,
   String? organizationSlug,
   int? organizationId,
+  int? environmentTargetId,
   RuntimePlane? runtimePlane,
   RuntimePlane? configuredPlane,
 }) async {
-  var plane = runtimePlane;
-  var organization = organizationSlug;
-  int? targetId;
-  var chosePlane = false;
-  while (true) {
-    try {
-      final resolved = await resolveTargetSelection(
-        api: api,
+  var snapshot = await readProgrammaticScope(
+    api,
+    organizationId: organizationId,
+  );
+  if (organizationId == null &&
+      organizationSlug == null &&
+      snapshot.organizations.length > 1) {
+    if (!interactive.isInteractive) {
+      throw const TargetSelectionException(
+        'You belong to multiple organizations. Select one organization.',
+      );
+    }
+    final chosen = await interactive
+        .select<OrganizationSummary>('Which organization?', [
+          for (final organization in snapshot.organizations)
+            (label: organization.slug, value: organization),
+        ]);
+    if (chosen.organizationId != snapshot.organizationId) {
+      snapshot = await readProgrammaticScope(
+        api,
+        organizationId: chosen.organizationId,
+      );
+    }
+  }
+  if (organizationId == null && organizationSlug != null) {
+    final matches = snapshot.organizations
+        .where((organization) => organization.slug == organizationSlug)
+        .toList();
+    if (matches.length != 1) {
+      throw const TargetSelectionException(
+        'No organization matches those selectors.',
+      );
+    }
+    if (matches.single.organizationId != snapshot.organizationId) {
+      snapshot = await readProgrammaticScope(
+        api,
+        organizationId: matches.single.organizationId,
+      );
+    }
+  }
+  final choices = snapshot
+      .targets(
         projectSlug: projectSlug,
         appSlug: appSlug,
-        environmentSlug: environmentSlug,
-        runtimePlane: plane,
-        environmentTargetId: targetId,
-        organizationId: organizationId,
-        organizationSlug: organization,
-      );
-      final needsPlane =
-          chosePlane ||
-          (runtimePlane != null && runtimePlane != configuredPlane);
-      return ResolvedEnvironmentTargetContext(
-        projectSlug: resolved.projectSlug,
-        appSlug: resolved.appSlug,
-        organizationId: resolved.organizationId,
-        organizationSlug: resolved.organizationSlug,
-        appId: resolved.appId,
-        target: resolved.target,
-        planeIsImplicit: !needsPlane,
-      );
-    } on RestageApiException catch (e) {
-      final refused = decodeGenericTypedException(e.body);
-      if (!interactive.isInteractive || refused is! TargetSelectionRefused) {
-        rethrow;
-      }
-      if (refused.reason == TargetSelectionRefusal.environmentOnBothPlanes &&
-          refused.candidates.isNotEmpty &&
-          !chosePlane) {
-        final choice = await interactive.select<EnvironmentTargetSummary>(
+        runtimePlane: runtimePlane,
+      )
+      .where(
+        (target) =>
+            target.environmentSlug == environmentSlug &&
+            (environmentTargetId == null ||
+                target.environmentTargetId == environmentTargetId),
+      )
+      .toList();
+  final selected = choices.length > 1 && interactive.isInteractive
+      ? await interactive.select<EnvironmentTargetSummary>(
           "Which '$environmentSlug' target?",
           [
-            for (final candidate in refused.candidates)
+            for (final candidate in choices)
               (
                 label:
                     '${candidate.runtimePlane.wireName} '
@@ -166,24 +277,28 @@ Future<ResolvedEnvironmentTargetContext> resolveTargetInteractively({
                 value: candidate,
               ),
           ],
-        );
-        plane = choice.runtimePlane;
-        targetId = choice.environmentTargetId;
-        chosePlane = true;
-        continue;
-      }
-      if (refused.reason == TargetSelectionRefusal.multipleOrganizations &&
-          refused.organizationSlugs.isNotEmpty &&
-          organization == null) {
-        organization = await interactive.select<String>('Which organization?', [
-          for (final slug in refused.organizationSlugs)
-            (label: slug, value: slug),
-        ]);
-        continue;
-      }
-      rethrow;
-    }
-  }
+        )
+      : null;
+  final resolved = _selectionInSnapshot(
+    snapshot,
+    projectSlug: projectSlug,
+    appSlug: appSlug,
+    environmentSlug: environmentSlug,
+    runtimePlane: selected?.runtimePlane ?? runtimePlane,
+    environmentTargetId: selected?.environmentTargetId ?? environmentTargetId,
+    organizationSlug: organizationSlug,
+  );
+  return ResolvedEnvironmentTargetContext(
+    projectSlug: resolved.projectSlug,
+    appSlug: resolved.appSlug,
+    organizationId: resolved.organizationId,
+    organizationSlug: resolved.organizationSlug,
+    appId: resolved.appId,
+    target: resolved.target,
+    planeIsImplicit:
+        selected == null &&
+        (runtimePlane == null || runtimePlane == configuredPlane),
+  );
 }
 
 /// The project slug [preferredSlug] names, else the one to pick. Null after

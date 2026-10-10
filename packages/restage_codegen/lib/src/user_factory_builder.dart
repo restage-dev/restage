@@ -86,6 +86,7 @@ final class UserFactoryBuilder implements Builder {
             mapPlans: collection.mapPlans,
             recordPlans: collection.recordPlans,
             stampedCapabilityVersions: collection.stampedCapabilityVersions,
+            compatibleSinceVersions: collection.compatibleSinceVersions,
             appVocabulary: appVocabulary,
             installWholeCatalog: installWholeCatalog,
           );
@@ -226,6 +227,7 @@ String emitAdmittedUserFactoriesDart(
   Map<String, MapPlan> mapPlans = const {},
   Map<String, RecordPlan> recordPlans = const {},
   Map<String, int> stampedCapabilityVersions = const {},
+  Map<String, int> compatibleSinceVersions = const {},
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
 }) {
@@ -238,6 +240,7 @@ String emitAdmittedUserFactoriesDart(
     mapPlans: mapPlans,
     recordPlans: recordPlans,
     stampedCapabilityVersions: stampedCapabilityVersions,
+    compatibleSinceVersions: compatibleSinceVersions,
     appVocabulary: appVocabulary,
     installWholeCatalog: installWholeCatalog,
     onSkip: _throwAdmittedFactoryCoherenceFailure,

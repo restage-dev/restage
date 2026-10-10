@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/build_push_command.dart';
 import 'package:restage_cli/src/commands/authed.dart';
+import 'package:restage_cli/src/commands/measurement_page_command.dart';
 import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
@@ -286,6 +287,15 @@ class RestageCli {
           credentialStore: _credentialStore,
           httpClient: _httpClient,
           environment: _environment,
+        ),
+      )
+      ..addCommand(
+        AnalyticsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
         ),
       )
       ..addCommand(

@@ -220,6 +220,49 @@ void main() {
       expect(installed, isA<FlowExperimentAccepted>());
     });
 
+    test('rejects a library that declared a break after the requirement', () {
+      final child = experimentDocumentContract(
+        document: experimentDocument(flow: 'child'),
+        requiredLibraries: const [
+          LibraryRequirement(namespace: 'acme.widgets', minVersion: 3),
+        ],
+      );
+      final root = _parentContractForChild(child);
+      final closure = experimentClosure(
+        root: root,
+        documents: [root, child],
+      );
+      FlowExperimentVerdict withInstalled(InstalledLibrary library) => evaluate(
+            baseline: closure,
+            candidate: closure,
+            capability: InstalledCapability(
+              builtInCatalogVersion: 5,
+              installedLibraries: [library],
+            ),
+          );
+
+      expect(
+        withInstalled(
+          const InstalledLibrary(
+            namespace: 'acme.widgets',
+            version: 4,
+            compatibleSince: 4,
+          ),
+        ),
+        isA<FlowExperimentRejected>().having(
+          (verdict) => verdict.reason,
+          'reason',
+          FlowExperimentRejectionReason.requiredLibraryContractBroken,
+        ),
+      );
+      expect(
+        withInstalled(
+          const InstalledLibrary(namespace: 'acme.widgets', version: 4),
+        ),
+        isA<FlowExperimentAccepted>(),
+      );
+    });
+
     test('checks full action fingerprint and supported minimum', () {
       final action = experimentAction(minClient: 2);
       final document = experimentDocumentContract(

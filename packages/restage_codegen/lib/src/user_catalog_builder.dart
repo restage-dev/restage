@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/library_contract.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:restage_codegen/src/user_catalog_emitter.dart';
@@ -50,10 +51,18 @@ final class UserCatalogBuilder implements Builder {
       structuredTypes: collection.structuredTypes,
       slotTargets: collection.slotTargets,
       stampedCapabilityVersions: collection.stampedCapabilityVersions,
+      compatibleSinceVersions: collection.compatibleSinceVersions,
       exclusions: collection.exclusions,
       existingEvents: existingEvents,
     );
     requireNativeCatalog(allocation.catalog);
+    await enforcePackageLibraryContracts(
+      allocation.catalog,
+      package: buildStep.inputId.package,
+      write: true,
+      enumMembers:
+          await resolveEnumMembers(buildStep.resolver, allocation.catalog),
+    );
 
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/user_catalog.g.dart'),

@@ -109,6 +109,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
     final result = await client.fetchSurfaceScreen(
       request,
       readerHostDataContractHash: provenance.hostDataContractHash,
+      registrationLease: lease,
     );
     if (!lease.isCurrent) return null;
     switch (result) {
@@ -135,7 +136,14 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
           routingSelectionReceipt,
           routingSelectionProvenance,
         );
-        _cache[key] = _CachedHostedScreen(screen: resolved, lease: lease);
+        final confirmedKey = _ScreenCacheKey(
+          surface: screen.surface,
+          slug: screen.slug,
+          contractVersion: screen.contractVersion,
+          assignmentKey: lease.assignmentKey,
+        );
+        _cache[confirmedKey] =
+            _CachedHostedScreen(screen: resolved, lease: lease);
         return reportSurfaceResolution<ResolvedSurfaceScreen>(
           screen.surface,
           screen.slug,

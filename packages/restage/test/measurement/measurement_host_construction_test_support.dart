@@ -114,6 +114,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
     bool presentationMetadataAdmitted = false,
     int remainingSessionBudget = 16,
     int maximumSessions = 16,
+    Future<void> Function(String fingerprint)? onRegistrationRefused,
   }) {
     final worker = DeterministicMeasurementDeliveryWorker();
     final lifecycle = ConstructionOwnerLifecycleProbe();
@@ -139,6 +140,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
           MeasurementWorkerOwnedDeliveryRuntime.fromTestingState(worker),
         );
       },
+      onRegistrationRefused: onRegistrationRefused,
     );
     var nonce = 0;
     final restore = MeasurementHostSessionConstructionRegistry.installForTest(
@@ -213,7 +215,9 @@ final class _ConstructionOwnerLifecycleRegistration
 
 /// Deterministic worker port used only below the real construction owner.
 final class DeterministicMeasurementDeliveryWorker
-    implements MeasurementWorkerOwnedDeliveryRuntimeState {
+    implements
+        MeasurementWorkerOwnedDeliveryRuntimeState,
+        MeasurementWorkerRegistrationRefusalSource {
   final Map<String, _DeterministicDeliverySession> _sessions =
       <String, _DeterministicDeliverySession>{};
   final Map<String, _DeterministicDeliverySession>
@@ -221,6 +225,7 @@ final class DeterministicMeasurementDeliveryWorker
   final registrations = <MeasurementWorkerSessionRegistration>[];
   final appendRecords = <MeasurementWorkerAppendRecord>[];
   final terminalDiagnostics = <MeasurementPresentationDiagnosticV1>[];
+  final _registrationRefusals = StreamController<String>.broadcast(sync: true);
 
   /// What this worker was asked to deliver, in order.
   final deliveries = <MeasurementWorkerDeliveryKind>[];
@@ -258,6 +263,12 @@ final class DeterministicMeasurementDeliveryWorker
   @override
   Stream<MeasurementWorkerOwnedDeliveryDebugEvent> get debugEvents =>
       const Stream<MeasurementWorkerOwnedDeliveryDebugEvent>.empty();
+
+  @override
+  Stream<String> get registrationRefusals => _registrationRefusals.stream;
+
+  void emitRegistrationRefusal(String fingerprint) =>
+      _registrationRefusals.add(fingerprint);
 
   /// Captures the one owner-approved configuration before the fake starts.
   void start(MeasurementWorkerOwnedDeliveryConfiguration configuration) {

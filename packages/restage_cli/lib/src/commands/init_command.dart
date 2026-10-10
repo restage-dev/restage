@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -144,6 +144,10 @@ class InitCommand extends Command<int> {
       organization: context.organization,
       endpoint: context.endpoint,
       plane: RuntimePlane.fromWireName(results['plane'] as String),
+      organizationId: context.organizationId,
+      appId: context.appId,
+      environmentTargetId: context.environmentTargetId,
+      namedEnvironmentId: context.namedEnvironmentId,
     );
 
     final wantsStarter = results['starter'] as bool;
@@ -289,6 +293,7 @@ class InitCommand extends Command<int> {
         projectFlag: projectFlag,
         appFlag: appFlag,
         envFlag: envFlag,
+        plane: RuntimePlane.fromWireName(results['plane'] as String),
       );
       if (discovered != null) return discovered;
       return null;
@@ -319,6 +324,7 @@ class InitCommand extends Command<int> {
     required String? projectFlag,
     required String? appFlag,
     required String? envFlag,
+    required RuntimePlane plane,
   }) async {
     final RestageApi api;
     try {
@@ -333,18 +339,27 @@ class InitCommand extends Command<int> {
     }
 
     try {
-      final discovery = DiscoveryApi(api);
-      final organization = await resolveActiveOrganization(
-        api: discovery,
-        interactive: _interactive,
-        stderr: _stderr,
+      var scope = await readProgrammaticScope(api);
+      final organization = await _pickDiscovered(
         preferredSlug: organizationFlag,
+        options: scope.organizations,
+        prompt: 'Which organization?',
+        missingFlag: '--organization <slug>',
+        slugOf: (organization) => organization.slug,
+        labelOf: (organization) =>
+            '${organization.name} (${organization.slug})',
       );
       if (organization == null) return null;
+      if (scope.organizationId != organization.organizationId) {
+        scope = await readProgrammaticScope(
+          api,
+          organizationId: organization.organizationId,
+        );
+      }
 
       final project = await _pickDiscovered(
         preferredSlug: projectFlag,
-        options: await discovery.listProjects(organization.organizationId),
+        options: scope.projects,
         prompt: 'Which project?',
         missingFlag: '--project <slug>',
         slugOf: (project) => project.slug,
@@ -354,10 +369,7 @@ class InitCommand extends Command<int> {
 
       final app = await _pickDiscovered(
         preferredSlug: appFlag,
-        options: await discovery.listApps(
-          organizationId: organization.organizationId,
-          projectSlug: project.slug,
-        ),
+        options: scope.apps(project.slug),
         prompt: 'Which app?',
         missingFlag: '--app <slug>',
         slugOf: (app) => app.slug,
@@ -367,10 +379,10 @@ class InitCommand extends Command<int> {
 
       final environment = await _pickDiscovered(
         preferredSlug: envFlag,
-        options: await discovery.listEnvironments(
-          organizationId: organization.organizationId,
-          projectSlug: project.slug,
-        ),
+        options: scope
+            .environments(project.slug)
+            .where((environment) => environment.appId == app.appId)
+            .toList(),
         prompt: 'Which default environment?',
         missingFlag: '--env <slug>',
         slugOf: (environment) => environment.slug,
@@ -378,12 +390,28 @@ class InitCommand extends Command<int> {
         allowEmpty: true,
       );
 
+      final targets = environment == null
+          ? <EnvironmentTargetSummary>[]
+          : scope
+                .targets(
+                  projectSlug: project.slug,
+                  appSlug: app.slug,
+                  runtimePlane: plane,
+                )
+                .where((target) => target.environmentSlug == environment.slug)
+                .toList();
+      final selectedTarget = targets.length == 1 ? targets.single : null;
+
       return _InitContext(
         organization: organization.slug,
         project: project.slug,
         app: app.slug,
         environment: environment?.slug,
         endpoint: credential.endpoint,
+        organizationId: organization.organizationId,
+        appId: app.appId,
+        environmentTargetId: selectedTarget?.environmentTargetId,
+        namedEnvironmentId: selectedTarget?.namedEnvironmentId,
       );
     } on RestageApiException catch (e) {
       _stderr.writeln('Could not discover your Restage context: ${e.body}');
@@ -504,6 +532,10 @@ class _InitContext {
     this.environment,
     this.organization,
     this.endpoint,
+    this.organizationId,
+    this.appId,
+    this.environmentTargetId,
+    this.namedEnvironmentId,
   });
 
   final String? organization;
@@ -511,4 +543,8 @@ class _InitContext {
   final String app;
   final String? environment;
   final String? endpoint;
+  final int? organizationId;
+  final int? appId;
+  final int? environmentTargetId;
+  final int? namedEnvironmentId;
 }

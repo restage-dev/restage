@@ -176,6 +176,39 @@ void main() {
       expect(result.diagnostics, isEmpty);
     });
 
+    for (final (source, expected) in [
+      ('capabilityVersion: 4, compatibleSince: 4', (4, 4)),
+      ('capabilityVersion: 3', (3, 1)),
+    ]) {
+      test('reads the capability line from ($source)', () async {
+        final barrel = '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageLibrary(
+            library: WidgetLibrary.custom('acme.design_system'),
+            $source,
+          )
+          const _sentinel = 0;
+        ''';
+        final result = await resolveSources(
+          {'host_app|lib/restage_imports.dart': barrel},
+          (resolver) async {
+            final lib = await resolver.libraryFor(
+              AssetId('host_app', 'lib/restage_imports.dart'),
+            );
+            return walkRestageLibrary(
+              barrel: lib,
+              barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
+            );
+          },
+          readAllSourcesFromFilesystem: true,
+        );
+        expect(result.diagnostics, isEmpty);
+        expect(result.declaration!.capabilityVersion, expected.$1);
+        expect(result.declaration!.compatibleSince, expected.$2);
+      });
+    }
+
     test('returns a null declaration when no @RestageLibrary is present',
         () async {
       const barrel = 'const _unrelated = 0;';

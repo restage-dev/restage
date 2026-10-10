@@ -1,4 +1,3 @@
-import 'package:meta/meta.dart';
 import 'package:rfw_catalog_compiler/src/diff/catalog_change.dart';
 
 /// The four-way compatibility classification for a catalog change.
@@ -7,10 +6,8 @@ import 'package:rfw_catalog_compiler/src/diff/catalog_change.dart';
 /// paywall blobs authored against the prior catalog version. The diff tool
 /// emits a `CompatRule` for [forwarding] and [breaking] changes only;
 /// [free] and [additive] changes need no decode-time mediation.
-@experimental
 enum CompatClassification {
-  /// Zero-cost change: no migration, no wire-compat entry. Renames are
-  /// free — wire identity is unchanged.
+  /// Zero-cost change: no migration, no wire-compat entry.
   free,
 
   /// Existing consumers ignore the addition; no migration is needed.
@@ -32,19 +29,16 @@ enum CompatClassification {
 /// reach production without an explicit classification rule. A
 /// mis-classification (especially `breaking` as `additive`) silently
 /// breaks shipped blobs, so each arm documents the rule it implements.
-///
-/// Infrastructure ahead of application: this classifier has no production
-/// consumer yet (the emitted `CompatRule` type is production; the
-/// diff/classifier logic that produces it is not wired in).
-@experimental
 CompatClassification classifyCatalogChange(CatalogChange change) {
   return switch (change) {
     // A new entry was added. No existing blob references it.
     EntryAdded() => CompatClassification.additive,
     // An entry was removed. Blobs referencing the wire ID fail to resolve.
     EntryRemoved() => CompatClassification.breaking,
-    // Rename. Wire identity is unchanged; only a display label shifts.
-    EntryRenamed() => CompatClassification.free,
+    // Rename. Installed apps resolve widgets and arguments by name.
+    EntryRenamed() => CompatClassification.breaking,
+    // Source move with the same name. Nothing the installed app binds to moves.
+    EntrySourceMoved() => CompatClassification.free,
     // Deprecate. Blobs continue to resolve; the editor warns.
     EntryDeprecated() => CompatClassification.additive,
     // Replace with a successor — the decoder remaps via a rule. Valid for
@@ -55,6 +49,9 @@ CompatClassification classifyCatalogChange(CatalogChange change) {
     // EdgeInsetsGeometry both map to `PropertyType.edgeInsets`) and never
     // surfaces as an observable change here.
     PropertyTypeChanged() => CompatClassification.breaking,
+    // Callback, enum, widget, positional, or value-shape change. Existing
+    // values no longer decode to the same argument.
+    PropertyShapeChanged() => CompatClassification.breaking,
     // Required-flag flip. Loosening is additive; tightening makes blobs
     // that lack the property fail to decode.
     RequiredFlagChanged(:final direction) => switch (direction) {

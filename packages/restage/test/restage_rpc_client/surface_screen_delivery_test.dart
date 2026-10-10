@@ -4,10 +4,14 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/restage_rpc_client/surface_delivery_evidence.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/hosted_artifact_delivery.dart';
 
@@ -15,6 +19,72 @@ final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   group('RestageRpcClient.fetchSurfaceScreen', () {
+    test('folds registration beside a strict screen descriptor', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SurfaceAssignmentCredentialStore(
+        namespace: 'screen-fold',
+        actor: () async => 'actor',
+        identityGeneration: () => 0,
+        onRetentionRollover: () {},
+      );
+      SurfaceAssignmentKeyProvider.install(
+        key: store.resolve,
+        identityGeneration: () => store.generation,
+        registration: store.capture,
+        confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+            store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: start,
+          credentialHandle: handle,
+          expiresAtMicros: expiry,
+          serverNowMicros: serverNow,
+        ),
+        refuseRegistration: store.refuse,
+      );
+      addTearDown(SurfaceAssignmentKeyProvider.clear);
+      final lease = await SurfaceAssignmentKeyProvider.captureLease();
+      late Map<String, dynamic> sent;
+      final serverNow = DateTime.now().microsecondsSinceEpoch;
+      final response = jsonDecode(
+        SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(_response()),
+      ) as Map<String, dynamic>;
+      response.addAll({
+        'credentialHandle': 'ic1.${'a' * 64}',
+        'expiresAtMicros': serverNow + 30 * Duration.microsecondsPerDay,
+        'serverNowMicros': serverNow,
+        'assignment': CanonicalSurfaceExperimentAssignmentV1(
+          experimentId: ExperimentPublicIdV1('experiment.test'),
+          experimentRevisionId: ExperimentPublicRevisionIdV1('revision.test'),
+          experimentEpochId: ExperimentPublicEpochIdV1('epoch.test'),
+          armId: ExperimentPublicArmIdV1('arm.test'),
+          outcomeLinkCarrier: 'Y2Fycmllcg',
+        ).toJson(),
+      });
+      final client = _client((request) async {
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode(response), 200);
+      });
+
+      final result = await client.fetchSurfaceScreen(
+        _request(),
+        registrationLease: lease,
+      );
+
+      expect(result, isA<SurfaceScreenDeliveryAvailable>());
+      final assigned = result as SurfaceScreenDeliveryAvailable;
+      final resolved = attachMeasurementPublicationBindingReference(
+        Object(),
+        null,
+        canonicalExperimentAssignment: assigned.canonicalExperimentAssignment,
+      );
+      expect(measurementRegistrationFingerprintFor(resolved),
+          lease.registration!.fingerprint);
+      expect(sent['registrationNonce'], lease.registration!.registrationNonce);
+      expect(sent['registrationCreatedAtMicros'],
+          lease.registration!.registrationCreatedAtMicros);
+      expect((await store.capture())!.credentialHandle, 'ic1.${'a' * 64}');
+    });
+
     test('reports a malformed 429 and preserves transport unavailability',
         () async {
       _delivery.artifactRequests.clear();

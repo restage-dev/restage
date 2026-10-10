@@ -119,10 +119,29 @@ void main() {
       expect(rule.kind, CompatKind.factoryVariantChange);
     });
 
+    test('a rename emits a removal rule', () {
+      final rule = onlyRuleFor(
+        EntryRenamed(kind: WireIdKind.widget, affected: ref('w0001')),
+      );
+      expect(rule.kind, CompatKind.removal);
+    });
+
+    test('a property shape change emits a typeChange rule naming the fields',
+        () {
+      final rule = onlyRuleFor(
+        PropertyShapeChanged(
+          affected: ref('p0001'),
+          fields: const ['callbackSignature'],
+        ),
+      );
+      expect(rule.kind, CompatKind.typeChange);
+      expect(rule.note, contains('callbackSignature'));
+    });
+
     test('free and additive changes emit no rule', () {
       final changes = <CatalogChange>[
         EntryAdded(kind: WireIdKind.widget, affected: ref('w0001')),
-        EntryRenamed(kind: WireIdKind.widget, affected: ref('w0001')),
+        EntrySourceMoved(kind: WireIdKind.widget, affected: ref('w0001')),
         EntryDeprecated(kind: WireIdKind.widget, affected: ref('w0001')),
         RequiredFlagChanged(
           affected: ref('p0001'),
@@ -172,8 +191,11 @@ void main() {
         fromVersion: 'v1',
         toVersion: 'v2',
       );
-      expect(rules, hasLength(2));
-      expect(rules.map((r) => r.affectedRef), [ref('w0002'), ref('w0004')]);
+      expect(rules, hasLength(3));
+      expect(
+        rules.map((r) => r.affectedRef),
+        [ref('w0002'), ref('w0003'), ref('w0004')],
+      );
     });
   });
 }

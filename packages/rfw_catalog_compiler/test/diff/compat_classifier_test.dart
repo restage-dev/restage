@@ -27,12 +27,33 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking', () {
       expect(
         classifyCatalogChange(
           EntryRenamed(kind: WireIdKind.widget, affected: ref('w0001')),
         ),
+        CompatClassification.breaking,
+      );
+    });
+
+    test('source move → free', () {
+      expect(
+        classifyCatalogChange(
+          EntrySourceMoved(kind: WireIdKind.widget, affected: ref('w0001')),
+        ),
         CompatClassification.free,
+      );
+    });
+
+    test('property shape change → breaking', () {
+      expect(
+        classifyCatalogChange(
+          PropertyShapeChanged(
+            affected: ref('p0001'),
+            fields: const ['callbackSignature'],
+          ),
+        ),
+        CompatClassification.breaking,
       );
     });
 

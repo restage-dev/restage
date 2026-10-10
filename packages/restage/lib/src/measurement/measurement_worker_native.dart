@@ -1203,6 +1203,7 @@ final class _WorkerSession {
     required this.reportedSdkVersion,
     required this.presentationContextCanonicalBytes,
     required this.routingSelectionReceipt,
+    required this.registrationFingerprint,
     required this.contextCanonicalBytes,
     required this.publishedContext,
     required this.routes,
@@ -1279,6 +1280,7 @@ final class _WorkerSession {
       presentationContextCanonicalBytes:
           registration.presentationContextCanonicalBytes,
       routingSelectionReceipt: registration.routingSelectionReceipt,
+      registrationFingerprint: registration.registrationFingerprint,
       contextCanonicalBytes: contextBytes,
       publishedContext: context,
       routes: List.unmodifiable(routes),
@@ -1305,6 +1307,7 @@ final class _WorkerSession {
               .replaceAll('=', '');
 
   final String? routingSelectionReceipt;
+  final String? registrationFingerprint;
   final Uint8List contextCanonicalBytes;
   final ExactMeasurementPublicationContextRefV1 publishedContext;
   final MeasurementExperimentAssignmentV1? experimentAssignment;
@@ -1332,6 +1335,7 @@ final class _WorkerSession {
         (reportedSdkVersion?.length ?? 0) +
         (presentationContextCanonicalBytes?.length ?? 0) +
         (routingSelectionReceipt?.length ?? 0) +
+        (registrationFingerprint?.length ?? 0) +
         contextCanonicalBytes.length +
         (experimentAssignment?.outcomeLinkCarrier.length ?? 0) +
         (_slots.length * _slotOwnedByteCount) +
@@ -1813,7 +1817,9 @@ final class _PathProviderSupportPathResolver
 }
 
 final class _NativeMeasurementWorkerOwnedDeliveryState
-    implements MeasurementWorkerOwnedDeliveryRuntimeState {
+    implements
+        MeasurementWorkerOwnedDeliveryRuntimeState,
+        MeasurementWorkerRegistrationRefusalSource {
   _NativeMeasurementWorkerOwnedDeliveryState({
     required this.configuration,
     required this.applicationSupportPath,
@@ -1836,6 +1842,8 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
       _appendAcknowledgements = StreamController.broadcast(sync: true);
   final StreamController<MeasurementWorkerOwnedDeliveryDebugEvent>
       _debugEvents = StreamController.broadcast(sync: true);
+  final StreamController<String> _registrationRefusals =
+      StreamController(sync: true);
 
   late final ReceivePort _events;
   late final ReceivePort _errors;
@@ -1902,6 +1910,9 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
   @override
   Stream<MeasurementWorkerOwnedDeliveryDebugEvent> get debugEvents =>
       _debugEvents.stream;
+
+  @override
+  Stream<String> get registrationRefusals => _registrationRefusals.stream;
 
   @override
   Future<MeasurementWorkerOwnedDeliveryOpenSessionResult> openSession(
@@ -2360,6 +2371,10 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
             workerIsolateId: workerIsolateId,
           ),
         );
+      case MeasurementWorkerOwnedDeliveryRegistrationRefusedMessage(
+          :final fingerprint,
+        ):
+        _registrationRefusals.add(fingerprint);
       case MeasurementWorkerOwnedDeliveryFatalMessage():
         _failWorker();
     }
@@ -2458,6 +2473,7 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
     unawaited(_exitSubscription?.cancel());
     unawaited(_appendAcknowledgements.close());
     unawaited(_debugEvents.close());
+    unawaited(_registrationRefusals.close());
   }
 }
 
@@ -2998,6 +3014,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
             )
           : MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(
               workerBatch.toPublic(),
+              registrationFingerprint: session.registrationFingerprint,
             );
       trace(MeasurementWorkerOwnedDeliveryDebugStage.hashedAndPrepared);
     } on Object {
@@ -3022,7 +3039,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
             isFinal: workerBatch.isFinal,
           );
         }
-        final uploaded = await uploadCoordinator.uploadNext();
+        final uploaded = await _uploadNext();
         await _scheduleNextDelivery();
         return _WorkerOwnedDeliveryPreparedResult(
           outcome: _checkpointOutcomeForUpload(uploaded.outcome),
@@ -3068,8 +3085,20 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
 
   Future<void> _drainAndSchedule() async {
     if (_closed || _collectionCancelled) return;
-    await uploadCoordinator.uploadNext();
+    await _uploadNext();
     await _scheduleNextDelivery();
+  }
+
+  Future<MeasurementOutboxUploadResult> _uploadNext() async {
+    final uploaded = await uploadCoordinator.uploadNext();
+    if (uploaded.registrationFingerprint case final fingerprint?) {
+      events.send(
+        MeasurementWorkerOwnedDeliveryProtocol.registrationRefused(
+          fingerprint,
+        ),
+      );
+    }
+    return uploaded;
   }
 
   Future<void> _scheduleNextDelivery() async {
