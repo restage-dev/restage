@@ -5,6 +5,8 @@ import 'package:restage_example/main_section_header_demo.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/section_header.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// The RECORD ENCODE-SIDE SOUND NET (source → encode → wire → decode → pixels).
 ///
 /// The `section_header_showcase` screen AUTHORS record literals in ordinary
@@ -20,8 +22,10 @@ import 'package:restage_example/widgets/section_header.dart';
 /// decode half against hand-authored wire maps, this closes the round trip for
 /// record-shaped properties.
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     registerRestageWidgets();
     Restage.configure(
       apiKey: 'rs_pk_test',

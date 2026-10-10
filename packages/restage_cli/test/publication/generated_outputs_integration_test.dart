@@ -19,7 +19,7 @@ import 'package:test/test.dart';
 /// checkout that has not run the generator skips loudly rather than failing —
 /// but a checkout that HAS run it gets the full comparison.
 const _packages = <String, String>{
-  // Public-bound; always present.
+  // Included in the workspace.
   'restage_example': '../../apps/examples',
   // Private; absent from the extracted public tree, hence discovered rather
   // than required.

@@ -10,11 +10,7 @@ topics:
   - server-driven-ui
   - remote-ui
   - flutter
-# Public-bound from day one. publish_to is `none` for now because this
-# package depends on the workspace `restage_shared` (itself not yet
-# published) — matching every other public-bound member in the workspace.
-# Actual publication follows the coordinated launch, once the shared
-# package is published and the command surface stabilizes.
+# Publication uses the workspace release tooling to resolve sibling dependencies.
 publish_to: none
 
 environment:

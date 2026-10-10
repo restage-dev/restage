@@ -12,13 +12,17 @@ import 'package:restage_example/surfaces/starter_host_data_demo.dart';
 import 'package:restage_example/widgets/minimal_custom_widget_demo.dart';
 import 'package:restage_example/user_factories.g.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// The engagement surfaces draw no host chrome, so in-flow back is the app bar
 /// each screen carries. The bar implies its control from the route's history, so
 /// the first screen must show none and the next must show one — the regression
 /// these pin is a back arrow offered where there is nothing to go back to.
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

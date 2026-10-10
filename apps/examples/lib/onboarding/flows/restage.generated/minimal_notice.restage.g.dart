@@ -17,7 +17,7 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '976a662218898fade44905ece05aab1c6281c14f55892dd31833b2f61626183b',
+      'a2045dc4a833c2beb55d78ad6c7e46af23f7061da31ade1416c6bea19c8068ee',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

@@ -8,6 +8,8 @@ import 'package:restage_example/onboarding/minimal_onboarding_demo.dart';
 import 'package:restage_example/onboarding/reel_cancel_demo.dart';
 import 'package:restage_example/user_factories.g.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// Drive-and-assert proof that every engagement surface — and every host-owned
 /// terminal screen it hands off to — stays escapable back to the gallery.
 ///
@@ -18,10 +20,12 @@ import 'package:restage_example/user_factories.g.dart';
 /// again — i.e. the host route popped. From mid-flow the first back must step
 /// back a screen rather than leave.
 void main() {
+  useSupportDirectoryChannel();
+
   const galleryMarker = '— gallery —';
 
-  setUp(() {
-    Restage.debugReset();
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

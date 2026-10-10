@@ -591,7 +591,7 @@ void main() {
       );
     });
 
-    // Pass-3 #F2 — an OPTIONAL-NULLABLE widget structured prop must yield null
+    // an OPTIONAL-NULLABLE widget structured prop must yield null
     // on an absent map (`isMap ? recon : null`), not reconstruct
     // unconditionally (which throws on an absent nested-required leaf — a valid
     // absent-nullable input). Nullability is a build-time signal (not a wire
@@ -690,7 +690,7 @@ void main() {
       expect(issue.message, contains('initializer-transformed'));
     });
 
-    // Pass-3 #F1 — POSITIONAL args must emit in CONSTRUCTOR order, not field-
+    // POSITIONAL args must emit in CONSTRUCTOR order, not field-
     // declaration order. Here the fields are declared `badge` then `title` but
     // the ctor is `(title, badge)`; emitting in field order would transpose the
     // args (`PairCard(Badge(...), <String>)`) — a compile error / wrong render.
@@ -833,7 +833,7 @@ void main() {
       );
     });
 
-    // Pass-2 #6a — a POSITIONAL custom structured widget property must route
+    // a POSITIONAL custom structured widget property must route
     // through the reconstructor (emitted positionally), not fall into the old
     // structured decoder (which throws "no registered decoder" and crashes the
     // build). It is the positional analog of a named structured prop.
@@ -922,7 +922,7 @@ void main() {
       expect(issue.message, contains('rfw target cannot reproduce'));
     });
 
-    // Pass-2 #2 — a String default containing `$` must be escaped in the
+    // a String default containing `$` must be escaped in the
     // emitted `??` fallback (an unescaped `'$free'` is Dart interpolation of an
     // undefined `free`, a compile error).
     test(
@@ -966,7 +966,7 @@ void main() {
       );
     });
 
-    // Pass-3 #F3 — a custom structured field of a FLUTTER enum is admitted
+    // a custom structured field of a FLUTTER enum is admitted
     // IFF that enum is in `package:flutter/widgets.dart`'s EXPORT NAMESPACE (the
     // only flutter surface the generated factory imports). `Axis` (re-exported)
     // admits; `ThemeMode` (material) and `TextInputAction` (services) are NOT

@@ -43,8 +43,7 @@ class CoverageProbe {
 /// The classifier's `results` map accumulates across `classify()`
 /// calls, so a single classifier instance scans every annotated class
 /// in one pass. Composed (transitively-reached) `@RestageWidget`
-/// widgets land in the map too; for the chapter-close measurement
-/// that is the right shape — every recognised custom widget gets
+/// widgets land in the map too; every recognised custom widget gets
 /// bucketed regardless of whether it was top-level or composed.
 Future<CoverageProbe> classifyAllInFixture(
   Map<String, String> sources, {

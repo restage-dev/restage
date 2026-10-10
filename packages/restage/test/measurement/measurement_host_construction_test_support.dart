@@ -113,6 +113,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
         bundledTargetProfileLoader,
     bool presentationMetadataAdmitted = false,
     int remainingSessionBudget = 16,
+    int maximumSessions = 16,
   }) {
     final worker = DeterministicMeasurementDeliveryWorker();
     final lifecycle = ConstructionOwnerLifecycleProbe();
@@ -128,6 +129,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
           remainingSessionBudget: remainingSessionBudget,
           deliveryAdapterAvailable: true,
           configurationFingerprint: 'root-host-deterministic-worker.v1',
+          maximumSessions: maximumSessions,
         ),
       ),
       pathResolver: _PathProbe(),
@@ -214,6 +216,8 @@ final class DeterministicMeasurementDeliveryWorker
     implements MeasurementWorkerOwnedDeliveryRuntimeState {
   final Map<String, _DeterministicDeliverySession> _sessions =
       <String, _DeterministicDeliverySession>{};
+  final Map<String, _DeterministicDeliverySession>
+      _finalizedDiagnosticSessions = <String, _DeterministicDeliverySession>{};
   final registrations = <MeasurementWorkerSessionRegistration>[];
   final appendRecords = <MeasurementWorkerAppendRecord>[];
   final terminalDiagnostics = <MeasurementPresentationDiagnosticV1>[];
@@ -229,6 +233,11 @@ final class DeterministicMeasurementDeliveryWorker
   var checkpointCalls = 0;
   var finalizationCalls = 0;
   var discardCalls = 0;
+
+  /// Outcome of each discard, in order: an uncommitted session reports
+  /// `discarded`, a finalized one releasing its retained coordinates reports
+  /// `finalized`.
+  final discardOutcomes = <MeasurementWorkerOwnedDeliveryDiscardOutcome>[];
 
   @override
   bool get isAvailable => _available;
@@ -273,8 +282,9 @@ final class DeterministicMeasurementDeliveryWorker
         ),
       );
     }
-    if (_sessions.length >= _maximumSessions ||
-        _sessions.containsKey(registration.sessionId)) {
+    if (_ownedSessionCount >= _maximumSessions ||
+        _sessions.containsKey(registration.sessionId) ||
+        _finalizedDiagnosticSessions.containsKey(registration.sessionId)) {
       return Future<MeasurementWorkerOwnedDeliveryOpenSessionResult>.value(
         MeasurementWorkerOwnedDeliveryOpenSessionResult.of(
           MeasurementWorkerOpenSessionOutcome.saturated,
@@ -301,6 +311,7 @@ final class DeterministicMeasurementDeliveryWorker
     MeasurementOutboxPurgeReason reason,
   ) async {
     _available = false;
+    _clearSessions();
     return const MeasurementWorkerOwnedDeliveryResetResult(
       outcome: MeasurementWorkerOwnedDeliveryResetOutcome.purged,
       purgedRecordCount: 0,
@@ -310,10 +321,7 @@ final class DeterministicMeasurementDeliveryWorker
   @override
   Future<MeasurementWorkerOwnedDeliveryShutdownResult> shutdown() async {
     _available = false;
-    for (final session in _sessions.values) {
-      session._available = false;
-    }
-    _sessions.clear();
+    _clearSessions();
     return const MeasurementWorkerOwnedDeliveryShutdownResult(
       MeasurementWorkerOwnedDeliveryShutdownOutcome.closed,
     );
@@ -322,16 +330,14 @@ final class DeterministicMeasurementDeliveryWorker
   @override
   void debugKillWorkerForTesting() {
     _available = false;
-    for (final session in _sessions.values) {
-      session._available = false;
-    }
+    _clearSessions();
   }
 
   MeasurementWorkerAppendOutcome _append(
     _DeterministicDeliverySession session,
     MeasurementWorkerAppendRecord record,
   ) {
-    if (!_available || !session._available) {
+    if (!_available || !session._active) {
       return MeasurementWorkerAppendOutcome.unavailable;
     }
     appendRecords.add(record);
@@ -342,7 +348,7 @@ final class DeterministicMeasurementDeliveryWorker
     _DeterministicDeliverySession session, {
     required bool isFinal,
   }) {
-    if (!_available || !session._available) {
+    if (!_available || !session._active) {
       return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
         const MeasurementWorkerOwnedDeliveryCheckpointResult(
           outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.unavailable,
@@ -356,9 +362,11 @@ final class DeterministicMeasurementDeliveryWorker
     deliveries.add(MeasurementWorkerDeliveryKind.frame);
     if (isFinal) {
       finalizationCalls += 1;
-      session._available = false;
-      session._finalized = true;
+      session
+        .._active = false
+        .._finalizedDiagnosticRetained = true;
       _sessions.remove(session.sessionId);
+      _finalizedDiagnosticSessions[session.sessionId] = session;
     }
     return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
       MeasurementWorkerOwnedDeliveryCheckpointResult(
@@ -373,7 +381,7 @@ final class DeterministicMeasurementDeliveryWorker
   Future<MeasurementWorkerOwnedDeliveryDiscardResult> _discard(
     _DeterministicDeliverySession session,
   ) {
-    if (!_available || !session._available) {
+    if (!_available) {
       return Future<MeasurementWorkerOwnedDeliveryDiscardResult>.value(
         const MeasurementWorkerOwnedDeliveryDiscardResult(
           outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.unavailable,
@@ -382,14 +390,37 @@ final class DeterministicMeasurementDeliveryWorker
       );
     }
     discardCalls += 1;
-    session._available = false;
-    _sessions.remove(session.sessionId);
+    if (session._active) {
+      session._active = false;
+      _sessions.remove(session.sessionId);
+      discardOutcomes
+          .add(MeasurementWorkerOwnedDeliveryDiscardOutcome.discarded);
+      return Future<MeasurementWorkerOwnedDeliveryDiscardResult>.value(
+        MeasurementWorkerOwnedDeliveryDiscardResult(
+          outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.discarded,
+          workerOwnedByteCount: workerOwnedByteCount,
+        ),
+      );
+    }
+    if (session._finalizedDiagnosticRetained) {
+      session._finalizedDiagnosticRetained = false;
+      _finalizedDiagnosticSessions.remove(session.sessionId);
+    }
+    discardOutcomes.add(MeasurementWorkerOwnedDeliveryDiscardOutcome.finalized);
     return Future<MeasurementWorkerOwnedDeliveryDiscardResult>.value(
       MeasurementWorkerOwnedDeliveryDiscardResult(
-        outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.discarded,
+        outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.finalized,
         workerOwnedByteCount: workerOwnedByteCount,
       ),
     );
+  }
+
+  int get _ownedSessionCount =>
+      _sessions.length + _finalizedDiagnosticSessions.length;
+
+  void _clearSessions() {
+    _sessions.clear();
+    _finalizedDiagnosticSessions.clear();
   }
 }
 
@@ -402,8 +433,8 @@ final class _DeterministicDeliverySession
 
   final DeterministicMeasurementDeliveryWorker _worker;
   final String sessionId;
-  var _available = true;
-  var _finalized = false;
+  var _active = true;
+  var _finalizedDiagnosticRetained = false;
   var _postFinalizeDiagnosticReported = false;
 
   @override
@@ -425,8 +456,9 @@ final class _DeterministicDeliverySession
       reportTerminalDiagnostic(Uint8List canonicalSummaryBytes) async {
     // Mirrors the worker: an active session reports, a finalized one reports
     // exactly once more, and anything else is refused without recording.
-    final afterFinalize = _finalized && !_postFinalizeDiagnosticReported;
-    if (!_available && !afterFinalize) {
+    final afterFinalize =
+        _finalizedDiagnosticRetained && !_postFinalizeDiagnosticReported;
+    if (!_active && !afterFinalize) {
       return MeasurementWorkerOwnedDeliveryCheckpointResult(
         outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.finalized,
         workerOwnedByteCount: _worker.workerOwnedByteCount,
@@ -434,12 +466,17 @@ final class _DeterministicDeliverySession
         isFinal: null,
       );
     }
-    if (afterFinalize) _postFinalizeDiagnosticReported = true;
+    if (afterFinalize) {
+      _postFinalizeDiagnosticReported = true;
+      _finalizedDiagnosticRetained = false;
+      _worker._finalizedDiagnosticSessions.remove(sessionId);
+    } else {
+      await _worker._discard(this);
+    }
     _worker.deliveries.add(MeasurementWorkerDeliveryKind.diagnostic);
     _worker.terminalDiagnostics.add(
         MeasurementPresentationDiagnosticV1.fromCanonicalBytes(
             canonicalSummaryBytes));
-    if (!afterFinalize) await _worker._discard(this);
     return MeasurementWorkerOwnedDeliveryCheckpointResult(
       outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.delivered,
       workerOwnedByteCount: _worker.workerOwnedByteCount,
@@ -449,8 +486,17 @@ final class _DeterministicDeliverySession
   }
 
   @override
-  Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard() =>
-      _worker._discard(this);
+  Future<MeasurementWorkerOwnedDeliveryDiscardResult> discard() {
+    if (!_worker._available || _active || _finalizedDiagnosticRetained) {
+      return _worker._discard(this);
+    }
+    return Future<MeasurementWorkerOwnedDeliveryDiscardResult>.value(
+      MeasurementWorkerOwnedDeliveryDiscardResult(
+        outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.finalized,
+        workerOwnedByteCount: _worker.workerOwnedByteCount,
+      ),
+    );
+  }
 }
 
 final class _ExactProfileReadPort

@@ -41,7 +41,7 @@ void main() {
     expect(flowsDoc, contains('a bad terminal result fails closed'));
   });
 
-  test('public SDK and codegen sources avoid internal roadmap wording', () {
+  test('public SDK and codegen sources describe supported behavior', () {
     final root = _repoRoot();
     final files = [
       File('${root.path}/packages/restage/README.md'),
@@ -87,7 +87,7 @@ void main() {
         expect(
           content,
           isNot(contains(pattern)),
-          reason: '${file.path} contains public-bound phrase $pattern',
+          reason: '${file.path} contains disallowed source wording $pattern',
         );
       }
     }

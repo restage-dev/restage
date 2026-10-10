@@ -24,7 +24,7 @@ const tallyOnboardingFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '375c3079a6439a36f90748d21d69950752b465a932d7a85d4e021d8a8318abd9',
+      '828df7266dd8d6a348e58242fe0c7f6624ba7f0a6cdfd3724998208cdbbd4dc8',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

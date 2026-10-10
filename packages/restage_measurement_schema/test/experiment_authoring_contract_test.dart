@@ -28,6 +28,9 @@ void main() {
           'readExperiment',
           'readExperimentResults',
           'setExperimentArchived',
+          'registerBuildCapabilities',
+          'readExperimentReadiness',
+          'readDeliveryOptions',
         ],
       );
     });
@@ -167,6 +170,27 @@ void main() {
             'experimentId': 'experiment.checkout',
           },
         ),
+        'registerBuildCapabilities': _request(
+          operation: 'registerBuildCapabilities',
+          correlationId: 'correlation-register-1',
+          idempotencyKey: 'idempotency-register-1',
+          payload: {
+            'appBuildOrdinal': 412,
+            'contextSchemaRef': _contextSchemaRef(),
+            'platform': 'ios',
+            'sdkApiLevel': 3,
+          },
+        ),
+        'readExperimentReadiness': _request(
+          operation: 'readExperimentReadiness',
+          correlationId: 'correlation-readiness-1',
+          payload: {'audienceRef': _audienceRef(), 'pageSize': 50},
+        ),
+        'readDeliveryOptions': _request(
+          operation: 'readDeliveryOptions',
+          correlationId: 'correlation-delivery-options-1',
+          payload: const {'experimentId': 'experiment.checkout'},
+        ),
       };
 
       expect(requests.keys.toSet(), <String>{
@@ -186,6 +210,28 @@ void main() {
         );
         _expectNoSensitiveKeys(request.toJson(), request: true);
       }
+    });
+
+    test('keeps an ordinary discovery request byte-identical', () {
+      const expected = '{"correlationId":"correlation-discover-1",'
+          '"kind":"experimentAuthoringRequest",'
+          '"operation":"discoverTargetsAndCapabilities",'
+          '"payload":{"pageSize":100},'
+          '"schemaVersion":1}';
+      final request = ExperimentAuthoringRequestV1.fromJson(
+        _request(
+          operation: 'discoverTargetsAndCapabilities',
+          correlationId: 'correlation-discover-1',
+          payload: const {'pageSize': 100},
+        ),
+      );
+
+      expect(request.canonicalBytes, orderedEquals(utf8.encode(expected)));
+      expect(
+        ExperimentAuthoringRequestV1.fromCanonicalBytes(utf8.encode(expected))
+            .canonicalBytes,
+        orderedEquals(utf8.encode(expected)),
+      );
     });
 
     test('closes payload keys and versions for every operation', () {
@@ -485,7 +531,7 @@ void main() {
       }
     });
 
-    test('rejects proprietary candidate-family fields', () {
+    test('rejects unsupported candidate-family fields', () {
       for (final key in const <String>{
         'familyReference',
         'fullBasePublication',
@@ -1463,7 +1509,7 @@ void main() {
       );
     });
 
-    test('keeps proprietary candidate types outside the public schema', () {
+    test('keeps resolved candidate types outside the authoring schema', () {
       final source = _experimentAuthoringSourceFile().readAsStringSync();
 
       for (final name in const <String>{
@@ -3174,6 +3220,60 @@ void main() {
       }
     });
 
+    test('admits one exact discovery surface without pagination state', () {
+      final reference = _surfaceReference(
+        'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
+      );
+      final request = ExperimentAuthoringRequestV1.fromJson(
+        _request(
+          operation: 'discoverTargetsAndCapabilities',
+          correlationId: 'correlation-discover-exact-1',
+          payload: {'exactSurfaceReference': reference, 'pageSize': 1},
+        ),
+      );
+
+      expect(request.payload, {
+        'exactSurfaceReference': reference,
+        'pageSize': 1,
+      });
+      expect(
+        ExperimentExactSurfaceReferenceV1.fromJson(
+          request.payload['exactSurfaceReference']! as Map<String, Object?>,
+          path: 'request.payload.exactSurfaceReference',
+        ).toJson(),
+        reference,
+      );
+
+      for (final payload in <Map<String, Object?>>[
+        {
+          'exactSurfaceReference': reference,
+          'pageCursor': 'cursor',
+          'pageSize': 1
+        },
+        {'exactSurfaceReference': reference, 'pageCursor': null, 'pageSize': 1},
+        {'exactSurfaceReference': reference, 'pageSize': 2},
+        {
+          'exactSurfaceReference': {
+            'kind': 'exactSurfaceReference',
+            'surfaceId': reference['surfaceId'],
+          },
+          'pageSize': 1,
+        },
+      ]) {
+        expect(
+          () => ExperimentAuthoringRequestV1.fromJson(
+            _request(
+              operation: 'discoverTargetsAndCapabilities',
+              correlationId: 'correlation-discover-exact-invalid',
+              payload: payload,
+            ),
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: payload.toString(),
+        );
+      }
+    });
+
     test('discovery exposes exact Project-free capabilities and actions', () {
       final discovery = ExperimentTargetDiscoveryV1.fromJson(_discovery());
 
@@ -4363,6 +4463,122 @@ void main() {
       );
     });
 
+    test('keeps general delivery bytes and closes typed arm destinations', () {
+      final general = ExperimentDeliveryOptionsViewV1.fromJson(
+        _deliveryOptions(),
+      );
+      expect(general.arms, everyElement(isA<ExperimentArmDeliveryV1>()));
+      expect(
+        general.canonicalBytes,
+        orderedEquals(
+          utf8.encode(
+            '{"arms":[{"kind":"experimentArmDelivery","label":"Control",'
+            '"publishedVersion":4,"stableArmId":"arm.control"},{"kind":'
+            '"experimentArmDelivery","label":"Treatment","publishedVersion":5,'
+            '"stableArmId":"arm.treatment"}],"audienceLabel":"Sweden",'
+            '"audienceRevisionId":"audience.sweden.v4","experimentId":'
+            '"experiment.checkout","kind":"experimentDeliveryOptionsView",'
+            '"schemaVersion":1,"surfaceSlug":"checkout","surfaceType":'
+            '"paywall","target":{"appId":23,"environmentTargetId":31,'
+            '"kind":"targetCoordinate","namedEnvironmentId":37,'
+            '"organizationId":11,"runtimePlane":"live","schemaVersion":1}}',
+          ),
+        ),
+      );
+
+      final typed = ExperimentDeliveryOptionsViewV1.fromJson(
+        _typedDeliveryOptions(),
+      );
+      expect(
+        typed.arms,
+        everyElement(isA<ExperimentSurfaceContractArmDeliveryV1>()),
+      );
+      final first = typed.arms.first as ExperimentSurfaceContractArmDeliveryV1;
+      expect(first.contractVersion, 7);
+      expect(first.publishedRevision, 4);
+      expect(typed.toJson(), _typedDeliveryOptions());
+      expect(
+        () => typed.arms.add(general.arms.first),
+        throwsUnsupportedError,
+      );
+      expect(
+        ExperimentDeliveryOptionsViewV1.fromJson(
+          decodeCanonicalObject(typed.canonicalBytes),
+        ).canonicalBytes,
+        orderedEquals(typed.canonicalBytes),
+      );
+
+      final mixedKinds = _typedDeliveryOptions()
+        ..['arms'] = [
+          (_deliveryOptions()['arms']! as List).first,
+          ...(_typedDeliveryOptions()['arms']! as List).skip(1),
+        ];
+      final mismatchedFamily = _typedDeliveryOptions()
+        ..['arms'] = [
+          ...(_typedDeliveryOptions()['arms']! as List).take(1),
+          {
+            ...((_typedDeliveryOptions()['arms']! as List)[1]
+                as Map<String, Object?>),
+            'contractVersion': 8,
+          },
+        ];
+      final crossKindFields = _typedDeliveryOptions()
+        ..['arms'] = [
+          {
+            ...((_typedDeliveryOptions()['arms']! as List).first
+                as Map<String, Object?>),
+            'publishedVersion': 4,
+          },
+        ];
+      final generalWithTypedFields = _deliveryOptions()
+        ..['arms'] = [
+          {
+            ...((_deliveryOptions()['arms']! as List).first
+                as Map<String, Object?>),
+            'contractVersion': 7,
+          },
+        ];
+      final nonPositiveContractVersion = _typedDeliveryOptions()
+        ..['arms'] = [
+          {
+            ...((_typedDeliveryOptions()['arms']! as List).first
+                as Map<String, Object?>),
+            'contractVersion': 0,
+          },
+        ];
+      final nonPositivePublishedRevision = _typedDeliveryOptions()
+        ..['arms'] = [
+          {
+            ...((_typedDeliveryOptions()['arms']! as List).first
+                as Map<String, Object?>),
+            'publishedRevision': 0,
+          },
+        ];
+      final unknownKind = _typedDeliveryOptions()
+        ..['arms'] = [
+          {
+            ...((_typedDeliveryOptions()['arms']! as List).first
+                as Map<String, Object?>),
+            'kind': 'experimentUnknownArmDelivery',
+          },
+        ];
+      for (final invalid in [
+        mixedKinds,
+        mismatchedFamily,
+        crossKindFields,
+        generalWithTypedFields,
+        nonPositiveContractVersion,
+        nonPositivePublishedRevision,
+        unknownKind,
+      ]) {
+        expect(
+          () => ExperimentDeliveryOptionsViewV1.fromJson(invalid),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: invalid.toString(),
+        );
+      }
+    });
+
     test('list, detail, results, and archive retain separate lifecycle state',
         () {
       for (final lifecycleState in ['active', 'paused', 'concluded']) {
@@ -4787,6 +5003,197 @@ void main() {
           json,
         );
       }
+    });
+
+    test('reads a refusal with and without an optional detail', () {
+      Map<String, Object?> refusal({String? detail}) => {
+            'correlationId': 'correlation-refusal-detail',
+            'kind': 'refused',
+            'operation': 'activateDraft',
+            'refusal': {
+              'code': 'incompatibleReference',
+              if (detail != null) 'detail': detail,
+              'kind': 'experimentAuthoringRefusal',
+              'messageKey': 'experiment.authoring.incompatibleReference',
+              'retryable': false,
+              'schemaVersion': 1,
+            },
+            'schemaVersion': 1,
+          };
+
+      // A refusal that carries none reads exactly as it always did.
+      final without = ExperimentAuthoringResultV1.fromJson(refusal())
+          as ExperimentAuthoringRefusedV1;
+      expect(without.refusal.detail, isNull);
+      expect(without.toJson(), refusal());
+
+      // One that carries a detail is read rather than refused.
+      final with_ = ExperimentAuthoringResultV1.fromJson(
+        refusal(detail: 'audienceContextSchema'),
+      ) as ExperimentAuthoringRefusedV1;
+      expect(with_.refusal.detail, 'audienceContextSchema');
+      expect(with_.toJson(), refusal(detail: 'audienceContextSchema'));
+      expect(
+        ExperimentAuthoringResultV1.fromCanonicalBytes(
+          with_.canonicalBytes,
+        ).toJson(),
+        refusal(detail: 'audienceContextSchema'),
+      );
+    });
+
+    test('reads a typed audience conflict on a validation-blocked refusal', () {
+      Map<String, Object?> refusal({bool located = false}) => {
+            'correlationId': 'correlation-refusal-conflict',
+            'kind': 'refused',
+            'operation': 'activateDraft',
+            'refusal': {
+              'code': 'validationBlocked',
+              'kind': 'experimentAuthoringRefusal',
+              if (located) 'locator': _conflictLocator(),
+              'messageKey': 'experiment.authoring.validationBlocked',
+              'retryable': false,
+              'schemaVersion': 1,
+            },
+            'schemaVersion': 1,
+          };
+
+      final without = ExperimentAuthoringResultV1.fromJson(refusal())
+          as ExperimentAuthoringRefusedV1;
+      expect(without.refusal.locator, isNull);
+      expect(without.toJson(), refusal());
+
+      final withLocator = ExperimentAuthoringResultV1.fromJson(
+        refusal(located: true),
+      ) as ExperimentAuthoringRefusedV1;
+      final locator = withLocator.refusal.locator;
+      expect(locator, isNotNull);
+      expect(locator!.conflictingExperimentId, 'experiment-sweden-1');
+      expect(locator.proposedAudienceRef.revisionId.value, 'audience.se.v2');
+      expect(
+        locator.conflictingAudienceRef.revisionId.value,
+        'audience.se.v1',
+      );
+      expect(withLocator.toJson(), refusal(located: true));
+      expect(
+        ExperimentAuthoringResultV1.fromCanonicalBytes(
+          withLocator.canonicalBytes,
+        ).toJson(),
+        refusal(located: true),
+      );
+
+      final invalidCode = refusal(located: true);
+      final invalidRefusal = Map<String, Object?>.from(
+        invalidCode['refusal']! as Map<String, Object?>,
+      )..['code'] = 'staleDraft';
+      invalidCode['refusal'] = invalidRefusal;
+      expect(
+        () => ExperimentAuthoringResultV1.fromJson(invalidCode),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+
+      final invalidKind = refusal(located: true);
+      final invalidKindRefusal = Map<String, Object?>.from(
+        invalidKind['refusal']! as Map<String, Object?>,
+      );
+      final invalidLocator = Map<String, Object?>.from(
+        invalidKindRefusal['locator']! as Map<String, Object?>,
+      )..['kind'] = 'unknownAudienceConflict';
+      invalidKindRefusal['locator'] = invalidLocator;
+      invalidKind['refusal'] = invalidKindRefusal;
+      expect(
+        () => ExperimentAuthoringResultV1.fromJson(invalidKind),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('reads a validation issue with and without a locator', () {
+      Map<String, Object?> view({bool located = false}) => {
+            ..._validation(),
+            'issues': [
+              {
+                'code': 'staleDependency',
+                'fieldPath': 'assignmentAudienceSelection',
+                'kind': 'experimentValidationIssue',
+                if (located) 'locator': _conflictLocator(),
+                'messageKey': 'experiment.activation.concurrentAudienceOverlap',
+              },
+            ],
+          };
+
+      // An issue that carries none reads exactly as it always did.
+      final without = ExperimentValidationViewV1.fromJson(view());
+      expect(without.issues.single.locator, isNull);
+      expect(without.toJson(), view());
+
+      // One that carries a locator is read rather than refused.
+      final with_ = ExperimentValidationViewV1.fromJson(
+        view(located: true),
+      );
+      final locator = with_.issues.single.locator;
+      expect(locator, isNotNull);
+      expect(locator!.conflictingExperimentId, 'experiment-sweden-1');
+      expect(locator.proposedAudienceRef.revisionId.value, 'audience.se.v2');
+      expect(
+        locator.conflictingAudienceRef.revisionId.value,
+        'audience.se.v1',
+      );
+      expect(with_.toJson(), view(located: true));
+      expect(
+        ExperimentValidationViewV1.fromJson(
+          decodeCanonicalObject(with_.canonicalBytes),
+        ).toJson(),
+        view(located: true),
+      );
+    });
+
+    test('refuses a locator kind the reader does not know', () {
+      expect(
+        () => ExperimentValidationViewV1.fromJson({
+          ..._validation(),
+          'issues': [
+            {
+              'code': 'staleDependency',
+              'fieldPath': 'assignmentAudienceSelection',
+              'kind': 'experimentValidationIssue',
+              'locator': {
+                ..._conflictLocator(),
+                'kind': 'surfaceConflict',
+              },
+              'messageKey': 'experiment.activation.concurrentAudienceOverlap',
+            },
+          ],
+        }),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('reads a request with and without an issue-locator declaration', () {
+      Map<String, Object?> request({bool declared = false}) => {
+            'correlationId': 'correlation-validate-locators',
+            if (declared) 'issueLocators': true,
+            'kind': 'experimentAuthoringRequest',
+            'operation': 'validateDraft',
+            'payload': _draftBinding(),
+            'schemaVersion': 1,
+          };
+
+      // A request that declares nothing reads exactly as it always did, and
+      // reads as not having asked.
+      final without = ExperimentAuthoringRequestV1.fromJson(request());
+      expect(without.issueLocators, isFalse);
+      expect(without.toJson(), request());
+
+      final with_ = ExperimentAuthoringRequestV1.fromJson(
+        request(declared: true),
+      );
+      expect(with_.issueLocators, isTrue);
+      expect(with_.toJson(), request(declared: true));
+      expect(
+        ExperimentAuthoringRequestV1.fromCanonicalBytes(
+          with_.canonicalBytes,
+        ).issueLocators,
+        isTrue,
+      );
     });
 
     test('freezes an independent canonical refusal literal', () {
@@ -5498,7 +5905,352 @@ void main() {
       );
     });
   });
+
+  group('build capability and audience readiness', () {
+    test('registration reports what one build supplies, in order', () {
+      final view = ExperimentBuildCapabilityViewV1.fromJson(
+        _buildCapabilityView(),
+      );
+
+      expect(view.platform.value, 'ios');
+      expect(view.appBuildOrdinal, 412);
+      expect(view.storedNow, isTrue);
+      expect(
+        view.providedAttributeIds.map((value) => value.value),
+        ['attr.country', 'attr.platform'],
+      );
+      expect(view.contextSchemaRef.revisionId.value,
+          'assignment.context.checkout.v2');
+      expect(view.target.organizationId.value, 11);
+    });
+
+    test('registration refuses an unordered or empty attribute list', () {
+      for (final invalid in <Map<String, Object?>>[
+        {
+          ..._buildCapabilityView(),
+          'providedAttributeIds': const ['attr.platform', 'attr.country'],
+        },
+        {..._buildCapabilityView(), 'providedAttributeIds': const <String>[]},
+      ]) {
+        expect(
+          () => ExperimentBuildCapabilityViewV1.fromJson(invalid),
+          throwsA(isA<CanonicalFormatException>()),
+        );
+      }
+    });
+
+    test('readiness separates missing registration from a run-time value', () {
+      final view = ExperimentReadinessViewV1.fromJson(_readinessView());
+      final readiness = view.readiness!;
+
+      expect(view.audiences.single.label, 'Sweden');
+      expect(view.audiences.single.revisionOrdinal, 4);
+      expect(view.nextPageCursor, isNull);
+      expect(readiness.activationBlocked, isTrue);
+      expect(
+        readiness.attributes.map(
+          (entry) => (entry.assignmentAttributeId.value, entry.supply),
+        ),
+        [
+          ('attr.country', ExperimentAttributeSupplyV1.registered),
+          ('attr.plan', ExperimentAttributeSupplyV1.appDeclaredValue),
+          ('attr.tenure', ExperimentAttributeSupplyV1.missingRegistration),
+        ],
+      );
+      expect(readiness.registeredBuilds.single.platform.value, 'ios');
+      // The one registered build supplies country, so nothing is named for it;
+      // it supplies neither of the other two, so it is named for both.
+      expect(readiness.buildsMissing(readiness.attributes.first), isEmpty);
+      expect(
+        readiness
+            .buildsMissing(readiness.attributes.last)
+            .single
+            .platform
+            .value,
+        'ios',
+      );
+    });
+
+    test('a supply of registered must name at least one build', () {
+      final readiness = _audienceReadiness();
+      final attributes = [
+        ...readiness['attributes']! as List<Object?>,
+      ];
+      attributes[0] = {
+        ...attributes[0]! as Map<String, Object?>,
+        'providingBuildCount': 0,
+      };
+
+      expect(
+        () => ExperimentAudienceReadinessV1.fromJson(
+          {...readiness, 'attributes': attributes},
+          path: 'readiness',
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('an audience comparing nothing the SDK supplies reports no build', () {
+      expect(
+        ExperimentAudienceReadinessV1.fromJson(
+          {
+            ..._audienceReadiness(),
+            'activationBlocked': false,
+            'attributes': const <Object?>[],
+            'contextSchemaRef': null,
+            'registeredBuilds': const <Object?>[],
+          },
+          path: 'readiness',
+        ).contextSchemaRef,
+        isNull,
+      );
+      expect(
+        () => ExperimentAudienceReadinessV1.fromJson(
+          {..._audienceReadiness(), 'contextSchemaRef': null},
+          path: 'readiness',
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('a fully registered attribute is covered by every build shown', () {
+      final readiness = _audienceReadiness();
+      final attributes = [...readiness['attributes']! as List<Object?>];
+
+      // More builds than the readiness reports.
+      expect(
+        () => ExperimentAudienceReadinessV1.fromJson(
+          {
+            ...readiness,
+            'attributes': [
+              {
+                ...attributes[2]! as Map<String, Object?>,
+                'providingBuildCount': 2,
+              },
+              ...attributes.skip(1),
+            ],
+          },
+          path: 'readiness',
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+
+      // A second registered build that does not supply the country attribute
+      // leaves it partly covered, so the row may no longer read as registered.
+      expect(
+        () => ExperimentAudienceReadinessV1.fromJson(
+          {
+            ...readiness,
+            'registeredBuilds': [
+              ...readiness['registeredBuilds']! as List<Object?>,
+              {
+                'appBuildOrdinal': 96,
+                'kind': 'experimentRegisteredBuild',
+                'platform': 'android',
+                'providedAttributeIds': const <String>[],
+              },
+            ],
+          },
+          path: 'readiness',
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('the readiness page rejects one audience revision twice', () {
+      final view = _readinessView();
+      expect(
+        () => ExperimentReadinessViewV1.fromJson({
+          ...view,
+          'audiences': [
+            ...view['audiences']! as List<Object?>,
+            ...view['audiences']! as List<Object?>,
+          ],
+        }),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
+    test('both operations decode through the accepted result union', () {
+      for (final (operation, response) in <(String, Map<String, Object?>)>[
+        ('registerBuildCapabilities', _buildCapabilityView()),
+        ('readExperimentReadiness', _readinessView()),
+      ]) {
+        final result = ExperimentAuthoringResultV1.fromJson({
+          'correlationId': 'correlation-minimal-1',
+          'kind': 'accepted',
+          'operation': operation,
+          'response': response,
+          'schemaVersion': 1,
+        });
+
+        expect(result, isA<ExperimentAuthoringAcceptedV1>());
+        expect(result.operation.wireName, operation);
+        expect(
+          (result as ExperimentAuthoringAcceptedV1).response,
+          isA<ExperimentTargetBoundViewV1>(),
+        );
+      }
+    });
+
+    test('registration carries a retry key and readiness refuses one', () {
+      expect(
+        ExperimentAuthoringOperationV1
+            .registerBuildCapabilities.requiresIdempotencyKey,
+        isTrue,
+      );
+      expect(
+        ExperimentAuthoringOperationV1
+            .readExperimentReadiness.requiresIdempotencyKey,
+        isFalse,
+      );
+    });
+
+    test('readiness accepts an optional exact audience and page cursor', () {
+      final request = ExperimentAuthoringRequestV1.fromJson(
+        _request(
+          operation: 'readExperimentReadiness',
+          correlationId: 'correlation-minimal-1',
+          payload: {
+            'audienceRef': _audienceRef(),
+            'pageCursor': 'cursor-2',
+            'pageSize': 50,
+          },
+        ),
+      );
+
+      expect(request.payload['pageCursor'], 'cursor-2');
+      for (final invalid in <Map<String, Object?>>[
+        {'pageSize': 0},
+        {'pageSize': 101},
+        {
+          'pageSize': 50,
+          'audienceRef': const {'policyId': 'x'}
+        },
+      ]) {
+        expect(
+          () => ExperimentAuthoringRequestV1.fromJson(
+            _request(
+              operation: 'readExperimentReadiness',
+              correlationId: 'correlation-minimal-1',
+              payload: invalid,
+            ),
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: '$invalid',
+        );
+      }
+    });
+
+    test('registration closes its platform, build, and schema inputs', () {
+      for (final invalid in <Map<String, Object?>>[
+        {
+          'appBuildOrdinal': 412,
+          'contextSchemaRef': _contextSchemaRef(),
+          'platform': 'iOS',
+          'sdkApiLevel': 3,
+        },
+        {
+          'appBuildOrdinal': -1,
+          'contextSchemaRef': _contextSchemaRef(),
+          'platform': 'ios',
+          'sdkApiLevel': 3,
+        },
+        {
+          'appBuildOrdinal': 412,
+          'contextSchemaRef': _contextSchemaRef(),
+          'platform': 'ios',
+          'sdkApiLevel': 0,
+        },
+        {
+          'appBuildOrdinal': 412,
+          'contextSchemaRef': {
+            ..._contextSchemaRef(),
+            'semanticDigest': 'not-a-digest',
+          },
+          'platform': 'ios',
+          'sdkApiLevel': 3,
+        },
+      ]) {
+        expect(
+          () => ExperimentAuthoringRequestV1.fromJson(
+            _request(
+              operation: 'registerBuildCapabilities',
+              correlationId: 'correlation-minimal-1',
+              idempotencyKey: 'idempotency-minimal-1',
+              payload: invalid,
+            ),
+          ),
+          throwsA(isA<CanonicalFormatException>()),
+          reason: '$invalid',
+        );
+      }
+    });
+  });
 }
+
+Map<String, Object?> _buildCapabilityView() => {
+      'appBuildOrdinal': 412,
+      'contextSchemaRef': _contextSchemaRef(),
+      'kind': 'experimentBuildCapabilityView',
+      'platform': 'ios',
+      'providedAttributeIds': const ['attr.country', 'attr.platform'],
+      'schemaVersion': 1,
+      'storedNow': true,
+      'target': _target(),
+    };
+
+Map<String, Object?> _audienceOption() => {
+      'description': 'Requests reported from Sweden.',
+      'kind': 'experimentAudienceOption',
+      'label': 'Sweden',
+      'reference': _audienceRef(),
+      'revisionOrdinal': 4,
+    };
+
+Map<String, Object?> _audienceReadiness() => {
+      'activationBlocked': true,
+      'attributes': [
+        {
+          'assignmentAttributeId': 'attr.country',
+          'kind': 'experimentAttributeReadiness',
+          'providingBuildCount': 1,
+          'supply': 'registered',
+        },
+        {
+          'assignmentAttributeId': 'attr.plan',
+          'kind': 'experimentAttributeReadiness',
+          'providingBuildCount': 0,
+          'supply': 'appDeclaredValue',
+        },
+        {
+          'assignmentAttributeId': 'attr.tenure',
+          'kind': 'experimentAttributeReadiness',
+          'providingBuildCount': 0,
+          'supply': 'missingRegistration',
+        },
+      ],
+      'contextSchemaRef': _contextSchemaRef(),
+      'kind': 'experimentAudienceReadiness',
+      'reference': _audienceRef(),
+      'registeredBuilds': [
+        {
+          'appBuildOrdinal': 412,
+          'kind': 'experimentRegisteredBuild',
+          'platform': 'ios',
+          'providedAttributeIds': const ['attr.country'],
+        },
+      ],
+    };
+
+Map<String, Object?> _readinessView() => {
+      'audiences': [_audienceOption()],
+      'kind': 'experimentReadinessView',
+      'nextPageCursor': null,
+      'readiness': _audienceReadiness(),
+      'schemaVersion': 1,
+      'target': _target(),
+    };
 
 Map<String, Object?> _request({
   required String operation,
@@ -5643,10 +6395,46 @@ Map<String, Object?> _minimalRequest(String operation) {
           'experimentId': 'experiment.checkout',
         },
       );
+    case 'registerBuildCapabilities':
+      return _request(
+        operation: operation,
+        correlationId: 'correlation-minimal-1',
+        idempotencyKey: 'idempotency-minimal-1',
+        payload: {
+          'appBuildOrdinal': 412,
+          'contextSchemaRef': _contextSchemaRef(),
+          'platform': 'ios',
+          'sdkApiLevel': 3,
+        },
+      );
+    case 'readExperimentReadiness':
+      return _request(
+        operation: operation,
+        correlationId: 'correlation-minimal-1',
+        payload: const {'pageSize': 50},
+      );
+    case 'readDeliveryOptions':
+      return _request(
+        operation: operation,
+        correlationId: 'correlation-minimal-1',
+        payload: const {'experimentId': 'experiment.checkout'},
+      );
     default:
       throw StateError('Unknown semantic operation');
   }
 }
+
+Map<String, Object?> _contextSchemaRef() => {
+      'contextSchemaId': 'assignment.context.checkout',
+      'revisionId': 'assignment.context.checkout.v2',
+      'semanticDigest': _digest('c'),
+    };
+
+Map<String, Object?> _audienceRef() => {
+      'policyId': 'assignment.audience.sweden',
+      'revisionId': 'assignment.audience.sweden.v4',
+      'semanticDigest': _digest('a'),
+    };
 
 Map<String, Object?> _draftBinding() => const {
       'draftId': 'experiment-draft-checkout',
@@ -6634,6 +7422,19 @@ Map<String, Object?> _validation() => {
       'schemaVersion': 1,
     };
 
+Map<String, Object?> _conflictLocator() => {
+      'conflictingAudienceRef': _conflictAudienceRef('audience.se.v1'),
+      'conflictingExperimentId': 'experiment-sweden-1',
+      'kind': 'audienceConflict',
+      'proposedAudienceRef': _conflictAudienceRef('audience.se.v2'),
+    };
+
+Map<String, Object?> _conflictAudienceRef(String revisionId) => {
+      'assignmentAudiencePolicyId': 'audience.se',
+      'revisionId': revisionId,
+      'semanticHash': _digest('b'),
+    };
+
 Map<String, Object?> _reviewReference() => {
       'kind': 'experimentReviewReference',
       'recordDigest': _digest('6'),
@@ -6839,6 +7640,54 @@ Map<String, Map<String, Object?>> _acceptedResponses() => {
       'readExperiment': _detail(),
       'readExperimentResults': _results(),
       'setExperimentArchived': _detail(archived: true),
+      'registerBuildCapabilities': _buildCapabilityView(),
+      'readExperimentReadiness': _readinessView(),
+      'readDeliveryOptions': _deliveryOptions(),
+    };
+
+Map<String, Object?> _deliveryOptions() => {
+      'arms': const [
+        {
+          'kind': 'experimentArmDelivery',
+          'label': 'Control',
+          'publishedVersion': 4,
+          'stableArmId': 'arm.control',
+        },
+        {
+          'kind': 'experimentArmDelivery',
+          'label': 'Treatment',
+          'publishedVersion': 5,
+          'stableArmId': 'arm.treatment',
+        },
+      ],
+      'audienceLabel': 'Sweden',
+      'audienceRevisionId': 'audience.sweden.v4',
+      'experimentId': 'experiment.checkout',
+      'kind': 'experimentDeliveryOptionsView',
+      'schemaVersion': 1,
+      'surfaceSlug': 'checkout',
+      'surfaceType': 'paywall',
+      'target': _target(),
+    };
+
+Map<String, Object?> _typedDeliveryOptions() => {
+      ..._deliveryOptions(),
+      'arms': [
+        {
+          'contractVersion': 7,
+          'kind': 'experimentSurfaceContractArmDelivery',
+          'label': 'Control',
+          'publishedRevision': 4,
+          'stableArmId': 'arm.control',
+        },
+        {
+          'contractVersion': 7,
+          'kind': 'experimentSurfaceContractArmDelivery',
+          'label': 'Treatment',
+          'publishedRevision': 5,
+          'stableArmId': 'arm.treatment',
+        },
+      ],
     };
 
 Map<String, Object?> _draftDetail({

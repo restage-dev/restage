@@ -11,8 +11,6 @@ topics:
   - server-driven-ui
   - remote-ui
   - flutter
-# Public-bound from day one. publish_to is omitted (defaults to pub.dev);
-# actual publication is deferred until the internal architecture stabilizes.
 
 environment:
   sdk: ^3.6.0

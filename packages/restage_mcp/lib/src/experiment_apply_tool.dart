@@ -34,8 +34,11 @@ final experimentApplyTool = Tool(
   description:
       'Apply one semantic experiment operation at an exact target. The '
       'operation is a closed choice and the payload is that operation\'s own '
-      'semantic document. Reads and writes both go through this operation; '
-      'the result reports whether the route accepted or refused it.',
+      'semantic document. `readDeliveryOptions` returns the experiment\'s '
+      'sealed audience revision and every arm\'s exact delivery publication '
+      'for '
+      'a route handover. Reads and writes both go through this operation; the '
+      'result reports whether the route accepted or refused it.',
   inputSchema: Schema.object(
     properties: {
       'operation': UntitledSingleSelectEnumSchema(
@@ -168,14 +171,7 @@ Future<CallToolResult> handleExperimentApply({
 CallToolResult _success(measurement.ExperimentAuthoringResultV1 result) {
   final accepted = result is measurement.ExperimentAuthoringAcceptedV1;
   return CallToolResult(
-    content: [
-      TextContent(
-        text: accepted
-            ? 'Accepted ${result.operation.wireName}.'
-            : 'Refused ${result.operation.wireName}: '
-                  '${(result as measurement.ExperimentAuthoringRefusedV1).refusal.code.wireName}.',
-      ),
-    ],
+    content: [TextContent(text: _resultText(result))],
     structuredContent: {
       'outcome': accepted ? 'accepted' : 'refused',
       'operation': result.operation.wireName,
@@ -183,6 +179,47 @@ CallToolResult _success(measurement.ExperimentAuthoringResultV1 result) {
     },
   );
 }
+
+/// Renders the semantic result without making any delivery decision locally.
+String _resultText(measurement.ExperimentAuthoringResultV1 result) {
+  if (result case measurement.ExperimentAuthoringAcceptedV1(
+    response: final measurement.ExperimentDeliveryOptionsViewV1 view,
+  )) {
+    final arms = view.arms
+        .map(
+          (arm) =>
+              '${arm.label} (${arm.stableArmId.value}) '
+              '${_deliveryArmPublication(arm)}',
+        )
+        .join(', ');
+    return 'Delivery options for ${view.audienceLabel} '
+        '(${view.audienceRevisionId.value}) on ${view.surfaceSlug} '
+        '(${view.surfaceType.value}): $arms.';
+  }
+  if (result is measurement.ExperimentAuthoringAcceptedV1) {
+    return 'Accepted ${result.operation.wireName}.';
+  }
+  final refused = result as measurement.ExperimentAuthoringRefusedV1;
+  final locator = refused.refusal.locator;
+  final conflict = locator == null
+      ? ''
+      : ' Audience held by ${locator.conflictingExperimentId} '
+            '(its revision ${locator.conflictingAudienceRef.revisionId.value}, '
+            'this draft ${locator.proposedAudienceRef.revisionId.value}).';
+  return 'Refused ${result.operation.wireName}: '
+      '${refused.refusal.code.wireName}.$conflict';
+}
+
+String _deliveryArmPublication(measurement.ExperimentDeliveryArmV1 arm) =>
+    switch (arm) {
+      measurement.ExperimentArmDeliveryV1(:final publishedVersion) =>
+        'version $publishedVersion',
+      measurement.ExperimentSurfaceContractArmDeliveryV1(
+        :final contractVersion,
+        :final publishedRevision,
+      ) =>
+        'revision $publishedRevision (contract $contractVersion)',
+    };
 
 measurement.ExperimentAuthoringOperationV1? _operationFor(String wireName) {
   for (final operation in measurement.ExperimentAuthoringOperationV1.values) {

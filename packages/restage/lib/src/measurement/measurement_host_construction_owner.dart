@@ -905,17 +905,21 @@ final class MeasurementHostConstructionSession
     try {
       if (!_successfulFirstPaint) {
         await _reportTerminalDiagnostic();
-        await _discardUncommitted();
+        await _releaseWorkerSession();
         return null;
       }
       final result = await _workerSession.teardown(
           frameElapsedMicros: _monotonicClock.readMicros());
       _owner._observeDeliveryResult(result);
       // Only after the committed frame is delivered, and never in its place.
-      if (presentationAttemptSummary.rootPresentationReports ==
-          MeasurementRootPresentationReportsV1.many) {
+      if (_presentationMetadataAdmitted &&
+          presentationAttemptSummary.rootPresentationReports ==
+              MeasurementRootPresentationReportsV1.many) {
         await _reportTerminalDiagnostic();
       }
+      // A healthy attempt without a terminal summary still releases its
+      // retained coordinates without changing its already-prepared outbox body.
+      await _releaseWorkerSession();
       return result;
     } finally {
       _owner._release(this);
@@ -928,7 +932,7 @@ final class MeasurementHostConstructionSession
     _active = false;
     _closeCaptureEdge();
     final aborting = _reportTerminalDiagnostic()
-        .then((_) => _discardUncommitted())
+        .then((_) => _releaseWorkerSession())
         .whenComplete(() => _owner._release(this));
     _abortFuture = aborting;
     unawaited(aborting);
@@ -944,7 +948,7 @@ final class MeasurementHostConstructionSession
     }
   }
 
-  Future<void> _discardUncommitted() {
+  Future<void> _releaseWorkerSession() {
     final existing = _discardFuture;
     if (existing != null) return existing;
     final future = _workerSession.discard().then<void>((result) {

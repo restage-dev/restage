@@ -6,6 +6,8 @@ import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/plan_board.dart';
 import 'package:restage_example/widgets/pricing_card.dart' show PlanTier;
 
+import '_support/support_directory_channel.dart';
+
 /// The MAP ENCODE-SIDE SOUND NET (source → encode → wire → decode → pixels).
 ///
 /// The `plan_board_showcase` screen AUTHORS map literals in ordinary Flutter
@@ -23,8 +25,10 @@ import 'package:restage_example/widgets/pricing_card.dart' show PlanTier;
 /// half against hand-authored wire entry lists, this closes the round trip for
 /// map-shaped properties.
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     registerRestageWidgets();
     Restage.configure(
       resolver: const AssetVariantResolver(),

@@ -18,7 +18,7 @@ const _screenSourcePath = 'lib/surfaces/default_policy_showcase.dart';
 const _screenSlug = 'default_policy_showcase';
 
 void main() {
-  test('a build naming no policy still emits a stamped route plan', () async {
+  test('a build naming no policy emits a v3 stamped route plan', () async {
     final output = await _compileFixture();
 
     expect(output.valid, isTrue, reason: output.errors.join('\n'));
@@ -27,7 +27,7 @@ void main() {
       'collectionBudgetRevisionId':
           kMeasurementDefaultCollectionBudgetRevisionId,
       'minimumMeasurementClient': kMeasurementDefaultMinimumClient,
-      'privacyPolicyRevisionId': kMeasurementDefaultPrivacyPolicyRevisionId,
+      'privacyPolicyRevisionId': 'restage.manifest-privacy.v3',
     });
 
     expect(output.publications, hasLength(1));
@@ -36,7 +36,7 @@ void main() {
     expect(publication.routePlan.routes, isNotEmpty);
     expect(
       publication.routePlan.privacyPolicyRevisionId.value,
-      kMeasurementDefaultPrivacyPolicyRevisionId,
+      'restage.manifest-privacy.v3',
     );
     expect(
       publication.routePlan.collectionBudgetRevisionId.value,

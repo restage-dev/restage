@@ -131,7 +131,11 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
           );
           _cache[key] = _CachedHostedScreen(screen: resolved, lease: lease);
           return reportSurfaceResolution(
-              screen.slug, resolved, SurfaceResolutionSource.fresh);
+            screen.surface,
+            screen.slug,
+            resolved,
+            SurfaceResolutionSource.fresh,
+          );
         case SurfaceScreenDeliveryAbsent():
         case SurfaceScreenDeliveryTransportUnavailable():
           final held = _cache[key];
@@ -147,6 +151,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
                 return _resolveBundled(screen, provenance);
               }
               return reportSurfaceResolution(
+                screen.surface,
                 screen.slug,
                 held.screen.withCacheHit(),
                 SurfaceResolutionSource.holdLastGood,
@@ -255,7 +260,11 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
     }
     provenance.validateResolved(resolved);
     return reportSurfaceResolution(
-        screen.slug, resolved, SurfaceResolutionSource.bundled);
+      screen.surface,
+      screen.slug,
+      resolved,
+      SurfaceResolutionSource.bundled,
+    );
   }
 
   SurfaceScreenUnavailableError _invalidHostedResponse(

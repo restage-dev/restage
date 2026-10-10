@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/onboarding/apex_drop_demo.dart';
 import 'package:restage_example/onboarding/flows/apex_drop.dart';
+
+import '_support/support_directory_channel.dart';
 
 /// Tall canvas so the full-bleed message renders without a false RenderFlex
 /// overflow under the wide Ahem test font.
@@ -63,21 +62,9 @@ class _MessageHost extends StatelessWidget {
 /// the flow → host opens the shop), and its × dismisses (a host-handled custom
 /// event → the message closes).
 void main() {
-  final binding = TestWidgetsFlutterBinding.ensureInitialized();
-  const supportChannel = MethodChannel('plugins.flutter.io/path_provider');
-  late Directory support;
+  useSupportDirectoryChannel();
 
   setUp(() async {
-    support = await Directory.systemTemp.createTemp('apex-drop-test-');
-    binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      supportChannel,
-      (call) async {
-        if (call.method != 'getApplicationSupportDirectory') {
-          throw MissingPluginException('Unexpected method: ${call.method}');
-        }
-        return support.path;
-      },
-    );
     await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
@@ -86,15 +73,7 @@ void main() {
   });
 
   tearDown(() async {
-    try {
-      await Restage.debugResetAndWait();
-    } finally {
-      binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        supportChannel,
-        null,
-      );
-      await support.delete(recursive: true);
-    }
+    await Restage.debugResetAndWait();
   });
 
   // Pushes [message] over a trivial home so a dismiss has somewhere to pop to.

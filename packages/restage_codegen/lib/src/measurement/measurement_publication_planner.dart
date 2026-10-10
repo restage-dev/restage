@@ -798,10 +798,17 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     routeSeeds.add(MeasurementPublicationDraftRouteSeedV1(
         generatedReferenceId: event.generatedReferenceId,
         artifactOccurrenceEdgeToken: edge,
-        orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(channels: [
-          MeasurementOccurrenceChannelV1.presentation,
-          MeasurementOccurrenceChannelV1.interaction
-        ], declaredAnswerV1: answer)));
+        orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(
+            channels: [
+              MeasurementOccurrenceChannelV1.presentation,
+              MeasurementOccurrenceChannelV1.interaction
+            ],
+            declaredAnswerV1: answer,
+            breakdownPointV1: MeasurementBreakdownPointV1(
+              kindV1: MeasurementBreakdownPointKindV1.question,
+              reference: answer.questionId,
+              label: answer.questionId,
+            ))));
   }
   for (final lifecycle in _lifecycleNodes(input)) {
     final ledger = ledgerByLocator[lifecycle.locator];
@@ -840,10 +847,19 @@ MeasurementPublicationRoutePlanV1 _routePlan(
       routeSeeds.add(MeasurementPublicationDraftRouteSeedV1(
           generatedReferenceId: event.generatedReferenceId,
           artifactOccurrenceEdgeToken: edge,
-          orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(channels: [
-            MeasurementOccurrenceChannelV1.presentation,
-            if (channel != MeasurementOccurrenceChannelV1.presentation) channel
-          ], lifecycleChannel: channel, screenId: lifecycle.screenId)));
+          orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(
+              channels: [
+                MeasurementOccurrenceChannelV1.presentation,
+                if (channel != MeasurementOccurrenceChannelV1.presentation)
+                  channel
+              ],
+              lifecycleChannel: channel,
+              screenId: lifecycle.screenId,
+              breakdownPointV1: _lifecycleBreakdownPoint(
+                screenId: lifecycle.screenId,
+                authoredOrder: lifecycle.authoredOrder,
+                channel: channel,
+              ))));
     }
   }
 
@@ -1329,19 +1345,29 @@ List<
     ({
       String locator,
       String? screenId,
+      int? authoredOrder,
       SurfacePublicationArtifact artifact,
       List<MeasurementOccurrenceChannelV1> channels
     })> _lifecycleNodes(MeasurementPublicationPlanningInput input) {
   final flow = input.entry.publication.payloadKind == SurfacePayloadKind.flow;
+  final reachability = input.flowDocument == null
+      ? null
+      : FlowScreenLifecycleReachability.analyze(input.flowDocument!);
   final root = input.entry.artifacts.singleWhere((artifact) =>
       artifact.role ==
       (flow
           ? SurfacePublicationArtifactRole.flowDocument
           : SurfacePublicationArtifactRole.screenBlob));
+  final screenStates = [
+    for (final state in input.flowDocument?.states.entries ??
+        const <MapEntry<String, FlowState>>[])
+      if (state.value is ScreenFlowState) state,
+  ];
   return [
     (
       locator: _publicationHostLocator(input.selector),
       screenId: null,
+      authoredOrder: null,
       artifact: root,
       channels: [
         MeasurementOccurrenceChannelV1.presentation,
@@ -1350,23 +1376,52 @@ List<
       ]
     ),
     if (flow)
-      for (final state in input.flowDocument?.states.entries ??
-          const <MapEntry<String, FlowState>>[])
-        if (state.value is ScreenFlowState)
-          (
-            locator:
-                'compiler-publication-step:${input.selector.key}:${state.key}',
-            screenId: state.key,
-            artifact: input.entry.artifacts.singleWhere((artifact) =>
-                artifact.role == SurfacePublicationArtifactRole.screenBlob &&
-                artifact.id == (state.value as ScreenFlowState).screen),
-            channels: const [
-              MeasurementOccurrenceChannelV1.presentation,
-              MeasurementOccurrenceChannelV1.skip,
-              MeasurementOccurrenceChannelV1.completion
-            ]
-          ),
+      for (final (index, state) in screenStates.indexed)
+        (
+          locator:
+              'compiler-publication-step:${input.selector.key}:${state.key}',
+          screenId: state.key,
+          authoredOrder: index,
+          artifact: input.entry.artifacts.singleWhere((artifact) =>
+              artifact.role == SurfacePublicationArtifactRole.screenBlob &&
+              artifact.id == (state.value as ScreenFlowState).screen),
+          channels: [
+            for (final channel in reachability!.channelsFor(state.key))
+              switch (channel) {
+                FlowScreenLifecycleChannel.presentation =>
+                  MeasurementOccurrenceChannelV1.presentation,
+                FlowScreenLifecycleChannel.skip =>
+                  MeasurementOccurrenceChannelV1.skip,
+                FlowScreenLifecycleChannel.completion =>
+                  MeasurementOccurrenceChannelV1.completion,
+              },
+          ]
+        ),
   ];
+}
+
+/// The band one authored screen callback contributes to, absent for the root.
+///
+/// A presentation names the page; every other channel names one interaction on
+/// that page. A reference too long to carry names no band.
+MeasurementBreakdownPointV1? _lifecycleBreakdownPoint({
+  required String? screenId,
+  required int? authoredOrder,
+  required MeasurementOccurrenceChannelV1 channel,
+}) {
+  if (screenId == null) return null;
+  final page = channel == MeasurementOccurrenceChannelV1.presentation;
+  final reference = page ? screenId : '$screenId.${channel.name}';
+  if (reference.length > kMeasurementBreakdownPointReferenceLimitV1)
+    return null;
+  return MeasurementBreakdownPointV1(
+    kindV1: page
+        ? MeasurementBreakdownPointKindV1.pageIndex
+        : MeasurementBreakdownPointKindV1.namedInteraction,
+    reference: reference,
+    label: reference,
+    authoredOrder: page ? authoredOrder : null,
+  );
 }
 
 String _artifactHostLocator(MeasurementPublicationSelectorV1 selector,

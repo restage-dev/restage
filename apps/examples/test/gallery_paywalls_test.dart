@@ -13,6 +13,7 @@ import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import '_support/bundled_artifacts.dart';
+import '_support/support_directory_channel.dart';
 
 class _StaticResolver implements VariantResolver {
   _StaticResolver(this.bytes);
@@ -223,8 +224,10 @@ void _interactivePlanSelectionGroup({
 }
 
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

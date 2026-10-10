@@ -1,8 +1,7 @@
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
-// The render-gate goldens ARE the spec (TDD). They encode the ratified
-// change-code -> {ACCEPT, REJECT} verdict table (cc2cc seq 14/15): ACCEPT only a
+// The render-gate goldens define the change-code verdict table: ACCEPT only a
 // content-only `screenArtifactChanged` at an unchanged capability floor (plus
 // identical documents); REJECT every other diff() change, any per-artifact
 // capability-floor raise, and any invalid input (fail-closed, never throws).
@@ -21,7 +20,7 @@ void main() {
 
       test(
         'a screen-artifact content change at the same floor is accepted '
-        '(the content-OTA case the chapter exists for)',
+        '(content-only over-the-air updates)',
         () {
           final verdict = FlowActiveRenderGate.evaluate(
             client: _document(),

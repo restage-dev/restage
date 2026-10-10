@@ -17,7 +17,7 @@ const apexDropFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'd6b9d02058ecf6782ebc2f556c4d3c0f22b49e9f6d6c820159e23af53a9235c7',
+      '69a6790444226db86f29a08b908d96415e34f3345d2e972a725632bf39829ddd',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

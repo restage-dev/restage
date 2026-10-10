@@ -37,7 +37,7 @@ final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 1384,
         sha256:
-            "sha256:6ef86f0e643976a8120650d4b33d675afdd7e1e146369c98f23a38f329a86293",
+            "sha256:39f623b21a0e683883996a7b6fe4ed947db26cae6065cb992e5bd11454993a20",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -45,7 +45,7 @@ final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:002c7a94981d7a714fc40f0c2d9e5538ab00e8a21d443c4ac3bee013a837ef40",
+            "sha256:6b9f45300ad195e10c0bea8a96f165f6c408846e439e69eb9db291cdb5201c38",
       ),
     ],
   ),
@@ -66,7 +66,7 @@ final generalStatusRef = SurfaceScreenRef<
   provenance: _generalStatusProvenance,
   eventContract: _generalStatusEvents,
   measurementPublicationDraftDigest:
-      "d252a4d6e146a816d888ccf8762459f19054260d9656162f20eeb7a98b66c60f",
+      "1b4ebdb30c434ffbe24cf35985c6a0ddaf3b411e3deb70465a49e24873888e2e",
 );
 
 GeneralStatusEvent _decodeValidatedGeneralStatusEvent(
@@ -149,7 +149,7 @@ final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 1394,
         sha256:
-            "sha256:ec5b156e1f8cc830147691f03a4082306d9171b445ebdd9a495a8a4c4f8e51fe",
+            "sha256:794c4d708993e2a24aeee80232308c68adea438dd6059e14e9320c4063e4624f",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -157,7 +157,7 @@ final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:515c0ecf297e12fb7c4719536e260b09371cfe83d474d880e0cf39bfee6b0fd8",
+            "sha256:7a2743c7a1d8e1906120fdb2c3f0a560525cc9b6c1ad54db58b51a91e8e6d271",
       ),
     ],
   ),
@@ -178,7 +178,7 @@ final messageNoticeRef = SurfaceScreenRef<
   provenance: _messageNoticeProvenance,
   eventContract: _messageNoticeEvents,
   measurementPublicationDraftDigest:
-      "3b9b24a5082b1a4c5300341fb2678a3df0a633705c7b94a853b0790817893ebe",
+      "349d4d2dae20f6322b09e371bb754bd478e2edd2f2388d582d2d0e8fdb4dd159",
 );
 
 MessageNoticeEvent _decodeValidatedMessageNoticeEvent(
@@ -260,7 +260,7 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.screenBlob,
         byteLength: 1390,
         sha256:
-            "sha256:7f41d4cc414d99ff4a002d35a0a7f98087feb78cc7207ef95ad438e7f15595fd",
+            "sha256:6644085554f3d2fbe2946e0083ba8907178a5ce3c9048d548a093666a1e4d673",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
@@ -268,7 +268,7 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:e345388e9b0ff6e101b8c14f4eff40f0e26786347f9c1ee71aaaa01ab68f2f4d",
+            "sha256:6d04c468bf79ef805ffe30b7cc174988dc72d0fb4c267afe57a9925a0c400b94",
       ),
     ],
   ),
@@ -289,7 +289,7 @@ final onboardingWelcomeRef = SurfaceScreenRef<
   provenance: _onboardingWelcomeProvenance,
   eventContract: _onboardingWelcomeEvents,
   measurementPublicationDraftDigest:
-      "e56d2cd725bdd2e46701966822e059fa8cf8b193c76bdac9db744333f5f67788",
+      "e6bfbd00cfdb651f09a35d85de0a54086516646d5b7f861fe5e9e55e17f87d9e",
 );
 
 OnboardingWelcomeEvent _decodeValidatedOnboardingWelcomeEvent(

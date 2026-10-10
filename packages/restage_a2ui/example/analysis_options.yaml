@@ -1,4 +1,4 @@
-# Public-bound BSD-3-Clause example — uses flutter_lints (matches pub.dev
+# BSD-3-Clause example — uses flutter_lints (matches pub.dev
 # community norms) instead of the workspace's stricter baseline.
 
 include: package:flutter_lints/flutter.yaml

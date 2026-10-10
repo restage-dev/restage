@@ -7,11 +7,9 @@ reusing the CLI's authenticated session.
 
 `restage_experiment_apply`, `restage_apply_canonical_mutation` and
 `restage_activate_experiment` are **experimental** and are not listed by
-default. They call endpoints the hosted service does not serve yet, and a tool
-list is the only inventory a client consults before calling, so advertising them
-would offer an operation that cannot succeed. Set `RESTAGE_EXPERIMENTAL=1` on
-the server process to register them; expect their interfaces to change without
-a deprecation.
+default because their hosted endpoints are not yet available. Set
+`RESTAGE_EXPERIMENTAL=1` on the server process to register them. Their interfaces
+may change without deprecation.
 
 `restage_experiment_apply` asks what you mean, not how to spell it: the
 operation is a closed choice of the fifteen experiment operations and the

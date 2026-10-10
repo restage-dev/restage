@@ -11,7 +11,9 @@ import 'api_runner.dart';
 import 'canonical_mutation_tool.dart';
 import 'experiment_activation_tool.dart';
 import 'experiment_apply_tool.dart';
+import 'serving_record_rebuild_tool.dart';
 import 'experimental_gate.dart';
+import 'surface_routing_tool.dart';
 
 /// Backend origin used for in-server login when no credential exists yet.
 /// Overridable at build time via `--define`; falls back to localhost.
@@ -92,6 +94,25 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     registerTool(_pushSurfaceTool, _scrubbed(_handlePushSurface));
     registerTool(_rollbackPreflightTool, _scrubbed(_handleRollbackPreflight));
     registerTool(_rollbackSurfaceTool, _scrubbed(_handleRollbackSurface));
+    for (final routing in <(Tool, _RoutingHandler)>[
+      (listRoutingAudiencesTool, handleListRoutingAudiences),
+      (routingAudienceUsageTool, handleRoutingAudienceUsage),
+      (readRoutingTool, handleReadRouting),
+      (readDeliveryDiagnosticsTool, handleReadDeliveryDiagnostics),
+      (readRoutingRevisionTool, handleReadRoutingRevision),
+      (previewRoutingTool, handlePreviewRouting),
+      (publishRoutingTool, handlePublishRouting),
+      (rollbackRouteTool, handleRollbackRoute),
+    ]) {
+      final handler = routing.$2;
+      registerTool(
+        routing.$1,
+        _scrubbed(
+          (request) =>
+              handler(request: request, store: _store, httpClient: _httpClient),
+        ),
+      );
+    }
     registerTool(_listOrganizationsTool, _scrubbed(_handleListOrganizations));
     registerTool(_listProjectsTool, _scrubbed(_handleListProjects));
     registerTool(_listAppsTool, _scrubbed(_handleListApps));
@@ -131,6 +152,16 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         experimentApplyTool,
         _scrubbed(
           (request) => handleExperimentApply(
+            request: request,
+            store: _store,
+            httpClient: _httpClient,
+          ),
+        ),
+      );
+      registerTool(
+        servingRecordRebuildTool,
+        _scrubbed(
+          (request) => handleServingRecordRebuild(
             request: request,
             store: _store,
             httpClient: _httpClient,
@@ -1788,3 +1819,11 @@ Future<void> _defaultOpenBrowser(String url) async {
     // Best-effort; the caller surfaces the URL regardless.
   }
 }
+
+/// One routing tool handler, bound to the shared credential and client.
+typedef _RoutingHandler =
+    Future<CallToolResult> Function({
+      required CallToolRequest request,
+      required FileCredentialStore store,
+      http.Client? httpClient,
+    });

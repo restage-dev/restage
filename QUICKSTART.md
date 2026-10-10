@@ -160,9 +160,8 @@ The `.rsbundle` is a zip that holds the compiled artifacts at their logical
 paths: the binary `.rfw` artifact your app renders, the readable `.rfwtxt`, and
 the capability sidecar. Unzip it when you want to read the `.rfwtxt`.
 
-What ships is data the app renders. Your widgets carry the logic — real Dart,
-compiled into your app. The surface composes and configures them over the air.
-New behavior is a release.
+Surfaces deliver data that composes and configures your compiled Flutter
+widgets. New behavior requires an app release.
 
 The build also writes `lib/generated/restage.publication.json`, which records
 the exact artifacts for each surface id. It is a build output, so it appears

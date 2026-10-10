@@ -18,7 +18,7 @@ const lumenCancelRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '9214d67afedea335011b51c878558e0eaa22f7761384c3abc5eadc3ba21c6142',
+      '1571ea7d31708f8d385f0f6c923c4927be496504685de68d621f7af80923adb0',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

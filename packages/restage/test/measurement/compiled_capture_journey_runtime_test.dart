@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,9 +24,22 @@ void main() {
   installRestageRuntimeTestSupport();
   final inputPath = Platform.environment['MEASUREMENT_RUNTIME_INPUT'];
   testWidgets('compiled journey emits the real worker request', (tester) async {
-    final input = jsonDecode(File(inputPath!).readAsStringSync()) as Map;
+    final decodedInput = jsonDecode(File(inputPath!).readAsStringSync());
+    if (decodedInput is! Map<String, dynamic>) {
+      throw const FormatException('Runtime bridge input must be an object');
+    }
+    final input = decodedInput.cast<String, Object?>();
     void stage(String value) => File('${input['outputPath']}.progress')
         .writeAsStringSync('$value\n', mode: FileMode.append);
+    final diagnosticScenario = input['diagnosticScenario'];
+    if (diagnosticScenario != null) {
+      await _runPresentationDiagnosticJourney(
+        tester,
+        input: input,
+        stage: stage,
+      );
+      return;
+    }
     stage('decoding actual publication');
     final publication = MeasurementPublicationBindingV1.fromCanonicalBytes(
         base64Decode(input['bindingBase64'] as String));
@@ -182,6 +196,449 @@ Future<void> _settleReal(WidgetTester tester, bool Function() ready) async {
   if (!ready()) debugDumpApp();
   expect(ready(), isTrue,
       reason: 'Actual flow/worker did not reach next source boundary');
+}
+
+Future<void> _runPresentationDiagnosticJourney(
+  WidgetTester tester, {
+  required Map<String, Object?> input,
+  required void Function(String) stage,
+}) async {
+  final scenario = switch (input['diagnosticScenario']) {
+    'rootlessStep' => _PresentationDiagnosticScenario.rootlessStep,
+    'duplicateRootPaint' => _PresentationDiagnosticScenario.duplicateRootPaint,
+    _ => throw StateError('Unknown presentation diagnostic scenario'),
+  };
+  stage('decoding actual publication for ${scenario.name}');
+  final publication = MeasurementPublicationBindingV1.fromCanonicalBytes(
+    base64Decode(input['bindingBase64'] as String),
+  );
+  final attestation = RegisteredPublicationAttestationV1.fromCanonicalBytes(
+    base64Decode(input['attestationBase64'] as String),
+  );
+  final context = ExactMeasurementPublicationContextRefV1.fromCanonicalBytes(
+    base64Decode(input['contextBase64'] as String),
+  );
+  final accepted = MeasurementPublicationBindingReadAccepted(
+    reference: attestation.bindingReference,
+    binding: publication,
+    registeredPublicationAttestation: attestation,
+  );
+  final proxy = _AuthenticatedIngestProxy(
+    endpoint: Uri.parse(input['authenticatedIngestEndpoint'] as String),
+    bearerToken: input['authenticatedBearerToken'] as String,
+    stage: stage,
+  );
+  late Zone realZone;
+  late HttpServer server;
+  late Directory support;
+  await tester.runAsync(() async {
+    realZone = Zone.current;
+    support = await Directory.systemTemp.createTemp(
+      'presentation-diagnostic-worker-',
+    );
+    server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) {
+      unawaited(proxy.forward(request));
+    });
+  });
+  final owner = MeasurementHostConstructionOwner.forTesting(
+    profileReadPort: _Profile(
+      MeasurementHostConstructionProfile(
+        publicationContext: context,
+        endpoint: 'http://127.0.0.1:${server.port}/sdk/v1/measurement',
+        analyticsEnabled: true,
+        policyStatus: MeasurementHostConstructionPolicyStatus.supported,
+        measurementClassAdmitted: true,
+        presentationMetadataAdmitted: true,
+        remainingSessionBudget: 16,
+        deliveryAdapterAvailable: true,
+        configurationFingerprint: 'actual-presentation-diagnostic-runtime.v1',
+      ),
+    ),
+    pathResolver: _Path(support.path),
+    monotonicClock: _Clock(),
+    workerRuntimeStarter: ({required configuration, required pathResolver}) =>
+        realZone.run(() async {
+      stage('starting native diagnostic worker');
+      final result = await MeasurementWorkerOwnedDeliveryRuntime.start(
+        configuration: configuration,
+        pathResolver: pathResolver,
+      );
+      stage('native diagnostic worker started: ${result.outcome}');
+      return result.runtime;
+    }),
+  );
+  final restore = MeasurementHostSessionConstructionRegistry.installForTest(
+    MeasurementHostSessionConstructionAuthority.forWorkerOwnedDeliveryTesting(
+      constructionOwner: owner,
+      nonceBytesSource: MeasurementHostSessionConstructionAuthority.production(
+        constructionOwner: owner,
+      ).takeNonceBytes,
+      hostedBindingReadPortLookup: () => _Binding(accepted),
+    ),
+  );
+  try {
+    stage('opening actual presentation attempt');
+    final session = (await tester.runAsync(
+      () => MeasurementHostSessionController.open(
+        MeasurementHostSessionOpenRequest.hosted(
+          bindingReference: attestation.bindingReference,
+          bindingReadPort: _Binding(accepted),
+        ),
+      ),
+    ))!;
+    expect(session.debugState, MeasurementHostSessionDebugState.active);
+    final construction = session.debugConstructionSession;
+    expect(construction, isNotNull);
+    final childScreenId = _diagnosticChildScreenId(publication);
+    switch (scenario) {
+      case _PresentationDiagnosticScenario.rootlessStep:
+        stage('recording actual rootless child step');
+        construction!.recordLifecycle(
+          MeasurementOccurrenceChannelV1.presentation,
+          screenId: childScreenId,
+        );
+      case _PresentationDiagnosticScenario.duplicateRootPaint:
+        stage('mounting two actual root presentation hooks');
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(
+              children: [
+                session.wrapRootSubtree(
+                  const SizedBox(width: 10, height: 10),
+                ),
+                session.wrapRootSubtree(
+                  const SizedBox(width: 10, height: 10),
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pump();
+        construction!.recordLifecycle(
+          MeasurementOccurrenceChannelV1.presentation,
+          screenId: childScreenId,
+        );
+    }
+    stage('tearing down actual presentation attempt');
+    await tester.runAsync(session.teardown);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    final expectedDeliveries =
+        scenario == _PresentationDiagnosticScenario.rootlessStep ? 1 : 2;
+    await _settleReal(
+      tester,
+      () =>
+          proxy.failureKind != null ||
+          proxy.deliveries.length == expectedDeliveries,
+    );
+    expect(proxy.failureKind, isNull);
+    _assertActualPresentationDiagnostic(
+      scenario: scenario,
+      deliveries: proxy.deliveries,
+      attestation: attestation,
+    );
+    File(input['outputPath'] as String).writeAsStringSync(
+      jsonEncode({
+        'diagnosticChildScreenId': childScreenId,
+        'deliveries': [
+          for (final delivery in proxy.deliveries) delivery.toJson(),
+        ],
+      }),
+    );
+  } finally {
+    stage('disposing presentation diagnostic attempt');
+    await tester.pumpWidget(const SizedBox.shrink());
+    restore();
+    var closed = false;
+    final closing = owner.close().whenComplete(() {
+      closed = true;
+    });
+    await _settleReal(tester, () => closed);
+    await closing;
+    await tester.runAsync(() async {
+      await server.close(force: true);
+      await support.delete(recursive: true);
+    });
+  }
+}
+
+String _diagnosticChildScreenId(MeasurementPublicationBindingV1 publication) {
+  final orderedCapture = publication.orderedCaptureV1;
+  if (orderedCapture == null) {
+    throw StateError('Presentation diagnostic requires ordered capture routes');
+  }
+  for (final route in orderedCapture.routes) {
+    final lifecycle = route.lifecycle;
+    if (lifecycle?.channel == MeasurementOccurrenceChannelV1.presentation &&
+        lifecycle?.screenId != null) {
+      return lifecycle!.screenId!;
+    }
+  }
+  throw StateError('Presentation diagnostic requires a declared child screen');
+}
+
+void _assertActualPresentationDiagnostic({
+  required _PresentationDiagnosticScenario scenario,
+  required List<_ForwardedDelivery> deliveries,
+  required RegisteredPublicationAttestationV1 attestation,
+}) {
+  for (final delivery in deliveries) {
+    expect(
+      delivery.responseStatusCode,
+      HttpStatus.ok,
+      reason: delivery.responseReason ?? 'no bounded backend refusal reason',
+    );
+    final receipt = delivery.receipt;
+    expect(receipt, isNotNull);
+    expect(receipt!.sequence, delivery.sequence);
+    final request = delivery.request;
+    if (request != null) {
+      expect(receipt.requestSha256, request.requestSha256);
+    }
+    final diagnosticRequest = delivery.diagnosticRequest;
+    if (diagnosticRequest != null) {
+      expect(receipt.requestSha256, diagnosticRequest.requestSha256);
+    }
+  }
+  final diagnostic = deliveries
+      .singleWhere((delivery) => delivery.diagnosticRequest != null)
+      .diagnosticRequest!;
+  expect(
+    diagnostic.publicationBindingReference.canonicalBytes,
+    orderedEquals(attestation.bindingReference.canonicalBytes),
+  );
+  final summary = diagnostic.diagnostic;
+  expect(summary.stepObserved, isTrue);
+  expect(summary.captureIncomplete, isFalse);
+  switch (scenario) {
+    case _PresentationDiagnosticScenario.rootlessStep:
+      expect(deliveries, hasLength(1));
+      expect(diagnostic.sequence, 1);
+      expect(
+        summary.rootPresentationReports,
+        MeasurementRootPresentationReportsV1.none,
+      );
+      expect(
+        summary.finishReason,
+        MeasurementPresentationFinishReasonV1.abandoned,
+      );
+    case _PresentationDiagnosticScenario.duplicateRootPaint:
+      expect(deliveries, hasLength(2));
+      final frame = deliveries.first.request;
+      expect(frame, isNotNull);
+      expect(frame!.factFrame.isFinal, isTrue);
+      expect(frame.factFrame.sequence, 1);
+      expect(diagnostic.sequence, 2);
+      expect(
+        diagnostic.captureSessionNonce,
+        frame.factFrame.captureSessionNonce,
+      );
+      expect(
+        summary.rootPresentationReports,
+        MeasurementRootPresentationReportsV1.many,
+      );
+      expect(
+        summary.finishReason,
+        MeasurementPresentationFinishReasonV1.committed,
+      );
+  }
+}
+
+enum _PresentationDiagnosticScenario { rootlessStep, duplicateRootPaint }
+
+/// Forwards byte-identical native worker bodies to the actual authenticated
+/// backend endpoint and returns its unchanged response to the worker.
+final class _AuthenticatedIngestProxy {
+  _AuthenticatedIngestProxy({
+    required this.endpoint,
+    required this.bearerToken,
+    required this.stage,
+  });
+
+  final Uri endpoint;
+  final String bearerToken;
+  final void Function(String) stage;
+  final List<_ForwardedDelivery> deliveries = <_ForwardedDelivery>[];
+  String? failureKind;
+
+  Future<void> forward(HttpRequest incoming) async {
+    final client = _actualAuthenticatedIngestClient();
+    try {
+      final exactBody = await _readBytes(incoming);
+      final outgoing = await client.postUrl(endpoint);
+      outgoing
+        ..followRedirects = false
+        ..contentLength = exactBody.length
+        ..headers.set(
+          HttpHeaders.contentTypeHeader,
+          incoming.headers.contentType?.toString() ?? 'application/json',
+        )
+        ..headers.set(
+          HttpHeaders.authorizationHeader,
+          'Bearer $bearerToken',
+        );
+      outgoing.add(exactBody);
+      final response = await outgoing.close();
+      final responseBody = await _readBytes(response);
+      final delivery = _ForwardedDelivery.fromExactWorkerBody(
+        exactBody,
+        responseStatusCode: response.statusCode,
+        responseBody: responseBody,
+        responseReason: _boundedResponseReason(responseBody),
+      );
+      deliveries.add(delivery);
+      incoming.response.statusCode = response.statusCode;
+      final contentType = response.headers.contentType;
+      if (contentType != null) {
+        incoming.response.headers.contentType = contentType;
+      }
+      incoming.response.add(responseBody);
+      await incoming.response.close();
+      stage(
+        'authenticated ${delivery.kind} response ${delivery.responseStatusCode} '
+        'at sequence ${delivery.sequence}',
+      );
+    } on Object catch (error) {
+      failureKind ??= error.runtimeType.toString();
+      stage('authenticated ingest proxy failed: $failureKind');
+      incoming.response.statusCode = HttpStatus.badGateway;
+      await incoming.response.close();
+    } finally {
+      client.close(force: true);
+    }
+  }
+}
+
+/// Flutter's widget-test binding replaces its global [HttpClient] with a 400
+/// responder. Construct only the bridge's outbound client under the native IO
+/// factory, then immediately restore that test binding for the rest of the
+/// runtime journey.
+HttpClient _actualAuthenticatedIngestClient() {
+  final widgetTestHttpOverrides = HttpOverrides.current;
+  HttpOverrides.global = null;
+  try {
+    return HttpClient()..autoUncompress = false;
+  } finally {
+    HttpOverrides.global = widgetTestHttpOverrides;
+  }
+}
+
+Future<Uint8List> _readBytes(Stream<List<int>> stream) async {
+  final builder = BytesBuilder(copy: false);
+  await for (final chunk in stream) {
+    builder.add(chunk);
+  }
+  return builder.takeBytes();
+}
+
+final class _ForwardedDelivery {
+  _ForwardedDelivery._({
+    required this.kind,
+    required this.canonicalRequestBase64,
+    required this.sequence,
+    required this.responseStatusCode,
+    this.responseReason,
+    this.request,
+    this.diagnosticRequest,
+    this.receipt,
+  });
+
+  factory _ForwardedDelivery.fromExactWorkerBody(
+    List<int> exactBody, {
+    required int responseStatusCode,
+    required List<int> responseBody,
+    required String? responseReason,
+  }) {
+    final envelope = jsonDecode(utf8.decode(exactBody)) as Map;
+    final canonicalRequestBase64 = envelope['canonicalRequestBase64'];
+    if (canonicalRequestBase64 is! String) {
+      throw const FormatException('Worker body omitted canonical request');
+    }
+    final receipt = _actualReceipt(
+      responseBody,
+      responseStatusCode: responseStatusCode,
+    );
+    try {
+      final request =
+          MeasurementIngestRequestV1.fromBase64(canonicalRequestBase64);
+      return _ForwardedDelivery._(
+        kind: 'frame',
+        canonicalRequestBase64: canonicalRequestBase64,
+        sequence: request.factFrame.sequence,
+        responseStatusCode: responseStatusCode,
+        responseReason: responseReason,
+        request: request,
+        receipt: receipt,
+      );
+    } on Object {
+      final diagnostic = MeasurementPresentationDiagnosticRequestV1.fromBase64(
+        canonicalRequestBase64,
+      );
+      return _ForwardedDelivery._(
+        kind: 'presentationDiagnostic',
+        canonicalRequestBase64: canonicalRequestBase64,
+        sequence: diagnostic.sequence,
+        responseStatusCode: responseStatusCode,
+        responseReason: responseReason,
+        diagnosticRequest: diagnostic,
+        receipt: receipt,
+      );
+    }
+  }
+
+  final String kind;
+  final String canonicalRequestBase64;
+  final int sequence;
+  final int responseStatusCode;
+  final String? responseReason;
+  final MeasurementIngestRequestV1? request;
+  final MeasurementPresentationDiagnosticRequestV1? diagnosticRequest;
+  final MeasurementIngestReceiptV1? receipt;
+
+  Map<String, Object?> toJson() => {
+        'kind': kind,
+        'canonicalRequestBase64': canonicalRequestBase64,
+        'sequence': sequence,
+        'responseStatusCode': responseStatusCode,
+        if (receipt != null)
+          'receiptCanonicalBase64': receipt!.canonicalReceiptBase64,
+      };
+}
+
+/// Returns only the route's closed refusal vocabulary, never a raw body.
+String? _boundedResponseReason(List<int> responseBody) {
+  try {
+    final decoded = jsonDecode(utf8.decode(responseBody));
+    if (decoded is! Map) return null;
+    final candidate = decoded['reason'] ?? decoded['error'];
+    return candidate is String &&
+            RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(candidate)
+        ? candidate
+        : null;
+  } on Object {
+    return null;
+  }
+}
+
+MeasurementIngestReceiptV1? _actualReceipt(
+  List<int> responseBody, {
+  required int responseStatusCode,
+}) {
+  if (responseStatusCode < HttpStatus.ok ||
+      responseStatusCode >= HttpStatus.multipleChoices) {
+    return null;
+  }
+  try {
+    final envelope = jsonDecode(utf8.decode(responseBody)) as Map;
+    final carrier = envelope['receiptCanonicalBase64'];
+    return carrier is String
+        ? MeasurementIngestReceiptV1.fromBase64(carrier)
+        : null;
+  } on Object {
+    return null;
+  }
 }
 
 final class _Clock implements MeasurementCaptureMonotonicClock {

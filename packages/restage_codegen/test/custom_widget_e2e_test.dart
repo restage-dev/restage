@@ -4009,8 +4009,8 @@ Object x() => const Meter(width: 1.0, other: 2.0);
         'initial state into a `widget X { name: init } = body` block and '
         'lowers state-field reads to `state.<name>`', () async {
       // No setState in this fixture — pure state-block + state-read
-      // emission. setState recognition + the bool-flip switch form lands in
-      // a sibling milestone; this test isolates the state-emission half.
+      // emission. This test isolates state emission from setState recognition
+      // and bool-flip switch lowering.
       final result = await _transpile(
         '''
 $kClassifierStubs

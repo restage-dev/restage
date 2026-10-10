@@ -2327,7 +2327,7 @@ SegmentedButton<String>(
     });
     test('real-flutter BorderRadius.zero still lowers to its zero value',
         () async {
-      // `.zero` is the value-wrong class the chapter protects — assert the
+      // `.zero` must preserve its constant value — assert the
       // emitted WIRE VALUE (uniform-corner 0), not merely non-deferral, so the
       // const-folded value-correctness stays covered.
       final r = translator.translate(

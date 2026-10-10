@@ -20,7 +20,7 @@ const minimalOnboardingFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '81abf650f0ed90ef73b8d54a84b9432cc1091f04b2c5e13de643fea3662b829b',
+      '9a58fd01e737a135961f2a23877dfd087e82227222339f1106fff8bc3d2af63e',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

@@ -17,7 +17,7 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'ee595086c370f1448c45e4e29729037e86ebf551d33c7e8bd45c0f1116bf1de1',
+      '52f1389decde2748da42a96fdb8e9e9206d94b9293adfc339a7192c040cfdde0',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

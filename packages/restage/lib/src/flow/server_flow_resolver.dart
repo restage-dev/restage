@@ -180,6 +180,7 @@ final class ServerFlowResolver
       _checkRequiredLibraries(flow, cached.requiredLibraries);
       // An exact version is a deliberate pin, so serving it again is not a hold.
       return reportSurfaceResolution(
+        flow.surface,
         flow.id,
         _own(
           cached.toResolvedFlow(cacheHit: true),
@@ -262,6 +263,7 @@ final class ServerFlowResolver
     );
     _cache[cacheKey] = cachedFlow;
     return reportSurfaceResolution(
+      flow.surface,
       flow.id,
       _own(
         cachedFlow.toResolvedFlow(cacheHit: false),
@@ -299,6 +301,7 @@ final class ServerFlowResolver
           )) {
         _activeCache[activeCacheKey] = active;
         return reportSurfaceResolution(
+          flow.surface,
           flow.id,
           _own(
             active.toResolvedFlow(cacheHit: false),
@@ -324,6 +327,7 @@ final class ServerFlowResolver
             cached.requiredLibraries,
           )) {
         return reportSurfaceResolution(
+          flow.surface,
           flow.id,
           _own(
             cached.toResolvedFlow(cacheHit: true),
@@ -336,6 +340,7 @@ final class ServerFlowResolver
       // Tier 3 — the client's own bundled document (exact; its version equals
       // the requested version, so the controller's retained version pin passes).
       return reportSurfaceResolution(
+        flow.surface,
         flow.id,
         bundled,
         SurfaceResolutionSource.bundled,
@@ -859,6 +864,7 @@ final class _ServerFlowExperimentPresentation
               accepted: prefetched,
             );
             return await reportSurfaceResolution(
+              flow.surface,
               flow.id,
               prefetched.candidateRoot,
               SurfaceResolutionSource.fresh,
@@ -886,6 +892,7 @@ final class _ServerFlowExperimentPresentation
           _selectedResolver = accepted.resolver;
           _provisional = null;
           return reportSurfaceResolution(
+            flow.surface,
             flow.id,
             accepted.candidateRoot,
             SurfaceResolutionSource.holdLastGood,
@@ -904,6 +911,7 @@ final class _ServerFlowExperimentPresentation
       _selectedResolver = snapshot.baselineResolver;
       _provisional = null;
       return reportSurfaceResolution(
+        flow.surface,
         flow.id,
         snapshot.baselineRoot,
         SurfaceResolutionSource.bundled,

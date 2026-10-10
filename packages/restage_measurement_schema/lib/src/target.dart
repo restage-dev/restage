@@ -123,6 +123,16 @@ final class TargetCoordinate extends CanonicalDocument {
   CanonicalHashDomain get hashDomain => CanonicalHashDomain.targetCoordinate;
 
   @override
+  bool operator ==(Object other) {
+    if (other is! TargetCoordinate) return super == other;
+    return organizationId.value == other.organizationId.value &&
+        appId.value == other.appId.value &&
+        environmentTargetId.value == other.environmentTargetId.value &&
+        namedEnvironmentId.value == other.namedEnvironmentId.value &&
+        runtimePlane == other.runtimePlane;
+  }
+
+  @override
   Map<String, Object?> toJson() => {
         'appId': appId.value,
         'environmentTargetId': environmentTargetId.value,

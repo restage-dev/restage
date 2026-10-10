@@ -13,7 +13,8 @@ without a deprecation.
 
 `restage experiment` has one subcommand per operation — `discover`, `create`,
 `read-draft`, `save`, `copy`, `validate`, `review`, `activate`, `pause`,
-`resume`, `conclude`, `list`, `read`, `results`, `archive`. They stay separate
+`resume`, `conclude`, `list`, `read`, `results`, `archive`, `register-build`,
+`readiness`. They stay separate
 because the operations are separate: reading a draft, reading an experiment,
 and reading its results are three different requests with three different
 results, and no flag turns one into another. `--json` prints the exact result

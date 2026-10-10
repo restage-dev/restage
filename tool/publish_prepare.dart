@@ -11,7 +11,7 @@
 //      caret constraint pinned to that sibling's current version (read live
 //      from the workspace);
 //   3. drop any `path:` dependency on a package that is NOT published to
-//      pub.dev (an internal-only tool) — consumers couldn't resolve it;
+//      pub.dev — consumers could not resolve it;
 //   4. for a few packages whose tests pull in build tooling, write a
 //      `.pubignore` that excludes `test/` from the published archive.
 //

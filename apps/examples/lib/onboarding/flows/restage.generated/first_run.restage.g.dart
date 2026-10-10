@@ -20,7 +20,7 @@ const firstRunFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'df65b815514d314666235a3c9b9a1793ccb9e77bfa9663c810ff630a13544e5c',
+      '951604436f42a9a53ff5336bc7e172e55bcc4a95588d0f1f2b276471b26dc4fb',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

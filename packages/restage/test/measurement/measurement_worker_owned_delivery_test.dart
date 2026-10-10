@@ -4,11 +4,16 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/measurement/measurement_outbox_protocol.dart';
+import 'package:restage/src/measurement/measurement_outbox_stub.dart'
+    as unsupported_outbox;
+import 'package:restage/src/measurement/measurement_upload_client.dart';
 import 'package:restage/src/measurement/measurement_worker_delivery.dart';
 import 'package:restage/src/measurement/measurement_worker_delivery_unsupported.dart'
     as unsupported;
+import 'package:restage/src/measurement/measurement_worker_native.dart';
 import 'package:restage/src/measurement/measurement_worker_protocol.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
@@ -160,12 +165,13 @@ void main() {
 
     final finalized = await session.teardown(frameElapsedMicros: 2);
     expect(finalized.isFinal, isTrue);
+    expect(finalized.sequence, 1);
     expect(received, hasLength(1));
-    expect(
-        () => MeasurementIngestRequestV1.fromBase64(
-            (jsonDecode(utf8.decode(received.single))
-                as Map<String, dynamic>)['canonicalRequestBase64'] as String),
-        returnsNormally);
+    final frame = MeasurementIngestRequestV1.fromBase64(
+      (jsonDecode(utf8.decode(received.single))
+          as Map<String, dynamic>)['canonicalRequestBase64'] as String,
+    );
+    expect(frame.factFrame.sequence, 1);
 
     final summary = MeasurementPresentationDiagnosticV1(
       rootPresentationReports: MeasurementRootPresentationReportsV1.many,
@@ -176,6 +182,7 @@ void main() {
     final reported =
         await session.reportTerminalDiagnostic(summary.canonicalBytes);
     expect(reported.isFinal, isTrue);
+    expect(reported.sequence, 2);
     expect(received, hasLength(2));
     final diagnostic = MeasurementPresentationDiagnosticRequestV1.fromBase64(
         (jsonDecode(utf8.decode(received.last))
@@ -183,12 +190,325 @@ void main() {
     expect(diagnostic.diagnostic.rootPresentationReports,
         MeasurementRootPresentationReportsV1.many);
     expect(diagnostic.captureSessionNonce, registration.captureSessionNonce);
+    expect(diagnostic.sequence, 2);
 
     final second =
         await session.reportTerminalDiagnostic(summary.canonicalBytes);
     expect(second.outcome,
         MeasurementWorkerOwnedDeliveryCheckpointOutcome.finalized);
     expect(received, hasLength(2));
+  });
+
+  test('retains each finalized session for its terminal diagnostic', () async {
+    final support =
+        await Directory.systemTemp.createTemp('restage-worker-finalized-map-');
+    addTearDown(() => support.delete(recursive: true));
+    final received = <Uint8List>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      final body = await _readRequest(request);
+      received.add(body);
+      await _respondAcceptedEither(request, body);
+    }));
+    final runtime = await _start(
+      support: support,
+      endpoint: _endpointFor(server),
+      maximumSessions: 2,
+    );
+    addTearDown(runtime.shutdown);
+    final first = await _open(runtime, 'session.finalized.one');
+    final second = await _open(runtime, 'session.finalized.two');
+
+    final firstFinal = await first.teardown();
+    final secondFinal = await second.teardown();
+    expect(firstFinal.sequence, 1);
+    expect(secondFinal.sequence, 1);
+    expect(received, hasLength(2));
+
+    final summary = MeasurementPresentationDiagnosticV1(
+      rootPresentationReports: MeasurementRootPresentationReportsV1.one,
+      stepObserved: true,
+      captureIncomplete: false,
+      finishReason: MeasurementPresentationFinishReasonV1.committed,
+    );
+    final firstReported =
+        await first.reportTerminalDiagnostic(summary.canonicalBytes);
+    expect(firstReported.isFinal, isTrue);
+    expect(firstReported.sequence, 2);
+    final secondReported =
+        await second.reportTerminalDiagnostic(summary.canonicalBytes);
+    expect(secondReported.isFinal, isTrue);
+    expect(secondReported.sequence, 2);
+    expect(received, hasLength(4));
+
+    final firstDiagnostic =
+        MeasurementPresentationDiagnosticRequestV1.fromBase64(
+            _canonicalRequestBase64(received[2]));
+    final secondDiagnostic =
+        MeasurementPresentationDiagnosticRequestV1.fromBase64(
+            _canonicalRequestBase64(received[3]));
+    expect(firstDiagnostic.captureSessionNonce, 'nonce.session.finalized.one');
+    expect(firstDiagnostic.sequence, 2);
+    expect(secondDiagnostic.captureSessionNonce, 'nonce.session.finalized.two');
+    expect(secondDiagnostic.sequence, 2);
+  });
+
+  test('holds session capacity until its terminal diagnostic is resolved',
+      () async {
+    final support = await Directory.systemTemp
+        .createTemp('restage-worker-finalized-capacity-');
+    addTearDown(() => support.delete(recursive: true));
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      final body = await _readRequest(request);
+      await _respondAcceptedEither(request, body);
+    }));
+    final runtime = await _start(
+      support: support,
+      endpoint: _endpointFor(server),
+      maximumSessions: 1,
+    );
+    addTearDown(runtime.shutdown);
+    final first = await _open(runtime, 'session.finalized.capacity.one');
+
+    final finalized = await first.teardown();
+    expect(finalized.sequence, 1);
+    final held = await runtime.openSession(
+      _registration('session.finalized.capacity.two'),
+    );
+    expect(held.outcome, MeasurementWorkerOpenSessionOutcome.saturated);
+
+    final summary = MeasurementPresentationDiagnosticV1(
+      rootPresentationReports: MeasurementRootPresentationReportsV1.one,
+      stepObserved: false,
+      captureIncomplete: false,
+      finishReason: MeasurementPresentationFinishReasonV1.committed,
+    );
+    final reported =
+        await first.reportTerminalDiagnostic(summary.canonicalBytes);
+    expect(reported.sequence, 2);
+
+    final opened = await runtime.openSession(
+      _registration('session.finalized.capacity.two'),
+    );
+    expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
+    expect((await opened.session!.discard()).outcome,
+        MeasurementWorkerOwnedDeliveryDiscardOutcome.discarded);
+  });
+
+  test('releases finalized diagnostic coordinates through discard', () async {
+    final support = await Directory.systemTemp
+        .createTemp('restage-worker-finalized-discard-');
+    addTearDown(() => support.delete(recursive: true));
+    final received = <Uint8List>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      final body = await _readRequest(request);
+      received.add(body);
+      await _respondAcceptedEither(request, body);
+    }));
+    final runtime = await _start(
+      support: support,
+      endpoint: _endpointFor(server),
+      maximumSessions: 1,
+    );
+    addTearDown(runtime.shutdown);
+    final first = await _open(runtime, 'session.finalized.discard.one');
+
+    final finalized = await first.teardown();
+    expect(finalized.sequence, 1);
+    expect(received, hasLength(1));
+    final held = await runtime.openSession(
+      _registration('session.finalized.discard.two'),
+    );
+    expect(held.outcome, MeasurementWorkerOpenSessionOutcome.saturated);
+
+    final released = await first.discard();
+    expect(released.outcome,
+        MeasurementWorkerOwnedDeliveryDiscardOutcome.finalized);
+    expect(received, hasLength(1));
+
+    final opened = await runtime.openSession(
+      _registration('session.finalized.discard.two'),
+    );
+    expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
+    expect((await opened.session!.discard()).outcome,
+        MeasurementWorkerOwnedDeliveryDiscardOutcome.discarded);
+  });
+
+  test('an unavailable final checkpoint releases its kernel session slot',
+      () async {
+    final eventPort = ReceivePort();
+    addTearDown(eventPort.close);
+    final events = StreamIterator<Object?>(eventPort);
+    addTearDown(events.cancel);
+    final store = unsupported_outbox.createMeasurementOutboxStore(
+      configuration: MeasurementOutboxConfiguration(
+        applicationSupportPath: 'kernel-test',
+        configurationFingerprint: 'kernel-test',
+      ),
+      clock: measurementOutboxSystemClock,
+    );
+    expect(
+        (await store.open()).outcome, MeasurementOutboxOpenOutcome.unavailable);
+    final harness = MeasurementWorkerOwnedDeliveryKernelTestHarness(
+      events: eventPort.sendPort,
+      store: store,
+      uploadCoordinator: MeasurementOutboxUploadCoordinator(
+        store: store,
+        uploadClient: const _UnavailableUploadClient(),
+      ),
+      maximumSessions: 1,
+    );
+
+    harness.dispatch(MeasurementWorkerOwnedDeliveryProtocol.register(
+      requestId: 1,
+      registration: _registration('session.unavailable.one'),
+    ));
+    expect(
+      await _nextWorkerOutbound(events),
+      isA<MeasurementWorkerOwnedDeliveryOpenedMessage>(),
+    );
+    harness.dispatch(MeasurementWorkerOwnedDeliveryProtocol.checkpoint(
+      requestId: 2,
+      sessionId: 'session.unavailable.one',
+      isFinal: true,
+    ));
+    final finalized = await _nextWorkerOutbound(events)
+        as MeasurementWorkerOwnedDeliveryCheckpointResultMessage;
+    expect(finalized.outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.unavailable);
+
+    harness.dispatch(MeasurementWorkerOwnedDeliveryProtocol.register(
+      requestId: 3,
+      registration: _registration('session.unavailable.two'),
+    ));
+    expect(
+      await _nextWorkerOutbound(events),
+      isA<MeasurementWorkerOwnedDeliveryOpenedMessage>(),
+    );
+  });
+
+  test('retains an unacknowledged final frame before its terminal summary',
+      () async {
+    final support =
+        await Directory.systemTemp.createTemp('restage-worker-final-order-');
+    addTearDown(() => support.delete(recursive: true));
+    final received = <Uint8List>[];
+    var shouldAcknowledge = false;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      final body = await _readRequest(request);
+      received.add(body);
+      if (!shouldAcknowledge) {
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        await request.response.close();
+        return;
+      }
+      await _respondAcceptedEither(request, body);
+    }));
+    final runtime =
+        await _start(support: support, endpoint: _endpointFor(server));
+    addTearDown(runtime.shutdown);
+    final registration = _registration('session.final-order');
+    final opened = await runtime.openSession(registration);
+    expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
+    final session = opened.session!;
+
+    final finalized = await session.teardown();
+    expect(finalized.outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.retryScheduled);
+    expect(finalized.sequence, 1);
+    expect(received, hasLength(1));
+    final firstFinalBody = Uint8List.fromList(received.single);
+
+    final summary = MeasurementPresentationDiagnosticV1(
+      rootPresentationReports: MeasurementRootPresentationReportsV1.one,
+      stepObserved: false,
+      captureIncomplete: false,
+      finishReason: MeasurementPresentationFinishReasonV1.committed,
+    );
+    final reported =
+        await session.reportTerminalDiagnostic(summary.canonicalBytes);
+    expect(reported.isFinal, isTrue);
+    expect(reported.sequence, 2);
+    expect(received, hasLength(1));
+
+    final retained = await _readyRecords(support);
+    expect(retained.map((record) => record.batch.sequence), [1, 2]);
+    final finalRecord = retained.singleWhere(
+      (record) => record.batch.factFrameSha256 != null,
+    );
+    expect(finalRecord.batch.exactRequestBytes, orderedEquals(firstFinalBody));
+    expect(
+      retained
+          .singleWhere((record) => record.batch.diagnosticSha256 != null)
+          .batch
+          .diagnosticSha256,
+      isNotNull,
+    );
+
+    shouldAcknowledge = true;
+    await _eventually(
+      () => received.length == 3,
+      timeout: const Duration(seconds: 4),
+    );
+    expect(received[1], orderedEquals(firstFinalBody));
+    final replayed = MeasurementIngestRequestV1.fromBase64(
+      _canonicalRequestBase64(received[1]),
+    );
+    expect(replayed.factFrame.sequence, 1);
+    final diagnostic = MeasurementPresentationDiagnosticRequestV1.fromBase64(
+      _canonicalRequestBase64(received[2]),
+    );
+    expect(diagnostic.sequence, 2);
+  });
+
+  test('does not reuse a maximum final-frame sequence for a terminal summary',
+      () async {
+    final support =
+        await Directory.systemTemp.createTemp('restage-worker-sequence-limit-');
+    addTearDown(() => support.delete(recursive: true));
+    final received = <Uint8List>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      final body = await _readRequest(request);
+      received.add(body);
+      await _respondAcceptedEither(request, body);
+    }));
+    final runtime =
+        await _start(support: support, endpoint: _endpointFor(server));
+    addTearDown(runtime.shutdown);
+    final registration = _registration(
+      'session.sequence-limit',
+      firstSequence: kMeasurementWorkerMaximumPortableInteger,
+    );
+    final opened = await runtime.openSession(registration);
+    expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
+    final session = opened.session!;
+
+    final finalized = await session.teardown();
+    expect(finalized.isFinal, isTrue);
+    expect(finalized.sequence, kMeasurementWorkerMaximumPortableInteger);
+    expect(received, hasLength(1));
+
+    final summary = MeasurementPresentationDiagnosticV1(
+      rootPresentationReports: MeasurementRootPresentationReportsV1.one,
+      stepObserved: false,
+      captureIncomplete: false,
+      finishReason: MeasurementPresentationFinishReasonV1.committed,
+    );
+    final reported =
+        await session.reportTerminalDiagnostic(summary.canonicalBytes);
+    expect(reported.outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.persistenceFailure);
+    expect(reported.sequence, isNull);
+    expect(received, hasLength(1));
   });
 
   group('MeasurementWorkerOwnedDeliveryRuntime', () {
@@ -765,10 +1085,14 @@ Future<MeasurementWorkerOwnedDeliveryRuntime> _start({
   required Directory support,
   required String endpoint,
   bool debugTracing = false,
+  int maximumSessions = 4,
 }) async {
   final started = await MeasurementWorkerOwnedDeliveryRuntime.start(
-    configuration:
-        _configuration(endpoint: endpoint, debugTracing: debugTracing),
+    configuration: _configuration(
+      endpoint: endpoint,
+      debugTracing: debugTracing,
+      maximumSessions: maximumSessions,
+    ),
     pathResolver: _CountingPathResolver(support.path),
   );
   expect(started.outcome, MeasurementWorkerOwnedDeliveryStartOutcome.started);
@@ -784,6 +1108,13 @@ Future<MeasurementWorkerOwnedDeliverySession> _open(
   return opened.session!;
 }
 
+Future<MeasurementWorkerOwnedDeliveryOutboundMessage> _nextWorkerOutbound(
+  StreamIterator<Object?> events,
+) async {
+  expect(await events.moveNext(), isTrue);
+  return MeasurementWorkerOwnedDeliveryProtocol.decodeOutbound(events.current);
+}
+
 MeasurementWorkerOwnedDeliveryConfiguration _configuration({
   MeasurementWorkerOwnedDeliveryAdmission admission =
       const MeasurementWorkerOwnedDeliveryAdmission(
@@ -795,18 +1126,20 @@ MeasurementWorkerOwnedDeliveryConfiguration _configuration({
   ),
   required String? endpoint,
   bool debugTracing = false,
+  int maximumSessions = 4,
 }) =>
     MeasurementWorkerOwnedDeliveryConfiguration(
       admission: admission,
       endpoint: endpoint,
       configurationFingerprint: 'measurement.worker-owned.v1',
-      maximumSessions: 4,
+      maximumSessions: maximumSessions,
       debugTracing: debugTracing,
     );
 
 MeasurementWorkerSessionRegistration _registration(
   String sessionId, {
   MeasurementExperimentAssignmentV1? experimentAssignment,
+  int firstSequence = 1,
 }) {
   final context = ExactMeasurementPublicationContextRefV1(
     bindingReference: _bindingReference,
@@ -844,7 +1177,7 @@ MeasurementWorkerSessionRegistration _registration(
       maximumInteractionCounters: 4,
       maximumMissingnessEntries: 0,
     ),
-    firstSequence: 1,
+    firstSequence: firstSequence,
   );
 }
 
@@ -863,11 +1196,9 @@ Future<Uint8List> _readRequest(HttpRequest request) async {
 }
 
 Future<void> _respondAccepted(HttpRequest request, Uint8List exactBody) async {
-  final envelope = jsonDecode(utf8.decode(exactBody, allowMalformed: false));
-  expect(envelope, isA<Map<Object?, Object?>>());
-  final carrier = (envelope as Map<Object?, Object?>)['canonicalRequestBase64'];
-  expect(carrier, isA<String>());
-  final ingest = MeasurementIngestRequestV1.fromBase64(carrier! as String);
+  final ingest = MeasurementIngestRequestV1.fromBase64(
+    _canonicalRequestBase64(exactBody),
+  );
   final frame = ingest.factFrame;
   final receipt = MeasurementIngestReceiptV1.accepted(
     acceptedObservationCount: 0,
@@ -885,6 +1216,70 @@ Future<void> _respondAccepted(HttpRequest request, Uint8List exactBody) async {
     ..statusCode = HttpStatus.ok
     ..write('{"receiptCanonicalBase64":"${receipt.canonicalReceiptBase64}"}');
   await request.response.close();
+}
+
+Future<void> _respondAcceptedDiagnostic(
+  HttpRequest request,
+  Uint8List exactBody,
+) async {
+  final diagnostic = MeasurementPresentationDiagnosticRequestV1.fromBase64(
+    _canonicalRequestBase64(exactBody),
+  );
+  final receipt = MeasurementIngestReceiptV1.accepted(
+    acceptedObservationCount: 0,
+    captureSessionNonce: diagnostic.captureSessionNonce,
+    diagnosticSha256:
+        crypto.sha256.convert(diagnostic.diagnostic.canonicalBytes).toString(),
+    isFinal: true,
+    persistedAtMicros: 4100000,
+    publicationBindingReference: diagnostic.publicationBindingReference,
+    receiptId: 'receipt.worker-owned.0001',
+    requestSha256: diagnostic.requestSha256,
+    rootObservationUnitKey: 'root.worker-owned.0001',
+    sequence: diagnostic.sequence,
+  );
+  request.response
+    ..statusCode = HttpStatus.ok
+    ..write('{"receiptCanonicalBase64":"${receipt.canonicalReceiptBase64}"}');
+  await request.response.close();
+}
+
+Future<void> _respondAcceptedEither(
+  HttpRequest request,
+  Uint8List exactBody,
+) async {
+  try {
+    MeasurementIngestRequestV1.fromBase64(_canonicalRequestBase64(exactBody));
+  } on Object {
+    return _respondAcceptedDiagnostic(request, exactBody);
+  }
+  return _respondAccepted(request, exactBody);
+}
+
+String _canonicalRequestBase64(Uint8List exactBody) {
+  final envelope = jsonDecode(utf8.decode(exactBody, allowMalformed: false));
+  expect(envelope, isA<Map<Object?, Object?>>());
+  final carrier = (envelope as Map<Object?, Object?>)['canonicalRequestBase64'];
+  expect(carrier, isA<String>());
+  return carrier! as String;
+}
+
+Future<List<MeasurementOutboxRecord>> _readyRecords(
+  Directory support,
+) async {
+  final records = await Future.wait(
+    _outboxDirectory(support)
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.ready'))
+        .map((file) async => MeasurementOutboxRecordCodec.decode(
+              await file.readAsBytes(),
+            )),
+  );
+  records.sort(
+    (left, right) => left.batch.sequence.compareTo(right.batch.sequence),
+  );
+  return records;
 }
 
 Future<void> _eventually(
@@ -944,6 +1339,14 @@ final class _ThrowingPathResolver
     calls += 1;
     throw StateError('path unavailable');
   }
+}
+
+final class _UnavailableUploadClient implements MeasurementUploadClient {
+  const _UnavailableUploadClient();
+
+  @override
+  Future<MeasurementUploadOutcome> send(MeasurementOutboxLease lease) async =>
+      const MeasurementUploadOutcome.unavailable();
 }
 
 final class _AdmissionCase {

@@ -6,12 +6,16 @@ import 'package:restage_example/main.dart';
 import 'package:restage_example/onboarding/minimal_onboarding_demo.dart';
 import 'package:restage_example/user_factories.g.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// The demo pill and the viewer's reserved band are separate switches. A screen
 /// that carries an app bar takes no band, and the pill then sits inside the
 /// bar's toolbar row rather than stacking a second bar above it.
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

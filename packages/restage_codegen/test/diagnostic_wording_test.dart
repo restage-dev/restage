@@ -22,14 +22,12 @@ import 'helpers.dart';
 ///     fundamentally outside RFW's declarative envelope; no future
 ///     codegen will bring it in.
 ///
-/// These tests are the chapter-close regression rail — they make the
-/// category boundary load-bearing so wording drift between increments
-/// surfaces immediately. The behaviour-level tests for each diagnostic
+/// These tests enforce the category boundary so changes to diagnostic
+/// wording surface immediately. The behaviour-level tests for each diagnostic
 /// live in `custom_widget_recognition_test.dart`,
 /// `custom_widget_e2e_test.dart`, and `widget_classifier_test.dart`;
-/// this file only guards the category-verb invariants. Public-bound:
-/// every message asserted here
-/// is wire-frozen the moment an app's build surfaces it.
+/// this file only guards the category-verb invariants. Messages asserted
+/// here appear in app build output and must describe the supported behavior.
 const String _key = 'package:restage_codegen/_expr_probe.dart#AcmeWidget';
 
 const String _acmeWidgetSource = '''

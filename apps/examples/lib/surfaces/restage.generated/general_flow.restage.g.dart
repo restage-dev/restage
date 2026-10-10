@@ -17,7 +17,7 @@ const generalJourneyRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '6da416d4eb5fa259ed2ec57f5758f68a9caecbd32603eb6dfdbf54afea5409bb',
+      '6d600714b85f06047e0ea755c09847d95ec83ab189f951fd65f37ae97d6dba64',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

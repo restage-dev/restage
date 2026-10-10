@@ -20,6 +20,9 @@ const int _maximumExperiments = 100;
 const int _maximumRelatedValues = 256;
 const int _maximumPointSubtreeTreatmentLoci = 1024;
 const int _maximumTextBytes = 4096;
+const int _maximumAudienceOptions = 100;
+const int _maximumReadinessAttributes = 256;
+const int _maximumRegisteredBuilds = 256;
 
 abstract base class _ExperimentAuthoringValue extends CanonicalValue {
   _ExperimentAuthoringValue(Map<String, Object?> json)
@@ -48,7 +51,10 @@ enum ExperimentAuthoringOperationV1 {
   listExperiments('listExperiments'),
   readExperiment('readExperiment'),
   readExperimentResults('readExperimentResults'),
-  setExperimentArchived('setExperimentArchived');
+  setExperimentArchived('setExperimentArchived'),
+  registerBuildCapabilities('registerBuildCapabilities'),
+  readExperimentReadiness('readExperimentReadiness'),
+  readDeliveryOptions('readDeliveryOptions');
 
   const ExperimentAuthoringOperationV1(this.wireName);
 
@@ -69,7 +75,8 @@ enum ExperimentAuthoringOperationV1 {
         pauseExperiment ||
         resumeExperiment ||
         concludeExperiment ||
-        setExperimentArchived =>
+        setExperimentArchived ||
+        registerBuildCapabilities =>
           true,
         discoverTargetsAndCapabilities ||
         readDraft ||
@@ -77,7 +84,9 @@ enum ExperimentAuthoringOperationV1 {
         validateDraft ||
         listExperiments ||
         readExperiment ||
-        readExperimentResults =>
+        readExperimentResults ||
+        readExperimentReadiness ||
+        readDeliveryOptions =>
           false,
       };
 
@@ -454,6 +463,16 @@ final class ExperimentPublicEpochIdV1 extends MeasurementIdentifier {
   ExperimentPublicEpochIdV1(super.value);
 }
 
+/// One assignment attribute named by an assignment context schema.
+final class ExperimentAssignmentAttributeIdV1 extends MeasurementIdentifier {
+  ExperimentAssignmentAttributeIdV1(super.value);
+}
+
+/// One platform an installed app build is registered for.
+final class ExperimentBuildPlatformIdV1 extends MeasurementIdentifier {
+  ExperimentBuildPlatformIdV1(super.value);
+}
+
 /// Exact public experiment arm identity.
 final class ExperimentPublicArmIdV1 extends MeasurementIdentifier {
   ExperimentPublicArmIdV1(super.value);
@@ -467,6 +486,7 @@ final class ExperimentAuthoringRequestV1 extends _ExperimentAuthoringValue {
     required this.correlationId,
     required this.idempotencyKey,
     required this.payload,
+    required this.issueLocators,
   }) : super(json);
 
   /// Decodes a strict request object.
@@ -476,6 +496,7 @@ final class ExperimentAuthoringRequestV1 extends _ExperimentAuthoringValue {
       allowedKeys: const {
         'correlationId',
         'idempotencyKey',
+        'issueLocators',
         'kind',
         'operation',
         'payload',
@@ -526,6 +547,7 @@ final class ExperimentAuthoringRequestV1 extends _ExperimentAuthoringValue {
       correlationId: correlationId,
       idempotencyKey: idempotencyKey,
       payload: _freezeMap(payload),
+      issueLocators: reader.optionalBoolean('issueLocators') ?? false,
     );
   }
 
@@ -554,6 +576,11 @@ final class ExperimentAuthoringRequestV1 extends _ExperimentAuthoringValue {
 
   /// Strict operation-specific semantic payload.
   final Map<String, Object?> payload;
+
+  /// Whether this caller can read audience-conflict locators in both validation
+  /// issues and validation-blocked refusals. Other optional fields require
+  /// separate declarations.
+  final bool issueLocators;
 }
 
 /// A canonical exact rational used by public experiment projections.
@@ -5182,6 +5209,7 @@ final class ExperimentValidationIssueV1 extends _ExperimentAuthoringValue {
     required this.code,
     required this.fieldPath,
     required this.messageKey,
+    this.locator,
   }) : super(json);
 
   factory ExperimentValidationIssueV1.fromJson(
@@ -5190,11 +5218,18 @@ final class ExperimentValidationIssueV1 extends _ExperimentAuthoringValue {
   }) {
     final reader = CanonicalObjectReader(
       json,
-      allowedKeys: const {'code', 'fieldPath', 'kind', 'messageKey'},
+      allowedKeys: const {
+        'code',
+        'fieldPath',
+        'kind',
+        'locator',
+        'messageKey',
+      },
       requiredKeys: const {'code', 'fieldPath', 'kind', 'messageKey'},
       path: path,
     );
     _requireKind(reader, 'experimentValidationIssue');
+    final locator = reader.optionalObject('locator');
     return ExperimentValidationIssueV1._(
       json,
       code: ExperimentValidationIssueCodeV1._fromWire(
@@ -5206,12 +5241,135 @@ final class ExperimentValidationIssueV1 extends _ExperimentAuthoringValue {
         reader.string('messageKey'),
         '$path.messageKey',
       ),
+      locator: locator == null
+          ? null
+          : ExperimentAudienceConflictLocatorV1.fromJson(
+              locator,
+              path: '$path.locator',
+            ),
     );
   }
 
   final ExperimentValidationIssueCodeV1 code;
   final String fieldPath;
   final String messageKey;
+
+  /// Optional issue location, sent only when the caller requests locators.
+  final ExperimentAudienceConflictLocatorV1? locator;
+}
+
+/// The concurrent experiment that holds an audience this draft asks for.
+///
+/// `audienceConflict` is the only locator kind this reads. Another kind is
+/// refused rather than skipped: a caller asked for locators it can read, and
+/// silently dropping one would report a conflict as having no place.
+final class ExperimentAudienceConflictLocatorV1
+    extends _ExperimentAuthoringValue {
+  ExperimentAudienceConflictLocatorV1._(
+    Map<String, Object?> json, {
+    required this.conflictingExperimentId,
+    required this.proposedAudienceRef,
+    required this.conflictingAudienceRef,
+  }) : super(json);
+
+  factory ExperimentAudienceConflictLocatorV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'conflictingAudienceRef',
+        'conflictingExperimentId',
+        'kind',
+        'proposedAudienceRef',
+      },
+      requiredKeys: const {
+        'conflictingAudienceRef',
+        'conflictingExperimentId',
+        'kind',
+        'proposedAudienceRef',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'audienceConflict');
+    return ExperimentAudienceConflictLocatorV1._(
+      json,
+      conflictingExperimentId: _boundedString(
+        reader.string('conflictingExperimentId'),
+        '$path.conflictingExperimentId',
+      ),
+      proposedAudienceRef: ExperimentAudiencePolicyRevisionRefV1.fromJson(
+        reader.object('proposedAudienceRef'),
+        path: '$path.proposedAudienceRef',
+      ),
+      conflictingAudienceRef: ExperimentAudiencePolicyRevisionRefV1.fromJson(
+        reader.object('conflictingAudienceRef'),
+        path: '$path.conflictingAudienceRef',
+      ),
+    );
+  }
+
+  /// Stable identity of the experiment already holding the audience.
+  final String conflictingExperimentId;
+
+  /// Audience revision this draft asks for.
+  final ExperimentAudiencePolicyRevisionRefV1 proposedAudienceRef;
+
+  /// Audience revision the other experiment holds.
+  final ExperimentAudiencePolicyRevisionRefV1 conflictingAudienceRef;
+}
+
+/// An exact audience policy revision named by a conflict locator.
+final class ExperimentAudiencePolicyRevisionRefV1
+    extends _ExperimentAuthoringValue {
+  ExperimentAudiencePolicyRevisionRefV1._(
+    Map<String, Object?> json, {
+    required this.assignmentAudiencePolicyId,
+    required this.revisionId,
+    required this.semanticHash,
+  }) : super(json);
+
+  factory ExperimentAudiencePolicyRevisionRefV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'assignmentAudiencePolicyId',
+        'revisionId',
+        'semanticHash',
+      },
+      requiredKeys: const {
+        'assignmentAudiencePolicyId',
+        'revisionId',
+        'semanticHash',
+      },
+      path: path,
+    );
+    return ExperimentAudiencePolicyRevisionRefV1._(
+      json,
+      assignmentAudiencePolicyId: _identifier(
+        reader.string('assignmentAudiencePolicyId'),
+        '$path.assignmentAudiencePolicyId',
+        AuthorityRevisionId.new,
+      ),
+      revisionId: _identifier(
+        reader.string('revisionId'),
+        '$path.revisionId',
+        AuthorityRevisionId.new,
+      ),
+      semanticHash: _parsedDigest(
+        reader.string('semanticHash'),
+        '$path.semanticHash',
+      ),
+    );
+  }
+
+  final AuthorityRevisionId assignmentAudiencePolicyId;
+  final AuthorityRevisionId revisionId;
+  final CanonicalDigest semanticHash;
 }
 
 /// One typed capability reason tied to an exact public reference.
@@ -5500,6 +5658,314 @@ final class ExperimentValidationViewV1 extends _ExperimentAuthoringValue {
   final List<ExperimentValidationIssueV1> issues;
   final List<ExperimentCapabilityReasonV1> capabilityReasons;
   final ExperimentNArmPlanningPreviewV1? planningPreview;
+}
+
+/// Delivery inputs from a finished experiment.
+/// Uses the audience revision measured by the experiment, not its latest revision.
+final class ExperimentDeliveryOptionsViewV1 extends _ExperimentAuthoringValue
+    implements ExperimentTargetBoundViewV1 {
+  ExperimentDeliveryOptionsViewV1._(
+    Map<String, Object?> json, {
+    required this.target,
+    required this.experimentId,
+    required this.surfaceSlug,
+    required this.surfaceType,
+    required this.audienceRevisionId,
+    required this.audienceLabel,
+    required List<ExperimentDeliveryArmV1> arms,
+  })  : arms = List.unmodifiable(arms),
+        super(json) {
+    _requireOneExperimentDeliveryFamily(
+      this.arms,
+      'experimentDeliveryOptionsView',
+    );
+  }
+
+  /// Decodes a strict delivery-options projection.
+  factory ExperimentDeliveryOptionsViewV1.fromJson(Map<String, Object?> json) {
+    const path = 'experimentDeliveryOptionsView';
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'arms',
+        'audienceLabel',
+        'audienceRevisionId',
+        'experimentId',
+        'kind',
+        'schemaVersion',
+        'surfaceSlug',
+        'surfaceType',
+        'target',
+      },
+      requiredKeys: const {
+        'arms',
+        'audienceLabel',
+        'audienceRevisionId',
+        'experimentId',
+        'kind',
+        'schemaVersion',
+        'surfaceSlug',
+        'surfaceType',
+        'target',
+      },
+      path: path,
+    );
+    validateCanonicalDocument(
+      reader,
+      expectedKind: 'experimentDeliveryOptionsView',
+    );
+    final arms = _objectList(
+      reader.list('arms'),
+      path: '$path.arms',
+      maximumLength: _maximumArms,
+      decode: (value, itemPath) =>
+          ExperimentDeliveryArmV1.fromJson(value, path: itemPath),
+    );
+    _requireUnique(
+      arms.map((arm) => arm.stableArmId.value),
+      '$path.arms.stableArmId',
+    );
+    return ExperimentDeliveryOptionsViewV1._(
+      json,
+      target: TargetCoordinate.fromJson(reader.object('target')),
+      experimentId: _identifier(
+        reader.string('experimentId'),
+        '$path.experimentId',
+        ExperimentPublicIdV1.new,
+      ),
+      surfaceSlug: _boundedString(
+        reader.string('surfaceSlug'),
+        '$path.surfaceSlug',
+      ),
+      surfaceType: _identifier(
+        reader.string('surfaceType'),
+        '$path.surfaceType',
+        DeliverySurfaceTypeId.new,
+      ),
+      audienceRevisionId: _identifier(
+        reader.string('audienceRevisionId'),
+        '$path.audienceRevisionId',
+        AuthorityRevisionId.new,
+      ),
+      audienceLabel: _boundedString(
+        reader.string('audienceLabel'),
+        '$path.audienceLabel',
+      ),
+      arms: arms,
+    );
+  }
+
+  @override
+  final TargetCoordinate target;
+
+  /// The experiment these options came from.
+  final ExperimentPublicIdV1 experimentId;
+
+  /// Slug of the surface the experiment ran on.
+  final String surfaceSlug;
+
+  /// Type of that surface.
+  final DeliverySurfaceTypeId surfaceType;
+
+  /// Exact audience revision the experiment held.
+  final AuthorityRevisionId audienceRevisionId;
+
+  /// Authored name of that audience.
+  final String audienceLabel;
+
+  /// Every arm, in the order the experiment declared them.
+  final List<ExperimentDeliveryArmV1> arms;
+}
+
+/// Closed delivery choices for an arm of a finished experiment.
+sealed class ExperimentDeliveryArmV1 extends _ExperimentAuthoringValue {
+  ExperimentDeliveryArmV1._(
+    super.json, {
+    required this.stableArmId,
+    required this.label,
+  });
+
+  /// Decodes one exact general or surface-contract delivery choice.
+  factory ExperimentDeliveryArmV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) =>
+      switch (_readDiscriminator(json, path)) {
+        'experimentArmDelivery' =>
+          ExperimentArmDeliveryV1.fromJson(json, path: path),
+        'experimentSurfaceContractArmDelivery' =>
+          ExperimentSurfaceContractArmDeliveryV1.fromJson(json, path: path),
+        final kind => throw CanonicalFormatException(
+            '$path.kind "$kind" is unsupported',
+          ),
+      };
+
+  /// Stable identity of the arm.
+  final ExperimentStableArmIdV1 stableArmId;
+
+  /// Authored name of the arm.
+  final String label;
+}
+
+/// One general-surface arm of a finished experiment, and its served version.
+///
+/// This established branch deliberately retains its canonical shape so
+/// existing general delivery handoffs keep their exact bytes.
+final class ExperimentArmDeliveryV1 extends ExperimentDeliveryArmV1 {
+  ExperimentArmDeliveryV1._(
+    Map<String, Object?> json, {
+    required ExperimentStableArmIdV1 stableArmId,
+    required String label,
+    required this.publishedVersion,
+  }) : super._(
+          json,
+          stableArmId: stableArmId,
+          label: label,
+        ) {
+    if (publishedVersion <= 0) {
+      throw const CanonicalFormatException(
+        'experimentArmDelivery.publishedVersion must be positive',
+      );
+    }
+  }
+
+  factory ExperimentArmDeliveryV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {'kind', 'label', 'publishedVersion', 'stableArmId'},
+      requiredKeys: const {'kind', 'label', 'publishedVersion', 'stableArmId'},
+      path: path,
+    );
+    _requireKind(reader, 'experimentArmDelivery');
+    return ExperimentArmDeliveryV1._(
+      json,
+      stableArmId: _identifier(
+        reader.string('stableArmId'),
+        '$path.stableArmId',
+        ExperimentStableArmIdV1.new,
+      ),
+      label: _boundedString(reader.string('label'), '$path.label'),
+      publishedVersion: _positiveInteger(
+        reader.integer('publishedVersion'),
+        '$path.publishedVersion',
+      ),
+    );
+  }
+
+  /// The published version this arm served.
+  final int publishedVersion;
+}
+
+/// One surface-contract arm of a finished experiment and its exact revision.
+///
+/// The view's target and surface identify the surface. Every typed arm in one
+/// view names the same [contractVersion], which identifies one exact family.
+final class ExperimentSurfaceContractArmDeliveryV1
+    extends ExperimentDeliveryArmV1 {
+  ExperimentSurfaceContractArmDeliveryV1._(
+    Map<String, Object?> json, {
+    required ExperimentStableArmIdV1 stableArmId,
+    required String label,
+    required this.contractVersion,
+    required this.publishedRevision,
+  }) : super._(
+          json,
+          stableArmId: stableArmId,
+          label: label,
+        ) {
+    if (contractVersion <= 0 || publishedRevision <= 0) {
+      throw const CanonicalFormatException(
+        'experimentSurfaceContractArmDelivery values must be positive',
+      );
+    }
+  }
+
+  /// Decodes a strict surface-contract delivery arm.
+  factory ExperimentSurfaceContractArmDeliveryV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'contractVersion',
+        'kind',
+        'label',
+        'publishedRevision',
+        'stableArmId',
+      },
+      requiredKeys: const {
+        'contractVersion',
+        'kind',
+        'label',
+        'publishedRevision',
+        'stableArmId',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'experimentSurfaceContractArmDelivery');
+    return ExperimentSurfaceContractArmDeliveryV1._(
+      json,
+      stableArmId: _identifier(
+        reader.string('stableArmId'),
+        '$path.stableArmId',
+        ExperimentStableArmIdV1.new,
+      ),
+      label: _boundedString(reader.string('label'), '$path.label'),
+      contractVersion: _positiveInteger(
+        reader.integer('contractVersion'),
+        '$path.contractVersion',
+      ),
+      publishedRevision: _positiveInteger(
+        reader.integer('publishedRevision'),
+        '$path.publishedRevision',
+      ),
+    );
+  }
+
+  /// Exact standalone-contract family version the arm served.
+  final int contractVersion;
+
+  /// Exact published revision within [contractVersion].
+  final int publishedRevision;
+}
+
+void _requireOneExperimentDeliveryFamily(
+  Iterable<ExperimentDeliveryArmV1> arms,
+  String path,
+) {
+  bool? surfaceContract;
+  int? contractVersion;
+  for (final arm in arms) {
+    switch (arm) {
+      case ExperimentArmDeliveryV1():
+        if (surfaceContract == true) {
+          throw CanonicalFormatException(
+            '$path.arms must not mix general and surface-contract delivery',
+          );
+        }
+        surfaceContract = false;
+      case ExperimentSurfaceContractArmDeliveryV1(
+          contractVersion: final typedContractVersion,
+        ):
+        if (surfaceContract == false) {
+          throw CanonicalFormatException(
+            '$path.arms must not mix general and surface-contract delivery',
+          );
+        }
+        if (contractVersion != null &&
+            contractVersion != typedContractVersion) {
+          throw CanonicalFormatException(
+            '$path.arms must name one surface-contract family',
+          );
+        }
+        surfaceContract = true;
+        contractVersion = typedContractVersion;
+    }
+  }
 }
 
 /// Bounded locator for one immutable authoring review.
@@ -6710,6 +7176,608 @@ final class ExperimentListViewV1 extends _ExperimentAuthoringValue
   final String? nextPageCursor;
 }
 
+/// How one attribute an audience compares reaches the assignment request.
+enum ExperimentAttributeSupplyV1 {
+  /// Every registered build of this target supplies it.
+  registered('registered'),
+
+  /// The SDK can supply it, but some registered build does not declare it.
+  missingRegistration('missingRegistration'),
+
+  /// The app supplies it at run time, so no registration can cover it.
+  appDeclaredValue('appDeclaredValue');
+
+  const ExperimentAttributeSupplyV1(this.wireName);
+
+  /// Stable wire spelling.
+  final String wireName;
+
+  static ExperimentAttributeSupplyV1 _fromWire(String value, String path) =>
+      _enumFromWire(values, value, path, (entry) => entry.wireName);
+}
+
+/// Exact assignment context-schema revision an operation names.
+final class ExperimentExactContextSchemaReferenceV1
+    extends _ExperimentAuthoringValue {
+  ExperimentExactContextSchemaReferenceV1._(
+    Map<String, Object?> json, {
+    required this.contextSchemaId,
+    required this.revisionId,
+    required this.semanticDigest,
+  }) : super(json);
+
+  /// Decodes a strict context-schema reference.
+  factory ExperimentExactContextSchemaReferenceV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {'contextSchemaId', 'revisionId', 'semanticDigest'},
+      requiredKeys: const {'contextSchemaId', 'revisionId', 'semanticDigest'},
+      path: path,
+    );
+    return ExperimentExactContextSchemaReferenceV1._(
+      json,
+      contextSchemaId: _identifier(
+        reader.string('contextSchemaId'),
+        '$path.contextSchemaId',
+        AuthorityRevisionId.new,
+      ),
+      revisionId: _identifier(
+        reader.string('revisionId'),
+        '$path.revisionId',
+        AuthorityRevisionId.new,
+      ),
+      semanticDigest: _parsedDigest(
+        reader.string('semanticDigest'),
+        '$path.semanticDigest',
+      ),
+    );
+  }
+
+  final AuthorityRevisionId contextSchemaId;
+  final AuthorityRevisionId revisionId;
+  final CanonicalDigest semanticDigest;
+}
+
+/// What one installed app build was registered as able to supply.
+final class ExperimentBuildCapabilityViewV1 extends _ExperimentAuthoringValue
+    implements ExperimentTargetBoundViewV1 {
+  ExperimentBuildCapabilityViewV1._(
+    Map<String, Object?> json, {
+    required this.target,
+    required this.platform,
+    required this.appBuildOrdinal,
+    required this.contextSchemaRef,
+    required this.providedAttributeIds,
+    required this.storedNow,
+  }) : super(json);
+
+  /// Decodes a strict registration result.
+  factory ExperimentBuildCapabilityViewV1.fromJson(Map<String, Object?> json) {
+    const path = 'experimentBuildCapabilityView';
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'appBuildOrdinal',
+        'contextSchemaRef',
+        'kind',
+        'platform',
+        'providedAttributeIds',
+        'schemaVersion',
+        'storedNow',
+        'target',
+      },
+      requiredKeys: const {
+        'appBuildOrdinal',
+        'contextSchemaRef',
+        'kind',
+        'platform',
+        'providedAttributeIds',
+        'schemaVersion',
+        'storedNow',
+        'target',
+      },
+      path: path,
+    );
+    validateCanonicalDocument(
+      reader,
+      expectedKind: 'experimentBuildCapabilityView',
+    );
+    final providedAttributeIds = [
+      for (final (index, value) in _stringList(
+        reader.list('providedAttributeIds'),
+        path: '$path.providedAttributeIds',
+        maximumLength: _maximumReadinessAttributes,
+      ).indexed)
+        _identifier(
+          value,
+          '$path.providedAttributeIds[$index]',
+          ExperimentAssignmentAttributeIdV1.new,
+        ),
+    ];
+    // A descriptor lists what it provides in canonical order, so a reader can
+    // compare two registrations without sorting either.
+    _requireCanonicalOrder(
+      providedAttributeIds.map((value) => value.value),
+      '$path.providedAttributeIds',
+    );
+    if (providedAttributeIds.isEmpty) {
+      throw const CanonicalFormatException(
+        'experimentBuildCapabilityView.providedAttributeIds must not be empty',
+      );
+    }
+    return ExperimentBuildCapabilityViewV1._(
+      json,
+      target: TargetCoordinate.fromJson(reader.object('target')),
+      platform: _identifier(
+        reader.string('platform'),
+        '$path.platform',
+        ExperimentBuildPlatformIdV1.new,
+      ),
+      appBuildOrdinal: _nonNegativeInteger(
+        reader.integer('appBuildOrdinal'),
+        '$path.appBuildOrdinal',
+      ),
+      contextSchemaRef: ExperimentExactContextSchemaReferenceV1.fromJson(
+        reader.object('contextSchemaRef'),
+        path: '$path.contextSchemaRef',
+      ),
+      providedAttributeIds: providedAttributeIds,
+      storedNow: reader.boolean('storedNow'),
+    );
+  }
+
+  @override
+  final TargetCoordinate target;
+
+  /// Platform this registration was decided for.
+  final ExperimentBuildPlatformIdV1 platform;
+
+  /// Installed app build the registration describes.
+  final int appBuildOrdinal;
+
+  /// Context schema the registration was made against.
+  final ExperimentExactContextSchemaReferenceV1 contextSchemaRef;
+
+  /// Attributes this build supplies, in canonical order.
+  final List<ExperimentAssignmentAttributeIdV1> providedAttributeIds;
+
+  /// Whether this call stored the registration rather than finding it stored.
+  final bool storedNow;
+}
+
+/// One audience an experiment at this target may be assigned by.
+final class ExperimentAudienceOptionV1 extends _ExperimentAuthoringValue {
+  ExperimentAudienceOptionV1._(
+    Map<String, Object?> json, {
+    required this.reference,
+    required this.revisionOrdinal,
+    required this.label,
+    required this.description,
+  }) : super(json);
+
+  /// Decodes one strict audience option.
+  factory ExperimentAudienceOptionV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'description',
+        'kind',
+        'label',
+        'reference',
+        'revisionOrdinal',
+      },
+      requiredKeys: const {
+        'description',
+        'kind',
+        'label',
+        'reference',
+        'revisionOrdinal',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'experimentAudienceOption');
+    final description = switch (reader.requiredNullableValue('description')) {
+      null => null,
+      final String value => _boundedString(value, '$path.description'),
+      _ => throw CanonicalFormatException(
+          '$path.description must be a string or null',
+        ),
+    };
+    return ExperimentAudienceOptionV1._(
+      json,
+      reference: ExperimentExactPolicyReferenceV1.fromJson(
+        reader.object('reference'),
+        path: '$path.reference',
+      ),
+      revisionOrdinal: _positiveInteger(
+        reader.integer('revisionOrdinal'),
+        '$path.revisionOrdinal',
+      ),
+      label: _boundedString(reader.string('label'), '$path.label'),
+      description: description,
+    );
+  }
+
+  /// Exact reference a draft names to select this audience.
+  final ExperimentExactPolicyReferenceV1 reference;
+
+  /// Which revision of the audience this is.
+  final int revisionOrdinal;
+
+  /// Operator-facing name.
+  final String label;
+
+  /// Operator-facing description, when the audience carries one.
+  final String? description;
+}
+
+/// Whether one attribute an audience compares can reach the request.
+final class ExperimentAttributeReadinessV1 extends _ExperimentAuthoringValue {
+  ExperimentAttributeReadinessV1._(
+    Map<String, Object?> json, {
+    required this.assignmentAttributeId,
+    required this.supply,
+    required this.providingBuildCount,
+  }) : super(json);
+
+  /// Decodes one strict attribute readiness row.
+  factory ExperimentAttributeReadinessV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'assignmentAttributeId',
+        'kind',
+        'providingBuildCount',
+        'supply',
+      },
+      requiredKeys: const {
+        'assignmentAttributeId',
+        'kind',
+        'providingBuildCount',
+        'supply',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'experimentAttributeReadiness');
+    final supply = ExperimentAttributeSupplyV1._fromWire(
+      reader.string('supply'),
+      '$path.supply',
+    );
+    final providingBuildCount = _nonNegativeInteger(
+      reader.integer('providingBuildCount'),
+      '$path.providingBuildCount',
+    );
+    if ((supply == ExperimentAttributeSupplyV1.registered &&
+            providingBuildCount == 0) ||
+        (supply == ExperimentAttributeSupplyV1.appDeclaredValue &&
+            providingBuildCount != 0)) {
+      throw CanonicalFormatException(
+        '$path.providingBuildCount disagrees with its supply',
+      );
+    }
+    return ExperimentAttributeReadinessV1._(
+      json,
+      assignmentAttributeId: _identifier(
+        reader.string('assignmentAttributeId'),
+        '$path.assignmentAttributeId',
+        ExperimentAssignmentAttributeIdV1.new,
+      ),
+      supply: supply,
+      providingBuildCount: providingBuildCount,
+    );
+  }
+
+  /// The attribute the audience compares.
+  final ExperimentAssignmentAttributeIdV1 assignmentAttributeId;
+
+  /// How this attribute reaches the assignment request.
+  final ExperimentAttributeSupplyV1 supply;
+
+  /// Registered builds declaring that they supply it.
+  final int providingBuildCount;
+}
+
+/// One installed build registered against the audience's context schema.
+final class ExperimentRegisteredBuildV1 extends _ExperimentAuthoringValue {
+  ExperimentRegisteredBuildV1._(
+    Map<String, Object?> json, {
+    required this.platform,
+    required this.appBuildOrdinal,
+    required this.providedAttributeIds,
+  }) : super(json);
+
+  /// Decodes one strict registered build row.
+  factory ExperimentRegisteredBuildV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'appBuildOrdinal',
+        'kind',
+        'platform',
+        'providedAttributeIds',
+      },
+      requiredKeys: const {
+        'appBuildOrdinal',
+        'kind',
+        'platform',
+        'providedAttributeIds',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'experimentRegisteredBuild');
+    return ExperimentRegisteredBuildV1._(
+      json,
+      platform: _identifier(
+        reader.string('platform'),
+        '$path.platform',
+        ExperimentBuildPlatformIdV1.new,
+      ),
+      appBuildOrdinal: _nonNegativeInteger(
+        reader.integer('appBuildOrdinal'),
+        '$path.appBuildOrdinal',
+      ),
+      providedAttributeIds: [
+        for (final (index, value) in _stringList(
+          reader.list('providedAttributeIds'),
+          path: '$path.providedAttributeIds',
+          maximumLength: _maximumReadinessAttributes,
+        ).indexed)
+          _identifier(
+            value,
+            '$path.providedAttributeIds[$index]',
+            ExperimentAssignmentAttributeIdV1.new,
+          ),
+      ],
+    );
+  }
+
+  /// Platform the build was registered for.
+  final ExperimentBuildPlatformIdV1 platform;
+
+  /// The installed build ordinal.
+  final int appBuildOrdinal;
+
+  /// Attributes this build supplies.
+  final List<ExperimentAssignmentAttributeIdV1> providedAttributeIds;
+}
+
+/// Whether one named audience can be activated at this target.
+final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
+  ExperimentAudienceReadinessV1._(
+    Map<String, Object?> json, {
+    required this.reference,
+    required this.contextSchemaRef,
+    required this.activationBlocked,
+    required this.attributes,
+    required this.registeredBuilds,
+  }) : super(json);
+
+  /// Decodes one strict readiness assessment.
+  factory ExperimentAudienceReadinessV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'activationBlocked',
+        'attributes',
+        'contextSchemaRef',
+        'kind',
+        'reference',
+        'registeredBuilds',
+      },
+      requiredKeys: const {
+        'activationBlocked',
+        'attributes',
+        'contextSchemaRef',
+        'kind',
+        'reference',
+        'registeredBuilds',
+      },
+      path: path,
+    );
+    _requireKind(reader, 'experimentAudienceReadiness');
+    final contextSchemaRef =
+        switch (reader.requiredNullableValue('contextSchemaRef')) {
+      null => null,
+      final Map<String, Object?> value =>
+        ExperimentExactContextSchemaReferenceV1.fromJson(
+          value,
+          path: '$path.contextSchemaRef',
+        ),
+      _ => throw CanonicalFormatException(
+          '$path.contextSchemaRef must be an object or null',
+        ),
+    };
+    final attributes = _objectList(
+      reader.list('attributes'),
+      path: '$path.attributes',
+      maximumLength: _maximumReadinessAttributes,
+      decode: (value, path) =>
+          ExperimentAttributeReadinessV1.fromJson(value, path: path),
+    );
+    _requireUnique(
+      attributes.map((entry) => entry.assignmentAttributeId.value),
+      '$path.attributes.assignmentAttributeId',
+    );
+    final registeredBuilds = _objectList(
+      reader.list('registeredBuilds'),
+      path: '$path.registeredBuilds',
+      maximumLength: _maximumRegisteredBuilds,
+      decode: (value, path) =>
+          ExperimentRegisteredBuildV1.fromJson(value, path: path),
+    );
+    _requireUnique(
+      registeredBuilds.map(
+        (entry) => '${entry.platform.value}:${entry.appBuildOrdinal}',
+      ),
+      '$path.registeredBuilds',
+    );
+    for (final attribute in attributes) {
+      if (attribute.providingBuildCount > registeredBuilds.length ||
+          (attribute.supply == ExperimentAttributeSupplyV1.registered &&
+              attribute.providingBuildCount != registeredBuilds.length)) {
+        throw CanonicalFormatException(
+          '$path.attributes counts builds this readiness does not report',
+        );
+      }
+    }
+    // An audience that compares nothing the SDK supplies needs no
+    // registration, so it can never be the reason activation is blocked.
+    if (contextSchemaRef == null &&
+        (attributes.isNotEmpty || registeredBuilds.isNotEmpty)) {
+      throw CanonicalFormatException(
+        '$path names no context schema but reports registration',
+      );
+    }
+    return ExperimentAudienceReadinessV1._(
+      json,
+      reference: ExperimentExactPolicyReferenceV1.fromJson(
+        reader.object('reference'),
+        path: '$path.reference',
+      ),
+      contextSchemaRef: contextSchemaRef,
+      activationBlocked: reader.boolean('activationBlocked'),
+      attributes: attributes,
+      registeredBuilds: registeredBuilds,
+    );
+  }
+
+  /// The audience this assessment is about.
+  final ExperimentExactPolicyReferenceV1 reference;
+
+  /// Context schema the audience compares against, when it names one.
+  final ExperimentExactContextSchemaReferenceV1? contextSchemaRef;
+
+  /// Whether activating an experiment on this audience would be refused.
+  final bool activationBlocked;
+
+  /// One row per attribute the audience compares.
+  final List<ExperimentAttributeReadinessV1> attributes;
+
+  /// Builds registered against the audience's context schema.
+  final List<ExperimentRegisteredBuildV1> registeredBuilds;
+
+  /// Registered builds that do not supply [attribute], in reported order.
+  ///
+  /// Activation admits a closure only when every registered build supplies
+  /// every attribute the audience compares, so these are the builds an
+  /// operator has to act on: register them for this schema, or narrow the
+  /// audience so it no longer compares the attribute.
+  List<ExperimentRegisteredBuildV1> buildsMissing(
+    ExperimentAttributeReadinessV1 attribute,
+  ) =>
+      [
+        for (final build in registeredBuilds)
+          if (!build.providedAttributeIds.any(
+            (provided) =>
+                provided.value == attribute.assignmentAttributeId.value,
+          ))
+            build,
+      ];
+}
+
+/// The audiences at one target, and readiness for the one that was named.
+final class ExperimentReadinessViewV1 extends _ExperimentAuthoringValue
+    implements ExperimentTargetBoundViewV1 {
+  ExperimentReadinessViewV1._(
+    Map<String, Object?> json, {
+    required this.target,
+    required this.audiences,
+    required this.nextPageCursor,
+    required this.readiness,
+  }) : super(json);
+
+  /// Decodes a strict readiness view.
+  factory ExperimentReadinessViewV1.fromJson(Map<String, Object?> json) {
+    const path = 'experimentReadinessView';
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'audiences',
+        'kind',
+        'nextPageCursor',
+        'readiness',
+        'schemaVersion',
+        'target',
+      },
+      requiredKeys: const {
+        'audiences',
+        'kind',
+        'nextPageCursor',
+        'readiness',
+        'schemaVersion',
+        'target',
+      },
+      path: path,
+    );
+    validateCanonicalDocument(reader, expectedKind: 'experimentReadinessView');
+    final nextPageCursor = switch (reader.requiredNullableValue(
+      'nextPageCursor',
+    )) {
+      null => null,
+      final String value => _boundedString(value, '$path.nextPageCursor'),
+      _ => throw const CanonicalFormatException(
+          'experimentReadinessView.nextPageCursor must be a string or null',
+        ),
+    };
+    final readiness = switch (reader.requiredNullableValue('readiness')) {
+      null => null,
+      final Map<String, Object?> value =>
+        ExperimentAudienceReadinessV1.fromJson(
+          value,
+          path: '$path.readiness',
+        ),
+      _ => throw const CanonicalFormatException(
+          'experimentReadinessView.readiness must be an object or null',
+        ),
+    };
+    final audiences = _objectList(
+      reader.list('audiences'),
+      path: '$path.audiences',
+      maximumLength: _maximumAudienceOptions,
+      decode: (value, path) =>
+          ExperimentAudienceOptionV1.fromJson(value, path: path),
+    );
+    _requireUnique(
+      audiences.map((entry) => entry.reference.revisionId.value),
+      '$path.audiences.reference.revisionId',
+    );
+    return ExperimentReadinessViewV1._(
+      json,
+      target: TargetCoordinate.fromJson(reader.object('target')),
+      audiences: audiences,
+      nextPageCursor: nextPageCursor,
+      readiness: readiness,
+    );
+  }
+
+  @override
+  final TargetCoordinate target;
+
+  /// One page of the audiences this target can assign by.
+  final List<ExperimentAudienceOptionV1> audiences;
+
+  /// Cursor for the next page, or null on the last one.
+  final String? nextPageCursor;
+
+  /// Readiness for the audience the request named, when it named one.
+  final ExperimentAudienceReadinessV1? readiness;
+}
+
 /// One immutable accepted arm projection.
 final class ExperimentArmDetailV1 extends _ExperimentAuthoringValue {
   ExperimentArmDetailV1._(
@@ -7301,6 +8369,8 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
     required this.code,
     required this.messageKey,
     required this.retryable,
+    this.detail,
+    this.locator,
   }) : super(json);
 
   /// Decodes strict refusal details.
@@ -7310,7 +8380,9 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
       json,
       allowedKeys: const {
         'code',
+        'detail',
         'kind',
+        'locator',
         'messageKey',
         'retryable',
         'schemaVersion',
@@ -7341,6 +8413,14 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
         'experimentAuthoringRefusal.retryable disagrees with its code',
       );
     }
+    final detail = reader.optionalString('detail');
+    final locator = reader.optionalObject('locator');
+    if (locator != null &&
+        code != ExperimentAuthoringRefusalCodeV1.validationBlocked) {
+      throw const CanonicalFormatException(
+        'experimentAuthoringRefusal.locator requires validationBlocked',
+      );
+    }
     return ExperimentAuthoringRefusalV1._(
       json,
       code: code,
@@ -7349,12 +8429,28 @@ final class ExperimentAuthoringRefusalV1 extends _ExperimentAuthoringValue {
         '$path.messageKey',
       ),
       retryable: retryable,
+      detail: detail == null ? null : _boundedString(detail, '$path.detail'),
+      locator: locator == null
+          ? null
+          : ExperimentAudienceConflictLocatorV1.fromJson(
+              locator,
+              path: '$path.locator',
+            ),
     );
   }
 
   final ExperimentAuthoringRefusalCodeV1 code;
   final String messageKey;
   final bool retryable;
+
+  /// Optional bounded description of what the refusal names.
+  ///
+  /// A refusal may omit it, and one that does decodes exactly as before.
+  final String? detail;
+
+  /// Audience conflict returned only for `validationBlocked` when the caller
+  /// requests typed issue locators. Other callers receive no locator field.
+  final ExperimentAudienceConflictLocatorV1? locator;
 }
 
 /// Closed result union for semantic experiment operations.
@@ -7550,6 +8646,12 @@ CanonicalValue _decodeAcceptedResponse(
         ExperimentReadViewV1.fromJson(json),
       ExperimentAuthoringOperationV1.readExperimentResults =>
         ExperimentResultsViewV1.fromJson(json),
+      ExperimentAuthoringOperationV1.registerBuildCapabilities =>
+        ExperimentBuildCapabilityViewV1.fromJson(json),
+      ExperimentAuthoringOperationV1.readExperimentReadiness =>
+        ExperimentReadinessViewV1.fromJson(json),
+      ExperimentAuthoringOperationV1.readDeliveryOptions =>
+        ExperimentDeliveryOptionsViewV1.fromJson(json),
     };
 
 void _validateRequestPayload(
@@ -7561,7 +8663,11 @@ void _validateRequestPayload(
     case ExperimentAuthoringOperationV1.discoverTargetsAndCapabilities:
       final reader = CanonicalObjectReader(
         payload,
-        allowedKeys: const {'pageCursor', 'pageSize'},
+        allowedKeys: const {
+          'exactSurfaceReference',
+          'pageCursor',
+          'pageSize',
+        },
         requiredKeys: const {'pageSize'},
         path: path,
       );
@@ -7571,9 +8677,29 @@ void _validateRequestPayload(
           'experimentAuthoringRequest.payload.pageSize is outside 1..100',
         );
       }
-      final pageCursor = reader.optionalString('pageCursor');
-      if (pageCursor != null) {
-        _boundedString(pageCursor, '$path.pageCursor');
+      final exactSurfaceReference = reader.optionalObject(
+        'exactSurfaceReference',
+      );
+      if (exactSurfaceReference != null) {
+        if (payload.containsKey('pageCursor')) {
+          throw const CanonicalFormatException(
+            'experimentAuthoringRequest.payload.pageCursor is not admitted with an exact surface reference',
+          );
+        }
+        if (pageSize != 1) {
+          throw const CanonicalFormatException(
+            'experimentAuthoringRequest.payload.pageSize must be 1 with an exact surface reference',
+          );
+        }
+        ExperimentExactSurfaceReferenceV1.fromJson(
+          exactSurfaceReference,
+          path: '$path.exactSurfaceReference',
+        );
+      } else {
+        final pageCursor = reader.optionalString('pageCursor');
+        if (pageCursor != null) {
+          _boundedString(pageCursor, '$path.pageCursor');
+        }
       }
     case ExperimentAuthoringOperationV1.openDraft:
       final reader = CanonicalObjectReader(
@@ -7742,6 +8868,71 @@ void _validateRequestPayload(
         reader.integer('expectedControlPlaneOrdinal'),
         '$path.expectedControlPlaneOrdinal',
       );
+    case ExperimentAuthoringOperationV1.registerBuildCapabilities:
+      final reader = CanonicalObjectReader(
+        payload,
+        allowedKeys: const {
+          'appBuildOrdinal',
+          'contextSchemaRef',
+          'platform',
+          'sdkApiLevel',
+        },
+        requiredKeys: const {
+          'appBuildOrdinal',
+          'contextSchemaRef',
+          'platform',
+          'sdkApiLevel',
+        },
+        path: path,
+      );
+      _identifier(
+        reader.string('platform'),
+        '$path.platform',
+        ExperimentBuildPlatformIdV1.new,
+      );
+      _nonNegativeInteger(
+        reader.integer('appBuildOrdinal'),
+        '$path.appBuildOrdinal',
+      );
+      _positiveInteger(reader.integer('sdkApiLevel'), '$path.sdkApiLevel');
+      ExperimentExactContextSchemaReferenceV1.fromJson(
+        reader.object('contextSchemaRef'),
+        path: '$path.contextSchemaRef',
+      );
+    case ExperimentAuthoringOperationV1.readDeliveryOptions:
+      final reader = CanonicalObjectReader(
+        payload,
+        allowedKeys: const {'experimentId'},
+        requiredKeys: const {'experimentId'},
+        path: path,
+      );
+      _identifier(
+        reader.string('experimentId'),
+        '$path.experimentId',
+        ExperimentPublicIdV1.new,
+      );
+    case ExperimentAuthoringOperationV1.readExperimentReadiness:
+      final reader = CanonicalObjectReader(
+        payload,
+        allowedKeys: const {'audienceRef', 'pageCursor', 'pageSize'},
+        requiredKeys: const {'pageSize'},
+        path: path,
+      );
+      final pageSize = reader.integer('pageSize');
+      if (pageSize <= 0 || pageSize > _maximumAudienceOptions) {
+        throw const CanonicalFormatException(
+          'experimentAuthoringRequest.payload.pageSize is outside 1..100',
+        );
+      }
+      final pageCursor = reader.optionalString('pageCursor');
+      if (pageCursor != null) _boundedString(pageCursor, '$path.pageCursor');
+      final audienceRef = reader.optionalObject('audienceRef');
+      if (audienceRef != null) {
+        ExperimentExactPolicyReferenceV1.fromJson(
+          audienceRef,
+          path: '$path.audienceRef',
+        );
+      }
   }
 }
 

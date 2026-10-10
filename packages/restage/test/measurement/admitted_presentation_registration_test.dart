@@ -219,9 +219,40 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
 
     expect(attempt.harness.worker.finalizationCalls, 1);
-    expect(attempt.harness.worker.discardCalls, 0);
+    expect(attempt.harness.worker.discardCalls, 1);
     expect(attempt.harness.worker.terminalDiagnostics, isEmpty);
     expect(attempt.reads, 1);
+  });
+
+  testWidgets('sequential healthy roots release finalized diagnostic capacity',
+      (tester) async {
+    final attempt = _Attempt(maximumSessions: 2, remainingSessionBudget: 3);
+    addTearDown(attempt.close);
+
+    for (var index = 0; index < 3; index += 1) {
+      await tester.runAsync(attempt.open);
+      final session = attempt.session;
+      await tester.pumpWidget(session.wrapRootSubtree(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(width: 10, height: 10),
+        ),
+      ));
+      await tester.pump();
+      await tester.runAsync(() => session.teardown());
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    }
+
+    expect(attempt.harness.worker.registrations, hasLength(3));
+    expect(attempt.harness.worker.finalizationCalls, 3);
+    expect(attempt.harness.worker.discardCalls, 3);
+    expect(attempt.harness.worker.terminalDiagnostics, isEmpty);
+    expect(attempt.harness.worker.deliveries, [
+      MeasurementWorkerDeliveryKind.frame,
+      MeasurementWorkerDeliveryKind.frame,
+      MeasurementWorkerDeliveryKind.frame,
+    ]);
   });
 
   testWidgets('a committed attempt with two roots still delivers its frame',
@@ -255,6 +286,51 @@ void main() {
         attempt
             .harness.worker.terminalDiagnostics.single.rootPresentationReports,
         MeasurementRootPresentationReportsV1.many);
+  });
+
+  testWidgets('concurrent many-root teardowns retain both diagnostics',
+      (tester) async {
+    final attempt = _Attempt(maximumSessions: 2, remainingSessionBudget: 2);
+    addTearDown(attempt.close);
+    await tester.runAsync(attempt.open);
+    final first = attempt.session;
+    await tester.runAsync(attempt.open);
+    final second = attempt.session;
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: Column(children: [
+        first.wrapRootSubtree(const SizedBox(width: 10, height: 10)),
+        first.wrapRootSubtree(const SizedBox(width: 10, height: 10)),
+        second.wrapRootSubtree(const SizedBox(width: 10, height: 10)),
+        second.wrapRootSubtree(const SizedBox(width: 10, height: 10)),
+      ]),
+    ));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future.wait<void>([
+        first.teardown().then<void>((_) {}),
+        second.teardown().then<void>((_) {}),
+      ]);
+    });
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    expect(attempt.harness.worker.finalizationCalls, 2);
+    expect(attempt.harness.worker.discardCalls, 0);
+    expect(attempt.harness.worker.deliveries, hasLength(4));
+    expect(
+        attempt.harness.worker.deliveries,
+        containsAll(<MeasurementWorkerDeliveryKind>[
+          MeasurementWorkerDeliveryKind.frame,
+          MeasurementWorkerDeliveryKind.frame,
+          MeasurementWorkerDeliveryKind.diagnostic,
+          MeasurementWorkerDeliveryKind.diagnostic,
+        ]));
+    expect(attempt.harness.worker.terminalDiagnostics, hasLength(2));
+    expect(
+      attempt.harness.worker.terminalDiagnostics
+          .map((summary) => summary.rootPresentationReports),
+      everyElement(MeasurementRootPresentationReportsV1.many),
+    );
   });
 
   testWidgets('a finalized session refuses a second terminal summary',
@@ -298,7 +374,11 @@ Future<void> _pumpForTerminalDiagnostics(
 }
 
 final class _Attempt {
-  _Attempt({bool metadataAdmitted = true}) {
+  _Attempt({
+    bool metadataAdmitted = true,
+    int maximumSessions = 16,
+    int remainingSessionBudget = 16,
+  }) {
     harness = AdmittedConstructionOwnerHostTestHarness.install(
       publicationContext: fixture.publicationContextRef,
       bundledTargetProfileLoader: () async =>
@@ -307,6 +387,8 @@ final class _Attempt {
         bindingReadPort: fixture.port,
       ),
       presentationMetadataAdmitted: metadataAdmitted,
+      maximumSessions: maximumSessions,
+      remainingSessionBudget: remainingSessionBudget,
     );
   }
 
@@ -348,7 +430,7 @@ final class _Attempt {
     );
     expect(session.debugState, MeasurementHostSessionDebugState.active);
     expect(session.debugConstructionSession, isNotNull);
-    expect(harness.worker.registrations, hasLength(1));
+    expect(harness.worker.registrations, isNotEmpty);
   }
 
   Map<String, Object?> get context => (CanonicalJsonCodec.decode(harness.worker

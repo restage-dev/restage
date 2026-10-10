@@ -11,7 +11,6 @@ publish_to: none
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
-# Public-bound from day one.
 topics:
   - server-driven-ui
   - mcp

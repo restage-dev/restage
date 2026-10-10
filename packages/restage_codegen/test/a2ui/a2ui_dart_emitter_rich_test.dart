@@ -373,7 +373,7 @@ void main() {
     });
   });
 
-  group('richShapes — Pass-2 hardening (fail-closed scope-outs)', () {
+  group('richShapes — unsupported shapes fail closed', () {
     test(
         'HIGH#1(a): a rich property named `data` is collision-proof '
         '(reserved-prefixed local, no shadow of the data map)', () {

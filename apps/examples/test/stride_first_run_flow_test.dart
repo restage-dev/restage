@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/onboarding/stride_first_run_demo.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// Give the test a tall canvas so the full-screen surfaces render without a
 /// false RenderFlex overflow under the wide Ahem test font.
 void _useTallSurface(WidgetTester tester) {
@@ -13,8 +15,10 @@ void _useTallSurface(WidgetTester tester) {
 }
 
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

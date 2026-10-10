@@ -172,8 +172,7 @@ final class MeasurementPublicationCandidateAssembler {
       throw PublicationAssemblyException(
         'Generated Measurement publication input for '
         '${entry.publication.surface.wireName}/${entry.publication.slug} '
-        'is stale, incomplete, or mismatched: $error. Re-run '
-        '`dart run build_runner build` and retry.',
+        'could not be bound: $error',
       );
     }
   }
@@ -350,21 +349,43 @@ void _validateDraftArtifactClosure({
       SurfacePublicationArtifactRole.capabilitySidecar =>
         'publication.capability-sidecar',
     };
-    if (measured == null ||
-        measured.artifactKind.value != expectedKind ||
-        measured.contentHash.hex != artifact.contentHash.substring(7)) {
+    if (measured == null) {
       throw FormatException(
-        'the Measurement draft artifact does not match ${artifact.path}',
+        'the Measurement draft artifact does not match ${artifact.path}: '
+        'the draft declares no artifact under this identity',
+      );
+    }
+    if (measured.artifactKind.value != expectedKind) {
+      throw FormatException(
+        'the Measurement draft artifact does not match ${artifact.path}: '
+        'the draft records kind ${measured.artifactKind.value}, and the '
+        'publication declares $expectedKind',
+      );
+    }
+    final declaredHash = artifact.contentHash.substring(7);
+    if (measured.contentHash.hex != declaredHash) {
+      throw FormatException(
+        'the Measurement draft artifact does not match ${artifact.path}: '
+        'the draft records content ${measured.contentHash.hex}, and the '
+        'publication declares $declaredHash',
       );
     }
     final bytes = artifactBytes?[artifact.path];
-    if (artifactBytes != null &&
-        (bytes == null ||
-            crypto.sha256.convert(bytes).toString() !=
-                measured.contentHash.hex)) {
-      throw FormatException(
-        'the Measurement draft bytes do not match ${artifact.path}',
-      );
+    if (artifactBytes != null) {
+      if (bytes == null) {
+        throw FormatException(
+          'the Measurement draft bytes do not match ${artifact.path}: '
+          'the declared closure carries no bytes for it',
+        );
+      }
+      final actualHash = crypto.sha256.convert(bytes).toString();
+      if (actualHash != measured.contentHash.hex) {
+        throw FormatException(
+          'the Measurement draft bytes do not match ${artifact.path}: '
+          'the bytes hash to $actualHash, and the draft records '
+          '${measured.contentHash.hex}',
+        );
+      }
     }
   }
 }

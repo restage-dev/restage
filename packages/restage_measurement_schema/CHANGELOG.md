@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- An ordered capture route can name the drop-off band it contributes to.
+  `MeasurementOrderedCaptureDeclarationV1` carries an optional
+  `breakdownPointV1`, and the canonical JSON gains the same optional key. A
+  route that names no band encodes exactly as before.
+- A breakdown point must describe the route that declares it. A question names
+  its own answer route, a page index names the screen whose presentation it
+  observes, and a named interaction names one non-presentation callback on an
+  exact screen. Anything else is refused at construction.
+- One band has one route in a capture. Two routes carrying the same point are
+  refused.
+- `MeasurementBreakdownPointV1.identity` publishes what makes a point one band:
+  its kind and its reference, as a single string, exact within one published
+  version.
+- `kMeasurementBreakdownPointReferenceLimitV1` publishes the length bound a
+  point's reference and label already carried, so a caller can check a value
+  before constructing one.
+
 ## 0.1.0
 
 - Establish the deterministic measurement and experiment contract surface an
