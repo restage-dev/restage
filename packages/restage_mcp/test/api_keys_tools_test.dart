@@ -62,13 +62,15 @@ void main() {
     expect(tools, isNot(contains('restage_mint_api_key')));
 
     expect(
-      tools['restage_list_api_keys']!.inputSchema.required,
-      containsAll(['projectSlug', 'appSlug', 'environmentSlug']),
+      tools['restage_list_api_keys']!.inputSchema.properties!.keys,
+      containsAll([
+        'projectDirectory',
+        'projectSlug',
+        'appSlug',
+        'environmentSlug',
+      ]),
     );
-    expect(
-      tools['restage_revoke_api_key']!.inputSchema.required,
-      containsAll(['projectSlug', 'appSlug', 'apiKeyId']),
-    );
+    expect(tools['restage_revoke_api_key']!.inputSchema.required, ['apiKeyId']);
     expect(
       tools['restage_list_api_keys']!.inputSchema.required,
       isNot(contains('environmentTargetId')),

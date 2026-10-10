@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
@@ -33,11 +34,10 @@ const Set<SurfaceSourceKind> kLifecycleSourceKinds = <SurfaceSourceKind>{
   SurfaceSourceKind.paywall,
 };
 
-/// The exact identity and family address selected for a lifecycle operation.
+/// The identity and family address selected for a lifecycle operation.
 ///
-/// A standalone screen has a positive [contractVersion]. Flow graphs and
-/// specialized paywalls use the existing non-versioned lineage and therefore
-/// carry a null contract version.
+/// A null [sourceKind], or a screen with a null [contractVersion], leaves the
+/// family for the server to resolve.
 @experimental
 @immutable
 class SurfaceLifecycleIdentity {
@@ -51,12 +51,8 @@ class SurfaceLifecycleIdentity {
     required this.fromManifest,
   }) : assert(slug != ''),
        assert(
-         (sourceKind == SurfaceSourceKind.screen &&
-                 payloadKind == SurfacePayloadKind.blob &&
-                 contractVersion != null &&
-                 contractVersion > 0) ||
-             (sourceKind != SurfaceSourceKind.screen &&
-                 contractVersion == null),
+         contractVersion == null ||
+             (sourceKind == SurfaceSourceKind.screen && contractVersion > 0),
        );
 
   /// Surface category.
@@ -65,8 +61,8 @@ class SurfaceLifecycleIdentity {
   /// Stable surface slug.
   final String slug;
 
-  /// Authored source shape.
-  final SurfaceSourceKind sourceKind;
+  /// Authored source shape, or null when the server resolves it.
+  final SurfaceSourceKind? sourceKind;
 
   /// Declared payload shape. Specialized paywalls may retain either shape
   /// across revisions, so an explicit paywall fallback may leave this null.
@@ -82,18 +78,27 @@ class SurfaceLifecycleIdentity {
   /// Whether this is the identity-wide governance address.
   bool get isIdentityAddress => true;
 
-  /// Whether this family is the non-versioned lineage.
-  bool get isNonVersioned => contractVersion == null;
+  /// Whether the family is named exactly, with nothing left to the server.
+  bool get isExact =>
+      sourceKind != null &&
+      (sourceKind != SurfaceSourceKind.screen || contractVersion != null);
 
   /// Human-readable family address used by CLI output.
-  String get familyAddress {
-    final version = contractVersion;
-    if (version != null) return 'contract v$version';
-    final payload = payloadKind?.wireName;
-    return payload == null
-        ? 'non-versioned ${sourceKind.wireName}'
-        : 'non-versioned ${sourceKind.wireName}/$payload';
-  }
+  String get familyAddress =>
+      describeFamily(sourceKind, contractVersion, payloadKind: payloadKind);
+
+  /// This identity with the family the server resolved for it.
+  SurfaceLifecycleIdentity resolvedAs({
+    required SurfaceSourceKind sourceKind,
+    required int? contractVersion,
+  }) => SurfaceLifecycleIdentity(
+    surface: surface,
+    slug: slug,
+    sourceKind: sourceKind,
+    payloadKind: payloadKind,
+    contractVersion: contractVersion,
+    fromManifest: fromManifest,
+  );
 
   /// Wire arguments for a family-scoped operation.
   ///
@@ -105,15 +110,31 @@ class SurfaceLifecycleIdentity {
   };
 }
 
-/// Resolve one lifecycle identity from the current generated manifest, with a
-/// typed explicit fallback for work outside that manifest.
+/// Human-readable family address: `contract vN`, a non-versioned lineage, or
+/// the current family when the server resolves it.
+String describeFamily(
+  SurfaceSourceKind? sourceKind,
+  int? contractVersion, {
+  SurfacePayloadKind? payloadKind,
+}) {
+  if (contractVersion != null) return 'contract v$contractVersion';
+  if (sourceKind == null) return 'current family';
+  if (sourceKind == SurfaceSourceKind.screen) return 'current contract';
+  final payload = payloadKind?.wireName;
+  return payload == null
+      ? 'non-versioned ${sourceKind.wireName}'
+      : 'non-versioned ${sourceKind.wireName}/$payload';
+}
+
+/// Resolve one lifecycle identity from the current generated manifest, or
+/// from explicit selectors outside it. Selectors left out are resolved by the
+/// server.
 @experimental
 Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
   required ArgResults? argResults,
   required SurfaceType? fixedSurfaceType,
   required String slug,
   required StringSink stderr,
-  bool requireExplicitSourceKindForFallback = true,
 }) async {
   final explicitType = _readSurfaceType(
     argResults: argResults,
@@ -130,12 +151,13 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
   if (_hasInvalidSourceKind(argResults)) return null;
   final explicitVersion = _readContractVersion(argResults, stderr);
   if (explicitVersion == _invalidContractVersion) return null;
-  if (!_validateExplicitSelector(
+  final refusal = _explicitSelectorRefusal(
     surfaceType: explicitType,
     sourceKind: explicitSourceKind,
     contractVersion: explicitVersion,
-    stderr: stderr,
-  )) {
+  );
+  if (refusal != null) {
+    stderr.writeln(refusal);
     return null;
   }
 
@@ -220,34 +242,58 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
     );
     return null;
   }
-  if (requireExplicitSourceKindForFallback &&
-      explicitSourceKind == null &&
-      explicitVersion == null) {
-    stderr.writeln(
-      'Lifecycle identity for "$slug" is ambiguous outside the generated '
-      'manifest. Pass --source-kind to select flowGraph or specialized '
-      'paywall; use --source-kind screen with --contract-version <N> for a '
-      'standalone screen.',
-    );
-    return null;
-  }
-  final sourceKind = _fallbackSourceKind(
-    surfaceType: type,
+  return _explicitIdentity(
+    type: type,
+    slug: slug,
     sourceKind: explicitSourceKind,
     contractVersion: explicitVersion,
   );
-  final payloadKind = switch (sourceKind) {
+}
+
+/// The lifecycle identity explicit selectors name, outside any manifest.
+///
+/// Throws [TargetSelectionException] when the selectors conflict.
+@experimental
+SurfaceLifecycleIdentity explicitLifecycleIdentity({
+  required Surface type,
+  required String slug,
+  SurfaceSourceKind? sourceKind,
+  int? contractVersion,
+}) {
+  final refusal = _explicitSelectorRefusal(
+    surfaceType: type,
+    sourceKind: sourceKind,
+    contractVersion: contractVersion,
+  );
+  if (refusal != null) throw TargetSelectionException(refusal);
+  return _explicitIdentity(
+    type: type,
+    slug: slug,
+    sourceKind: sourceKind,
+    contractVersion: contractVersion,
+  );
+}
+
+SurfaceLifecycleIdentity _explicitIdentity({
+  required Surface type,
+  required String slug,
+  required SurfaceSourceKind? sourceKind,
+  required int? contractVersion,
+}) {
+  final resolvedKind =
+      sourceKind ?? (contractVersion == null ? null : SurfaceSourceKind.screen);
+  final payloadKind = switch (resolvedKind) {
     SurfaceSourceKind.screen => SurfacePayloadKind.blob,
     SurfaceSourceKind.flowGraph => SurfacePayloadKind.flow,
-    SurfaceSourceKind.paywall => null,
+    SurfaceSourceKind.paywall || null => null,
   };
   return SurfaceLifecycleIdentity(
     surface: type,
     slug: slug,
-    sourceKind: sourceKind,
+    sourceKind: resolvedKind,
     payloadKind: payloadKind,
-    contractVersion: sourceKind == SurfaceSourceKind.screen
-        ? explicitVersion
+    contractVersion: resolvedKind == SurfaceSourceKind.screen
+        ? contractVersion
         : null,
     fromManifest: false,
   );
@@ -390,7 +436,7 @@ bool _validateExplicitVersion(
   if (explicitVersion == null) return true;
   if (identity.contractVersion == null) {
     stderr.writeln(
-      'The generated ${identity.sourceKind.wireName} family for '
+      'The generated ${identity.sourceKind!.wireName} family for '
       '"${identity.slug}" is non-versioned; do not pass '
       '--contract-version.',
     );
@@ -416,57 +462,31 @@ bool _validateExplicitSourceKind(
     return true;
   }
   stderr.writeln(
-    'The generated ${identity.sourceKind.wireName} family for '
+    'The generated ${identity.sourceKind!.wireName} family for '
     '"${identity.slug}" does not match explicit --source-kind '
     '${explicitSourceKind.wireName}. The generated manifest is authoritative.',
   );
   return false;
 }
 
-bool _validateExplicitSelector({
+String? _explicitSelectorRefusal({
   required SurfaceType? surfaceType,
   required SurfaceSourceKind? sourceKind,
   required int? contractVersion,
-  required StringSink stderr,
 }) {
-  if (sourceKind == SurfaceSourceKind.screen && contractVersion == null) {
-    stderr.writeln(
-      '--source-kind screen requires --contract-version <N>; standalone '
-      'screen families are positively versioned.',
-    );
-    return false;
-  }
   if (sourceKind != null &&
       sourceKind != SurfaceSourceKind.screen &&
       contractVersion != null) {
-    stderr.writeln(
-      '--source-kind ${sourceKind.wireName} cannot be combined with '
-      '--contract-version; this source kind is non-versioned.',
-    );
-    return false;
+    return '--source-kind ${sourceKind.wireName} cannot be combined with '
+        '--contract-version; this source kind is non-versioned.';
   }
   if (sourceKind == SurfaceSourceKind.paywall &&
       surfaceType != null &&
       surfaceType != SurfaceType.paywall) {
-    stderr.writeln(
-      '--source-kind paywall requires --type paywall; a specialized paywall '
-      'cannot be categorized as another surface.',
-    );
-    return false;
+    return '--source-kind paywall requires --type paywall; a specialized '
+        'paywall cannot be categorized as another surface.';
   }
-  return true;
-}
-
-SurfaceSourceKind _fallbackSourceKind({
-  required SurfaceType surfaceType,
-  required SurfaceSourceKind? sourceKind,
-  required int? contractVersion,
-}) {
-  if (sourceKind != null) return sourceKind;
-  if (contractVersion != null) return SurfaceSourceKind.screen;
-  return surfaceType == SurfaceType.paywall
-      ? SurfaceSourceKind.paywall
-      : SurfaceSourceKind.flowGraph;
+  return null;
 }
 
 SurfaceLifecycleIdentity _identityFromPublication(

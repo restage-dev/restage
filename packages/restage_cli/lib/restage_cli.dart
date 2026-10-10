@@ -5,3 +5,5 @@
 library;
 
 export 'src/cli.dart';
+export 'src/commands/live_guard.dart' show LiveGuardedCommand;
+export 'src/io/interactive.dart' show Interactive, NonInteractive;

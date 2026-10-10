@@ -3,51 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_mcp/server.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 
 import 'auth.dart';
-
-/// Run [body] against an authenticated backend client, mapping every failure
-/// to a clean [CallToolResult] and closing any client this helper created.
-///
-/// This is the single auth/error/close seam every tool shares. It resolves the
-/// authenticated client from the shared cached credential, runs the tool body,
-/// and translates errors:
-///
-/// - a missing or unusable credential and an insecure stored endpoint surface
-///   their own user-facing messages;
-/// - a backend error is decoded to a legible, domain-specific sentence when the
-///   response carries a typed payload, else a generic "status N";
-/// - a transport failure surfaces the socket message;
-/// - anything unexpected is mapped to a fixed generic message. The original
-///   throwable and its stack trace are NEVER forwarded to the client — an
-///   unexpected throwable can embed sensitive content (a corrupt credential's
-///   decode error includes the file's bytes), so only its runtime type is
-///   written to stderr as a breadcrumb, and stderr is not the protocol channel.
-///
-/// [action] is a gerund phrase naming the operation (e.g. `listing paywalls`)
-/// used in the generic messages.
-/// [surfaceNoun] defaults to `paywall` for legacy paywall tools only;
-/// surface-typed tools must use the surface combinator or pass the wire name.
-Future<CallToolResult> withApi({
-  required FileCredentialStore store,
-  http.Client? httpClient,
-  required String action,
-  required Future<CallToolResult> Function(RestageApi api) body,
-  String surfaceNoun = 'paywall',
-}) {
-  return guardErrors(action, surfaceNoun: surfaceNoun, () async {
-    RestageApi? api;
-    try {
-      api = await resolveAuthenticatedApi(store: store, httpClient: httpClient);
-      return await body(api);
-    } finally {
-      // Only close clients we created; an injected client is the caller's.
-      if (httpClient == null) api?.close();
-    }
-  });
-}
 
 /// Replace every occurrence of each non-empty string in [secrets] with
 /// `[redacted]` across [result]'s text content and (recursively) its structured
@@ -96,26 +54,20 @@ CallToolResult scrubValues(CallToolResult result, Set<String> secrets) {
   );
 }
 
-/// Run [body] and translate every failure to a clean [CallToolResult].
-///
-/// This is the defensive error boundary shared by every tool — including the
-/// auth tools, which manage their own credential lifecycle and so cannot use
-/// [withApi]'s auth resolution. The typed `on` clauses map known failures to
-/// user-facing messages; the trailing catch maps anything unexpected to a fixed
-/// generic message and NEVER forwards the throwable or its stack trace (an
-/// unexpected throwable can embed sensitive content — a corrupt credential's
-/// decode error includes the file's bytes). Only the runtime type is written to
-/// stderr, which is not the protocol channel.
+/// Maps known failures from [body] to tool error responses.
+/// Unexpected errors return a fixed message and log only their runtime type
+/// to stderr; exception content and stack traces may contain secrets.
 Future<CallToolResult> guardErrors(
   String action,
-  Future<CallToolResult> Function() body, {
-  required String surfaceNoun,
-}) async {
+  Future<CallToolResult> Function() body,
+) async {
   try {
     try {
       return await body();
     } on NotSignedInException catch (e) {
       return mcpError(e.toString());
+    } on TargetSelectionException catch (e) {
+      return mcpError(e.message);
     } on InsecureEndpointException {
       // Never echo the endpoint. A corrupt/crafted credentials file can embed a
       // secret in the endpoint's userinfo (`<keyId>:<key>@host`), and
@@ -126,7 +78,7 @@ Future<CallToolResult> guardErrors(
         '(https or loopback http) URL. Sign in again with restage_login.',
       );
     } on RestageApiException catch (e) {
-      return mcpError(legibleApiError(e, action, surfaceNoun: surfaceNoun));
+      return mcpError(renderApiError(e, syntax: SelectorSyntax.mcp).message);
     } on SocketException catch (e) {
       // Don't forward e.message — for a DNS failure Dart embeds the host in the
       // message, and a crafted credentials file could carry secret material in
@@ -149,92 +101,6 @@ Future<CallToolResult> guardErrors(
     // CONSTRUCTION, regardless of what any inner clause body does.
     stderr.writeln('restage_mcp $action failed: ${e.runtimeType}');
     return mcpError('An unexpected error occurred while $action.');
-  }
-}
-
-/// Translate a backend [RestageApiException] to a legible, secret-free message.
-///
-/// When the response body is a typed exception payload, the decoded variant
-/// carries only domain identifiers (slugs, a resource name) — never secret
-/// material — so surfacing them is safe and far more useful to an agent than a
-/// bare status code. Falls back to the status code for anything else.
-String legibleApiError(
-  RestageApiException e,
-  String action, {
-  required String surfaceNoun,
-}) {
-  // Decode defensively. A recognized className with a wrong-typed `data` field
-  // makes a decoder's unchecked cast throw. That throw would occur inside
-  // guardErrors' `on RestageApiException` clause and ESCAPE the enclosing try —
-  // a throw in a catch clause is not caught by its siblings — reaching the
-  // framework's catch-all, which forwards the stack trace to the client. Treat
-  // any decode failure as "untyped": fall through to the status-code message.
-  //
-  // Two sealed families cover the typed backend errors: the endpoint-agnostic
-  // generic exceptions (auth / project / app) and the paywall-specific ones.
-  // Consult both decoders so every typed error maps to its legible sentence.
-  GenericTypedException? generic;
-  PaywallException? paywall;
-  try {
-    generic = decodeGenericTypedException(e.body);
-    paywall = decodeTypedException(e.body);
-  } catch (_) {
-    generic = null;
-    paywall = null;
-  }
-  switch (generic) {
-    case UnauthorizedAccess(:final resource):
-      final scope = resource.isEmpty ? '' : " for '$resource'";
-      return 'Not permitted — the signed-in account lacks the required '
-          'role$scope.';
-    case ProjectNotFound(:final projectSlug):
-      return "No project '$projectSlug' was found.";
-    case AppNotFound(:final appSlug, :final projectSlug):
-      return "No app '$appSlug' was found in project '$projectSlug'.";
-    case SurfaceSlugRejected(:final slug, :final reason):
-      return "The id '$slug' was refused. $reason";
-    case MeasurementReadRejected(:final detail):
-      return 'The read was refused. $detail';
-    case null:
-      break;
-  }
-  switch (paywall) {
-    case PaywallNotFound(:final paywallSlug):
-      return "No paywall '$paywallSlug' was found.";
-    case EnvironmentNotFound(:final environmentSlug):
-      return "No environment '$environmentSlug' was found.";
-    case PublishConflict(:final paywallSlug, :final environmentSlug):
-      return "A concurrent push conflicted for paywall '$paywallSlug' in "
-          "environment '$environmentSlug'. Please try again.";
-    case null:
-      break;
-  }
-  // Every surface family (paywalls included) pushes/lists through the
-  // generic surface endpoint, so its typed exceptions surface here. Decode
-  // them defensively (same unchecked-cast hazard as above) and phrase them
-  // with [surfaceNoun] — 'paywall' for the paywall tools, the surface type's
-  // wire name for the surface-family tools — otherwise a missing surface /
-  // push conflict would degrade to a bare status code.
-  SurfaceException? surfaceTyped;
-  try {
-    surfaceTyped = decodeSurfaceTypedException(e.body);
-  } catch (_) {
-    surfaceTyped = null;
-  }
-  switch (surfaceTyped) {
-    case SurfaceNotFound(:final surfaceSlug):
-      return "No $surfaceNoun '$surfaceSlug' was found.";
-    case SurfacePublishConflict(:final surfaceSlug, :final environmentSlug):
-      return "A concurrent push conflicted for $surfaceNoun '$surfaceSlug' "
-          "in environment '$environmentSlug'. Please try again.";
-    case SurfaceEnvironmentNotFound(:final environmentSlug):
-      return "No environment '$environmentSlug' was found.";
-    case SurfaceRollbackUnsupported(:final surfaceSlug):
-      return "Rollback isn't supported for $surfaceNoun '$surfaceSlug'.";
-    case SurfaceVersionNotFound(:final surfaceSlug, :final toVersion):
-      return "No version $toVersion was found for $surfaceNoun '$surfaceSlug'.";
-    case null:
-      return 'The Restage backend returned an error (status ${e.statusCode}).';
   }
 }
 

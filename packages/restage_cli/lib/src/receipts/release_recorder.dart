@@ -13,6 +13,18 @@ typedef ReceiptGeneratorRunner =
 /// How many uncommitted paths a refusal names before it counts the rest.
 const int _listedPathLimit = 10;
 
+/// Why a repository cannot record a receipt, with the sentence to show.
+final class ReleaseRecorderException implements Exception {
+  /// Construct with the user-facing [message].
+  const ReleaseRecorderException(this.message);
+
+  /// The user-facing sentence.
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// Writes an operation's receipts into the repository and commits them.
 final class ReleaseRecorder {
   ReleaseRecorder._({
@@ -23,11 +35,10 @@ final class ReleaseRecorder {
 
   /// Open the repository the app sits in, ready to record.
   ///
-  /// Returns null after writing to [stderr] the reason it cannot. Every check
+  /// Throws [ReleaseRecorderException] with the reason it cannot. Every check
   /// here runs before the first server call.
-  static Future<ReleaseRecorder?> open({
+  static Future<ReleaseRecorder> open({
     required Directory projectRoot,
-    required StringSink stderr,
     GitProcessRunner? processRunner,
   }) async {
     final GitRepository? repository;
@@ -37,40 +48,35 @@ final class ReleaseRecorder {
         processRunner: processRunner,
       );
     } on GitUnavailableException {
-      stderr.writeln(
+      throw const ReleaseRecorderException(
         'Git is not available, so there is no commit to record. Install it, '
         'or drop --record-git.',
       );
-      return null;
     }
     if (repository == null) {
-      stderr.writeln(
+      throw const ReleaseRecorderException(
         'This app is not in a Git repository, so there is no commit to '
         'record. Run it inside one, or drop --record-git.',
       );
-      return null;
     }
     final head = await repository.head();
     if (head == null) {
-      stderr.writeln(
+      throw const ReleaseRecorderException(
         'The repository has no commits yet. Commit the source you want '
         'recorded and retry.',
       );
-      return null;
     }
     if (head.detached) {
-      stderr.writeln(
+      throw const ReleaseRecorderException(
         'HEAD is detached, so the receipt commit would belong to no branch. '
         'Check out a branch and retry.',
       );
-      return null;
     }
     final operation = await repository.operationInProgress();
     if (operation != null) {
-      stderr.writeln(
+      throw ReleaseRecorderException(
         'There is ${operation.description} in progress. Finish it and retry.',
       );
-      return null;
     }
     return ReleaseRecorder._(
       repository: repository,

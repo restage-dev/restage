@@ -236,6 +236,7 @@ class PaywallPushCommand extends Command<int> {
         directory: directory,
         recordGit: false,
         stdout: _stdout,
+        stderr: _stderr,
       );
       if (built != 0) return built;
     }
@@ -250,7 +251,8 @@ class PaywallPushCommand extends Command<int> {
       preferredOrganizationSlug:
           (argResults?['organization'] as String?) ??
           loadedConfig?.config.organization,
-      runtimePlane: runtimePlaneFromArgs(argResults),
+      runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
+      configuredPlane: loadedConfig?.config.plane,
       assembled: assembled,
     );
   }
@@ -264,6 +266,7 @@ class PaywallPushCommand extends Command<int> {
     required String environment,
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
+    required RuntimePlane? configuredPlane,
     required List<AssembledSurfacePublication> assembled,
   }) async {
     final RestageApi api;
@@ -279,17 +282,24 @@ class PaywallPushCommand extends Command<int> {
     }
 
     try {
-      final target = await resolveEnvironmentTargetContext(
-        api: api,
-        interactive: _interactive,
-        stderr: _stderr,
-        projectSlug: project,
-        appSlug: app,
-        environmentSlug: environment,
-        preferredOrganizationSlug: preferredOrganizationSlug,
-        runtimePlane: runtimePlane,
-      );
-      if (target == null) return 1;
+      final ResolvedEnvironmentTargetContext target;
+      try {
+        target = await resolveTargetInteractively(
+          api: api,
+          interactive: _interactive,
+          projectSlug: project,
+          appSlug: app,
+          environmentSlug: environment,
+          organizationSlug: preferredOrganizationSlug,
+          runtimePlane: runtimePlane,
+          configuredPlane: configuredPlane,
+        );
+      } on RestageApiException catch (error) {
+        return _handleApiException(error);
+      } on SocketException catch (error) {
+        _stderr.writeln('Could not contact the backend: $error');
+        return 2;
+      }
 
       final pushCode = await runPush(
         api: api,
@@ -309,13 +319,11 @@ class PaywallPushCommand extends Command<int> {
       if (pushCode == 0) {
         await reportRenderBundleCoverage(
           api: api,
-          apiEndpoint: apiEndpoint,
-          credential: credential,
           assembled: assembled,
           project: project,
           app: app,
           environment: environment,
-          organizationId: target.organizationId,
+          target: target,
           stdout: _stdout,
           stderr: _stderr,
         );
@@ -327,13 +335,9 @@ class PaywallPushCommand extends Command<int> {
   }
 
   int _handleApiException(RestageApiException error) {
-    final outcome = renderGenericTypedError(error);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln('Could not push the generated paywall.');
-    return 1;
+    final outcome = renderApiError(error);
+    _stderr.writeln(outcome.message);
+    return outcome.exitCode;
   }
 
   Future<String?> _resolveEnvironment(

@@ -1,40 +1,12 @@
 import 'package:dart_mcp/server.dart';
-import 'package:http/http.dart' as http;
 import 'package:restage_cli/api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     as measurement;
 
 import 'api_runner.dart';
-import 'exact_target.dart';
+import 'tool_support.dart';
 
-const _targetError =
-    'The declared target does not resolve to one exact authorized target.';
 const _resultError = 'The service returned an invalid semantic result.';
-
-const _runtimePlanes = ['sandbox', 'live'];
-
-final _targetProperties = <String, Schema>{
-  'organizationId': Schema.int(description: 'The organization id.'),
-  'projectSlug': Schema.string(description: 'The project slug.'),
-  'appSlug': Schema.string(description: 'The app slug.'),
-  'environmentSlug': Schema.string(description: 'The environment slug.'),
-  'environmentTargetId': Schema.int(
-    description: 'The exact environment target id.',
-  ),
-  'runtimePlane': UntitledSingleSelectEnumSchema(
-    description: 'The target runtime plane: sandbox or live.',
-    values: _runtimePlanes,
-  ),
-};
-
-const _targetRequired = [
-  'organizationId',
-  'projectSlug',
-  'appSlug',
-  'environmentSlug',
-  'environmentTargetId',
-  'runtimePlane',
-];
 
 /// Reads one experiment's results at an exact target.
 final readExperimentResultsTool = Tool(
@@ -46,7 +18,7 @@ final readExperimentResultsTool = Tool(
       'returned unchanged.',
   inputSchema: Schema.object(
     properties: {
-      ..._targetProperties,
+      ...exactTargetProperties(),
       'experimentId': Schema.string(description: 'The experiment identity.'),
       'activationOrdinal': Schema.int(
         description: 'The activation ordinal the results belong to.',
@@ -56,7 +28,7 @@ final readExperimentResultsTool = Tool(
       ),
     },
     required: [
-      ..._targetRequired,
+      ...exactTargetRequired,
       'experimentId',
       'activationOrdinal',
       'resultDigest',
@@ -77,27 +49,25 @@ final readExperimentRosterTool = Tool(
       'are the service\'s own and are returned unchanged.',
   inputSchema: Schema.object(
     properties: {
-      ..._targetProperties,
+      ...exactTargetProperties(),
       'pageSize': Schema.int(
         description: 'Entries to read per page, 1..100. Defaults to 100.',
         minimum: 1,
         maximum: 100,
       ),
     },
-    required: _targetRequired,
+    required: exactTargetRequired,
     additionalProperties: false,
   ),
 );
 
 /// Reads one experiment's results through the shared read path.
-Future<CallToolResult> handleReadExperimentResults({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) => _withTarget(
-  request: request,
-  store: store,
-  httpClient: httpClient,
+Future<CallToolResult> handleReadExperimentResults(
+  ToolContext ctx,
+  CallToolRequest request,
+) => _withTarget(
+  ctx,
+  request,
   action: 'reading the experiment results',
   build: () => experimentResultsRequest(
     correlationId: newExperimentIdentity('correlation'),
@@ -120,16 +90,14 @@ Future<CallToolResult> handleReadExperimentResults({
 );
 
 /// Reads the roster and each entry's results through the shared read path.
-Future<CallToolResult> handleReadExperimentRoster({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  http.Client? httpClient,
-}) {
+Future<CallToolResult> handleReadExperimentRoster(
+  ToolContext ctx,
+  CallToolRequest request,
+) {
   final pageSize = request.optInt('pageSize') ?? 100;
   return _withTarget(
-    request: request,
-    store: store,
-    httpClient: httpClient,
+    ctx,
+    request,
     action: 'reading the experiment roster',
     build: () => experimentRosterPageRequest(
       correlationId: newExperimentIdentity('correlation'),
@@ -169,10 +137,9 @@ Map<String, Object?> _rosterRow(ExperimentRosterEntry entry) => {
 /// A value the caller supplied that the schema refuses is reported with the
 /// schema's own message, before the read opens, so a caller's own mistake is
 /// never reported as a service fault.
-Future<CallToolResult> _withTarget({
-  required CallToolRequest request,
-  required FileCredentialStore store,
-  required http.Client? httpClient,
+Future<CallToolResult> _withTarget(
+  ToolContext ctx,
+  CallToolRequest request, {
   required String action,
   required measurement.ExperimentAuthoringRequestV1 Function() build,
   required Future<CallToolResult> Function(
@@ -182,9 +149,8 @@ Future<CallToolResult> _withTarget({
   )
   body,
 }) {
-  final RuntimePlane runtimePlane;
   try {
-    runtimePlane = RuntimePlane.fromWireName(request.str('runtimePlane'));
+    RuntimePlane.fromWireName(request.str('runtimePlane'));
   } on FormatException {
     return Future.value(mcpError('The declared runtime plane is invalid.'));
   }
@@ -196,37 +162,17 @@ Future<CallToolResult> _withTarget({
     return Future.value(mcpError(error.message));
   }
 
-  final organizationId = request.reqInt('organizationId');
-  final projectSlug = request.str('projectSlug');
-  final appSlug = request.str('appSlug');
-  final environmentSlug = request.str('environmentSlug');
-  final environmentTargetId = request.reqInt('environmentTargetId');
-
-  return withApi(
-    store: store,
-    httpClient: httpClient,
-    action: action,
-    surfaceNoun: 'surface',
-    body: (api) async {
-      final target = await resolveExactTarget(
-        api: api,
-        organizationId: organizationId,
-        projectSlug: projectSlug,
-        appSlug: appSlug,
-        environmentSlug: environmentSlug,
-        environmentTargetId: environmentTargetId,
-        runtimePlane: runtimePlane,
-      );
-      if (target == null) return mcpError(_targetError);
-      try {
-        return await body(api, target, first);
-      } on ExperimentResponseMismatchException {
-        return mcpError(_resultError);
-      } on ExperimentPageCursorRepeatedException {
-        return mcpError(_resultError);
-      } on measurement.CanonicalFormatException {
-        return mcpError(_resultError);
-      }
-    },
-  );
+  return ctx.authed(action, (api) async {
+    final target = await exactTargetCoordinate(api, request);
+    if (target == null) return mcpError(exactTargetError);
+    try {
+      return await body(api, target, first);
+    } on ExperimentResponseMismatchException {
+      return mcpError(_resultError);
+    } on ExperimentPageCursorRepeatedException {
+      return mcpError(_resultError);
+    } on measurement.CanonicalFormatException {
+      return mcpError(_resultError);
+    }
+  });
 }

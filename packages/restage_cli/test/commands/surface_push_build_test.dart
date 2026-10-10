@@ -20,17 +20,25 @@ void main() {
   late StringBuffer out;
   late StringBuffer err;
 
-  /// A backend that accepts the push and lists [heads] for the app.
-  http.Client backend({required List<Object?> heads, List<String>? methods}) =>
+  /// A backend that accepts the push and answers coverage against a build
+  /// registering [registered], or no build when it is null.
+  http.Client backend({Map<String, int>? registered, List<String>? methods}) =>
       mockHttpClient((request) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         methods?.add(body['method'] as String);
-        if (body['method'] == 'listHeads') {
+        if (body['method'] == 'coverage') {
+          expect(body['surfaceSlug'], 'pro_upgrade');
+          expect(body['environmentSlug'], 'staging');
           return http.Response(
             jsonEncode(<String, Object?>{
-              'appId': 5,
-              'environmentHeads': heads,
-              'personalHeads': <Object?>[],
+              'requiredLibraries': [
+                {'namespace': 'acme.widgets', 'minVersion': 2},
+              ],
+              'headVersion': registered == null ? null : 4,
+              'registeredLibraries': [
+                for (final entry in (registered ?? const {}).entries)
+                  {'namespace': entry.key, 'capabilityVersion': entry.value},
+              ],
             }),
             200,
           );
@@ -41,33 +49,6 @@ void main() {
           activeRevision: 3,
         );
       });
-
-  Map<String, Object?> stagingHead(
-    Map<String, int> libraries,
-  ) => <String, Object?>{
-    'head': 'staging',
-    'updatedAt': DateTime.utc(2030).toIso8601String(),
-    'version': <String, Object?>{
-      'renderBundleId': 44,
-      'appId': 5,
-      'version': 4,
-      'contentHash': 'sha256:${'0' * 64}',
-      'engineSetId': '1' * 64,
-      'capabilityManifestJson': jsonEncode(<String, Object?>{
-        'formatVersion': 1,
-        'catalog': <String, Object?>{
-          'libraries': <String, Object?>{
-            for (final entry in libraries.entries)
-              entry.key: <String, Object?>{'capabilityVersion': entry.value},
-          },
-          'widgets': <Object?>[],
-        },
-      }),
-      'byteLength': 1024,
-      'sourceDirty': false,
-      'uploadedAt': DateTime.utc(2030).toIso8601String(),
-    },
-  };
 
   Future<int?> push(
     List<String> args, {
@@ -112,7 +93,7 @@ void main() {
   });
 
   test('a push says when the dashboard has no build for its widgets', () async {
-    final code = await push(['pro_upgrade'], client: backend(heads: const []));
+    final code = await push(['pro_upgrade'], client: backend());
 
     expect(code, 0, reason: err.toString());
     expect(
@@ -125,14 +106,9 @@ void main() {
   });
 
   test('a push whose widgets the build covers says nothing', () async {
-    final code = await push(
-      ['pro_upgrade'],
-      client: backend(
-        heads: [
-          stagingHead(const {'acme.widgets': 2}),
-        ],
-      ),
-    );
+    final code = await push([
+      'pro_upgrade',
+    ], client: backend(registered: const {'acme.widgets': 2}));
 
     expect(code, 0, reason: err.toString());
     expect(out.toString(), isNot(contains('widgets from your app')));
@@ -141,12 +117,10 @@ void main() {
   test('a surface built from the catalog alone never asks', () async {
     await seedGeneratedPaywall(app, slug: 'pro_upgrade');
     final methods = <String>[];
-    final code = await push([
-      'pro_upgrade',
-    ], client: backend(heads: const [], methods: methods));
+    final code = await push(['pro_upgrade'], client: backend(methods: methods));
 
     expect(code, 0, reason: err.toString());
-    expect(methods, isNot(contains('listHeads')));
+    expect(methods, isNot(contains('coverage')));
     expect(out.toString(), isNot(contains('widgets from your app')));
   });
 
@@ -154,11 +128,7 @@ void main() {
     final seen = <List<String>>[];
     final code = await push(
       ['pro_upgrade', '--build'],
-      client: backend(
-        heads: [
-          stagingHead(const {'acme.widgets': 2}),
-        ],
-      ),
+      client: backend(registered: const {'acme.widgets': 2}),
       buildCommand: () => _FakeBuildCommand(seen, exitCode: 0),
     );
 
@@ -174,12 +144,16 @@ void main() {
     final methods = <String>[];
     final code = await push(
       ['pro_upgrade', '--build'],
-      client: backend(heads: const [], methods: methods),
+      client: backend(methods: methods),
       buildCommand: () => _FakeBuildCommand(<List<String>>[], exitCode: 1),
     );
 
     expect(code, 1);
     expect(methods, isNot(contains('publishPublication')));
+    expect(
+      err.toString(),
+      contains('The build push failed, so nothing else was pushed.'),
+    );
   });
 }
 

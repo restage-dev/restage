@@ -8,6 +8,7 @@ import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/render_bundle_coverage.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/publish_selection.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
@@ -92,6 +93,7 @@ class SurfacePushCommand extends Command<int> {
       );
     addPushAllOption(argParser, noun: 'surface');
     addRuntimePlaneOption(argParser);
+    addOrganizationIdOption(argParser);
   }
 
   final StringSink _stdout;
@@ -162,12 +164,15 @@ class SurfacePushCommand extends Command<int> {
     final ReleaseRecorder? recorder;
     final ReceiptSource? recordedSource;
     if (_recordGit(loadedConfig?.config)) {
-      recorder = await ReleaseRecorder.open(
-        projectRoot: projectRoot,
-        stderr: _stderr,
-        processRunner: _processRunner,
-      );
-      if (recorder == null) return 1;
+      try {
+        recorder = await ReleaseRecorder.open(
+          projectRoot: projectRoot,
+          processRunner: _processRunner,
+        );
+      } on ReleaseRecorderException catch (error) {
+        _stderr.writeln(error.message);
+        return 1;
+      }
       recordedSource = await recorder.buildFromCommittedSource(
         stdout: _stdout,
         stderr: _stderr,
@@ -272,6 +277,7 @@ class SurfacePushCommand extends Command<int> {
         directory: directory,
         recordGit: _recordGit(loadedConfig?.config),
         stdout: _stdout,
+        stderr: _stderr,
       );
       if (built != 0) return built;
     }
@@ -286,7 +292,8 @@ class SurfacePushCommand extends Command<int> {
       preferredOrganizationSlug:
           (argResults?['organization'] as String?) ??
           loadedConfig?.config.organization,
-      runtimePlane: runtimePlaneFromArgs(argResults),
+      runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
+      configuredPlane: loadedConfig?.config.plane,
       assembled: assembled,
       recorder: recorder,
       recordedSource: recordedSource,
@@ -324,6 +331,7 @@ class SurfacePushCommand extends Command<int> {
     required String environment,
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
+    required RuntimePlane? configuredPlane,
     required List<AssembledSurfacePublication> assembled,
     required ReleaseRecorder? recorder,
     required ReceiptSource? recordedSource,
@@ -342,17 +350,25 @@ class SurfacePushCommand extends Command<int> {
     }
 
     try {
-      final target = await resolveEnvironmentTargetContext(
-        api: api,
-        interactive: _interactive,
-        stderr: _stderr,
-        projectSlug: project,
-        appSlug: app,
-        environmentSlug: environment,
-        preferredOrganizationSlug: preferredOrganizationSlug,
-        runtimePlane: runtimePlane,
-      );
-      if (target == null) return 1;
+      final ResolvedEnvironmentTargetContext target;
+      try {
+        target = await resolveTargetInteractively(
+          api: api,
+          interactive: _interactive,
+          projectSlug: project,
+          appSlug: app,
+          environmentSlug: environment,
+          organizationSlug: preferredOrganizationSlug,
+          organizationId: organizationIdOption(argResults),
+          runtimePlane: runtimePlane,
+          configuredPlane: configuredPlane,
+        );
+      } on RestageApiException catch (error) {
+        return _handleApiException(error);
+      } on SocketException catch (error) {
+        _stderr.writeln('Could not contact the backend: $error');
+        return 2;
+      }
 
       var recordFailed = false;
       final recordedPushes = <String>[];
@@ -407,13 +423,11 @@ class SurfacePushCommand extends Command<int> {
       if (pushCode == 0) {
         await reportRenderBundleCoverage(
           api: api,
-          apiEndpoint: apiEndpoint,
-          credential: credential,
           assembled: assembled,
           project: project,
           app: app,
           environment: environment,
-          organizationId: target.organizationId,
+          target: target,
           stdout: _stdout,
           stderr: _stderr,
         );
@@ -486,13 +500,9 @@ class SurfacePushCommand extends Command<int> {
   }
 
   int _handleApiException(RestageApiException error) {
-    final outcome = renderGenericTypedError(error);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln('Could not push the generated surface.');
-    return 1;
+    final outcome = renderApiError(error);
+    _stderr.writeln(outcome.message);
+    return outcome.exitCode;
   }
 
   Future<String?> _resolveEnvironment(

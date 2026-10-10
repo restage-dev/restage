@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:args/args.dart';
 import 'package:restage_cli/src/cli.dart';
+import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:test/test.dart';
+
+import '_helpers/test_fixtures.dart';
 
 void main() {
   group('RestageCli.run', () {
@@ -268,6 +273,42 @@ void main() {
       expect(exitCode, 1);
       expect(launched, isFalse);
       expect(stderr.toString(), contains('not-a-command'));
+    });
+  });
+
+  group('-C before the command', () {
+    test('reaches a command that reads restage_config.yaml', () async {
+      final directory = await Directory.systemTemp.createTemp('cli_dir_');
+      addTearDown(() => directory.delete(recursive: true));
+      final home = await Directory.systemTemp.createTemp('cli_home_');
+      addTearDown(() => home.delete(recursive: true));
+      final store = FileCredentialStore('${home.path}/credentials');
+      await seedCredential(store);
+      File('${directory.path}/restage_config.yaml').writeAsStringSync(
+        'project: demo\napp: mobile\nendpoint: https://elsewhere.test/\n',
+      );
+      final stderr = StringBuffer();
+
+      final code = await RestageCli(
+        stderr: stderr,
+        credentialStore: store,
+      ).run(['-C', directory.path, 'projects']);
+
+      // The config names another endpoint than the credential, so reading it
+      // proves the directory reached the command.
+      expect(code, 1);
+      expect(stderr.toString(), contains('elsewhere.test'));
+    });
+
+    test('is dropped for a command that reads no config', () async {
+      final stderr = StringBuffer();
+
+      final code = await RestageCli(
+        stderr: stderr,
+        hasTerminal: () => false,
+      ).run(['-C', '/nonexistent', 'preview', '--help']);
+
+      expect(code, 0, reason: stderr.toString());
     });
   });
 }

@@ -122,6 +122,19 @@ void main() {
     ]);
   }
 
+  late TestGitTemplate repository;
+  setUpAll(() async {
+    repository = await TestGitTemplate.create((template) async {
+      _write(template, 'app/lib/screen.dart', 'const screen = 1;\n');
+      _write(
+        template,
+        'app/restage_config.yaml',
+        'project: demo\napp: mobile\ndefaultEnvironment: staging\n',
+      );
+    }, message: 'source');
+  });
+  tearDownAll(() => repository.delete());
+
   setUp(() async {
     root = await Directory.systemTemp.createTemp('recorded_publish_');
     home = await Directory.systemTemp.createTemp('recorded_publish_home_');
@@ -131,23 +144,8 @@ void main() {
     out = StringBuffer();
     err = StringBuffer();
 
-    await _git(root, ['init', '-b', 'main', '.']);
-    await _git(root, ['config', 'user.name', 'Receipt Test']);
-    await _git(root, ['config', 'user.email', 'receipts@example.test']);
-    await _git(root, ['config', 'commit.gpgsign', 'false']);
-    await _git(root, ['config', 'core.hooksPath', '.git/hooks']);
-    // Background maintenance after a commit can race teardown.
-    await _git(root, ['config', 'gc.auto', '0']);
-    await _git(root, ['config', 'maintenance.auto', 'false']);
-    _write(root, 'app/lib/screen.dart', 'const screen = 1;\n');
-    _write(
-      root,
-      'app/restage_config.yaml',
-      'project: demo\napp: mobile\ndefaultEnvironment: staging\n',
-    );
-    await _git(root, ['add', '-A']);
-    await _git(root, ['commit', '-m', 'source']);
-    sourceCommit = _out(await _git(root, ['rev-parse', 'HEAD']));
+    await repository.copyTo(root);
+    sourceCommit = repository.commit;
   });
 
   tearDown(() {

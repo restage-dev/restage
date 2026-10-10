@@ -196,6 +196,28 @@ void main() {
     );
   });
 
+  test('allowUnpinned keeps the packages inside the repository', () async {
+    final elsewhere = await Directory.systemTemp.createTemp('receipts_other_');
+    addTearDown(() => elsewhere.deleteSync(recursive: true));
+    _writePackageConfig(root, {
+      'demo_app': '../apps/app',
+      'sibling': elsewhere.uri.toString(),
+    });
+    _writeGraph(root, {
+      'demo_app': (['sibling'], []),
+      'sibling': ([], []),
+    });
+    _writeLock(root, {'sibling': 'path'});
+
+    final repository = await _repository(root);
+    final boundary = await resolveSourceBoundary(
+      projectRoot: app,
+      repository: repository,
+      allowUnpinned: true,
+    );
+    expect(boundary.packages, <String>['apps/app']);
+  });
+
   test('refuses when the resolved package graph is not on disk', () async {
     _writePackageConfig(root, {
       'demo_app': '../apps/app',

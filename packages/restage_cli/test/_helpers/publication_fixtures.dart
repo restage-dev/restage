@@ -183,10 +183,6 @@ final class MeasurementPublicationFixture {
 }
 
 /// Write a generated paywall with an admitted or zero-route Measurement draft.
-///
-/// Pass [paddingNodes] to grow the draft past a byte limit: each padded node
-/// hangs off the root node, so the draft stays structurally closed while its
-/// canonical bytes grow.
 Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   Directory projectRoot, {
   String slug = 'measured_upgrade',
@@ -196,7 +192,6 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
   bool omitPhysicalCarrier = false,
   bool routeOnSidecar = false,
   String? screenDraftHashOverride,
-  int paddingNodes = 0,
   GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
 }) async {
   final placeholderPayload = BlobSurfacePayload(
@@ -263,25 +258,12 @@ Future<MeasurementPublicationFixture> seedMeasurementPaywall(
         codeIdentityId: CodeIdentityId('code.measured-button'),
         canonicalNodeTokenId: NodeTokenId('node.measured-button'),
       ),
-      for (var index = 0; index < paddingNodes; index++)
-        CodeIdentityBindingV1(
-          codeIdentityId: CodeIdentityId(_paddingIdentity('code.pad', index)),
-          canonicalNodeTokenId: NodeTokenId(
-            _paddingIdentity('node.pad', index),
-          ),
-        ),
     ],
     nodes: [
       MeasurementPublicationDraftNodeV1(
         codeIdentityId: CodeIdentityId('code.measured-button'),
         artifactOccurrenceEdgeToken: routeOnSidecar ? sidecarEdge : screenEdge,
       ),
-      for (var index = 0; index < paddingNodes; index++)
-        MeasurementPublicationDraftNodeV1(
-          codeIdentityId: CodeIdentityId(_paddingIdentity('code.pad', index)),
-          artifactOccurrenceEdgeToken: screenEdge,
-          parentCodeIdentityId: CodeIdentityId('code.measured-button'),
-        ),
     ],
     events: admittedRoute
         ? [
@@ -477,11 +459,6 @@ Future<void> writeMeasurementPublicationIndexEntries(
       'schemaVersion': 1,
     }),
   );
-}
-
-String _paddingIdentity(String prefix, int index) {
-  final value = '$prefix.$index.${'p' * 128}';
-  return value.substring(0, 128);
 }
 
 /// The extract of the example app's generated Measurement publication index

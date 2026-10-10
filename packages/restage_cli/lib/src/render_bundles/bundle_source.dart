@@ -35,14 +35,17 @@ final class BundleSource {
 }
 
 /// Reads the source a bundle is built from.
-typedef BundleSourceReader = Future<BundleSource> Function(Directory);
+typedef BundleSourceReader =
+    Future<BundleSource> Function(Directory projectRoot, {bool recordGit});
 
 /// Reads the commit and the dirty state of the repository [projectRoot] is in.
 ///
 /// A project outside a repository, one before its first commit, and one whose
-/// status cannot be read all answer with no commit.
+/// status cannot be read all answer with no commit. Only [recordGit] refuses
+/// dependencies whose state cannot be recorded.
 Future<BundleSource> readBundleSource(
   Directory projectRoot, {
+  bool recordGit = false,
   GitProcessRunner? processRunner,
 }) async {
   final GitRepository? repository;
@@ -62,8 +65,15 @@ Future<BundleSource> readBundleSource(
     return const BundleSource(inRepository: true);
   }
   if (head == null) return const BundleSource(inRepository: true);
-  // A SourceBoundaryException reaches the caller: it names what to fix.
-  final paths = await _sourcePaths(projectRoot, repository);
+  // Under recordGit a SourceBoundaryException reaches the caller: it names
+  // what to fix. Otherwise the app package alone decides the dirty state.
+  List<String> paths;
+  try {
+    paths = await _sourcePaths(projectRoot, repository, recordGit: recordGit);
+  } on SourceBoundaryException {
+    if (recordGit) rethrow;
+    paths = <String>[projectRoot.path];
+  }
   try {
     final changed = await repository.uncommitted(paths: paths);
     return BundleSource(
@@ -82,11 +92,13 @@ Future<BundleSource> readBundleSource(
 /// that answer, so a boundary that will not resolve is the caller's to refuse.
 Future<List<String>> _sourcePaths(
   Directory projectRoot,
-  GitRepository repository,
-) async {
+  GitRepository repository, {
+  required bool recordGit,
+}) async {
   final boundary = await resolveSourceBoundary(
     projectRoot: projectRoot,
     repository: repository,
+    allowUnpinned: !recordGit,
   );
   return boundary.packages.isEmpty
       ? <String>[projectRoot.path]

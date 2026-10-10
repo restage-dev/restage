@@ -10,27 +10,15 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_routing_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
-/// Shared construction arguments for every routing subcommand.
-class _RoutingContext {
-  const _RoutingContext({
-    required this.stdout,
-    required this.stderr,
-    required this.interactive,
-    this.credentialStore,
-    this.httpClient,
-  });
-
-  final StringSink stdout;
-  final StringSink stderr;
-  final Interactive interactive;
-  final FileCredentialStore? credentialStore;
-  final http.Client? httpClient;
-}
+typedef _RoutingContext = CommandIo;
 
 /// Parent of the `surface routing` subcommands.
 ///
@@ -83,12 +71,7 @@ class SurfaceRoutingCommand extends Command<int> {
 
 /// Shared plumbing for one routing operation.
 abstract class _RoutingSubcommand extends Command<int> {
-  _RoutingSubcommand(_RoutingContext context)
-    : _stdout = context.stdout,
-      _stderr = context.stderr,
-      _interactive = context.interactive,
-      _credentialStore = context.credentialStore,
-      _httpClient = context.httpClient {
+  _RoutingSubcommand(this._io) {
     addLifecycleOptions(
       argParser,
       withType: needsSurface,
@@ -125,11 +108,11 @@ abstract class _RoutingSubcommand extends Command<int> {
     addOptions(argParser);
   }
 
-  final StringSink _stdout;
-  final StringSink _stderr;
-  final Interactive _interactive;
-  final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
+  final CommandIo _io;
+
+  StringSink get _stdout => _io.stdout;
+
+  StringSink get _stderr => _io.stderr;
 
   /// Whether this operation addresses one surface.
   bool get needsSurface => true;
@@ -153,82 +136,77 @@ abstract class _RoutingSubcommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final context = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
-    );
-    if (context == null) return 1;
+    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
+      final context = ctx.target!;
+      String? surfaceType;
+      String? surfaceSlug;
+      if (needsSurface) {
+        final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
+        if (slug == null) return 1;
+        final type = resolveSurfaceTypeArg(
+          argResults: argResults,
+          fixedType: null,
+          stderr: _stderr,
+        );
+        if (type == null) return 1;
+        surfaceSlug = slug;
+        surfaceType = type.wireName;
+      }
 
-    String? surfaceType;
-    String? surfaceSlug;
-    if (needsSurface) {
-      final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
-      if (slug == null) return 1;
-      final type = resolveSurfaceTypeArg(
-        argResults: argResults,
-        fixedType: null,
-        stderr: _stderr,
+      final int? contractVersion;
+      if (needsSurface && argResults?['contract-version'] != null) {
+        contractVersion = requirePositiveInt('contract-version');
+        if (contractVersion == null) return 1;
+      } else {
+        contractVersion = null;
+      }
+
+      // The environment target id is the routing endpoint's environment: it
+      // addresses one concrete target, not the named environment above it.
+      final target = _RoutingTarget(
+        projectSlug: context.project,
+        appSlug: context.app,
+        organizationId: context.organizationId,
+        environmentId: context.environmentTargetId,
+        surfaceType: surfaceType,
+        surfaceSlug: surfaceSlug,
+        contractVersion: contractVersion,
       );
-      if (type == null) return 1;
-      surfaceSlug = slug;
-      surfaceType = type.wireName;
-    }
 
-    final int? contractVersion;
-    if (needsSurface && argResults?['contract-version'] != null) {
-      contractVersion = requirePositiveInt('contract-version');
-      if (contractVersion == null) return 1;
-    } else {
-      contractVersion = null;
-    }
+      if (this is LiveGuardedCommand &&
+          !await confirmLiveChange(
+            command: this,
+            interactive: _io.interactive,
+            stdout: _stdout,
+            stderr: _stderr,
+            runtimePlane: context.runtimePlane,
+            impactLine:
+                'Routing $name for ${surfaceType ?? 'the app'} '
+                '"${surfaceSlug ?? context.app}" in ${context.environment} '
+                '(live).',
+          )) {
+        return 1;
+      }
 
-    final RestageApi transport;
-    try {
-      transport = RestageApi(
-        endpoint: context.apiEndpoint,
-        httpClient: _httpClient,
-        credential: context.credential,
-      );
-    } on InsecureEndpointException catch (error) {
-      _stderr.writeln(error);
-      return 1;
-    }
-
-    // The environment target id is the routing endpoint's environment: it
-    // addresses one concrete target, not the named environment above it.
-    final target = _RoutingTarget(
-      projectSlug: context.project,
-      appSlug: context.app,
-      organizationId: context.organizationId,
-      environmentId: context.environmentTargetId,
-      surfaceType: surfaceType,
-      surfaceSlug: surfaceSlug,
-      contractVersion: contractVersion,
-    );
-
-    try {
-      return await invoke(SurfaceRoutingApi(transport), target);
-    } on RoutingDocumentBytesException catch (error) {
-      _stderr.writeln(error);
-      return 1;
-    } on RestageApiException catch (error) {
-      return _reportApiFailure(error);
-    } on CanonicalFormatException catch (error) {
-      _stderr.writeln(
-        'The service returned an invalid result: ${error.message}',
-      );
-      return 2;
-    } on FormatException catch (error) {
-      _stderr.writeln(
-        'The service returned an invalid result: ${error.message}',
-      );
-      return 2;
-    } finally {
-      if (_httpClient == null) transport.close();
-    }
+      try {
+        return await invoke(SurfaceRoutingApi(ctx.api), target);
+      } on RoutingDocumentBytesException catch (error) {
+        _stderr.writeln(error);
+        return 1;
+      } on RestageApiException catch (error) {
+        return _reportApiFailure(error);
+      } on CanonicalFormatException catch (error) {
+        _stderr.writeln(
+          'The service returned an invalid result: ${error.message}',
+        );
+        return 2;
+      } on FormatException catch (error) {
+        _stderr.writeln(
+          'The service returned an invalid result: ${error.message}',
+        );
+        return 2;
+      }
+    });
   }
 
   /// Reports a failed call. Routing's own typed refusals are surfaced in the
@@ -250,8 +228,7 @@ abstract class _RoutingSubcommand extends Command<int> {
         _stderr.writeln('The routing service refused the request: $reason.');
         return 1;
       case null:
-        final outcome = renderGenericTypedError(error);
-        if (outcome == null) return 2;
+        final outcome = renderApiError(error);
         _stderr.writeln(outcome.message);
         return outcome.exitCode;
     }
@@ -847,7 +824,7 @@ class _PreviewCommand extends _RoutingSubcommand {
   }
 }
 
-class _PublishCommand extends _RoutingSubcommand {
+class _PublishCommand extends _RoutingSubcommand implements LiveGuardedCommand {
   _PublishCommand(super.context);
 
   @override
@@ -926,7 +903,8 @@ class _PublishCommand extends _RoutingSubcommand {
   }
 }
 
-class _RollbackCommand extends _RoutingSubcommand {
+class _RollbackCommand extends _RoutingSubcommand
+    implements LiveGuardedCommand {
   _RollbackCommand(super.context);
 
   @override

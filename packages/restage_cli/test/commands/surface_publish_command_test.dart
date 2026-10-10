@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/commands/surface_publish_command.dart';
+import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -24,31 +26,6 @@ String _activationResponse({required int revision}) => jsonEncode({
   'publishedRevision': revision,
   'activePublishedRevisionAfter': revision,
   'identityFrozenAfter': false,
-});
-
-/// A family history carrying [revisions], newest last so the command cannot
-/// pass by taking the first entry.
-String _historyResponse(List<int> revisions) => jsonEncode({
-  '__className__': 'SurfaceContractFamilyView',
-  'family': {
-    '__className__': 'SurfaceContractFamilyReference',
-    'surfaceType': 'paywall',
-    'surfaceSlug': 'pro',
-    'sourceKind': 'paywall',
-  },
-  'payloadKind': 'blob',
-  'revisions': [
-    for (final revision in revisions)
-      {
-        '__className__': 'SurfaceContractPublishedRevisionView',
-        'publishedRevision': revision,
-        'publishedAt': '2026-06-29T18:17:51.000Z',
-        'contentHash': 'sha-$revision',
-        'minClient': 1,
-        'payloadKind': 'blob',
-        'isActive': false,
-      },
-  ],
 });
 
 void main() {
@@ -92,7 +69,8 @@ void main() {
             'staging',
           ]);
 
-  /// Run `publish` against a client that answers by wire method.
+  /// Run `publish` against a client whose `activateSurface` stands in for
+  /// the server: a null revision activates the newest of [history].
   Future<int?> runPublish(
     List<String> args, {
     required List<int> history,
@@ -100,21 +78,83 @@ void main() {
   }) {
     final client = mockHttpClient((request) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      switch (body['method']) {
-        case 'surfaceContractHistory':
-          return http.Response(_historyResponse(history), 200);
-        case 'activateSurface':
-          onActivate?.call(body);
-          return http.Response(
-            _activationResponse(revision: body['publishedRevision'] as int),
-            200,
-          );
-        default:
-          fail('Unexpected wire method ${body['method']}.');
+      expect(body['method'], 'activateSurface');
+      onActivate?.call(body);
+      final revision =
+          body['publishedRevision'] as int? ??
+          (history.isEmpty ? null : history.reduce(max));
+      if (revision == null) {
+        return typedErrorResponse('SurfaceContractFamilyViolation', {
+          'code': 'familyNotFound',
+          'message': 'The surface has no pushed revision here.',
+        });
       }
+      return http.Response(_activationResponse(revision: revision), 200);
     });
     return runWith(client, args);
   }
+
+  group('on the live plane', () {
+    Future<int?> runLive(
+      List<String> global, {
+      required void Function() onActivate,
+    }) =>
+        (CommandRunner<int>('restage', '')
+              ..argParser.addFlag('yes', negatable: false)
+              ..addCommand(
+                SurfacePublishCommand(
+                  stdout: out,
+                  stderr: err,
+                  interactive: const NonInteractive(),
+                  fixedSurfaceType: Surface.paywall,
+                  credentialStore: store,
+                  httpClient: mockHttpClient((request) {
+                    onActivate();
+                    return http.Response(_activationResponse(revision: 3), 200);
+                  }),
+                ),
+              ))
+            .run([
+              ...global,
+              'publish',
+              'pro',
+              '--revision',
+              '3',
+              '--project',
+              'demo',
+              '--app',
+              'mobile',
+              '--env',
+              'production',
+              '--plane',
+              'live',
+            ]);
+
+    test('a non-interactive publish without --yes is refused', () async {
+      var activated = false;
+      final code = await runLive(const [], onActivate: () => activated = true);
+
+      expect(code, 1);
+      expect(activated, isFalse);
+      expect(
+        err.toString(),
+        contains(
+          'This changes what the live plane serves. Run interactively, or '
+          'pass --yes.',
+        ),
+      );
+    });
+
+    test('--yes is consent', () async {
+      var activated = false;
+      final code = await runLive(const [
+        '--yes',
+      ], onActivate: () => activated = true);
+
+      expect(code, 0, reason: err.toString());
+      expect(activated, isTrue);
+    });
+  });
 
   test('publishes one exact non-versioned family revision', () async {
     Map<String, dynamic>? publishBody;
@@ -128,13 +168,13 @@ void main() {
     expect(publishBody, isNotNull);
     expect(publishBody!['method'], 'activateSurface');
     expect(publishBody!['publishedRevision'], 3);
-    expect(publishBody!['contractVersion'], isNull);
+    expect(publishBody!.containsKey('contractVersion'), isFalse);
     expect(publishBody!['reason'], 'restore known good revision');
     expect(out.toString(), contains('Published "pro" at r3'));
     expect(err.toString(), isEmpty);
   });
 
-  test('without --revision it publishes the latest pushed revision', () async {
+  test('without --revision the server publishes the newest revision', () async {
     Map<String, dynamic>? publishBody;
     final code = await runPublish(
       ['pro'],
@@ -143,7 +183,7 @@ void main() {
     );
 
     expect(code, 0, reason: err.toString());
-    expect(publishBody!['publishedRevision'], 5);
+    expect(publishBody!['publishedRevision'], isNull);
     expect(
       out.toString(),
       contains('Latest pushed revision for "pro" in staging: r5.'),
@@ -179,15 +219,11 @@ void main() {
     expect(err.toString(), isEmpty);
   });
 
-  test('a family with nothing pushed names the push command', () async {
+  test('a family with nothing pushed reads the server refusal', () async {
     final code = await runPublish(['pro'], history: const <int>[]);
 
     expect(code, 1);
-    expect(
-      err.toString(),
-      contains('No pushed revisions for "pro" in staging.'),
-    );
-    expect(err.toString(), contains('restage surface push pro'));
+    expect(err.toString(), 'The surface has no pushed revision here.\n');
   });
 
   test('disagreeing revision flags are refused before any call', () async {

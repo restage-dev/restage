@@ -76,7 +76,7 @@ void main() {
       ).run(['envs', '-C', tempDir.path]);
 
       expect(exitCode, 0);
-      expect(stdout.toString(), 'staging\nproduction\n');
+      expect(stdout.toString(), 'SLUG\nstaging\nproduction\n');
     },
   );
 
@@ -94,7 +94,10 @@ void main() {
       ).run(['targets', '--plane', 'sandbox', '-C', tempDir.path]);
 
       expect(exitCode, 0);
-      expect(stdout.toString(), '12\tproduction\tsandbox\n21\tdev\tsandbox\n');
+      expect(
+        stdout.toString(),
+        'ID\tENVIRONMENT\tPLANE\n12\tproduction\tsandbox\n21\tdev\tsandbox\n',
+      );
     },
   );
 

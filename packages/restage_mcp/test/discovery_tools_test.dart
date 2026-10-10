@@ -65,30 +65,37 @@ void main() {
       expect(tools, contains('restage_list_environments'));
       expect(tools, contains('restage_list_environment_targets'));
 
-      // list_organizations takes no inputs.
+      // list_organizations requires no inputs.
       expect(
         tools['restage_list_organizations']!.inputSchema.required ?? const [],
         isEmpty,
       );
-      // list_projects requires organizationId.
-      expect(
-        tools['restage_list_projects']!.inputSchema.required,
-        containsAll(['organizationId']),
-      );
-      // list_apps / list_environments require organizationId + projectSlug.
-      expect(
-        tools['restage_list_apps']!.inputSchema.required,
-        containsAll(['organizationId', 'projectSlug']),
-      );
-      expect(
-        tools['restage_list_environments']!.inputSchema.required,
-        containsAll(['organizationId', 'projectSlug']),
-      );
-      expect(tools['restage_list_environment_targets']!.inputSchema.required, [
-        'organizationId',
-        'projectSlug',
-        'appSlug',
-      ]);
+      // organizationId is optional: a sole membership is resolved.
+      for (final name in [
+        'restage_list_projects',
+        'restage_list_apps',
+        'restage_list_environments',
+        'restage_list_environment_targets',
+      ]) {
+        expect(tools[name]!.inputSchema.properties, contains('organizationId'));
+        expect(
+          tools[name]!.inputSchema.required ?? const [],
+          isNot(contains('organizationId')),
+        );
+      }
+      // restage_config.yaml in projectDirectory can supply the slugs.
+      for (final name in [
+        'restage_list_apps',
+        'restage_list_environments',
+        'restage_list_environment_targets',
+      ]) {
+        expect(tools[name]!.inputSchema.required, isEmpty, reason: name);
+        expect(
+          tools[name]!.inputSchema.properties!.keys,
+          containsAll(['projectDirectory', 'projectSlug']),
+          reason: name,
+        );
+      }
       expect(
         tools['restage_list_environment_targets']!.inputSchema.properties,
         contains('appId'),

@@ -130,17 +130,28 @@ http.Response? _directory(String method) => switch (method) {
     200,
   ),
   'listEnvironmentTargets' => http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 31,
-        'namedEnvironmentId': 37,
-        'environmentSlug': 'production',
-        'runtimePlane': 'live',
-      },
-    ]),
+    jsonEncode([_directoryTarget]),
+    200,
+  ),
+  'resolveTarget' => http.Response(
+    jsonEncode({
+      'organizationId': 11,
+      'organizationSlug': 'restage',
+      'projectSlug': 'checkout',
+      'appId': 23,
+      'appSlug': 'app',
+      'target': _directoryTarget,
+    }),
     200,
   ),
   _ => null,
+};
+
+const _directoryTarget = {
+  'environmentTargetId': 31,
+  'namedEnvironmentId': 37,
+  'environmentSlug': 'production',
+  'runtimePlane': 'live',
 };
 
 String _wire(List<int> bytes) => "decode('${base64Encode(bytes)}', 'base64')";

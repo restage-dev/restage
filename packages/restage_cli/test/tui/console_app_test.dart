@@ -311,9 +311,7 @@ void main() {
       expect(tester.terminalState, containsText('> r rollback'));
       expect(
         tester.terminalState,
-        containsText(
-          'surface rollback pro --type paywall --source-kind paywall',
-        ),
+        containsText('surface rollback pro --type paywall --project'),
       );
       expect(
         tester.terminalState,
@@ -741,6 +739,96 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(executor.calls, ['kill:pro:production']);
+    }, size: const Size(120, 32));
+  });
+
+  test('publish prompts for a reason and runs on a sandbox target', () async {
+    await testNocterm('sandbox publish', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: SameSlugConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.sendArrowDown();
+      await tester.pump();
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.tab);
+      await tester.pump();
+
+      await tester.sendKey(LogicalKey.keyL);
+      await tester.pump();
+      expect(executor.calls, <String>[]);
+      expect(tester.terminalState, containsText('Reason for publish'));
+
+      await tester.enterText('ship new copy');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, ['publish:pro:prod:ship new copy']);
+    }, size: const Size(120, 32));
+  });
+
+  test('live publish needs a reason and a typed confirm', () async {
+    await testNocterm('live publish confirm', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await selectProSurfaceInProduction(tester, controller);
+
+      await tester.sendKey(LogicalKey.keyL);
+      await tester.pump();
+      await tester.enterText('ship new copy');
+      await tester.sendEnter();
+      await tester.pump();
+      expect(executor.calls, <String>[]);
+      expect(tester.terminalState, containsText('Type confirm to proceed'));
+
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, [
+        'publish:pro:production:ship new copy:confirmed',
+      ]);
+    }, size: const Size(120, 32));
+  });
+
+  test('live freeze needs a typed confirm', () async {
+    await testNocterm('live freeze confirm', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await selectProSurfaceInProduction(tester, controller);
+
+      await tester.sendKey(LogicalKey.keyF);
+      await tester.pump();
+      await tester.enterText('hold releases');
+      await tester.sendEnter();
+      await tester.pump();
+      expect(executor.calls, <String>[]);
+      expect(tester.terminalState, containsText('Type confirm to proceed'));
+
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, ['freeze:pro:production:confirmed']);
     }, size: const Size(120, 32));
   });
 
@@ -1855,8 +1943,12 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   }) async {
-    calls.add('freeze:${surface.slug}:${context.environment}');
+    calls.add(
+      'freeze:${surface.slug}:${context.environment}'
+      '${confirmedProduction ? ':confirmed' : ''}',
+    );
     return ConsoleOperationResult(
       exitCode: 0,
       stdout: 'froze ${surface.slug}\n',
@@ -1869,6 +1961,7 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   }) async {
     calls.add('unfreeze:${surface.slug}:${context.environment}');
     return ConsoleOperationResult(
@@ -1887,6 +1980,34 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     return ConsoleOperationResult(
       exitCode: 0,
       stdout: 'pushed ${surface.slug}\n',
+      stderr: '',
+    );
+  }
+
+  @override
+  Future<ConsoleOperationResult> publish({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required String reason,
+    bool confirmedProduction = false,
+  }) async {
+    calls.add(
+      'publish:${surface.slug}:${context.environment}:$reason'
+      '${confirmedProduction ? ':confirmed' : ''}',
+    );
+    return ConsoleOperationResult(
+      exitCode: 0,
+      stdout: 'published ${surface.slug}\n',
+      stderr: '',
+    );
+  }
+
+  @override
+  Future<ConsoleOperationResult> runCommand(List<String> arguments) async {
+    calls.add('run:${arguments.join(' ')}');
+    return ConsoleOperationResult(
+      exitCode: 0,
+      stdout: 'ran ${arguments.join(' ')}\nsecond line\n',
       stderr: '',
     );
   }

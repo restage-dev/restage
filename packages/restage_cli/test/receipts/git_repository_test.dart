@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/receipts/git_repository.dart';
 import 'package:test/test.dart';
 
+import '../_helpers/test_fixtures.dart';
+
 const _commit = '4444444444444444444444444444444444444444';
 
 /// A runner that answers exactly the commands a test names.
@@ -233,23 +235,19 @@ void main() {
 
   group('against a real repository', () {
     late Directory root;
+    late TestGitTemplate repository;
+
+    setUpAll(() async {
+      repository = await TestGitTemplate.create((template) async {
+        _write(template, '.gitignore', '.restage/build/\n');
+        _write(template, 'lib/app.dart', 'void main() {}\n');
+      });
+    });
+    tearDownAll(() => repository.delete());
 
     setUp(() async {
       root = await Directory.systemTemp.createTemp('receipts_repo_');
-      await _git(root, ['init', '-b', 'main', '.']);
-      // Local configuration so the test does not depend on, or use, the
-      // machine's own identity, signing key or hooks.
-      await _git(root, ['config', 'user.name', 'Receipt Test']);
-      await _git(root, ['config', 'user.email', 'receipts@example.test']);
-      await _git(root, ['config', 'commit.gpgsign', 'false']);
-      await _git(root, ['config', 'core.hooksPath', '.git/hooks']);
-      // Background maintenance after a commit can race teardown.
-      await _git(root, ['config', 'gc.auto', '0']);
-      await _git(root, ['config', 'maintenance.auto', 'false']);
-      _write(root, '.gitignore', '.restage/build/\n');
-      _write(root, 'lib/app.dart', 'void main() {}\n');
-      await _git(root, ['add', '.']);
-      await _git(root, ['commit', '-m', 'first']);
+      await repository.copyTo(root);
     });
 
     tearDown(() => root.deleteSync(recursive: true));

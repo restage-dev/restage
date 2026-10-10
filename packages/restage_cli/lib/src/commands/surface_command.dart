@@ -1,5 +1,7 @@
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/authed.dart';
+import 'package:restage_cli/src/commands/spec_command.dart';
 import 'package:restage_cli/src/commands/surface_kill_command.dart';
 import 'package:restage_cli/src/commands/surface_history_command.dart';
 import 'package:restage_cli/src/commands/surface_push_command.dart';
@@ -34,6 +36,7 @@ class SurfaceCommand extends Command<int> {
       SurfaceListCommand(
         stdout: stdout,
         stderr: stderr,
+        interactive: interactive,
         credentialStore: credentialStore,
         httpClient: httpClient,
       ),
@@ -130,6 +133,16 @@ class SurfaceCommand extends Command<int> {
         httpClient: httpClient,
       ),
     );
+    operationCommands(
+      CommandIo(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+      prefix: 'surface ',
+    ).forEach(addSubcommand);
   }
 
   @override

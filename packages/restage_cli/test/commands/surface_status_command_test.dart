@@ -60,6 +60,62 @@ void main() {
   });
 
   group('surface status / paywall status', () {
+    test(
+      'a category alone asks the server, which resolves the family',
+      () async {
+        Map<String, dynamic>? body;
+        final client = mockHttpClient((request) {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              '__className__': 'SurfaceStatusView',
+              'surfaceType': 'message',
+              'surfaceSlug': 'recap',
+              'environmentSlug': 'staging',
+              'liveVersion': 2,
+              'locked': false,
+              'deliveryShape': 'blob',
+              'sourceKind': 'screen',
+              'contractVersion': 1,
+              'versions': <Object>[],
+            }),
+            200,
+          );
+        });
+        final out = StringBuffer();
+        final err = StringBuffer();
+        final runner = CommandRunner<int>('restage', '')
+          ..addCommand(
+            SurfaceStatusCommand(
+              stdout: out,
+              stderr: err,
+              interactive: const NonInteractive(),
+              credentialStore: fakeStore,
+              httpClient: client,
+            ),
+          );
+        final code = await runner.run([
+          'status',
+          'recap',
+          '--type',
+          'message',
+          '-C',
+          tempDir.path,
+          '--project',
+          'p',
+          '--app',
+          'a',
+          '--env',
+          'staging',
+        ]);
+        expect(code, 0, reason: err.toString());
+        expect(body!['method'], 'surfaceStatus');
+        expect(body!['contractVersion'], isNull);
+        expect(body!.containsKey('sourceKind'), isFalse);
+        expect(out.toString(), contains('live: v2'));
+      },
+    );
+
     test('status prints live version + shape + versions', () async {
       final out = StringBuffer();
       final runner = CommandRunner<int>('restage', '')
@@ -117,97 +173,64 @@ void main() {
       expect(output, contains('abc123def456'));
     });
 
-    test('resolves configured organization before status lookup', () async {
-      await seedRestageConfig(
-        tempDir,
-        'demo',
-        'mobile',
-        defaultEnvironment: 'staging',
-        organization: 'restage',
-      );
-      Map<String, dynamic>? capturedStatusBody;
-      final client = scriptedHttpClient([
-        (req) {
-          final body = jsonDecode(req.body) as Map<String, dynamic>;
-          expect(body['method'], 'listMine');
-          return http.Response(
-            jsonEncode([
-              {
-                'organizationId': 7,
-                'slug': 'restage',
-                'name': 'Restage',
-                'role': 'owner',
-              },
-              {
-                'organizationId': 8,
-                'slug': 'other',
-                'name': 'Other',
-                'role': 'member',
-              },
-            ]),
-            200,
-          );
-        },
-        (req) => activeAppDiscoveryResponse(
-          req,
-          appSlug: 'mobile',
-          projectSlug: 'demo',
-        ),
-        (req) {
-          final body = jsonDecode(req.body) as Map<String, dynamic>;
-          expect(body['method'], 'listEnvironmentTargets');
-          expect(body['organizationId'], 7);
-          return http.Response(
-            jsonEncode([
-              {
-                'environmentTargetId': 12,
-                'namedEnvironmentId': 22,
-                'environmentSlug': 'staging',
-                'runtimePlane': 'sandbox',
-              },
-            ]),
-            200,
-          );
-        },
-        (req) {
-          capturedStatusBody = jsonDecode(req.body) as Map<String, dynamic>;
-          return http.Response(
-            jsonEncode({
-              '__className__': 'SurfaceStatusResult',
-              'surfaceType': 'paywall',
-              'surfaceSlug': 'pro',
-              'environmentSlug': 'staging',
-              'liveVersion': null,
-              'locked': false,
-              'deliveryShape': 'blob',
-              'versions': <Map<String, dynamic>>[],
-            }),
-            200,
-          );
-        },
-      ], withDefaultTargetDiscovery: false);
-
-      final out = StringBuffer();
-      final runner = CommandRunner<int>('restage', '')
-        ..addCommand(
-          SurfaceStatusCommand(
-            stdout: out,
-            stderr: StringBuffer(),
-            interactive: const NonInteractive(),
-            fixedSurfaceType: SurfaceType.paywall,
-            credentialStore: fakeStore,
-            httpClient: client,
-          ),
+    test(
+      'sends the configured organization with the target selectors',
+      () async {
+        await seedRestageConfig(
+          tempDir,
+          'demo',
+          'mobile',
+          defaultEnvironment: 'staging',
+          organization: 'restage',
         );
-      final code = await runner.run(['status', 'pro', '-C', tempDir.path]);
+        Map<String, dynamic>? capturedStatusBody;
+        final client = scriptedHttpClient([
+          resolveTargetStep({
+            'environmentTargetId': 12,
+            'namedEnvironmentId': 22,
+            'environmentSlug': 'staging',
+            'runtimePlane': 'sandbox',
+          }, inspect: (body) => expect(body['organizationSlug'], 'restage')),
+          (req) {
+            capturedStatusBody = jsonDecode(req.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                '__className__': 'SurfaceStatusResult',
+                'surfaceType': 'paywall',
+                'surfaceSlug': 'pro',
+                'environmentSlug': 'staging',
+                'liveVersion': null,
+                'locked': false,
+                'deliveryShape': 'blob',
+                'versions': <Map<String, dynamic>>[],
+              }),
+              200,
+            );
+          },
+        ], withDefaultTargetDiscovery: false);
 
-      expect(code, 0);
-      expect(capturedStatusBody, isNotNull);
-      expect(capturedStatusBody!['method'], 'surfaceStatus');
-      expect(capturedStatusBody!['projectSlug'], 'demo');
-      expect(capturedStatusBody!['appSlug'], 'mobile');
-      expect(capturedStatusBody!['organizationId'], 7);
-    });
+        final out = StringBuffer();
+        final runner = CommandRunner<int>('restage', '')
+          ..addCommand(
+            SurfaceStatusCommand(
+              stdout: out,
+              stderr: StringBuffer(),
+              interactive: const NonInteractive(),
+              fixedSurfaceType: SurfaceType.paywall,
+              credentialStore: fakeStore,
+              httpClient: client,
+            ),
+          );
+        final code = await runner.run(['status', 'pro', '-C', tempDir.path]);
+
+        expect(code, 0);
+        expect(capturedStatusBody, isNotNull);
+        expect(capturedStatusBody!['method'], 'surfaceStatus');
+        expect(capturedStatusBody!['projectSlug'], 'demo');
+        expect(capturedStatusBody!['appSlug'], 'mobile');
+        expect(capturedStatusBody!['organizationId'], 7);
+      },
+    );
 
     test('generic surface group requires an explicit source kind', () async {
       final out = StringBuffer();

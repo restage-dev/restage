@@ -196,6 +196,7 @@ class ConsoleState {
     this.auditError,
     this.operationMessage,
     this.activity = const [],
+    this.commandOutput,
   });
 
   const ConsoleState.loading()
@@ -217,7 +218,8 @@ class ConsoleState {
       auditVerdict = null,
       auditError = null,
       operationMessage = null,
-      activity = const [];
+      activity = const [],
+      commandOutput = null;
 
   final bool loading;
   final String? error;
@@ -238,6 +240,9 @@ class ConsoleState {
   final String? auditError;
   final String? operationMessage;
   final List<ConsoleActivityEntry> activity;
+
+  /// The last command run from the command line, with everything it printed.
+  final ConsoleCommandOutput? commandOutput;
 
   ConsoleSurface? get selectedSurface {
     if (surfaces.isEmpty) return null;
@@ -282,6 +287,7 @@ class ConsoleState {
     bool clearAuditError = false,
     String? operationMessage,
     List<ConsoleActivityEntry>? activity,
+    ConsoleCommandOutput? commandOutput,
   }) => ConsoleState(
     loading: loading ?? this.loading,
     error: error ?? this.error,
@@ -302,7 +308,26 @@ class ConsoleState {
     auditError: clearAuditError ? null : auditError ?? this.auditError,
     operationMessage: operationMessage ?? this.operationMessage,
     activity: activity ?? this.activity,
+    commandOutput: commandOutput ?? this.commandOutput,
   );
+}
+
+/// One command run from the console's command line, and its output.
+class ConsoleCommandOutput {
+  const ConsoleCommandOutput({required this.arguments, required this.result});
+
+  /// The arguments after `restage`.
+  final List<String> arguments;
+
+  /// What the command returned and printed.
+  final ConsoleOperationResult result;
+
+  /// Everything the command printed, stdout first.
+  List<String> get lines => [
+    ...result.stdout.trimRight().split('\n'),
+    if (result.stderr.trim().isNotEmpty)
+      ...result.stderr.trimRight().split('\n'),
+  ].where((line) => line.isNotEmpty).toList(growable: false);
 }
 
 class ConsoleLoadException implements Exception {
@@ -359,12 +384,14 @@ abstract interface class ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   });
 
   Future<ConsoleOperationResult> unfreeze({
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   });
 
   Future<ConsoleOperationResult> push({
@@ -372,6 +399,59 @@ abstract interface class ConsoleOperationExecutor {
     required ConsoleSurface surface,
   });
 
+  /// Publishes the latest revision pushed for [surface].
+  Future<ConsoleOperationResult> publish({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required String reason,
+    bool confirmedProduction = false,
+  });
+
+  /// Runs any `restage` command with [arguments], in the console's project.
+  Future<ConsoleOperationResult> runCommand(List<String> arguments);
+
   /// Pushes the app's build to the context's environment head.
   Future<ConsoleOperationResult> pushBuild({required ConsoleContext context});
+}
+
+/// Commands the console's command line does not run, and why.
+const consoleExcludedCommands = <String, String>{
+  'console': 'The console is already open.',
+  'login':
+      'Sign-in waits for approval in a browser. Run `restage login` in a '
+      'terminal, then reopen the console.',
+};
+
+/// The arguments of a `restage ...` line typed into the console, or null when
+/// [line] is not one. Single and double quotes group words.
+List<String>? consoleCommandArguments(String line) {
+  final trimmed = line.trim();
+  if (trimmed != 'restage' && !trimmed.startsWith('restage ')) return null;
+  final arguments = <String>[];
+  final current = StringBuffer();
+  var inWord = false;
+  String? quote;
+  for (final char in trimmed.substring('restage'.length).split('')) {
+    if (quote != null) {
+      if (char == quote) {
+        quote = null;
+      } else {
+        current.write(char);
+      }
+    } else if (char == '"' || char == "'") {
+      quote = char;
+      inWord = true;
+    } else if (char.trim().isEmpty) {
+      if (inWord) {
+        arguments.add(current.toString());
+        current.clear();
+        inWord = false;
+      }
+    } else {
+      current.write(char);
+      inWord = true;
+    }
+  }
+  if (inWord) arguments.add(current.toString());
+  return arguments;
 }

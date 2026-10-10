@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 
 /// Sealed hierarchy for typed backend exceptions shared by multiple CLI
 /// commands.
@@ -80,18 +81,119 @@ class MeasurementReadRejected extends GenericTypedException {
       'MeasurementReadRejected(reason: $reason, detail: $detail)';
 }
 
+/// Why the server refused a signed-in caller.
+@experimental
+enum UnauthorizedReason {
+  /// The caller's role does not allow it.
+  roleMissing,
+
+  /// The request carries no signed-in session.
+  notSignedIn,
+
+  /// The credential kind may not call this.
+  credentialNotAllowed,
+
+  /// The organization's plan does not allow changes to the live plane.
+  liveChangesNotAllowed,
+
+  /// This needs a paid plan.
+  paidPlanRequired,
+
+  /// The sample workspace is read-only.
+  sampleWorkspaceReadOnly,
+
+  /// The caller's membership changed during the request.
+  membershipChanged;
+
+  /// Decode the wire name, defaulting to [roleMissing].
+  static UnauthorizedReason fromWireName(Object? value) => values.firstWhere(
+    (reason) => reason.name == value,
+    orElse: () => roleMissing,
+  );
+}
+
 /// The caller is not authorised to act on the named [resource]. Maps
 /// from the backend's `UnauthorizedException`.
 @experimental
 class UnauthorizedAccess extends GenericTypedException {
-  /// Construct with the offending [resource] name.
-  const UnauthorizedAccess({required this.resource});
+  /// Construct with the offending [resource] name and why.
+  const UnauthorizedAccess({
+    required this.resource,
+    this.reason = UnauthorizedReason.roleMissing,
+  });
 
   /// Unauthorized resource.
   final String resource;
 
+  /// Why the caller was refused.
+  final UnauthorizedReason reason;
+
   @override
-  String toString() => 'UnauthorizedAccess(resource: $resource)';
+  String toString() =>
+      'UnauthorizedAccess(resource: $resource, reason: ${reason.name})';
+}
+
+/// Why the server could not resolve a request's selectors to one target.
+@experimental
+enum TargetSelectionRefusal {
+  /// No environment by that slug, or a target assertion does not hold.
+  environmentNotFound,
+
+  /// The environment has targets on both planes and the request named none.
+  environmentOnBothPlanes,
+
+  /// The environment has no target on the plane the request named.
+  noTargetOnPlane,
+
+  /// The caller belongs to no organization.
+  noOrganization,
+
+  /// The project is in more than one of the caller's organizations.
+  multipleOrganizations,
+
+  /// The named organization is not one of the caller's.
+  organizationNotFound,
+
+  /// A key's request names a target the key does not belong to.
+  keyTargetMismatch;
+
+  /// Decode the wire name.
+  static TargetSelectionRefusal? fromWireName(Object? value) {
+    for (final reason in values) {
+      if (reason.name == value) return reason;
+    }
+    return null;
+  }
+}
+
+/// The request's selectors name no single target. Maps from the backend's
+/// `TargetSelectionRefusedException`.
+@experimental
+class TargetSelectionRefused extends GenericTypedException {
+  /// Construct a refusal.
+  const TargetSelectionRefused({
+    required this.reason,
+    this.environmentSlug,
+    this.candidates = const [],
+    this.organizationSlugs = const [],
+  });
+
+  /// Why the selectors were refused.
+  final TargetSelectionRefusal reason;
+
+  /// The environment the request named, when it named one.
+  final String? environmentSlug;
+
+  /// The targets an ambiguous environment offers.
+  final List<EnvironmentTargetSummary> candidates;
+
+  /// The caller's organizations an ambiguous project lives in.
+  final List<String> organizationSlugs;
+
+  @override
+  String toString() =>
+      'TargetSelectionRefused(reason: ${reason.name}, '
+      'environmentSlug: $environmentSlug)';
 }
 
 /// Attempt to decode [body] as one of the shared typed exceptions.
@@ -127,7 +229,27 @@ GenericTypedException? decodeGenericTypedException(String body) {
         projectSlug: data['projectSlug'] as String,
       );
     case 'UnauthorizedException':
-      return UnauthorizedAccess(resource: data['resource'] as String);
+      return UnauthorizedAccess(
+        resource: data['resource'] as String,
+        reason: UnauthorizedReason.fromWireName(data['reason']),
+      );
+    case 'TargetSelectionRefusedException':
+      final reason = TargetSelectionRefusal.fromWireName(data['reason']);
+      if (reason == null) return null;
+      return TargetSelectionRefused(
+        reason: reason,
+        environmentSlug: data['environmentSlug'] as String?,
+        candidates: [
+          for (final candidate in data['candidates'] as List<dynamic>? ?? [])
+            EnvironmentTargetSummary.fromJson(
+              candidate as Map<String, dynamic>,
+            ),
+        ],
+        organizationSlugs: [
+          for (final slug in data['organizationSlugs'] as List<dynamic>? ?? [])
+            slug as String,
+        ],
+      );
     case 'SurfaceSlugRejectedException':
       return SurfaceSlugRejected(
         slug: data['slug'] as String,

@@ -212,39 +212,12 @@ void main() {
       Map<String, dynamic>? preflightBody;
       Map<String, dynamic>? rollbackBody;
       final client = scriptedHttpClient([
-        (req) {
-          final body = jsonDecode(req.body) as Map<String, dynamic>;
-          expect(body['method'], 'listMine');
-          return http.Response(
-            jsonEncode([
-              {
-                'organizationId': 7,
-                'slug': 'restage',
-                'name': 'Restage',
-                'role': 'owner',
-              },
-            ]),
-            200,
-          );
-        },
-        (req) =>
-            activeAppDiscoveryResponse(req, appSlug: 'a', projectSlug: 'p'),
-        (req) {
-          final body = jsonDecode(req.body) as Map<String, dynamic>;
-          expect(body['method'], 'listEnvironmentTargets');
-          expect(body['organizationId'], 7);
-          return http.Response(
-            jsonEncode([
-              {
-                'environmentTargetId': 12,
-                'namedEnvironmentId': 22,
-                'environmentSlug': 'staging',
-                'runtimePlane': 'sandbox',
-              },
-            ]),
-            200,
-          );
-        },
+        resolveTargetStep({
+          'environmentTargetId': 12,
+          'namedEnvironmentId': 22,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
+        }, inspect: (body) => expect(body['organizationSlug'], 'restage')),
         (_) => statusResponse(),
         (req) {
           preflightBody = jsonDecode(req.body) as Map<String, dynamic>;
@@ -309,11 +282,14 @@ void main() {
       expect(out.toString(), contains('Rolled back "pro"'));
     });
 
-    test('(d) missing --to-version exits 1, rollback NOT called', () async {
-      var apiCalled = false;
+    test('(d) missing --to-version lists the published versions and exits 1 '
+        'without rolling back', () async {
+      final methods = <String>[];
       final client = mockHttpClient((req) {
-        apiCalled = true;
-        return http.Response('', 500);
+        methods.add(
+          (jsonDecode(req.body) as Map<String, dynamic>)['method'] as String,
+        );
+        return statusResponse();
       });
 
       final err = StringBuffer();
@@ -334,8 +310,14 @@ void main() {
           ]);
 
       expect(code, 1);
-      expect(err.toString(), contains('--to-version'));
-      expect(apiCalled, isFalse);
+      expect(
+        err.toString(),
+        contains(
+          'Required: --to-version <N>. Published versions: v3 (active), v2, '
+          'v1.',
+        ),
+      );
+      expect(methods, ['surfaceStatus']);
     });
 
     test('(e) live production --yes exits 1, rollback NOT called', () async {
@@ -366,42 +348,12 @@ void main() {
     test('live dev and staging --yes are denied before rollback', () async {
       for (final environment in const ['dev', 'staging']) {
         final client = scriptedHttpClient([
-          (request) {
-            final body = jsonDecode(request.body) as Map<String, dynamic>;
-            expect(body['method'], 'listMine');
-            return http.Response(
-              jsonEncode([
-                {'organizationId': 7, 'slug': 'restage', 'name': 'Restage'},
-              ]),
-              200,
-            );
-          },
-          (request) {
-            final body = jsonDecode(request.body) as Map<String, dynamic>;
-            expect(body['method'], 'listApps');
-            return http.Response(
-              jsonEncode([
-                {'id': 5, 'slug': 'a', 'name': 'A'},
-              ]),
-              200,
-            );
-          },
-          (request) {
-            final body = jsonDecode(request.body) as Map<String, dynamic>;
-            expect(body['method'], 'listEnvironmentTargets');
-            expect(body['runtimePlane'], 'live');
-            return http.Response(
-              jsonEncode([
-                {
-                  'environmentTargetId': environment == 'dev' ? 102 : 104,
-                  'namedEnvironmentId': environment == 'dev' ? 11 : 12,
-                  'environmentSlug': environment,
-                  'runtimePlane': 'live',
-                },
-              ]),
-              200,
-            );
-          },
+          resolveTargetStep({
+            'environmentTargetId': environment == 'dev' ? 102 : 104,
+            'namedEnvironmentId': environment == 'dev' ? 11 : 12,
+            'environmentSlug': environment,
+            'runtimePlane': 'live',
+          }, inspect: (body) => expect(body['runtimePlane'], 'live')),
           (_) => statusResponse(environmentSlug: environment),
           (_) => preflightResponse(environmentSlug: environment),
         ], withDefaultTargetDiscovery: false);

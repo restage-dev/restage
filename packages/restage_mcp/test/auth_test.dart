@@ -1,65 +1,67 @@
 import 'dart:io';
 
+import 'package:dart_mcp/server.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:restage_cli/api.dart';
+import 'package:restage_mcp/src/api_runner.dart';
 import 'package:restage_mcp/src/auth.dart';
+import 'package:restage_mcp/src/tool_support.dart';
 import 'package:test/test.dart';
 
 void main() {
   late Directory tempDir;
   late FileCredentialStore store;
+  late ToolContext ctx;
 
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('restage_mcp_auth_test');
     store = FileCredentialStore('${tempDir.path}/credentials');
+    ctx = ToolContext(
+      store: store,
+      httpClient: MockClient((_) async => http.Response('[]', 200)),
+      runCli: (args, {required stdout, required stderr, target}) async => 0,
+    );
   });
 
   tearDown(() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  group('resolveAuthenticatedApi', () {
-    test('throws NotSignedInException when no credential exists', () {
-      expect(
-        () => resolveAuthenticatedApi(store: store),
-        throwsA(isA<NotSignedInException>()),
-      );
-    });
+  String text(CallToolResult result) =>
+      (result.content.single as TextContent).text;
 
-    test('NotSignedInException message points at `restage login`', () {
-      expect(
-        const NotSignedInException().toString(),
-        contains('restage login'),
-      );
-    });
+  Future<CallToolResult> reached() =>
+      ctx.authed('testing', (_) async => jsonResult({'reached': true}));
 
-    test('returns a RestageApi for an https credential', () async {
+  test('with no credential the call is refused as not signed in', () async {
+    final result = await reached();
+
+    expect(result.isError, isTrue);
+    expect(text(result), const NotSignedInException().toString());
+    expect(text(result), contains('restage login'));
+  });
+
+  for (final endpoint in ['https://example.test/', 'http://127.0.0.1:8080/']) {
+    test('a credential for $endpoint reaches the body', () async {
       await store.write(
-        const Credential(
-          endpoint: 'https://example.test/',
+        Credential(
+          endpoint: endpoint,
           kind: CredentialKind.authKey,
           authToken: 'keyId:key',
         ),
       );
-      final api = await resolveAuthenticatedApi(store: store);
-      expect(api, isA<RestageApi>());
-      api.close();
-    });
 
-    test('returns a RestageApi for an http loopback credential', () async {
-      await store.write(
-        const Credential(
-          endpoint: 'http://127.0.0.1:8080/',
-          kind: CredentialKind.authKey,
-          authToken: 'keyId:key',
-        ),
-      );
-      final api = await resolveAuthenticatedApi(store: store);
-      expect(api, isA<RestageApi>());
-      api.close();
-    });
+      final result = await reached();
 
-    test('propagates InsecureEndpointException for a non-loopback http '
-        'credential', () async {
+      expect(result.isError, isNot(true), reason: text(result));
+      expect(result.structuredContent, {'reached': true});
+    });
+  }
+
+  test(
+    'a non-loopback http credential is refused without echoing it',
+    () async {
       await store.write(
         const Credential(
           endpoint: 'http://evil.example/',
@@ -67,10 +69,12 @@ void main() {
           authToken: 'keyId:key',
         ),
       );
-      expect(
-        () => resolveAuthenticatedApi(store: store),
-        throwsA(isA<InsecureEndpointException>()),
-      );
-    });
-  });
+
+      final result = await reached();
+
+      expect(result.isError, isTrue);
+      expect(text(result), contains('not a secure'));
+      expect(text(result), isNot(contains('evil.example')));
+    },
+  );
 }

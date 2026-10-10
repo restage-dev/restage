@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
-import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Show the live version, lock state, delivery shape, and version history of
@@ -33,12 +33,14 @@ class SurfaceStatusCommand extends Command<int> {
     SurfaceType? fixedSurfaceType,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
-  }) : _stdout = stdout,
-       _stderr = stderr,
-       _interactive = interactive,
-       _fixedType = fixedSurfaceType,
-       _credentialStore = credentialStore,
-       _httpClient = httpClient {
+  }) : _io = CommandIo(
+         stdout: stdout,
+         stderr: stderr,
+         interactive: interactive,
+         credentialStore: credentialStore,
+         httpClient: httpClient,
+       ),
+       _fixedType = fixedSurfaceType {
     addLifecycleOptions(
       argParser,
       withType: fixedSurfaceType == null,
@@ -48,12 +50,8 @@ class SurfaceStatusCommand extends Command<int> {
     );
   }
 
-  final StringSink _stdout;
-  final StringSink _stderr;
-  final Interactive _interactive;
+  final CommandIo _io;
   final SurfaceType? _fixedType;
-  final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
 
   @override
   String get name => 'status';
@@ -65,57 +63,34 @@ class SurfaceStatusCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
+    final slug = resolveSingleSlug(argResults: argResults, stderr: _io.stderr);
     if (slug == null) return 1;
 
     final identity = await resolveSurfaceLifecycleIdentity(
       argResults: argResults,
       fixedSurfaceType: _fixedType,
       slug: slug,
-      stderr: _stderr,
-      requireExplicitSourceKindForFallback: _fixedType == null,
+      stderr: _io.stderr,
     );
     if (identity == null) return 1;
 
-    final ctx = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
-    );
-    if (ctx == null) return 1;
-
-    final RestageApi api;
-    try {
-      api = RestageApi(
-        endpoint: ctx.apiEndpoint,
-        httpClient: _httpClient,
-        credential: ctx.credential,
-      );
-    } on InsecureEndpointException catch (e) {
-      _stderr.writeln(e.toString());
-      return 1;
-    }
-    try {
-      final status = await SurfaceApi(api).surfaceStatus(
-        project: ctx.project,
-        app: ctx.app,
+    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
+      final target = ctx.target!;
+      final status = await SurfaceApi(ctx.api).surfaceStatus(
+        project: target.project,
+        app: target.app,
         surfaceType: identity.surface,
         surfaceSlug: slug,
-        environment: ctx.environment,
-        environmentTargetId: ctx.environmentTargetId,
-        runtimePlane: ctx.runtimePlane,
-        organizationId: ctx.organizationId,
+        environment: target.environment,
+        environmentTargetId: target.environmentTargetId,
+        runtimePlane: target.runtimePlane,
+        organizationId: target.organizationId,
         contractVersion: identity.contractVersion,
+        sourceKind: identity.sourceKind,
       );
       _printStatus(status);
       return 0;
-    } on RestageApiException catch (e) {
-      return _renderError(e);
-    } finally {
-      if (_httpClient == null) api.close();
-    }
+    });
   }
 
   /// Print a human-readable summary of [status] to stdout.
@@ -136,7 +111,7 @@ class SurfaceStatusCommand extends Command<int> {
         .firstOrNull
         ?.deliveryMode;
     final modeSegment = activeMode != null ? '  mode: $activeMode' : '';
-    _stdout.writeln(
+    _io.stdout.writeln(
       'live: $liveLabel  locked: ${status.locked}  '
       'shape: ${status.deliveryShape}$modeSegment',
     );
@@ -145,35 +120,16 @@ class SurfaceStatusCommand extends Command<int> {
         final active = family.activeRevision == null
             ? '— (none)'
             : 'r${family.activeRevision}';
-        _stdout.writeln('  ${family.familyAddress}  active: $active');
+        _io.stdout.writeln('  ${family.familyAddress}  active: $active');
       }
     }
     for (final v in status.versions) {
       final activeMarker = v.isActive ? ' (active)' : '';
       final mode = v.deliveryMode != null ? '  ${v.deliveryMode}' : '';
-      _stdout.writeln(
+      _io.stdout.writeln(
         '  v${v.version}$activeMarker  '
         '${v.publishedAt.toIso8601String()}  ${v.contentHash}$mode',
       );
     }
-  }
-
-  /// Render a typed API error to stderr and return the appropriate exit code.
-  ///
-  /// Surface-specific exceptions are rendered by [decodeSurfaceTypedException];
-  /// generic ones fall through to [renderGenericTypedError].
-  int _renderError(RestageApiException e) {
-    final surface = decodeSurfaceTypedException(e.body);
-    if (surface != null) {
-      _stderr.writeln(renderSurfaceException(surface));
-      return 1;
-    }
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln(e.toString());
-    return 1;
   }
 }

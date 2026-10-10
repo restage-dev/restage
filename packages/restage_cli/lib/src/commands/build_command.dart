@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/build_list_command.dart';
 import 'package:restage_cli/src/commands/build_push_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
@@ -36,11 +37,20 @@ final class BuildCommand extends Command<int> {
         environment: environment,
       ),
     );
+    addSubcommand(
+      BuildListCommand(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
   }
 
   @override
   String get name => 'build';
 
   @override
-  String get description => 'Build and upload an isolated render bundle.';
+  String get description =>
+      "Build and upload the app's render bundle, or list its builds.";
 }

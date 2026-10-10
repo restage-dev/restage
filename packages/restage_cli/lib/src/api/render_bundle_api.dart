@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show gzip;
+import 'dart:io' show InternetAddress, gzip;
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
@@ -75,6 +76,7 @@ final class RenderBundleUploadException implements Exception {
     this.transferBytes,
     this.reason,
     this.storage,
+    this.targetSelection,
     this.incomplete = false,
   }) : oversize = null,
        staged = null;
@@ -86,6 +88,7 @@ final class RenderBundleUploadException implements Exception {
       staged = null,
       reason = null,
       storage = null,
+      targetSelection = null,
       incomplete = false;
 
   /// A refusal that names how much the organization already holds staged.
@@ -96,6 +99,7 @@ final class RenderBundleUploadException implements Exception {
        transferBytes = null,
        reason = null,
        storage = null,
+       targetSelection = null,
        incomplete = false;
 
   /// The upload response status, when the request reached a responder.
@@ -115,6 +119,9 @@ final class RenderBundleUploadException implements Exception {
 
   /// The storage figures, when the refusal was about room.
   final RenderBundleStorageRefusal? storage;
+
+  /// The target refusal, when the service could not match the selectors.
+  final TargetSelectionRefused? targetSelection;
 
   /// Whether the bytes are stored and only the version was not selected.
   final bool incomplete;
@@ -283,6 +290,17 @@ final class RenderBundleHeadDiscovery {
 
   /// Whether that commit's tree carried local changes.
   final bool sourceDirty;
+
+  /// The head as JSON, its time in UTC.
+  Map<String, Object?> toJson() => <String, Object?>{
+    'head': head,
+    'version': version,
+    'sourceCommit': sourceCommit,
+    'sourceDirty': sourceDirty,
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'owner': ownerDisplayName,
+    'libraries': libraries,
+  };
 }
 
 /// Whether an app's build for one environment registers what a published
@@ -334,25 +352,21 @@ final class PreparedRenderBundleBootstrap {
 }
 
 /// Hand-written control client for the bounded render-bundle upload path.
+///
+/// Calls go through [rpc], and uploads carry its credential.
 @experimental
 final class RenderBundleApi {
   RenderBundleApi({
     required RestageApi rpc,
-    required Uri apiEndpoint,
-    required Credential credential,
     Uri? trustedBundleOrigin,
     http.Client? uploadClient,
     Future<void> Function(Duration)? delay,
   }) : _rpc = rpc,
-       _apiEndpoint = apiEndpoint,
-       _credential = credential,
        _trustedBundleOrigin = trustedBundleOrigin,
        _uploadClient = uploadClient ?? http.Client(),
        _delay = delay ?? Future<void>.delayed;
 
   final RestageApi _rpc;
-  final Uri _apiEndpoint;
-  final Credential _credential;
   final Uri? _trustedBundleOrigin;
   final http.Client _uploadClient;
 
@@ -518,11 +532,7 @@ final class RenderBundleApi {
     required String field,
   }) async {
     if (bodies.isEmpty) return const <String>{};
-    final address = _validatedUploadUri(
-      uri,
-      apiEndpoint: _apiEndpoint,
-      trustedBundleOrigin: _trustedBundleOrigin,
-    );
+    final address = _validatedUploadUri(uri, _trustedBundleOrigin);
     for (final bytes in bodies.values) {
       if (bytes.length > ticket.maxFileTransferBytes) {
         throw RenderBundleUploadException.oversize(
@@ -586,7 +596,7 @@ final class RenderBundleApi {
               )
               ..followRedirects = false
               ..maxRedirects = 0
-              ..headers['authorization'] = _authorizationHeader(_credential)
+              ..headers['authorization'] = _authorizationHeader(_rpc.credential)
               // A token is a capability, so it stays out of the query and the
               // access logs that record one.
               ..headers[renderBundleUploadTokenHeader] = token
@@ -658,6 +668,7 @@ final class RenderBundleApi {
     required String project,
     required String app,
     int? organizationId,
+    String? organizationSlug,
   }) async {
     if (project.isEmpty ||
         app.isEmpty ||
@@ -665,15 +676,13 @@ final class RenderBundleApi {
       throw const RenderBundleUploadException();
     }
     try {
-      final raw = await _rpc.call(
-        'renderBundle',
-        'listHeads',
-        <String, dynamic>{
-          'projectSlug': project,
-          'appSlug': app,
-          'organizationId': ?organizationId,
-        },
-      );
+      final raw = await _rpc
+          .call('renderBundle', 'listHeads', <String, dynamic>{
+            'projectSlug': project,
+            'appSlug': app,
+            'organizationId': ?organizationId,
+            'organizationSlug': ?organizationSlug,
+          });
       if (raw is! Map<String, dynamic>) {
         throw const RenderBundleUploadException();
       }
@@ -744,6 +753,7 @@ final class RenderBundleApi {
     required String head,
     required Uri trustedBundleOrigin,
     int? organizationId,
+    String? organizationSlug,
     int? version,
   }) async {
     if (project.isEmpty ||
@@ -754,7 +764,7 @@ final class RenderBundleApi {
         !_isExactTrustedBundleOrigin(trustedBundleOrigin) ||
         !canDeriveRenderBundleExecutionOrigin(trustedBundleOrigin) ||
         !_isAllowedApiControlPair(
-          apiEndpoint: _apiEndpoint,
+          apiEndpoint: _rpc.endpoint,
           trustedBundleOrigin: trustedBundleOrigin,
         )) {
       throw const RenderBundleUploadException();
@@ -767,6 +777,7 @@ final class RenderBundleApi {
             'head': head,
             'version': ?version,
             'organizationId': ?organizationId,
+            'organizationSlug': ?organizationSlug,
           });
       if (raw is! Map<String, dynamic>) {
         throw const RenderBundleUploadException();
@@ -1058,6 +1069,100 @@ List<String>? _stringList(Object? raw) {
 
 String _hashOf(Uint8List bytes) => 'sha256:${crypto.sha256.convert(bytes)}';
 
+/// The app environment target the calling API key belongs to.
+Future<ApiKeyTarget> readApiKeyTarget(RestageApi rpc) async {
+  final Object? raw;
+  try {
+    raw = await rpc.call(
+      'renderBundleUpload',
+      'keyTarget',
+      <String, dynamic>{},
+    );
+  } on RestageApiException catch (error) {
+    throw _refusal(error);
+  } on Object {
+    throw const RenderBundleUploadException();
+  }
+  if (raw is! Map<String, dynamic>) throw const RenderBundleUploadException();
+  try {
+    return ApiKeyTarget.fromJson(raw);
+  } on Object {
+    throw const RenderBundleUploadException();
+  }
+}
+
+/// The scope a key needs to push a render bundle.
+const renderBundlePushScope = 'renderBundlesPush';
+
+/// The dashboard origin a build answers and the origin its files upload to.
+typedef RenderBundleOrigins = ({Uri dashboardOrigin, Uri bundleOrigin});
+
+/// Reads the origins this server's builds trust.
+///
+/// Each must be a bare http(s) origin on the API's own site: a loopback host
+/// when the API is local http, otherwise https under the API host's parent
+/// domain.
+Future<RenderBundleOrigins> readRenderBundleOrigins(RestageApi rpc) async {
+  final Object? raw;
+  try {
+    raw = await rpc.call('renderBundleUpload', 'origins', <String, dynamic>{});
+  } on RestageApiException catch (error) {
+    throw _refusal(error);
+  } on Object {
+    throw const RenderBundleUploadException();
+  }
+  if (raw is Map<String, dynamic>) {
+    final local = rpc.endpoint.scheme == 'http';
+    final dashboard = _origin(raw['dashboardOrigin'], allowHttp: local);
+    final bundle = _origin(raw['bundleOrigin'], allowHttp: local);
+    if (dashboard != null &&
+        bundle != null &&
+        isSameSiteOrigin(dashboard, rpc.endpoint) &&
+        isSameSiteOrigin(bundle, rpc.endpoint)) {
+      return (dashboardOrigin: dashboard, bundleOrigin: bundle);
+    }
+  }
+  throw const RenderBundleUploadException();
+}
+
+Uri? _origin(Object? source, {required bool allowHttp}) {
+  final uri = source is String ? Uri.tryParse(source) : null;
+  if (uri == null ||
+      !(uri.scheme == 'https' || (allowHttp && uri.scheme == 'http')) ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      (uri.path.isNotEmpty && uri.path != '/') ||
+      uri.hasQuery ||
+      uri.hasFragment) {
+    return null;
+  }
+  return Uri.parse(uri.origin);
+}
+
+/// Whether [origin] belongs to the site [api] is served from.
+///
+/// A local http API pairs only with loopback hosts. Otherwise [origin] must
+/// sit at or under the API host's parent domain (the API host itself when it
+/// has only two labels, or is an address).
+@visibleForTesting
+bool isSameSiteOrigin(Uri origin, Uri api) {
+  final host = origin.host.toLowerCase();
+  final apiHost = api.host.toLowerCase();
+  if (api.scheme == 'http') {
+    return _isLoopbackHost(apiHost) && _isLoopbackHost(host);
+  }
+  if (origin.scheme != 'https') return false;
+  if (InternetAddress.tryParse(apiHost) != null) return host == apiHost;
+  final labels = apiHost.split('.');
+  final site = labels.length > 2 ? labels.skip(1).join('.') : apiHost;
+  return host == site || host.endsWith('.$site');
+}
+
+bool _isLoopbackHost(String host) =>
+    host == 'localhost' ||
+    host.endsWith('.localhost') ||
+    (InternetAddress.tryParse(host)?.isLoopback ?? false);
+
 /// Reads a refusal into its short reason and figures, keeping server prose out.
 RenderBundleUploadException _refusal(RestageApiException error) {
   final Object? document;
@@ -1082,6 +1187,18 @@ RenderBundleUploadException _refusal(RestageApiException error) {
         reason: reason is String && _refusalReasonPattern.hasMatch(reason)
             ? reason
             : null,
+      );
+    case 'TargetSelectionRefusedException':
+      final GenericTypedException? typed;
+      try {
+        typed = decodeGenericTypedException(error.body);
+      } on Object {
+        break;
+      }
+      if (typed is! TargetSelectionRefused) break;
+      return RenderBundleUploadException(
+        statusCode: error.statusCode,
+        targetSelection: typed,
       );
     case 'RenderBundleStorageLimitException':
       final storage = _storageRefusal(data);
@@ -1143,47 +1260,30 @@ RenderBundleStorageRefusal? _storageRefusal(Map<String, dynamic> data) {
   );
 }
 
-String _authorizationHeader(Credential credential) => switch (credential.kind) {
-  CredentialKind.authKey =>
-    'Basic ${base64Encode(utf8.encode(credential.authToken))}',
-  CredentialKind.secretKey => 'Bearer ${credential.authToken}',
-  _ => throw const RenderBundleUploadException(),
-};
+String _authorizationHeader(Credential? credential) =>
+    switch (credential?.kind) {
+      CredentialKind.authKey =>
+        'Basic ${base64Encode(utf8.encode(credential!.authToken))}',
+      CredentialKind.secretKey => 'Bearer ${credential!.authToken}',
+      _ => throw const RenderBundleUploadException(),
+    };
 
-Uri _validatedUploadUri(
-  String source, {
-  required Uri apiEndpoint,
-  required Uri? trustedBundleOrigin,
-}) {
+/// The upload address the ticket names, when it is on the trusted origin.
+Uri _validatedUploadUri(String source, Uri? trustedBundleOrigin) {
   final uri = Uri.tryParse(source);
   if (uri == null ||
-      !_isAllowedUploadPair(
-        apiEndpoint: apiEndpoint,
-        uploadUri: uri,
-        trustedBundleOrigin: trustedBundleOrigin,
-      ) ||
+      trustedBundleOrigin == null ||
+      (uri.scheme != 'https' && uri.scheme != 'http') ||
+      !uri.hasAuthority ||
+      uri.origin != trustedBundleOrigin.origin ||
       uri.userInfo.isNotEmpty ||
       uri.hasFragment ||
       uri.hasQuery ||
       !_uploadRoutes.contains(uri.path)) {
     throw const RenderBundleUploadException();
   }
-
   return uri;
 }
-
-bool _isAllowedUploadPair({
-  required Uri apiEndpoint,
-  required Uri uploadUri,
-  required Uri? trustedBundleOrigin,
-}) =>
-    trustedBundleOrigin != null &&
-    _isExactTrustedBundleOrigin(trustedBundleOrigin) &&
-    _isAllowedApiControlPair(
-      apiEndpoint: apiEndpoint,
-      trustedBundleOrigin: trustedBundleOrigin,
-    ) &&
-    uploadUri.origin == trustedBundleOrigin.origin;
 
 bool _isAllowedApiControlPair({
   required Uri apiEndpoint,

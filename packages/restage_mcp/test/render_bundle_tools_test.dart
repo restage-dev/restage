@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:restage_cli/api.dart';
 import 'package:test/test.dart';
 
+import '_support/fake_backend.dart';
 import '_support/harness.dart';
 
 /// The build tools, in parity with `restage build push`, `restage surface
@@ -63,8 +64,8 @@ void main() {
         tool.name: tool,
     };
     expect(
-      tools['restage_list_render_bundle_heads']!.inputSchema.required,
-      containsAll(['projectSlug', 'appSlug']),
+      tools['restage_list_builds']!.inputSchema.properties!.keys,
+      containsAll(['projectDirectory', 'projectSlug', 'appSlug']),
     );
     expect(tools['restage_push_build']!.inputSchema.required, [
       'projectDirectory',
@@ -79,66 +80,64 @@ void main() {
     );
   });
 
-  test(
-    'list_render_bundle_heads reads each head as the server sends it',
-    () async {
-      Map<String, dynamic>? seenBody;
-      final connection = await connectServer(
-        store: store,
-        httpClient: MockClient((request) async {
-          seenBody = jsonDecode(request.body) as Map<String, dynamic>;
-          return http.Response(
-            jsonEncode({
-              'appId': 5,
-              'environmentHeads': [
-                {
-                  'head': 'staging',
-                  'version': versionView(4, {'acme.widgets': 2}),
-                  'updatedAt': '2030-01-02T00:00:00.000Z',
-                },
-              ],
-              'personalHeads': [
-                {
-                  'head': 'user/alice',
-                  'version': versionView(3, {}),
-                  'ownerDisplayName': 'Alice',
-                  'updatedAt': '2030-01-01T00:00:00.000Z',
-                },
-              ],
-            }),
-            200,
-          );
-        }),
-      );
-
-      final result = await connection.callTool(
-        CallToolRequest(
-          name: 'restage_list_render_bundle_heads',
-          arguments: {'projectSlug': 'demo', 'appSlug': 'mobile'},
-        ),
-      );
-
-      expect(result.isError, isNot(true));
-      expect(seenBody!['method'], 'listHeads');
-      final heads = result.structuredContent!['heads'] as List<Object?>;
-      expect(heads, hasLength(2));
-      final staging = heads.first! as Map<String, Object?>;
-      expect(staging['head'], 'staging');
-      expect(staging['version'], 4);
-      expect(staging['sourceCommit'], 'a91f2c3d');
-      expect(staging['libraries'], {'acme.widgets': 2});
-      final alice = heads.last! as Map<String, Object?>;
-      expect(alice['ownerDisplayName'], 'Alice');
-      expect(alice['libraries'], isEmpty);
-    },
-  );
-
-  test('push_surface says when the build cannot draw the surface', () async {
+  test('list_builds reads each head as the server sends it', () async {
+    Map<String, dynamic>? seenBody;
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((request) async {
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (body['method'] == 'coverage') {
+        seenBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'appId': 5,
+            'environmentHeads': [
+              {
+                'head': 'staging',
+                'version': versionView(4, {'acme.widgets': 2}),
+                'updatedAt': '2030-01-02T00:00:00.000Z',
+              },
+            ],
+            'personalHeads': [
+              {
+                'head': 'user/alice',
+                'version': versionView(3, {}),
+                'ownerDisplayName': 'Alice',
+                'updatedAt': '2030-01-01T00:00:00.000Z',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_list_builds',
+        arguments: {'projectSlug': 'demo', 'appSlug': 'mobile'},
+      ),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(seenBody!['method'], 'listHeads');
+    final heads = result.structuredContent!['heads'] as List<Object?>;
+    expect(heads, hasLength(2));
+    final staging = heads.first! as Map<String, Object?>;
+    expect(staging['head'], 'staging');
+    expect(staging['version'], 4);
+    expect(staging['sourceCommit'], 'a91f2c3d');
+    expect(staging['libraries'], {'acme.widgets': 2});
+    expect(staging['updatedAt'], '2030-01-02T00:00:00.000Z');
+    expect(staging['owner'], isNull);
+    final alice = heads.last! as Map<String, Object?>;
+    expect(alice['owner'], 'Alice');
+    expect(alice['libraries'], isEmpty);
+  });
+
+  test('draft push says when the build cannot draw the surface', () async {
+    final connection = await connectServer(
+      store: store,
+      httpClient: fakeBackend((call) async {
+        if (call.method == 'coverage') {
           return http.Response(
             jsonEncode({
               'requiredLibraries': [
@@ -156,7 +155,7 @@ void main() {
 
     final result = await connection.callTool(
       CallToolRequest(
-        name: 'restage_push_surface',
+        name: 'restage_push_surface_draft',
         arguments: {
           'projectSlug': 'demo',
           'appSlug': 'mobile',
@@ -168,7 +167,7 @@ void main() {
     );
 
     expect(result.isError, isNot(true));
-    expect(result.structuredContent!['version'], 5);
+    expect(result.structuredContent!['revision'], 5);
     expect(
       result.structuredContent!['buildNotice'],
       'This surface uses widgets from your app (acme.widgets). The dashboard '
@@ -177,12 +176,11 @@ void main() {
     );
   });
 
-  test('push_surface stays quiet when the build covers the surface', () async {
+  test('draft push stays quiet when the build covers the surface', () async {
     final connection = await connectServer(
       store: store,
-      httpClient: MockClient((request) async {
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (body['method'] == 'coverage') {
+      httpClient: fakeBackend((call) async {
+        if (call.method == 'coverage') {
           return http.Response(
             jsonEncode({
               'requiredLibraries': [
@@ -202,7 +200,7 @@ void main() {
 
     final result = await connection.callTool(
       CallToolRequest(
-        name: 'restage_push_surface',
+        name: 'restage_push_surface_draft',
         arguments: {
           'projectSlug': 'demo',
           'appSlug': 'mobile',
@@ -222,7 +220,7 @@ void main() {
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((_) async => http.Response('null', 200)),
-      buildPush:
+      cliRunner:
           (
             List<String> args, {
             required StringSink stdout,
@@ -270,7 +268,7 @@ void main() {
       final connection = await connectServer(
         store: store,
         httpClient: MockClient((_) async => http.Response('null', 200)),
-        buildPush:
+        cliRunner:
             (
               List<String> args, {
               required StringSink stdout,
@@ -295,4 +293,77 @@ void main() {
       );
     },
   );
+  test('push_build never sends a key to an endpoint a project names', () async {
+    final project = Directory('${tempDir.path}/app')..createSync();
+    File('${project.path}/restage_config.yaml').writeAsStringSync(
+      'project: demo\napp: mobile\nendpoint: https://api.attacker.example/\n',
+    );
+    final keyed = <Uri>[];
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient((request) async {
+        if (request.headers['authorization'] == 'Bearer $_key') {
+          keyed.add(request.url);
+        }
+        return http.Response('null', 200);
+      }),
+      environment: const {'RESTAGE_EXPERIMENTAL': '1', 'RESTAGE_API_KEY': _key},
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_push_build',
+        arguments: {'projectDirectory': project.path},
+      ),
+    );
+
+    expect(result.isError, isTrue);
+    expect(keyed, isEmpty);
+    expect(
+      (result.content.single as TextContent).text,
+      contains('is sent only to http://localhost:8080/'),
+    );
+  });
+
+  test('push_build words a target refusal for this server', () async {
+    final project = Directory('${tempDir.path}/app')..createSync();
+    File(
+      '${project.path}/restage_config.yaml',
+    ).writeAsStringSync('project: demo\napp: mobile\n');
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'className': 'TargetSelectionRefusedException',
+            'data': {
+              'reason': 'environmentOnBothPlanes',
+              'environmentSlug': 'staging',
+            },
+          }),
+          400,
+        ),
+      ),
+      environment: const {
+        'RESTAGE_EXPERIMENTAL': '1',
+        'RESTAGE_API_KEY': _key,
+        'RESTAGE_BACKEND_URL': 'https://api.test/',
+      },
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_push_build',
+        arguments: {'projectDirectory': project.path},
+      ),
+    );
+
+    expect(result.isError, isTrue);
+    final text = (result.content.single as TextContent).text;
+    expect(text, contains('Pass runtimePlane: sandbox or live.'));
+    expect(text, isNot(contains('--plane')));
+  });
 }
+
+const _key =
+    'rs_sk_sandbox_staging_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';

@@ -1532,7 +1532,7 @@ void main() {
       final result = await pauseLive(const ['--non-interactive']);
 
       expect(result.code, 1);
-      expect(result.err, contains('changes live experiment state'));
+      expect(result.err, contains('changes what the live plane serves'));
       expect(
         result.methods,
         isEmpty,
@@ -1665,6 +1665,13 @@ Uint8List _activatedListPage(
 /// Answers the directory reads the shared target resolution performs.
 ///
 /// Returns null for anything else, so the caller handles the semantic route.
+const _experimentTarget = {
+  'environmentTargetId': 31,
+  'namedEnvironmentId': 37,
+  'environmentSlug': 'production',
+  'runtimePlane': 'live',
+};
+
 http.Response? targetDirectoryResponse(String method) => switch (method) {
   'listMine' => http.Response(
     jsonEncode([
@@ -1679,14 +1686,18 @@ http.Response? targetDirectoryResponse(String method) => switch (method) {
     200,
   ),
   'listEnvironmentTargets' => http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 31,
-        'namedEnvironmentId': 37,
-        'environmentSlug': 'production',
-        'runtimePlane': 'live',
-      },
-    ]),
+    jsonEncode([_experimentTarget]),
+    200,
+  ),
+  'resolveTarget' => http.Response(
+    jsonEncode({
+      'organizationId': 11,
+      'organizationSlug': 'restage',
+      'projectSlug': 'project',
+      'appId': 23,
+      'appSlug': 'app',
+      'target': _experimentTarget,
+    }),
     200,
   ),
   _ => null,

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -7,20 +6,19 @@ import 'package:dart_mcp/server.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/api.dart';
-import 'package:restage_cli/restage_cli.dart' show RestageCli;
+import 'package:restage_cli/restage_cli.dart' show NonInteractive, RestageCli;
 import 'package:stream_channel/stream_channel.dart';
 
 import 'api_runner.dart';
-import 'auth.dart';
-import 'canonical_mutation_tool.dart';
-import 'experiment_activation_tool.dart';
-import 'experiment_apply_tool.dart';
-import 'experiment_results_tools.dart';
-import 'serving_record_rebuild_tool.dart';
+import 'build_tools.dart';
 import 'experimental_gate.dart';
 import 'in_flight_gate.dart';
+import 'operation_tools.dart';
+import 'project_tools.dart';
 import 'surface_funnel_tool.dart';
 import 'surface_routing_tool.dart';
+import 'surface_tools.dart';
+import 'tool_support.dart';
 
 /// Backend origin used for in-server login when no credential exists yet.
 /// Overridable at build time via `--define`; falls back to localhost.
@@ -36,35 +34,20 @@ const _loginPollBudget = Duration(seconds: 30);
 /// The server version reported to MCP hosts. Keep in sync with `pubspec.yaml`.
 const restageMcpVersion = '0.1.0';
 
-/// Runs `restage build push` with [args]; the default runs the CLI in process.
-typedef BuildPushRunner =
-    Future<int> Function(
-      List<String> args, {
-      required StringSink stdout,
-      required StringSink stderr,
-    });
-
 /// The Restage MCP server.
 ///
 /// Exposes the Restage backend to an MCP host over the tools capability,
 /// reusing the CLI's HTTP/auth/credential layer. Authentication comes from the
 /// shared cached credential written by `restage login`.
 base class RestageMcpServer extends MCPServer with ToolsSupport {
-  /// Build the server over [channel] (typically a stdio channel).
+  /// Builds the server over [channel], usually stdio.
   ///
-  /// [credentialStore] and [httpClient] default to the shared on-disk
-  /// credential and a fresh HTTP client per call. [sleep], [openBrowser],
-  /// [loginEndpoint], and [now] are injectable so the device-code login can be
-  /// driven against a fake backend in tests.
+  /// Defaults to stored credentials and one HTTP client for its lifetime.
+  /// Login dependencies are injectable; [cliRunner] replaces the in-process CLI.
+  /// Input closure waits for pending tool responses.
   ///
-  /// The embedding API is `@experimental`: this constructor's signature is
-  /// coupled to the pre-1.0 underlying MCP framework types ([channel], the
-  /// [MCPServer] base) and may change as that framework stabilizes. Most users
-  /// launch the `restage_mcp` executable directly rather than embedding the
-  /// server in their own Dart code.
-  /// The input side of [channel] stays open until every tool call still in
-  /// flight has answered, so a client that writes a request and closes its end
-  /// still receives the response.
+  /// This embedding API is experimental and follows the MCP framework's types.
+  /// Use the `restage_mcp` executable for the standard integration.
   @experimental
   factory RestageMcpServer.fromStreamChannel(
     StreamChannel<String> channel, {
@@ -76,7 +59,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     DateTime Function()? now,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
-    BuildPushRunner? buildPush,
+    CliRunner? cliRunner,
   }) {
     final gate = InFlightGate();
     return RestageMcpServer._(
@@ -90,7 +73,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       now: now,
       experimentActivationApi: experimentActivationApi,
       environment: environment,
-      buildPush: buildPush,
+      cliRunner: cliRunner,
     );
   }
 
@@ -105,10 +88,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     DateTime Function()? now,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
-    BuildPushRunner? buildPush,
+    CliRunner? cliRunner,
   }) : _credentialStore = credentialStore,
-       _httpClient = httpClient,
-       _buildPush = buildPush,
+       _httpClient = httpClient ?? http.Client(),
+       _ownsHttpClient = httpClient == null,
+       _environment = environment,
        _sleep = sleep ?? _defaultSleep,
        _openBrowser = openBrowser ?? _defaultOpenBrowser,
        _loginEndpoint = loginEndpoint,
@@ -123,143 +107,44 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
              'surveys) and configuration. Sign in with restage_login (or '
              'reuse an existing `restage login` session).',
        ) {
-    // Every handler is wrapped in _scrubbed: the by-construction value funnel
-    // that removes the secrets this server holds (the session token + the
-    // in-flight device grant) from every result, so no auth path — withApi,
-    // raw-auth, or future — can surface them.
-    registerTool(_loginTool, _scrubbed(_handleLogin));
-    registerTool(_whoamiTool, _scrubbed(_handleWhoami));
-    registerTool(_logoutTool, _scrubbed(_handleLogout));
-    registerTool(_listPaywallsTool, _scrubbed(_handleListPaywalls));
-    registerTool(_getPaywallTool, _scrubbed(_handleGetPaywall));
-    registerTool(_pushPaywallTool, _scrubbed(_handlePushPaywall));
-    registerTool(
-      _getPublishedVersionTool,
-      _scrubbed(_handleGetPublishedVersion),
+    // _scrubbed removes the secrets this server holds (the session token and
+    // the in-flight device grant) from every result.
+    final injectedCli = cliRunner;
+    final tools = ToolContext(
+      store: _store,
+      httpClient: _httpClient,
+      runCli: injectedCli == null
+          ? _runCli
+          : (args, {required stdout, required stderr, target}) =>
+                injectedCli(args, stdout: stdout, stderr: stderr),
     );
-    registerTool(_listSurfacesTool, _scrubbed(_handleListSurfaces));
-    registerTool(_surfaceStatusTool, _scrubbed(_handleSurfaceStatus));
-    registerTool(_surfaceHistoryTool, _scrubbed(_handleSurfaceHistory));
-    registerTool(_pushSurfaceTool, _scrubbed(_handlePushSurface));
-    registerTool(
-      _listRenderBundleHeadsTool,
-      _scrubbed(_handleListRenderBundleHeads),
-    );
-    registerTool(_pushBuildTool, _scrubbed(_handlePushBuild));
-    registerTool(_rollbackPreflightTool, _scrubbed(_handleRollbackPreflight));
-    registerTool(_rollbackSurfaceTool, _scrubbed(_handleRollbackSurface));
-    for (final routing in <(Tool, _RoutingHandler)>[
-      (listRoutingAudiencesTool, handleListRoutingAudiences),
-      (routingAudienceUsageTool, handleRoutingAudienceUsage),
-      (readRoutingTool, handleReadRouting),
-      (readDeliveryDiagnosticsTool, handleReadDeliveryDiagnostics),
-      (readRoutingRevisionTool, handleReadRoutingRevision),
-      (previewRoutingTool, handlePreviewRouting),
-      (publishRoutingTool, handlePublishRouting),
-      (rollbackRouteTool, handleRollbackRoute),
-    ]) {
-      final handler = routing.$2;
-      registerTool(
-        routing.$1,
-        _scrubbed(
-          (request) =>
-              handler(request: request, store: _store, httpClient: _httpClient),
-        ),
-      );
-    }
-    registerTool(_listOrganizationsTool, _scrubbed(_handleListOrganizations));
-    registerTool(_listProjectsTool, _scrubbed(_handleListProjects));
-    registerTool(_listAppsTool, _scrubbed(_handleListApps));
-    registerTool(_listEnvironmentsTool, _scrubbed(_handleListEnvironments));
-    registerTool(
-      _listEnvironmentTargetsTool,
-      _scrubbed(_handleListEnvironmentTargets),
-    );
-    registerTool(_listProductsTool, _scrubbed(_handleListProducts));
-    registerTool(_importProductsTool, _scrubbed(_handleImportProducts));
-    registerTool(_listProductSlotsTool, _scrubbed(_handleListProductSlots));
-    registerTool(_upsertProductSlotTool, _scrubbed(_handleUpsertProductSlot));
-    registerTool(
-      _listStoreConnectionsTool,
-      _scrubbed(_handleListStoreConnections),
-    );
-    registerTool(
-      readSurfaceFunnelTool,
-      _scrubbed(
-        (request) => handleReadSurfaceFunnel(
-          request: request,
-          store: _store,
-          httpClient: _httpClient,
-        ),
+    for (final (tool, handler) in <ToolEntry>[
+      (_loginTool, _handleLogin),
+      (_whoamiTool, _handleWhoami),
+      (_logoutTool, _handleLogout),
+      ...operationTools(tools),
+      ...surfaceTools(tools),
+      ...routingTools(tools),
+      ...buildTools(tools),
+      ...projectTools(tools),
+      (
+        readSurfaceFunnelTool,
+        (request) => handleReadSurfaceFunnel(tools, request),
       ),
-    );
-    registerTool(_getAppConfigTool, _scrubbed(_handleGetAppConfig));
-    registerTool(_updateAppConfigTool, _scrubbed(_handleUpdateAppConfig));
-    registerTool(_listApiKeysTool, _scrubbed(_handleListApiKeys));
-    registerTool(_revokeApiKeyTool, _scrubbed(_handleRevokeApiKey));
-    // Experimental tools are registered only when the host opts in. They call
-    // routes production does not serve yet, so listing them by default would
-    // advertise an operation that cannot succeed — and an MCP client's only
-    // signal about what it may call is the tool list.
-    if (experimentalToolsEnabled(environment)) {
-      registerTool(
-        canonicalMutationTool,
-        _scrubbed(
-          (request) => handleCanonicalMutation(
-            request: request,
-            store: _store,
-            httpClient: _httpClient,
-          ),
-        ),
-      );
-      registerTool(
-        experimentApplyTool,
-        _scrubbed(
-          (request) => handleExperimentApply(
-            request: request,
-            store: _store,
-            httpClient: _httpClient,
-          ),
-        ),
-      );
-      for (final read in <(Tool, _ReadHandler)>[
-        (readExperimentResultsTool, handleReadExperimentResults),
-        (readExperimentRosterTool, handleReadExperimentRoster),
-      ]) {
-        final handler = read.$2;
-        registerTool(
-          read.$1,
-          _scrubbed(
-            (request) => handler(
-              request: request,
-              store: _store,
-              httpClient: _httpClient,
-            ),
-          ),
-        );
-      }
-      registerTool(
-        servingRecordRebuildTool,
-        _scrubbed(
-          (request) => handleServingRecordRebuild(
-            request: request,
-            store: _store,
-            httpClient: _httpClient,
-          ),
-        ),
-      );
-      if (experimentActivationApi != null) {
-        registerTool(
-          experimentActivationTool,
-          _scrubbed(
-            (request) => handleExperimentActivation(
-              request: request,
-              api: experimentActivationApi,
-            ),
-          ),
-        );
-      }
+      // Experimental tools call routes production does not serve yet, and an
+      // MCP client's only signal about what it may call is the tool list.
+      if (experimentalToolsEnabled(environment))
+        ...experimentTools(tools, activation: experimentActivationApi),
+    ]) {
+      final (adapted, filled) = withProjectConfig(tools, (tool, handler));
+      registerTool(adapted, _scrubbed(filled));
     }
+  }
+
+  @override
+  Future<void> shutdown() async {
+    await super.shutdown();
+    if (_ownsHttpClient) _httpClient.close();
   }
 
   /// Wrap [handler] so its result passes through the held-secret value funnel
@@ -302,8 +187,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
 
   final InFlightGate _gate;
   final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
-  final BuildPushRunner? _buildPush;
+  final http.Client _httpClient;
+  final bool _ownsHttpClient;
+  final Map<String, String>? _environment;
   final Future<void> Function(Duration) _sleep;
   final Future<void> Function(String) _openBrowser;
   final Uri? _loginEndpoint;
@@ -312,662 +198,6 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   /// The in-flight device-authorization attempt, if any. Holds the device-code
   /// secret in process memory only — it is never returned to the client.
   _PendingLogin? _pendingLogin;
-
-  /// Optional organization-id property reused by the paywall tools to
-  /// disambiguate when the caller belongs to several organizations.
-  static final _organizationIdProperty = Schema.int(
-    description:
-        'Optional organization id (from restage_list_organizations) to '
-        'disambiguate when you belong to more than one organization.',
-  );
-
-  static const _runtimePlaneValues = ['sandbox', 'live'];
-
-  /// Optional exact target id shared by target-scoped tools.
-  static final _environmentTargetIdProperty = Schema.int(
-    description: 'Optional exact environment target id.',
-  );
-
-  /// Optional runtime plane shared by target-scoped tools.
-  static final _runtimePlaneProperty = UntitledSingleSelectEnumSchema(
-    description: 'Optional runtime plane selector.',
-    values: _runtimePlaneValues,
-  );
-
-  static final _listPaywallsTool = Tool(
-    name: 'restage_list_paywalls',
-    description:
-        'List the paywalls under a Restage project and app. Returns each '
-        "paywall's slug, name, last-draft timestamp, and per-environment "
-        'published versions.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(
-          description: 'The app slug under the project.',
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug'],
-    ),
-  );
-
-  static final _getPaywallTool = Tool(
-    name: 'restage_get_paywall',
-    description:
-        'Download the compiled draft blob of a paywall as base64 — useful for '
-        'backup, inspection, or round-tripping. The blob is compiled binary, '
-        'not human- or agent-editable; this tool is for inspection and backup, '
-        'not authoring.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'paywallSlug': Schema.string(description: 'The paywall slug.'),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'paywallSlug'],
-    ),
-  );
-
-  static final _pushPaywallTool = Tool(
-    name: 'restage_push_paywall',
-    description:
-        'Push a paywall\'s current draft to an environment. Returns the new '
-        'pushed version number (monotonic per paywall + environment). '
-        'Requires an admin role on the organization.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'paywallSlug': Schema.string(description: 'The paywall slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The target environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'paywallSlug', 'environmentSlug'],
-    ),
-  );
-
-  static final _getPublishedVersionTool = Tool(
-    name: 'restage_get_published_version',
-    description:
-        'Get the paywall version currently live in an environment — the '
-        'published version the active pointer names — or null when nothing '
-        'is published there. A pushed version is not live until it is '
-        'published.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'paywallSlug': Schema.string(description: 'The paywall slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'paywallSlug', 'environmentSlug'],
-    ),
-  );
-
-  /// The valid surface-type wire names, owned by the [SurfaceType] enum so a
-  /// new type flows into the schema, its description, and the error message
-  /// from one place.
-  static final _surfaceTypeWireNames = [
-    for (final type in SurfaceType.values) type.wireName,
-  ];
-
-  static final _surfaceTypeProperty = UntitledSingleSelectEnumSchema(
-    description:
-        'The surface type: one of '
-        '${_surfaceTypeWireNames.map((n) => '"$n"').join(', ')}.',
-    values: _surfaceTypeWireNames,
-  );
-
-  static final _listSurfacesTool = Tool(
-    name: 'restage_list_surfaces',
-    description:
-        'List the surfaces of one type (onboarding, message, survey, or '
-        "paywall) under a Restage project and app. Returns each surface's "
-        'slug, name, last-draft timestamp, and per-environment published '
-        'versions.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(
-          description: 'The app slug under the project.',
-        ),
-        'appId': Schema.int(description: 'The active numeric App id.'),
-        'surfaceType': _surfaceTypeProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'surfaceType'],
-    ),
-  );
-
-  static final _surfaceStatusTool = Tool(
-    name: 'restage_surface_status',
-    description:
-        'Show the live lifecycle state of a surface in an environment: the '
-        'active version, lock state, delivery shape (blob or flow), and the '
-        "pushed version history. Each flow version carries its delivery "
-        "mode ('typed' or 'general'); a general version's flow structure can "
-        'be recomposed over the air within the installed vocabulary.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'surfaceType': _surfaceTypeProperty,
-        'surfaceSlug': Schema.string(description: 'The surface slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: [
-        'projectSlug',
-        'appSlug',
-        'surfaceType',
-        'surfaceSlug',
-        'environmentSlug',
-      ],
-    ),
-  );
-
-  static final _surfaceHistoryTool = Tool(
-    name: 'restage_surface_history',
-    description:
-        'The audit timeline for one surface in an environment: pushes, '
-        'publishes, rollbacks, kills, locks — newest first, each with its '
-        'actor, outcome, and reason.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'surfaceType': _surfaceTypeProperty,
-        'surfaceSlug': Schema.string(description: 'The surface slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: [
-        'projectSlug',
-        'appSlug',
-        'surfaceType',
-        'surfaceSlug',
-        'environmentSlug',
-      ],
-    ),
-  );
-
-  static final _pushSurfaceTool = Tool(
-    name: 'restage_push_surface',
-    description:
-        "Push a surface's current draft to an environment. Returns the "
-        'new pushed version number (monotonic per surface + '
-        'environment). Requires an admin role on the organization.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'surfaceType': _surfaceTypeProperty,
-        'surfaceSlug': Schema.string(description: 'The surface slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The target environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: [
-        'projectSlug',
-        'appSlug',
-        'surfaceType',
-        'surfaceSlug',
-        'environmentSlug',
-      ],
-    ),
-  );
-
-  static final _listRenderBundleHeadsTool = Tool(
-    name: 'restage_list_render_bundle_heads',
-    description:
-        "List the heads an app's build holds: one per environment plus one "
-        'per user, each with the version it points at, the commit it was '
-        'built from, and the app widget libraries that version registers. '
-        'A surface that uses app widgets displays in the dashboard only '
-        'through a build that registers them.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug'],
-    ),
-  );
-
-  static final _pushBuildTool = Tool(
-    name: 'restage_push_build',
-    description:
-        "Build the app's registered widgets and push the build as a render "
-        'bundle, the same as `restage build push`. Moves an environment head '
-        'when environmentSlug is given (an admin or a push-scoped key), or '
-        "the signed-in user's own head. Runs the Flutter web build, so it "
-        'can take minutes. An unchanged build uploads nothing.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectDirectory': Schema.string(
-          description:
-              'Directory to start the restage_config.yaml search from; the '
-              "app's Flutter project.",
-        ),
-        'environmentSlug': Schema.string(
-          description:
-              'The environment head to move. Omit to push to your own head.',
-        ),
-        'projectSlug': Schema.string(
-          description: 'Project slug (overrides restage_config.yaml).',
-        ),
-        'appSlug': Schema.string(
-          description: 'App slug (overrides restage_config.yaml).',
-        ),
-        'organizationSlug': Schema.string(
-          description: 'Organization slug (overrides restage_config.yaml).',
-        ),
-        'recordGit': Schema.bool(
-          description:
-              'Record the push as a release receipt in the repository.',
-        ),
-      },
-      required: ['projectDirectory'],
-    ),
-  );
-
-  static final _rollbackPreflightTool = Tool(
-    name: 'restage_rollback_preflight',
-    description:
-        'Read-only preview of how rolling a surface back to a version is '
-        'expected to affect live clients: a classification (compatible / '
-        'contractChange / noActiveBaseline) plus any blocking contract '
-        'changes. Never mutates anything, and the rollback itself is never '
-        'gated on it — it is purely informational. Call it before '
-        'restage_rollback_surface to see the expected cohort impact. '
-        'Requires an admin role (it previews an admin operation).',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'surfaceType': _surfaceTypeProperty,
-        'surfaceSlug': Schema.string(description: 'The surface slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'toVersion': Schema.int(
-          description: 'The published version the rollback would target.',
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: [
-        'projectSlug',
-        'appSlug',
-        'surfaceType',
-        'surfaceSlug',
-        'environmentSlug',
-        'toVersion',
-      ],
-    ),
-  );
-
-  static final _rollbackSurfaceTool = Tool(
-    name: 'restage_rollback_surface',
-    description:
-        'Roll a surface back to a previous published version by re-pointing '
-        'its active-version pointer. Requires an admin role and a reason for '
-        'the audit trail. Call restage_rollback_preflight first to see the '
-        'expected cohort impact. Set freeze to also lock the surface against '
-        'future publishes after the re-point.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'surfaceType': _surfaceTypeProperty,
-        'surfaceSlug': Schema.string(description: 'The surface slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'toVersion': Schema.int(
-          description: 'The published version to roll back to.',
-        ),
-        'reason': Schema.string(
-          description: 'The reason recorded in the audit trail.',
-        ),
-        'freeze': Schema.bool(
-          description:
-              'Also lock the surface against future publishes after '
-              'rolling back (default false).',
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: [
-        'projectSlug',
-        'appSlug',
-        'surfaceType',
-        'surfaceSlug',
-        'environmentSlug',
-        'toVersion',
-        'reason',
-      ],
-    ),
-  );
-
-  static final _listOrganizationsTool = Tool(
-    name: 'restage_list_organizations',
-    description:
-        'List the organizations the signed-in account belongs to. Returns '
-        "each organization's id, slug, name, and your role. Use an "
-        'organizationId to address its projects, apps, and environments.',
-    inputSchema: Schema.object(properties: {}),
-  );
-
-  static final _listProjectsTool = Tool(
-    name: 'restage_list_projects',
-    description:
-        'List the projects under an organization. Call '
-        'restage_list_organizations first to obtain the organizationId.',
-    inputSchema: Schema.object(
-      properties: {
-        'organizationId': Schema.int(
-          description: 'The organization id (from restage_list_organizations).',
-        ),
-      },
-      required: ['organizationId'],
-    ),
-  );
-
-  static final _listAppsTool = Tool(
-    name: 'restage_list_apps',
-    description: 'List the apps under a project in an organization.',
-    inputSchema: Schema.object(
-      properties: {
-        'organizationId': Schema.int(description: 'The organization id.'),
-        'projectSlug': Schema.string(description: 'The project slug.'),
-      },
-      required: ['organizationId', 'projectSlug'],
-    ),
-  );
-
-  static final _listEnvironmentsTool = Tool(
-    name: 'restage_list_environments',
-    description:
-        'List the environments under a project in an organization '
-        '(e.g. dev, staging, production).',
-    inputSchema: Schema.object(
-      properties: {
-        'organizationId': Schema.int(description: 'The organization id.'),
-        'projectSlug': Schema.string(description: 'The project slug.'),
-      },
-      required: ['organizationId', 'projectSlug'],
-    ),
-  );
-
-  static final _listEnvironmentTargetsTool = Tool(
-    name: 'restage_list_environment_targets',
-    description:
-        'List the existing environment targets under one app, optionally '
-        'filtered by runtime plane.',
-    inputSchema: Schema.object(
-      properties: {
-        'organizationId': Schema.int(description: 'The organization id.'),
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'appId': Schema.int(description: 'The active numeric App id.'),
-        'runtimePlane': _runtimePlaneProperty,
-      },
-      required: ['organizationId', 'projectSlug', 'appSlug'],
-    ),
-  );
-
-  // ---- Products / store ----
-
-  /// The store-vendor enum, serialized by name on the wire.
-  static const _storeVendorValues = ['appStore', 'playStore'];
-
-  static final _listProductsTool = Tool(
-    name: 'restage_list_products',
-    description:
-        'List the store products (SKUs) imported for an app, optionally '
-        'filtered to one store. Each product carries its store, store product '
-        'id, display name, price, and the product slot it is mapped to (if '
-        'any).',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'store': UntitledSingleSelectEnumSchema(
-          description:
-              'Optional store filter: "appStore" (Apple) or "playStore" '
-              '(Google). Omit to list both stores.',
-          values: _storeVendorValues,
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug'],
-    ),
-  );
-
-  static final _importProductsTool = Tool(
-    name: 'restage_import_products',
-    description:
-        "Re-fetch a store's product catalog and upsert each entry as a "
-        'product, refreshing prices and display names. Requires a verified '
-        'store connection for that store and an admin role. Returns the '
-        'upserted products.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'store': UntitledSingleSelectEnumSchema(
-          description:
-              'Which store catalog to import: "appStore" (Apple) or '
-              '"playStore" (Google).',
-          values: _storeVendorValues,
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'store'],
-    ),
-  );
-
-  static final _listProductSlotsTool = Tool(
-    name: 'restage_list_product_slots',
-    description:
-        'List the product slots for an app. A slot is the paywall-facing handle '
-        'for an entitlement; it owns the entitlement string that purchasing a '
-        'mapped product grants. (To see which store products map to which slot, '
-        'list products and read each product\'s product slot.)',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug'],
-    ),
-  );
-
-  static final _upsertProductSlotTool = Tool(
-    name: 'restage_upsert_product_slot',
-    description:
-        'Create or update a product slot and its store-product mapping. '
-        'Requires an admin role. WARNING — this sets the slot\'s COMPLETE '
-        'product mapping (full replace): any store id you omit or pass as null '
-        'is UNMAPPED from this slot. To keep an existing mapping you MUST pass '
-        'its current product id — call restage_list_product_slots and '
-        'restage_list_products first to read the current mappings.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'name': Schema.string(
-          description: 'The slot name (the handle a paywall references).',
-        ),
-        'entitlement': Schema.string(
-          description:
-              'The entitlement string purchasing a mapped product grants.',
-        ),
-        'iosProductId': _slotProductIdProperty('App Store (iOS)'),
-        'androidProductId': _slotProductIdProperty('Play Store (Android)'),
-        'organizationId': _organizationIdProperty,
-      },
-      // iosProductId + androidProductId are REQUIRED-but-nullable so the agent
-      // must consciously state each store every call (full replace) — it cannot
-      // silently drop a store by forgetting the field. Pass null to unmap.
-      required: [
-        'projectSlug',
-        'appSlug',
-        'name',
-        'entitlement',
-        'iosProductId',
-        'androidProductId',
-      ],
-    ),
-  );
-
-  /// A required-but-nullable store-product-id property for the upsert tool.
-  /// The key must be present every call (full-replace footgun-guard); its value
-  /// is the product id to map for [storeLabel], or `null` to unmap that store.
-  static Schema _slotProductIdProperty(String storeLabel) => Schema.combined(
-    description:
-        'The $storeLabel store product id to map to this slot, or null to '
-        'UNMAP $storeLabel from it. Required every call (full replace): pass '
-        'the CURRENT id to keep an existing mapping.',
-    anyOf: [Schema.string(), Schema.nil()],
-  );
-
-  static final _listStoreConnectionsTool = Tool(
-    name: 'restage_list_store_connections',
-    description:
-        'List the store connections configured for an app (one per store). '
-        'Returns non-secret connection metadata only — store, status, the '
-        'store app identifier, a short credential fingerprint, the RTDN topic, '
-        'and timestamps. The stored credential bundle is never returned.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug'],
-    ),
-  );
-
-  // ---- App configuration ----
-
-  static final _getAppConfigTool = Tool(
-    name: 'restage_get_app_config',
-    description:
-        'Get an app\'s platform configuration: its iOS bundle id, Android '
-        'package name, and web domain (plus id, slug, and name). Needs the '
-        'organization id (from restage_list_organizations).',
-    inputSchema: Schema.object(
-      properties: {
-        'organizationId': Schema.int(
-          description: 'The organization id (from restage_list_organizations).',
-        ),
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-      },
-      required: ['organizationId', 'projectSlug', 'appSlug'],
-    ),
-  );
-
-  static final _updateAppConfigTool = Tool(
-    name: 'restage_update_app_config',
-    description:
-        'Update an app\'s platform configuration. Requires an admin role. Each '
-        'field is independent: OMIT a field to leave it unchanged; pass an '
-        'EMPTY STRING to clear it. Returns the updated app.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'iosBundleId': Schema.string(
-          description:
-              'New iOS bundle id. Omit to leave unchanged; empty string to '
-              'clear.',
-        ),
-        'androidPackage': Schema.string(
-          description:
-              'New Android package name. Omit to leave unchanged; empty string '
-              'to clear.',
-        ),
-        'webDomain': Schema.string(
-          description:
-              'New web domain. Omit to leave unchanged; empty string to clear.',
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug'],
-    ),
-  );
-
-  // ---- API keys (admin: audit + kill only; no mint) ----
-
-  static final _listApiKeysTool = Tool(
-    name: 'restage_list_api_keys',
-    description:
-        'List the active API keys for an app environment. Returns redacted '
-        'views only — id, kind, a short key prefix, and lifecycle timestamps. '
-        'The key hash and plaintext are never returned. (Minting is not '
-        'available here; it issues a one-time secret — use the dashboard '
-        'or CLI.)',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'environmentSlug': Schema.string(
-          description: 'The environment slug (e.g. production).',
-        ),
-        'environmentTargetId': _environmentTargetIdProperty,
-        'runtimePlane': _runtimePlaneProperty,
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'environmentSlug'],
-    ),
-  );
-
-  static final _revokeApiKeyTool = Tool(
-    name: 'restage_revoke_api_key',
-    description:
-        'Revoke an API key by its id (from restage_list_api_keys). Requires an '
-        'admin role. Idempotent — revoking an already-revoked key is a no-op.',
-    inputSchema: Schema.object(
-      properties: {
-        'projectSlug': Schema.string(description: 'The project slug.'),
-        'appSlug': Schema.string(description: 'The app slug.'),
-        'apiKeyId': Schema.int(
-          description: 'The id of the key to revoke (from list_api_keys).',
-        ),
-        'organizationId': _organizationIdProperty,
-      },
-      required: ['projectSlug', 'appSlug', 'apiKeyId'],
-    ),
-  );
 
   static final _loginTool = Tool(
     name: 'restage_login',
@@ -1000,23 +230,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   FileCredentialStore get _store =>
       _credentialStore ?? FileCredentialStore.atDefaultLocation();
 
-  /// The authenticated [withApi] seam bound to this server's store and client.
-  /// Resolves the cached credential, runs [body], maps errors, and closes.
-  Future<CallToolResult> _withApi(
-    String action,
-    Future<CallToolResult> Function(RestageApi api) body, {
-    required String surfaceNoun,
-  }) => withApi(
-    store: _store,
-    httpClient: _httpClient,
-    action: action,
-    body: body,
-    surfaceNoun: surfaceNoun,
-  );
-
-  /// Build a [RestageApi] against [endpoint] (optionally authed with
-  /// [credential]), run [body], and close the client iff this server created
-  /// it. The single home for the "only close what we created" rule.
+  /// Run [body] against [endpoint] (optionally authed with [credential]) on
+  /// the server's client.
   Future<T> _withRawApi<T>(
     Uri endpoint, {
     Credential? credential,
@@ -1027,363 +242,10 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       credential: credential,
       httpClient: _httpClient,
     );
-    try {
-      return await body(api);
-    } finally {
-      if (_httpClient == null) api.close();
-    }
+    return body(api);
   }
 
-  /// Handle a `restage_list_paywalls` call.
-  ///
-  /// Arguments are schema-validated by the framework before this runs, so the
-  /// slugs are present and well-typed here. The shared [withApi] seam resolves
-  /// auth, maps errors, and closes the client; the defensive catch-all there
-  /// keeps any unexpected throwable (and its stack/secret) off the channel.
-  Future<CallToolResult> _handleListPaywalls(CallToolRequest request) {
-    final projectSlug = request.str('projectSlug');
-    final appSlug = request.str('appSlug');
-    final organizationId = request.optInt('organizationId');
-    return _withApi('listing paywalls', surfaceNoun: 'paywall', (api) async {
-      final summaries = await PaywallApi(api).list(
-        project: projectSlug,
-        app: appSlug,
-        organizationId: organizationId,
-      );
-      return jsonResult(<String, Object?>{
-        'paywalls': [for (final summary in summaries) summary.toJson()],
-      });
-    });
-  }
-
-  /// Handle `restage_get_paywall` — download the compiled draft blob as base64.
-  Future<CallToolResult> _handleGetPaywall(CallToolRequest request) {
-    final projectSlug = request.str('projectSlug');
-    final appSlug = request.str('appSlug');
-    final paywallSlug = request.str('paywallSlug');
-    final organizationId = request.optInt('organizationId');
-    return _withApi('downloading the paywall', surfaceNoun: 'paywall', (
-      api,
-    ) async {
-      final bytes = await PaywallApi(api).load(
-        project: projectSlug,
-        app: appSlug,
-        paywall: paywallSlug,
-        organizationId: organizationId,
-      );
-      return jsonResult(<String, Object?>{
-        'projectSlug': projectSlug,
-        'appSlug': appSlug,
-        'paywallSlug': paywallSlug,
-        'byteLength': bytes.length,
-        'paywallBase64': base64Encode(bytes),
-      });
-    });
-  }
-
-  /// Handle `restage_push_paywall` — push a draft to an environment.
-  Future<CallToolResult> _handlePushPaywall(CallToolRequest request) {
-    final projectSlug = request.str('projectSlug');
-    final appSlug = request.str('appSlug');
-    final paywallSlug = request.str('paywallSlug');
-    final environmentSlug = request.str('environmentSlug');
-    final organizationId = request.optInt('organizationId');
-    return _withApi('pushing the paywall', surfaceNoun: 'paywall', (api) async {
-      final version = await PaywallApi(api).publish(
-        project: projectSlug,
-        app: appSlug,
-        paywall: paywallSlug,
-        environment: environmentSlug,
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: organizationId,
-      );
-      final notice = await _buildNotice(
-        api,
-        request,
-        surfaceType: SurfaceType.paywall,
-        surfaceSlug: paywallSlug,
-      );
-      return jsonResult(<String, Object?>{
-        'version': version,
-        if (notice != null) 'buildNotice': notice,
-      });
-    });
-  }
-
-  /// Handle `restage_get_published_version` — the version now live.
-  Future<CallToolResult> _handleGetPublishedVersion(CallToolRequest request) {
-    final projectSlug = request.str('projectSlug');
-    final appSlug = request.str('appSlug');
-    final paywallSlug = request.str('paywallSlug');
-    final environmentSlug = request.str('environmentSlug');
-    final organizationId = request.optInt('organizationId');
-    return _withApi('reading the published version', surfaceNoun: 'paywall', (
-      api,
-    ) async {
-      final version = await PaywallApi(api).getPublishedVersion(
-        project: projectSlug,
-        app: appSlug,
-        paywall: paywallSlug,
-        environment: environmentSlug,
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: organizationId,
-      );
-      return jsonResult(<String, Object?>{'version': version});
-    });
-  }
-
-  /// Resolve the `surfaceType` argument and run [body] through the
-  /// authenticated [_withApi] seam.
-  ///
-  /// The input schema constrains `surfaceType` to the enum's wire names, so
-  /// the framework rejects invalid values before a handler runs; the parse
-  /// here is defense-in-depth for a host that skips schema validation, and it
-  /// turns an unrecognized value into a clean tool error (never a throw)
-  /// before any backend call is made.
-  Future<CallToolResult> _withSurfaceApi(
-    CallToolRequest request,
-    String action,
-    Future<CallToolResult> Function(RestageApi api, SurfaceType surfaceType)
-    body,
-  ) {
-    final raw = request.str('surfaceType');
-    final SurfaceType surfaceType;
-    try {
-      surfaceType = SurfaceType.fromWireName(raw);
-    } on FormatException {
-      return Future.value(
-        mcpError(
-          'Unknown surfaceType "$raw". Valid values: '
-          '${_surfaceTypeWireNames.join(', ')}.',
-        ),
-      );
-    }
-    return _withApi(
-      action,
-      surfaceNoun: surfaceType.wireName,
-      (api) => body(api, surfaceType),
-    );
-  }
-
-  RuntimePlane? _runtimePlaneFromRequest(CallToolRequest request) {
-    final value = request.optStr('runtimePlane');
-    return value == null ? null : RuntimePlane.fromWireName(value);
-  }
-
-  /// Handle `restage_list_surfaces` — list one surface type under an app.
-  Future<CallToolResult> _handleListSurfaces(CallToolRequest request) {
-    return _withSurfaceApi(request, 'listing surfaces', (
-      api,
-      surfaceType,
-    ) async {
-      final summaries = await SurfaceApi(api).list(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: surfaceType,
-        organizationId: request.optInt('organizationId'),
-        appId: request.optInt('appId'),
-      );
-      return jsonResult(<String, Object?>{
-        'surfaces': [for (final summary in summaries) summary.toJson()],
-      });
-    });
-  }
-
-  /// Handle `restage_surface_status` — the live lifecycle snapshot, including
-  /// each version's flow delivery mode when the wire carries one.
-  Future<CallToolResult> _handleSurfaceStatus(CallToolRequest request) {
-    return _withSurfaceApi(request, 'reading the surface status', (
-      api,
-      surfaceType,
-    ) async {
-      final status = await SurfaceApi(api).surfaceStatus(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: surfaceType,
-        surfaceSlug: request.str('surfaceSlug'),
-        environment: request.str('environmentSlug'),
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: request.optInt('organizationId'),
-      );
-      return jsonResult(status.toJson());
-    });
-  }
-
-  /// Handle `restage_surface_history` — the audit timeline for one surface.
-  Future<CallToolResult> _handleSurfaceHistory(CallToolRequest request) {
-    return _withSurfaceApi(request, 'reading the surface history', (
-      api,
-      surfaceType,
-    ) async {
-      final entries = await SurfaceApi(api).listSurfaceHistory(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: surfaceType,
-        surfaceSlug: request.str('surfaceSlug'),
-        environment: request.str('environmentSlug'),
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: request.optInt('organizationId'),
-      );
-      return jsonResult(<String, Object?>{
-        'events': [for (final entry in entries) entry.toJson()],
-      });
-    });
-  }
-
-  /// Handle `restage_push_surface` — push a draft to an environment.
-  Future<CallToolResult> _handlePushSurface(CallToolRequest request) {
-    return _withSurfaceApi(request, 'pushing the surface', (
-      api,
-      surfaceType,
-    ) async {
-      final version = await SurfaceApi(api).publish(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: surfaceType,
-        surfaceSlug: request.str('surfaceSlug'),
-        environment: request.str('environmentSlug'),
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: request.optInt('organizationId'),
-      );
-      final notice = await _buildNotice(
-        api,
-        request,
-        surfaceType: surfaceType,
-        surfaceSlug: request.str('surfaceSlug'),
-      );
-      return jsonResult(<String, Object?>{
-        'version': version,
-        if (notice != null) 'buildNotice': notice,
-      });
-    });
-  }
-
-  /// The render-bundle client bound to the same credential [api] holds.
-  Future<RenderBundleApi> _renderBundles(RestageApi api) async {
-    final credential = await _store.read();
-    if (credential == null) throw const NotSignedInException();
-    return RenderBundleApi(
-      rpc: api,
-      apiEndpoint: Uri.parse(credential.endpoint),
-      credential: credential,
-      uploadClient: _httpClient,
-    );
-  }
-
-  /// What a push should add when the environment's build cannot draw the
-  /// surface's app widgets. Best effort: a refused read adds nothing, the
-  /// push stands either way.
-  Future<String?> _buildNotice(
-    RestageApi api,
-    CallToolRequest request, {
-    required SurfaceType surfaceType,
-    required String surfaceSlug,
-  }) async {
-    final app = request.str('appSlug');
-    final environment = request.str('environmentSlug');
-    final bundles = await _renderBundles(api);
-    try {
-      final coverage = await bundles.coverage(
-        project: request.str('projectSlug'),
-        app: app,
-        surfaceType: surfaceType,
-        surfaceSlug: surfaceSlug,
-        environment: environment,
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: request.optInt('organizationId'),
-      );
-      return renderBundleCoverageSentence(
-        required: coverage.required,
-        headVersion: coverage.headVersion,
-        registered: coverage.registered,
-        surfaceCount: 1,
-        app: app,
-        environment: environment,
-      );
-    } on RenderBundleUploadException {
-      return null;
-    } finally {
-      if (_httpClient == null) bundles.close();
-    }
-  }
-
-  /// Handle `restage_list_render_bundle_heads`.
-  Future<CallToolResult> _handleListRenderBundleHeads(CallToolRequest request) {
-    return _withApi('listing the build heads', surfaceNoun: 'paywall', (
-      api,
-    ) async {
-      final bundles = await _renderBundles(api);
-      try {
-        final heads = await bundles.listHeads(
-          project: request.str('projectSlug'),
-          app: request.str('appSlug'),
-          organizationId: request.optInt('organizationId'),
-        );
-        return jsonResult(<String, Object?>{
-          'heads': [
-            for (final head in heads)
-              <String, Object?>{
-                'head': head.head,
-                'version': head.version,
-                if (head.sourceCommit != null)
-                  'sourceCommit': head.sourceCommit,
-                'sourceDirty': head.sourceDirty,
-                'updatedAt': head.updatedAt.toIso8601String(),
-                if (head.ownerDisplayName != null)
-                  'ownerDisplayName': head.ownerDisplayName,
-                'libraries': head.libraries,
-              },
-          ],
-        });
-      } finally {
-        if (_httpClient == null) bundles.close();
-      }
-    });
-  }
-
-  /// Handle `restage_push_build` — the build push, in process.
-  Future<CallToolResult> _handlePushBuild(CallToolRequest request) async {
-    final stdout = StringBuffer();
-    final stderr = StringBuffer();
-    final args = <String>[
-      'build',
-      'push',
-      '-C',
-      request.str('projectDirectory'),
-      if (request.optStr('environmentSlug') case final environment?) ...[
-        '--env',
-        environment,
-      ],
-      if (request.optStr('projectSlug') case final project?) ...[
-        '--project',
-        project,
-      ],
-      if (request.optStr('appSlug') case final app?) ...['--app', app],
-      if (request.optStr('organizationSlug') case final organization?) ...[
-        '--organization',
-        organization,
-      ],
-      if (request.optBool('recordGit') ?? false) '--record-git',
-    ];
-    final run = _buildPush ?? _runCli;
-    final exitCode = await run(args, stdout: stdout, stderr: stderr);
-    final output = [
-      stdout.toString().trim(),
-      stderr.toString().trim(),
-    ].where((text) => text.isNotEmpty).join('\n');
-    final result = jsonResult(<String, Object?>{
-      'exitCode': exitCode,
-      'output': output,
-    });
-    return exitCode == 0 ? result : mcpError(output);
-  }
-
+  /// The in-process CLI, never prompting: stdin is the protocol channel.
   Future<int> _runCli(
     List<String> args, {
     required StringSink stdout,
@@ -1394,372 +256,10 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     credentialStore: _credentialStore,
     httpClient: _httpClient,
     hasTerminal: () => false,
+    interactiveFactory: (_) => const NonInteractive(),
+    environment: _environment,
+    selectorSyntax: SelectorSyntax.mcp,
   ).run(args);
-
-  /// Handle `restage_rollback_preflight` — the read-only cohort-impact
-  /// preview. Informational only: it never mutates and never gates the
-  /// rollback mutation.
-  Future<CallToolResult> _handleRollbackPreflight(CallToolRequest request) {
-    return _withSurfaceApi(request, 'previewing the rollback', (
-      api,
-      surfaceType,
-    ) async {
-      final preflight = await SurfaceApi(api).rollbackPreflight(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: surfaceType,
-        surfaceSlug: request.str('surfaceSlug'),
-        environment: request.str('environmentSlug'),
-        toVersion: request.reqInt('toVersion'),
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: request.optInt('organizationId'),
-      );
-      return jsonResult(preflight.toJson());
-    });
-  }
-
-  /// Handle `restage_rollback_surface` — the rollback mutation. Admin-scoped
-  /// by the backend; the reason is recorded in the audit trail.
-  Future<CallToolResult> _handleRollbackSurface(CallToolRequest request) {
-    // The reason IS the audit record for this admin mutation. The schema can
-    // only require the key, not forbid blank content, so reject an empty or
-    // whitespace-only reason rather than landing a rollback with a blank
-    // audit entry. Deliberately checked before _withSurfaceApi: invalid
-    // input should fail before any auth resolution or backend work.
-    final reason = (request.optStr('reason') ?? '').trim();
-    if (reason.isEmpty) {
-      return Future.value(
-        mcpError(
-          'A non-empty reason is required — it is recorded in the surface '
-          'audit trail.',
-        ),
-      );
-    }
-    return _withSurfaceApi(request, 'rolling back the surface', (
-      api,
-      surfaceType,
-    ) async {
-      final toVersion = request.reqInt('toVersion');
-      final freeze = request.optBool('freeze') ?? false;
-      await SurfaceApi(api).rollback(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: surfaceType,
-        surfaceSlug: request.str('surfaceSlug'),
-        environment: request.str('environmentSlug'),
-        toVersion: toVersion,
-        lockAfter: freeze,
-        reason: reason,
-        environmentTargetId: request.optInt('environmentTargetId'),
-        runtimePlane: _runtimePlaneFromRequest(request),
-        organizationId: request.optInt('organizationId'),
-      );
-      return jsonResult(<String, Object?>{
-        'rolledBackTo': toVersion,
-        'frozen': freeze,
-      });
-    });
-  }
-
-  /// Invoke a list-returning backend method and wrap its JSON array under
-  /// [resultKey]. The backend's rows are passed through verbatim (no decoding)
-  /// — they carry only non-secret resource metadata. Null-valued optional
-  /// [args] are dropped before the call (a missing nullable parameter reads as
-  /// `null` server-side).
-  Future<CallToolResult> _listVia({
-    required String endpoint,
-    required String method,
-    required String resultKey,
-    required String action,
-    Map<String, dynamic> args = const {},
-  }) {
-    return _withApi(action, surfaceNoun: 'paywall', (api) async {
-      final raw = await api.call(endpoint, method, compactArgs(args));
-      return jsonResult(<String, Object?>{resultKey: raw as List<dynamic>});
-    });
-  }
-
-  /// Invoke a single-object-returning backend method and wrap the decoded JSON
-  /// object under [resultKey]. Like [_listVia] but for endpoints that return one
-  /// resource (e.g. an upserted slot, an updated app); same verbatim
-  /// passthrough + null-arg compaction.
-  Future<CallToolResult> _objectVia({
-    required String endpoint,
-    required String method,
-    required String resultKey,
-    required String action,
-    Map<String, dynamic> args = const {},
-  }) {
-    return _withApi(action, surfaceNoun: 'paywall', (api) async {
-      final raw = await api.call(endpoint, method, compactArgs(args));
-      return jsonResult(<String, Object?>{resultKey: raw});
-    });
-  }
-
-  /// Handle `restage_list_organizations` (no inputs).
-  Future<CallToolResult> _handleListOrganizations(CallToolRequest request) =>
-      _listVia(
-        endpoint: 'organization',
-        method: 'listMine',
-        resultKey: 'organizations',
-        action: 'listing organizations',
-      );
-
-  /// Handle `restage_list_projects` (organizationId).
-  Future<CallToolResult> _handleListProjects(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'project',
-      method: 'listProjects',
-      resultKey: 'projects',
-      action: 'listing projects',
-      args: {'organizationId': request.reqInt('organizationId')},
-    );
-  }
-
-  /// Handle `restage_list_apps` (organizationId, projectSlug).
-  Future<CallToolResult> _handleListApps(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'app',
-      method: 'listApps',
-      resultKey: 'apps',
-      action: 'listing apps',
-      args: {
-        'organizationId': request.reqInt('organizationId'),
-        'projectSlug': request.str('projectSlug'),
-      },
-    );
-  }
-
-  /// Handle `restage_list_environments` (organizationId, projectSlug).
-  Future<CallToolResult> _handleListEnvironments(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'environment',
-      method: 'listEnvironments',
-      resultKey: 'environments',
-      action: 'listing environments',
-      args: {
-        'organizationId': request.reqInt('organizationId'),
-        'projectSlug': request.str('projectSlug'),
-      },
-    );
-  }
-
-  /// Handle app-scoped environment target discovery.
-  Future<CallToolResult> _handleListEnvironmentTargets(
-    CallToolRequest request,
-  ) {
-    final appId = request.optInt('appId');
-    return _listVia(
-      endpoint: 'environment',
-      method: 'listEnvironmentTargets',
-      resultKey: 'environmentTargets',
-      action: 'listing environment targets',
-      args: {
-        'organizationId': request.reqInt('organizationId'),
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        if (appId != null) 'appId': appId,
-        'runtimePlane': request.optStr('runtimePlane'),
-      },
-    );
-  }
-
-  // ---- Products / store ----
-
-  /// Handle `restage_list_products` (projectSlug, appSlug, optional store).
-  Future<CallToolResult> _handleListProducts(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'product',
-      method: 'list',
-      resultKey: 'products',
-      action: 'listing products',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'store': request.optStr('store'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  /// Handle `restage_import_products` (projectSlug, appSlug, store).
-  Future<CallToolResult> _handleImportProducts(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'product',
-      method: 'importProducts',
-      resultKey: 'products',
-      action: 'importing products',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'store': request.str('store'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  /// Handle `restage_list_product_slots` (projectSlug, appSlug).
-  Future<CallToolResult> _handleListProductSlots(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'productSlot',
-      method: 'list',
-      resultKey: 'productSlots',
-      action: 'listing product slots',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  /// Handle `restage_upsert_product_slot` — full-replace create/update.
-  ///
-  /// `iosProductId` / `androidProductId` are required-but-nullable: a present
-  /// string maps that store; a null (compacted out of the wire args) unmaps it.
-  /// The schema's required set forces the agent to state both every call.
-  Future<CallToolResult> _handleUpsertProductSlot(CallToolRequest request) {
-    return _objectVia(
-      endpoint: 'productSlot',
-      method: 'upsert',
-      resultKey: 'productSlot',
-      action: 'saving the product slot',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'name': request.str('name'),
-        'entitlement': request.str('entitlement'),
-        'iosProductId': request.optStr('iosProductId'),
-        'androidProductId': request.optStr('androidProductId'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  /// Handle `restage_list_store_connections` (projectSlug, appSlug).
-  ///
-  /// The backend returns summaries only — the credential bundle is write-only
-  /// and has no field on the wire type — so the verbatim passthrough surfaces
-  /// no secret material.
-  Future<CallToolResult> _handleListStoreConnections(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'storeConnection',
-      method: 'list',
-      resultKey: 'storeConnections',
-      action: 'listing store connections',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  // ---- App configuration ----
-
-  /// Handle `restage_get_app_config` — read an app's config via `listApps`.
-  ///
-  /// There is no single-app config getter; app config rides on the project's
-  /// app list. Read it and filter to the requested slug.
-  Future<CallToolResult> _handleGetAppConfig(CallToolRequest request) {
-    final organizationId = request.reqInt('organizationId');
-    final projectSlug = request.str('projectSlug');
-    final appSlug = request.str('appSlug');
-    return _withApi('reading the app configuration', surfaceNoun: 'paywall', (
-      api,
-    ) async {
-      final raw = await api.call(
-        'app',
-        'listApps',
-        compactArgs({
-          'organizationId': organizationId,
-          'projectSlug': projectSlug,
-        }),
-      );
-      final apps = raw as List<dynamic>;
-      Object? match;
-      for (final app in apps) {
-        if ((app as Map)['slug'] == appSlug) {
-          match = app;
-          break;
-        }
-      }
-      if (match == null) {
-        return mcpError(
-          "No app '$appSlug' was found in project '$projectSlug'.",
-        );
-      }
-      return jsonResult(<String, Object?>{'app': match});
-    });
-  }
-
-  /// Handle `restage_update_app_config`. Omitted fields are compacted off the
-  /// wire (the backend leaves them unchanged); an explicit empty string is
-  /// forwarded verbatim (the backend clears that field).
-  Future<CallToolResult> _handleUpdateAppConfig(CallToolRequest request) {
-    return _objectVia(
-      endpoint: 'app',
-      method: 'updateAppConfiguration',
-      resultKey: 'app',
-      action: 'updating the app configuration',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'iosBundleId': request.optStr('iosBundleId'),
-        'androidPackage': request.optStr('androidPackage'),
-        'webDomain': request.optStr('webDomain'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  // ---- API keys ----
-
-  /// Handle `restage_list_api_keys` (projectSlug, appSlug, environmentSlug).
-  ///
-  /// The backend returns redacted [ApiKeyView]s — never the key hash or
-  /// plaintext — so the verbatim passthrough surfaces no secret material.
-  Future<CallToolResult> _handleListApiKeys(CallToolRequest request) {
-    return _listVia(
-      endpoint: 'apiKey',
-      method: 'listKeys',
-      resultKey: 'apiKeys',
-      action: 'listing API keys',
-      args: {
-        'projectSlug': request.str('projectSlug'),
-        'appSlug': request.str('appSlug'),
-        'environmentSlug': request.str('environmentSlug'),
-        'environmentTargetId': request.optInt('environmentTargetId'),
-        'runtimePlane': request.optStr('runtimePlane'),
-        'organizationId': request.optInt('organizationId'),
-      },
-    );
-  }
-
-  /// Handle `restage_revoke_api_key` (projectSlug, appSlug, apiKeyId). The
-  /// backend returns void; report a structured confirmation.
-  Future<CallToolResult> _handleRevokeApiKey(CallToolRequest request) {
-    final apiKeyId = request.reqInt('apiKeyId');
-    return _withApi('revoking the API key', surfaceNoun: 'paywall', (
-      api,
-    ) async {
-      await api.call(
-        'apiKey',
-        'revokeKey',
-        compactArgs({
-          'projectSlug': request.str('projectSlug'),
-          'appSlug': request.str('appSlug'),
-          'apiKeyId': apiKeyId,
-          'organizationId': request.optInt('organizationId'),
-        }),
-      );
-      return jsonResult(<String, Object?>{
-        'revoked': true,
-        'apiKeyId': apiKeyId,
-      });
-    });
-  }
 
   // ---- Auth: device-code login + whoami + logout ----
 
@@ -1769,7 +269,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   /// (no attempt, an expired attempt, or already signed in) it short-circuits
   /// or starts fresh. The device-code secret never leaves this process.
   Future<CallToolResult> _handleLogin(CallToolRequest request) {
-    return guardErrors('signing in', surfaceNoun: 'paywall', () async {
+    return guardErrors('signing in', () async {
       final pending = _pendingLogin;
       if (pending != null && _now().isBefore(pending.expiresAt)) {
         return _pollPendingLogin(pending);
@@ -2010,35 +510,31 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
 
   /// Handle `restage_whoami`.
   Future<CallToolResult> _handleWhoami(CallToolRequest request) {
-    return guardErrors(
-      'checking the session',
-      surfaceNoun: 'paywall',
-      () async {
-        final credential = await _store.read();
-        if (credential == null) {
-          return jsonResult(<String, Object?>{'signedIn': false});
-        }
-        return _withRawApi(
-          Uri.parse(credential.endpoint),
-          credential: credential,
-          body: (api) async {
-            final user = await AuthApi(api).whoami();
-            return user == null
-                ? jsonResult(<String, Object?>{'signedIn': false})
-                : jsonResult(<String, Object?>{
-                    'signedIn': true,
-                    'id': user.id,
-                    'email': user.email,
-                  });
-          },
-        );
-      },
-    );
+    return guardErrors('checking the session', () async {
+      final credential = await _store.read();
+      if (credential == null) {
+        return jsonResult(<String, Object?>{'signedIn': false});
+      }
+      return _withRawApi(
+        Uri.parse(credential.endpoint),
+        credential: credential,
+        body: (api) async {
+          final user = await AuthApi(api).whoami();
+          return user == null
+              ? jsonResult(<String, Object?>{'signedIn': false})
+              : jsonResult(<String, Object?>{
+                  'signedIn': true,
+                  'id': user.id,
+                  'email': user.email,
+                });
+        },
+      );
+    });
   }
 
   /// Handle `restage_logout` — best-effort server revoke, always remove local.
   Future<CallToolResult> _handleLogout(CallToolRequest request) {
-    return guardErrors('signing out', surfaceNoun: 'paywall', () async {
+    return guardErrors('signing out', () async {
       final credential = await _store.read();
       if (credential == null) {
         return jsonResult(<String, Object?>{'signedOut': true});
@@ -2108,19 +604,3 @@ Future<void> _defaultOpenBrowser(String url) async {
     // Best-effort; the caller surfaces the URL regardless.
   }
 }
-
-/// One results read handler, bound to the shared credential and client.
-typedef _ReadHandler =
-    Future<CallToolResult> Function({
-      required CallToolRequest request,
-      required FileCredentialStore store,
-      http.Client? httpClient,
-    });
-
-/// One routing tool handler, bound to the shared credential and client.
-typedef _RoutingHandler =
-    Future<CallToolResult> Function({
-      required CallToolRequest request,
-      required FileCredentialStore store,
-      http.Client? httpClient,
-    });

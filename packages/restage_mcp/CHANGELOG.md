@@ -18,13 +18,28 @@ unknown property, so a malformed request is refused before it reaches the
 network. A refusal from the service comes back as a refusal with its code, not
 as a tool error — being told an operation is not permitted is an answer.
 
+Every tool matches a `restage` CLI command, and a census test keeps the two
+in step. A target-scoped call names the runtime plane when its environment
+exists on both planes; it is refused rather than sent to either.
+
 - **Auth:** `restage_login` (in-server device-code sign-in — opens the
   browser, shows a code, completes on a second call), `restage_whoami`,
   `restage_logout`. Reuses any existing `restage login` session.
-- **Paywalls:** `restage_list_paywalls`, `restage_get_paywall` (compiled blob
-  as base64), `restage_push_paywall`, `restage_get_published_version`.
+- **Project setup:** `restage_status`, `restage_init`, `restage_doctor`.
+- **Surfaces:** `restage_list_surfaces`, `restage_list_paywalls`,
+  `restage_surface_status`, `restage_surface_history`, `restage_surface_audit`,
+  `restage_read_surface_funnel`, `restage_push_surface`,
+  `restage_publish_surface`, `restage_push_surface_draft`,
+  `restage_pull_surface_draft`, `restage_rollback_preflight`,
+  `restage_rollback_surface`, `restage_kill_surface`,
+  `restage_freeze_surface`, `restage_unfreeze_surface`.
+- **Builds:** `restage_list_builds`, `restage_push_build`,
+  `restage_push_catalog`.
+- **Audit:** `restage_audit_log`, `restage_audit_export`,
+  `restage_audit_verdict`.
 - **Discovery:** `restage_list_organizations`, `restage_list_projects`,
-  `restage_list_apps`, `restage_list_environments`.
+  `restage_list_apps`, `restage_list_environments`,
+  `restage_list_environment_targets`.
 - **Products & store:** `restage_list_products`, `restage_import_products`,
   `restage_list_product_slots`, `restage_upsert_product_slot` (full replace —
   both store ids required, pass null to unmap), `restage_list_store_connections`

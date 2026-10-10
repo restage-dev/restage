@@ -37,7 +37,7 @@ void main() {
         return http.Response(
           jsonEncode([
             {
-              '__className__': 'PaywallSummary',
+              '__className__': 'SurfaceSummary',
               'slug': 'hello',
               'name': 'Hello',
               'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
@@ -48,7 +48,7 @@ void main() {
               },
             },
             {
-              '__className__': 'PaywallSummary',
+              '__className__': 'SurfaceSummary',
               'slug': 'starter',
               'name': 'Starter',
               'draftUpdatedAt': '2026-05-01T10:00:00.000Z',
@@ -93,7 +93,7 @@ void main() {
         return http.Response(
           jsonEncode([
             {
-              '__className__': 'PaywallSummary',
+              '__className__': 'SurfaceSummary',
               'slug': 'hello',
               'name': 'Hello',
               'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
@@ -212,19 +212,34 @@ void main() {
       expect(seenListBody!['appId'], 5);
     });
 
-    test('errors when no project context is available', () async {
+    test('asks for --project when several projects could apply', () async {
       await seedCredential(store);
       // No restage_config.yaml, no --project/--app flags.
+      final client = mockHttpClient((req) {
+        final method = (jsonDecode(req.body) as Map)['method'];
+        return http.Response(
+          jsonEncode(switch (method) {
+            'listMine' => [
+              {'organizationId': 7, 'slug': 'acme', 'name': 'Acme'},
+            ],
+            _ => [
+              {'slug': 'one', 'name': 'One'},
+              {'slug': 'two', 'name': 'Two'},
+            ],
+          }),
+          200,
+        );
+      });
 
       final exitCode = await RestageCli(
         stdout: stdout,
         stderr: stderr,
         credentialStore: store,
+        httpClient: client,
       ).run(['paywall', 'list', '-C', tempDir.path]);
 
       expect(exitCode, 1);
-      expect(stderr.toString(), contains('restage init'));
-      expect(stderr.toString(), contains('--project'));
+      expect(stderr.toString(), contains('Pass --project <slug>.'));
     });
 
     test('errors when not signed in', () async {
@@ -270,38 +285,34 @@ void main() {
       expect(stderr.toString().toLowerCase(), contains('project'));
     });
 
-    test(
-      'keeps paywall-specific typed exceptions out of generic HTTP fallback',
-      () async {
-        await seedCredential(store);
-        await seedRestageConfig(tempDir, 'demo', 'mobile');
+    test('renders a surface refusal with the surface sentence', () async {
+      await seedCredential(store);
+      await seedRestageConfig(tempDir, 'demo', 'mobile');
 
-        final client = mockHttpClient((req) {
-          return http.Response(
-            jsonEncode({
-              'className': 'PaywallNotFoundException',
-              'data': {
-                '__className__': 'PaywallNotFoundException',
-                'paywallSlug': 'missing',
-              },
-            }),
-            400,
-          );
-        });
+      final client = mockHttpClient((req) {
+        return http.Response(
+          jsonEncode({
+            'className': 'SurfaceNotFoundException',
+            'data': {
+              '__className__': 'SurfaceNotFoundException',
+              'surfaceSlug': 'missing',
+            },
+          }),
+          400,
+        );
+      });
 
-        final exitCode = await RestageCli(
-          stdout: stdout,
-          stderr: stderr,
-          credentialStore: store,
-          httpClient: client,
-        ).run(['paywall', 'list', '-C', tempDir.path]);
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run(['paywall', 'list', '-C', tempDir.path]);
 
-        expect(exitCode, 1);
-        expect(stderr.toString(), contains('PaywallNotFound'));
-        expect(stderr.toString(), contains('missing'));
-        expect(stderr.toString(), isNot(contains('Could not contact')));
-      },
-    );
+      expect(exitCode, 1);
+      expect(stderr.toString(), contains("Surface 'missing' not found."));
+      expect(stderr.toString(), isNot(contains('Could not contact')));
+    });
 
     test('surfaces a network error with exit code 2', () async {
       await seedCredential(store);

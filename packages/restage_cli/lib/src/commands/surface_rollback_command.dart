@@ -5,12 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
-import 'package:restage_cli/src/api/typed_error_models.dart';
-import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Roll a surface back to a previous version by re-pointing the active-version
@@ -32,7 +33,8 @@ import 'package:restage_shared/restage_shared.dart';
 /// sandbox targets; live targets always require interactive confirmation. The
 /// `--freeze` flag additionally locks the surface against future publishes
 /// after the re-point.
-class SurfaceRollbackCommand extends Command<int> {
+class SurfaceRollbackCommand extends Command<int>
+    implements LiveGuardedCommand {
   /// Construct a rollback command.
   ///
   /// Pass [fixedSurfaceType] to pin the surface type (e.g. for the
@@ -45,12 +47,14 @@ class SurfaceRollbackCommand extends Command<int> {
     SurfaceType? fixedSurfaceType,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
-  }) : _stdout = stdout,
-       _stderr = stderr,
-       _interactive = interactive,
-       _fixedType = fixedSurfaceType,
-       _credentialStore = credentialStore,
-       _httpClient = httpClient {
+  }) : _io = CommandIo(
+         stdout: stdout,
+         stderr: stderr,
+         interactive: interactive,
+         credentialStore: credentialStore,
+         httpClient: httpClient,
+       ),
+       _fixedType = fixedSurfaceType {
     addLifecycleOptions(
       argParser,
       withType: fixedSurfaceType == null,
@@ -83,12 +87,8 @@ class SurfaceRollbackCommand extends Command<int> {
       );
   }
 
-  final StringSink _stdout;
-  final StringSink _stderr;
-  final Interactive _interactive;
+  final CommandIo _io;
   final SurfaceType? _fixedType;
-  final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
 
   @override
   String get name => 'rollback';
@@ -100,7 +100,7 @@ class SurfaceRollbackCommand extends Command<int> {
   @override
   Future<int> run() async {
     // Step 1: resolve slug.
-    final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
+    final slug = resolveSingleSlug(argResults: argResults, stderr: _io.stderr);
     if (slug == null) return 1;
 
     // Step 2: resolve the exact family from the generated manifest or an
@@ -109,17 +109,25 @@ class SurfaceRollbackCommand extends Command<int> {
       argResults: argResults,
       fixedSurfaceType: _fixedType,
       slug: slug,
-      stderr: _stderr,
-      requireExplicitSourceKindForFallback: _fixedType == null,
+      stderr: _io.stderr,
     );
     if (identity == null) return 1;
     final surfaceType = identity.surface;
 
     // Step 3: parse --to-version (required int).
     final toVersionRaw = argResults!['to-version'] as String?;
-    final toVersion = int.tryParse(toVersionRaw ?? '');
-    if (toVersionRaw == null || toVersion == null) {
-      _stderr.writeln('Required: --to-version <N>.');
+    if (toVersionRaw == null) {
+      return runAuthed(
+        _io,
+        argResults,
+        OperationScope.target,
+        (ctx) =>
+            _reportMissingTarget(SurfaceApi(ctx.api), ctx.target!, identity),
+      );
+    }
+    final toVersion = int.tryParse(toVersionRaw);
+    if (toVersion == null) {
+      _io.stderr.writeln('Required: --to-version <N>.');
       return 1;
     }
 
@@ -133,198 +141,164 @@ class SurfaceRollbackCommand extends Command<int> {
     if (!preview) {
       reason = await requireReason(
         argResults: argResults,
-        interactive: _interactive,
-        stderr: _stderr,
+        interactive: _io.interactive,
+        stderr: _io.stderr,
       );
       if (reason == null) return 1;
     }
 
-    // Step 5: resolve credential + project/app/env.
-    final ctx = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
-    );
-    if (ctx == null) return 1;
-
-    // Step 6: build the API client.
-    final RestageApi api;
-    try {
-      api = RestageApi(
-        endpoint: ctx.apiEndpoint,
-        httpClient: _httpClient,
-        credential: ctx.credential,
-      );
-    } on InsecureEndpointException catch (e) {
-      _stderr.writeln(e.toString());
-      return 1;
-    }
-    try {
-      final freeze = argResults!['freeze'] as bool;
-      final yesFlag = argResults!['yes'] as bool;
-
-      // Step 7: fetch the current status — provides the delivery shape,
-      // version history, and the live version for the impact line.
-      final SurfaceStatusResult status;
+    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
       try {
-        status = await SurfaceApi(api).surfaceStatus(
-          project: ctx.project,
-          app: ctx.app,
-          surfaceType: surfaceType,
-          surfaceSlug: slug,
-          environment: ctx.environment,
-          environmentTargetId: ctx.environmentTargetId,
-          runtimePlane: ctx.runtimePlane,
-          organizationId: ctx.organizationId,
-          contractVersion: identity.contractVersion,
-        );
-      } on RestageApiException catch (e) {
-        return _renderError(e, surfaceType);
-      }
-
-      // Step 8 (removed): flow surfaces roll back now. The one residual — a
-      // flow-shaped paywall target — is caught by the preflight below (fast,
-      // before the confirm) and, defensively, by the backend gate.
-
-      // Step 9: VERSION VALIDATION — the target version must exist in the
-      // pushed history before confirming the operation.
-      final availableVersions = status.versions.map((v) => v.version).toList();
-      if (!availableVersions.contains(toVersion)) {
-        final available = availableVersions.isEmpty
-            ? '(none)'
-            : availableVersions.map((v) => 'v$v').join(', ');
-        _stderr.writeln(
-          'Version v$toVersion not found. Available: $available.',
-        );
-        return 1;
-      }
-
-      // Step 9.5: PREFLIGHT — an informational cohort-impact preview folded into
-      // the confirm prompt so the operator sees the cohort risk before
-      // confirming. Every surface shape rolls back now (a flow-shaped paywall
-      // target reaches the hosted paywall flow active arm); the preflight
-      // classifies but never blocks.
-      final RollbackPreflightResult preflight;
-      try {
-        preflight = await SurfaceApi(api).rollbackPreflight(
-          project: ctx.project,
-          app: ctx.app,
-          surfaceType: surfaceType,
-          surfaceSlug: slug,
-          environment: ctx.environment,
+        return await _rollBack(
+          SurfaceApi(ctx.api),
+          ctx.target!,
+          identity,
           toVersion: toVersion,
-          environmentTargetId: ctx.environmentTargetId,
-          runtimePlane: ctx.runtimePlane,
-          organizationId: ctx.organizationId,
-          contractVersion: identity.contractVersion,
+          preview: preview,
+          reason: reason,
         );
       } on RestageApiException catch (e) {
-        return _renderError(e, surfaceType);
-      }
-
-      // Step 10: print the cohort-impact note unconditionally — it is the
-      // only operator-visible signal for how the rollback lands across the
-      // installed cohort, and the most automatable paths (--yes, --preview,
-      // no tty) must not be the least informative ones. Informational only:
-      // it never gates the rollback.
-      _stdout.writeln(_compatibilityNote(preflight));
-
-      // Step 10.5: a preview stops here — nothing to confirm or mutate.
-      if (preview) {
-        _stdout.writeln(
-          'Preview only — nothing was rolled back. Re-run without --preview '
-          'to roll back.',
-        );
-        return 0;
-      }
-
-      final impactLine =
-          'Roll back "$slug" in ${ctx.environment} '
-          'from v${status.liveVersion} to v$toVersion'
-          '${freeze ? ' and freeze' : ''}.';
-
-      // Step 11: confirm the destructive operation.
-      final confirmed = await confirmDestructive(
-        interactive: _interactive,
-        stdout: _stdout,
-        stderr: _stderr,
-        environment: ctx.environment,
-        runtimePlane: ctx.runtimePlane,
-        yesFlag: yesFlag,
-        impactLine: impactLine,
-      );
-      if (!confirmed) {
-        // Print 'Aborted.' only for an interactive decline (where the
-        // user was shown the impact line and said no). The prod-refusal
-        // and the non-interactive paths already write a message to stderr.
-        if (!yesFlag && _interactive.isInteractive) {
-          _stdout.writeln('Aborted.');
+        if (decodeSurfaceTypedException(e.body)
+            is! SurfaceRollbackUnsupported) {
+          rethrow;
         }
+        _io.stderr.writeln(_undecodableTargetMessage(surfaceType));
         return 1;
       }
-
-      // Step 12: call rollback.
-      try {
-        await SurfaceApi(api).rollback(
-          project: ctx.project,
-          app: ctx.app,
-          surfaceType: surfaceType,
-          surfaceSlug: slug,
-          environment: ctx.environment,
-          toVersion: toVersion,
-          lockAfter: freeze,
-          reason: reason!,
-          environmentTargetId: ctx.environmentTargetId,
-          runtimePlane: ctx.runtimePlane,
-          organizationId: ctx.organizationId,
-          contractVersion: identity.contractVersion,
-        );
-      } on RestageApiException catch (e) {
-        return _renderError(e, surfaceType);
-      }
-
-      // Step 13: success.
-      _stdout.writeln(
-        'Rolled back "$slug" to v$toVersion${freeze ? ' (frozen)' : ''}.',
-      );
-      return 0;
-    } finally {
-      if (_httpClient == null) api.close();
-    }
+    });
   }
 
-  /// Render a typed API error to stderr and return the appropriate exit
-  /// code.
-  ///
-  /// Surface-specific rollback exceptions are rendered with command-specific
-  /// wording; the admin-role exception is intercepted before the generic
-  /// renderer so it produces a rollback-specific message; everything else
-  /// falls through to [renderGenericTypedError].
-  int _renderError(RestageApiException e, SurfaceType surfaceType) {
-    final surface = decodeSurfaceTypedException(e.body);
-    if (surface is SurfaceRollbackUnsupported) {
-      // The backend fails closed on an undecodable/corrupt target version (a
-      // data-integrity guard) — re-pointing into it would reach no clients.
-      _stderr.writeln(_undecodableTargetMessage(surfaceType));
-      return 1;
-    }
-    if (surface != null) {
-      _stderr.writeln(renderSurfaceException(surface));
-      return 1;
-    }
-    if (decodeGenericTypedException(e.body) is UnauthorizedAccess) {
-      _stderr.writeln('Rolling back requires an admin role.');
-      return 1;
-    }
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln(e.toString());
+  /// Names the versions a rollback can target when `--to-version` is missing.
+  Future<int> _reportMissingTarget(
+    SurfaceApi surfaces,
+    LifecycleContext ctx,
+    SurfaceLifecycleIdentity identity,
+  ) async {
+    final status = await surfaces.surfaceStatus(
+      project: ctx.project,
+      app: ctx.app,
+      surfaceType: identity.surface,
+      surfaceSlug: identity.slug,
+      environment: ctx.environment,
+      environmentTargetId: ctx.environmentTargetId,
+      runtimePlane: ctx.runtimePlane,
+      organizationId: ctx.organizationId,
+      contractVersion: identity.contractVersion,
+      sourceKind: identity.sourceKind,
+    );
+    final versions = [...status.versions]
+      ..sort((a, b) => b.version.compareTo(a.version));
+    final listed = versions.isEmpty
+        ? '(none)'
+        : versions
+              .take(10)
+              .map((v) => 'v${v.version}${v.isActive ? ' (active)' : ''}')
+              .join(', ');
+    _io.stderr.writeln(
+      'Required: --to-version <N>. Published versions: $listed.',
+    );
     return 1;
+  }
+
+  Future<int> _rollBack(
+    SurfaceApi surfaces,
+    LifecycleContext ctx,
+    SurfaceLifecycleIdentity identity, {
+    required int toVersion,
+    required bool preview,
+    required String? reason,
+  }) async {
+    final slug = identity.slug;
+    final surfaceType = identity.surface;
+    final freeze = argResults!['freeze'] as bool;
+    final yesFlag = argResults!['yes'] as bool;
+
+    // The status names the live version and the pushed history.
+    final status = await surfaces.surfaceStatus(
+      project: ctx.project,
+      app: ctx.app,
+      surfaceType: surfaceType,
+      surfaceSlug: slug,
+      environment: ctx.environment,
+      environmentTargetId: ctx.environmentTargetId,
+      runtimePlane: ctx.runtimePlane,
+      organizationId: ctx.organizationId,
+      contractVersion: identity.contractVersion,
+      sourceKind: identity.sourceKind,
+    );
+    final availableVersions = status.versions.map((v) => v.version).toList();
+    if (!availableVersions.contains(toVersion)) {
+      final available = availableVersions.isEmpty
+          ? '(none)'
+          : availableVersions.map((v) => 'v$v').join(', ');
+      _io.stderr.writeln(
+        'Version v$toVersion not found. Available: $available.',
+      );
+      return 1;
+    }
+
+    // The cohort-impact note is printed on every path and never gates.
+    final preflight = await surfaces.rollbackPreflight(
+      project: ctx.project,
+      app: ctx.app,
+      surfaceType: surfaceType,
+      surfaceSlug: slug,
+      environment: ctx.environment,
+      toVersion: toVersion,
+      environmentTargetId: ctx.environmentTargetId,
+      runtimePlane: ctx.runtimePlane,
+      organizationId: ctx.organizationId,
+      contractVersion: status.contractVersion,
+      sourceKind: identity.sourceKind,
+    );
+    _io.stdout.writeln(_compatibilityNote(preflight));
+    if (preview) {
+      _io.stdout.writeln(
+        'Preview only — nothing was rolled back. Re-run without --preview '
+        'to roll back.',
+      );
+      return 0;
+    }
+
+    final confirmed = await confirmDestructive(
+      interactive: _io.interactive,
+      stdout: _io.stdout,
+      stderr: _io.stderr,
+      environment: ctx.environment,
+      runtimePlane: ctx.runtimePlane,
+      yesFlag: yesFlag,
+      impactLine:
+          'Roll back "$slug" in ${ctx.environment} '
+          'from v${status.liveVersion} to v$toVersion'
+          '${freeze ? ' and freeze' : ''}.',
+    );
+    if (!confirmed) {
+      // Only an interactive decline lacks a message of its own.
+      if (!yesFlag && _io.interactive.isInteractive) {
+        _io.stdout.writeln('Aborted.');
+      }
+      return 1;
+    }
+
+    await surfaces.rollback(
+      project: ctx.project,
+      app: ctx.app,
+      surfaceType: surfaceType,
+      surfaceSlug: slug,
+      environment: ctx.environment,
+      toVersion: toVersion,
+      lockAfter: freeze,
+      reason: reason!,
+      environmentTargetId: ctx.environmentTargetId,
+      runtimePlane: ctx.runtimePlane,
+      organizationId: ctx.organizationId,
+      contractVersion: status.contractVersion,
+      sourceKind: identity.sourceKind,
+    );
+    _io.stdout.writeln(
+      'Rolled back "$slug" to v$toVersion${freeze ? ' (frozen)' : ''}.',
+    );
+    return 0;
   }
 
   /// The server-side refusal rendered for the backend

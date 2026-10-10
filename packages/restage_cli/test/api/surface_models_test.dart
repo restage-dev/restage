@@ -215,6 +215,27 @@ void main() {
   });
 
   group('decodeSurfaceTypedException', () {
+    test('decodes a refused family operation with its message', () {
+      final body = jsonEncode({
+        'className': 'SurfaceContractFamilyViolation',
+        'data': {
+          '__className__': 'SurfaceContractFamilyViolation',
+          'code': 'sourceKindMismatch',
+          'message': 'The surface is a standalone screen, not a flow.',
+        },
+      });
+
+      final decoded = decodeSurfaceTypedException(body);
+
+      expect(decoded, isA<SurfaceFamilyRefused>());
+      final refused = decoded! as SurfaceFamilyRefused;
+      expect(refused.code, 'sourceKindMismatch');
+      expect(
+        refused.message,
+        'The surface is a standalone screen, not a flow.',
+      );
+    });
+
     test('decodes SurfaceNotFoundException', () {
       final body = jsonEncode({
         'className': 'SurfaceNotFoundException',
@@ -246,21 +267,6 @@ void main() {
       final conflict = decoded! as SurfacePublishConflict;
       expect(conflict.surfaceSlug, 'first_run');
       expect(conflict.environmentSlug, 'dev');
-    });
-
-    test('decodes EnvironmentNotFoundException', () {
-      final body = jsonEncode({
-        'className': 'EnvironmentNotFoundException',
-        'data': {
-          '__className__': 'EnvironmentNotFoundException',
-          'environmentSlug': 'qa',
-        },
-      });
-
-      final decoded = decodeSurfaceTypedException(body);
-
-      expect(decoded, isA<SurfaceEnvironmentNotFound>());
-      expect((decoded! as SurfaceEnvironmentNotFound).environmentSlug, 'qa');
     });
 
     test('decodes SurfaceRollbackUnsupportedException', () {
@@ -303,17 +309,6 @@ void main() {
           '__className__': 'SurfaceVersionNotFoundException',
           'surfaceSlug': 'pro',
           // 'version' intentionally absent
-        },
-      });
-      expect(decodeSurfaceTypedException(body), isNull);
-    });
-
-    test('returns null for a paywall className (does not overload)', () {
-      final body = jsonEncode({
-        'className': 'PaywallNotFoundException',
-        'data': {
-          '__className__': 'PaywallNotFoundException',
-          'paywallSlug': 'missing',
         },
       });
       expect(decodeSurfaceTypedException(body), isNull);
@@ -428,11 +423,6 @@ void main() {
       );
       expect(e.toString(), contains('first_run'));
       expect(e.toString(), contains('dev'));
-    });
-
-    test('SurfaceEnvironmentNotFound surfaces the slug', () {
-      const e = SurfaceEnvironmentNotFound(environmentSlug: 'qa');
-      expect(e.toString(), contains('qa'));
     });
 
     test('SurfaceRollbackUnsupported surfaces the slug', () {

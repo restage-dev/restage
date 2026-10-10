@@ -3,12 +3,12 @@ import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_funnel_api.dart';
-import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     hide RuntimePlane;
@@ -29,11 +29,13 @@ class SurfaceResultsCommand extends Command<int> {
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
     DateTime Function()? now,
-  }) : _stdout = stdout,
-       _stderr = stderr,
-       _interactive = interactive,
-       _credentialStore = credentialStore,
-       _httpClient = httpClient,
+  }) : _io = CommandIo(
+         stdout: stdout,
+         stderr: stderr,
+         interactive: interactive,
+         credentialStore: credentialStore,
+         httpClient: httpClient,
+       ),
        _now = now ?? DateTime.now {
     addLifecycleOptions(
       argParser,
@@ -69,11 +71,7 @@ class SurfaceResultsCommand extends Command<int> {
       );
   }
 
-  final StringSink _stdout;
-  final StringSink _stderr;
-  final Interactive _interactive;
-  final FileCredentialStore? _credentialStore;
-  final http.Client? _httpClient;
+  final CommandIo _io;
   final DateTime Function() _now;
 
   @override
@@ -91,7 +89,7 @@ class SurfaceResultsCommand extends Command<int> {
   Future<int> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.length != 1) {
-      _stderr.writeln(
+      _io.stderr.writeln(
         'Name exactly one surface identity, as discovery reports it.',
       );
       return 1;
@@ -108,7 +106,7 @@ class SurfaceResultsCommand extends Command<int> {
             const Duration(days: kSurfaceResultsDefaultWindowDays),
           );
     } on FormatException catch (error) {
-      _stderr.writeln(error.message);
+      _io.stderr.writeln(error.message);
       return 1;
     }
 
@@ -124,62 +122,40 @@ class SurfaceResultsCommand extends Command<int> {
         surfaceRevisionIds: versions.isEmpty ? null : versions,
       );
     } on CanonicalFormatException catch (error) {
-      _stderr.writeln(error.message);
+      _io.stderr.writeln(error.message);
       return 1;
     }
 
-    final context = await loadLifecycleContext(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-      credentialStore: _credentialStore,
-      httpClient: _httpClient,
-    );
-    if (context == null) return 1;
-
-    final RestageApi api;
-    try {
-      api = RestageApi(
-        endpoint: context.apiEndpoint,
-        httpClient: _httpClient,
-        credential: context.credential,
-      );
-    } on InsecureEndpointException catch (error) {
-      _stderr.writeln(error);
-      return 1;
-    }
-
-    try {
-      final view = await SurfaceFunnelApi(api).read(
-        target: TargetCoordinate(
-          organizationId: OrganizationId(context.organizationId),
-          appId: ApplicationId(context.appId),
-          environmentTargetId: EnvironmentTargetId(context.environmentTargetId),
-          namedEnvironmentId: NamedEnvironmentId(context.namedEnvironmentId),
-          runtimePlane: switch (context.runtimePlane) {
-            RuntimePlane.live => measurement.RuntimePlane.live,
-            RuntimePlane.sandbox => measurement.RuntimePlane.sandbox,
-          },
-        ),
-        selection: selection,
-      );
-      if (asJson) {
-        _stdout.writeln(jsonEncode(view.toJson()));
-      } else {
-        _stdout.writeln(renderSurfaceFunnel(view));
+    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
+      final context = ctx.target!;
+      try {
+        final view = await SurfaceFunnelApi(ctx.api).read(
+          target: TargetCoordinate(
+            organizationId: OrganizationId(context.organizationId),
+            appId: ApplicationId(context.appId),
+            environmentTargetId: EnvironmentTargetId(
+              context.environmentTargetId,
+            ),
+            namedEnvironmentId: NamedEnvironmentId(context.namedEnvironmentId),
+            runtimePlane: switch (context.runtimePlane) {
+              RuntimePlane.live => measurement.RuntimePlane.live,
+              RuntimePlane.sandbox => measurement.RuntimePlane.sandbox,
+            },
+          ),
+          selection: selection,
+        );
+        _io.stdout.writeln(
+          asJson ? jsonEncode(view.toJson()) : renderSurfaceFunnel(view),
+        );
+        return 0;
+      } on SurfaceFunnelMismatchException catch (error) {
+        _io.stderr.writeln(error);
+        return 2;
+      } on CanonicalFormatException {
+        _io.stderr.writeln('The service returned an invalid funnel reading.');
+        return 2;
       }
-      return 0;
-    } on SurfaceFunnelMismatchException catch (error) {
-      _stderr.writeln(error);
-      return 2;
-    } on CanonicalFormatException {
-      _stderr.writeln('The service returned an invalid funnel reading.');
-      return 2;
-    } on RestageApiException catch (error) {
-      return _renderError(error);
-    } finally {
-      if (_httpClient == null) api.close();
-    }
+    });
   }
 
   DateTime? _instant(String option) {
@@ -190,16 +166,6 @@ class SurfaceResultsCommand extends Command<int> {
       throw FormatException('--$option must be an ISO-8601 instant.');
     }
     return parsed.toUtc();
-  }
-
-  int _renderError(RestageApiException error) {
-    final outcome = renderGenericTypedError(error);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
-    }
-    _stderr.writeln(error);
-    return 1;
   }
 }
 

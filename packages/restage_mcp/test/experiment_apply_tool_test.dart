@@ -77,10 +77,12 @@ void main() {
     required String operation,
     required Map<String, Object?> payload,
     String? idempotencyKey,
+    bool confirmLive = true,
   }) => {
     'operation': operation,
     'payload': payload,
     'idempotencyKey': ?idempotencyKey,
+    if (confirmLive) 'confirmLive': true,
     'organizationId': 11,
     'projectSlug': 'checkout',
     'appSlug': 'app',
@@ -143,6 +145,7 @@ void main() {
         (schema['properties']! as Map<String, Object?>).keys.toList()..sort(),
         [
           'appSlug',
+          'confirmLive',
           'environmentSlug',
           'environmentTargetId',
           'idempotencyKey',
@@ -180,6 +183,59 @@ void main() {
         tools.tools.map((tool) => tool.name),
         isNot(contains('restage_experiment_apply')),
       );
+    });
+  });
+
+  group('on a live target', () {
+    test('a write needs confirmLive and reaches no route without it', () async {
+      final server = await connect();
+      for (final (operation, payload) in [
+        ('activateDraft', <String, Object?>{'draftId': 'draft.checkout'}),
+        (
+          'pauseExperiment',
+          <String, Object?>{
+            'expectedLifecycleOrdinal': 8,
+            'experimentId': 'experiment.checkout',
+          },
+        ),
+      ]) {
+        final result = await server.connection.callTool(
+          CallToolRequest(
+            name: 'restage_experiment_apply',
+            arguments: arguments(
+              operation: operation,
+              payload: payload,
+              idempotencyKey: 'retry-key',
+              confirmLive: false,
+            ),
+          ),
+        );
+        expect(result.isError, isTrue, reason: operation);
+        expect(
+          _errorText(result),
+          'This changes what a live target serves. Ask the user to approve '
+          'the change, then call again with confirmLive: true.',
+          reason: operation,
+        );
+      }
+      expect(server.methods, isEmpty);
+    });
+
+    test('a read never needs confirmLive', () async {
+      final server = await connect();
+
+      await server.connection.callTool(
+        CallToolRequest(
+          name: 'restage_experiment_apply',
+          arguments: arguments(
+            operation: 'readExperiment',
+            payload: const {'experimentId': 'experiment.checkout'},
+            confirmLive: false,
+          ),
+        ),
+      );
+
+      expect(server.methods, isNotEmpty);
     });
   });
 
@@ -925,15 +981,26 @@ http.Response? _targetDirectory(String method) => switch (method) {
     200,
   ),
   'listEnvironmentTargets' => http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 31,
-        'namedEnvironmentId': 37,
-        'environmentSlug': 'production',
-        'runtimePlane': 'live',
-      },
-    ]),
+    jsonEncode([_directoryTarget]),
+    200,
+  ),
+  'resolveTarget' => http.Response(
+    jsonEncode({
+      'organizationId': 11,
+      'organizationSlug': 'restage',
+      'projectSlug': 'checkout',
+      'appId': 23,
+      'appSlug': 'app',
+      'target': _directoryTarget,
+    }),
     200,
   ),
   _ => null,
+};
+
+const _directoryTarget = {
+  'environmentTargetId': 31,
+  'namedEnvironmentId': 37,
+  'environmentSlug': 'production',
+  'runtimePlane': 'live',
 };

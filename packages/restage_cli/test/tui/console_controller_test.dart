@@ -111,6 +111,77 @@ void main() {
     expect(controller.state.activity.first.surfaceSlug, 'pro');
     expect(controller.state.activity.first.exitCode, 0);
   });
+
+  test('publish runs for the selected surface', () async {
+    final executor = RecordingConsoleOperationExecutor()
+      ..nextStdout = 'Published "pro" at r3 in staging.\n';
+    final controller = ConsoleController(
+      repository: FakeConsoleRepository(),
+      operationExecutor: executor,
+    );
+    await controller.load();
+
+    await controller.publishSelected(reason: 'ship new copy');
+
+    expect(controller.state.activity.first.operation, 'publish');
+    expect(
+      controller.state.operationMessage,
+      'Published "pro" at r3 in staging.',
+    );
+  });
+
+  test('a command line runs any CLI command and keeps its output', () async {
+    final executor = RecordingConsoleOperationExecutor()
+      ..nextStdout = 'REVISION\tACTIVE\nr3\ttrue\n';
+    final controller = ConsoleController(
+      repository: FakeConsoleRepository(),
+      operationExecutor: executor,
+    );
+    await controller.load();
+
+    await controller.runCommand(['surface', 'history', 'pro']);
+
+    expect(executor.commands.single, ['surface', 'history', 'pro']);
+    expect(controller.state.commandOutput!.lines, [
+      'REVISION\tACTIVE',
+      'r3\ttrue',
+    ]);
+    expect(controller.state.activity.first.operation, 'restage');
+  });
+
+  test('the command line refuses the commands it cannot host', () async {
+    final executor = RecordingConsoleOperationExecutor();
+    final controller = ConsoleController(
+      repository: FakeConsoleRepository(),
+      operationExecutor: executor,
+    );
+    await controller.load();
+
+    for (final command in ['console', 'login']) {
+      await controller.runCommand([command]);
+      expect(
+        controller.state.operationMessage,
+        consoleExcludedCommands[command],
+      );
+    }
+    expect(executor.commands, isEmpty);
+  });
+
+  test('a restage line splits into arguments, honoring quotes', () {
+    expect(consoleCommandArguments('surface history pro'), isNull);
+    expect(consoleCommandArguments('restage'), isEmpty);
+    expect(
+      consoleCommandArguments(
+        'restage surface kill pro --reason "bad copy" --yes',
+      ),
+      ['surface', 'kill', 'pro', '--reason', 'bad copy', '--yes'],
+    );
+    expect(consoleCommandArguments("  restage keys revoke  '12'  "), [
+      'keys',
+      'revoke',
+      '12',
+    ]);
+  });
 }
 
 class FakeConsoleRepository implements ConsoleRepository {
@@ -276,6 +347,7 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   }) async => _result();
 
   @override
@@ -283,6 +355,7 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   }) async => _result();
 
   @override
@@ -295,6 +368,22 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   Future<ConsoleOperationResult> pushBuild({
     required ConsoleContext context,
   }) async => _result();
+
+  @override
+  Future<ConsoleOperationResult> publish({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required String reason,
+    bool confirmedProduction = false,
+  }) async => _result();
+
+  final commands = <List<String>>[];
+
+  @override
+  Future<ConsoleOperationResult> runCommand(List<String> arguments) async {
+    commands.add(arguments);
+    return _result();
+  }
 
   ConsoleOperationResult _result() =>
       ConsoleOperationResult(exitCode: 0, stdout: nextStdout, stderr: '');

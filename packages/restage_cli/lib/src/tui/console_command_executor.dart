@@ -91,14 +91,19 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   }) {
-    return _run([
-      'surface',
-      'freeze',
-      ..._surfaceArgs(context, surface),
-      '--reason',
-      reason,
-    ]);
+    return _runLifecycle(
+      context: context,
+      confirmedProduction: confirmedProduction,
+      args: [
+        'surface',
+        'freeze',
+        ..._surfaceArgs(context, surface),
+        '--reason',
+        reason,
+      ],
+    );
   }
 
   @override
@@ -106,14 +111,19 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
     required String reason,
+    bool confirmedProduction = false,
   }) {
-    return _run([
-      'surface',
-      'unfreeze',
-      ..._surfaceArgs(context, surface),
-      '--reason',
-      reason,
-    ]);
+    return _runLifecycle(
+      context: context,
+      confirmedProduction: confirmedProduction,
+      args: [
+        'surface',
+        'unfreeze',
+        ..._surfaceArgs(context, surface),
+        '--reason',
+        reason,
+      ],
+    );
   }
 
   @override
@@ -123,6 +133,30 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }) {
     return _run(['surface', 'push', ..._surfaceArgs(context, surface)]);
   }
+
+  @override
+  Future<ConsoleOperationResult> publish({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required String reason,
+    bool confirmedProduction = false,
+  }) {
+    return _runLifecycle(
+      context: context,
+      confirmedProduction: confirmedProduction,
+      args: [
+        'surface',
+        'publish',
+        ..._surfaceArgs(context, surface, familyScoped: true),
+        '--reason',
+        reason,
+      ],
+    );
+  }
+
+  @override
+  Future<ConsoleOperationResult> runCommand(List<String> arguments) =>
+      _run(arguments);
 
   @override
   Future<ConsoleOperationResult> pushBuild({required ConsoleContext context}) {
@@ -143,21 +177,16 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }
 
   /// The shared target-selection arguments every surface lifecycle command
-  /// takes: slug, type/source-kind, project, app, environment, and resolved
-  /// plane. A console surface without the current manifest still carries the
-  /// legacy category, so supply the explicit source-kind selector required by
-  /// exact lifecycle commands rather than making the command resolver guess.
+  /// takes: slug, type, project, app, environment, and resolved plane. A
+  /// surface outside the current manifest names only its category; the server
+  /// resolves its family.
   List<String> _surfaceArgs(
     ConsoleContext context,
     ConsoleSurface surface, {
     bool familyScoped = false,
   }) => [
     surface.slug,
-    if (!surface.hasManifestIdentity) ...[
-      '--type',
-      surface.surfaceType,
-      if (familyScoped) ...['--source-kind', _fallbackSourceKind(surface)],
-    ],
+    if (!surface.hasManifestIdentity) ...['--type', surface.surfaceType],
     if (familyScoped && surface.contractVersion != null) ...[
       '--contract-version',
       '${surface.contractVersion}',
@@ -171,12 +200,6 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     '--plane',
     context.runtimePlane.wireName,
   ];
-
-  String _fallbackSourceKind(ConsoleSurface surface) {
-    if (surface.sourceKind != null) return surface.sourceKind!;
-    if (surface.contractVersion != null) return 'screen';
-    return surface.surfaceType == 'paywall' ? 'paywall' : 'flowGraph';
-  }
 
   Future<ConsoleOperationResult> _runLifecycle({
     required ConsoleContext context,
@@ -201,8 +224,8 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     final stderr = StringBuffer();
     final directory = _directory;
     final commandArgs = [
-      ...args,
       if (directory != null) ...['--directory', directory.path],
+      ...args,
     ];
     final exitCode = await RestageCli(
       stdout: stdout,

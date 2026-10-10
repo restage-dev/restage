@@ -4,6 +4,8 @@ import 'package:args/command_runner.dart';
 import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/commands/experiment_activation_command.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as measurement;
 import 'package:test/test.dart';
 
 void main() {
@@ -47,6 +49,54 @@ void main() {
       expect(stderr.toString(), contains('1..'));
     },
   );
+
+  test('a live activation needs --yes when non-interactive', () async {
+    final directory = await Directory.systemTemp.createTemp('activation-cli-');
+    addTearDown(() => directory.delete(recursive: true));
+    final request = File('${directory.path}/command.json');
+    await request.writeAsBytes(
+      measurement.CanonicalJsonCodec.encode({
+        'target': measurement.TargetCoordinate(
+          organizationId: measurement.OrganizationId(7),
+          appId: measurement.ApplicationId(11),
+          environmentTargetId: measurement.EnvironmentTargetId(44),
+          namedEnvironmentId: measurement.NamedEnvironmentId(440),
+          runtimePlane: measurement.RuntimePlane.live,
+        ).toJson(),
+      }),
+    );
+    var calls = 0;
+    final stderr = StringBuffer();
+    CommandRunner<int> runner() => CommandRunner<int>('restage', 'test')
+      ..argParser.addFlag('yes', negatable: false)
+      ..addCommand(
+        ExperimentActivationCommand(
+          api: ExperimentActivationApi(
+            transport: (bytes) async {
+              calls += 1;
+              return bytes;
+            },
+          ),
+          stdout: StringBuffer(),
+          stderr: stderr,
+          environment: const {'RESTAGE_EXPERIMENTAL': '1'},
+        ),
+      );
+    final args = [
+      'experiment-activation',
+      '--request',
+      request.path,
+      '--response',
+      '${directory.path}/result.json',
+    ];
+
+    expect(await runner().run(args), 1);
+    expect(calls, isZero);
+    expect(stderr.toString(), contains('changes what the live plane serves'));
+
+    await runner().run(['--yes', ...args]);
+    expect(calls, 1);
+  });
 
   test(
     'registers the activation command only when an authority is injected',

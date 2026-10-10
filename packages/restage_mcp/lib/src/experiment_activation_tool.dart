@@ -73,6 +73,21 @@ Future<CallToolResult> handleExperimentActivation({
   }
 }
 
+/// The plane the call's activation command addresses, or null when the
+/// command does not decode.
+RuntimePlane? activationPlane(CallToolRequest request) {
+  final bytes = _decodeCanonicalCommand(
+    request.optStr('canonicalCommandBase64') ?? '',
+  );
+  if (bytes == null) return null;
+  final plane = ExperimentActivationCommandWireV1.fromCanonicalBytes(
+    bytes,
+  ).target.runtimePlane;
+  return plane == measurement.RuntimePlane.live
+      ? RuntimePlane.live
+      : RuntimePlane.sandbox;
+}
+
 Uint8List? _decodeCanonicalCommand(String encoded) {
   final maximumEncodedLength =
       ((kMaximumExperimentActivationWireBytes + 2) ~/ 3) * 4;

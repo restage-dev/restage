@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -20,10 +21,9 @@ void main() {
   const safeBootstrap = '''
 window._flutter ??= {};
 window._flutter.loader ??= {load(){}};
-_flutter.buildConfig = {"engineRevision":"test","builds":[]};
+_flutter.buildConfig = {"engineRevision":"test","builds":[{"compileTarget":"dart2wasm","renderer":"skwasm"}]};
 _flutter.loader.load({
   config: {
-    renderer: 'skwasm',
     fontFallbackBaseUrl: 'assets/fonts/fallback/',
   },
 });
@@ -52,17 +52,32 @@ _flutter.loader.load({
   late Directory project;
   late Directory sdk;
   late Directory scratch;
+  late Directory generated;
   late File font;
   late File license;
+  late List<({Directory projectRoot, String flutterVersion})> writes;
+
+  Future<Directory> projectWriter({
+    required Directory projectRoot,
+    required String flutterVersion,
+    required Uint8List fontBytes,
+    required Uint8List licenseBytes,
+  }) async {
+    writes.add((projectRoot: projectRoot, flutterVersion: flutterVersion));
+    generated.createSync(recursive: true);
+    File(p.join(generated.path, 'pubspec.yaml')).writeAsStringSync('name: x\n');
+    return generated;
+  }
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('render_builder_test_');
     project = Directory(p.join(root.path, 'project'))..createSync();
     sdk = Directory(p.join(root.path, 'flutter'))..createSync();
     scratch = Directory(p.join(root.path, 'scratch'))..createSync();
-    File(p.join(project.path, 'lib', 'main_render_bundle.dart'))
-      ..createSync(recursive: true)
-      ..writeAsStringSync('void main() {}');
+    generated = Directory(
+      p.join(project.path, '.restage', 'build', 'render_bundle'),
+    );
+    writes = [];
     font = File(
       p.join(
         sdk.path,
@@ -97,6 +112,7 @@ _flutter.loader.load({
     Map<String, String> extraFiles = const <String, String>{},
     bool symbolsIsDirectory = false,
     Uri? parentOrigin,
+    bool pubFails = false,
   }) async {
     final scenarioScratch = Directory(p.join(root.path, 'scenario_scratch'))
       ..createSync();
@@ -107,6 +123,9 @@ _flutter.loader.load({
     }) async {
       if (arguments case ['--version', '--machine']) {
         return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
+      }
+      if (arguments case ['pub', 'get']) {
+        return ProcessResult(4, pubFails ? 1 : 0, '', '');
       }
       if (arguments case ['build', 'web', ...]) {
         final outputIndex = arguments.indexOf('--output');
@@ -176,6 +195,7 @@ _flutter.loader.load({
         licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
       ),
       engineSet: engineSet,
+      projectWriter: projectWriter,
     );
 
     try {
@@ -192,48 +212,20 @@ _flutter.loader.load({
     }
   }
 
-  test('rejects unapproved parent authorities before private temp', () async {
-    var tempCreations = 0;
-    final builder = FlutterRenderBundleBuilder(
-      tempDirectoryCreator: (_) async {
-        tempCreations++;
-        return scratch;
-      },
-      catalogResolver: _identityCatalogResolver,
+  test('a build configuration without a skwasm build is refused', () async {
+    await expectLater(
+      buildCompatibilityWorkerScenario(
+        includeWorker: false,
+        bootstrap: safeBootstrap.replaceAll('"skwasm"', '"canvaskit"'),
+      ),
+      throwsA(
+        isA<RenderBundleBuildException>().having(
+          (e) => e.reason,
+          'reason',
+          'loader_contract',
+        ),
+      ),
     );
-
-    for (final origin in <String>[
-      'http://localhost:8082',
-      'http://127.0.0.1:8082',
-      'http://api.restage.localhost:8082',
-      'http://bundles.restage.localhost:8082',
-      'http://dashboard.restage.localhost',
-      'https://dashboard.restage.localhost:8082',
-      'https://nested.dashboard.restage.dev',
-      'https://dashboard.restage.dev:444',
-      'http://dashboard.restage.dev',
-      'https://user@dashboard.restage.dev',
-      'https://dashboard.restage.dev/shell',
-      'https://dashboard.example.test',
-    ]) {
-      await expectLater(
-        builder.build(
-          projectRoot: project,
-          catalogJson: '{"libraries":{},"widgets":[]}',
-          parentOrigin: Uri.parse(origin),
-          controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
-        ),
-        throwsA(
-          isA<RenderBundleBuildException>().having(
-            (error) => error.reason,
-            'reason',
-            'parent_origin',
-          ),
-        ),
-        reason: origin,
-      );
-    }
-    expect(tempCreations, 0);
   });
 
   test(
@@ -268,9 +260,13 @@ _flutter.loader.load({
         if (arguments case ['--version', '--machine']) {
           return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
         }
+        if (arguments case ['pub', 'get']) {
+          expect(workingDirectory, generated.path);
+          return ProcessResult(4, 0, '', '');
+        }
         if (arguments case ['build', 'web', ...]) {
           buildNumber++;
-          expect(workingDirectory, project.path);
+          expect(workingDirectory, generated.path);
           final outputIndex = arguments.indexOf('--output');
           expect(outputIndex, isNonNegative);
           final defineArgument = arguments.singleWhere(
@@ -328,6 +324,7 @@ _flutter.loader.load({
           licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
         ),
         engineSet: engineSet,
+        projectWriter: projectWriter,
       );
       final artifact = await builder.build(
         projectRoot: project,
@@ -362,8 +359,9 @@ _flutter.loader.load({
           '--no-web-resources-cdn',
           '--pwa-strategy=none',
           '--no-tree-shake-icons',
+          '--no-pub',
           '--target',
-          'lib/main_render_bundle.dart',
+          renderBundleEntrypoint,
         ]);
       }
       expect(defineDocuments, hasLength(2));
@@ -378,6 +376,13 @@ _flutter.loader.load({
       expect(
         artifact.appFiles[renderBundleCapabilityManifestPath],
         createRenderBundleCapabilityManifest(catalogJson),
+      );
+      expect(writes, hasLength(1));
+      expect(writes.single.projectRoot.path, project.path);
+      expect(writes.single.flutterVersion, requiredRenderBundleFlutterVersion);
+      expect(
+        calls.where((call) => call.arguments.join(' ') == 'pub get'),
+        hasLength(1),
       );
       expect(scratch.existsSync(), isFalse);
     },
@@ -418,19 +423,25 @@ _flutter.loader.load({
     );
   });
 
-  for (final origin in <String>[
-    'http://dashboard.restage.localhost:8082',
-    'https://dashboard.restage.dev',
-  ]) {
-    test('accepts finite parent authority $origin', () async {
+  test(
+    'a project already resolved against its pubspec skips pub get',
+    () async {
+      File(p.join(generated.path, '.dart_tool', 'package_config.json'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+      File(
+        p.join(generated.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: x\n');
+      await markRenderBundleProjectResolved(generated, flutterRoot: sdk);
+
+      // A pub get would fail here, so the build shows it never ran.
       final artifact = await buildCompatibilityWorkerScenario(
         includeWorker: false,
-        parentOrigin: Uri.parse(origin),
-        controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
+        pubFails: true,
       );
-      expect(artifact.appFiles, isNotEmpty, reason: origin);
-    });
-  }
+      expect(artifact.appFiles, isNotEmpty);
+    },
+  );
 
   test('rejects malformed or nonregular last-build metadata', () async {
     for (final lastBuildId in <String>[
@@ -559,4 +570,60 @@ _flutter.loader.load({
       expect(tempCreations, 0);
     },
   );
+
+  for (final failing in <String>['pub', 'build']) {
+    test('names the generated project when `$failing` fails', () async {
+      Future<ProcessResult> runner(
+        String executable,
+        List<String> arguments, {
+        String? workingDirectory,
+      }) async {
+        if (arguments case ['--version', '--machine']) {
+          return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
+        }
+        if (executable.endsWith('chmod')) return ProcessResult(3, 0, '', '');
+        return ProcessResult(4, arguments.first == failing ? 1 : 0, '', '');
+      }
+
+      final builder = FlutterRenderBundleBuilder(
+        processRunner: runner,
+        tempDirectoryCreator: (_) async => scratch,
+        catalogResolver: _identityCatalogResolver,
+        flutterExecutable: p.join(sdk.path, 'bin', 'flutter'),
+        fontAuthority: RenderBundleFontAuthority(
+          fontFile: font,
+          licenseFile: license,
+          fontSha256: sha256.convert(font.readAsBytesSync()).toString(),
+          licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
+        ),
+        engineSet: engineSet,
+        projectWriter: projectWriter,
+      );
+
+      await expectLater(
+        builder.build(
+          projectRoot: project,
+          catalogJson: '{"libraries":{},"widgets":[]}',
+          parentOrigin: Uri.parse('http://dashboard.restage.localhost:8082'),
+          controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
+        ),
+        throwsA(
+          isA<RenderBundleBuildException>()
+              .having(
+                (error) => error.reason,
+                'reason',
+                failing == 'pub'
+                    ? 'dependencies_failed'
+                    : 'flutter_build_failed',
+              )
+              .having(
+                (error) => error.detail,
+                'detail',
+                p.join('.restage', 'build', 'render_bundle'),
+              ),
+        ),
+      );
+      expect(scratch.existsSync(), isFalse);
+    });
+  }
 }

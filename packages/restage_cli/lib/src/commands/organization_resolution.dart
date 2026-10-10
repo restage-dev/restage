@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
@@ -14,13 +15,23 @@ class ConfiguredOrganizationContext {
   final int? organizationId;
 }
 
+/// Register the hidden `--organization-id` selector a tool that already
+/// knows the organization id passes.
+void addOrganizationIdOption(ArgParser parser) =>
+    parser.addOption('organization-id', hide: true);
+
+/// The organization id `--organization-id` names, if any.
+int? organizationIdOption(ArgResults? argResults) {
+  if (argResults == null || !argResults.options.contains('organization-id')) {
+    return null;
+  }
+  return int.tryParse(argResults['organization-id'] as String? ?? '');
+}
+
 void _writeOrganizationDiscoveryError(
   StringSink stderr,
   RestageApiException error,
-) => stderr.writeln(
-  renderGenericTypedError(error)?.message ??
-      'Could not discover organization context: ${error.body}',
-);
+) => stderr.writeln(renderApiError(error).message);
 
 /// Resolve `restage_config.yaml`'s organization slug to the backend id.
 ///
@@ -34,7 +45,11 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
   required RestageConfig? config,
   required StringSink stderr,
   String? preferredSlug,
+  int? organizationId,
 }) async {
+  if (organizationId != null) {
+    return ConfiguredOrganizationContext(organizationId);
+  }
   final organizationSlug = preferredSlug?.isNotEmpty ?? false
       ? preferredSlug
       : config?.organization;
@@ -69,11 +84,13 @@ Future<int?> resolveRequiredOrganizationId({
   required RestageApi api,
   required RestageConfig? config,
   required StringSink stderr,
+  String? preferredSlug,
 }) async {
   final configured = await resolveConfiguredOrganization(
     api: api,
     config: config,
     stderr: stderr,
+    preferredSlug: preferredSlug,
   );
   if (configured == null) return null;
   if (configured.organizationId case final organizationId?) {
@@ -88,8 +105,8 @@ Future<int?> resolveRequiredOrganizationId({
     }
     if (organizations.length != 1) {
       stderr.writeln(
-        'No organization context. Set `organization` in '
-        'restage_config.yaml.',
+        'No organization context. Pass --organization <slug>, or set '
+        '`organization` in restage_config.yaml.',
       );
       return null;
     }

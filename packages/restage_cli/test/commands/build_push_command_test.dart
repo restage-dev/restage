@@ -42,17 +42,10 @@ void main() {
         authToken: 'key:private',
       ),
     );
-    await seedRestageConfig(
-      root,
-      'demo',
-      'mobile',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
-    );
+    await seedRestageConfig(root, 'demo', 'mobile');
     // A recorder over a repository that answers without a real Git.
-    recorder = (await ReleaseRecorder.open(
+    recorder = await ReleaseRecorder.open(
       projectRoot: root,
-      stderr: StringBuffer(),
       processRunner: (executable, arguments, {String? workingDirectory}) async {
         final command = arguments.join(' ');
         if (command.startsWith('rev-parse --show-toplevel')) {
@@ -69,7 +62,7 @@ void main() {
         }
         return ProcessResult(0, 0, '', '');
       },
-    ))!;
+    );
   });
 
   tearDown(() async {
@@ -95,6 +88,8 @@ void main() {
     ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
     expect(exit, 0, reason: stderr.toString());
     expect(calls, <String>['prepare', 'commit']);
+    // Only --record-git holds dependencies outside the repository to account.
+    expect(sourceStep.recordGit, isFalse);
     expect(builder.projectRoot?.path, root.path);
     expect(
       builder.parentOrigin,
@@ -106,26 +101,23 @@ void main() {
     expect(stderr.toString(), isEmpty);
   });
 
-  test(
-    'deployed config pins the dashboard parent and bundle authority',
-    () async {
-      await store.write(
-        const Credential(
-          endpoint: 'https://api.restage.dev/',
-          kind: CredentialKind.authKey,
-          authToken: 'key:private',
-        ),
-      );
-      await seedRestageConfig(
-        root,
-        'demo',
-        'mobile',
+  test('a deployed push trusts the origins the server names', () async {
+    await store.write(
+      const Credential(
         endpoint: 'https://api.restage.dev/',
-        dashboardOrigin: 'https://dashboard.restage.dev',
-        renderBundleOrigin: 'https://bundles.restage.dev',
-      );
-      final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
-      final client = MockClient((request) async {
+        kind: CredentialKind.authKey,
+        authToken: 'key:private',
+      ),
+    );
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'https://api.restage.dev/',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final client = _withOrigins(
+      (request) async {
         expect(request.url.host, 'api.restage.dev');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         switch (body['method']) {
@@ -163,111 +155,134 @@ void main() {
           default:
             fail('unexpected call: ${body['method']}');
         }
-      });
+      },
+      dashboard: 'https://dashboard.restage.dev',
+      bundles: 'https://bundles.restage.dev',
+    );
+
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: client,
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+
+    expect(exit, 0, reason: stderr.toString());
+    expect(builder.parentOrigin, Uri.parse('https://dashboard.restage.dev'));
+    expect(stdout.toString(), contains('mobile staging version 1'));
+    expect(stderr.toString(), isEmpty);
+  });
+
+  test('a build that produced nothing is refused', () async {
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _withOrigins((_) async => fail('nothing to upload')),
+      renderBundleBuilder: _FakeBuilder.empty(),
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+
+    expect(exit, 2);
+    expect(stderr.toString(), 'Could not build the render bundle.\n');
+  });
+
+  test('a server origin that is not a bare origin is refused', () async {
+    for (final (dashboard, bundles) in <(String, String)>[
+      ('http://dashboard.restage.localhost:8082/shell', _localBundles),
+      ('not-an-origin', _localBundles),
+      (_localDashboard, 'ftp://bundles.restage.localhost:8081'),
+      (_localDashboard, 'http://user@bundles.restage.localhost:8081'),
+    ]) {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+      var networkCalls = 0;
 
       final exit = await RestageCli(
         stdout: stdout,
         stderr: stderr,
         credentialStore: store,
-        httpClient: client,
+        httpClient: _withOrigins(
+          (_) async {
+            networkCalls++;
+            return http.Response('', 500);
+          },
+          dashboard: dashboard,
+          bundles: bundles,
+        ),
         renderBundleBuilder: builder,
         renderBundleCatalog: catalogStep.call,
         renderBundleSource: sourceStep.call,
-      ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+      ).run(<String>['build', 'push', '-C', root.path]);
 
-      expect(exit, 0, reason: stderr.toString());
-      expect(builder.parentOrigin, Uri.parse('https://dashboard.restage.dev'));
-      expect(stdout.toString(), contains('mobile staging version 1'));
-      expect(stderr.toString(), isEmpty);
-    },
-  );
+      expect(exit, 1, reason: '$dashboard $bundles');
+      expect(
+        stderr.toString(),
+        'Could not read where builds go from the server.\n',
+        reason: '$dashboard $bundles',
+      );
+      expect(builder.projectRoot, isNull);
+      expect(networkCalls, 0);
+      stderr.clear();
+    }
+  });
 
-  test('matching explicit parent and bundle overrides are accepted', () async {
+  test('an https server may not name plain http origins', () async {
+    await store.write(
+      const Credential(
+        endpoint: 'https://api.example.test/',
+        kind: CredentialKind.authKey,
+        authToken: 'key:private',
+      ),
+    );
     await seedRestageConfig(
       root,
       'demo',
       'mobile',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      endpoint: 'https://api.example.test/',
     );
-    final builder = _FakeBuilder.empty();
-    var networkCalls = 0;
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
 
-    final exit =
-        await RestageCli(
-          stdout: stdout,
-          stderr: stderr,
-          credentialStore: store,
-          httpClient: MockClient((_) async {
-            networkCalls++;
-            return http.Response('', 500);
-          }),
-          renderBundleBuilder: builder,
-          renderBundleCatalog: catalogStep.call,
-          renderBundleSource: sourceStep.call,
-        ).run(<String>[
-          'build',
-          'push',
-          '-C',
-          root.path,
-          '--parent-origin',
-          'http://dashboard.restage.localhost:8082/',
-          '--bundle-origin',
-          'http://bundles.restage.localhost:8081',
-        ]);
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _withOrigins(
+        (_) async => fail('no call after the origins'),
+        dashboard: 'http://dashboard.example.test',
+        bundles: 'https://bundles.example.test',
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
 
-    expect(exit, 2);
-    expect(
-      builder.parentOrigin,
-      Uri.parse('http://dashboard.restage.localhost:8082'),
-    );
-    expect(networkCalls, 0);
+    expect(exit, 1);
+    expect(builder.projectRoot, isNull);
   });
 
-  test(
-    'explicit parent must match configured dashboard before build or network',
-    () async {
-      for (final parentOrigin in <String>[
-        'http://127.0.0.1:8083',
-        'http://127.0.0.1:8082/shell',
-        'not-an-origin',
-      ]) {
-        final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
-        var networkCalls = 0;
+  test('a server that takes no builds says so before the build', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _withOrigins(
+        (_) async => fail('no call after the origins read'),
+        refusal: 'builds_unavailable',
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
 
-        final exit =
-            await RestageCli(
-              stdout: stdout,
-              stderr: stderr,
-              credentialStore: store,
-              httpClient: MockClient((_) async {
-                networkCalls++;
-                return http.Response('', 500);
-              }),
-              renderBundleBuilder: builder,
-              renderBundleCatalog: catalogStep.call,
-              renderBundleSource: sourceStep.call,
-            ).run(<String>[
-              'build',
-              'push',
-              '-C',
-              root.path,
-              '--parent-origin',
-              parentOrigin,
-            ]);
-
-        expect(exit, 1, reason: parentOrigin);
-        expect(
-          stderr.toString(),
-          'The parent origin must exactly match the configured '
-          'dashboardOrigin.\n',
-          reason: parentOrigin,
-        );
-        expect(builder.projectRoot, isNull, reason: parentOrigin);
-        expect(networkCalls, 0, reason: parentOrigin);
-        stderr.clear();
-      }
-    },
-  );
+    expect(exit, 1);
+    expect(stderr.toString(), 'This server does not accept builds.\n');
+    expect(builder.projectRoot, isNull);
+  });
 
   test(
     'a named environment reaches prepare, the upload and the read-back',
@@ -314,7 +329,7 @@ void main() {
     () async {
       final builder = _FakeBuilder(Uint8List.fromList(<int>[7, 8, 9]));
       var uploadCalls = 0;
-      final client = MockClient((request) async {
+      final client = _withOrigins((request) async {
         if (request.url.port == 8081) {
           uploadCalls++;
           return http.Response('request entity too large', 413);
@@ -378,7 +393,7 @@ void main() {
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((_) async {
+      httpClient: _withOrigins((_) async {
         networkCalls++;
         return http.Response('', 500);
       }),
@@ -402,7 +417,7 @@ void main() {
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((_) async {
+      httpClient: _withOrigins((_) async {
         networkCalls++;
         return http.Response('', 500);
       }),
@@ -417,12 +432,63 @@ void main() {
     expect(stderr.toString(), isNot(contains('sensitive process output')));
   });
 
+  for (final (error, message) in <(RenderBundleBuildException, String)>[
+    (
+      const RenderBundleBuildException('factories_missing'),
+      'Could not build the render bundle: lib/user_factories.g.dart is '
+          'missing. Run `dart run build_runner build`, or drop --no-generate '
+          'and let the push run it.',
+    ),
+    (
+      const RenderBundleBuildException('render_host_missing'),
+      'Could not build the render bundle: the restage package this app uses '
+          'is too old to build one. Upgrade restage and push again.',
+    ),
+    (
+      const RenderBundleBuildException('dependencies_unresolved'),
+      "Could not build the render bundle: this app's dependencies are not "
+          'resolved. Run `flutter pub get` and push again.',
+    ),
+    (
+      const RenderBundleBuildException(
+        'dependencies_failed',
+        detail: '.restage/build/render_bundle',
+      ),
+      'Could not build the render bundle: its dependencies did not resolve. '
+          'Run `flutter pub get` in .restage/build/render_bundle to see why.',
+    ),
+    (
+      const RenderBundleBuildException(
+        'flutter_build_failed',
+        detail: '.restage/build/render_bundle',
+      ),
+      'Could not build the render bundle: `flutter build web` failed. Run '
+          '`flutter build web --wasm` in .restage/build/render_bundle to see '
+          'why.',
+    ),
+  ]) {
+    test('${error.reason} is named', () async {
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _withOrigins((_) async => http.Response('', 500)),
+        renderBundleBuilder: _FailingBuilder(error),
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+      ).run(<String>['build', 'push', '-C', root.path]);
+
+      expect(exit, 2);
+      expect(stderr.toString(), '$message\n');
+    });
+  }
+
   test('an engine file the pin does not cover is named', () async {
     final exit = await RestageCli(
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((_) async => http.Response('', 500)),
+      httpClient: _withOrigins((_) async => http.Response('', 500)),
       renderBundleBuilder: _FailingBuilder(
         const RenderBundleBuildException(
           'engine_incomplete',
@@ -498,13 +564,13 @@ void main() {
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((_) async {
+      httpClient: _withOrigins((_) async {
         networkCalls++;
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
-      renderBundleSource: (_) async =>
+      renderBundleSource: (_, {recordGit = false}) async =>
           throw const SourceBoundaryException('The lockfile cannot be read.'),
     ).run(<String>['build', 'push', '-C', root.path]);
 
@@ -531,7 +597,7 @@ void main() {
             stdout: stdout,
             stderr: stderr,
             credentialStore: missingStore,
-            httpClient: MockClient((_) async {
+            httpClient: _withOrigins((_) async {
               networkCalls++;
               return http.Response('', 500);
             }),
@@ -551,215 +617,6 @@ void main() {
       expect(
         stderr.toString(),
         contains('Refusing the environment `Staging/../admin`'),
-      );
-      expect(builder.projectRoot, isNull);
-      expect(networkCalls, 0);
-    },
-  );
-
-  test(
-    'deployed push requires the complete config triplet before build',
-    () async {
-      await store.write(
-        const Credential(
-          endpoint: 'https://api.restage.dev/',
-          kind: CredentialKind.authKey,
-          authToken: 'key:private',
-        ),
-      );
-      await seedRestageConfig(
-        root,
-        'demo',
-        'mobile',
-        dashboardOrigin: 'https://dashboard.restage.dev',
-      );
-      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
-      var networkCalls = 0;
-
-      final exit = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: MockClient((_) async {
-          networkCalls++;
-          return http.Response('', 500);
-        }),
-        renderBundleBuilder: builder,
-        renderBundleCatalog: catalogStep.call,
-        renderBundleSource: sourceStep.call,
-      ).run(<String>['build', 'push', '-C', root.path]);
-
-      expect(exit, 1);
-      expect(
-        stderr.toString(),
-        'A valid API, dashboard, and render-bundle origin triplet is required. '
-        'Configure dashboardOrigin and renderBundleOrigin with three distinct '
-        'finite restage.localhost roles or direct HTTPS siblings under '
-        'restage.dev.\n',
-      );
-      expect(builder.projectRoot, isNull);
-      expect(networkCalls, 0);
-    },
-  );
-
-  test(
-    'deployed push rejects incomplete or deceptive origin triplets',
-    () async {
-      for (final unsafe in <(String, String, String, String)>[
-        (
-          'arbitrary cross-site',
-          'https://api.example.com/',
-          'https://dashboard.example.com',
-          'https://upload.example.com',
-        ),
-        (
-          'public suffix siblings',
-          'https://api.github.io/',
-          'https://dashboard.github.io',
-          'https://upload.github.io',
-        ),
-        (
-          'cross-site dashboard origin',
-          'https://api.restage.dev/',
-          'https://dashboard.example.com',
-          'https://bundles.restage.dev',
-        ),
-        (
-          'cross-site bundle origin',
-          'https://api.restage.dev/',
-          'https://dashboard.restage.dev',
-          'https://upload.example.com',
-        ),
-        (
-          'nested dashboard host',
-          'https://api.restage.dev/',
-          'https://nested.dashboard.restage.dev',
-          'https://bundles.restage.dev',
-        ),
-        (
-          'deceptive suffix',
-          'https://api.restage.dev.evil.test/',
-          'https://dashboard.restage.dev.evil.test',
-          'https://upload.restage.dev.evil.test',
-        ),
-        (
-          'non-origin dashboard URL',
-          'https://api.restage.dev/',
-          'https://dashboard.restage.dev/shell',
-          'https://bundles.restage.dev',
-        ),
-      ]) {
-        await store.write(
-          Credential(
-            endpoint: unsafe.$2,
-            kind: CredentialKind.authKey,
-            authToken: 'key:private',
-          ),
-        );
-        await seedRestageConfig(
-          root,
-          'demo',
-          'mobile',
-          dashboardOrigin: unsafe.$3,
-          renderBundleOrigin: unsafe.$4,
-        );
-        final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
-        var networkCalls = 0;
-
-        final exit = await RestageCli(
-          stdout: stdout,
-          stderr: stderr,
-          credentialStore: store,
-          httpClient: MockClient((_) async {
-            networkCalls++;
-            return http.Response('', 500);
-          }),
-          renderBundleBuilder: builder,
-          renderBundleCatalog: catalogStep.call,
-          renderBundleSource: sourceStep.call,
-        ).run(<String>['build', 'push', '-C', root.path]);
-
-        expect(exit, 1, reason: unsafe.$1);
-        expect(builder.projectRoot, isNull, reason: unsafe.$1);
-        expect(networkCalls, 0, reason: unsafe.$1);
-        stderr.clear();
-      }
-    },
-  );
-
-  test(
-    'local push requires the complete config triplet before build or network',
-    () async {
-      await seedRestageConfig(root, 'demo', 'mobile');
-      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
-      var networkCalls = 0;
-
-      final exit = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: MockClient((_) async {
-          networkCalls++;
-          return http.Response('', 500);
-        }),
-        renderBundleBuilder: builder,
-        renderBundleCatalog: catalogStep.call,
-        renderBundleSource: sourceStep.call,
-      ).run(<String>['build', 'push', '-C', root.path]);
-
-      expect(exit, 1);
-      expect(
-        stderr.toString(),
-        'A valid API, dashboard, and render-bundle origin triplet is required. '
-        'Configure dashboardOrigin and renderBundleOrigin with three distinct '
-        'finite restage.localhost roles or direct HTTPS siblings under '
-        'restage.dev.\n',
-      );
-      expect(builder.projectRoot, isNull);
-      expect(networkCalls, 0);
-    },
-  );
-
-  test(
-    'deployed push rejects an origin collision before build or network',
-    () async {
-      await store.write(
-        const Credential(
-          endpoint: 'https://api.restage.dev/',
-          kind: CredentialKind.authKey,
-          authToken: 'key:private',
-        ),
-      );
-      await seedRestageConfig(
-        root,
-        'demo',
-        'mobile',
-        dashboardOrigin: 'https://api.restage.dev',
-        renderBundleOrigin: 'https://bundles.restage.dev',
-      );
-      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
-      var networkCalls = 0;
-
-      final exit = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: MockClient((_) async {
-          networkCalls++;
-          return http.Response('', 500);
-        }),
-        renderBundleBuilder: builder,
-        renderBundleCatalog: catalogStep.call,
-        renderBundleSource: sourceStep.call,
-      ).run(<String>['build', 'push', '-C', root.path]);
-
-      expect(exit, 1);
-      expect(
-        stderr.toString(),
-        'A valid API, dashboard, and render-bundle origin triplet is required. '
-        'Configure dashboardOrigin and renderBundleOrigin with three distinct '
-        'finite restage.localhost roles or direct HTTPS siblings under '
-        'restage.dev.\n',
       );
       expect(builder.projectRoot, isNull);
       expect(networkCalls, 0);
@@ -828,7 +685,7 @@ void main() {
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((request) async {
+      httpClient: _withOrigins((request) async {
         networkCalls++;
         return http.Response('', 500);
       }),
@@ -855,7 +712,7 @@ void main() {
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((request) async => http.Response('', 500)),
+      httpClient: _withOrigins((request) async => http.Response('', 500)),
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
@@ -874,8 +731,6 @@ void main() {
       'demo',
       'mobile',
       endpoint: 'http://api.restage.localhost:8080',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
     );
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     final authorizations = <String?>[];
@@ -892,11 +747,11 @@ void main() {
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
-      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+      environment: _keyEnvironment,
     ).run(<String>['build', 'push', '-C', root.path]);
     expect(exit, 0, reason: stderr.toString());
     expect(authorizations, isNotEmpty);
-    expect(authorizations, everyElement('Bearer rs_sk_example'));
+    expect(authorizations, everyElement('Bearer $_key'));
     // The key names its own organization on the server, so the push sends none.
     expect(rpcBodies.map((body) => body['method']), <String>[
       'prepare',
@@ -914,8 +769,6 @@ void main() {
       'demo',
       'mobile',
       endpoint: 'http://api.restage.localhost:8080',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
     );
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     final exit = await RestageCli(
@@ -926,17 +779,220 @@ void main() {
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
-      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+      environment: _keyEnvironment,
     ).run(<String>['build', 'push', '-C', root.path]);
     expect(exit, 0, reason: stderr.toString());
     expect(await store.read(), isNotNull);
     expect((await store.read())!.kind, CredentialKind.authKey);
     expect(
       await File(p.join(root.path, 'credentials')).readAsString(),
-      isNot(contains('rs_sk_example')),
+      isNot(contains(_key)),
     );
-    expect(stdout.toString(), isNot(contains('rs_sk_example')));
-    expect(stderr.toString(), isNot(contains('rs_sk_example')));
+    expect(stdout.toString(), isNot(contains(_key)));
+    expect(stderr.toString(), isNot(contains(_key)));
+  });
+
+  test('the server names what a key cannot push', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'http://api.restage.localhost:8080',
+    );
+    for (final (reason, args, message) in <(String, List<String>, String)>[
+      (
+        'not_a_secret_key',
+        <String>[],
+        'RESTAGE_API_KEY holds a publishable key. A push needs a secret key '
+            'minted with the bundle-push scope.\n',
+      ),
+      (
+        'environment_not_found',
+        <String>[],
+        'This key is bound to one environment and --env names another. Drop '
+            '--env, or use the key for the environment it belongs to.\n',
+      ),
+    ]) {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _pushClient(builder.archive, prepareRefusal: reason),
+        renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+        environment: _keyEnvironment,
+      ).run(<String>['build', 'push', '-C', root.path, ...args]);
+      expect(exit, 2, reason: reason);
+      expect(stderr.toString(), message, reason: reason);
+      stderr.clear();
+    }
+  });
+
+  test('a key the target cannot push with is refused before the build', () async {
+    for (final (label, client, args, message)
+        in <(String, http.Client, List<String>, String)>[
+          (
+            'publishable',
+            _pushClient(Uint8List(0), secret: false),
+            <String>[],
+            'RESTAGE_API_KEY holds a publishable key. A push needs a secret key '
+                'minted with the bundle-push scope.\n',
+          ),
+          (
+            'unscoped',
+            _pushClient(Uint8List(0), scopes: const <String>[]),
+            <String>[],
+            'This key was not minted with the bundle-push scope, so it cannot '
+                'push. Mint a new key with that scope.\n',
+          ),
+          (
+            'another environment',
+            _pushClient(Uint8List(0)),
+            <String>['--env', 'prod'],
+            'The API key belongs to a different app or environment than the one '
+                'named.\n',
+          ),
+        ]) {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+        renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+        environment: _keyEnvironment,
+      ).run(<String>['build', 'push', '-C', root.path, ...args]);
+      expect(exit, 1, reason: label);
+      expect(stderr.toString(), message, reason: label);
+      expect(builder.projectRoot, isNull, reason: label);
+      stderr.clear();
+    }
+  });
+
+  test('a key target refusal from the server reads as its sentence', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive, prepareKeyMismatch: true),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: _keyEnvironment,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      'The API key belongs to a different app or environment than the one '
+      'named.\n',
+    );
+  });
+
+  test('a key is never sent to an endpoint the config file names', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'https://api.attacker.example/',
+    );
+    var networkCalls = 0;
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      defaultEndpoint: Uri.parse('https://api.restage.dev/'),
+      httpClient: MockClient((_) async {
+        networkCalls++;
+        return http.Response('', 500);
+      }),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{'RESTAGE_API_KEY': _key},
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 1);
+    expect(networkCalls, 0);
+    expect(
+      stderr.toString(),
+      'restage_config.yaml names https://api.attacker.example/, but a key is '
+      'sent only to https://api.restage.dev/. Set RESTAGE_BACKEND_URL to push '
+      'to that server with a key.\n',
+    );
+    expect(builder.projectRoot, isNull);
+  });
+
+  test(
+    'a key goes to the built-in endpoint when nothing else is named',
+    () async {
+      final hosts = <String>{};
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse(_localApi),
+        httpClient: _pushClient(
+          builder.archive,
+          onUrl: (url) => hosts.add(url.host),
+        ),
+        renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+        environment: const <String, String>{'RESTAGE_API_KEY': _key},
+      ).run(<String>['build', 'push', '-C', root.path]);
+      expect(exit, 0, reason: stderr.toString());
+      expect(hosts, <String>{'api.restage.localhost'});
+    },
+  );
+
+  test('origins off the API site are refused before the build', () async {
+    await store.write(
+      const Credential(
+        endpoint: 'https://api.restage.dev/',
+        kind: CredentialKind.authKey,
+        authToken: 'key:private',
+      ),
+    );
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'https://api.restage.dev/',
+    );
+    for (final (dashboard, bundles) in <(String, String)>[
+      ('https://dashboard.attacker.example', 'https://bundles.restage.dev'),
+      ('https://dashboard.restage.dev', 'https://restage.dev.attacker.example'),
+      ('https://dashboard.restage.dev', 'http://localhost:8081'),
+    ]) {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _withOrigins(
+          (_) async => fail('no call after the origins'),
+          dashboard: dashboard,
+          bundles: bundles,
+        ),
+        renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+      ).run(<String>['build', 'push', '-C', root.path]);
+      expect(exit, 1, reason: '$dashboard $bundles');
+      expect(
+        stderr.toString(),
+        'Could not read where builds go from the server.\n',
+        reason: '$dashboard $bundles',
+      );
+      expect(builder.projectRoot, isNull);
+      stderr.clear();
+    }
   });
 
   test('a refused key names the scope a push needs', () async {
@@ -945,21 +1001,19 @@ void main() {
       'demo',
       'mobile',
       endpoint: 'http://api.restage.localhost:8080',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
     );
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     final exit = await RestageCli(
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient(
+      httpClient: _withOrigins(
         (request) async => http.Response('forbidden: no scope', 403),
       ),
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
-      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+      environment: _keyEnvironment,
     ).run(<String>['build', 'push', '-C', root.path]);
     expect(exit, 2);
     expect(
@@ -968,7 +1022,7 @@ void main() {
       'pushes only while it holds the bundle-push scope and has not been '
       'revoked.\n',
     );
-    expect(stderr.toString(), isNot(contains('rs_sk_example')));
+    expect(stderr.toString(), isNot(contains(_key)));
     // The refusal is the command's own sentence; no server text is shown.
     expect(stderr.toString(), isNot(contains('forbidden')));
   });
@@ -998,19 +1052,11 @@ void main() {
   });
 
   test('a key is refused from the command line', () async {
-    final exit =
-        await RestageCli(
-          stdout: stdout,
-          stderr: stderr,
-          credentialStore: store,
-        ).run(<String>[
-          'build',
-          'push',
-          '-C',
-          root.path,
-          '--api-key',
-          'rs_sk_example',
-        ]);
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+    ).run(<String>['build', 'push', '-C', root.path, '--api-key', _key]);
     expect(exit, 1);
     expect(stderr.toString(), contains('api-key'));
   });
@@ -1102,7 +1148,7 @@ void main() {
           stdout: stdout,
           stderr: stderr,
           credentialStore: store,
-          httpClient: MockClient((_) async {
+          httpClient: _withOrigins((_) async {
             networkCalls++;
             return http.Response('', 500);
           }),
@@ -1134,7 +1180,7 @@ void main() {
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
-      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+      environment: _keyEnvironment,
     ).run(<String>['build', 'push', '-C', root.path, '--personal']);
     expect(exit, 1);
     expect(
@@ -1145,14 +1191,7 @@ void main() {
   });
 
   test('--record-git writes the receipt the push earned', () async {
-    await seedRestageConfig(
-      root,
-      'demo',
-      'mobile',
-      organization: 'acme',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
-    );
+    await seedRestageConfig(root, 'demo', 'mobile', organization: 'acme');
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     Map<String, Object?>? recorded;
     final exit =
@@ -1168,8 +1207,8 @@ void main() {
           renderBundleBuilder: builder,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
-          renderBundleRecorderOpener:
-              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleRecorderOpener: ({required projectRoot}) async =>
+              recorder,
           renderBundleReceipt:
               ({
                 required recorder,
@@ -1213,6 +1252,7 @@ void main() {
         ]);
 
     expect(exit, 0, reason: stderr.toString());
+    expect(sourceStep.recordGit, isTrue);
     expect(recorded, isNotNull);
     expect(recorded!['organizationId'], 7);
     expect(recorded!['organization'], 'acme');
@@ -1225,14 +1265,7 @@ void main() {
   });
 
   test('a push to a personal head records no environment', () async {
-    await seedRestageConfig(
-      root,
-      'demo',
-      'mobile',
-      organization: 'acme',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
-    );
+    await seedRestageConfig(root, 'demo', 'mobile', organization: 'acme');
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     String? seenEnvironment = 'unset';
     final exit =
@@ -1248,8 +1281,8 @@ void main() {
           renderBundleBuilder: builder,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
-          renderBundleRecorderOpener:
-              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleRecorderOpener: ({required projectRoot}) async =>
+              recorder,
           renderBundleReceipt:
               ({
                 required recorder,
@@ -1290,18 +1323,17 @@ void main() {
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: MockClient((_) async {
+      httpClient: _withOrigins((_) async {
         networkCalls++;
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
-      renderBundleRecorderOpener:
-          ({required projectRoot, required stderr}) async {
-            stderr.writeln('This app is not in a Git repository.');
-            return null;
-          },
+      renderBundleRecorderOpener: ({required projectRoot}) async =>
+          throw const ReleaseRecorderException(
+            'This app is not in a Git repository.',
+          ),
     ).run(<String>['build', 'push', '-C', root.path, '--record-git']);
 
     expect(exit, 1);
@@ -1312,14 +1344,7 @@ void main() {
   });
 
   test('a receipt that will not write leaves the push standing', () async {
-    await seedRestageConfig(
-      root,
-      'demo',
-      'mobile',
-      organization: 'acme',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
-    );
+    await seedRestageConfig(root, 'demo', 'mobile', organization: 'acme');
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     final exit =
         await RestageCli(
@@ -1330,8 +1355,8 @@ void main() {
           renderBundleBuilder: builder,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
-          renderBundleRecorderOpener:
-              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleRecorderOpener: ({required projectRoot}) async =>
+              recorder,
           renderBundleReceipt:
               ({
                 required recorder,
@@ -1375,8 +1400,8 @@ void main() {
           renderBundleBuilder: builder,
           renderBundleCatalog: catalogStep.call,
           renderBundleSource: sourceStep.call,
-          renderBundleRecorderOpener:
-              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleRecorderOpener: ({required projectRoot}) async =>
+              recorder,
           renderBundleReceipt:
               ({
                 required recorder,
@@ -1428,8 +1453,8 @@ void main() {
             renderBundleBuilder: builder,
             renderBundleCatalog: catalogStep.call,
             renderBundleSource: sourceStep.call,
-            renderBundleRecorderOpener:
-                ({required projectRoot, required stderr}) async => recorder,
+            renderBundleRecorderOpener: ({required projectRoot}) async =>
+                recorder,
             renderBundleReceipt:
                 ({
                   required recorder,
@@ -1478,8 +1503,6 @@ void main() {
       'demo',
       'mobile',
       endpoint: 'http://api.restage.localhost:8080',
-      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
-      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
     );
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     Map<String, Object?>? recorded;
@@ -1491,8 +1514,7 @@ void main() {
       renderBundleBuilder: builder,
       renderBundleCatalog: catalogStep.call,
       renderBundleSource: sourceStep.call,
-      renderBundleRecorderOpener:
-          ({required projectRoot, required stderr}) async => recorder,
+      renderBundleRecorderOpener: ({required projectRoot}) async => recorder,
       renderBundleReceipt:
           ({
             required recorder,
@@ -1516,7 +1538,7 @@ void main() {
             };
             return true;
           },
-      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+      environment: _keyEnvironment,
     ).run(<String>['build', 'push', '-C', root.path, '--record-git']);
 
     // A key resolves no organization on this side; the service names one.
@@ -1538,18 +1560,67 @@ void main() {
   });
 }
 
+const _key =
+    'rs_sk_sandbox_staging_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
+
+const _localApi = 'http://api.restage.localhost:8080';
+
+/// A key, and the server the environment says it may be sent to.
+const _keyEnvironment = <String, String>{
+  'RESTAGE_API_KEY': _key,
+  'RESTAGE_BACKEND_URL': _localApi,
+};
+
+const _localDashboard = 'http://dashboard.restage.localhost:8082';
+const _localBundles = 'http://bundles.restage.localhost:8081';
+
+/// Answers the origins read a push starts with, then defers to [handler].
+http.Client _withOrigins(
+  MockClientHandler handler, {
+  String dashboard = _localDashboard,
+  String bundles = _localBundles,
+  String? refusal,
+}) => MockClient((request) async {
+  if (request.url.path.endsWith('/renderBundleUpload') &&
+      (jsonDecode(request.body) as Map<String, dynamic>)['method'] ==
+          'origins') {
+    if (refusal != null) {
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          'className': 'RenderBundleRejectedException',
+          'data': <String, Object?>{'reason': refusal},
+        }),
+        400,
+      );
+    }
+    return http.Response(
+      jsonEncode(<String, Object?>{
+        'dashboardOrigin': dashboard,
+        'bundleOrigin': bundles,
+      }),
+      200,
+    );
+  }
+  return handler(request);
+});
+
 /// Answers the calls one successful push makes.
 http.Client _pushClient(
   Uint8List archive, {
   void Function(String?)? onAuthorization,
+  void Function(Uri)? onUrl,
   void Function(Map<String, dynamic>)? onRpcBody,
   int version = 4,
   String headReference = 'staging',
   List<String> missingContentHashes = const <String>[],
   int? organizationId,
   String? prepareRefusal,
-}) => MockClient((request) async {
+  bool prepareKeyMismatch = false,
+  bool secret = true,
+  List<String> scopes = const <String>['renderBundlesPush'],
+}) => _withOrigins((request) async {
   onAuthorization?.call(request.headers['authorization']);
+  onUrl?.call(request.url);
   if (request.url.port == 8081) return http.Response('', 204);
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   if (body['method'] == 'listMine') {
@@ -1564,9 +1635,41 @@ http.Client _pushClient(
       200,
     );
   }
+  if (body['method'] == 'keyTarget') {
+    return http.Response(
+      jsonEncode(<String, Object?>{
+        'organizationId': 7,
+        'organizationSlug': 'acme',
+        'projectSlug': 'demo',
+        'appId': 5,
+        'appSlug': 'mobile',
+        'target': <String, Object?>{
+          'environmentTargetId': 12,
+          'namedEnvironmentId': 22,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
+        },
+        'secret': secret,
+        'scopes': scopes,
+      }),
+      200,
+    );
+  }
   onRpcBody?.call(body);
   switch (body['method']) {
     case 'prepare':
+      if (prepareKeyMismatch) {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'className': 'TargetSelectionRefusedException',
+            'data': <String, Object?>{
+              'reason': 'keyTargetMismatch',
+              'environmentSlug': 'staging',
+            },
+          }),
+          400,
+        );
+      }
       if (prepareRefusal != null) {
         return http.Response(
           jsonEncode(<String, Object?>{
@@ -1622,9 +1725,14 @@ final class _FakeSource {
 
   final BundleSource source;
   Directory? projectRoot;
+  bool? recordGit;
 
-  Future<BundleSource> call(Directory projectRoot) async {
+  Future<BundleSource> call(
+    Directory projectRoot, {
+    bool recordGit = false,
+  }) async {
     this.projectRoot = projectRoot;
+    this.recordGit = recordGit;
     return source;
   }
 }

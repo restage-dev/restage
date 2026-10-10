@@ -57,8 +57,8 @@ void main() {
         (t) => t.name == 'restage_list_paywalls',
       );
       expect(
-        tool.inputSchema.required,
-        containsAll(['projectSlug', 'appSlug']),
+        tool.inputSchema.properties!.keys,
+        containsAll(['projectDirectory', 'projectSlug', 'appSlug']),
       );
       expect(tool.inputSchema.properties, contains('projectSlug'));
       expect(tool.inputSchema.properties, contains('appSlug'));
@@ -215,7 +215,10 @@ void main() {
 
       expect(result.isError, isTrue);
       final text = (result.content.single as TextContent).text;
-      expect(text.toLowerCase(), contains('not permitted'));
+      expect(
+        text,
+        contains('Your role in this organization does not allow this'),
+      );
       expect(text, isNot(contains('#0')));
     },
   );

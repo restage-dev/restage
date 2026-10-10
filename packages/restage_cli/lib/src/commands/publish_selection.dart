@@ -147,6 +147,8 @@ Future<int> runPush({
   onPushed,
 }) async {
   final uploader = SurfacePublicationApi(api);
+  // Pushed surfaces whose stored revision is not the live one.
+  final pending = <String>[];
   for (var index = 0; index < assembled.length; index += 1) {
     final publication = assembled[index];
     int stopWith(int code) {
@@ -169,6 +171,9 @@ Future<int> runPush({
       stdout.writeln(
         '${describe(publication)} to $environment; ${result.stateDescription}',
       );
+      if (result.activeRevision != result.storedRevision) {
+        pending.add(publication.entry.publication.slug);
+      }
       await onPushed?.call(publication, result);
     } on RestageApiException catch (error) {
       return stopWith(onApiException(error));
@@ -188,18 +193,24 @@ Future<int> runPush({
       return stopWith(2);
     }
   }
-  if (assembled.isEmpty) return 0;
   if (assembled.length > 1) {
-    stdout
-      ..writeln('Pushed ${assembled.length} ${noun}s to $environment.')
-      ..writeln(
-        'Nothing is live yet. Run `restage surface publish <id>` to publish '
-        'one.',
-      );
+    stdout.writeln('Pushed ${assembled.length} ${noun}s to $environment.');
+  }
+  if (pending.isEmpty) return 0;
+  const publish = 'restage surface publish';
+  final plane = planeFlag(
+    target.target.runtimePlane,
+    implicit: target.planeIsImplicit,
+  );
+  if (assembled.length == 1) {
+    stdout.writeln(
+      'Not live yet. Run `$publish ${pending.single}$plane` '
+      'to publish it.',
+    );
   } else {
     stdout.writeln(
-      'Nothing is live yet. Run `restage surface publish '
-      '${assembled.single.entry.publication.slug}` to publish it.',
+      'Not live yet: ${pending.join(', ')}. Run `$publish <id>'
+      '$plane` to publish one.',
     );
   }
   return 0;

@@ -25,7 +25,7 @@ Future<ServerConnection> connectServer({
   // The harness exists to exercise tools, so it opts in by default. Pass an
   // empty map to assert what a default server does NOT expose.
   Map<String, String> environment = const {'RESTAGE_EXPERIMENTAL': '1'},
-  BuildPushRunner? buildPush,
+  CliRunner? cliRunner,
 }) async {
   final clientController = StreamController<String>();
   final serverController = StreamController<String>();
@@ -51,7 +51,7 @@ Future<ServerConnection> connectServer({
     now: now,
     experimentActivationApi: experimentActivationApi,
     environment: environment,
-    buildPush: buildPush,
+    cliRunner: cliRunner,
   );
   final connection = client.connectServer(clientChannel);
   addTearDown(client.shutdown);

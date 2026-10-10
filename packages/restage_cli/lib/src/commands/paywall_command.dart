@@ -31,6 +31,7 @@ class PaywallCommand extends Command<int> {
       PaywallListCommand(
         stdout: stdout,
         stderr: stderr,
+        interactive: interactive,
         credentialStore: credentialStore,
         httpClient: httpClient,
       ),

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/package_resolution.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// The fixed stamp every generated catalog carries, so identical sources

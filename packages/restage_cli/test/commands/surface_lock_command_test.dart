@@ -62,7 +62,8 @@ void main() {
     Interactive interactive = const NonInteractive(),
     SurfaceType? fixedSurfaceType = SurfaceType.paywall,
   }) {
-    final runner = CommandRunner<int>('restage', '');
+    final runner = CommandRunner<int>('restage', '')
+      ..argParser.addFlag('yes', negatable: false);
     runner.addCommand(
       SurfaceLockCommand(
         lock: lock,
@@ -78,22 +79,58 @@ void main() {
   }
 
   group('surface freeze / unfreeze', () {
+    test('(a) freeze on the live plane with --yes calls setLock(locked:true) '
+        'and exits 0', () async {
+      Map<String, dynamic>? capturedBody;
+      final client = mockHttpClient((req) {
+        capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
+        return lockOkResponse(frozen: true);
+      });
+
+      final out = StringBuffer();
+      final code =
+          await makeRunner(
+            lock: true,
+            stdout: out,
+            stderr: StringBuffer(),
+            httpClient: client,
+          ).run([
+            '--yes',
+            'freeze',
+            'pro',
+            '--env',
+            'production',
+            '--reason',
+            'x',
+            '--project',
+            'p',
+            '--app',
+            'a',
+          ]);
+
+      expect(code, 0);
+      expect(capturedBody, isNotNull);
+      expect(capturedBody!['method'], 'setSurfaceLock');
+      expect(capturedBody!['locked'], true);
+      expect(out.toString(), contains('Froze "pro"'));
+      expect(out.toString(), contains('production'));
+      expect(out.toString(), contains('non-versioned paywall: r2 -> r2'));
+    });
+
     test(
-      '(a) freeze pro --env production --reason x calls setLock(locked:true) '
-      'and exits 0 (no confirmation — reversible)',
+      'a live freeze without --yes is refused when non-interactive',
       () async {
-        Map<String, dynamic>? capturedBody;
+        var mutated = false;
         final client = mockHttpClient((req) {
-          capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
+          mutated = true;
           return lockOkResponse(frozen: true);
         });
-
-        final out = StringBuffer();
+        final err = StringBuffer();
         final code =
             await makeRunner(
               lock: true,
-              stdout: out,
-              stderr: StringBuffer(),
+              stdout: StringBuffer(),
+              stderr: err,
               httpClient: client,
             ).run([
               'freeze',
@@ -108,13 +145,15 @@ void main() {
               'a',
             ]);
 
-        expect(code, 0);
-        expect(capturedBody, isNotNull);
-        expect(capturedBody!['method'], 'setSurfaceLock');
-        expect(capturedBody!['locked'], true);
-        expect(out.toString(), contains('Froze "pro"'));
-        expect(out.toString(), contains('production'));
-        expect(out.toString(), contains('non-versioned paywall: r2 -> r2'));
+        expect(code, 1);
+        expect(mutated, isFalse);
+        expect(
+          err.toString(),
+          contains(
+            'This changes what the live plane serves. Run interactively, or '
+            'pass --yes.',
+          ),
+        );
       },
     );
 
