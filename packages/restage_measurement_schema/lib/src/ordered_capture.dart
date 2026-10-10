@@ -28,7 +28,8 @@ enum MeasurementBreakdownPointKindV1 {
 }
 
 /// Published description of one exact ordered capture point.
-final class MeasurementBreakdownPointV1 extends CanonicalValue {
+final class MeasurementBreakdownPointV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementBreakdownPointV1({
     required this.kindV1,
     required this.reference,
@@ -78,7 +79,8 @@ final class MeasurementBreakdownPointV1 extends CanonicalValue {
 }
 
 /// One same-clock occurrence, ordered across every point in a capture session.
-final class MeasurementTimedOccurrenceV1 extends CanonicalValue {
+final class MeasurementTimedOccurrenceV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementTimedOccurrenceV1({
     required this.ordinal,
     required this.channel,
@@ -131,7 +133,8 @@ final class MeasurementTimedOccurrenceV1 extends CanonicalValue {
 }
 
 /// Published admission for ordered capture at one exact point.
-final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue {
+final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementOrderedCaptureRouteV1({
     required this.occurrenceId,
     required this.lineageId,
@@ -217,7 +220,8 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue {
 }
 
 /// Versioned ordered-capture capability bound to immutable publication routes.
-final class MeasurementOrderedCaptureV1 extends CanonicalValue {
+final class MeasurementOrderedCaptureV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementOrderedCaptureV1(
       {required List<MeasurementOrderedCaptureRouteV1> routes})
       : routes = List.unmodifiable(routes) {
@@ -283,7 +287,8 @@ final class MeasurementOrderedCaptureV1 extends CanonicalValue {
 }
 
 /// Target-neutral capture channels for one compiler-owned source route.
-final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue {
+final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementOrderedCaptureDeclarationV1({
     required List<MeasurementOccurrenceChannelV1> channels,
     this.lifecycleChannel,
@@ -393,7 +398,8 @@ bool _pointDescribesDeclaration({
     };
 
 /// Exact compiler-issued route for an actual root or authored-screen callback.
-final class MeasurementLifecycleCaptureRouteV1 extends CanonicalValue {
+final class MeasurementLifecycleCaptureRouteV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementLifecycleCaptureRouteV1(
       {required this.carrier, required this.channel, this.screenId}) {
     if (carrier.isEmpty ||

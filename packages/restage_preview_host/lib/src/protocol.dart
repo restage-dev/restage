@@ -15,6 +15,9 @@ const int renderProtocolV1 = 1;
 /// Ready-handshake capability token for the additive PNG snapshot pair.
 const String renderSnapshotCapability = 'snapshot';
 
+/// Ready-handshake capability token for mounting an interactive surface.
+const String renderMountCapability = 'mount';
+
 /// Transport-independent rendering surface consumed by tooling.
 abstract interface class SurfaceRenderProvider {
   Stream<GeometrySnapshot> get geometry;
@@ -49,6 +52,42 @@ SurfaceSnapshotProvider? surfaceSnapshotProviderFor(
   return provider is SurfaceSnapshotProvider
       ? provider as SurfaceSnapshotProvider
       : null;
+}
+
+/// Optional capability for mounting a surface that reports the events it fires.
+///
+/// A mounted surface takes browser input directly. Nothing about the input is
+/// carried across the seam; only the events the surface fires travel back.
+abstract interface class SurfaceMountProvider {
+  Future<void> mount(RenderRequest request);
+}
+
+/// Negotiated optional mount support for a render provider.
+///
+/// A provider implementing this interface may still return null when its peer
+/// did not advertise [renderMountCapability].
+abstract interface class SurfaceMountCapability {
+  SurfaceMountProvider? get mountProvider;
+}
+
+/// Resolves mount support without widening [SurfaceRenderProvider].
+SurfaceMountProvider? surfaceMountProviderFor(SurfaceRenderProvider provider) {
+  if (provider is SurfaceMountCapability) {
+    return (provider as SurfaceMountCapability).mountProvider;
+  }
+  return provider is SurfaceMountProvider
+      ? provider as SurfaceMountProvider
+      : null;
+}
+
+/// Raised when a caller asks a bundle that cannot mount to mount a surface.
+final class RenderMountUnsupported implements Exception {
+  const RenderMountUnsupported(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'RenderMountUnsupported: $message';
 }
 
 /// Maximum encoded PNG size accepted from a render bundle.
@@ -182,6 +221,26 @@ final class ProtocolError implements RenderEvent {
   final String message;
 }
 
+/// One event a mounted surface fired, reported to the caller that mounted it.
+final class MountedSurfaceEvent implements RenderEvent {
+  MountedSurfaceEvent({
+    required this.epoch,
+    required this.name,
+    required Map<String, Object?> arguments,
+  }) : arguments = snapshotWireObject(arguments, argumentName: 'arguments') {
+    if (epoch < 0) {
+      throw ArgumentError.value(epoch, 'epoch', 'must be non-negative');
+    }
+    if (name.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'must not be empty');
+    }
+  }
+
+  final int epoch;
+  final String name;
+  final Map<String, Object?> arguments;
+}
+
 final class RenderDiagnostic {
   RenderDiagnostic({required this.severity, required this.message, this.path}) {
     if (severity != 'info' && severity != 'warning') {
@@ -223,7 +282,10 @@ typedef RenderFrameScheduler = void Function(void Function() callback);
 
 /// Shell-side provider for an isolated render bundle.
 final class SeamRenderProvider
-    implements SurfaceRenderProvider, SurfaceSnapshotCapability {
+    implements
+        SurfaceRenderProvider,
+        SurfaceSnapshotCapability,
+        SurfaceMountCapability {
   SeamRenderProvider({
     required RenderMessageTransport transport,
     required this.bundleOrigin,
@@ -262,6 +324,7 @@ final class SeamRenderProvider
   RenderBundleManifest? _manifest;
   RenderEngine? _engine;
   int? _latestEpoch;
+  int? _mountedEpoch;
   bool _settled = false;
   bool _terminated = false;
   int _lastGeometry = -1;
@@ -270,8 +333,10 @@ final class SeamRenderProvider
   bool _negotiationFailed = false;
   bool _disposed = false;
   bool _snapshotSupported = false;
+  bool _mountSupported = false;
   late final SurfaceSnapshotProvider _snapshotProvider =
       _SeamSnapshotProvider(this);
+  late final SurfaceMountProvider _mountProvider = _SeamMountProvider(this);
   Completer<Uint8List>? _snapshotCompleter;
   int? _snapshotEpoch;
   String? _snapshotPath;
@@ -292,6 +357,10 @@ final class SeamRenderProvider
   @override
   SurfaceSnapshotProvider? get snapshotProvider =>
       _snapshotSupported ? _snapshotProvider : null;
+
+  @override
+  SurfaceMountProvider? get mountProvider =>
+      _mountSupported ? _mountProvider : null;
 
   @override
   Stream<GeometrySnapshot> get geometry => _geometry.stream;
@@ -320,13 +389,31 @@ final class SeamRenderProvider
   }
 
   @override
-  Future<void> render(RenderRequest request) async {
-    final version = _requireReady('render');
+  Future<void> render(RenderRequest request) async =>
+      _sendRenderRequest(request, type: 'render', operation: 'render');
+
+  Future<void> _mount(RenderRequest request) async {
+    // A mounted surface takes browser input at the frame's own scale, so the
+    // shell scales the element and leaves the rendered frame unscaled.
+    if (request.env.zoom != 1) {
+      throw ArgumentError.value(
+          request.env.zoom, 'zoom', 'must be 1 to mount a surface');
+    }
+    return _sendRenderRequest(request, type: 'mount', operation: 'mount');
+  }
+
+  Future<void> _sendRenderRequest(
+    RenderRequest request, {
+    required String type,
+    required String operation,
+  }) async {
+    final version = _requireReady(operation);
     if (_latestEpoch != null && request.epoch <= _latestEpoch!) {
       throw ArgumentError.value(
           request.epoch, 'epoch', 'must be strictly monotonic');
     }
     _latestEpoch = request.epoch;
+    _mountedEpoch = type == 'mount' ? request.epoch : null;
     _rejectOutstandingSnapshot('A newer render replaced the snapshot target.');
     _settled = false;
     _terminated = false;
@@ -335,7 +422,7 @@ final class SeamRenderProvider
     _transport.send(
       <String, Object?>{
         'v': version,
-        'type': 'render',
+        'type': type,
         'epoch': request.epoch,
         'blob': encodeRenderBlob(request.blob),
         'data': request.data,
@@ -399,6 +486,7 @@ final class SeamRenderProvider
       'renderError',
       'protocolError',
       'snapshotResult',
+      'event',
     }.contains(type)) {
       return;
     }
@@ -474,6 +562,19 @@ final class SeamRenderProvider
               path: payload['path'] as String?,
             ),
           );
+        case 'event':
+          // Only a mounted surface that has painted can have fired this, and
+          // the bundle's own copy of that rule is not the shell's to trust.
+          if (epoch != _mountedEpoch || !_settled) return;
+          // Nor is the bundle's copy of the wire budget: bound it here too.
+          final bounded = boundedWireMessage(payload);
+          _events.add(
+            MountedSurfaceEvent(
+              epoch: epoch,
+              name: _requiredString(bounded, 'name'),
+              arguments: _requiredMap(bounded, 'arguments'),
+            ),
+          );
       }
     } on Object catch (error) {
       _events.add(ProtocolError('Malformed $type message: $error'));
@@ -525,6 +626,7 @@ final class SeamRenderProvider
       _manifest = manifest;
       _engine = engine;
       _snapshotSupported = capabilities.contains(renderSnapshotCapability);
+      _mountSupported = capabilities.contains(renderMountCapability);
       _negotiatedVersion = overlap.last;
       _readyCompleter.complete(overlap.last);
     } on Object catch (error) {
@@ -611,6 +713,15 @@ final class _SeamSnapshotProvider implements SurfaceSnapshotProvider {
   @override
   Future<Uint8List> snapshot({required String path}) =>
       _owner._snapshot(path: path);
+}
+
+final class _SeamMountProvider implements SurfaceMountProvider {
+  const _SeamMountProvider(this._owner);
+
+  final SeamRenderProvider _owner;
+
+  @override
+  Future<void> mount(RenderRequest request) => _owner._mount(request);
 }
 
 Set<int> _snapshotSupportedVersions(Iterable<int> versions) {

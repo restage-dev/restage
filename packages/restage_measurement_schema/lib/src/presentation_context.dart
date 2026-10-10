@@ -1,7 +1,8 @@
 import 'package:restage_measurement_schema/src/canonical.dart';
 
 /// Observations already available when a surface was presented.
-final class MeasurementPresentationContextV1 extends CanonicalValue {
+final class MeasurementPresentationContextV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a context with only the known presentation observations.
   MeasurementPresentationContextV1({
     this.presentationCountry,

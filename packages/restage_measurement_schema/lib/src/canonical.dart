@@ -426,12 +426,22 @@ enum CanonicalHashDomain {
 final class CanonicalDigest {
   /// Creates a validated digest from lowercase hexadecimal [hex].
   CanonicalDigest(this.hex) {
-    if (!_digestPattern.hasMatch(hex)) {
+    if (!_isLowercaseHex(hex)) {
       throw ArgumentError.value(hex, 'hex', 'Expected 64 lowercase hex digits');
     }
   }
 
-  static final RegExp _digestPattern = RegExp(r'^[0-9a-f]{64}$');
+  // Every digest checks its own shape, so this runs on the hot path.
+  static bool _isLowercaseHex(String value) {
+    if (value.length != 64) return false;
+    for (var index = 0; index < 64; index += 1) {
+      final unit = value.codeUnitAt(index);
+      final isDigit = unit >= 0x30 && unit <= 0x39;
+      final isHexLetter = unit >= 0x61 && unit <= 0x66;
+      if (!isDigit && !isHexLetter) return false;
+    }
+    return true;
+  }
 
   /// Lowercase hexadecimal SHA-256 bytes.
   final String hex;
@@ -498,28 +508,42 @@ abstract base class CanonicalValue {
   /// Closed JSON representation consumed by [CanonicalJsonCodec].
   Map<String, Object?> toJson();
 
-  /// Frozen canonical bytes for this value.
-  Uint8List get canonicalBytes => CanonicalJsonCodec.encode(toJson());
+  /// Canonical bytes, returned as a fresh mutable list on every read.
+  /// [ImmutableCanonicalDocument] values encode once and return copies;
+  /// other values encode on each read.
+  Uint8List get canonicalBytes {
+    if (this is! ImmutableCanonicalDocument) {
+      return CanonicalJsonCodec.encode(toJson());
+    }
+    return Uint8List.fromList(_heldCanonicalBytes);
+  }
+
+  /// The bytes themselves, for comparisons that do not hand them out.
+  Uint8List get _heldCanonicalBytes {
+    if (this is! ImmutableCanonicalDocument) {
+      return CanonicalJsonCodec.encode(toJson());
+    }
+    return _canonicalByteStrings[this] ??= CanonicalJsonCodec.encode(toJson());
+  }
 
   @override
   bool operator ==(Object other) =>
       runtimeType == other.runtimeType &&
       other is CanonicalValue &&
-      _bytesEqual(canonicalBytes, other.canonicalBytes);
+      _bytesEqual(_heldCanonicalBytes, other._heldCanonicalBytes);
 
   @override
-  int get hashCode => Object.hash(runtimeType, utf8.decode(canonicalBytes));
+  int get hashCode =>
+      Object.hash(runtimeType, utf8.decode(_heldCanonicalBytes));
 }
 
-/// Declares a document that owns its whole content and hands out nothing a
-/// caller can change, so what it encodes to is fixed at construction.
-///
-/// Only such a document may hold its digest. A document that keeps or exposes
-/// a nested map or list must not declare this: its bytes can change under a
-/// held digest.
+/// Declares content fixed at construction, allowing cached bytes and digests.
+/// Documents exposing mutable maps or lists must not implement this contract;
+/// unmodifiable views are allowed.
 abstract interface class ImmutableCanonicalDocument {}
 
 final _canonicalDigests = Expando<CanonicalDigest>('canonicalDigest');
+final _canonicalByteStrings = Expando<Uint8List>('canonicalBytes');
 
 /// A top-level hash authority with one fixed domain.
 abstract base class CanonicalDocument extends CanonicalValue {
@@ -533,8 +557,7 @@ abstract base class CanonicalDocument extends CanonicalValue {
   ///
   /// Recomputed on every read unless the document declares
   /// [ImmutableCanonicalDocument], in which case it is computed once and held
-  /// for as long as the document lives, at about 64 bytes. The canonical
-  /// bytes are never held.
+  /// for as long as the document lives, as are the bytes it is taken over.
   CanonicalDigest get canonicalDigest {
     if (this is! ImmutableCanonicalDocument) {
       return canonicalSha256(hashDomain, canonicalBytes);

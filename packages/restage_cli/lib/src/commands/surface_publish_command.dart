@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
@@ -9,8 +10,13 @@ import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/receipts/git_repository.dart';
+import 'package:restage_cli/src/receipts/receipt_location.dart';
+import 'package:restage_cli/src/receipts/release_receipt.dart';
+import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// The audit reason recorded when the operator does not supply one.
@@ -30,12 +36,14 @@ class SurfacePublishCommand extends Command<int> {
     SurfaceType? fixedSurfaceType,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
+    GitProcessRunner? processRunner,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
        _fixedType = fixedSurfaceType,
        _credentialStore = credentialStore,
-       _httpClient = httpClient {
+       _httpClient = httpClient,
+       _processRunner = processRunner {
     addLifecycleOptions(
       argParser,
       withType: fixedSurfaceType == null,
@@ -55,6 +63,13 @@ class SurfacePublishCommand extends Command<int> {
       ..addOption(
         'reason',
         help: 'Audit reason for this change. Defaults to a generic reason.',
+      )
+      ..addFlag(
+        'record-git',
+        help:
+            'Commit a release receipt naming the source the published '
+            'revision was built from. Set `recordGit` in restage_config.yaml '
+            'to make it the default for the project.',
       );
   }
 
@@ -64,6 +79,7 @@ class SurfacePublishCommand extends Command<int> {
   final SurfaceType? _fixedType;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
+  final GitProcessRunner? _processRunner;
 
   @override
   String get name => 'publish';
@@ -94,6 +110,22 @@ class SurfacePublishCommand extends Command<int> {
     final reason = reasonFlag == null || reasonFlag.isEmpty
         ? kDefaultPublishReason
         : reasonFlag;
+
+    // The repository is checked before anything reaches the server, so a
+    // publication is never made with no way to record it.
+    final directory = Directory(argResults?['directory'] as String? ?? '.');
+    final loadedConfig = await loadRestageConfig(from: directory);
+    final ReleaseRecorder? recorder;
+    if (_recordGit(loadedConfig?.config)) {
+      recorder = await ReleaseRecorder.open(
+        projectRoot: loadedConfig?.source.parent ?? directory.absolute,
+        stderr: _stderr,
+        processRunner: _processRunner,
+      );
+      if (recorder == null) return 1;
+    } else {
+      recorder = null;
+    }
 
     final ctx = await loadLifecycleContext(
       argResults: argResults,
@@ -173,10 +205,108 @@ class SurfacePublishCommand extends Command<int> {
         'Active revision: ${result.activeRevisionAfter == null ? 'inactive' : 'r${result.activeRevisionAfter}'} '
         '  frozen: ${result.frozen}',
       );
-      return 0;
+      if (recorder == null) return 0;
+      return await _record(
+        recorder: recorder,
+        ctx: ctx,
+        identity: identity,
+        result: result,
+        revision: revision,
+        organization:
+            (argResults?['organization'] as String?) ??
+            loadedConfig?.config.organization,
+      );
     } finally {
       if (_httpClient == null) api.close();
     }
+  }
+
+  /// Whether this invocation records a release receipt.
+  bool _recordGit(RestageConfig? config) {
+    final results = argResults;
+    if (results != null && results.wasParsed('record-git')) {
+      return results['record-git'] as bool;
+    }
+    return config?.recordGit ?? false;
+  }
+
+  /// Record the publication, linking it to the source of the revision.
+  ///
+  /// Returns the exit code: 2 when the server published and the receipt did
+  /// not land, so a caller never reads a pending receipt as a failed publish.
+  Future<int> _record({
+    required ReleaseRecorder recorder,
+    required LifecycleContext ctx,
+    required SurfaceLifecycleIdentity identity,
+    required SurfaceFamilyMutationResult result,
+    required int revision,
+    required String? organization,
+  }) async {
+    final recordedAt = DateTime.now();
+    final surfaceType = result.surfaceType;
+    final surfaceId = result.surfaceSlug;
+    final source = await recorder.sourceOfPushedRevision(
+      organization: ctx.organizationSlug,
+      project: ctx.project,
+      app: ctx.app,
+      surfaceType: surfaceType,
+      surfaceId: surfaceId,
+      environment: ctx.environment,
+      revision: revision,
+    );
+    if (source.state == ReceiptSourceState.unknown) {
+      _stdout.writeln(
+        'Nothing here records where r$revision was built from, so the receipt '
+        'says its source is unknown.',
+      );
+    }
+
+    final written = await recorder.write(
+      receipt: ReleaseReceipt(
+        operation: ReceiptOperation.surfacePublish,
+        recordedAt: recordedAt,
+        target: ReceiptTarget(
+          organization: ctx.organizationSlug,
+          organizationId: ctx.organizationId,
+          project: ctx.project,
+          app: ctx.app,
+          environment: ctx.environment,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane.wireName,
+        ),
+        surface: ReceiptSurface(
+          type: surfaceType,
+          id: surfaceId,
+          sourceKind: result.sourceKind ?? identity.sourceKind.wireName,
+          contractVersion: result.contractVersion ?? identity.contractVersion,
+        ),
+        revision: ReceiptRevision(
+          stored: revision,
+          activeBefore: result.activeRevisionBefore,
+          activeAfter: result.activeRevisionAfter,
+          identityFrozen: result.frozen,
+        ),
+        source: source,
+      ),
+      relativePath: surfacePublishReceiptPath(
+        organization: ctx.organizationSlug,
+        project: ctx.project,
+        app: ctx.app,
+        surfaceType: surfaceType,
+        surfaceId: surfaceId,
+        environment: ctx.environment,
+        revision: revision,
+        at: recordedAt,
+      ),
+      stdout: _stdout,
+      stderr: _stderr,
+    );
+    final committed = await recorder.commit(
+      message: 'restage: publish $surfaceId r$revision to ${ctx.environment}',
+      stdout: _stdout,
+      stderr: _stderr,
+    );
+    return written && committed ? 0 : 2;
   }
 
   /// The revision named on the command line, if any.

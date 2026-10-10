@@ -4,7 +4,8 @@ import 'canonical.dart';
 enum MeasurementAnswerKindV1 { category, integer, scaledDecimal }
 
 /// Bounded, target-neutral source declaration for one authored question.
-final class MeasurementDeclaredAnswerV1 extends CanonicalValue {
+final class MeasurementDeclaredAnswerV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   MeasurementDeclaredAnswerV1.category({
     required this.questionId,
     required this.outcomeKey,
@@ -199,7 +200,8 @@ final class MeasurementDeclaredAnswerV1 extends CanonicalValue {
 }
 
 /// Closed canonical answer payload, with no arbitrary application property map.
-sealed class MeasurementAnswerValueV1 extends CanonicalValue {
+sealed class MeasurementAnswerValueV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const MeasurementAnswerValueV1();
   MeasurementAnswerKindV1 get kind;
   Object get outcomeValue;

@@ -165,7 +165,8 @@ final class MeasurementRequesterBinding extends _TransientProofBytes {
 /// This request is deliberately direct-only. The server authenticates the SDK
 /// caller, resolves the exact target from that caller, and rejects any target
 /// mismatch before issuing a challenge.
-final class MeasurementLinkChallengeRequestV1 extends CanonicalValue {
+final class MeasurementLinkChallengeRequestV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one exact direct challenge issuance request.
   MeasurementLinkChallengeRequestV1({
     required this.operationId,
@@ -304,7 +305,8 @@ final class MeasurementLinkChallengeRequestV1 extends CanonicalValue {
 }
 
 /// Value result of a direct challenge issuance call.
-sealed class MeasurementLinkChallengeOperationResultV1 extends CanonicalValue {
+sealed class MeasurementLinkChallengeOperationResultV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const MeasurementLinkChallengeOperationResultV1();
 
   /// Creates a successful direct challenge issuance result.
@@ -397,7 +399,8 @@ final class MeasurementLinkChallengeFailedV1
 }
 
 /// A challenge issued by Measurement for one exact governed-link operation.
-final class MeasurementLinkChallengeV1 extends CanonicalValue {
+final class MeasurementLinkChallengeV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a bounded, immutable governed-link challenge.
   MeasurementLinkChallengeV1({
     required this.operationId,
@@ -563,7 +566,8 @@ final class MeasurementLinkChallengeV1 extends CanonicalValue {
 }
 
 /// A direct host/IDP request to link a governed Measurement subject.
-final class MeasurementLinkRequestV1 extends CanonicalValue {
+final class MeasurementLinkRequestV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a transient direct link request.
   MeasurementLinkRequestV1({
     required this.challenge,
@@ -663,7 +667,8 @@ final class MeasurementLinkRequestV1 extends CanonicalValue {
 }
 
 /// A successful governed-subject link receipt.
-final class MeasurementLinkReceiptV1 extends CanonicalValue {
+final class MeasurementLinkReceiptV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a receipt containing Measurement authority only.
   MeasurementLinkReceiptV1({
     required this.operationId,
@@ -780,7 +785,8 @@ final class MeasurementLinkReceiptV1 extends CanonicalValue {
 }
 
 /// A coarse governed-link failure that hides subject and policy existence.
-final class MeasurementLinkFailureV1 extends CanonicalValue {
+final class MeasurementLinkFailureV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a coarse link failure.
   const MeasurementLinkFailureV1({required this.code});
 
@@ -818,7 +824,8 @@ final class MeasurementLinkFailureV1 extends CanonicalValue {
 }
 
 /// Value result of a direct host/IDP link call.
-sealed class MeasurementLinkOperationResultV1 extends CanonicalValue {
+sealed class MeasurementLinkOperationResultV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const MeasurementLinkOperationResultV1();
 
   /// Creates a successful result.
@@ -897,7 +904,8 @@ final class MeasurementLinkFailedV1 extends MeasurementLinkOperationResultV1 {
 }
 
 /// Request for an explicit reset or consent-withdrawal operation.
-final class MeasurementSubjectOperationRequestV1 extends CanonicalValue {
+final class MeasurementSubjectOperationRequestV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a transient governed-subject operation request.
   MeasurementSubjectOperationRequestV1({
     required this.operationId,
@@ -1069,7 +1077,8 @@ final class MeasurementSubjectOperationRequestV1 extends CanonicalValue {
 }
 
 /// Receipt for an explicit reset or consent-withdrawal operation.
-final class MeasurementSubjectOperationReceiptV1 extends CanonicalValue {
+final class MeasurementSubjectOperationReceiptV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a Measurement-owned subject-operation receipt.
   MeasurementSubjectOperationReceiptV1({
     required this.operationId,
@@ -1183,7 +1192,8 @@ final class MeasurementSubjectOperationReceiptV1 extends CanonicalValue {
 }
 
 /// Value result for reset and consent-withdrawal operations.
-sealed class MeasurementSubjectOperationResultV1 extends CanonicalValue {
+sealed class MeasurementSubjectOperationResultV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const MeasurementSubjectOperationResultV1();
 
   /// Creates a successful subject-operation result.
@@ -1476,7 +1486,8 @@ final class RestagePrivacyDomainAuthority {
 /// A selected domain receives exactly one opaque authority carrier. The
 /// optional correlation id is convenience metadata only: it is not identity,
 /// proof, or cross-domain transaction authority.
-final class RestagePrivacyRequestV1 extends CanonicalValue {
+final class RestagePrivacyRequestV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a closed privacy coordinator request.
   RestagePrivacyRequestV1({
     required this.targets,
@@ -1827,7 +1838,8 @@ final class RestagePrivacyDomainFailedV1 extends RestagePrivacyDomainResult {
 /// The coordinator reports independent domain results honestly. It does not
 /// perform a shared transaction, rollback a completed domain, or combine
 /// identity, retention, tombstone, or deletion state.
-final class RestagePrivacyReceiptV1 extends CanonicalValue {
+final class RestagePrivacyReceiptV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a closed coordinator receipt.
   RestagePrivacyReceiptV1({
     required this.targets,

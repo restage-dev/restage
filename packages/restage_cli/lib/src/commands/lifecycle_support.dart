@@ -32,6 +32,7 @@ class LifecycleContext {
     required this.app,
     required this.environment,
     required this.organizationId,
+    required this.organizationSlug,
     required this.appId,
     required this.namedEnvironmentId,
     required this.environmentTargetId,
@@ -55,6 +56,9 @@ class LifecycleContext {
 
   /// Authorized backend organization id.
   final int organizationId;
+
+  /// Slug of the organization [organizationId] names.
+  final String organizationSlug;
 
   /// Authorized numeric app identity resolved with the target.
   final int appId;
@@ -253,6 +257,7 @@ Future<LifecycleContext?> loadLifecycleContext({
     app: app,
     environment: environment,
     organizationId: resolvedTarget.organizationId,
+    organizationSlug: resolvedTarget.organizationSlug,
     appId: resolvedTarget.appId,
     namedEnvironmentId: resolvedTarget.target.namedEnvironmentId,
     environmentTargetId: resolvedTarget.target.environmentTargetId,

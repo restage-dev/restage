@@ -941,6 +941,60 @@ void main() {
       },
     );
 
+    test('results print the digits the result carries, unchanged', () async {
+      final result = await run(
+        ['results', ..._selectors['results']!],
+        reply: (method, sent) => resultsView(correlationId: sent.correlationId),
+      );
+
+      expect(result.code, 0);
+      expect(result.err, isEmpty);
+      expect(
+        result.out,
+        contains(
+          '  arm.variant: rate 0.105000000 (525/5000 of 5000) '
+          'effect 0.005000000, '
+          'interval -0.000976563 to 0.008789063',
+        ),
+      );
+      expect(
+        result.out,
+        contains('  guardrail guardrail.checkout-errors: withinBound'),
+      );
+    });
+
+    test(
+      'results --json keep the exact fraction behind every figure',
+      () async {
+        final result = await run(
+          ['results', ..._selectors['results']!, '--json'],
+          reply: (method, sent) =>
+              resultsView(correlationId: sent.correlationId),
+        );
+
+        final decoded = jsonDecode(result.out.trim()) as Map<String, Object?>;
+        final response = decoded['response']! as Map<String, Object?>;
+        final arms = (response['armResults']! as List<Object?>)
+            .cast<Map<String, Object?>>();
+        final variant = arms.last;
+        final interval = variant['interval']! as Map<String, Object?>;
+
+        expect(variant['rateExact'], {'denominator': '200', 'numerator': '21'});
+        expect(variant['effectExact'], {
+          'denominator': '200',
+          'numerator': '1',
+        });
+        expect(interval['lowerExact'], {
+          'denominator': '1024',
+          'numerator': '-1',
+        });
+        expect(interval['upperExact'], {
+          'denominator': '1024',
+          'numerator': '9',
+        });
+      },
+    );
+
     test('list renders each accepted entry and exits zero', () async {
       final result = await run(
         const ['list'],
@@ -953,6 +1007,97 @@ void main() {
       expect(result.code, 0);
       expect(result.out, contains('experiment.a'));
       expect(result.out, contains('experiment.b'));
+    });
+
+    test('list --results prints each entry beside its figures', () async {
+      final result = await run(
+        const ['list', '--results'],
+        reply: (method, sent) => switch (method) {
+          'listExperiments' => _activatedListPage(sent.correlationId),
+          _ => resultsView(correlationId: sent.correlationId),
+        },
+      );
+
+      expect(result.code, 0, reason: result.err);
+      expect(result.methods, ['listExperiments', 'readExperimentResults']);
+      expect(result.out, contains('experiment.checkout (active):'));
+      expect(
+        result.out,
+        contains(
+          '  arm.variant: rate 0.105000000 (525/5000 of 5000) '
+          'effect 0.005000000, '
+          'interval -0.000976563 to 0.008789063',
+        ),
+      );
+    });
+
+    test('list --results reads no result for an entry naming none', () async {
+      final result = await run(
+        const ['list', '--results'],
+        reply: (method, sent) => listPage(
+          experimentIds: const ['experiment.a'],
+          correlationId: sent.correlationId,
+        ),
+      );
+
+      expect(result.code, 0, reason: result.err);
+      expect(result.methods, ['listExperiments']);
+      expect(result.out, contains('experiment.a: no result'));
+    });
+
+    test('list --results keeps the rows around a refused entry', () async {
+      var reads = 0;
+      final result = await run(
+        const ['list', '--results'],
+        reply: (method, sent) => switch (method) {
+          'listExperiments' => _activatedListPage(
+            sent.correlationId,
+            experimentIds: const ['experiment.a', 'experiment.b'],
+          ),
+          _ =>
+            ++reads == 1
+                ? refusalFor(
+                    method,
+                    ExperimentAuthoringRefusalCodeV1.capabilityUnavailable,
+                    correlationId: sent.correlationId,
+                  )
+                : resultsView(correlationId: sent.correlationId),
+        },
+      );
+
+      expect(result.code, 0, reason: result.err);
+      expect(result.methods, [
+        'listExperiments',
+        'readExperimentResults',
+        'readExperimentResults',
+      ]);
+      expect(
+        result.out,
+        contains('experiment.a: no result (capabilityUnavailable)'),
+      );
+      expect(result.out, contains('experiment.b (active):'));
+      expect(result.out, contains('  arm.variant: rate 0.105000000'));
+    });
+
+    test('list --results --json keeps each entry beside its result', () async {
+      final result = await run(
+        const ['list', '--results', '--json'],
+        reply: (method, sent) => switch (method) {
+          'listExperiments' => _activatedListPage(sent.correlationId),
+          _ => resultsView(correlationId: sent.correlationId),
+        },
+      );
+
+      final rows = (jsonDecode(result.out.trim())! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(rows, hasLength(1));
+      final entry = rows.single['entry']! as Map<String, Object?>;
+      expect(entry['kind'], 'experimentSummary');
+      final results = rows.single['results']! as Map<String, Object?>;
+      final arms = (results['armResults']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(arms.last['rate'], '0.105000000');
+      expect(arms.last['rateExact'], {'denominator': '200', 'numerator': '21'});
     });
 
     test('the drain follows every cursor and keeps every entry', () async {
@@ -1467,6 +1612,53 @@ List<String> _subcommandsInHelp(String help) {
   }
   return names..sort();
 }
+
+/// One accepted list page carrying an activated, evaluated entry per id.
+Uint8List _activatedListPage(
+  String correlationId, {
+  List<String> experimentIds = const ['experiment.checkout'],
+}) => ExperimentAuthoringResultV1.fromJson({
+  'correlationId': correlationId,
+  'kind': 'accepted',
+  'operation': 'listExperiments',
+  'response': {
+    'experiments': [
+      for (final experimentId in experimentIds)
+        {
+          'acceptedAtMicros': 1788091300000000,
+          'activationOrdinal': 7,
+          'archivedAtMicros': null,
+          'controlPlaneOrdinal': 9,
+          'experimentId': experimentId,
+          'inferenceReference': {
+            'inferenceRevisionId': 'inference.checkout.v2',
+            'kind': 'exact',
+            'resultDigest': _audienceDigest,
+          },
+          'integrityState': 'verified',
+          'kind': 'experimentSummary',
+          'label': experimentId,
+          'lifecycleOrdinal': 8,
+          'lifecycleState': 'active',
+          'liveReadReference': {
+            'activationOrdinal': 7,
+            'experimentId': experimentId,
+            'kind': 'experimentLiveReadReference',
+            'receiptDigest': _schemaDigest,
+            'target': fixtureTarget.toJson(),
+          },
+          'pendingDraft': const {'kind': 'none'},
+          'schemaVersion': kMeasurementSchemaVersion,
+          'target': fixtureTarget.toJson(),
+        },
+    ],
+    'kind': 'experimentListView',
+    'nextPageCursor': null,
+    'schemaVersion': kMeasurementSchemaVersion,
+    'target': fixtureTarget.toJson(),
+  },
+  'schemaVersion': kMeasurementSchemaVersion,
+}).canonicalBytes;
 
 /// Answers the directory reads the shared target resolution performs.
 ///

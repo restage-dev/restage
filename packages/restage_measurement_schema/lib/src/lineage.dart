@@ -2,7 +2,8 @@ import 'package:restage_measurement_schema/src/canonical.dart';
 import 'package:restage_measurement_schema/src/identifiers.dart';
 
 /// One endpoint in a lineage transition.
-final class LineageEndpointV1 extends CanonicalValue {
+final class LineageEndpointV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates an occurrence-to-lineage endpoint.
   const LineageEndpointV1({
     required this.occurrenceId,
@@ -69,7 +70,8 @@ enum LineageTransitionAuthority {
 }
 
 /// One reviewed transition between exact published point occurrences.
-final class LineageTransitionV1 extends CanonicalDocument {
+final class LineageTransitionV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates a transition and enforces operation-specific arity/continuity.
   LineageTransitionV1({
     required this.transitionId,

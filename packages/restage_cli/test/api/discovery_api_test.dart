@@ -63,7 +63,6 @@ void main() {
               'hostedAccessState': 'sandbox',
               'productionAllowed': false,
               'canRequestProduction': false,
-              'canResetSample': true,
               'canDeleteSample': true,
               'pairedOrganizationId': 8,
             },

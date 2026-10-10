@@ -4,20 +4,40 @@ import 'dart:typed_data';
 import 'package:restage_measurement_schema/src/canonical.dart';
 import 'package:restage_measurement_schema/src/publication_draft.dart';
 
-/// Existing publication-body ceiling retained by this dependency-free API.
+/// Ceiling on the canonical bytes of one stored candidate proof.
 ///
-/// This package deliberately duplicates the frozen 512 KiB cap rather than
-/// importing surface publication types or limits.
-const int kMaximumMeasurementPublicationCandidatePayloadBytes = 512 * 1024;
+/// Persistence refuses a proof above this size, and it binds well before the
+/// larger request-body ceiling, so every bound below is derived from it.
+const int kMeasurementPublicationCandidateStoredProofCeilingBytes =
+    16 * 1024 * 1024;
+
+/// Request-body ceiling the publication push transport admits.
+///
+/// One request carries the assembled upload, the selected manifest, the
+/// declared artifact bytes that upload was assembled from, the draft, and the
+/// candidate reference, each base64-framed.
+const int kMeasurementPublicationCandidateTransportBytes = 32 * 1024 * 1024;
+
+/// Maximum opaque external bytes admitted for one assembled publication upload.
+///
+/// Four MiB. The route that carries a publication on its own admits a larger
+/// body; one push request carries this upload twice, beside the draft, so this
+/// route holds it lower.
+const int kMaximumMeasurementPublicationCandidateUploadBytes = 4 * 1024 * 1024;
+
+/// Maximum bytes admitted for the publication body inside one upload.
+///
+/// The body sits base64url-framed inside the upload, so its raw ceiling is
+/// three quarters of this value.
+const int kMaximumMeasurementPublicationCandidatePayloadBytes =
+    kMaximumMeasurementPublicationCandidateUploadBytes;
 
 /// Maximum opaque external bytes admitted for one selected publication
 /// manifest.
-const int kMaximumMeasurementPublicationCandidateManifestBytes =
-    kMaximumMeasurementPublicationCandidatePayloadBytes;
-
-/// Maximum opaque external bytes admitted for one assembled publication upload.
-const int kMaximumMeasurementPublicationCandidateUploadBytes =
-    kMaximumMeasurementPublicationCandidatePayloadBytes;
+///
+/// A single-entry manifest carries selectors, digests, and declared artifact
+/// paths rather than a body.
+const int kMaximumMeasurementPublicationCandidateManifestBytes = 512 * 1024;
 
 /// Maximum bytes this schema admits for one declared-artifact metadata tuple.
 ///
@@ -34,13 +54,17 @@ const int kMaximumMeasurementPublicationCandidateArtifactClosureBytes =
     512 * 1024;
 
 /// Maximum target-neutral Measurement draft bytes this schema admits.
-const int kMaximumMeasurementPublicationCandidateDraftBytes = 512 * 1024;
+///
+/// Seven MiB leaves one maximal proof at 14,418,796 canonical bytes, 14.06%
+/// under [kMeasurementPublicationCandidateStoredProofCeilingBytes]. The
+/// documents derived from a draft's structure share that bound, and at this
+/// size the widest shape derives a binding of 1.38 times the draft.
+const int kMaximumMeasurementPublicationCandidateDraftBytes = 7 * 1024 * 1024;
 
 /// Maximum complete opaque and draft byte closure admitted to one proof.
 ///
-/// This equals two existing publication 512 KiB bodies plus the artifact
-/// metadata and draft limits. It bounds raw closure bytes before base64url
-/// envelope expansion.
+/// This sums the manifest, upload, artifact metadata, and draft limits. It
+/// bounds raw closure bytes before base64url envelope expansion.
 const int kMaximumMeasurementPublicationCandidateProofBytes =
     kMaximumMeasurementPublicationCandidateManifestBytes +
         kMaximumMeasurementPublicationCandidateUploadBytes +
@@ -48,7 +72,8 @@ const int kMaximumMeasurementPublicationCandidateProofBytes =
         kMaximumMeasurementPublicationCandidateDraftBytes;
 
 /// Target-neutral digest reference over one exact publication candidate.
-final class MeasurementPublicationCandidateReferenceV1 extends CanonicalValue {
+final class MeasurementPublicationCandidateReferenceV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one fully recomputed candidate reference.
   const MeasurementPublicationCandidateReferenceV1({
     required this.candidateDigest,
@@ -169,7 +194,7 @@ final class MeasurementPublicationCandidateReferenceV1 extends CanonicalValue {
 /// This schema verifies only its bounded, byte-exact Measurement canonical JSON
 /// representation; it does not supply the tuple's external semantics.
 final class MeasurementPublicationCandidateArtifactTupleV1
-    extends CanonicalValue {
+    extends CanonicalValue implements ImmutableCanonicalDocument {
   /// Creates one bounded Measurement-canonical opaque tuple.
   MeasurementPublicationCandidateArtifactTupleV1({
     required List<int> canonicalTupleBytes,
@@ -245,7 +270,8 @@ final class MeasurementPublicationCandidateArtifactTupleV1
 /// digest before finalization. Declared-artifact tuple bytes remain
 /// Measurement-canonical objects, although their external meaning is also
 /// adapter-owned.
-final class MeasurementPublicationCandidateProofV1 extends CanonicalDocument {
+final class MeasurementPublicationCandidateProofV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates one exact proof and recomputes its candidate reference.
   MeasurementPublicationCandidateProofV1({
     required List<int> selectedPublicationManifestCanonicalBytes,

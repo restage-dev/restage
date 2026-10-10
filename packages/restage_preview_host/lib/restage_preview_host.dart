@@ -14,6 +14,7 @@ export 'src/preview_shell_bridge.dart';
 export 'src/raw_rfw_render_surface.dart';
 export 'src/render_bundle_entry_selector.dart';
 export 'src/structured_widget_placeholder.dart';
+export 'src/wire_json.dart' show renderWireMaxDepth, renderWireMaxNodes;
 
 export 'src/android_back_gesture_area.dart';
 export 'src/flow_preview_runtime.dart';

@@ -40,6 +40,8 @@ TypedErrorOutcome? renderGenericTypedError(RestageApiException e) {
       );
     case SurfaceSlugRejected(:final slug, :final reason):
       return TypedErrorOutcome(1, 'Refusing the id `$slug`. $reason');
+    case MeasurementReadRejected(:final detail):
+      return TypedErrorOutcome(1, 'The read was refused. $detail');
     case UnauthorizedAccess():
       return const TypedErrorOutcome(
         1,

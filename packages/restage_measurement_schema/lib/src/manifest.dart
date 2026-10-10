@@ -82,7 +82,8 @@ enum MeasurementCollectionClass {
 ///
 /// Target, lineage, display metadata, normalization, privacy, semantic-value,
 /// and collection metadata deliberately do not participate in this value.
-final class MeasurementPointOccurrenceIdentityV1 extends CanonicalDocument {
+final class MeasurementPointOccurrenceIdentityV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates the identity preimage frozen by the measurement architecture.
   MeasurementPointOccurrenceIdentityV1({
     required this.surfaceRevisionId,
@@ -239,7 +240,8 @@ final class MeasurementPointOccurrenceIdentityV1 extends CanonicalDocument {
 }
 
 /// Full manifest record for one point occurrence and its non-identity metadata.
-final class MeasurementPointOccurrenceV1 extends CanonicalValue {
+final class MeasurementPointOccurrenceV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one immutable occurrence record.
   MeasurementPointOccurrenceV1({
     required this.target,
@@ -420,7 +422,8 @@ final class MeasurementPointOccurrenceV1 extends CanonicalValue {
 }
 
 /// Generated source-level reference to one exact occurrence and lineage.
-final class GeneratedPointReferenceV1 extends CanonicalDocument {
+final class GeneratedPointReferenceV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates an inert generated-reference contract.
   const GeneratedPointReferenceV1({
     required this.referenceId,
@@ -525,7 +528,8 @@ final class GeneratedPointReferenceV1 extends CanonicalDocument {
 /// Unlike [GeneratedPointReferenceV1], this reference has no source-event
 /// selector. It is the explicit route witness for a presented catalog
 /// occurrence, whether or not that occurrence owns a callback.
-final class GeneratedPresentationReferenceV1 extends CanonicalDocument {
+final class GeneratedPresentationReferenceV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates a generated presentation-reference contract.
   const GeneratedPresentationReferenceV1({
     required this.referenceId,
@@ -643,7 +647,8 @@ final class GeneratedPresentationReferenceV1 extends CanonicalDocument {
 }
 
 /// Manifest emitted for one immutable local artifact.
-final class LocalMeasurementManifestV1 extends CanonicalDocument {
+final class LocalMeasurementManifestV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates one local manifest and validates its internal identity joins.
   LocalMeasurementManifestV1({
     required this.manifestId,
@@ -912,7 +917,8 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
 }
 
 /// One canonical node paired with its exact artifact occurrence.
-final class AncestryNodeRefV1 extends CanonicalValue {
+final class AncestryNodeRefV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   AncestryNodeRefV1({
     required this.artifactOccurrenceEdgeToken,
     required this.canonicalNodeToken,
@@ -956,7 +962,8 @@ final class AncestryNodeRefV1 extends CanonicalValue {
 }
 
 /// One node and its omission-only direct parent.
-final class CanonicalNodeParentEdgeV1 extends CanonicalValue {
+final class CanonicalNodeParentEdgeV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   CanonicalNodeParentEdgeV1({required this.node, this.parent});
 
   factory CanonicalNodeParentEdgeV1.fromJson(Map<String, Object?> json) {
@@ -987,7 +994,8 @@ final class CanonicalNodeParentEdgeV1 extends CanonicalValue {
 }
 
 /// Exact direct-parent authority for every canonical node in one publication.
-final class CanonicalNodeAncestryIndexV1 extends CanonicalValue {
+final class CanonicalNodeAncestryIndexV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   CanonicalNodeAncestryIndexV1({
     required this.rootNode,
     required List<CanonicalNodeParentEdgeV1> directParentEdges,
@@ -1104,7 +1112,8 @@ List<Object?> _readBoundedAncestryEdges(CanonicalObjectReader reader) {
 }
 
 /// Complete, root-reachable local-artifact closure for one surface revision.
-final class CompleteMeasurementManifestV1 extends CanonicalDocument {
+final class CompleteMeasurementManifestV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates and validates an exact complete artifact closure.
   CompleteMeasurementManifestV1({
     required this.manifestId,

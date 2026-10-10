@@ -24,7 +24,8 @@ const int _maximumAudienceOptions = 100;
 const int _maximumReadinessAttributes = 256;
 const int _maximumRegisteredBuilds = 256;
 
-abstract base class _ExperimentAuthoringValue extends CanonicalValue {
+abstract base class _ExperimentAuthoringValue extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   _ExperimentAuthoringValue(Map<String, Object?> json)
       : _json = _freezeMap(json);
 
@@ -144,7 +145,8 @@ enum ExperimentRandomizedUnitKindV1 {
 }
 
 /// The immutable randomized-unit default admitted by experiment authoring V1.
-final class ExperimentRandomizedUnitDefaultsV1 extends CanonicalValue {
+final class ExperimentRandomizedUnitDefaultsV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const ExperimentRandomizedUnitDefaultsV1();
 
   factory ExperimentRandomizedUnitDefaultsV1.fromJson(
@@ -622,7 +624,8 @@ final class ExperimentRationalV1 extends _ExperimentAuthoringValue {
 }
 
 /// The immutable statistical defaults admitted by experiment authoring V1.
-final class ExperimentStatisticalDefaultsV1 extends CanonicalValue {
+final class ExperimentStatisticalDefaultsV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const ExperimentStatisticalDefaultsV1();
 
   factory ExperimentStatisticalDefaultsV1.fromJson(
@@ -4299,14 +4302,16 @@ final class ExperimentRuntimePlaneOptionV1 extends _ExperimentAuthoringValue {
   final bool selected;
 }
 
-/// One compatible exact published surface.
+/// One compatible exact published surface revision.
 final class ExperimentSurfaceCapabilityV1 extends _ExperimentAuthoringValue {
   ExperimentSurfaceCapabilityV1._(
     Map<String, Object?> json, {
+    required this.active,
     required this.analysisChoices,
     required this.deliverySurfaceType,
     required this.installedMetricCapabilities,
     required this.label,
+    required this.revisionOrdinal,
     required this.surfaceReference,
     required this.treatmentOrigins,
   }) : super(json);
@@ -4318,20 +4323,24 @@ final class ExperimentSurfaceCapabilityV1 extends _ExperimentAuthoringValue {
     final reader = CanonicalObjectReader(
       json,
       allowedKeys: const {
+        'active',
         'analysisChoices',
         'deliverySurfaceType',
         'installedMetricCapabilities',
         'kind',
         'label',
+        'revisionOrdinal',
         'surfaceReference',
         'treatmentOrigins',
       },
       requiredKeys: const {
+        'active',
         'analysisChoices',
         'deliverySurfaceType',
         'installedMetricCapabilities',
         'kind',
         'label',
+        'revisionOrdinal',
         'surfaceReference',
         'treatmentOrigins',
       },
@@ -4383,6 +4392,7 @@ final class ExperimentSurfaceCapabilityV1 extends _ExperimentAuthoringValue {
     );
     return ExperimentSurfaceCapabilityV1._(
       json,
+      active: reader.boolean('active'),
       analysisChoices: analysisChoices,
       deliverySurfaceType: _identifier(
         reader.string('deliverySurfaceType'),
@@ -4391,6 +4401,10 @@ final class ExperimentSurfaceCapabilityV1 extends _ExperimentAuthoringValue {
       ),
       installedMetricCapabilities: installedMetricCapabilities,
       label: _boundedString(reader.string('label'), '$path.label'),
+      revisionOrdinal: _positiveInteger(
+        reader.integer('revisionOrdinal'),
+        '$path.revisionOrdinal',
+      ),
       surfaceReference: ExperimentExactSurfaceReferenceV1.fromJson(
         reader.object('surfaceReference'),
         path: '$path.surfaceReference',
@@ -4399,10 +4413,17 @@ final class ExperimentSurfaceCapabilityV1 extends _ExperimentAuthoringValue {
     );
   }
 
+  /// Whether this revision is the one the surface currently serves.
+  final bool active;
+
   final List<ExperimentAnalysisKindV1> analysisChoices;
   final DeliverySurfaceTypeId deliverySurfaceType;
   final List<ExperimentInstalledMetricCapabilityV1> installedMetricCapabilities;
   final String label;
+
+  /// The published version number of this revision, counting from one.
+  final int revisionOrdinal;
+
   final ExperimentExactSurfaceReferenceV1 surfaceReference;
   final List<ExperimentTreatmentOriginV1> treatmentOrigins;
 
@@ -8051,12 +8072,127 @@ final class ExperimentResultsAvailabilityV1 extends _ExperimentAuthoringValue {
   final String? reasonCode;
 }
 
-/// Exact confidence interval for one arm statistic.
+/// Decimal places every published result figure carries.
+///
+/// Every figure here is a ratio of counts or a difference of two, so it lies
+/// between minus one and one. Nine places resolve one part in a billion, finer
+/// than any count ratio this contract can carry, and a nine-place decimal in
+/// that range reads back exactly through a binary floating-point number.
+const int kExperimentResultDecimalScale = 9;
+
+/// Where a figure lands when its exact value needs more places than the scale.
+enum ExperimentDecimalRoundingV1 {
+  /// Toward negative infinity, so a lower bound never overstates.
+  down,
+
+  /// To the nearest figure, halves away from zero.
+  nearest,
+
+  /// Toward positive infinity, so an upper bound never understates.
+  up,
+}
+
+/// Writes [numerator] over [denominator] at [kExperimentResultDecimalScale].
+String experimentResultDecimal(
+  BigInt numerator,
+  BigInt denominator, {
+  required ExperimentDecimalRoundingV1 rounding,
+}) {
+  if (denominator <= BigInt.zero) {
+    throw const CanonicalFormatException(
+      'A result decimal needs a positive denominator',
+    );
+  }
+  return _decimalText(_decimalUnits(numerator, denominator, rounding));
+}
+
+/// Writes [numerator] over [denominator] as the wire form of an exact ratio.
+Map<String, Object?> experimentExactRatioJson(
+  BigInt numerator,
+  BigInt denominator,
+) {
+  if (denominator <= BigInt.zero) {
+    throw const CanonicalFormatException(
+      'An exact ratio needs a positive denominator',
+    );
+  }
+  final divisor = numerator.abs().gcd(denominator);
+  return {
+    'denominator': (denominator ~/ divisor).toString(),
+    'numerator': (numerator ~/ divisor).toString(),
+  };
+}
+
+/// An exact value as a fraction of decimal integers, in lowest terms.
+///
+/// A certified bound needs more bits than a machine integer holds, so both
+/// terms are written as decimal strings.
+final class ExperimentExactRatioV1 extends _ExperimentAuthoringValue {
+  ExperimentExactRatioV1._(
+    Map<String, Object?> json, {
+    required this.numerator,
+    required this.denominator,
+  }) : super(json);
+
+  /// Decodes one reduced fraction over a positive denominator.
+  factory ExperimentExactRatioV1.fromJson(
+    Map<String, Object?> json, {
+    required String path,
+  }) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {'denominator', 'numerator'},
+      requiredKeys: const {'denominator', 'numerator'},
+      path: path,
+    );
+    final numerator = _exactInteger(
+      reader.string('numerator'),
+      '$path.numerator',
+    );
+    final denominator = _exactInteger(
+      reader.string('denominator'),
+      '$path.denominator',
+    );
+    if (denominator <= BigInt.zero) {
+      throw CanonicalFormatException('$path.denominator must be positive');
+    }
+    if (numerator.abs().gcd(denominator) != BigInt.one) {
+      throw CanonicalFormatException('$path must be in lowest terms');
+    }
+    return ExperimentExactRatioV1._(
+      json,
+      numerator: numerator,
+      denominator: denominator,
+    );
+  }
+
+  /// Exact numerator.
+  final BigInt numerator;
+
+  /// Exact positive denominator.
+  final BigInt denominator;
+
+  /// This value at [kExperimentResultDecimalScale], placed by [rounding].
+  String decimal(ExperimentDecimalRoundingV1 rounding) =>
+      experimentResultDecimal(numerator, denominator, rounding: rounding);
+
+  /// Whether this value is at most [other].
+  bool isAtMost(ExperimentExactRatioV1 other) =>
+      numerator * other.denominator <= other.numerator * denominator;
+}
+
+/// Confidence interval for one arm statistic.
+///
+/// [lower] and [upper] are [lowerExact] and [upperExact] at
+/// [kExperimentResultDecimalScale], each rounded away from the interval, so
+/// the printed pair always encloses the certified one.
 final class ExperimentResultIntervalV1 extends _ExperimentAuthoringValue {
   ExperimentResultIntervalV1._(
     Map<String, Object?> json, {
     required this.lower,
     required this.upper,
+    required this.lowerExact,
+    required this.upperExact,
   }) : super(json);
 
   factory ExperimentResultIntervalV1.fromJson(
@@ -8065,28 +8201,59 @@ final class ExperimentResultIntervalV1 extends _ExperimentAuthoringValue {
   }) {
     final reader = CanonicalObjectReader(
       json,
-      allowedKeys: const {'lower', 'upper'},
-      requiredKeys: const {'lower', 'upper'},
+      allowedKeys: const {'lower', 'lowerExact', 'upper', 'upperExact'},
+      requiredKeys: const {'lower', 'lowerExact', 'upper', 'upperExact'},
       path: path,
     );
+    final lowerExact = ExperimentExactRatioV1.fromJson(
+      reader.object('lowerExact'),
+      path: '$path.lowerExact',
+    );
+    final upperExact = ExperimentExactRatioV1.fromJson(
+      reader.object('upperExact'),
+      path: '$path.upperExact',
+    );
+    if (!lowerExact.isAtMost(upperExact)) {
+      throw CanonicalFormatException('$path lower bound is above its upper');
+    }
+    _requireWithinOne(lowerExact, '$path.lowerExact');
+    _requireWithinOne(upperExact, '$path.upperExact');
     return ExperimentResultIntervalV1._(
       json,
-      lower: ExperimentRationalV1.fromJson(
-        reader.object('lower'),
-        path: '$path.lower',
+      lower: _placedDecimal(
+        reader.string('lower'),
+        lowerExact,
+        ExperimentDecimalRoundingV1.down,
+        '$path.lower',
       ),
-      upper: ExperimentRationalV1.fromJson(
-        reader.object('upper'),
-        path: '$path.upper',
+      upper: _placedDecimal(
+        reader.string('upper'),
+        upperExact,
+        ExperimentDecimalRoundingV1.up,
+        '$path.upper',
       ),
+      lowerExact: lowerExact,
+      upperExact: upperExact,
     );
   }
 
-  final ExperimentRationalV1 lower;
-  final ExperimentRationalV1 upper;
+  /// Lower bound as a decimal, never above the certified one.
+  final String lower;
+
+  /// Upper bound as a decimal, never below the certified one.
+  final String upper;
+
+  /// The certified lower bound, unrounded.
+  final ExperimentExactRatioV1 lowerExact;
+
+  /// The certified upper bound, unrounded.
+  final ExperimentExactRatioV1 upperExact;
 }
 
 /// Safe result statistics for one stable arm.
+///
+/// [rate] and [effect] are [rateExact] and [effectExact] at
+/// [kExperimentResultDecimalScale], rounded to the nearest figure.
 final class ExperimentArmResultV1 extends _ExperimentAuthoringValue {
   ExperimentArmResultV1._(
     Map<String, Object?> json, {
@@ -8095,7 +8262,9 @@ final class ExperimentArmResultV1 extends _ExperimentAuthoringValue {
     required this.observedCount,
     required this.successCount,
     required this.rate,
+    required this.rateExact,
     required this.effect,
+    required this.effectExact,
     required this.interval,
   }) : super(json);
 
@@ -8108,20 +8277,24 @@ final class ExperimentArmResultV1 extends _ExperimentAuthoringValue {
       allowedKeys: const {
         'admittedCount',
         'effect',
+        'effectExact',
         'interval',
         'kind',
         'observedCount',
         'rate',
+        'rateExact',
         'stableArmId',
         'successCount',
       },
       requiredKeys: const {
         'admittedCount',
         'effect',
+        'effectExact',
         'interval',
         'kind',
         'observedCount',
         'rate',
+        'rateExact',
         'stableArmId',
         'successCount',
       },
@@ -8143,11 +8316,16 @@ final class ExperimentArmResultV1 extends _ExperimentAuthoringValue {
     if (observedCount > admittedCount || successCount > observedCount) {
       throw CanonicalFormatException('$path counts are inconsistent');
     }
-    final rate = ExperimentRationalV1.fromJson(
-      reader.object('rate'),
-      path: '$path.rate',
+    final rateExact = ExperimentExactRatioV1.fromJson(
+      reader.object('rateExact'),
+      path: '$path.rateExact',
     );
-    _requireProbability(rate, '$path.rate');
+    _requireCountRatio(rateExact, successCount, observedCount, '$path.rate');
+    final effectExact = ExperimentExactRatioV1.fromJson(
+      reader.object('effectExact'),
+      path: '$path.effectExact',
+    );
+    _requireWithinOne(effectExact, '$path.effectExact');
     return ExperimentArmResultV1._(
       json,
       stableArmId: _identifier(
@@ -8158,11 +8336,20 @@ final class ExperimentArmResultV1 extends _ExperimentAuthoringValue {
       admittedCount: admittedCount,
       observedCount: observedCount,
       successCount: successCount,
-      rate: rate,
-      effect: ExperimentRationalV1.fromJson(
-        reader.object('effect'),
-        path: '$path.effect',
+      rate: _placedDecimal(
+        reader.string('rate'),
+        rateExact,
+        ExperimentDecimalRoundingV1.nearest,
+        '$path.rate',
       ),
+      rateExact: rateExact,
+      effect: _placedDecimal(
+        reader.string('effect'),
+        effectExact,
+        ExperimentDecimalRoundingV1.nearest,
+        '$path.effect',
+      ),
+      effectExact: effectExact,
       interval: ExperimentResultIntervalV1.fromJson(
         reader.object('interval'),
         path: '$path.interval',
@@ -8174,8 +8361,19 @@ final class ExperimentArmResultV1 extends _ExperimentAuthoringValue {
   final int admittedCount;
   final int observedCount;
   final int successCount;
-  final ExperimentRationalV1 rate;
-  final ExperimentRationalV1 effect;
+
+  /// Observed success rate as a decimal.
+  final String rate;
+
+  /// The observed count ratio, in lowest terms.
+  final ExperimentExactRatioV1 rateExact;
+
+  /// Effect against the reference arm as a decimal.
+  final String effect;
+
+  /// That effect unrounded, in lowest terms.
+  final ExperimentExactRatioV1 effectExact;
+
   final ExperimentResultIntervalV1 interval;
 }
 
@@ -9802,9 +10000,114 @@ int _nonNegativeInteger(int value, String path) {
   return value;
 }
 
-void _requireProbability(ExperimentRationalV1 value, String path) {
-  if (value.numerator < 0 || value.numerator > value.denominator) {
-    throw CanonicalFormatException('$path must be within zero and one');
+/// The scale's unit: ten raised to [kExperimentResultDecimalScale].
+final BigInt _decimalUnit = BigInt.from(10).pow(kExperimentResultDecimalScale);
+
+final RegExp _positiveDecimalPattern = RegExp(r'^[1-9][0-9]{0,31}$');
+
+final RegExp _decimalPattern = RegExp(
+  '^(-?)(0|[1-9][0-9]*)[.]([0-9]{$kExperimentResultDecimalScale})\$',
+);
+
+/// [text] as the figure it writes, refusing anything off the fixed scale.
+BigInt _readDecimal(String text, String path) {
+  final match = _decimalPattern.firstMatch(text);
+  if (match == null) {
+    throw CanonicalFormatException(
+      '$path must be a decimal with exactly '
+      '$kExperimentResultDecimalScale places',
+    );
+  }
+  final units = BigInt.parse('${match.group(2)}${match.group(3)}');
+  if (match.group(1)!.isEmpty) return units;
+  if (units == BigInt.zero) {
+    throw CanonicalFormatException('$path must write zero without a sign');
+  }
+  return -units;
+}
+
+/// [text], once it is [exact] placed at the scale by [rounding].
+String _placedDecimal(
+  String text,
+  ExperimentExactRatioV1 exact,
+  ExperimentDecimalRoundingV1 rounding,
+  String path,
+) {
+  _readDecimal(text, path);
+  final placed = exact.decimal(rounding);
+  if (text != placed) {
+    throw CanonicalFormatException(
+      '$path must be $placed, its exact value at '
+      '$kExperimentResultDecimalScale places',
+    );
+  }
+  return text;
+}
+
+BigInt _decimalUnits(
+  BigInt numerator,
+  BigInt denominator,
+  ExperimentDecimalRoundingV1 rounding,
+) {
+  final scaled = numerator * _decimalUnit;
+  final quotient = scaled ~/ denominator;
+  final remainder = scaled - quotient * denominator;
+  if (remainder == BigInt.zero) return quotient;
+  return switch (rounding) {
+    ExperimentDecimalRoundingV1.down =>
+      remainder < BigInt.zero ? quotient - BigInt.one : quotient,
+    ExperimentDecimalRoundingV1.up =>
+      remainder > BigInt.zero ? quotient + BigInt.one : quotient,
+    ExperimentDecimalRoundingV1.nearest =>
+      remainder.abs() * BigInt.two < denominator
+          ? quotient
+          : quotient + (remainder > BigInt.zero ? BigInt.one : -BigInt.one),
+  };
+}
+
+String _decimalText(BigInt units) {
+  final digits = units.abs().toString().padLeft(
+        kExperimentResultDecimalScale + 1,
+        '0',
+      );
+  final split = digits.length - kExperimentResultDecimalScale;
+  final sign = units < BigInt.zero ? '-' : '';
+  return '$sign${digits.substring(0, split)}.${digits.substring(split)}';
+}
+
+/// One exact decimal integer, written without padding or a leading plus.
+BigInt _exactInteger(String text, String path) {
+  final parsed = BigInt.tryParse(text);
+  if (parsed == null || parsed.toString() != text) {
+    throw CanonicalFormatException('$path must be an exact decimal integer');
+  }
+  return parsed;
+}
+
+/// Refuses a figure outside the range every result figure lies in.
+void _requireWithinOne(ExperimentExactRatioV1 value, String path) {
+  if (value.numerator.abs() > value.denominator) {
+    throw CanonicalFormatException('$path must be within minus one and one');
+  }
+}
+
+/// Refuses a rate that is not the reduced ratio of the counts beside it.
+void _requireCountRatio(
+  ExperimentExactRatioV1 rate,
+  int successCount,
+  int observedCount,
+  String path,
+) {
+  final observed = BigInt.from(observedCount);
+  final success = BigInt.from(successCount);
+  final divisor = observed == BigInt.zero ? BigInt.one : success.gcd(observed);
+  final numerator = observed == BigInt.zero ? BigInt.zero : success ~/ divisor;
+  final denominator =
+      observed == BigInt.zero ? BigInt.one : observed ~/ divisor;
+  if (rate.numerator != numerator || rate.denominator != denominator) {
+    throw CanonicalFormatException(
+      '${path}Exact must be the observed count ratio',
+    );
   }
 }
 
@@ -10079,7 +10382,7 @@ Map<String, String> _certifiedScales(
   final result = <String, String>{};
   for (final key in ['allocationScale', 'effectScale']) {
     final value = reader.string(key);
-    if (!RegExp(r'^[1-9][0-9]{0,31}$').hasMatch(value)) {
+    if (!_positiveDecimalPattern.hasMatch(value)) {
       throw CanonicalFormatException('$path.$key must be a positive decimal');
     }
     result[key] = value;

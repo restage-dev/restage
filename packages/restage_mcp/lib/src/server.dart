@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -6,13 +7,17 @@ import 'package:dart_mcp/server.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/api.dart';
+import 'package:stream_channel/stream_channel.dart';
 
 import 'api_runner.dart';
 import 'canonical_mutation_tool.dart';
 import 'experiment_activation_tool.dart';
 import 'experiment_apply_tool.dart';
+import 'experiment_results_tools.dart';
 import 'serving_record_rebuild_tool.dart';
 import 'experimental_gate.dart';
+import 'in_flight_gate.dart';
+import 'surface_funnel_tool.dart';
 import 'surface_routing_tool.dart';
 
 /// Backend origin used for in-server login when no credential exists yet.
@@ -47,8 +52,38 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   /// [MCPServer] base) and may change as that framework stabilizes. Most users
   /// launch the `restage_mcp` executable directly rather than embedding the
   /// server in their own Dart code.
+  /// The input side of [channel] stays open until every tool call still in
+  /// flight has answered, so a client that writes a request and closes its end
+  /// still receives the response.
   @experimental
-  RestageMcpServer.fromStreamChannel(
+  factory RestageMcpServer.fromStreamChannel(
+    StreamChannel<String> channel, {
+    FileCredentialStore? credentialStore,
+    http.Client? httpClient,
+    Future<void> Function(Duration)? sleep,
+    Future<void> Function(String)? openBrowser,
+    Uri? loginEndpoint,
+    DateTime Function()? now,
+    ExperimentActivationApi? experimentActivationApi,
+    Map<String, String>? environment,
+  }) {
+    final gate = InFlightGate();
+    return RestageMcpServer._(
+      gate,
+      channel.changeStream(gate.holdCloseUntilDrained),
+      credentialStore: credentialStore,
+      httpClient: httpClient,
+      sleep: sleep,
+      openBrowser: openBrowser,
+      loginEndpoint: loginEndpoint,
+      now: now,
+      experimentActivationApi: experimentActivationApi,
+      environment: environment,
+    );
+  }
+
+  RestageMcpServer._(
+    this._gate,
     super.channel, {
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
@@ -129,6 +164,16 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       _listStoreConnectionsTool,
       _scrubbed(_handleListStoreConnections),
     );
+    registerTool(
+      readSurfaceFunnelTool,
+      _scrubbed(
+        (request) => handleReadSurfaceFunnel(
+          request: request,
+          store: _store,
+          httpClient: _httpClient,
+        ),
+      ),
+    );
     registerTool(_getAppConfigTool, _scrubbed(_handleGetAppConfig));
     registerTool(_updateAppConfigTool, _scrubbed(_handleUpdateAppConfig));
     registerTool(_listApiKeysTool, _scrubbed(_handleListApiKeys));
@@ -158,6 +203,22 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
           ),
         ),
       );
+      for (final read in <(Tool, _ReadHandler)>[
+        (readExperimentResultsTool, handleReadExperimentResults),
+        (readExperimentRosterTool, handleReadExperimentRoster),
+      ]) {
+        final handler = read.$2;
+        registerTool(
+          read.$1,
+          _scrubbed(
+            (request) => handler(
+              request: request,
+              store: _store,
+              httpClient: _httpClient,
+            ),
+          ),
+        );
+      }
       registerTool(
         servingRecordRebuildTool,
         _scrubbed(
@@ -187,7 +248,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   Future<CallToolResult> Function(CallToolRequest) _scrubbed(
     Future<CallToolResult> Function(CallToolRequest) handler,
   ) {
-    return (request) async => _scrubHeldSecrets(await handler(request));
+    return (request) =>
+        _gate.track(() async => _scrubHeldSecrets(await handler(request)));
   }
 
   /// Remove the secrets this server holds — the stored session token (the full
@@ -219,6 +281,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     return secrets.isEmpty ? result : scrubValues(result, secrets);
   }
 
+  final InFlightGate _gate;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
   final Future<void> Function(Duration) _sleep;
@@ -1819,6 +1882,14 @@ Future<void> _defaultOpenBrowser(String url) async {
     // Best-effort; the caller surfaces the URL regardless.
   }
 }
+
+/// One results read handler, bound to the shared credential and client.
+typedef _ReadHandler =
+    Future<CallToolResult> Function({
+      required CallToolRequest request,
+      required FileCredentialStore store,
+      http.Client? httpClient,
+    });
 
 /// One routing tool handler, bound to the shared credential and client.
 typedef _RoutingHandler =

@@ -14,7 +14,8 @@ enum MeasurementPresentationFinishReasonV1 {
 }
 
 /// Terminal observations for one presentation attempt.
-final class MeasurementPresentationDiagnosticV1 extends CanonicalValue {
+final class MeasurementPresentationDiagnosticV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   const MeasurementPresentationDiagnosticV1({
     required this.rootPresentationReports,
     required this.stepObserved,

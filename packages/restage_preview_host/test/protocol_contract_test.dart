@@ -49,12 +49,12 @@ const _rejectedSnapshotPaths =
   ),
 ];
 
-RenderEnv _env({String brightness = 'light'}) => RenderEnv(
+RenderEnv _env({String brightness = 'light', double zoom = 1}) => RenderEnv(
       theme: const <String, Object?>{'accent': 0xFF123456},
       brightness: brightness,
       locale: 'en-US',
       textScale: 1,
-      zoom: 1,
+      zoom: zoom,
       frame: const Size(390, 844),
     );
 
@@ -2562,6 +2562,488 @@ void main() {
       );
       frames.flush();
       expect(transport.sent, hasLength(sentBeforeStale));
+    });
+  });
+
+  group('shell/client mount contract', () {
+    late FakeRenderMessageTransport transport;
+    late ManualFrameScheduler frames;
+    late SeamRenderProvider provider;
+    late List<RenderEvent> events;
+
+    setUp(() {
+      transport = FakeRenderMessageTransport();
+      frames = ManualFrameScheduler();
+      provider = SeamRenderProvider(
+        transport: transport,
+        bundleOrigin: _origin,
+        supportedVersions: const <int>[1],
+        scheduleFrame: frames.schedule,
+      );
+      events = <RenderEvent>[];
+      provider.events.listen(events.add);
+    });
+
+    tearDown(() async => provider.dispose());
+
+    Future<SurfaceMountProvider> mountingBundle() async {
+      transport.receive(
+        _origin,
+        _ready(capabilities: const <String>['mount']),
+      );
+      await provider.ready;
+      return surfaceMountProviderFor(provider)!;
+    }
+
+    void settle(int epoch) {
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'settled',
+        'epoch': epoch,
+        'diagnostics': <Object?>[],
+      });
+    }
+
+    void receiveEvent(
+      int epoch, {
+      String name = 'tap',
+      Map<String, Object?> arguments = const <String, Object?>{},
+    }) {
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'event',
+        'epoch': epoch,
+        'name': name,
+        'arguments': arguments,
+      });
+    }
+
+    test('a bundle that never advertised mounting is never asked to mount',
+        () async {
+      transport.receive(_origin, _ready());
+      await provider.ready;
+
+      expect(surfaceMountProviderFor(provider), isNull);
+      await provider.render(_request(1));
+      expect(
+        transport.sent.where((message) => message.payload['type'] == 'mount'),
+        isEmpty,
+      );
+      expect(transport.sent.single.payload['type'], 'render');
+    });
+
+    test('an advertised mount carries the render payload under its own type',
+        () async {
+      final mount = await mountingBundle();
+      await mount.mount(_request(1));
+
+      final sent = transport.sent.single;
+      expect(sent.targetOrigin, _origin);
+      expect(
+        sent.payload.keys,
+        unorderedEquals(<String>['v', 'type', 'epoch', 'blob', 'data', 'env']),
+      );
+      expect(sent.payload['type'], 'mount');
+      expect(sent.payload['epoch'], 1);
+      expect(
+        sent.payload['blob'],
+        encodeRenderBlob(Uint8List.fromList(<int>[0, 1, 2, 255])),
+      );
+      expect(sent.payload['data'], <String, Object?>{'title': 'Preview'});
+      expect(sent.payload['env'], _env().toJson());
+    });
+
+    test('mounting refuses a scaled frame and sends nothing', () async {
+      final mount = await mountingBundle();
+
+      await expectLater(
+        mount.mount(_request(1, env: _env(zoom: 2))),
+        throwsArgumentError,
+      );
+      expect(transport.sent, isEmpty);
+
+      await mount.mount(_request(1));
+      expect(transport.sent.single.payload['type'], 'mount');
+    });
+
+    test('mount and render share one strictly monotonic epoch line', () async {
+      final mount = await mountingBundle();
+      await mount.mount(_request(2));
+
+      await expectLater(provider.render(_request(2)), throwsArgumentError);
+      await expectLater(mount.mount(_request(1)), throwsArgumentError);
+      expect(transport.sent, hasLength(1));
+
+      await provider.render(_request(3));
+      expect(transport.sent.last.payload['type'], 'render');
+    });
+
+    test('a fired event reaches the caller with its exact arguments', () async {
+      final mount = await mountingBundle();
+      await mount.mount(_request(1));
+      settle(1);
+      receiveEvent(
+        1,
+        name: 'answerSelected',
+        arguments: const <String, Object?>{
+          'value': 'often',
+          'choices': <Object?>[1, 2.5, true, null],
+          'detail': <String, Object?>{'index': 3},
+        },
+      );
+
+      final event = events.whereType<MountedSurfaceEvent>().single;
+      expect(event.epoch, 1);
+      expect(event.name, 'answerSelected');
+      expect(event.arguments, <String, Object?>{
+        'value': 'often',
+        'choices': <Object?>[1, 2.5, true, null],
+        'detail': <String, Object?>{'index': 3},
+      });
+      expect(
+        () => event.arguments['injected'] = true,
+        throwsUnsupportedError,
+      );
+      expect(events.whereType<ProtocolError>(), isEmpty);
+    });
+
+    test('an event for a replaced or failed epoch never reaches the caller',
+        () async {
+      final mount = await mountingBundle();
+      await mount.mount(_request(1));
+      settle(1);
+      receiveEvent(1, name: 'live');
+
+      await mount.mount(_request(2));
+      receiveEvent(1, name: 'stale');
+      settle(2);
+      receiveEvent(2, name: 'live-again');
+
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'renderError',
+        'epoch': 2,
+        'message': 'Render failed.',
+      });
+      receiveEvent(2, name: 'after-failure');
+
+      expect(
+        events.whereType<MountedSurfaceEvent>().map((event) => event.name),
+        <String>['live', 'live-again'],
+      );
+      expect(events.whereType<ProtocolError>(), isEmpty);
+    });
+
+    test(
+        'an event only counts when the shell mounted that epoch and it '
+        'settled', () async {
+      transport.receive(
+        _origin,
+        _ready(capabilities: const <String>['mount']),
+      );
+      await provider.ready;
+      final mount = surfaceMountProviderFor(provider)!;
+
+      await provider.render(_request(1));
+      settle(1);
+      receiveEvent(1, name: 'after-a-plain-render');
+
+      await mount.mount(_request(2));
+      receiveEvent(2, name: 'before-settle');
+      settle(2);
+      receiveEvent(2, name: 'mounted-and-settled');
+
+      await provider.render(_request(3));
+      settle(3);
+      receiveEvent(3, name: 'after-a-render-replaced-the-mount');
+
+      expect(
+        events.whereType<MountedSurfaceEvent>().map((event) => event.name),
+        <String>['mounted-and-settled'],
+      );
+      expect(events.whereType<ProtocolError>(), isEmpty);
+    });
+
+    test('an event beyond the wire budget is reported once', () async {
+      final mount = await mountingBundle();
+      await mount.mount(_request(1));
+      settle(1);
+
+      var nested = <String, Object?>{'leaf': true};
+      for (var depth = 0; depth < renderWireMaxDepth; depth += 1) {
+        nested = <String, Object?>{'child': nested};
+      }
+      receiveEvent(1, name: 'too-deep', arguments: nested);
+
+      expect(events.whereType<MountedSurfaceEvent>(), isEmpty);
+      expect(events.whereType<ProtocolError>(), hasLength(1));
+
+      receiveEvent(1, name: 'in-budget');
+      expect(
+        events.whereType<MountedSurfaceEvent>().map((event) => event.name),
+        <String>['in-budget'],
+      );
+    });
+
+    test('a malformed event is reported and commits nothing', () async {
+      final mount = await mountingBundle();
+      await mount.mount(_request(1));
+      settle(1);
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'event',
+        'epoch': 1,
+        'name': '',
+        'arguments': <String, Object?>{},
+      });
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'event',
+        'epoch': 1,
+        'name': 'tap',
+        'arguments': <Object?>[],
+      });
+
+      expect(events.whereType<MountedSurfaceEvent>(), isEmpty);
+      expect(events.whereType<ProtocolError>(), hasLength(2));
+      receiveEvent(1, name: 'tap');
+      expect(events.whereType<MountedSurfaceEvent>(), hasLength(1));
+    });
+  });
+
+  group('bundle/server mount contract', () {
+    late FakeRenderMessageTransport transport;
+    late ManualFrameScheduler frames;
+    late List<RenderRequest> renders;
+    late List<RenderRequest> mounts;
+    late Map<int, Completer<BundleRenderResult>> results;
+
+    setUp(() {
+      transport = FakeRenderMessageTransport();
+      frames = ManualFrameScheduler();
+      renders = <RenderRequest>[];
+      mounts = <RenderRequest>[];
+      results = <int, Completer<BundleRenderResult>>{};
+    });
+
+    RenderProtocolServer startServer({bool mountable = true}) {
+      Future<BundleRenderResult> complete(RenderRequest request) =>
+          (results[request.epoch] = Completer<BundleRenderResult>()).future;
+      return RenderProtocolServer(
+        transport: transport,
+        manifest: RenderBundleManifest.fromJson(_manifest()),
+        engine: RenderEngine(flutterVersion: '3.41.0', renderer: 'canvaskit'),
+        supportedVersions: const <int>[1],
+        scheduleFrame: frames.schedule,
+        initialize: (_) {},
+        render: (request) {
+          renders.add(request);
+          return complete(request);
+        },
+        snapshot: (_, __) async => base64Decode(_onePixelPngBase64),
+        mount: mountable
+            ? (request) {
+                mounts.add(request);
+                return complete(request);
+              }
+            : null,
+      )..start();
+    }
+
+    void receive(
+      int epoch, {
+      required String type,
+      RenderEnv? env,
+    }) {
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': type,
+        'epoch': epoch,
+        'blob': encodeRenderBlob(Uint8List.fromList(<int>[1, 2, 3])),
+        'data': <String, Object?>{'title': 'Preview'},
+        'env': (env ?? _env()).toJson(),
+      });
+    }
+
+    List<SentMessage> eventsSent() => transport.sent
+        .where((message) => message.payload['type'] == 'event')
+        .toList();
+
+    test('a bundle that cannot mount never advertises it and ignores mount',
+        () async {
+      final server = startServer(mountable: false);
+      addTearDown(server.dispose);
+
+      final ready = transport.sent.single.payload;
+      expect(
+        (ready['capabilities']! as List<Object?>).cast<String>(),
+        <String>['snapshot'],
+      );
+
+      receive(1, type: 'mount');
+      await pumpEventQueue();
+
+      expect(mounts, isEmpty);
+      expect(renders, isEmpty);
+      expect(transport.sent, hasLength(1));
+      expect(server.mountedEpoch, isNull);
+    });
+
+    test('a mounting bundle advertises mount beside snapshot', () {
+      final server = startServer();
+      addTearDown(server.dispose);
+
+      expect(
+        (transport.sent.single.payload['capabilities']! as List<Object?>)
+            .cast<String>(),
+        <String>['snapshot', 'mount'],
+      );
+    });
+
+    test('a mount reaches the mount handler and its events go out', () async {
+      final server = startServer();
+      addTearDown(server.dispose);
+
+      receive(1, type: 'mount');
+      await pumpEventQueue();
+      expect(mounts.single.epoch, 1);
+      expect(renders, isEmpty);
+      expect(server.mountedEpoch, 1);
+
+      expect(
+        server.publishSurfaceEvent(1, 'tap', const <String, Object?>{}),
+        SurfaceEventPublication.inactive,
+        reason: 'a surface cannot fire before its first frame settles',
+      );
+
+      results[1]!.complete(BundleRenderResult());
+      await pumpEventQueue();
+
+      expect(
+        server.publishSurfaceEvent(
+          1,
+          'answerSelected',
+          <String, Object?>{'value': 'often', 'detail': <String, Object?>{}},
+        ),
+        SurfaceEventPublication.sent,
+      );
+      final sent = eventsSent().single;
+      expect(sent.targetOrigin, _origin);
+      expect(
+        sent.payload,
+        <String, Object?>{
+          'v': 1,
+          'type': 'event',
+          'epoch': 1,
+          'name': 'answerSelected',
+          'arguments': <String, Object?>{
+            'value': 'often',
+            'detail': <String, Object?>{},
+          },
+        },
+      );
+    });
+
+    test('a render replaces a mount and forwards nothing', () async {
+      final server = startServer();
+      addTearDown(server.dispose);
+
+      receive(1, type: 'mount');
+      await pumpEventQueue();
+      results[1]!.complete(BundleRenderResult());
+      await pumpEventQueue();
+      expect(
+        server.publishSurfaceEvent(1, 'tap', const <String, Object?>{}),
+        SurfaceEventPublication.sent,
+      );
+
+      receive(2, type: 'render');
+      await pumpEventQueue();
+      results[2]!.complete(BundleRenderResult());
+      await pumpEventQueue();
+
+      expect(renders.single.epoch, 2);
+      expect(server.mountedEpoch, isNull);
+      expect(
+        server.publishSurfaceEvent(2, 'tap', const <String, Object?>{}),
+        SurfaceEventPublication.inactive,
+      );
+      expect(
+        server.publishSurfaceEvent(1, 'tap', const <String, Object?>{}),
+        SurfaceEventPublication.inactive,
+      );
+      expect(eventsSent(), hasLength(1));
+    });
+
+    test('arguments the wire cannot carry drop the whole event', () async {
+      final server = startServer();
+      addTearDown(server.dispose);
+
+      receive(1, type: 'mount');
+      await pumpEventQueue();
+      results[1]!.complete(BundleRenderResult());
+      await pumpEventQueue();
+
+      Map<String, Object?> nested(int depth) {
+        var value = <String, Object?>{'leaf': true};
+        for (var index = 0; index < depth; index += 1) {
+          value = <String, Object?>{'child': value};
+        }
+        return value;
+      }
+
+      final rejected = <String, Map<String, Object?>>{
+        'one level deeper than the transport allows':
+            nested(renderWireMaxDepth - 1),
+        'more values than the transport allows': <String, Object?>{
+          'items': List<Object?>.filled(renderWireMaxNodes, 1),
+        },
+        'a value no transport can encode': <String, Object?>{
+          'at': DateTime.utc(2030),
+        },
+        'a number no transport can encode': <String, Object?>{
+          'ratio': double.infinity,
+        },
+      };
+      for (final entry in rejected.entries) {
+        expect(
+          server.publishSurfaceEvent(1, 'tap', entry.value),
+          SurfaceEventPublication.oversize,
+          reason: entry.key,
+        );
+      }
+      expect(eventsSent(), isEmpty);
+
+      expect(
+        server.publishSurfaceEvent(1, 'tap', nested(renderWireMaxDepth - 2)),
+        SurfaceEventPublication.sent,
+        reason: 'the deepest arguments one message can carry still go',
+      );
+      expect(eventsSent(), hasLength(1));
+    });
+
+    test('a mount of a scaled frame is refused and renders nothing', () async {
+      final server = startServer();
+      addTearDown(server.dispose);
+
+      receive(1, type: 'mount', env: _env(zoom: 2));
+      await pumpEventQueue();
+
+      expect(mounts, isEmpty);
+      expect(server.mountedEpoch, isNull);
+      final errors = transport.sent
+          .where((message) => message.payload['type'] == 'protocolError')
+          .toList();
+      expect(errors, hasLength(1));
+      expect(errors.single.payload['message'], contains('zoom 1'));
+
+      receive(1, type: 'render', env: _env(zoom: 2));
+      await pumpEventQueue();
+      expect(
+        renders.single.epoch,
+        1,
+        reason: 'a refused mount leaves its epoch free to render',
+      );
     });
   });
 }

@@ -87,7 +87,7 @@ void main() {
     });
 
     test(
-      'derives max-id deployed siblings within the DNS-label bound',
+      'nests one deployed host per immutable id beneath the control host',
       () {
         final control = Uri.parse('https://bundles.restage.dev');
         final maxSignedRenderBundleId = int.parse(
@@ -96,52 +96,68 @@ void main() {
 
         expect(
           deriveRenderBundleExecutionOrigin(control, 42),
-          Uri.parse('https://rb-42-bundles.restage.dev'),
+          Uri.parse('https://b-42.bundles.restage.dev'),
         );
         expect(
           isExactRenderBundleExecutionOrigin(
             configuredBundleOrigin: control,
             renderBundleId: 42,
             executionOrigin: Uri.parse(
-              'https://rb-42-bundles.restage.dev',
+              'https://b-42.bundles.restage.dev',
             ),
           ),
           isTrue,
         );
+        // The derived label carries only the id, so a control label may use the
+        // whole DNS-label bound.
         expect(
           deriveRenderBundleExecutionOrigin(
-            Uri.parse('https://${'a' * 40}.restage.dev'),
+            Uri.parse('https://${'a' * 63}.restage.dev'),
             maxSignedRenderBundleId,
           ),
           Uri.parse(
-            'https://rb-$maxSignedRenderBundleId-${'a' * 40}.restage.dev',
+            'https://b-$maxSignedRenderBundleId.${'a' * 63}.restage.dev',
           ),
         );
       },
       onPlatform: <String, dynamic>{'browser': const Skip('VM int boundary')},
     );
 
-    test('checks exact max-id DNS capacity on every runtime', () {
+    test('derives execution origins only for control authorities', () {
       expect(
         maxSignedRenderBundleIdDecimal,
         '9223372036854775807',
       );
-      expect(
-        canDeriveMaxSignedRenderBundleExecutionOrigin(
-          Uri.parse('https://${'a' * 40}.restage.dev'),
-        ),
-        isTrue,
-      );
-      expect(
-        canDeriveMaxSignedRenderBundleExecutionOrigin(
-          Uri.parse('https://${'a' * 41}.restage.dev'),
-        ),
-        isFalse,
-      );
+      for (final origin in <String>[
+        'https://bundles.restage.dev',
+        'https://${'a' * 63}.restage.dev',
+        'http://bundles.restage.localhost:19085',
+      ]) {
+        expect(
+          canDeriveRenderBundleExecutionOrigin(Uri.parse(origin)),
+          isTrue,
+          reason: origin,
+        );
+      }
+      for (final origin in <String>[
+        'https://b-42.bundles.restage.dev',
+        'https://nested.bundles.restage.dev',
+        'https://bundles.example.test',
+        'https://bundles.restage.dev:8443',
+        'http://bundles.restage.dev',
+        'http://bundles.restage.localhost',
+        'http://localhost:19085',
+      ]) {
+        expect(
+          canDeriveRenderBundleExecutionOrigin(Uri.parse(origin)),
+          isFalse,
+          reason: origin,
+        );
+      }
     });
 
     test(
-      'fails closed for invalid ids, authorities, and oversized labels',
+      'fails closed for invalid ids and authorities',
       () {
         final maxSignedRenderBundleId = int.parse(
           maxSignedRenderBundleIdDecimal,
@@ -156,9 +172,12 @@ void main() {
             reason: '$id',
           );
         }
+        // An execution host is never itself a control authority, so a derived
+        // host cannot be fed back in to derive a deeper one.
         for (final origin in <String>[
           'http://bundles.restage.localhost',
           'http://example.test:19085',
+          'https://b-42.bundles.restage.dev',
           'https://nested.bundles.restage.dev',
           'https://bundles.example.test',
         ]) {
@@ -168,13 +187,6 @@ void main() {
             reason: origin,
           );
         }
-        expect(
-          deriveRenderBundleExecutionOrigin(
-            Uri.parse('https://${'a' * 41}.restage.dev'),
-            maxSignedRenderBundleId,
-          ),
-          isNull,
-        );
       },
       onPlatform: <String, dynamic>{'browser': const Skip('VM int boundary')},
     );

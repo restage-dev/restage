@@ -4,6 +4,7 @@
 /// barrel. Adding a future deployment root requires an explicit code change;
 /// configuration cannot nominate a new credential-bearing trust boundary.
 const Set<String> _approvedDeploymentRoots = <String>{'restage.dev'};
+const String _executionLabelPrefix = 'b-';
 const String _localApiHost = 'api.restage.localhost';
 const String _localDashboardHost = 'dashboard.restage.localhost';
 const String _localBundleControlHost = 'bundles.restage.localhost';
@@ -100,60 +101,39 @@ bool isApprovedRenderBundleDeployedOriginPair(
 ///
 /// [configuredBundleOrigin] is the upload/control authority. Local execution
 /// uses one host under the finite `restage.localhost` dev site per id.
-/// Deployed execution uses one direct sibling label under the same finite,
-/// code-approved deployment root.
+/// Deployed execution nests one label per id beneath the control host, so each
+/// deployment owns the wildcard record and certificate for its own subtree.
 Uri? deriveRenderBundleExecutionOrigin(
   Uri configuredBundleOrigin,
   int renderBundleId,
 ) {
   final id = _validRenderBundleIdDecimal(renderBundleId);
   if (id == null) return null;
-  return _deriveRenderBundleExecutionOrigin(configuredBundleOrigin, id);
-}
-
-/// Whether [configuredBundleOrigin] can derive an origin at the exact
-/// PostgreSQL signed-64 id ceiling.
-///
-/// This capacity check uses the ceiling's exact decimal representation, so it
-/// behaves identically on VM and JavaScript runtimes.
-bool canDeriveMaxSignedRenderBundleExecutionOrigin(
-  Uri configuredBundleOrigin,
-) =>
-    _deriveRenderBundleExecutionOrigin(
-      configuredBundleOrigin,
-      maxSignedRenderBundleIdDecimal,
-    ) !=
-    null;
-
-Uri? _deriveRenderBundleExecutionOrigin(
-  Uri configuredBundleOrigin,
-  String id,
-) {
   if (_isExactLocalHttpOrigin(
     configuredBundleOrigin,
     _localBundleControlHost,
   )) {
     return Uri(
       scheme: 'http',
-      host: 'b-$id$_localSiteSuffix',
+      host: '$_executionLabelPrefix$id$_localSiteSuffix',
       port: configuredBundleOrigin.port,
     );
   }
   if (!_isApprovedDirectDeployedOrigin(configuredBundleOrigin)) return null;
-
-  for (final root in _approvedDeploymentRoots) {
-    final suffix = '.$root';
-    if (!configuredBundleOrigin.host.endsWith(suffix)) continue;
-    final configuredLabel = configuredBundleOrigin.host.substring(
-      0,
-      configuredBundleOrigin.host.length - suffix.length,
-    );
-    final executionLabel = 'rb-$id-$configuredLabel';
-    if (!_isDnsLabel(executionLabel)) return null;
-    return Uri(scheme: 'https', host: '$executionLabel.$root');
-  }
-  return null;
+  return Uri(
+    scheme: 'https',
+    host: '$_executionLabelPrefix$id.${configuredBundleOrigin.host}',
+  );
 }
+
+/// Whether [configuredBundleOrigin] is a control authority that derives
+/// per-bundle execution origins.
+///
+/// The derived label carries only the id, so this holds for every supported id
+/// or for none.
+bool canDeriveRenderBundleExecutionOrigin(Uri configuredBundleOrigin) =>
+    _isExactLocalHttpOrigin(configuredBundleOrigin, _localBundleControlHost) ||
+    _isApprovedDirectDeployedOrigin(configuredBundleOrigin);
 
 String? _validRenderBundleIdDecimal(int renderBundleId) {
   if (renderBundleId < 1) return null;

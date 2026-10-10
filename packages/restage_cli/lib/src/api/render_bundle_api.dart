@@ -615,7 +615,7 @@ final class RenderBundleApi {
         (organizationId != null && organizationId < 1) ||
         (version != null && version < 1) ||
         !_isExactTrustedBundleOrigin(trustedBundleOrigin) ||
-        !canDeriveMaxSignedRenderBundleExecutionOrigin(trustedBundleOrigin) ||
+        !canDeriveRenderBundleExecutionOrigin(trustedBundleOrigin) ||
         !_isAllowedApiControlPair(
           apiEndpoint: _apiEndpoint,
           trustedBundleOrigin: trustedBundleOrigin,
@@ -776,8 +776,7 @@ bool _isExactTrustedBundleOrigin(Uri uri) {
       uri.hasFragment) {
     return false;
   }
-  return _isDefaultHttps(uri) ||
-      canDeriveMaxSignedRenderBundleExecutionOrigin(uri);
+  return _isDefaultHttps(uri) || canDeriveRenderBundleExecutionOrigin(uri);
 }
 
 /// Adds the part coordinates to a validated upload URL in canonical order.

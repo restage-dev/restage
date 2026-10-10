@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
@@ -104,6 +106,47 @@ final class ExperimentDiscovery {
 
   /// Action availability carried by the last page.
   final List<ExperimentActionAvailabilityV1> actionAvailability;
+}
+
+/// Why one roster entry carries no results.
+@experimental
+enum ExperimentRosterOmission {
+  /// The entry's inference reference names no evaluated result.
+  notEvaluated,
+
+  /// The route refused this entry's result read.
+  refused,
+
+  /// One drain's result-read bound was reached before this entry.
+  readBoundReached,
+}
+
+/// One roster entry beside the results its inference reference names.
+@experimental
+final class ExperimentRosterEntry {
+  /// Creates one roster entry carrying the results that were read.
+  const ExperimentRosterEntry.read({required this.entry, required this.results})
+    : omission = null,
+      refusal = null;
+
+  /// Creates one roster entry that carries no results, and why.
+  const ExperimentRosterEntry.omitted({
+    required this.entry,
+    required ExperimentRosterOmission this.omission,
+    this.refusal,
+  }) : results = null;
+
+  /// The list entry exactly as the route returned it.
+  final ExperimentListEntryV1 entry;
+
+  /// The results read for this entry, or null when none were read.
+  final ExperimentResultsViewV1? results;
+
+  /// Why no results were read, or null when they were.
+  final ExperimentRosterOmission? omission;
+
+  /// The refusal that stopped this entry's result read, or null.
+  final ExperimentAuthoringRefusedV1? refusal;
 }
 
 /// Semantic experiment authoring over the shared authenticated transport.
@@ -280,6 +323,141 @@ final class ExperimentApi {
 
     return ExperimentPagesAccepted(List.unmodifiable(entries));
   }
+
+  /// Drains the roster at [target] and reads the results each entry names.
+  ///
+  /// Every listed entry keeps its row. One whose reference names no evaluated
+  /// result, whose read the route refuses, or that falls beyond
+  /// [kExperimentRosterResultReadBound] carries the reason instead. A refused
+  /// PAGE still ends the drain, because the roster is then incomplete. The
+  /// figures are the route's own and are never re-derived here.
+  Future<ExperimentPageDrain<List<ExperimentRosterEntry>>>
+  listEveryPageWithResults({
+    required TargetCoordinate target,
+    required String correlationId,
+    int pageSize = 100,
+    String Function()? newCorrelationId,
+  }) async {
+    final listed = await listEveryPage(
+      target: target,
+      correlationId: correlationId,
+      pageSize: pageSize,
+    );
+    if (listed is ExperimentPagesRefused<List<ExperimentListEntryV1>>) {
+      return ExperimentPagesRefused(listed.refusal);
+    }
+    final entries =
+        (listed as ExperimentPagesAccepted<List<ExperimentListEntryV1>>).value;
+    final nextCorrelationId =
+        newCorrelationId ?? () => newExperimentIdentity('correlation');
+    final roster = <ExperimentRosterEntry>[];
+    var reads = 0;
+    for (final entry in entries) {
+      if (entry case ExperimentSummaryV1(
+        :final activationOrdinal,
+        inferenceReference: ExperimentInferenceReferenceV1(
+          kind: ExperimentInferenceReferenceKindV1.exact,
+          resultDigest: final CanonicalDigest digest,
+        ),
+      )) {
+        if (reads >= kExperimentRosterResultReadBound) {
+          roster.add(
+            ExperimentRosterEntry.omitted(
+              entry: entry,
+              omission: ExperimentRosterOmission.readBoundReached,
+            ),
+          );
+          continue;
+        }
+        reads++;
+        final result = await execute(
+          request: experimentResultsRequest(
+            correlationId: nextCorrelationId(),
+            experimentId: entry.experimentId.value,
+            activationOrdinal: activationOrdinal,
+            resultDigest: digest.hex,
+          ),
+          target: target,
+        );
+        if (result case final ExperimentAuthoringRefusedV1 refused) {
+          roster.add(
+            ExperimentRosterEntry.omitted(
+              entry: entry,
+              omission: ExperimentRosterOmission.refused,
+              refusal: refused,
+            ),
+          );
+          continue;
+        }
+        roster.add(
+          ExperimentRosterEntry.read(
+            entry: entry,
+            results:
+                (result as ExperimentAuthoringAcceptedV1).response
+                    as ExperimentResultsViewV1,
+          ),
+        );
+      } else {
+        roster.add(
+          ExperimentRosterEntry.omitted(
+            entry: entry,
+            omission: ExperimentRosterOmission.notEvaluated,
+          ),
+        );
+      }
+    }
+    return ExperimentPagesAccepted(List.unmodifiable(roster));
+  }
+}
+
+/// Most result reads one roster drain performs, matching one page's bound.
+///
+/// A correctness and denial-of-service guard: without it one call on a mature
+/// target becomes an unbounded run of sequential requests.
+const int kExperimentRosterResultReadBound = 100;
+
+/// Builds the request one results read sends.
+///
+/// Throws [CanonicalFormatException] naming the offending field when a value
+/// the caller supplied is outside what the schema admits.
+@experimental
+ExperimentAuthoringRequestV1 experimentResultsRequest({
+  required String correlationId,
+  required String experimentId,
+  required int activationOrdinal,
+  required String resultDigest,
+}) => experimentRequest(
+  operation: ExperimentAuthoringOperationV1.readExperimentResults,
+  correlationId: correlationId,
+  payload: {
+    'activationOrdinal': activationOrdinal,
+    'experimentId': experimentId,
+    'resultDigest': resultDigest,
+  },
+);
+
+/// Builds the request one roster page read sends.
+///
+/// Throws [CanonicalFormatException] naming the offending field when a value
+/// the caller supplied is outside what the schema admits.
+@experimental
+ExperimentAuthoringRequestV1 experimentRosterPageRequest({
+  required String correlationId,
+  required int pageSize,
+}) => experimentRequest(
+  operation: ExperimentAuthoringOperationV1.listExperiments,
+  correlationId: correlationId,
+  payload: {'pageSize': pageSize},
+);
+
+final _random = Random.secure();
+
+/// Returns one fresh identity under [prefix] for a request this tool sends.
+@experimental
+String newExperimentIdentity(String prefix) {
+  final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+  return '$prefix-'
+      '${bytes.map((byte) => byte.toRadixString(16).padLeft(2, "0")).join()}';
 }
 
 /// Projects one discovery response without treating its cursor as a drain.

@@ -39,7 +39,8 @@ const int kMaximumMeasurementPublicationBindingRouteCount =
 /// exact declared artifact-byte closure. This package intentionally does not
 /// decode, name, or import that authority's surface, source, payload, or
 /// delivery vocabulary.
-final class RegisteredPublicationAuthorityReferenceV1 extends CanonicalValue {
+final class RegisteredPublicationAuthorityReferenceV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one registered opaque publication reference.
   RegisteredPublicationAuthorityReferenceV1({
     required this.authorityId,
@@ -161,7 +162,8 @@ final class RegisteredPublicationAuthorityReferenceV1 extends CanonicalValue {
 ///
 /// This value deliberately contains no event name, callback arguments, widget
 /// key, path, host data/context, or subject identifier.
-final class MeasurementPublicationRouteV1 extends CanonicalValue {
+final class MeasurementPublicationRouteV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one exact opaque carrier route.
   const MeasurementPublicationRouteV1({
     required this.opaqueRouteToken,
@@ -227,7 +229,8 @@ final class MeasurementPublicationRouteV1 extends CanonicalValue {
 ///
 /// This form is distinct from [MeasurementPublicationRouteV1] because a
 /// presented occurrence has no source-event selector.
-final class MeasurementPublicationPresentationRouteV1 extends CanonicalValue {
+final class MeasurementPublicationPresentationRouteV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one exact opaque presentation route.
   const MeasurementPublicationPresentationRouteV1({
     required this.opaqueRouteToken,
@@ -292,8 +295,8 @@ final class MeasurementPublicationPresentationRouteV1 extends CanonicalValue {
 }
 
 /// Complete opaque route set for one exact mounted artifact occurrence.
-final class MeasurementPublicationMountedArtifactRoutesV1
-    extends CanonicalValue {
+final class MeasurementPublicationMountedArtifactRoutesV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates a bounded, sorted route set for one graph occurrence edge.
   MeasurementPublicationMountedArtifactRoutesV1({
     required this.artifactOccurrenceEdgeToken,
@@ -358,7 +361,7 @@ final class MeasurementPublicationMountedArtifactRoutesV1
 
 /// Complete presentation route set for one exact mounted artifact occurrence.
 final class MeasurementPublicationMountedArtifactPresentationRoutesV1
-    extends CanonicalValue {
+    extends CanonicalValue implements ImmutableCanonicalDocument {
   /// Creates a bounded, sorted presentation route set for one graph edge.
   MeasurementPublicationMountedArtifactPresentationRoutesV1({
     required this.artifactOccurrenceEdgeToken,
@@ -425,7 +428,8 @@ final class MeasurementPublicationMountedArtifactPresentationRoutesV1
 ///
 /// A handle has no active-revision fallback: both the external immutable
 /// publication authority and the expected binding digest are fixed.
-final class MeasurementPublicationBindingReferenceV1 extends CanonicalValue {
+final class MeasurementPublicationBindingReferenceV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one exact binding handle.
   const MeasurementPublicationBindingReferenceV1({
     required this.publicationAuthorityReference,
@@ -499,7 +503,8 @@ final class MeasurementPublicationBindingReferenceV1 extends CanonicalValue {
 /// The binding reference is the immutable publication identity. The repeated
 /// published-surface coordinate is a fail-closed witness checked by an owning
 /// exact-read authority; it does not introduce a second publication identity.
-final class ExactMeasurementPublicationContextRefV1 extends CanonicalValue {
+final class ExactMeasurementPublicationContextRefV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one exact immutable publication-context reference.
   const ExactMeasurementPublicationContextRefV1({
     required this.bindingReference,
@@ -602,7 +607,8 @@ final class ExactMeasurementPublicationContextRefV1 extends CanonicalValue {
 /// manifest, artifact records, schema/minimum-client fields, and occurrence /
 /// lineage identities rather than copying their fields. The only external
 /// publication representation is [publicationAuthorityReference].
-final class MeasurementPublicationBindingV1 extends CanonicalDocument {
+final class MeasurementPublicationBindingV1 extends CanonicalDocument
+    implements ImmutableCanonicalDocument {
   /// Creates and validates one exact publication-to-Measurement binding.
   MeasurementPublicationBindingV1({
     required this.publicationAuthorityReference,
@@ -1085,7 +1091,8 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
 }
 
 /// Exact registered-adapter attestation returned only with an accepted read.
-final class RegisteredPublicationAttestationV1 extends CanonicalValue {
+final class RegisteredPublicationAttestationV1 extends CanonicalValue
+    implements ImmutableCanonicalDocument {
   /// Creates one opaque attestation bound to one complete binding reference.
   const RegisteredPublicationAttestationV1({
     required this.bindingReference,

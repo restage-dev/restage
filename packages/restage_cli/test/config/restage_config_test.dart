@@ -38,6 +38,25 @@ app: my-app
       expect(config.endpoint, isNull);
       expect(config.dashboardOrigin, isNull);
       expect(config.renderBundleOrigin, isNull);
+      expect(config.recordGit, isNull);
+    });
+
+    test('recordGit round-trips and refuses a value that is not a flag', () {
+      const config = RestageConfig(project: 'p', app: 'a', recordGit: true);
+
+      expect(RestageConfig.fromYaml(config.toYaml()).recordGit, isTrue);
+      expect(
+        RestageConfig.fromYaml(
+          'project: p\napp: a\nrecordGit: false\n',
+        ).recordGit,
+        isFalse,
+      );
+      expect(
+        () => RestageConfig.fromYaml(
+          'project: p\napp: a\nrecordGit: yes please\n',
+        ),
+        throwsA(isA<RestageConfigFormatException>()),
+      );
     });
 
     test('throws on missing required keys', () {
