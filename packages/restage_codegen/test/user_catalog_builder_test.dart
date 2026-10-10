@@ -1,7 +1,3 @@
-// The compatibility fixture intentionally exercises the compiler's public
-// experimental diff taxonomy to distinguish free renames from add/remove.
-// ignore_for_file: experimental_member_use
-
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';

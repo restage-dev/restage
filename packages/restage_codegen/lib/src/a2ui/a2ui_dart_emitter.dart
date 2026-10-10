@@ -1017,10 +1017,13 @@ void _writeRestageA2uiCapabilityStamp(
     )
     ..writeln('      availableLibraries: <A2uiAvailableLibrary>[');
   for (final library in registration.stamp.availableLibraries) {
+    final since = library.compatibleSince > 1
+        ? ', compatibleSince: ${library.compatibleSince}'
+        : '';
     buf.writeln(
       '        A2uiAvailableLibrary(namespace: '
       '${_dartStringLiteral(library.namespace)}, '
-      'version: ${library.version}),',
+      'version: ${library.version}$since),',
     );
   }
   buf

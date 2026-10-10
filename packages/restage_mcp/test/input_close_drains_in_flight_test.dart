@@ -22,15 +22,25 @@ void main() {
           ..statusCode = 200
           ..headers.contentType = ContentType.json
           ..write(
-            jsonEncode([
-              {
-                'organizationId': 7,
-                'slug': 'acme',
-                'name': 'Acme',
-                'role': 'admin',
-                '__className__': 'OrganizationMembershipView',
+            jsonEncode({
+              'organizationId': 7,
+              'session': {
+                'memberships': [
+                  {
+                    'organizationId': 7,
+                    'slug': 'acme',
+                    'name': 'Acme',
+                    'role': 'admin',
+                  },
+                ],
+                'workspaceExperiences': <Object>[],
               },
-            ]),
+              'projects': <Object>[],
+              'apps': <Object>[],
+              'environments': <Object>[],
+              'environmentTargets': <Object>[],
+              'surfaces': <Object>[],
+            }),
           );
         await request.response.close();
       }

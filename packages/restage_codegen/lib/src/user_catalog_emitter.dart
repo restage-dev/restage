@@ -98,7 +98,7 @@ Catalog userCatalogFromWidgets(
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: _generatedAt,
     // Widget-only graph: no structured admission, so no capver stamp.
-    libraries: _aggregateLibraryInfo(widgets, const {}),
+    libraries: _aggregateLibraryInfo(widgets, const {}, const {}),
     widgets: widgets,
     exclusions: exclusions,
   );
@@ -114,6 +114,7 @@ Catalog userCatalogFromGraph({
   List<StructuredEntry> structuredTypes = const [],
   List<UnionEntry> unions = const [],
   Map<String, int> stampedCapabilityVersions = const {},
+  Map<String, int> compatibleSinceVersions = const {},
 }) {
   validateCustomPreviewReservations(widgets);
   _rejectUnsupportedFullGraph(
@@ -124,7 +125,11 @@ Catalog userCatalogFromGraph({
     exclusions: exclusions,
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: _generatedAt,
-    libraries: _aggregateLibraryInfo(widgets, stampedCapabilityVersions),
+    libraries: _aggregateLibraryInfo(
+      widgets,
+      stampedCapabilityVersions,
+      compatibleSinceVersions,
+    ),
     widgets: widgets,
     structuredTypes: structuredTypes,
     unions: unions,
@@ -178,6 +183,7 @@ const String _generatedAt = '1970-01-01T00:00:00Z';
 Map<WidgetLibrary, LibraryInfo> _aggregateLibraryInfo(
   List<WidgetEntry> widgets,
   Map<String, int> stampedCapabilityVersions,
+  Map<String, int> compatibleSinceVersions,
 ) {
   // One envelope entry per distinct contributing library. Per-kind counts are
   // computed off the catalog's entry lists, not stored here.
@@ -191,6 +197,7 @@ Map<WidgetLibrary, LibraryInfo> _aggregateLibraryInfo(
       library: LibraryInfo(
         version: '0.0.0',
         capabilityVersion: stampedCapabilityVersions[library.namespace],
+        compatibleSince: compatibleSinceVersions[library.namespace] ?? 1,
       ),
   };
 }
@@ -767,7 +774,11 @@ String _libraryInfoLiteral(LibraryInfo info) {
   final capability = capabilityVersion == null
       ? ''
       : ', capabilityVersion: $capabilityVersion';
-  return 'const LibraryInfo(version: ${_escapeDart(info.version)}$capability)';
+  final since = info.compatibleSince > 1
+      ? ', compatibleSince: ${info.compatibleSince}'
+      : '';
+  return 'const LibraryInfo(version: ${_escapeDart(info.version)}'
+      '$capability$since)';
 }
 
 Map<String, T> _sortedStringEntries<T>(Map<String, T> map) {

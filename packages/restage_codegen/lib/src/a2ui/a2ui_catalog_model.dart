@@ -54,9 +54,16 @@ final class A2uiComponent {
 @immutable
 final class A2uiLibraryCapability {
   /// Creates an available-library entry.
-  const A2uiLibraryCapability({required this.namespace, required this.version})
-      : assert(namespace.length > 0, 'namespace must not be empty'),
-        assert(version >= 1, 'version must be a positive capability version');
+  const A2uiLibraryCapability({
+    required this.namespace,
+    required this.version,
+    this.compatibleSince = 1,
+  })  : assert(namespace.length > 0, 'namespace must not be empty'),
+        assert(version >= 1, 'version must be a positive capability version'),
+        assert(
+          compatibleSince >= 1 && compatibleSince <= version,
+          'compatibleSince must be between 1 and version',
+        );
 
   /// The custom library's namespace, e.g. `acme.widgets`.
   final String namespace;
@@ -64,18 +71,26 @@ final class A2uiLibraryCapability {
   /// The capability version of the library the catalog provides.
   final int version;
 
-  /// JSON wire form.
-  Map<String, Object?> toJson() => {'namespace': namespace, 'version': version};
+  /// The oldest capability version this build still renders.
+  final int compatibleSince;
+
+  /// JSON wire form; `compatibleSince` is written only when above 1.
+  Map<String, Object?> toJson() => {
+        'namespace': namespace,
+        'version': version,
+        if (compatibleSince > 1) 'compatibleSince': compatibleSince,
+      };
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is A2uiLibraryCapability &&
           other.namespace == namespace &&
-          other.version == version;
+          other.version == version &&
+          other.compatibleSince == compatibleSince;
 
   @override
-  int get hashCode => Object.hash(namespace, version);
+  int get hashCode => Object.hash(namespace, version, compatibleSince);
 }
 
 /// The Restage capability stamp travelling with an emitted A2UI catalog.

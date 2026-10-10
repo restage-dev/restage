@@ -1,10 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
-import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _day = Duration.microsecondsPerDay;
@@ -13,94 +10,127 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  var now = 0;
-  late List<Map<String, dynamic>> requests;
-  late RestageRpcClient client;
-  const expiresAt = 30 * _day;
-
-  setUp(() {
-    now = _day;
-    requests = [];
-    client = RestageRpcClient(
-      baseUrl: 'https://surfaces.example.com',
-      apiKey: 'rs_pk_cadence',
-      httpClient: MockClient((request) async {
-        requests.add(jsonDecode(request.body) as Map<String, dynamic>);
-        return http.Response(
-          jsonEncode({
-            'credentialHandle': 'credential.held',
-            'expiresAtMicros': expiresAt,
-          }),
-          200,
-        );
-      }),
-    );
-  });
-
-  // A new store per launch, sharing the persisted registration.
+  var now = 60 * _day;
+  var rollovers = 0;
   SurfaceAssignmentCredentialStore launch() => SurfaceAssignmentCredentialStore(
         namespace: 'cadence',
         actor: () async => 'actor',
         identityGeneration: () => 0,
-        client: () => client,
         nowMicros: () => now,
-        onRetentionRollover: () => fail('no retention rollover'),
+        onRetentionRollover: () => rollovers++,
       );
 
-  test('a fresh registration presents once and records confirmation', () async {
-    expect(await launch().resolve(), 'credential.held');
-    expect(requests, hasLength(1));
-    expect(requests.single.containsKey('credentialHandle'), isFalse);
-    final prefs = await SharedPreferences.getInstance();
-    final stored = jsonDecode(prefs.getString(prefs.getKeys().single)!);
-    expect(stored['lastConfirmedAtMicros'], now);
+  setUp(() {
+    now = 60 * _day;
+    rollovers = 0;
   });
 
-  test('a launch within a day of confirmation reuses the stored handle',
-      () async {
-    expect(await launch().resolve(), 'credential.held');
-    now += _day - 1;
-    expect(await launch().resolve(), 'credential.held');
-    expect(requests, hasLength(1));
-  });
-
-  test('a launch a day after confirmation re-presents the handle', () async {
-    expect(await launch().resolve(), 'credential.held');
-    now += _day;
-    expect(await launch().resolve(), 'credential.held');
-    expect(requests, hasLength(2));
-    expect(requests.last['credentialHandle'], 'credential.held');
-    final prefs = await SharedPreferences.getInstance();
-    final stored = jsonDecode(prefs.getString(prefs.getKeys().single)!);
-    expect(stored['lastConfirmedAtMicros'], now);
-    now += _day - 1;
-    expect(await launch().resolve(), 'credential.held');
-    expect(requests, hasLength(2));
-  });
-
-  test('a handle expiring within a day is re-presented', () async {
-    expect(await launch().resolve(), 'credential.held');
-    now = expiresAt - _day;
-    expect(await launch().resolve(), 'credential.held');
-    expect(requests, hasLength(2));
-  });
-
-  test('a confirmation time ahead of the clock is re-presented', () async {
-    expect(await launch().resolve(), 'credential.held');
-    now -= 1;
-    expect(await launch().resolve(), 'credential.held');
-    expect(requests, hasLength(2));
-  });
-
-  test('a running store re-presents a day after confirmation', () async {
+  test('ahead clock uses request start and server remaining life', () async {
     final store = launch();
-    expect(await store.resolve(), 'credential.held');
-    now += _day - 1;
-    expect(await store.resolve(), 'credential.held');
-    expect(requests, hasLength(1));
-    now += 1;
-    expect(await store.resolve(), 'credential.held');
-    expect(requests, hasLength(2));
-    expect(requests.last['credentialHandle'], 'credential.held');
+    final attempt = (await store.capture())!;
+    expect(attempt.credentialHandle, isNull);
+    final requestStart = now;
+    now += 3 * Duration.microsecondsPerSecond;
+    await store.confirm(
+      attempt: attempt,
+      localRequestStartMicros: requestStart,
+      credentialHandle: 'ic1.${'a' * 64}',
+      expiresAtMicros: 31 * _day,
+      serverNowMicros: _day,
+    );
+    final confirmed = (await store.capture())!;
+    expect(confirmed.credentialHandle, 'ic1.${'a' * 64}');
+    expect(rollovers, 0);
+    final prefs = await SharedPreferences.getInstance();
+    final persisted = jsonDecode(prefs.getString(prefs.getKeys().single)!);
+    expect(persisted['localExpiresAtMicros'], requestStart + 30 * _day);
+    expect(persisted['expiresAtMicros'], 31 * _day);
+    now = requestStart + 29 * _day;
+    expect((await launch().capture())!.credentialHandle, isNotNull);
+    now = requestStart + 30 * _day;
+    final renewed = (await launch().capture())!;
+    expect(renewed.credentialHandle, isNull);
+    expect(renewed.registrationNonce, isNot(attempt.registrationNonce));
+    expect(rollovers, 1);
+  });
+
+  test('same handle cannot extend persisted local deadline', () async {
+    final store = launch();
+    final attempt = (await store.capture())!;
+    final firstStart = now;
+    await store.confirm(
+      attempt: attempt,
+      localRequestStartMicros: firstStart,
+      credentialHandle: 'ic1.${'a' * 64}',
+      expiresAtMicros: 31 * _day,
+      serverNowMicros: _day,
+    );
+    now += 2 * _day;
+    await store.confirm(
+      attempt: attempt,
+      localRequestStartMicros: now,
+      credentialHandle: 'ic1.${'a' * 64}',
+      expiresAtMicros: 31 * _day,
+      serverNowMicros: _day,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final persisted = jsonDecode(prefs.getString(prefs.getKeys().single)!);
+    expect(persisted['localExpiresAtMicros'], firstStart + 30 * _day);
+    expect((await launch().capture())!.credentialHandle, isNotNull);
+  });
+
+  test('same handle can shorten local deadline', () async {
+    final store = launch();
+    final attempt = (await store.capture())!;
+    await store.confirm(
+      attempt: attempt,
+      localRequestStartMicros: now,
+      credentialHandle: 'ic1.${'a' * 64}',
+      expiresAtMicros: 31 * _day,
+      serverNowMicros: _day,
+    );
+    now += 2 * _day;
+    await store.confirm(
+      attempt: attempt,
+      localRequestStartMicros: now,
+      credentialHandle: 'ic1.${'a' * 64}',
+      expiresAtMicros: 31 * _day,
+      serverNowMicros: 5 * _day,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    final persisted = jsonDecode(prefs.getString(prefs.getKeys().single)!);
+    expect(persisted['localExpiresAtMicros'], 88 * _day);
+  });
+
+  test('confirmed tuple refuses changed handle or server expiry', () async {
+    final store = launch();
+    final attempt = (await store.capture())!;
+    expect(
+        await store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: 31 * _day,
+          serverNowMicros: _day,
+        ),
+        isTrue);
+    expect(
+        await store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'b' * 64}',
+          expiresAtMicros: 31 * _day,
+          serverNowMicros: _day,
+        ),
+        isFalse);
+    expect(
+        await store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: 32 * _day,
+          serverNowMicros: _day,
+        ),
+        isFalse);
   });
 }

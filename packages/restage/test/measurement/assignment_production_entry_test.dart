@@ -63,8 +63,9 @@ void main() {
       'configure registers and retains assignment through hosted screen resolution',
       () async {
     final fixture = stringScreenFixture();
-    final registrationRequests = <Map<String, dynamic>>[];
     final surfaceRequests = <Map<String, dynamic>>[];
+    const credentialHandle =
+        'ic1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     final assignment = CanonicalSurfaceExperimentAssignmentV1(
       experimentId: ExperimentPublicIdV1('experiment.message'),
       experimentRevisionId: ExperimentPublicRevisionIdV1('revision.message'),
@@ -76,40 +77,39 @@ void main() {
       baseUrl: 'https://surfaces.example.com',
       apiKey: 'rs_pk_assignment',
       httpClient: fixture.hostedDelivery.client((request) async {
+        expect(request.url.path, '/sdk/v1/surface');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (request.url.path == '/sdk/v1/measurement-assignment-credential') {
-          registrationRequests.add(body);
+        surfaceRequests.add(body);
+        if (body.containsKey('registrationNonce')) {
           final prefs = await SharedPreferences.getInstance();
           expect(
               prefs.getKeys().where(
                   (key) => key.startsWith('restage.assignmentRegistration.')),
               isNotEmpty);
           expect(
-              body.keys,
-              everyElement(isIn([
-                'registrationNonce',
-                'registrationCreatedAtMicros',
-                'credentialHandle'
-              ])));
-          expect(
               base64Url.decode(
                   base64Url.normalize(body['registrationNonce'] as String)),
               hasLength(32));
-          return http.Response(
-              jsonEncode({
-                'credentialHandle': body['credentialHandle'] ??
-                    'credential.screen.${registrationRequests.length}',
-                'expiresAtMicros': 4102444800000000,
-              }),
-              200);
+          expect(body['registrationCreatedAtMicros'], isA<int>());
+          expect(body.containsKey('assignmentKey'), isFalse);
+        } else {
+          expect(body['assignmentKey'], credentialHandle);
         }
-        surfaceRequests.add(body);
         final descriptor = jsonDecode(
             SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
           fixture.delivery(hostedBlob: fixture.blob, publishedRevision: 8),
         )) as Map<String, dynamic>;
+        final now = DateTime.now().microsecondsSinceEpoch;
         return http.Response(
-            jsonEncode({...descriptor, 'assignment': assignment.toJson()}),
+            jsonEncode({
+              ...descriptor,
+              'assignment': assignment.toJson(),
+              if (body.containsKey('registrationNonce')) ...{
+                'credentialHandle': credentialHandle,
+                'expiresAtMicros': 4102444800000000,
+                'serverNowMicros': now,
+              },
+            }),
             200);
       }),
     );
@@ -124,8 +124,9 @@ void main() {
         await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
     expect(resolved.origin, SurfaceScreenOrigin.hosted);
     expect(measurementExperimentAssignmentFor(resolved), assignment);
-    expect(registrationRequests, hasLength(1));
-    expect(surfaceRequests.single['assignmentKey'], 'credential.screen.1');
+    expect(surfaceRequests, hasLength(1));
+    expect(surfaceRequests.single['registrationNonce'], isA<String>());
+    expect(surfaceRequests.single.containsKey('assignmentKey'), isFalse);
     expect(
       jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
           surfaceRequests.single['sdkBuiltInsCanonicalBase64'] as String)))),
@@ -152,8 +153,9 @@ void main() {
     configure();
     await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
     // A handle confirmed within the day is reused without presenting it again.
-    expect(registrationRequests, hasLength(1));
-    expect(surfaceRequests[2]['assignmentKey'], 'credential.screen.1');
+    expect(surfaceRequests[1]['assignmentKey'], credentialHandle);
+    expect(surfaceRequests[2]['assignmentKey'], credentialHandle);
+    expect(surfaceRequests[2].containsKey('registrationNonce'), isFalse);
     expect(surfaceRequests[2]['assignmentCanonicalBase64'], isNotNull);
     expect(
         jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(
@@ -162,27 +164,23 @@ void main() {
 
     Restage.reset();
     await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
-    expect(registrationRequests.last['registrationNonce'],
-        isNot(registrationRequests.first['registrationNonce']));
-    expect(registrationRequests.last.containsKey('credentialHandle'), isFalse);
+    expect(surfaceRequests.last['registrationNonce'],
+        isNot(surfaceRequests.first['registrationNonce']));
+    expect(surfaceRequests.last.containsKey('assignmentKey'), isFalse);
     expect(
         surfaceRequests.last.containsKey('assignmentCanonicalBase64'), isFalse);
   });
   test(
-      'refused registration reuses durable nonce and leaves ordinary delivery unassigned',
+      'unanswered registration reuses durable nonce and leaves delivery unassigned',
       () async {
     final fixture = stringScreenFixture();
-    final registrations = <Map<String, dynamic>>[];
     final requests = <Map<String, dynamic>>[];
     final client = RestageRpcClient(
       baseUrl: 'https://surfaces.example.com',
       apiKey: 'rs_pk_assignment',
       httpClient: fixture.hostedDelivery.client((request) async {
+        expect(request.url.path, '/sdk/v1/surface');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
-        if (request.url.path.endsWith('assignment-credential')) {
-          registrations.add(body);
-          return http.Response('{}', 409);
-        }
         requests.add(body);
         return http.Response(
             SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
@@ -199,8 +197,13 @@ void main() {
           await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
       expect(measurementExperimentAssignmentFor(resolved), isNull);
     }
-    expect(registrations, hasLength(2));
-    expect(registrations.first, registrations.last);
+    expect(requests, hasLength(2));
+    expect(requests.first['registrationNonce'], isA<String>());
+    expect(requests.first['registrationCreatedAtMicros'], isA<int>());
+    expect(requests.last['registrationNonce'],
+        requests.first['registrationNonce']);
+    expect(requests.last['registrationCreatedAtMicros'],
+        requests.first['registrationCreatedAtMicros']);
     for (final request in requests) {
       expect(request.containsKey('assignmentKey'), isFalse);
       expect(request.containsKey('assignmentCanonicalBase64'), isFalse);

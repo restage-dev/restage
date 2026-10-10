@@ -42,16 +42,7 @@ void main() {
       credentialStore: store,
       directory: tempDir,
       httpClient: scriptedHttpClient([
-        _listOrganizations,
-        _listProjects,
-        _listApps,
-        _listEnvironments,
-        _listEnvironmentTargets,
-        _listPaywalls,
-        _emptySurfaceList,
-        _emptySurfaceList,
-        _emptySurfaceList,
-        _emptySurfaceList,
+        _scopeSnapshot,
         (request) {
           statusBody = jsonDecode(request.body) as Map<String, dynamic>;
           expect(statusBody!['method'], 'surfaceStatus');
@@ -102,6 +93,12 @@ void main() {
       ],
     );
     expect(snapshot.surfaces.single.slug, 'pro');
+    final savedConfig = File(
+      p.join(tempDir.path, 'restage_config.yaml'),
+    ).readAsStringSync();
+    expect(savedConfig, contains('organizationId: 7'));
+    expect(savedConfig, contains('appId: 5'));
+    expect(savedConfig, contains('environmentTargetId: 12'));
     expect(status.liveVersion, 2);
     expect(statusBody, isNotNull);
   });
@@ -123,16 +120,7 @@ void main() {
         credentialStore: store,
         directory: tempDir,
         httpClient: scriptedHttpClient([
-          _listOrganizations,
-          _listProjects,
-          _listApps,
-          _listEnvironments,
-          _listEnvironmentTargets,
-          _listPaywalls,
-          _emptySurfaceList,
-          _emptySurfaceList,
-          _emptySurfaceList,
-          _emptySurfaceList,
+          _scopeSnapshot,
           (request) {
             final body = jsonDecode(request.body) as Map<String, dynamic>;
             expect(body['method'], 'surfaceChainVerdict');
@@ -231,13 +219,7 @@ void main() {
       credentialStore: store,
       directory: tempDir,
       httpClient: scriptedHttpClient([
-        _listOrganizations,
-        _listProjects,
-        _listApps,
-        _listOrganizations,
-        _listProjects,
-        _listApps,
-        _listEnvironments,
+        _scopeSnapshot,
       ], withDefaultTargetDiscovery: false),
     );
 
@@ -247,8 +229,7 @@ void main() {
         isA<ConsoleLoadException>().having(
           (e) => e.message,
           'message',
-          'restage_config.yaml names app `examples`, which does not exist in '
-              'project `alpha` of `restage`. Apps there: `mobile`.',
+          'No app found for restage_config.yaml app: examples.',
         ),
       ),
     );
@@ -269,16 +250,7 @@ void main() {
       credentialStore: store,
       directory: tempDir,
       httpClient: scriptedHttpClient([
-        _listOrganizations,
-        _listProjects,
-        _listApps,
-        _listSameSlugLegacyEnvironments,
-        _listSameSlugTargets,
-        _listPaywalls,
-        _emptySurfaceList,
-        _emptySurfaceList,
-        _emptySurfaceList,
-        _emptySurfaceList,
+        _sameSlugScopeSnapshot,
       ], withDefaultTargetDiscovery: false),
     );
 
@@ -298,162 +270,88 @@ void main() {
   });
 }
 
-http.Response _listOrganizations(http.Request request) {
+http.Response _scopeSnapshot(http.Request request) =>
+    _scopeResponse(request, prodLegacy: false);
+
+http.Response _sameSlugScopeSnapshot(http.Request request) =>
+    _scopeResponse(request, prodLegacy: true);
+
+http.Response _scopeResponse(http.Request request, {required bool prodLegacy}) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listMine');
+  expect(request.url.path, '/scope');
+  expect(body['method'], 'read');
   return http.Response(
-    jsonEncode([
-      {
-        'organizationId': 7,
-        'slug': 'restage',
-        'name': 'Restage',
-        'role': 'owner',
+    jsonEncode({
+      'organizationId': 7,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': 7,
+            'slug': 'restage',
+            'name': 'Restage',
+            'role': 'owner',
+          },
+          {
+            'organizationId': 8,
+            'slug': 'other',
+            'name': 'Other',
+            'role': 'owner',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
       },
-      {'organizationId': 8, 'slug': 'other', 'name': 'Other', 'role': 'owner'},
-    ]),
+      'projects': [
+        {'id': 1, 'slug': 'alpha', 'name': 'Alpha'},
+      ],
+      'apps': [
+        {'id': 5, 'projectId': 1, 'slug': 'mobile', 'name': 'Mobile'},
+      ],
+      'environments': [
+        {'id': 11, 'appId': 5, 'namedEnvironmentId': 21, 'slug': 'dev'},
+        {'id': 12, 'appId': 5, 'namedEnvironmentId': 22, 'slug': 'staging'},
+        {'id': 31, 'appId': 5, 'namedEnvironmentId': 41, 'slug': 'prod'},
+        {'id': 32, 'appId': 5, 'namedEnvironmentId': 41, 'slug': 'prod'},
+      ],
+      'environmentTargets': [
+        if (!prodLegacy) ...[
+          {
+            'environmentTargetId': 11,
+            'namedEnvironmentId': 21,
+            'environmentSlug': 'dev',
+            'runtimePlane': 'live',
+          },
+          {
+            'environmentTargetId': 12,
+            'namedEnvironmentId': 22,
+            'environmentSlug': 'staging',
+            'runtimePlane': 'live',
+          },
+        ],
+        {
+          'environmentTargetId': 31,
+          'namedEnvironmentId': 41,
+          'environmentSlug': 'prod',
+          'runtimePlane': 'sandbox',
+        },
+        {
+          'environmentTargetId': 32,
+          'namedEnvironmentId': 41,
+          'environmentSlug': 'prod',
+          'runtimePlane': 'live',
+        },
+      ],
+      'legacyDefaultTargetIds': [11, 12, 31],
+      'surfaces': [
+        {
+          'appId': 5,
+          'surfaceType': 'paywall',
+          'slug': 'pro',
+          'name': 'Pro',
+          'draftUpdatedAt': '2026-06-01T00:00:00.000Z',
+          'publishedVersionByEnvironment': {'staging': 2},
+        },
+      ],
+    }),
     200,
   );
-}
-
-http.Response _listProjects(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listProjects');
-  expect(body['organizationId'], 7);
-  return http.Response(
-    jsonEncode([
-      {'slug': 'alpha', 'name': 'Alpha'},
-    ]),
-    200,
-  );
-}
-
-http.Response _listApps(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listApps');
-  expect(body['organizationId'], 7);
-  expect(body['projectSlug'], 'alpha');
-  return http.Response(
-    jsonEncode([
-      {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
-    ]),
-    200,
-  );
-}
-
-http.Response _listEnvironments(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listEnvironments');
-  expect(body['organizationId'], 7);
-  expect(body['projectSlug'], 'alpha');
-  return http.Response(
-    jsonEncode([
-      {'id': 12, 'appId': 5, 'slug': 'staging'},
-    ]),
-    200,
-  );
-}
-
-http.Response _listEnvironmentTargets(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listEnvironmentTargets');
-  expect(body['organizationId'], 7);
-  expect(body['projectSlug'], 'alpha');
-  expect(body['appSlug'], 'mobile');
-  expect(body['appId'], 5);
-  return http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 11,
-        'namedEnvironmentId': 21,
-        'environmentSlug': 'dev',
-        'runtimePlane': 'live',
-      },
-      {
-        'environmentTargetId': 12,
-        'namedEnvironmentId': 22,
-        'environmentSlug': 'staging',
-        'runtimePlane': 'live',
-      },
-      {
-        'environmentTargetId': 31,
-        'namedEnvironmentId': 41,
-        'environmentSlug': 'prod',
-        'runtimePlane': 'sandbox',
-      },
-      {
-        'environmentTargetId': 32,
-        'namedEnvironmentId': 41,
-        'environmentSlug': 'prod',
-        'runtimePlane': 'live',
-      },
-    ]),
-    200,
-  );
-}
-
-http.Response _listSameSlugLegacyEnvironments(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listEnvironments');
-  return http.Response(
-    jsonEncode([
-      {'id': 31, 'appId': 5, 'slug': 'prod'},
-    ]),
-    200,
-  );
-}
-
-http.Response _listSameSlugTargets(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'listEnvironmentTargets');
-  expect(body['appId'], 5);
-  return http.Response(
-    jsonEncode([
-      {
-        'environmentTargetId': 31,
-        'namedEnvironmentId': 41,
-        'environmentSlug': 'prod',
-        'runtimePlane': 'sandbox',
-      },
-      {
-        'environmentTargetId': 32,
-        'namedEnvironmentId': 41,
-        'environmentSlug': 'prod',
-        'runtimePlane': 'live',
-      },
-    ]),
-    200,
-  );
-}
-
-http.Response _listPaywalls(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'list');
-  expect(body['surfaceType'], 'paywall');
-  expect(body['organizationId'], 7);
-  expect(body['appId'], 5);
-  return http.Response(
-    jsonEncode([
-      {
-        '__className__': 'SurfaceSummary',
-        'surfaceType': 'paywall',
-        'slug': 'pro',
-        'name': 'Pro',
-        'draftUpdatedAt': '2026-06-01T00:00:00.000Z',
-        'publishedVersionByEnvironment': {'staging': 2},
-      },
-    ]),
-    200,
-  );
-}
-
-http.Response _emptySurfaceList(http.Request request) {
-  final body = jsonDecode(request.body) as Map<String, dynamic>;
-  expect(body['method'], 'list');
-  expect(
-    body['surfaceType'],
-    isIn(['onboarding', 'message', 'survey', 'general']),
-  );
-  expect(body['organizationId'], 7);
-  expect(body['appId'], 5);
-  return http.Response(jsonEncode(<Map<String, dynamic>>[]), 200);
 }

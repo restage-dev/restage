@@ -1,3 +1,4 @@
+import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 
@@ -163,6 +164,7 @@ class ConsoleSnapshot {
     required this.environments,
     required this.surfaces,
     this.builds = const [],
+    this.overview,
   });
 
   final ConsoleContext context;
@@ -173,6 +175,9 @@ class ConsoleSnapshot {
 
   /// The heads the selected app's build holds.
   final List<ConsoleBuildHead> builds;
+
+  /// The overview figures, or null when they could not be read.
+  final OverviewFigures? overview;
 }
 
 class ConsoleState {
@@ -190,6 +195,7 @@ class ConsoleState {
     this.environments = const [],
     this.surfaces = const [],
     this.builds = const [],
+    this.overview,
     this.status,
     this.auditLog = const [],
     this.auditVerdict,
@@ -213,6 +219,7 @@ class ConsoleState {
       environments = const [],
       surfaces = const [],
       builds = const [],
+      overview = null,
       status = null,
       auditLog = const [],
       auditVerdict = null,
@@ -229,6 +236,7 @@ class ConsoleState {
   final List<ConsoleEnvironmentTarget> environments;
   final List<ConsoleSurface> surfaces;
   final List<ConsoleBuildHead> builds;
+  final OverviewFigures? overview;
   final ConsolePanel focusedPanel;
   final int projectIndex;
   final int appIndex;
@@ -275,6 +283,7 @@ class ConsoleState {
     List<ConsoleEnvironmentTarget>? environments,
     List<ConsoleSurface>? surfaces,
     List<ConsoleBuildHead>? builds,
+    OverviewFigures? overview,
     ConsolePanel? focusedPanel,
     int? projectIndex,
     int? appIndex,
@@ -297,6 +306,7 @@ class ConsoleState {
     environments: environments ?? this.environments,
     surfaces: surfaces ?? this.surfaces,
     builds: builds ?? this.builds,
+    overview: overview ?? this.overview,
     focusedPanel: focusedPanel ?? this.focusedPanel,
     projectIndex: projectIndex ?? this.projectIndex,
     appIndex: appIndex ?? this.appIndex,

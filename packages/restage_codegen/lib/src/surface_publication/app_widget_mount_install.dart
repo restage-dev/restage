@@ -40,6 +40,7 @@ final class AppWidgetMountFactories {
     this._factories,
     this._uriByAlias,
     this._versions,
+    this._compatibleSince,
   );
 
   /// Builds the factories of every admitted widget in [collection].
@@ -93,6 +94,7 @@ final class AppWidgetMountFactories {
       factories,
       {for (final MapEntry(:key, :value) in aliases.entries) value: key},
       collection.stampedCapabilityVersions,
+      collection.compatibleSinceVersions,
     );
   }
 
@@ -111,16 +113,19 @@ final class AppWidgetMountFactories {
       },
       (json['libraries']! as Map<String, Object?>).cast<String, String>(),
       (json['capabilityVersions']! as Map<String, Object?>).cast<String, int>(),
+      (json['compatibleSince'] as Map<String, Object?>? ?? const {})
+          .cast<String, int>(),
     );
   }
 
   /// A package with no app widget.
   static final AppWidgetMountFactories none =
-      AppWidgetMountFactories._(const {}, const {}, const {});
+      AppWidgetMountFactories._(const {}, const {}, const {}, const {});
 
   final Map<String, _Factory> _factories;
   final Map<String, String> _uriByAlias;
   final Map<String, int> _versions;
+  final Map<String, int> _compatibleSince;
   final Map<LibraryElement, _PartSpeller> _spellers = Map.identity();
   final Map<LibraryElement, Map<String, String>> _functionsByLibrary =
       Map.identity();
@@ -132,6 +137,7 @@ final class AppWidgetMountFactories {
   Map<String, Object?> toJson() => {
         'libraries': _uriByAlias,
         'capabilityVersions': _versions,
+        if (_compatibleSince.isNotEmpty) 'compatibleSince': _compatibleSince,
         'factories': {
           for (final MapEntry(:key, :value) in _factories.entries)
             key: {'function': value.function, 'source': value.source},
@@ -176,6 +182,12 @@ final class AppWidgetMountFactories {
         ..write('library: ${sdkPrefix}WidgetLibrary.custom(')
         ..write('${dartStringLiteral(namespace)}),')
         ..write(version == null ? '' : 'capabilityVersion: $version,')
+        ..write(
+          switch (_compatibleSince[namespace]) {
+            final since? when since > 1 => 'compatibleSince: $since,',
+            _ => '',
+          },
+        )
         ..write('widgets: [');
       for (final name in installed) {
         final qualified = WidgetVocabulary.qualifiedName(namespace, name);

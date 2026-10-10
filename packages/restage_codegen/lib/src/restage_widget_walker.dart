@@ -41,6 +41,7 @@ typedef RestageWidgetCollection = ({
   Map<String, MapPlan> mapPlans,
   Map<String, RecordPlan> recordPlans,
   Map<String, int> stampedCapabilityVersions,
+  Map<String, int> compatibleSinceVersions,
   List<PropertyExclusion> exclusions,
 });
 
@@ -101,6 +102,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   // the barrel walk), used to stamp a structured-admitting library's floor. A
   // conflicting redeclaration across files fails loud (not last-wins).
   final declaredCapabilityVersions = <String, int?>{};
+  final declaredCompatibleSince = <String, int>{};
 
   final sources = <ResolvedPackageLibrary>[];
   // A selected `part` still throws below and is still skipped; it reaches the
@@ -185,6 +187,18 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         );
       }
       declaredCapabilityVersions[namespace] = declaration.capabilityVersion;
+      final since = declaredCompatibleSince[namespace];
+      if (since != null && since != declaration.compatibleSince) {
+        issues.add(
+          Issue(
+            code: IssueCode.duplicateId,
+            message: 'conflicting @RestageLibrary compatibleSince for '
+                '"$namespace": $since vs ${declaration.compatibleSince}.',
+            location: assetId.path,
+          ),
+        );
+      }
+      declaredCompatibleSince[namespace] = declaration.compatibleSince;
     }
   }
 
@@ -454,6 +468,10 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     mapPlans: admittedMapPlans,
     recordPlans: admittedRecordPlans,
     stampedCapabilityVersions: stampedCapabilityVersions,
+    compatibleSinceVersions: {
+      for (final entry in declaredCompatibleSince.entries)
+        if (entry.value > 1) entry.key: entry.value,
+    },
     exclusions: orderedExclusions,
   );
 }

@@ -1,0 +1,63 @@
+import 'dart:io';
+
+import 'package:dart_mcp/server.dart';
+import 'package:restage_cli/api.dart';
+
+import 'api_runner.dart';
+import 'tool_support.dart';
+
+/// Lists live versions a local build's library contracts would stop
+/// rendering, the same as `restage surface check-libraries`.
+final checkLibrariesTool = Tool(
+  name: 'restage_check_libraries',
+  description:
+      "List every version of the app in use, in every environment, that this "
+      "build's custom widget library contracts would stop rendering: what a "
+      'surface serves, what a delivery rule routes to, and what a running '
+      'experiment arm serves. Reads the contract snapshots in '
+      '.restage/library-contracts of the project directory. An empty list '
+      'means all versions in use render on this build.',
+  inputSchema: Schema.object(
+    properties: localProjectProperties(),
+    required: ['projectDirectory'],
+  ),
+);
+
+/// Reads the local snapshots and the live versions, then compares them.
+Future<CallToolResult> handleCheckLibraries(
+  ToolContext ctx,
+  CallToolRequest request,
+) async {
+  final directory = Directory(request.str('projectDirectory'));
+  final root = await libraryContractRoot(directory);
+  final Map<String, int> since;
+  try {
+    since = localCompatibleSince(root);
+  } on FormatException catch (error) {
+    return mcpError(error.message);
+  }
+  if (since.isEmpty) {
+    return jsonResult(<String, Object?>{'breaks': const <Object?>[]});
+  }
+  final config = (await loadRestageConfig(from: directory))?.config;
+  final project = request.optStr('projectSlug') ?? config?.project;
+  final app = request.optStr('appSlug') ?? config?.app;
+  if (project == null || app == null) {
+    return mcpError(
+      'Name projectSlug and appSlug, or add a restage_config.yaml to the '
+      'project directory.',
+    );
+  }
+  return ctx.authed('checking library contracts', (api) async {
+    final live = await LibraryRequirementsApi(api).liveLibraryRequirements(
+      project: project,
+      app: app,
+      organizationId: request.optInt('organizationId'),
+    );
+    return jsonResult(<String, Object?>{
+      'breaks': libraryBreaksJson(
+        findLibraryBreaks(live: live, compatibleSince: since),
+      ),
+    });
+  });
+}

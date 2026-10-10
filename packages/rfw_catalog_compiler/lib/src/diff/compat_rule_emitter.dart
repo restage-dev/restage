@@ -93,6 +93,16 @@ CompatRule _buildRule(
         'variant ${change.affected} changed its argument shape; the '
             'decoder semantics for the variant shift',
       ),
+    EntryRenamed() => (
+        CompatKind.removal,
+        '${_kindLabel(change.kind)} ${change.affected} was renamed; blobs '
+            'referencing the old name fail to resolve',
+      ),
+    PropertyShapeChanged() => (
+        CompatKind.typeChange,
+        'property ${change.affected} changed ${change.fields.join(', ')}; '
+            'existing values may not decode',
+      ),
     TokenTypeChanged() => (
         CompatKind.typeChange,
         'design token ${change.affected} changed type from '
@@ -100,7 +110,7 @@ CompatRule _buildRule(
             'defaults may mismatch',
       ),
     EntryAdded() ||
-    EntryRenamed() ||
+    EntrySourceMoved() ||
     EntryDeprecated() ||
     RequiredFlagChanged() ||
     PropertyDefaultChanged() ||

@@ -5,7 +5,11 @@ import 'package:test/test.dart';
 
 /// Builds a minimal single-library catalog whose one library carries
 /// [capabilityVersion] (null leaves it undeclared).
-Catalog _catalog({required WidgetLibrary library, int? capabilityVersion}) =>
+Catalog _catalog({
+  required WidgetLibrary library,
+  int? capabilityVersion,
+  int compatibleSince = 1,
+}) =>
     Catalog(
       schemaVersion: kSupportedSchemaVersion,
       generatedAt: '1970-01-01T00:00:00Z',
@@ -13,6 +17,7 @@ Catalog _catalog({required WidgetLibrary library, int? capabilityVersion}) =>
         library: LibraryInfo(
           version: '1.0.0',
           capabilityVersion: capabilityVersion,
+          compatibleSince: compatibleSince,
         ),
       },
       widgets: [
@@ -119,6 +124,54 @@ void main() {
         throwsA(isA<CatalogSchemaException>()),
       );
     });
+  });
+
+  group('LibraryInfo.compatibleSince through the catalog codec', () {
+    Map<String, dynamic> libraryJson(String encoded) =>
+        ((jsonDecode(encoded) as Map<String, dynamic>)['libraries']
+            as Map<String, dynamic>)['acme.widgets'] as Map<String, dynamic>;
+
+    test('a default of 1 is omitted from the bytes', () {
+      final encoded =
+          encodeCatalog(_catalog(library: customLib, capabilityVersion: 3));
+      expect(libraryJson(encoded).containsKey('compatibleSince'), isFalse);
+      expect(decodeCatalog(encoded).libraries[customLib]!.compatibleSince, 1);
+    });
+
+    test('a declared break is written and round-trips', () {
+      final encoded = encodeCatalog(
+        _catalog(library: customLib, capabilityVersion: 4, compatibleSince: 4),
+      );
+      expect(libraryJson(encoded)['compatibleSince'], 4);
+      expect(decodeCatalog(encoded).libraries[customLib]!.compatibleSince, 4);
+    });
+
+    test('rejects encoding compatibleSince above capabilityVersion', () {
+      expect(
+        () => encodeCatalog(
+          _catalog(
+            library: customLib,
+            capabilityVersion: 3,
+            compatibleSince: 4,
+          ),
+        ),
+        throwsA(isA<CatalogSchemaException>()),
+      );
+    });
+
+    for (final bad in <Object?>[0, 5, null, 'two']) {
+      test('rejects decoding compatibleSince $bad', () {
+        final json = jsonDecode(
+          encodeCatalog(_catalog(library: customLib, capabilityVersion: 4)),
+        ) as Map<String, dynamic>;
+        ((json['libraries'] as Map<String, dynamic>)['acme.widgets']
+            as Map<String, dynamic>)['compatibleSince'] = bad;
+        expect(
+          () => decodeCatalog(jsonEncode(json)),
+          throwsA(isA<CatalogSchemaException>()),
+        );
+      });
+    }
   });
 
   group('@RestageLibrary.capabilityVersion source-boundary validation', () {

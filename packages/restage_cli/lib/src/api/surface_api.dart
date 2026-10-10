@@ -26,13 +26,15 @@ class SurfaceApi {
   /// List surfaces of [surfaceType] under (project, app).
   ///
   /// [organizationId] disambiguates the owning organization when the caller
-  /// belongs to several; when omitted the backend resolves it.
+  /// belongs to several; when omitted the backend resolves it. Archived
+  /// surfaces are left out unless [includeArchived] is set.
   Future<List<SurfaceSummary>> list({
     required String project,
     required String app,
     required SurfaceType surfaceType,
     int? organizationId,
     int? appId,
+    bool includeArchived = false,
   }) async {
     final raw = await _api.call('surface', 'list', <String, dynamic>{
       'projectSlug': project,
@@ -40,6 +42,7 @@ class SurfaceApi {
       'surfaceType': surfaceType.wireName,
       'organizationId': ?organizationId,
       'appId': ?appId,
+      if (includeArchived) 'includeArchived': true,
     });
     return [
       for (final item in raw as List<dynamic>)
@@ -479,6 +482,7 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    String? label,
   }) async {
     final raw = await _api.call('surface', 'publish', <String, dynamic>{
       'projectSlug': project,
@@ -490,8 +494,104 @@ class SurfaceApi {
         'environmentTargetId': environmentTargetId,
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
+      'label': ?label,
     });
     return raw as int;
+  }
+
+  /// Names [version] of the surface in [environment], or clears the name
+  /// when [label] is null or empty.
+  Future<void> renameVersion({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required int version,
+    required String? label,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+    int? contractVersion,
+  }) async {
+    await _api.call('surface', 'renameVersion', <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'version': version,
+      'label': label,
+      'environmentTargetId': ?environmentTargetId,
+      'runtimePlane': ?runtimePlane?.wireName,
+      'organizationId': ?organizationId,
+      'contractVersion': ?contractVersion,
+    });
+  }
+
+  /// Archives the surface: it stops serving in every environment.
+  Future<void> archive({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    int? organizationId,
+  }) => _lifecycle(
+    'archive',
+    project: project,
+    app: app,
+    surfaceType: surfaceType,
+    surfaceSlug: surfaceSlug,
+    organizationId: organizationId,
+  );
+
+  /// Restores an archived surface.
+  Future<void> restore({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    int? organizationId,
+  }) => _lifecycle(
+    'restore',
+    project: project,
+    app: app,
+    surfaceType: surfaceType,
+    surfaceSlug: surfaceSlug,
+    organizationId: organizationId,
+  );
+
+  /// Deletes an archived surface for good.
+  Future<void> deleteForGood({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    int? organizationId,
+  }) => _lifecycle(
+    'deleteForGood',
+    project: project,
+    app: app,
+    surfaceType: surfaceType,
+    surfaceSlug: surfaceSlug,
+    organizationId: organizationId,
+  );
+
+  Future<void> _lifecycle(
+    String method, {
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    int? organizationId,
+  }) async {
+    await _api.call('surfaceArchive', method, <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'organizationId': ?organizationId,
+    });
   }
 }
 

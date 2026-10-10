@@ -168,6 +168,10 @@ installs `RestageVariantResolver`, which fetches the active published version
 and falls back to the bundled copy when the fetch fails. Flows fetch through
 `ServerFlowResolver` (pass it as `flowResolver:`).
 
+For Restage Cloud, set `baseUrl` to the environment's edge API hostname (for
+example, `https://api-staging.restage.dev` on staging). The SDK sends hosted
+surface and Measurement requests through that hostname.
+
 A surface is never served to a client too old to render it. If a fetch fails,
 the SDK renders your bundled copy. Flows require a `FlowUnavailablePolicy`, so
 a flow that can't run falls back or hides instead of running partway.

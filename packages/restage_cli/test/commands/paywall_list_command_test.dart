@@ -35,17 +35,25 @@ void main() {
 
       final client = mockHttpClient((req) {
         return http.Response(
-          jsonEncode([
+          _scopeBody([
             {
               '__className__': 'SurfaceSummary',
               'slug': 'hello',
               'name': 'Hello',
               'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
+              // Both staging targets share the slug, so the slug map holds
+              // the live plane's empty answer.
               'publishedVersionByEnvironment': {
                 'dev': 3,
-                'staging': 2,
+                'staging': null,
                 'prod': null,
               },
+              'targetPublications': [
+                _publication(1, 'dev', 'sandbox', 3),
+                _publication(2, 'staging', 'sandbox', 2),
+                _publication(3, 'staging', 'live', null),
+                _publication(4, 'prod', 'live', null),
+              ],
             },
             {
               '__className__': 'SurfaceSummary',
@@ -61,7 +69,7 @@ void main() {
           ]),
           200,
         );
-      });
+      }, withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -76,10 +84,11 @@ void main() {
       final lines = const LineSplitter().convert(out.trim());
       // Header + 2 paywalls.
       expect(lines.length, 3);
-      // Row 1: hello with all three envs (prod null is omitted).
+      // Row 1: each serving target by environment and plane.
       expect(
         lines[1],
-        'hello\tHello\t2026-05-01T12:34:56.000Z\tdev=3, staging=2',
+        'hello\tHello\t2026-05-01T12:34:56.000Z\t'
+        'dev/sandbox v3, staging/sandbox v2',
       );
       // Row 2: starter has no published versions, prints `-`.
       expect(lines[2], 'starter\tStarter\t2026-05-01T10:00:00.000Z\t-');
@@ -91,18 +100,19 @@ void main() {
 
       final client = mockHttpClient((req) {
         return http.Response(
-          jsonEncode([
+          _scopeBody([
             {
               '__className__': 'SurfaceSummary',
               'slug': 'hello',
               'name': 'Hello',
               'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
               'publishedVersionByEnvironment': {'dev': 3},
+              'targetPublications': [_publication(1, 'dev', 'sandbox', 3)],
             },
           ]),
           200,
         );
-      });
+      }, withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -115,10 +125,14 @@ void main() {
       final decoded = jsonDecode(stdout.toString()) as List<dynamic>;
       expect(decoded.length, 1);
       expect((decoded[0] as Map<String, dynamic>)['slug'], 'hello');
-      expect(
-        (decoded[0] as Map<String, dynamic>)['publishedVersionByEnvironment'],
-        {'dev': 3},
-      );
+      expect((decoded[0] as Map<String, dynamic>)['published'], [
+        {
+          'environmentTargetId': 1,
+          'environmentSlug': 'dev',
+          'runtimePlane': 'sandbox',
+          'version': 3,
+        },
+      ]);
     });
 
     test('--project / --app override the config defaults', () async {
@@ -128,8 +142,8 @@ void main() {
       late Map<String, dynamic> seenBody;
       final client = mockHttpClient((req) {
         seenBody = jsonDecode(req.body) as Map<String, dynamic>;
-        return http.Response('[]', 200);
-      });
+        return http.Response(_scopeBody([]), 200);
+      }, withDefaultTargetDiscovery: false);
 
       final exitCode =
           await RestageCli(
@@ -149,9 +163,8 @@ void main() {
           ]);
 
       expect(exitCode, 0);
-      expect(seenBody['projectSlug'], 'flag-proj');
-      expect(seenBody['appSlug'], 'flag-app');
-      expect(seenBody['appId'], 7);
+      expect(seenBody['method'], 'read');
+      expect(stdout.toString(), 'SLUG\tNAME\tDRAFT-UPDATED\tPUBLISHED\n');
     });
 
     test('resolves configured organization before listing', () async {
@@ -163,40 +176,11 @@ void main() {
         organization: 'restage',
       );
 
-      Map<String, dynamic>? seenListBody;
-      final client = scriptedHttpClient([
-        (req) {
-          final body = jsonDecode(req.body) as Map<String, dynamic>;
-          expect(body['method'], 'listMine');
-          return http.Response(
-            jsonEncode([
-              {
-                'organizationId': 7,
-                'slug': 'restage',
-                'name': 'Restage',
-                'role': 'owner',
-              },
-            ]),
-            200,
-          );
-        },
-        (req) {
-          final body = jsonDecode(req.body) as Map<String, dynamic>;
-          expect(body['method'], 'listApps');
-          expect(body['organizationId'], 7);
-          expect(body['projectSlug'], 'demo');
-          return http.Response(
-            jsonEncode([
-              {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
-            ]),
-            200,
-          );
-        },
-        (req) {
-          seenListBody = jsonDecode(req.body) as Map<String, dynamic>;
-          return http.Response('[]', 200);
-        },
-      ], withDefaultTargetDiscovery: false);
+      final calls = <Map<String, dynamic>>[];
+      final client = mockHttpClient((req) {
+        calls.add(jsonDecode(req.body) as Map<String, dynamic>);
+        return http.Response(_scopeBody([]), 200);
+      }, withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -206,30 +190,17 @@ void main() {
       ).run(['paywall', 'list', '-C', tempDir.path]);
 
       expect(exitCode, 0);
-      expect(seenListBody, isNotNull);
-      expect(seenListBody!['method'], 'list');
-      expect(seenListBody!['organizationId'], 7);
-      expect(seenListBody!['appId'], 5);
+      expect(calls, hasLength(1));
+      expect(calls.single['method'], 'read');
     });
 
     test('asks for --project when several projects could apply', () async {
       await seedCredential(store);
       // No restage_config.yaml, no --project/--app flags.
-      final client = mockHttpClient((req) {
-        final method = (jsonDecode(req.body) as Map)['method'];
-        return http.Response(
-          jsonEncode(switch (method) {
-            'listMine' => [
-              {'organizationId': 7, 'slug': 'acme', 'name': 'Acme'},
-            ],
-            _ => [
-              {'slug': 'one', 'name': 'One'},
-              {'slug': 'two', 'name': 'Two'},
-            ],
-          }),
-          200,
-        );
-      });
+      final client = mockHttpClient(
+        (req) => http.Response(_scopeBody([], projects: ['one', 'two']), 200),
+        withDefaultTargetDiscovery: false,
+      );
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -256,22 +227,42 @@ void main() {
       expect(stderr.toString(), contains('restage login'));
     });
 
-    test('surfaces a ProjectNotFound typed exception', () async {
+    test(
+      'refuses a configured project absent from the admitted scope',
+      () async {
+        await seedCredential(store);
+        await seedRestageConfig(tempDir, 'demo', 'mobile');
+
+        final calls = <Map<String, dynamic>>[];
+        final client = mockHttpClient((req) {
+          calls.add(jsonDecode(req.body) as Map<String, dynamic>);
+          return http.Response(_scopeBody([], projects: ['other']), 200);
+        }, withDefaultTargetDiscovery: false);
+
+        final exitCode = await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: client,
+        ).run(['paywall', 'list', '-C', tempDir.path]);
+
+        expect(exitCode, 1);
+        expect(calls, hasLength(1));
+        expect(calls.single['method'], 'read');
+        expect(stderr.toString(), contains('demo'));
+        expect(stderr.toString().toLowerCase(), contains('project'));
+      },
+    );
+
+    test('renders an empty admitted surface list', () async {
       await seedCredential(store);
       await seedRestageConfig(tempDir, 'demo', 'mobile');
 
+      final calls = <Map<String, dynamic>>[];
       final client = mockHttpClient((req) {
-        return http.Response(
-          jsonEncode({
-            'className': 'ProjectNotFoundException',
-            'data': {
-              '__className__': 'ProjectNotFoundException',
-              'slug': 'demo',
-            },
-          }),
-          400,
-        );
-      });
+        calls.add(jsonDecode(req.body) as Map<String, dynamic>);
+        return http.Response(_scopeBody([]), 200);
+      }, withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -280,38 +271,10 @@ void main() {
         httpClient: client,
       ).run(['paywall', 'list', '-C', tempDir.path]);
 
-      expect(exitCode, 1);
-      expect(stderr.toString(), contains('demo'));
-      expect(stderr.toString().toLowerCase(), contains('project'));
-    });
-
-    test('renders a surface refusal with the surface sentence', () async {
-      await seedCredential(store);
-      await seedRestageConfig(tempDir, 'demo', 'mobile');
-
-      final client = mockHttpClient((req) {
-        return http.Response(
-          jsonEncode({
-            'className': 'SurfaceNotFoundException',
-            'data': {
-              '__className__': 'SurfaceNotFoundException',
-              'surfaceSlug': 'missing',
-            },
-          }),
-          400,
-        );
-      });
-
-      final exitCode = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: client,
-      ).run(['paywall', 'list', '-C', tempDir.path]);
-
-      expect(exitCode, 1);
-      expect(stderr.toString(), contains("Surface 'missing' not found."));
-      expect(stderr.toString(), isNot(contains('Could not contact')));
+      expect(exitCode, 0, reason: stderr.toString());
+      expect(calls, hasLength(1));
+      expect(calls.single['method'], 'read');
+      expect(stdout.toString(), 'SLUG\tNAME\tDRAFT-UPDATED\tPUBLISHED\n');
     });
 
     test('surfaces a network error with exit code 2', () async {
@@ -320,7 +283,7 @@ void main() {
 
       final client = mockHttpClient((req) {
         throw const SocketException('connection refused');
-      });
+      }, withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -334,3 +297,52 @@ void main() {
     });
   });
 }
+
+String _scopeBody(
+  List<Map<String, Object?>> surfaces, {
+  List<String> projects = const ['demo', 'config-proj', 'flag-proj'],
+}) => jsonEncode({
+  'organizationId': 7,
+  'session': {
+    'memberships': [
+      {
+        'organizationId': 7,
+        'slug': 'restage',
+        'name': 'Restage',
+        'role': 'owner',
+      },
+    ],
+    'workspaceExperiences': <Object>[],
+  },
+  'projects': [
+    for (var i = 0; i < projects.length; i++)
+      {'id': i + 1, 'slug': projects[i], 'name': projects[i]},
+  ],
+  'apps': [
+    {'id': 5, 'projectId': 1, 'slug': 'mobile', 'name': 'Mobile'},
+    {'id': 6, 'projectId': 2, 'slug': 'config-app', 'name': 'Config App'},
+    {'id': 7, 'projectId': 3, 'slug': 'flag-app', 'name': 'Flag App'},
+  ],
+  'environments': <Object>[],
+  'environmentTargets': <Object>[],
+  'surfaces': [
+    for (final surface in surfaces)
+      {'appId': 5, 'surfaceType': 'paywall', ...surface},
+  ],
+});
+
+Map<String, Object?> _publication(
+  int targetId,
+  String environmentSlug,
+  String runtimePlane,
+  int? version,
+) => {
+  'target': {
+    'environmentTargetId': targetId,
+    'namedEnvironmentId': targetId,
+    'environmentSlug': environmentSlug,
+    'runtimePlane': runtimePlane,
+  },
+  'experimentSurfaceReferences': <Object>[],
+  'publishedVersion': ?version,
+};

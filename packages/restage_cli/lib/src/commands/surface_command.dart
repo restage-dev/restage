@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/spec_command.dart';
 import 'package:restage_cli/src/commands/surface_kill_command.dart';
+import 'package:restage_cli/src/commands/surface_check_libraries_command.dart';
 import 'package:restage_cli/src/commands/surface_history_command.dart';
 import 'package:restage_cli/src/commands/surface_push_command.dart';
 import 'package:restage_cli/src/commands/surface_list_command.dart';
@@ -97,6 +98,15 @@ class SurfaceCommand extends Command<int> {
     );
     addSubcommand(
       SurfaceRollbackCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceCheckLibrariesCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,

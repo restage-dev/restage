@@ -1120,16 +1120,13 @@ class _Walk {
   ///
   ///   * an own *instance* method of this widget's own class (or its `State`),
   ///     called bare (`_x(...)`) — the original named-intermediate rule;
-  ///   * a top-level function declared in the widget's own library
-  ///     (`_header()`);
-  ///   * a `static` method whose declaring class is in the widget's own library
-  ///     (`Helpers.row(...)`).
+  ///   * a top-level function declared in the widget's own package
+  ///     (`header()`);
+  ///   * a `static` method whose declaring class is in the widget's own
+  ///     package (`Helpers.row(...)`).
   ///
-  /// The same-LIBRARY boundary (element identity, not name) is the
-  /// look-alike-safe gate: a same-named top-level/static helper in ANOTHER
-  /// library resolves to a different element and is NOT inlined — it falls
-  /// through to the `dartCall` defer. Cross-library/cross-package helper
-  /// resolution is out of scope.
+  /// Helpers are matched by resolved element, never by name. A helper from
+  /// another package is not inlined and falls through to the `dartCall` defer.
   ExecutableElement? _resolveInlinableHelper(MethodInvocation expr) {
     final element = expr.methodName.element;
     return element is ExecutableElement && isArtifactHelperInvocation(expr)

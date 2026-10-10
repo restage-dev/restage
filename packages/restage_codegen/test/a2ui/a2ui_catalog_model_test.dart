@@ -9,6 +9,25 @@ void main() {
       expect(cap.toJson(), {'namespace': 'acme.widgets', 'version': 3});
     });
 
+    test('toJson writes compatibleSince only when above 1', () {
+      const cap = A2uiLibraryCapability(
+        namespace: 'acme.widgets',
+        version: 4,
+        compatibleSince: 4,
+      );
+      expect(cap.toJson(), {
+        'namespace': 'acme.widgets',
+        'version': 4,
+        'compatibleSince': 4,
+      });
+      expect(
+        cap,
+        isNot(
+          const A2uiLibraryCapability(namespace: 'acme.widgets', version: 4),
+        ),
+      );
+    });
+
     test('value equality', () {
       expect(
         const A2uiLibraryCapability(namespace: 'a', version: 2),

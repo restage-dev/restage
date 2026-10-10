@@ -1,11 +1,12 @@
 import 'package:meta/meta.dart';
 import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/capability/installed_capability.dart';
+import 'package:restage_shared/src/capability/library_compatibility.dart';
 
 /// The revision of BlobRenderCapabilityGate's decision logic. Bump this
 /// whenever the gate's accept/reject semantics change; a memoized eligibility
 /// verdict computed at a prior revision is stale and must never be read back.
-const int kBlobGateLogicRevision = 1;
+const int kBlobGateLogicRevision = 2;
 
 /// The result of evaluating whether an installed renderer can render a blob.
 sealed class BlobRenderVerdict {
@@ -39,6 +40,10 @@ enum BlobRenderRejectionReason {
 
   /// A required custom library is absent, unversioned, or too old.
   requiredLibraryUnsatisfied,
+
+  /// The installed library declared a breaking change after the required
+  /// version.
+  requiredLibraryContractBroken,
 }
 
 /// A verdict rejecting the blob for rendering.
@@ -83,32 +88,20 @@ abstract final class BlobRenderCapabilityGate {
     }
 
     for (final requirement in required.requiredLibraries) {
-      final library = _findLibrary(installed, requirement.namespace);
-      final version = library?.version;
-      if (version != null && version >= requirement.minVersion) continue;
+      final library = installed.libraryOf(requirement.namespace);
+      final compatibility = LibraryCompatibility.evaluate(library, requirement);
+      if (compatibility == LibraryCompatibility.satisfied) continue;
 
-      final gap = library == null
-          ? 'not registered'
-          : library.version == null
-              ? 'registered without a capability version'
-              : 'installed v${library.version}';
       return BlobRenderRejected(
-        reason: BlobRenderRejectionReason.requiredLibraryUnsatisfied,
+        reason: compatibility == LibraryCompatibility.contractBroken
+            ? BlobRenderRejectionReason.requiredLibraryContractBroken
+            : BlobRenderRejectionReason.requiredLibraryUnsatisfied,
         message: 'requires library "${requirement.namespace}" '
-            '>= v${requirement.minVersion} ($gap)',
+            '>= v${requirement.minVersion} '
+            '(${LibraryCompatibility.describeInstalled(library)})',
       );
     }
 
     return const BlobRenderAccepted();
-  }
-
-  static InstalledLibrary? _findLibrary(
-    InstalledCapability installed,
-    String namespace,
-  ) {
-    for (final library in installed.installedLibraries) {
-      if (library.namespace == namespace) return library;
-    }
-    return null;
   }
 }

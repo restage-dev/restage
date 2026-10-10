@@ -11,7 +11,6 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_experiment_mount.dart'
     show FlowMountRevalidationBoundary;
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
-import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage/src/runtime/first_paint_lease_guard.dart';
@@ -276,8 +275,10 @@ void main() {
 
     await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
     await _pumpUntil(tester, () => server.requests.length == 2);
-    expect(_assignmentKey(server.requests[0].request), 'credential.fence.1');
-    expect(_assignmentKey(server.requests[1].request), 'credential.fence.2');
+    expect(_assignmentKey(server.requests[0].request), isNull);
+    expect(_assignmentKey(server.requests[1].request), isNull);
+    expect(_requestJson(server.requests[0].request)['registrationNonce'],
+        isNot(_requestJson(server.requests[1].request)['registrationNonce']));
     final actorBScreen = screenBlob('Strict actor B', 'finish');
     server.requests[1].complete(_hostedResponse(
       _strictFlowEnvelope(screen: actorBScreen, version: 10),
@@ -672,7 +673,7 @@ void main() {
       home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
     ));
     await _pumpUntil(tester, () => server.requests.length == 1);
-    expect(_assignmentKey(server.requests[0].request), 'credential.fence.1');
+    expect(_assignmentKey(server.requests[0].request), isNull);
     final screenA = screenBlob('Strict current A', 'finish');
     server.requests[0].complete(_hostedResponse(
       _strictFlowEnvelope(screen: screenA, version: 9),
@@ -1578,26 +1579,6 @@ void _registerResetPaintProbe(_ResetTiming timing) {
 void _configureHostedFence() {
   Restage.configure(
       apiKey: 'rs_pk_test', baseUrl: 'https://surfaces.example.com');
-  final issuedHandles = <String, String>{};
-  Restage.debugRestageRpcClient = RestageRpcClient(
-    baseUrl: 'https://surfaces.example.com',
-    apiKey: 'rs_pk_test',
-    httpClient: MockClient((request) async {
-      if (request.url.path != '/sdk/v1/measurement-assignment-credential') {
-        return http.Response('{}', 404);
-      }
-      final body = _requestJson(request);
-      final nonce = body['registrationNonce'] as String;
-      final handle = issuedHandles.putIfAbsent(
-          nonce, () => 'credential.fence.${issuedHandles.length + 1}');
-      return http.Response(
-          jsonEncode({
-            'credentialHandle': handle,
-            'expiresAtMicros': 4102444800000000
-          }),
-          200);
-    }),
-  );
 }
 
 Future<SurfaceAssignmentResolutionLease> _configuredLease() async {
@@ -1664,7 +1645,7 @@ Uint8List _resettingFlowScreenBlob() {
 final class _ControlledHostedServer {
   _ControlledHostedServer() {
     client = _delivery.client((request) {
-      final pending = _PendingHostedRequest(request);
+      final pending = _PendingHostedRequest(request, _registrationFor);
       requests.add(pending);
       return pending.response.future;
     });
@@ -1672,6 +1653,18 @@ final class _ControlledHostedServer {
 
   late final MockClient client;
   final List<_PendingHostedRequest> requests = <_PendingHostedRequest>[];
+  final Map<String, ({String handle, int expiresAtMicros})> _registrations = {};
+
+  ({String handle, int expiresAtMicros}) _registrationFor(
+          String nonce, int now) =>
+      _registrations.putIfAbsent(
+        nonce,
+        () => (
+          handle:
+              'ic1.${(_registrations.length + 1).toRadixString(16).padLeft(64, '0')}',
+          expiresAtMicros: now + 30 * Duration.microsecondsPerDay,
+        ),
+      );
 }
 
 final class _PostResolverIdentityDrift {
@@ -1737,12 +1730,32 @@ final class _ThrowingRetryAuthority
 }
 
 final class _PendingHostedRequest {
-  _PendingHostedRequest(this.request);
+  _PendingHostedRequest(this.request, this._registrationFor);
 
   final http.Request request;
+  final ({String handle, int expiresAtMicros}) Function(String, int)
+      _registrationFor;
   final Completer<http.Response> response = Completer<http.Response>();
 
-  void complete(http.Response value) => response.complete(value);
+  void complete(http.Response value) {
+    final nonce = _requestJson(request)['registrationNonce'];
+    if (value.statusCode != 200 || nonce is! String) {
+      response.complete(value);
+      return;
+    }
+    final body = jsonDecode(value.body) as Map<String, dynamic>;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final registration = _registrationFor(nonce, now);
+    response.complete(http.Response(
+        jsonEncode({
+          ...body,
+          'credentialHandle': registration.handle,
+          'expiresAtMicros': registration.expiresAtMicros,
+          'serverNowMicros': now,
+        }),
+        value.statusCode,
+        headers: value.headers));
+  }
 }
 
 final class _ControlledFallback implements VariantResolver {

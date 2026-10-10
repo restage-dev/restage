@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' show AppLifecycleState, Locale;
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart'
     show WidgetsBinding, WidgetsBindingObserver;
@@ -10,8 +12,18 @@ import 'package:restage_core/restage_core.dart'
 
 import '../analytics/analytics_identity.dart';
 import '../analytics/root_analytics_context.dart';
+import '../commerce/commerce_store_adapter.dart' show CommerceStoreAdapter;
 import '../commerce/restage_commerce.dart'
-    show RestageCommerce, restageCommerceInstance;
+    show
+        RestageCommerce,
+        CommerceRuntimeContext,
+        activateRestageCommerce,
+        debugRestageCommerceAdapter,
+        debugResetRestageCommerce,
+        notifyRestageCommerceConfigurationChanged,
+        notifyRestageCommerceForegrounded,
+        notifyRestageCommerceIdentityChanged,
+        restageCommerceInstance;
 import '../metering/metering_token_store.dart';
 import '../measurement/governed_measurement_transport.dart';
 import '../measurement/governed_measurement_rpc_transport.dart';
@@ -71,6 +83,83 @@ abstract final class Restage {
   /// App-wide commerce operations and state.
   static final RestageCommerce commerce = restageCommerceInstance;
 
+  /// Activates commerce with an application-configured store [adapter].
+  ///
+  /// Call this once during application startup. Adding an adapter package alone
+  /// does not activate commerce.
+  static void activateCommerce(CommerceStoreAdapter adapter) {
+    activateRestageCommerce(
+      adapter,
+      rpcClientProvider: _requireRpcClient,
+      applicationAnonymousTokenProvider: _commerceAnonymousToken,
+      runtimeContextProvider: _commerceRuntimeContext,
+    );
+  }
+
+  static Future<String> _commerceAnonymousToken() {
+    final identity =
+        _analyticsIdentity ??= RootAnalyticsRuntime.createIdentity();
+    return identity.anonymousId();
+  }
+
+  static CommerceRuntimeContext? _commerceRuntimeContext() {
+    final apiKey = _apiKey;
+    final baseUrl = _baseUrl;
+    final endpoint =
+        baseUrl == null ? null : _normalizedCommerceEndpoint(baseUrl);
+    if (apiKey == null || endpoint == null) return null;
+    final configurationGeneration = _configurationGeneration;
+    final identity =
+        _analyticsIdentity ??= RootAnalyticsRuntime.createIdentity();
+    final identityGeneration = identity.generation;
+    return CommerceRuntimeContext(
+      configurationFingerprint: crypto.sha256
+          .convert(utf8.encode('$endpoint\u0000$apiKey'))
+          .toString(),
+      applicationAnonymousTokenProvider: () async {
+        // Resolve the captured owner before reset can replace its generation.
+        if (identity.generation != identityGeneration) return null;
+        return identity.anonymousId();
+      },
+      isCurrent: () => _isCurrentCommerceContext(
+        configurationGeneration: configurationGeneration,
+        identity: identity,
+        identityGeneration: identityGeneration,
+      ),
+    );
+  }
+
+  static bool _isCurrentCommerceContext({
+    required int configurationGeneration,
+    required AnalyticsIdentity identity,
+    required int identityGeneration,
+  }) =>
+      _configurationGeneration == configurationGeneration &&
+      identical(_analyticsIdentity, identity) &&
+      identity.generation == identityGeneration;
+
+  static String? _normalizedCommerceEndpoint(String value) {
+    final endpoint = Uri.tryParse(value);
+    if (endpoint == null ||
+        endpoint.scheme.isEmpty ||
+        endpoint.host.isEmpty ||
+        endpoint.userInfo.isNotEmpty) {
+      return null;
+    }
+    final scheme = endpoint.scheme.toLowerCase();
+    final host = endpoint.host.toLowerCase();
+    final defaultPort = (scheme == 'https' && endpoint.port == 443) ||
+        (scheme == 'http' && endpoint.port == 80);
+    final port = endpoint.hasPort && !defaultPort ? ':${endpoint.port}' : '';
+    var path = endpoint.path;
+    while (path.length > 1 && path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    if (path.isEmpty) path = '/';
+    final query = endpoint.hasQuery ? '?${endpoint.query}' : '';
+    return '$scheme://$host$port$path$query';
+  }
+
   /// Explicit, opt-in governed Measurement operations.
   static final RestageMeasurement measurement = RestageMeasurement.internal();
 
@@ -89,6 +178,7 @@ abstract final class Restage {
   static int _configurationGeneration = 0;
   static bool _measurementEnabled = true;
   static MeasurementHostConstructionOwner? _measurementHostOwner;
+  static SurfaceAssignmentCredentialStore? _assignmentCredentialStore;
   static final Set<MeasurementHostConstructionOwner>
       _measurementRetiringOwners = {};
   static Future<void> _measurementHostBarrier = Future<void>.value();
@@ -419,6 +509,7 @@ abstract final class Restage {
       rateLimited: _emitSurfaceDeliveryRateLimited,
     );
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
+    notifyRestageCommerceConfigurationChanged();
     _reportDeliveryConfiguration(
       hasResolverOverride: resolver != null ||
           flowResolver != null ||
@@ -532,6 +623,7 @@ abstract final class Restage {
     required bool enabled,
   }) {
     final identity = _analyticsIdentity;
+    _assignmentCredentialStore = null;
     SurfaceCanonicalCarrierProvider.clear();
     // Observations describe the device for delivery selection, so they do not
     // depend on measurement support or an assignment credential.
@@ -554,18 +646,28 @@ abstract final class Restage {
       actor: identity.anonymousId,
       onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
       identityGeneration: () => identity.generation,
-      client: () => configurationGeneration == _configurationGeneration
-          ? _requireRpcClient()
-          : null,
     );
+    _assignmentCredentialStore = credentialStore;
     SurfaceCanonicalCarrierProvider.enableAssignmentRetention(namespace);
     SurfaceAssignmentKeyProvider.install(
       key: credentialStore.resolve,
       identityGeneration: () => credentialStore.generation,
+      registration: () => configurationGeneration == _configurationGeneration
+          ? credentialStore.capture()
+          : Future.value(null),
+      confirmedKey: () => configurationGeneration == _configurationGeneration
+          ? credentialStore.currentHandle
+          : null,
+      confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+          credentialStore.confirm(
+        attempt: attempt,
+        localRequestStartMicros: start,
+        credentialHandle: handle,
+        expiresAtMicros: expiry,
+        serverNowMicros: serverNow,
+      ),
+      refuseRegistration: credentialStore.refuse,
     );
-    // Register a turn after configuration so the first surface finds the key
-    // ready or in flight.
-    scheduleMicrotask(() => unawaited(credentialStore.resolve()));
   }
 
   static void _configureMeasurementHost({
@@ -611,8 +713,18 @@ abstract final class Restage {
     }
     if (!admitted) return;
     final generation = _configurationGeneration;
+    final credentialStore = _assignmentCredentialStore;
     final owner = MeasurementHostConstructionOwner.production(
       startupBarrier: _measurementHostBarrier,
+      onRegistrationRefused: credentialStore == null
+          ? null
+          : (fingerprint) async {
+              if (generation != _configurationGeneration ||
+                  !identical(_assignmentCredentialStore, credentialStore)) {
+                return;
+              }
+              await credentialStore.refuseFingerprint(fingerprint);
+            },
       profileReadPort: HostedMeasurementConstructionProfileReadPort(
         client: () =>
             generation == _configurationGeneration ? _requireRpcClient() : null,
@@ -636,27 +748,17 @@ abstract final class Restage {
     return _events!.stream;
   }
 
-  /// Rotates the on-device pseudonymous actor.
+  /// Rotates the local pseudonymous actor and session.
   ///
-  /// What it does, exactly: mints a fresh pseudonymous id, rotates the session,
-  /// removes persisted assignment credentials and held assignments,
-  /// and clears the current surface-session identity rather than carrying it
-  /// across. The next hosted resolution registers a new assignment credential,
-  /// so the installation becomes a new, unlinked randomized unit. Assignment is
-  /// re-drawn on the next surface presentation, and no relationship is recorded
-  /// or claimed between the old unit and the new one. Pending hosted first-paint
-  /// work selected under the previous id is invalidated; presentations already
-  /// accepted stay pinned.
+  /// Clears persisted assignment credentials, held assignments and the current
+  /// surface-session identity. The next resolution registers a new unlinked
+  /// unit and selects a new assignment. Pending first-paint work is invalidated;
+  /// accepted presentations stay pinned.
   ///
-  /// What it does **not** do. It is a local operation: it sends nothing and
-  /// notifies no server. It does **not** erase, amend, or unlink anything
-  /// already uploaded — records sent before the call are untouched. It does
-  /// **not** clear the metering identifier, which is separate and survives the
-  /// rotation. It is **not** a server-side erasure request; the
-  /// governed privacy request is [privacy], which coordinates the separately
-  /// owned privacy operations once the hosted side serves them.
-  ///
-  /// Inert until [configure] is given a `baseUrl`.
+  /// This sends no server request and does **not** erase uploaded records.
+  /// The separate metering identifier remains unchanged. Use [privacy] to
+  /// request erasure.
+  /// Inert until [configure] supplies a `baseUrl`.
   static void reset() {
     _measurementHostOwner?.resetSdkRuntimeSession();
     _rpcClient?.forgetPublicationBindings();
@@ -666,6 +768,7 @@ abstract final class Restage {
     // persistence await. Reject pending hosted paint work against that new
     // generation now; accepted presentations remain pinned.
     final identityReset = identity.reset();
+    notifyRestageCommerceIdentityChanged();
     SurfaceCanonicalCarrierProvider.clearHeldAssignments();
     unawaited(SurfaceAssignmentPersistence.forget(
       afterIdentityReset: identityReset,
@@ -674,36 +777,30 @@ abstract final class Restage {
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
   }
 
-  /// Register an app-defined widget [library] so its [widgets] can be
-  /// used in paywalls. Call in `main()` before any `RestagePaywall` mounts.
-  /// Re-registering the same namespace replaces the prior registration.
+  /// Registers app-defined [widgets] under [library] before surfaces mount.
+  /// Re-registering a namespace replaces its previous registration.
   ///
-  /// `widgets` is normally produced by `restage_codegen` from
-  /// `@RestageWidget`-annotated classes — adding `restage_codegen` as a
-  /// `dev_dependency` and running `dart run build_runner build` generates
-  /// the factory list passed here.
+  /// Generate the factory list from `@RestageWidget` classes with
+  /// `dart run build_runner build`. Generated registration passes the library's
+  /// [capabilityVersion] when a delivery requirement needs it. An unversioned
+  /// library satisfies no positive version requirement. [compatibleSince]
+  /// (default 1) is the oldest required version the library still renders;
+  /// content requiring an older version uses its fallback.
   ///
-  /// [capabilityVersion] is the library's declared monotonic capability version
-  /// (its `@RestageLibrary(capabilityVersion: …)`), recorded so a delivered
-  /// surface's required-library floor can be verified before render. The
-  /// generated registration helper passes it automatically for a library that
-  /// requires a delivery-time capability floor; a library that needs none
-  /// registers unversioned. Omit it for an unversioned library (which then
-  /// satisfies no positive requirement).
-  ///
-  /// Asserts (debug only): [library] must not use a reserved built-in or
-  /// preview-only namespace, [widgets] must not claim a preview-only
-  /// constructor or contain duplicate names, and [capabilityVersion] (when
-  /// provided) must be >= 1.
+  /// Debug assertions reject reserved namespaces, preview-only constructors,
+  /// duplicate widget names and versions below 1. [compatibleSince] must be
+  /// between 1 and [capabilityVersion].
   static void registerWidgetLibrary(
     WidgetLibrary library, {
     required List<RestageWidgetFactory> widgets,
     int? capabilityVersion,
+    int? compatibleSince,
   }) {
     LibraryRuntimeRegistry.register(
       library,
       widgets,
       capabilityVersion: capabilityVersion,
+      compatibleSince: compatibleSince,
     );
   }
 
@@ -883,11 +980,17 @@ abstract final class Restage {
   static set debugRestageRpcClient(RestageRpcClient? client) {
     _rpcClient = client;
     _replaceIttAssignmentTransport(client);
+    notifyRestageCommerceConfigurationChanged();
   }
 
   /// Test-only — exposes the current [RestageRpcClient] for inspection.
   @internal
   static RestageRpcClient? get debugRestageRpcClient => _rpcClient;
+
+  /// Test-only — exposes the active commerce store adapter.
+  @internal
+  static CommerceStoreAdapter? get debugCommerceStoreAdapter =>
+      debugRestageCommerceAdapter;
 
   /// Resets all module-global state. **Tests must call this in `setUp`
   /// to avoid leaking state between tests.** Native fixtures that dispose
@@ -928,19 +1031,26 @@ abstract final class Restage {
     resetRestagePaywallCache();
     SurfaceRefreshRegistry.instance.debugReset();
     GovernedMeasurementPortRegistry.debugReset();
+    _commerceReset = debugResetRestageCommerce();
   }
+
+  static Future<void> _commerceReset = Future<void>.value();
 
   /// Resets state synchronously and acknowledges retirement of native workers.
   /// Invoke and await this inside the async context that owns those resources.
   @visibleForTesting
   static Future<void> debugResetAndWait() {
     debugReset();
-    return _measurementHostBarrier;
+    return Future.wait<void>(<Future<void>>[
+      _measurementHostBarrier,
+      _commerceReset,
+    ]);
   }
 
   static void _handleLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        notifyRestageCommerceForegrounded();
         scheduleMicrotask(() => SurfaceRefreshRegistry.instance.onAppResumed());
         return;
       case AppLifecycleState.hidden:

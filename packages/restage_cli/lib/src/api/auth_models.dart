@@ -58,6 +58,23 @@ class DeviceAuthorizationStart {
   /// Advisory delay between polls, in seconds.
   final int pollIntervalSeconds;
 
+  /// The verification page with [userCode] and the grant's expiry in its
+  /// query, so the page opens ready to approve. Returns [verificationUri]
+  /// unchanged when it cannot be parsed.
+  String verificationLink({required DateTime expiresAt}) {
+    final uri = Uri.tryParse(verificationUri);
+    if (uri == null) return verificationUri;
+    return uri
+        .replace(
+          queryParameters: <String, String>{
+            ...uri.queryParameters,
+            'code': userCode,
+            'expires': '${expiresAt.millisecondsSinceEpoch ~/ 1000}',
+          },
+        )
+        .toString();
+  }
+
   /// Decode from the backend's JSON-shaped wire payload. Tolerates the
   /// trailing `__className__` discriminator the server emits.
   factory DeviceAuthorizationStart.fromJson(Map<String, dynamic> json) =>

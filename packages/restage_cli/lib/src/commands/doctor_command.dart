@@ -4,12 +4,14 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/library_requirements_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/libraries/library_contract_check.dart';
 
 /// A build flag Restage apps no longer need.
 ///
@@ -89,8 +91,9 @@ class DoctorCommand extends Command<int> {
   @override
   String get description =>
       'Check the project for common setup issues: a restage_config.yaml that '
-      'names a project, app or environment that does not exist, or a build '
-      'command that turns off icon tree shaking.';
+      'names a project, app or environment that does not exist, a build '
+      'command that turns off icon tree shaking, or a version in use this '
+      "build's library contracts would stop rendering.";
 
   @override
   Future<int> run() async {
@@ -109,6 +112,7 @@ class DoctorCommand extends Command<int> {
     _stdout.writeln('');
 
     await _checkConfig(root);
+    await _checkLibraries(root);
 
     if (evidence != null) {
       _stdout.writeln('WARN  Icon tree shaking is turned off');
@@ -175,6 +179,69 @@ class DoctorCommand extends Command<int> {
         for (final problem in check.problems) {
           line('WARN', problem);
         }
+      }
+    } on EndpointConfigurationException catch (error) {
+      line('SKIP', error.toString());
+    } on InsecureEndpointException catch (error) {
+      line('SKIP', error.toString());
+    } on RestageApiException catch (error) {
+      line('SKIP', renderApiError(error).message);
+    } on SocketException catch (error) {
+      line('SKIP', 'Could not contact the backend: $error');
+    } finally {
+      if (_httpClient == null) api?.close();
+    }
+  }
+
+  /// Warns about live versions this build's library contracts stop rendering.
+  Future<void> _checkLibraries(Directory root) async {
+    void line(String status, String detail) {
+      _stdout
+        ..writeln('$status  Library contracts')
+        ..writeln('      $detail');
+    }
+
+    final Map<String, int> since;
+    try {
+      since = localCompatibleSince(await libraryContractRoot(root));
+    } on FormatException catch (error) {
+      line('WARN', error.message);
+      return;
+    }
+    if (since.isEmpty) return;
+    final ({RestageConfig config, File source})? loaded;
+    try {
+      loaded = await loadRestageConfig(from: root);
+    } on RestageConfigFormatException {
+      return;
+    }
+    if (loaded == null) return;
+    final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
+    final credential = await store.read();
+    if (credential == null) {
+      line('SKIP', 'Not checked against the server. ${notSignedInSentence()}');
+      return;
+    }
+    RestageApi? api;
+    try {
+      api = RestageApi(
+        endpoint: resolveApiEndpoint(
+          config: loaded.config,
+          credential: credential,
+        ),
+        httpClient: _httpClient,
+        credential: credential,
+      );
+      final live = await LibraryRequirementsApi(api).liveLibraryRequirements(
+        project: loaded.config.project,
+        app: loaded.config.app,
+      );
+      final breaks = findLibraryBreaks(live: live, compatibleSince: since);
+      if (breaks.isEmpty) {
+        line('PASS', 'All versions in use render on this build.');
+      }
+      for (final item in breaks) {
+        line('WARN', '${item.version.environment}: ${item.sentence}');
       }
     } on EndpointConfigurationException catch (error) {
       line('SKIP', error.toString());

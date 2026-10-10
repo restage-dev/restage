@@ -78,6 +78,10 @@ void main() {
       expect(config.config.defaultEnvironment, 'staging');
       expect(config.config.endpoint, 'http://localhost:8080/');
       expect(config.config.plane, RuntimePlane.sandbox);
+      expect(config.config.organizationId, 7);
+      expect(config.config.appId, 5);
+      expect(config.config.environmentTargetId, 11);
+      expect(config.config.namedEnvironmentId, 9);
     });
 
     test(
@@ -450,50 +454,43 @@ void main() {
   });
 }
 
-http.Client _discoveryClient() {
-  return mockHttpClient((request) {
-    final body = jsonDecode(request.body) as Map<String, dynamic>;
-    switch (body['method'] as String?) {
-      case 'listMine':
-        return http.Response(
-          jsonEncode([
-            {
-              'organizationId': 7,
-              'slug': 'default',
-              'name': 'Default',
-              'role': 'owner',
-            },
-          ]),
-          200,
-        );
-      case 'listProjects':
-        expect(body['organizationId'], 7);
-        return http.Response(
-          jsonEncode([
-            {'slug': 'default-project', 'name': 'Default Project'},
-          ]),
-          200,
-        );
-      case 'listApps':
-        expect(body['organizationId'], 7);
-        expect(body['projectSlug'], 'default-project');
-        return http.Response(
-          jsonEncode([
-            {'slug': 'default-app', 'name': 'Default App'},
-          ]),
-          200,
-        );
-      case 'listEnvironments':
-        expect(body['organizationId'], 7);
-        expect(body['projectSlug'], 'default-project');
-        return http.Response(
-          jsonEncode([
-            {'slug': 'staging'},
-          ]),
-          200,
-        );
-      default:
-        fail('Unexpected method ${body['method']}');
-    }
-  }, withDefaultTargetDiscovery: false);
-}
+http.Client _discoveryClient() => mockHttpClient((request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(request.url.path, '/scope');
+  expect(body['method'], 'read');
+  return http.Response(
+    jsonEncode({
+      'organizationId': 7,
+      'session': {
+        'memberships': [
+          {
+            'organizationId': 7,
+            'slug': 'default',
+            'name': 'Default',
+            'role': 'owner',
+          },
+        ],
+        'workspaceExperiences': <Object>[],
+      },
+      'projects': [
+        {'id': 1, 'slug': 'default-project', 'name': 'Default Project'},
+      ],
+      'apps': [
+        {'id': 5, 'projectId': 1, 'slug': 'default-app', 'name': 'Default App'},
+      ],
+      'environments': [
+        {'id': 11, 'appId': 5, 'namedEnvironmentId': 9, 'slug': 'staging'},
+      ],
+      'environmentTargets': [
+        {
+          'environmentTargetId': 11,
+          'namedEnvironmentId': 9,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
+        },
+      ],
+      'surfaces': <Object>[],
+    }),
+    200,
+  );
+}, withDefaultTargetDiscovery: false);

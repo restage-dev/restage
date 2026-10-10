@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('CommerceReportResponse', () {
-    test('round-trips a verified result and purchaser state', () {
+    test('round-trips ordinary and verified purchase state', () {
       final response = CommerceReportResponse(
         outcome: 'verified',
         purchaserState: CommercePurchaserStateResponse(
@@ -19,9 +19,39 @@ void main() {
           ],
           retrievedAt: DateTime.utc(2026, 9, 5, 12),
         ),
+        verifiedPurchaseState: CommercePurchaserStateResponse(
+          status: 'current',
+          entitlements: [
+            EntitlementSummary(
+              entitlementId: 'purchase-pro',
+              status: 'active',
+              productId: 'pro.monthly.us',
+              source: 'clientReport',
+            ),
+          ],
+          retrievedAt: DateTime.utc(2026, 9, 5, 12),
+        ),
       );
 
       expect(CommerceReportResponse.fromJson(response.toJson()), response);
+    });
+
+    test('keeps verified purchase state absent when proof is unavailable', () {
+      final response = CommerceReportResponse(
+        outcome: 'pending',
+        purchaserState: CommercePurchaserStateResponse(
+          status: 'current',
+          entitlements: const [],
+          retrievedAt: DateTime.utc(2026, 9, 5, 12),
+        ),
+      );
+
+      expect(response.toJson(), isNot(contains('verifiedPurchaseState')));
+      expect(
+        CommerceReportResponse.fromJson(response.toJson())
+            .verifiedPurchaseState,
+        isNull,
+      );
     });
 
     test('normalizes an unknown response outcome', () {

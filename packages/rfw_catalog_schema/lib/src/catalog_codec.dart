@@ -71,6 +71,9 @@ String encodeCatalog(Catalog catalog) {
           // byte-neutral and mirrors the `sinceVersion` discipline.
           if (entry.value.capabilityVersion != null)
             'capabilityVersion': entry.value.capabilityVersion,
+          // Written only for a declared break, so existing bytes are unchanged.
+          if (entry.value.compatibleSince > 1)
+            'compatibleSince': entry.value.compatibleSince,
         },
     },
     'widgets': catalog.widgets.map(_widgetToJson).toList(),
@@ -100,6 +103,11 @@ void _validateCanonicalCatalog(Catalog catalog) {
     _validateCapabilityVersion(
       entry.value.capabilityVersion,
       'libraries["${entry.key.namespace}"].capabilityVersion',
+    );
+    _validateCompatibleSince(
+      entry.value.compatibleSince,
+      entry.value.capabilityVersion,
+      'libraries["${entry.key.namespace}"].compatibleSince',
     );
   }
   for (var i = 0; i < catalog.widgets.length; i++) {
@@ -1427,6 +1435,20 @@ void _validateCapabilityVersion(int? capabilityVersion, String path) {
   }
 }
 
+/// `compatibleSince` lies between 1 and the library's capability version.
+void _validateCompatibleSince(
+  int compatibleSince,
+  int? capabilityVersion,
+  String path,
+) {
+  if (compatibleSince < 1 || compatibleSince > (capabilityVersion ?? 1)) {
+    throw CatalogSchemaException(
+      '$path: compatibleSince $compatibleSince must be between 1 and '
+      'capabilityVersion ${capabilityVersion ?? 'null'}',
+    );
+  }
+}
+
 Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
       'wireId': w.wireId.value,
       'name': w.name,
@@ -2565,9 +2587,22 @@ LibraryInfo _libraryInfo(Map<String, dynamic> j, String path) {
     }
     capabilityVersion = raw;
   }
+  var compatibleSince = 1;
+  if (j.containsKey('compatibleSince')) {
+    final raw = j['compatibleSince'];
+    if (raw is! int) {
+      throw CatalogSchemaException(
+        '$path: compatibleSince must be an integer when present, '
+        'got ${raw.runtimeType}: $raw',
+      );
+    }
+    _validateCompatibleSince(raw, capabilityVersion, '$path.compatibleSince');
+    compatibleSince = raw;
+  }
   return LibraryInfo(
     version: _requiredString(j, 'version', path),
     capabilityVersion: capabilityVersion,
+    compatibleSince: compatibleSince,
   );
 }
 

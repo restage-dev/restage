@@ -208,6 +208,74 @@ void main() {
     await updates.cancel();
   });
 
+  test('an expired-token close reconnects after a short random delay',
+      () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [
+        SurfaceStamp(version: 1, watchChannel: 'first'),
+        SurfaceStamp(version: 1, watchChannel: 'second'),
+      ]),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(hours: 1),
+      // 0.1 of the five-second maximum.
+      random: const _FixedRandom(0.1),
+    );
+    final subscription = channel.watch(_surface).listen((_) {});
+    final firstSocket = await server.socketAt(0);
+
+    await firstSocket.close(4401, 'token expired');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(server.connectionCount, 1);
+
+    await server.socketAt(1);
+    expect(server.requests[1].uri.queryParameters['channel'], 'second');
+    await subscription.cancel();
+  });
+
+  test('any other close waits for the backoff', () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(
+        const [SurfaceStamp(version: 1, watchChannel: 'token')],
+      ),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(hours: 1),
+      random: Random(1),
+    );
+    final subscription = channel.watch(_surface).listen((_) {});
+    final firstSocket = await server.socketAt(0);
+
+    await firstSocket.close(1000);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(server.connectionCount, 1);
+    await subscription.cancel();
+  });
+
+  test('an oversized frame is dropped and fails the connection', () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(
+        const [SurfaceStamp(version: 1, watchChannel: 'token')],
+      ),
+      edgeUrl: server.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      random: Random(1),
+    );
+    final emitted = <SurfaceUpdate>[];
+    final subscription = channel.watch(_surface).listen(emitted.add);
+    final firstSocket = await server.socketAt(0);
+
+    final message = jsonEncode(<String, Object>{'type': 'surface_update'});
+    firstSocket.add('$message${' ' * (64 * 1024 - message.length + 1)}');
+    await server.disconnectAt(0);
+
+    final secondSocket = await server.socketAt(1);
+    expect(emitted, isEmpty);
+    secondSocket.add('$message${' ' * (64 * 1024 - message.length)}');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(emitted, hasLength(1));
+    await subscription.cancel();
+  });
+
   test('a stamp without a watch channel stays silent', () async {
     final channel = RestageHostedUpdateChannel(
       rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),

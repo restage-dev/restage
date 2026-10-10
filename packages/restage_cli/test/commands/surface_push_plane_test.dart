@@ -40,23 +40,48 @@ void main() {
     });
     return MockClient((request) async {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      if (body['method'] != 'resolveTarget') {
+      if (body['method'] != 'read') {
         final copy = http.Request(request.method, request.url)
           ..headers.addAll(request.headers)
           ..body = request.body;
         return discovery.send(copy).then(http.Response.fromStream);
       }
-      return resolveTargetResponse(
-        body,
-        targets: [
-          for (final (id, plane) in [(31, 'sandbox'), (32, 'live')])
-            {
-              'environmentTargetId': id,
-              'namedEnvironmentId': 22,
-              'environmentSlug': 'staging',
-              'runtimePlane': plane,
-            },
-        ],
+      return http.Response(
+        jsonEncode({
+          'organizationId': 7,
+          'session': {
+            'memberships': [
+              {
+                'organizationId': 7,
+                'slug': 'restage',
+                'name': 'Restage',
+                'role': 'owner',
+              },
+            ],
+            'workspaceExperiences': <Object>[],
+          },
+          'projects': [
+            {'id': 1, 'slug': 'demo', 'name': 'Demo'},
+          ],
+          'apps': [
+            {'id': 5, 'projectId': 1, 'slug': 'mobile', 'name': 'Mobile'},
+          ],
+          'environments': [
+            {'id': 31, 'appId': 5, 'namedEnvironmentId': 22, 'slug': 'staging'},
+            {'id': 32, 'appId': 5, 'namedEnvironmentId': 22, 'slug': 'staging'},
+          ],
+          'environmentTargets': [
+            for (final (id, plane) in [(31, 'sandbox'), (32, 'live')])
+              {
+                'environmentTargetId': id,
+                'namedEnvironmentId': 22,
+                'environmentSlug': 'staging',
+                'runtimePlane': plane,
+              },
+          ],
+          'surfaces': <Object>[],
+        }),
+        200,
       );
     });
   }
@@ -102,7 +127,7 @@ void main() {
     final inner = backend(published: published);
     final client = MockClient((request) async {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      if (body['method'] == 'resolveTarget') resolutions.add(body);
+      if (body['method'] == 'read') resolutions.add(body);
       final copy = http.Request(request.method, request.url)
         ..headers.addAll(request.headers)
         ..body = request.body;
@@ -119,8 +144,14 @@ void main() {
     expect(code, 0, reason: err.toString());
     expect(resolutions, hasLength(1));
     expect(resolutions.single['organizationId'], 7);
-    expect(resolutions.single['runtimePlane'], 'live');
+    expect(resolutions.single, isNot(contains('runtimePlane')));
     expect(published.last['environmentTargetId'], 32);
+    final savedConfig = File(
+      p.join(app.path, 'restage_config.yaml'),
+    ).readAsStringSync();
+    expect(savedConfig, contains('organizationId: 7'));
+    expect(savedConfig, contains('appId: 5'));
+    expect(savedConfig, contains('environmentTargetId: 32'));
     expect(out.toString(), contains('pro_upgrade --plane live`'));
   });
 

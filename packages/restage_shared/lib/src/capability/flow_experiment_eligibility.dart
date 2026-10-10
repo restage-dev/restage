@@ -194,6 +194,10 @@ enum FlowExperimentRejectionReason {
   /// A required custom widget library is absent, unversioned, or too old.
   requiredLibraryUnsatisfied,
 
+  /// An installed library declared a breaking change after the required
+  /// version.
+  requiredLibraryContractBroken,
+
   /// A declared action has no compatible installed binding.
   actionBindingUnsatisfied,
 
@@ -638,19 +642,20 @@ void _validateDocumentAdmission({
   }
 
   for (final requirement in node.requiredLibraries) {
-    InstalledLibrary? installedLibrary;
-    for (final library in installed.installedLibraries) {
-      if (library.namespace == requirement.namespace) {
-        installedLibrary = library;
+    switch (LibraryCompatibility.evaluateIn(installed, requirement)) {
+      case LibraryCompatibility.satisfied:
         break;
-      }
-    }
-    final version = installedLibrary?.version;
-    if (version == null || version < requirement.minVersion) {
-      throw _EligibilityFailure(
-        FlowExperimentRejectionReason.requiredLibraryUnsatisfied,
-        'Required library "${requirement.namespace}" is unavailable.',
-      );
+      case LibraryCompatibility.contractBroken:
+        throw _EligibilityFailure(
+          FlowExperimentRejectionReason.requiredLibraryContractBroken,
+          'Required library "${requirement.namespace}" no longer renders '
+          'v${requirement.minVersion} content.',
+        );
+      case LibraryCompatibility.missing || LibraryCompatibility.tooOld:
+        throw _EligibilityFailure(
+          FlowExperimentRejectionReason.requiredLibraryUnsatisfied,
+          'Required library "${requirement.namespace}" is unavailable.',
+        );
     }
   }
 

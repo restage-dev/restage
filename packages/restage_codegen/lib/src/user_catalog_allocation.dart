@@ -45,6 +45,7 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
   List<UnionEntry> unions = const [],
   Map<String, String> slotTargets = const {},
   Map<String, int> stampedCapabilityVersions = const {},
+  Map<String, int> compatibleSinceVersions = const {},
   List<PropertyExclusion> exclusions = const [],
   Iterable<WireIdEvent> existingEvents = const [],
 }) {
@@ -61,6 +62,7 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
     structuredTypes: dedupedStructured,
     unions: unions,
     stampedCapabilityVersions: stampedCapabilityVersions,
+    compatibleSinceVersions: compatibleSinceVersions,
   );
   final allocator = WireIdAllocator(
     library: package,

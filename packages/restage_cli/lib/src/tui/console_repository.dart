@@ -1,23 +1,30 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/measurement_page_api.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
-import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
-import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/measurement/overview_figures.dart';
+import 'package:restage_cli/src/measurement/page_read.dart';
+import 'package:restage_cli/src/measurement/page_views/overview_apps_view.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    hide RuntimePlane;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as measurement
+    show RuntimePlane;
 import 'package:restage_shared/restage_shared.dart';
 
 class DefaultConsoleRepository implements ConsoleRepository {
@@ -50,21 +57,52 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final api = _buildApi(endpoint, credential);
     _surfaceApi = SurfaceApi(api);
 
-    final discovery = DiscoveryApi(api);
-    final organization = await _resolveOrganization(api, discovery, config);
+    var scope = await readProgrammaticScope(
+      api,
+      organizationId: config.organizationId,
+    );
+    final configuredOrganization = config.organization;
+    if (configuredOrganization != null &&
+        !scope.organizations.any(
+          (organization) =>
+              organization.organizationId == scope.organizationId &&
+              organization.slug == configuredOrganization,
+        )) {
+      final match = scope.organizations
+          .where((organization) => organization.slug == configuredOrganization)
+          .firstOrNull;
+      if (match == null) {
+        throw ConsoleLoadException(
+          'No organization found for `$configuredOrganization`.',
+        );
+      }
+      scope = await readProgrammaticScope(
+        api,
+        organizationId: match.organizationId,
+      );
+    }
+    final organization = _resolveOrganization(scope, config);
     _organizationId = organization.organizationId;
 
-    final projects = await _loadProjects(discovery, config, organization);
-    final apps = await _loadApps(discovery, config, organization);
+    final projects = _loadProjects(scope, config);
+    final apps = _loadApps(scope, config);
     final selectedApp = apps.singleWhere((app) => app.slug == config.app);
-    final environmentSelection = await _loadEnvironments(
-      discovery,
+    final environmentSelection = _loadEnvironments(
+      scope,
       config,
-      organization,
       selectedApp,
       environment,
     );
     final selectedEnvironment = environmentSelection.selected;
+    final confirmed = config.withResolvedIds(
+      organizationId: organization.organizationId,
+      appId: selectedApp.appId,
+      environmentTargetId: selectedEnvironment.environmentTargetId,
+      namedEnvironmentId: selectedEnvironment.namedEnvironmentId,
+    );
+    if (confirmed.toYaml() != config.toYaml()) {
+      await writeRestageConfig(loaded.source, confirmed);
+    }
     _context = ConsoleContext(
       organizationSlug: organization.slug,
       project: config.project,
@@ -75,7 +113,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
       environment: selectedEnvironment.slug,
       runtimePlane: selectedEnvironment.runtimePlane,
     );
-    final surfaces = await _loadSurfaces(config, organization, selectedApp);
+    final surfaces = _loadSurfaces(scope, selectedApp);
     final builds = await _loadBuilds(
       api,
       config: config,
@@ -89,7 +127,57 @@ class DefaultConsoleRepository implements ConsoleRepository {
       environments: environmentSelection.targets,
       surfaces: surfaces,
       builds: builds,
+      overview: await _loadOverview(api, appCount: apps.length),
     );
+  }
+
+  /// The overview figures for the last 30 days, or null when unread.
+  Future<OverviewFigures?> _loadOverview(
+    RestageApi api, {
+    required int appCount,
+  }) async {
+    final context = _context!;
+    final read = pageReads.first;
+    final window = resolvePageWindow(
+      read,
+      startMicros: null,
+      endMicros: null,
+      now: DateTime.now(),
+    );
+    try {
+      final request = PageRequest(
+        target: TargetCoordinate(
+          organizationId: OrganizationId(_organizationId!),
+          appId: ApplicationId(context.appId),
+          environmentTargetId: EnvironmentTargetId(context.environmentTargetId),
+          namedEnvironmentId: NamedEnvironmentId(context.namedEnvironmentId),
+          runtimePlane: switch (context.runtimePlane) {
+            RuntimePlane.live => measurement.RuntimePlane.live,
+            RuntimePlane.sandbox => measurement.RuntimePlane.sandbox,
+          },
+        ),
+        values: const {},
+        window: window,
+      );
+      final reply = await MeasurementPageApi(api).read(read, request);
+      final figures = overviewFiguresOf(reply);
+      if (appCount < 2) return figures;
+      try {
+        final perApp = await MeasurementPageApi(
+          api,
+        ).read(read.allApps!, request);
+        return OverviewFigures(
+          sessions: figures.sessions,
+          finished: figures.finished,
+          revenue: figures.revenue,
+          appLines: overviewAppLinesOf(perApp),
+        );
+      } on Exception {
+        return figures;
+      }
+    } on Exception {
+      return null;
+    }
   }
 
   @override
@@ -167,19 +255,6 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
-  /// The load failure for [config], naming what does exist when the config
-  /// names something that does not; [fallback] otherwise.
-  Future<ConsoleLoadException> _configProblem(
-    DiscoveryApi discovery,
-    RestageConfig config,
-    String fallback,
-  ) async {
-    final problems = (await checkConfigTarget(discovery, config)).problems;
-    return ConsoleLoadException(
-      problems.isEmpty ? fallback : problems.join(' '),
-    );
-  }
-
   Future<Credential> _readCredential(FileCredentialStore store) async {
     try {
       final credential = await store.read();
@@ -240,95 +315,39 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
-  Future<_ConsoleOrganization> _resolveOrganization(
-    RestageApi api,
-    DiscoveryApi discovery,
+  OrganizationSummary _resolveOrganization(
+    ProgrammaticScopeSnapshot scope,
     RestageConfig config,
-  ) async {
-    final configuredSlug = config.organization?.trim();
-    if (configuredSlug != null && configuredSlug.isNotEmpty) {
-      final stderr = StringBuffer();
-      final resolved = await resolveConfiguredOrganization(
-        api: api,
-        config: config,
-        stderr: stderr,
-      );
-      if (resolved?.organizationId != null) {
-        return _ConsoleOrganization(
-          organizationId: resolved!.organizationId!,
-          slug: configuredSlug,
-        );
-      }
-      final message = stderr.toString().trim();
-      throw await _configProblem(
-        discovery,
-        config,
-        message.isEmpty
-            ? 'Could not resolve organization "$configuredSlug".'
-            : message,
+  ) {
+    final candidates = scope.organizations
+        .where(
+          (organization) =>
+              organization.organizationId == scope.organizationId &&
+              (config.organization == null ||
+                  organization.slug == config.organization),
+        )
+        .toList();
+    if (candidates.length != 1) {
+      throw const ConsoleLoadException(
+        'The configured organization is unavailable.',
       );
     }
-
-    try {
-      final organizations = await discovery.listOrganizations();
-      if (organizations.isEmpty) {
-        throw const ConsoleLoadException(
-          'No organizations found for this account.',
-        );
-      }
-      if (organizations.length > 1) {
-        // The project may name the organization when it lives in only one.
-        final check = await checkConfigTarget(discovery, config);
-        final resolved = check.organization;
-        if (resolved == null) {
-          throw ConsoleLoadException(
-            check.problems.isEmpty
-                ? ambiguousOrganizationSentence(organizations)
-                : check.problems.join(' '),
-          );
-        }
-        return _ConsoleOrganization(
-          organizationId: resolved.organizationId,
-          slug: resolved.slug,
-        );
-      }
-      final organization = organizations.single;
-      return _ConsoleOrganization(
-        organizationId: organization.organizationId,
-        slug: organization.slug,
-      );
-    } on RestageApiException catch (e) {
-      throw _apiException(e);
-    } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
-    }
+    return candidates.single;
   }
 
-  Future<List<ConsoleProject>> _loadProjects(
-    DiscoveryApi discovery,
+  List<ConsoleProject> _loadProjects(
+    ProgrammaticScopeSnapshot scope,
     RestageConfig config,
-    _ConsoleOrganization organization,
-  ) async {
-    try {
-      final projects = await discovery.listProjects(
-        organization.organizationId,
+  ) {
+    if (!scope.projects.any((project) => project.slug == config.project)) {
+      throw ConsoleLoadException(
+        'No project found for restage_config.yaml project: ${config.project}.',
       );
-      if (!_containsSlug(projects, config.project)) {
-        throw await _configProblem(
-          discovery,
-          config,
-          'No project found for restage_config.yaml project: ${config.project}.',
-        );
-      }
-      return [
-        for (final project in projects)
-          ConsoleProject(slug: project.slug, name: project.name),
-      ];
-    } on RestageApiException catch (e) {
-      throw _apiException(e);
-    } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
     }
+    return [
+      for (final project in scope.projects)
+        ConsoleProject(slug: project.slug, name: project.name),
+    ];
   }
 
   /// The heads the selected app's build holds. A listing the service refuses
@@ -336,7 +355,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
   Future<List<ConsoleBuildHead>> _loadBuilds(
     RestageApi api, {
     required RestageConfig config,
-    required _ConsoleOrganization organization,
+    required OrganizationSummary organization,
   }) async {
     final bundles = RenderBundleApi(rpc: api, uploadClient: _httpClient);
     try {
@@ -363,144 +382,99 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
-  Future<List<ConsoleAppTarget>> _loadApps(
-    DiscoveryApi discovery,
+  List<ConsoleAppTarget> _loadApps(
+    ProgrammaticScopeSnapshot scope,
     RestageConfig config,
-    _ConsoleOrganization organization,
-  ) async {
-    try {
-      final apps = await discovery.listApps(
-        organizationId: organization.organizationId,
-        projectSlug: config.project,
+  ) {
+    final apps = scope.apps(config.project);
+    if (!apps.any((app) => app.slug == config.app)) {
+      throw ConsoleLoadException(
+        'No app found for restage_config.yaml app: ${config.app}.',
       );
-      if (!_containsSlug(apps, config.app)) {
-        throw await _configProblem(
-          discovery,
-          config,
-          'No app found for restage_config.yaml app: ${config.app}.',
-        );
-      }
-      return [
-        for (final app in apps)
-          ConsoleAppTarget(
-            appId: _requireAppId(app),
-            slug: app.slug,
-            name: app.name,
-          ),
-      ];
-    } on RestageApiException catch (e) {
-      throw _apiException(e);
-    } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
     }
+    return [
+      for (final app in apps)
+        ConsoleAppTarget(
+          appId: _requireAppId(app),
+          slug: app.slug,
+          name: app.name,
+        ),
+    ];
   }
 
-  Future<_ConsoleEnvironmentSelection> _loadEnvironments(
-    DiscoveryApi discovery,
+  _ConsoleEnvironmentSelection _loadEnvironments(
+    ProgrammaticScopeSnapshot scope,
     RestageConfig config,
-    _ConsoleOrganization organization,
     ConsoleAppTarget app,
     String environment,
-  ) async {
-    try {
-      final legacyEnvironments = await discovery.listEnvironments(
-        organizationId: organization.organizationId,
-        projectSlug: config.project,
-      );
-      final legacyMatches = [
-        for (final candidate in legacyEnvironments)
-          if (candidate.appId == app.appId && candidate.slug == environment)
-            candidate,
-      ];
-      if (legacyMatches.length != 1 ||
-          legacyMatches.single.environmentTargetId == null) {
-        throw await _configProblem(
-          discovery,
-          config,
-          'No environment found for defaultEnvironment: $environment.',
-        );
-      }
-      final legacyTargetId = legacyMatches.single.environmentTargetId!;
-      final discoveredTargets = await discovery.listEnvironmentTargets(
-        organizationId: organization.organizationId,
+  ) {
+    final targets = [
+      for (final target in scope.targets(
         projectSlug: config.project,
         appSlug: app.slug,
-        appId: app.appId,
+      ))
+        ConsoleEnvironmentTarget(
+          environmentTargetId: target.environmentTargetId,
+          namedEnvironmentId: target.namedEnvironmentId,
+          slug: target.environmentSlug,
+          runtimePlane: target.runtimePlane,
+        ),
+    ];
+    final legacyIds = scope.legacyDefaultTargetIds;
+    final matching = targets
+        .where(
+          (target) =>
+              target.slug == environment &&
+              (config.plane == null || target.runtimePlane == config.plane),
+        )
+        .toList();
+    final hinted = matching
+        .where(
+          (target) =>
+              target.environmentTargetId == config.environmentTargetId &&
+              target.namedEnvironmentId == config.namedEnvironmentId,
+        )
+        .toList();
+    final legacy = matching
+        .where((target) => legacyIds.contains(target.environmentTargetId))
+        .toList();
+    final selected = hinted.length == 1
+        ? hinted.single
+        : legacy.length == 1
+        ? legacy.single
+        : matching.length == 1
+        ? matching.single
+        : null;
+    if (selected == null) {
+      throw ConsoleLoadException(
+        'No unambiguous environment found for defaultEnvironment: '
+        '$environment.',
       );
-      final targets = [
-        for (final target in discoveredTargets)
-          ConsoleEnvironmentTarget(
-            environmentTargetId: target.environmentTargetId,
-            namedEnvironmentId: target.namedEnvironmentId,
-            slug: target.environmentSlug,
-            runtimePlane: target.runtimePlane,
-          ),
-      ];
-      final selected = targets.where(
-        (target) =>
-            target.environmentTargetId == legacyTargetId &&
-            target.slug == environment,
-      );
-      if (selected.length != 1) {
-        throw ConsoleLoadException(
-          'No environment found for defaultEnvironment: $environment.',
-        );
-      }
-      return (targets: targets, selected: selected.single);
-    } on RestageApiException catch (e) {
-      throw _apiException(e);
-    } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
     }
+    return (targets: targets, selected: selected);
   }
 
-  Future<List<ConsoleSurface>> _loadSurfaces(
-    RestageConfig config,
-    _ConsoleOrganization organization,
+  List<ConsoleSurface> _loadSurfaces(
+    ProgrammaticScopeSnapshot scope,
     ConsoleAppTarget app,
-  ) async {
-    final surfaceApi = _surfaceApi!;
+  ) {
     final surfaces = <ConsoleSurface>[];
-    try {
-      for (final surfaceType in const [
-        SurfaceType.paywall,
-        SurfaceType.onboarding,
-        SurfaceType.message,
-        SurfaceType.survey,
-        SurfaceType.general,
-      ]) {
-        final summaries = await surfaceApi.list(
-          project: config.project,
-          app: config.app,
-          surfaceType: surfaceType,
-          organizationId: organization.organizationId,
-          appId: app.appId,
-        );
-        for (final summary in summaries) {
-          final identity =
-              _manifestIdentities[_identityKey(
-                summary.surfaceType,
-                summary.slug,
-              )];
-          surfaces.add(
-            ConsoleSurface(
-              surfaceType: summary.surfaceType,
-              slug: summary.slug,
-              name: summary.name,
-              contractVersion: identity?.contractVersion,
-              sourceKind: identity?.sourceKind?.wireName,
-              payloadKind: identity?.payloadKind?.wireName,
-              hasManifestIdentity: identity != null,
-            ),
-          );
-        }
-      }
-      return surfaces;
-    } on RestageApiException catch (e) {
-      throw _apiException(e);
-    } on SocketException catch (e) {
-      throw ConsoleLoadException('Could not contact the backend: $e');
+    for (final summary in scope.surfaces(appId: app.appId)) {
+      final identity =
+          _manifestIdentities[_identityKey(summary.surfaceType, summary.slug)];
+      surfaces.add(
+        ConsoleSurface(
+          surfaceType: summary.surfaceType,
+          slug: summary.slug,
+          name: summary.name,
+          contractVersion: identity?.contractVersion,
+          sourceKind: identity?.sourceKind?.wireName,
+          payloadKind: identity?.payloadKind?.wireName,
+          hasManifestIdentity: identity != null,
+        ),
+      );
     }
+    return surfaces;
   }
 
   ConsoleLoadException _apiException(RestageApiException e) {
@@ -537,19 +511,6 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
-  bool _containsSlug(List<Object> values, String slug) {
-    for (final value in values) {
-      final itemSlug = switch (value) {
-        ProjectSummary(:final slug) => slug,
-        AppSummary(:final slug) => slug,
-        EnvironmentSummary(:final slug) => slug,
-        _ => null,
-      };
-      if (itemSlug == slug) return true;
-    }
-    return false;
-  }
-
   int _requireAppId(AppSummary app) {
     final appId = app.appId;
     if (appId != null) return appId;
@@ -566,13 +527,3 @@ typedef _ConsoleEnvironmentSelection = ({
   List<ConsoleEnvironmentTarget> targets,
   ConsoleEnvironmentTarget selected,
 });
-
-class _ConsoleOrganization {
-  const _ConsoleOrganization({
-    required this.organizationId,
-    required this.slug,
-  });
-
-  final int organizationId;
-  final String slug;
-}

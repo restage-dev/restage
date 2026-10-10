@@ -121,7 +121,9 @@ void main() {
 
     expect(result.isError, isNot(true));
     expect(result.structuredContent!['status'], 'authorization_pending');
-    expect(opened, ['https://verify.test/device']);
+    final link = Uri.parse(opened.single);
+    expect(link.path, '/device');
+    expect(link.queryParameters['code'], 'WXYZ-1234');
   });
 
   test('a success email that aliases the device grant is not surfaced', () async {

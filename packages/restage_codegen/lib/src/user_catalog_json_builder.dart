@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/library_contract.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
@@ -60,8 +61,18 @@ final class UserCatalogJsonBuilder implements Builder {
       structuredTypes: collection.structuredTypes,
       slotTargets: collection.slotTargets,
       stampedCapabilityVersions: collection.stampedCapabilityVersions,
+      compatibleSinceVersions: collection.compatibleSinceVersions,
       exclusions: collection.exclusions,
       existingEvents: existingEvents,
+    );
+
+    // The runtime-catalog builder records new contract snapshots.
+    await enforcePackageLibraryContracts(
+      allocation.catalog,
+      package: buildStep.inputId.package,
+      write: false,
+      enumMembers:
+          await resolveEnumMembers(buildStep.resolver, allocation.catalog),
     );
 
     // Emit only — never append to the event log. The runtime-catalog builder

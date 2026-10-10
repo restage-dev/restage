@@ -160,6 +160,7 @@ final class MeasurementOutboxPreparedBatch {
     required this.requestSha256,
     this.factFrameSha256,
     this.diagnosticSha256,
+    this.registrationFingerprint,
     required List<int> publicationBindingReferenceCanonicalBytes,
   })  : _exactRequestBytes = Uint8List.fromList(exactRequestBytes),
         _publicationBindingReferenceCanonicalBytes = Uint8List.fromList(
@@ -172,6 +173,9 @@ final class MeasurementOutboxPreparedBatch {
         !_isCaptureSessionNonce(captureSessionNonce) ||
         !_isSha256(requestSha256) ||
         (factFrameSha256 == null) == (diagnosticSha256 == null) ||
+        (registrationFingerprint != null &&
+            (factFrameSha256 == null ||
+                !_isSha256(registrationFingerprint!))) ||
         !_isSha256(factFrameSha256 ?? diagnosticSha256 ?? '') ||
         _publicationBindingReferenceCanonicalBytes.isEmpty ||
         _publicationBindingReferenceCanonicalBytes.length >
@@ -190,8 +194,8 @@ final class MeasurementOutboxPreparedBatch {
   /// all redundant worker handoff fields agree before the route body can be
   /// journaled or replayed.
   factory MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(
-    MeasurementWorkerPreparedBatch batch,
-  ) {
+      MeasurementWorkerPreparedBatch batch,
+      {String? registrationFingerprint}) {
     try {
       final request = MeasurementIngestRequestV1.fromBase64(
         batch.canonicalRequestBase64,
@@ -204,12 +208,15 @@ final class MeasurementOutboxPreparedBatch {
           ) ||
           request.factFrameSha256 != batch.frameSha256 ||
           request.factFrame.sequence != batch.sequence ||
-          request.factFrame.isFinal != batch.isFinal) {
+          request.factFrame.isFinal != batch.isFinal ||
+          (registrationFingerprint != null &&
+              request.factFrame.experimentAssignment == null)) {
         throw ArgumentError('Inconsistent measurement worker batch');
       }
       return MeasurementOutboxPreparedBatch._fromValidatedRequest(
         sessionId: batch.sessionId,
         request: request,
+        registrationFingerprint: registrationFingerprint,
       );
     } on Object {
       throw ArgumentError('Invalid measurement worker batch');
@@ -264,6 +271,7 @@ final class MeasurementOutboxPreparedBatch {
     required String requestSha256,
     String? factFrameSha256,
     String? diagnosticSha256,
+    String? registrationFingerprint,
     required List<int> publicationBindingReferenceCanonicalBytes,
   }) {
     try {
@@ -293,6 +301,8 @@ final class MeasurementOutboxPreparedBatch {
             request.factFrame.captureSessionNonce != captureSessionNonce ||
             request.requestSha256 != requestSha256 ||
             request.factFrameSha256 != factFrameSha256 ||
+            (registrationFingerprint != null &&
+                request.factFrame.experimentAssignment == null) ||
             !_sameBytes(
               expectedBinding,
               publicationBindingReferenceCanonicalBytes,
@@ -310,6 +320,7 @@ final class MeasurementOutboxPreparedBatch {
         requestSha256: requestSha256,
         factFrameSha256: factFrameSha256,
         diagnosticSha256: diagnosticSha256,
+        registrationFingerprint: registrationFingerprint,
         publicationBindingReferenceCanonicalBytes:
             publicationBindingReferenceCanonicalBytes,
       );
@@ -321,6 +332,7 @@ final class MeasurementOutboxPreparedBatch {
   factory MeasurementOutboxPreparedBatch._fromValidatedRequest({
     required String sessionId,
     required MeasurementIngestRequestV1 request,
+    String? registrationFingerprint,
   }) {
     final exactRequestBytes = _encodeExactIngestHttpBody(
       request.canonicalRequestBase64,
@@ -334,6 +346,7 @@ final class MeasurementOutboxPreparedBatch {
       captureSessionNonce: request.factFrame.captureSessionNonce,
       requestSha256: request.requestSha256,
       factFrameSha256: request.factFrameSha256,
+      registrationFingerprint: registrationFingerprint,
       publicationBindingReferenceCanonicalBytes:
           request.factFrame.publishedContext.bindingReference.canonicalBytes,
     );
@@ -367,6 +380,9 @@ final class MeasurementOutboxPreparedBatch {
 
   /// SHA-256 of the canonical diagnostic; exactly one content digest is set.
   final String? diagnosticSha256;
+
+  /// Private namespace-bound registration identity captured with this frame.
+  final String? registrationFingerprint;
 
   final Uint8List _publicationBindingReferenceCanonicalBytes;
 
@@ -509,6 +525,9 @@ final class MeasurementOutboxLease {
 
   /// Exact prepared bytes for one upload attempt.
   Uint8List get exactRequestBytes => record.batch.exactRequestBytes;
+
+  /// Local-only identity captured when the served assignment opened capture.
+  String? get registrationFingerprint => record.batch.registrationFingerprint;
 }
 
 /// Why a retained record is intentionally held without egress.
@@ -1062,6 +1081,7 @@ abstract final class MeasurementOutboxRecordCodec {
       record.batch.publicationBindingReferenceCanonicalBytes.length +
       record.batch.exactRequestBytes.length +
       (record.batch.diagnosticSha256 == null ? 0 : 32) +
+      (record.batch.registrationFingerprint == null ? 0 : 32) +
       _integrityDigestLength +
       _commitMarker.length;
 
@@ -1090,7 +1110,7 @@ abstract final class MeasurementOutboxRecordCodec {
       ..setUint16(12, fingerprintBytes.length, Endian.big)
       ..setUint16(14, nonceBytes.length, Endian.big)
       ..setUint8(16, record.batch.isFinal ? 1 : 0)
-      ..setUint8(17, 0)
+      ..setUint8(17, record.batch.registrationFingerprint == null ? 0 : 1)
       ..setUint64(18, record.batch.sequence, Endian.big)
       ..setInt64(26, record.createdAtUtcMicros, Endian.big)
       ..setUint32(34, body.length, Endian.big)
@@ -1117,6 +1137,10 @@ abstract final class MeasurementOutboxRecordCodec {
     cursor += body.length;
     // The optional trailing digest leaves original fact records unchanged.
     if (record.batch.diagnosticSha256 case final digest?) {
+      bytes.setRange(cursor, cursor + 32, _sha256Bytes(digest));
+      cursor += 32;
+    }
+    if (record.batch.registrationFingerprint case final digest?) {
       bytes.setRange(cursor, cursor + 32, _sha256Bytes(digest));
       cursor += 32;
     }
@@ -1151,7 +1175,8 @@ abstract final class MeasurementOutboxRecordCodec {
     final fingerprintLength = data.getUint16(12, Endian.big);
     final nonceLength = data.getUint16(14, Endian.big);
     final flags = data.getUint8(16);
-    if (flags & ~1 != 0 || data.getUint8(17) != 0) {
+    final registrationFlag = data.getUint8(17);
+    if (flags & ~1 != 0 || registrationFlag > 1) {
       throw const MeasurementOutboxCodecException('invalid_record_flags');
     }
     if (sessionLength == 0 ||
@@ -1175,7 +1200,10 @@ abstract final class MeasurementOutboxRecordCodec {
             bodyLength +
             _integrityDigestLength +
             _commitMarker.length);
-    if ((extensionLength != 0 && extensionLength != 32) ||
+    final diagnosticFrame = bytes.sublist(106, 138).every((byte) => byte == 0);
+    if (extensionLength !=
+            (diagnosticFrame ? 32 : 0) + (registrationFlag == 1 ? 32 : 0) ||
+        (diagnosticFrame && registrationFlag == 1) ||
         sequence == 0 ||
         createdAtUtcMicros < 0 ||
         bodyLength == 0 ||
@@ -1203,10 +1231,7 @@ abstract final class MeasurementOutboxRecordCodec {
     final bodySha256 = _hex(bytes.sublist(42, 74));
     final requestSha256 = _hex(bytes.sublist(74, 106));
     final frameDigestBytes = bytes.sublist(106, 138);
-    final factFrameSha256 =
-        extensionLength == 32 && frameDigestBytes.every((byte) => byte == 0)
-            ? null
-            : _hex(frameDigestBytes);
+    final factFrameSha256 = diagnosticFrame ? null : _hex(frameDigestBytes);
     var cursor = _fixedHeaderLength;
     final sessionBytes = bytes.sublist(cursor, cursor + sessionLength);
     cursor += sessionLength;
@@ -1217,6 +1242,12 @@ abstract final class MeasurementOutboxRecordCodec {
     final bindingBytes = bytes.sublist(cursor, cursor + bindingLength);
     cursor += bindingLength;
     final body = bytes.sublist(cursor, cursor + bodyLength);
+    cursor += bodyLength;
+    final diagnosticSha256 =
+        diagnosticFrame ? _hex(bytes.sublist(cursor, cursor + 32)) : null;
+    if (diagnosticFrame) cursor += 32;
+    final registrationFingerprint =
+        registrationFlag == 1 ? _hex(bytes.sublist(cursor, cursor + 32)) : null;
     final sessionId = _decodeUtf8(sessionBytes, 'invalid_record_session');
     final configurationFingerprint = _decodeUtf8(
       fingerprintBytes,
@@ -1240,10 +1271,8 @@ abstract final class MeasurementOutboxRecordCodec {
           captureSessionNonce: captureSessionNonce,
           requestSha256: requestSha256,
           factFrameSha256: factFrameSha256,
-          diagnosticSha256: extensionLength == 32
-              ? _hex(
-                  bytes.sublist(cursor + bodyLength, cursor + bodyLength + 32))
-              : null,
+          diagnosticSha256: diagnosticSha256,
+          registrationFingerprint: registrationFingerprint,
           publicationBindingReferenceCanonicalBytes: bindingBytes,
         ),
         createdAtUtcMicros: createdAtUtcMicros,

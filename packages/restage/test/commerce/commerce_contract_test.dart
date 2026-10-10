@@ -42,6 +42,32 @@ void main() {
       );
     });
 
+    test('store SPI codes preserve unknown values', () {
+      final store = commerce.CommerceStore('future.store');
+      final productKind = commerce.CommerceStoreProductKind('one_time');
+      final transactionStatus = commerce.CommerceStoreTransactionStatus(
+        'provider_pending',
+      );
+
+      expect(store.value, 'future.store');
+      expect(store.isKnown, isFalse);
+      expect(
+        commerce.CommerceStore('app_store'),
+        same(commerce.CommerceStore.appStore),
+      );
+      expect(productKind.value, 'one_time');
+      expect(productKind.isKnown, isFalse);
+      expect(transactionStatus.value, 'provider_pending');
+      expect(transactionStatus.isKnown, isFalse);
+      expect(
+        () => commerce.CommerceStorePurchasable(
+          product: _TestStoreProduct(),
+          applicationAccountToken: '',
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('typed requests use value equality and response bounds', () {
       final offer = commerce.CommerceOfferId('offer.monthly');
       final availability = commerce.CommerceAvailabilityRequest(
@@ -222,4 +248,22 @@ void main() {
       );
     });
   });
+}
+
+final class _TestStoreProduct implements commerce.CommerceStoreProduct {
+  @override
+  String? get basePlanId => null;
+
+  @override
+  commerce.CommerceStoreProductKind get kind =>
+      commerce.CommerceStoreProductKind.subscription;
+
+  @override
+  commerce.CommerceStore get store => commerce.CommerceStore.appStore;
+
+  @override
+  String? get storeOfferIdentifier => null;
+
+  @override
+  String get storeProductId => 'subscription.monthly';
 }

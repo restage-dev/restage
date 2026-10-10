@@ -5,6 +5,7 @@ import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_app.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
+import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:test/test.dart' hide isEmpty;
 
@@ -37,7 +38,7 @@ void main() {
       expect(tester.terminalState, containsText('Dashboard'));
       expect(tester.terminalState, containsText('Surfaces'));
       expect(tester.terminalState, containsText('Overview detail'));
-      expect(tester.terminalState, containsText('30-day views'));
+      expect(tester.terminalState, containsText('App sessions that saw a'));
       expect(tester.terminalState, isNot(containsText('Command preview')));
     });
   });
@@ -101,11 +102,18 @@ void main() {
 
       expect(tester.terminalState, containsText('Overview detail'));
       expect(tester.terminalState, containsText('Active surfaces 3'));
-      expect(tester.terminalState, containsText('30-day views -'));
-      expect(tester.terminalState, containsText('Conversion rate -'));
-      expect(tester.terminalState, containsText(r'MAR consumed $0 / $10k'));
+      expect(tester.terminalState, containsText('App sessions that saw a'));
+      expect(tester.terminalState, containsText('1,234'));
+      expect(tester.terminalState, containsText('Onboarding and surveys'));
+      expect(tester.terminalState, containsText('42%'));
+      expect(tester.terminalState, containsText('Revenue from surfaces'));
+      expect(tester.terminalState, containsText(r'$5,000'));
+      expect(tester.terminalState, containsText(r'Stride $4,000'));
+      expect(tester.terminalState, containsText(r'Lumen $1,000'));
+      expect(tester.terminalState, isNot(containsText('MAR consumed')));
+      expect(tester.terminalState, isNot(containsText('Free tier')));
       expect(tester.terminalState, isNot(containsText('Command preview')));
-    });
+    }, size: const Size(160, 40));
   });
 
   test('detail panel renders selected surface version history', () async {
@@ -1620,6 +1628,14 @@ class FakeConsoleRepository implements ConsoleRepository {
       ),
       ConsoleSurface(surfaceType: 'paywall', slug: 'upsell', name: 'Upsell'),
     ],
+    overview: OverviewFigures(
+      sessions: '1,234',
+      finished: '42%',
+      revenue: r'$5,000',
+      appLines: {
+        'revenue': [r'Stride $4,000', r'Lumen $1,000'],
+      },
+    ),
   );
 
   @override

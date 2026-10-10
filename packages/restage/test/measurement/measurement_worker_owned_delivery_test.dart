@@ -15,9 +15,152 @@ import 'package:restage/src/measurement/measurement_worker_delivery_unsupported.
     as unsupported;
 import 'package:restage/src/measurement/measurement_worker_native.dart';
 import 'package:restage/src/measurement/measurement_worker_protocol.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('native worker reports typed refusal from an assigned frame only',
+      () async {
+    const fingerprint =
+        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    final support =
+        await Directory.systemTemp.createTemp('restage-worker-refusal-');
+    addTearDown(() => support.delete(recursive: true));
+    final received = <Uint8List>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      received.add(await _readRequest(request));
+      request.response
+        ..statusCode = HttpStatus.badRequest
+        ..write('{"error":"refused","reason":"registrationRefused"}');
+      await request.response.close();
+    }));
+    final runtime =
+        await _start(support: support, endpoint: _endpointFor(server));
+    addTearDown(runtime.shutdown);
+    final registration = _registration(
+      'session.registration-refused',
+      experimentAssignment: const MeasurementExperimentAssignmentV1(
+        outcomeLinkCarrier: 'Y2Fycmllcg',
+      ),
+      registrationFingerprint: fingerprint,
+    );
+    final opened = await runtime.openSession(registration);
+    expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
+    final session = opened.session!;
+    final refusal = runtime.registrationRefusals.first;
+    final acknowledgement = runtime.appendAcknowledgements.first;
+    expect(
+      session.append(MeasurementWorkerAppendRecord(
+        routeIndex: 0,
+        monotonicTimestampMicros: 1,
+        value: MeasurementWorkerAppendValue.interaction,
+      )),
+      MeasurementWorkerAppendOutcome.accepted,
+    );
+    await acknowledgement;
+    final checkpoint = await session.checkpoint(frameElapsedMicros: 2);
+    expect(checkpoint.outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.quarantined);
+    expect(await refusal, fingerprint);
+    expect(received, hasLength(1));
+    final request = MeasurementIngestRequestV1.fromBase64(
+      _canonicalRequestBase64(received.single),
+    );
+    expect(request.factFrame.experimentAssignment?.outcomeLinkCarrier,
+        'Y2Fycmllcg');
+    final retained = await _readyRecords(support);
+    expect(retained.single.batch.registrationFingerprint, fingerprint);
+    expect(retained.single.batch.exactRequestBytes, received.single);
+  });
+
+  test('replayed old frame refusal cannot evict a renewed registration',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'native-replay-refusal',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: () {},
+    );
+    final initial = (await store.capture())!;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    expect(
+        await store.confirm(
+          attempt: initial,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: now + 30 * Duration.microsecondsPerDay,
+          serverNowMicros: now,
+        ),
+        isTrue);
+    final oldFingerprint = (await store.capture())!.fingerprint;
+    final support =
+        await Directory.systemTemp.createTemp('restage-worker-old-refusal-');
+    addTearDown(() => support.delete(recursive: true));
+    var refuse = false;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    unawaited(server.forEach((request) async {
+      await _readRequest(request);
+      request.response.statusCode =
+          refuse ? HttpStatus.badRequest : HttpStatus.serviceUnavailable;
+      if (refuse) {
+        request.response
+            .write('{"error":"refused","reason":"registrationRefused"}');
+      }
+      await request.response.close();
+    }));
+    final first =
+        await _start(support: support, endpoint: _endpointFor(server));
+    final session = (await first.openSession(_registration(
+      'session.old-refusal',
+      experimentAssignment: const MeasurementExperimentAssignmentV1(
+        outcomeLinkCarrier: 'Y2Fycmllcg',
+      ),
+      registrationFingerprint: oldFingerprint,
+    )))
+        .session!;
+    final acknowledgement = first.appendAcknowledgements.first;
+    expect(
+        session.append(MeasurementWorkerAppendRecord(
+          routeIndex: 0,
+          monotonicTimestampMicros: 1,
+          value: MeasurementWorkerAppendValue.interaction,
+        )),
+        MeasurementWorkerAppendOutcome.accepted);
+    await acknowledgement;
+    expect((await session.checkpoint(frameElapsedMicros: 2)).outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.retryScheduled);
+    first.debugKillWorkerForTesting();
+    await _eventually(() => !first.isAvailable);
+
+    expect(await store.refuseFingerprint(oldFingerprint), isTrue);
+    final replacement = (await store.capture())!;
+    expect(
+        await store.confirm(
+          attempt: replacement,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'b' * 64}',
+          expiresAtMicros: now + 30 * Duration.microsecondsPerDay,
+          serverNowMicros: now,
+        ),
+        isTrue);
+    final currentFingerprint = (await store.capture())!.fingerprint;
+    refuse = true;
+    final second =
+        await _start(support: support, endpoint: _endpointFor(server));
+    addTearDown(second.shutdown);
+    final replayedFingerprint = await second.registrationRefusals.first
+        .timeout(const Duration(seconds: 4));
+    expect(replayedFingerprint, oldFingerprint);
+    expect(await store.refuseFingerprint(replayedFingerprint), isFalse);
+    expect((await store.capture())!.fingerprint, currentFingerprint);
+    expect((await store.capture())!.credentialHandle, 'ic1.${'b' * 64}');
+  });
+
   test('terminal diagnostic operation round trips and bounds its copied bytes',
       () {
     final summary = MeasurementPresentationDiagnosticV1(
@@ -1139,6 +1282,7 @@ MeasurementWorkerOwnedDeliveryConfiguration _configuration({
 MeasurementWorkerSessionRegistration _registration(
   String sessionId, {
   MeasurementExperimentAssignmentV1? experimentAssignment,
+  String? registrationFingerprint,
   int firstSequence = 1,
 }) {
   final context = ExactMeasurementPublicationContextRefV1(
@@ -1163,6 +1307,7 @@ MeasurementWorkerSessionRegistration _registration(
     experimentAssignmentCanonicalBytes: experimentAssignment == null
         ? null
         : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
+    registrationFingerprint: registrationFingerprint,
     publicationContextCanonicalBytes: context.canonicalBytes,
     routes: const [
       MeasurementWorkerRouteIdentity(

@@ -10,6 +10,8 @@ import 'package:restage_cli/src/commands/experimental_gate.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
+import 'package:restage_cli/src/commands/measurement_page_command.dart';
+import 'package:restage_cli/src/measurement/page_read.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
@@ -47,9 +49,7 @@ class ExperimentCommand extends Command<int> {
       _PauseCommand.new,
       _ResumeCommand.new,
       _ConcludeCommand.new,
-      _ListCommand.new,
       _ReadCommand.new,
-      _ResultsCommand.new,
       _ArchiveCommand.new,
       _RegisterBuildCommand.new,
       _ReadinessCommand.new,
@@ -57,6 +57,19 @@ class ExperimentCommand extends Command<int> {
       _RebuildServingRecordsCommand.new,
     ]) {
       addSubcommand(build(context));
+    }
+    for (final read in pageReads) {
+      if (!read.cliPath.startsWith('experiment ')) continue;
+      addSubcommand(
+        MeasurementPageCommand(
+          read,
+          stdout: stdout,
+          stderr: stderr,
+          interactive: interactive,
+          credentialStore: credentialStore,
+          httpClient: httpClient,
+        ),
+      );
     }
   }
 
@@ -68,9 +81,6 @@ class ExperimentCommand extends Command<int> {
   @override
   String get description =>
       'Author, review, activate, and read experiments at one target.';
-
-  @override
-  bool get hidden => !enabled;
 
   /// Whether this host has opted in to the experimental commands.
   bool get enabled => experimentalCommandsEnabled(_environment);
@@ -152,6 +162,12 @@ abstract class _ExperimentSubcommand extends Command<int> {
 
   /// Renders one drained accumulation for a human reader.
   String renderDrained(Object? value) => 'Accepted.';
+
+  @override
+  bool get hidden {
+    final owner = parent;
+    return owner is ExperimentCommand && !owner.enabled;
+  }
 
   @override
   Future<int> run() async {
@@ -936,73 +952,6 @@ class _ConcludeCommand extends _TransitionCommand {
       'Concluded experiment.';
 }
 
-/// Lists experiments and drafts at the selected target.
-class _ListCommand extends _ExperimentSubcommand {
-  _ListCommand(super.context);
-
-  @override
-  String get name => 'list';
-
-  @override
-  String get description =>
-      'List experiments and drafts at the selected target.';
-
-  @override
-  ExperimentAuthoringOperationV1? get operation => null;
-
-  @override
-  void addOptions(ArgParser parser) => parser.addFlag(
-    'results',
-    negatable: false,
-    help: "Read each listed experiment's results beside its identity.",
-  );
-
-  @override
-  Map<String, Object?>? buildPayload() => const {};
-
-  @override
-  Future<ExperimentPageDrain<Object?>>? drain(
-    ExperimentApi api,
-    TargetCoordinate target,
-    String correlationId,
-  ) => argResults?['results'] as bool? ?? false
-      ? api.listEveryPageWithResults(
-          target: target,
-          correlationId: correlationId,
-          newCorrelationId: () => _newIdentity('correlation'),
-        )
-      : api.listEveryPage(target: target, correlationId: correlationId);
-
-  @override
-  String renderDrained(Object? value) {
-    if (value case final List<ExperimentRosterEntry> roster) {
-      if (roster.isEmpty) return 'No experiments at this target.';
-      return roster.map(_rosterLines).join('\n');
-    }
-    final entries = value! as List<ExperimentListEntryV1>;
-    if (entries.isEmpty) return 'No experiments at this target.';
-    return entries.map((entry) => entry.experimentId.value).join('\n');
-  }
-}
-
-/// One roster entry: its identity, then the figures its results carry.
-String _rosterLines(ExperimentRosterEntry entry) {
-  final identity = entry.entry.experimentId.value;
-  final results = entry.results;
-  if (results == null) {
-    final refusal = entry.refusal?.refusal.code.wireName;
-    return '$identity: no result (${refusal ?? entry.omission!.name})';
-  }
-  if (results.availability.kind !=
-      ExperimentResultsAvailabilityKindV1.available) {
-    return '$identity: no result (${_noResult(results.availability.kind)})';
-  }
-  return [
-    '$identity (${results.lifecycleState.wireName}):',
-    for (final arm in results.armResults) _armResultLine(arm),
-  ].join('\n');
-}
-
 /// Reads one accepted experiment.
 class _ReadCommand extends _ExperimentSubcommand {
   _ReadCommand(super.context);
@@ -1087,80 +1036,6 @@ String _deliveryArmPublication(ExperimentDeliveryArmV1 arm) => switch (arm) {
   ) =>
     'revision $publishedRevision (contract $contractVersion)',
 };
-
-/// Reads one experiment's results.
-class _ResultsCommand extends _ExperimentSubcommand {
-  _ResultsCommand(super.context);
-
-  @override
-  String get name => 'results';
-
-  @override
-  String get description => "Read one experiment's results.";
-
-  @override
-  ExperimentAuthoringOperationV1? get operation =>
-      ExperimentAuthoringOperationV1.readExperimentResults;
-
-  @override
-  void addOptions(ArgParser parser) => parser
-    ..addOption('experiment-id', help: 'Experiment identity (required).')
-    ..addOption(
-      'activation-ordinal',
-      help: 'Activation ordinal the results belong to (required).',
-    )
-    ..addOption('result-digest', help: 'Result digest to read (required).');
-
-  @override
-  Map<String, Object?>? buildPayload() {
-    final experimentId = requireOption('experiment-id');
-    final activationOrdinal = requirePositiveInt('activation-ordinal');
-    final resultDigest = requireOption('result-digest');
-    if (experimentId == null ||
-        activationOrdinal == null ||
-        resultDigest == null) {
-      return null;
-    }
-    return {
-      'activationOrdinal': activationOrdinal,
-      'experimentId': experimentId,
-      'resultDigest': resultDigest,
-    };
-  }
-
-  @override
-  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
-    final view = accepted.response as ExperimentResultsViewV1;
-    if (view.availability.kind !=
-        ExperimentResultsAvailabilityKindV1.available) {
-      return 'No result: ${_noResult(view.availability.kind)}.';
-    }
-    return [
-      'Results for ${view.experimentId.value} (${view.lifecycleState.wireName}):',
-      for (final arm in view.armResults) _armResultLine(arm),
-      for (final guardrail in view.guardrailOutcomes)
-        '  guardrail ${guardrail.guardrailId.value}: ${guardrail.outcome}',
-    ].join('\n');
-  }
-}
-
-/// Why a result states nothing: the held-for-privacy words, or the kind.
-String _noResult(ExperimentResultsAvailabilityKindV1 kind) => switch (kind) {
-  ExperimentResultsAvailabilityKindV1.privacyRestricted =>
-    'not enough data yet; hidden for privacy: fewer than '
-        '$measurementDisclosureFloor in a variant',
-  _ => kind.wireName,
-};
-
-/// One arm's rate, effect and interval, in the digits the result carries.
-///
-/// The exact fraction behind each figure is in the result itself; `--json`
-/// prints it.
-String _armResultLine(ExperimentArmResultV1 arm) =>
-    '  ${arm.stableArmId.value}: rate ${arm.rate} '
-    '(${arm.successCount}/${arm.observedCount} of ${arm.admittedCount}) '
-    'effect ${arm.effect}, '
-    'interval ${arm.interval.lower} to ${arm.interval.upper}';
 
 /// Registers what one installed app build can supply.
 class _RegisterBuildCommand extends _ExperimentSubcommand {
@@ -1439,15 +1314,6 @@ Object? _drainJson(Object? value) => switch (value) {
     ],
     'target': discovery.target.toJson(),
   },
-  final List<ExperimentRosterEntry> roster => [
-    for (final entry in roster)
-      {
-        'entry': entry.entry.toJson(),
-        'omission': entry.omission?.name,
-        'refusal': entry.refusal?.toJson(),
-        'results': entry.results?.toJson(),
-      },
-  ],
   final List<ExperimentListEntryV1> entries => [
     for (final entry in entries) entry.toJson(),
   ],

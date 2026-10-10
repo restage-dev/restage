@@ -21,6 +21,8 @@ export 'src/api/discovery_models.dart';
 export 'src/api/experiment_activation_api.dart';
 export 'src/api/experiment_activation_host_transport.dart';
 export 'src/api/experiment_api.dart';
+export 'src/api/library_requirements_api.dart';
+export 'src/api/measurement_page_api.dart';
 export 'src/api/measurement_wire.dart';
 export 'src/api/programmatic_mutation_api.dart';
 export 'src/api/render_bundle_api.dart';
@@ -57,6 +59,7 @@ export 'src/commands/surface_publish_operation.dart'
 export 'src/commands/target_resolution.dart'
     show ResolvedEnvironmentTargetContext, resolveTargetSelection;
 export 'src/operations/operation.dart';
+export 'src/measurement/page_read.dart';
 export 'src/operations/operations.dart' show sharedOperation, sharedOperations;
 export 'src/api/surface_models.dart';
 export 'src/api/selector_syntax.dart';
@@ -66,6 +69,7 @@ export 'src/api/restage_api.dart'
         RestageApiException,
         InsecureEndpointException,
         isAcceptableTransport;
+export 'src/api/scope_snapshot_api.dart';
 export 'src/config/restage_config.dart'
     show
         RestageConfig,
@@ -76,6 +80,7 @@ export 'src/config/restage_config.dart'
         EndpointFormatException,
         EndpointMismatchException;
 export 'src/credentials/credential.dart';
+export 'src/libraries/library_contract_check.dart';
 export 'src/receipts/release_recorder.dart'
     show ReleaseRecorder, ReleaseRecorderException;
 export 'src/credentials/file_credential_store.dart';

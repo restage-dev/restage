@@ -7,7 +7,20 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/runtime/library_runtime_registry.dart';
 // ignore: implementation_imports
 import 'package:restage/src/measurement/measurement_rfw_presentation.dart';
-import 'package:restage_shared/restage_shared.dart' show LibraryRequirement;
+// ignore: implementation_imports
+import 'package:restage/src/delivery/surface_delivery_receipt.dart';
+// ignore: implementation_imports
+import 'package:restage/src/runtime/installed_widget_vocabulary.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show
+        BlobRenderAccepted,
+        BlobRenderCapabilityGate,
+        BlobRenderRejected,
+        BlobRenderRejectionReason,
+        CapabilityManifest,
+        InstalledLibrary,
+        LibraryCompatibility,
+        LibraryRequirement;
 // `rfw` exposes its own `WidgetLibrary` (the runtime's decoded-library
 // type). The catalog `WidgetLibrary` from `restage_shared` is what
 // apps register with — hide rfw's so the catalog identifier is the
@@ -301,6 +314,182 @@ void main() {
       _registerOne('app.widgets', 'Chip');
 
       expect(LibraryRuntimeRegistry.generation, isNot(installed));
+    });
+  });
+
+  group('compatibleSince', () {
+    const requires3 =
+        LibraryRequirement(namespace: 'acme.widgets', minVersion: 3);
+    const requires4 =
+        LibraryRequirement(namespace: 'acme.widgets', minVersion: 4);
+    const requires5 =
+        LibraryRequirement(namespace: 'acme.widgets', minVersion: 5);
+
+    CapabilityManifest manifest(LibraryRequirement requirement) =>
+        CapabilityManifest(builtInFloor: 1, requiredLibraries: [requirement]);
+
+    RestageWidgetLibraryRegistration registration({
+      required int capabilityVersion,
+      int? compatibleSince,
+      List<String> widgets = const ['W'],
+    }) =>
+        RestageWidgetLibraryRegistration(
+          library: WidgetLibrary.custom('acme.widgets'),
+          capabilityVersion: capabilityVersion,
+          compatibleSince: compatibleSince,
+          widgets: [
+            for (final name in widgets)
+              RestageWidgetFactory(name: name, builder: _stubBuilder),
+          ],
+        );
+
+    InstalledLibrary snapshot() =>
+        LibraryRuntimeRegistry.installedSnapshot().single;
+
+    test('a declared break refuses older content and reports it', () {
+      Restage.registerWidgetLibrary(
+        WidgetLibrary.custom('acme.widgets'),
+        widgets: [RestageWidgetFactory(name: 'W', builder: _stubBuilder)],
+        capabilityVersion: 4,
+        compatibleSince: 4,
+      );
+
+      expect(LibraryRuntimeRegistry.satisfies(requires3), isFalse);
+      expect(LibraryRuntimeRegistry.satisfies(requires4), isTrue);
+      expect(
+        LibraryRuntimeRegistry.compatibilityOf(requires3),
+        LibraryCompatibility.contractBroken,
+      );
+      expect(
+        LibraryRuntimeRegistry.describeGap(requires3),
+        'installed v4, compatible since v4',
+      );
+      expect(
+        LibraryRuntimeRegistry.receiptReasonFor(manifest(requires3)),
+        SurfaceDeliveryReceiptReason.incompatibleLibrary,
+      );
+      expect(
+        LibraryRuntimeRegistry.receiptReasonFor(manifest(requires5)),
+        SurfaceDeliveryReceiptReason.unsupported,
+      );
+      expect(
+        LibraryRuntimeRegistry.receiptReasonForLibraries(
+          const [requires5, requires3],
+        ),
+        SurfaceDeliveryReceiptReason.incompatibleLibrary,
+      );
+      expect(
+        snapshot(),
+        const InstalledLibrary(
+          namespace: 'acme.widgets',
+          version: 4,
+          compatibleSince: 4,
+        ),
+      );
+
+      final verdict = BlobRenderCapabilityGate.evaluate(
+        required: manifest(requires3),
+        installed: currentInstalledCapability(),
+      );
+      expect(
+        (verdict as BlobRenderRejected).reason,
+        BlobRenderRejectionReason.requiredLibraryContractBroken,
+      );
+    });
+
+    test('an additive bump still renders older content', () {
+      Restage.registerWidgetLibrary(
+        WidgetLibrary.custom('acme.widgets'),
+        widgets: [RestageWidgetFactory(name: 'W', builder: _stubBuilder)],
+        capabilityVersion: 4,
+      );
+
+      expect(LibraryRuntimeRegistry.satisfies(requires3), isTrue);
+      expect(
+        BlobRenderCapabilityGate.evaluate(
+          required: manifest(requires3),
+          installed: currentInstalledCapability(),
+        ),
+        const BlobRenderAccepted(),
+      );
+      expect(snapshot().toJson().containsKey('compatibleSince'), isFalse);
+    });
+
+    test('a missing or older library keeps the unsupported reason', () {
+      expect(
+        LibraryRuntimeRegistry.receiptReasonFor(manifest(requires3)),
+        SurfaceDeliveryReceiptReason.unsupported,
+      );
+      LibraryRuntimeRegistry.install(registration(capabilityVersion: 2));
+      expect(
+        LibraryRuntimeRegistry.receiptReasonFor(manifest(requires3)),
+        SurfaceDeliveryReceiptReason.unsupported,
+      );
+    });
+
+    test('an install merge takes compatibleSince from the higher version', () {
+      LibraryRuntimeRegistry.install(registration(capabilityVersion: 3));
+      LibraryRuntimeRegistry.install(
+        registration(capabilityVersion: 4, compatibleSince: 4),
+      );
+      expect(snapshot().compatibleSince, 4);
+
+      LibraryRuntimeRegistry.install(
+        registration(
+          capabilityVersion: 3,
+          compatibleSince: 1,
+          widgets: ['W', 'X'],
+        ),
+      );
+      expect(snapshot().version, 4);
+      expect(snapshot().compatibleSince, 4);
+    });
+
+    test('an install merge at one version keeps the higher compatibleSince',
+        () {
+      final start = LibraryRuntimeRegistry.generation;
+      LibraryRuntimeRegistry.install(registration(capabilityVersion: 4));
+      LibraryRuntimeRegistry.install(
+        registration(capabilityVersion: 4, compatibleSince: 3),
+      );
+      expect(snapshot().compatibleSince, 3);
+      LibraryRuntimeRegistry.install(
+        registration(capabilityVersion: 4, compatibleSince: 2),
+      );
+      expect(snapshot().compatibleSince, 3);
+      expect(LibraryRuntimeRegistry.generation, start);
+    });
+
+    test('a constant registration carries compatibleSince', () {
+      LibraryRuntimeRegistry.install(
+        RestageWidgetLibraryRegistration.constant(
+          library: WidgetLibrary.custom('acme.widgets'),
+          widgets: const [],
+          capabilityVersion: 4,
+          compatibleSince: 4,
+        ),
+      );
+      expect(snapshot().compatibleSince, 4);
+      expect(LibraryRuntimeRegistry.satisfies(requires3), isFalse);
+    });
+
+    test('a registration rejects compatibleSince outside 1..version', () {
+      expect(
+        () => registration(capabilityVersion: 4, compatibleSince: 5),
+        throwsArgumentError,
+      );
+      expect(
+        () => registration(capabilityVersion: 4, compatibleSince: 0),
+        throwsArgumentError,
+      );
+      expect(
+        () => RestageWidgetLibraryRegistration(
+          library: WidgetLibrary.custom('acme.widgets'),
+          widgets: const [],
+          compatibleSince: 1,
+        ),
+        throwsArgumentError,
+      );
     });
   });
 }

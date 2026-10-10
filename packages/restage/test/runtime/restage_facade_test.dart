@@ -181,16 +181,18 @@ void main() {
     // No assertion — just verifies it does not throw with no actor to rotate.
   });
 
-  test(
-      'configure with baseUrl and analytics enabled installs the '
-      'assignment-key provider', () async {
+  test('hosted configure persists a registration before any origin request',
+      () async {
     Restage.configure(
       apiKey: 'rs_pk_test',
       baseUrl: 'https://api.example.com',
     );
     _installRpcClient();
 
-    expect(await SurfaceAssignmentKeyProvider.resolve(), 'credential.facade');
+    final lease = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(lease.registration, isNotNull);
+    expect(lease.assignmentKey, isNull);
+    expect(lease.canSend, isTrue);
   });
 
   test(
@@ -218,10 +220,14 @@ void main() {
       baseUrl: 'https://api.example.com',
     );
     _installRpcClient();
-    expect(await SurfaceAssignmentKeyProvider.resolve(), 'credential.facade');
+    final old = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(old.registration, isNotNull);
 
     Restage.debugReset();
 
+    expect(old.isCurrent, isFalse);
+    expect((await SurfaceAssignmentKeyProvider.captureLease()).registration,
+        isNull);
     expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
   });
 
@@ -232,10 +238,14 @@ void main() {
       baseUrl: 'https://api.example.com',
     );
     _installRpcClient();
-    expect(await SurfaceAssignmentKeyProvider.resolve(), 'credential.facade');
+    final old = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(old.registration, isNotNull);
 
     Restage.configure(apiKey: 'rs_pk_test');
 
+    expect(old.isCurrent, isFalse);
+    expect((await SurfaceAssignmentKeyProvider.captureLease()).registration,
+        isNull);
     expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
   });
 }
@@ -250,12 +260,7 @@ void _installRpcClient() {
     baseUrl: 'https://api.example.com',
     apiKey: 'rs_pk_test',
     httpClient: MockClient(
-      (request) async => request.url.path ==
-              '/sdk/v1/measurement-assignment-credential'
-          ? http.Response(
-              '{"credentialHandle":"credential.facade","expiresAtMicros":4102444800000000}',
-              200)
-          : http.Response('', 404),
+      (_) async => http.Response('', 404),
     ),
   );
 }

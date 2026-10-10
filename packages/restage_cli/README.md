@@ -138,6 +138,14 @@ sandbox target the first group does not ask, and kill and rollback accept
 List commands such as `restage apps` and `restage targets` print a table with a
 header row. Scripts should pass `--json`.
 
+Discovery commands and the console read the current admitted organization
+scope. After the CLI confirms a configured organization, app, or environment
+target, it saves the corresponding numeric IDs in `restage_config.yaml` for
+later selection. A Git-recorded push leaves the tracked config untouched so
+its source stays clean for the receipt. Each later command checks saved IDs
+against a fresh scope;
+editing a slug or plane can require selecting and saving a new target.
+
 ## Pushing and publishing
 
 A push uploads a version and changes nothing that is running. A publish makes
@@ -301,13 +309,30 @@ RESTAGE_API_KEY=… restage build push
 The key is read from the environment only. It cannot be passed as a flag or
 in `restage_config.yaml`, and it is never written to the credentials file.
 
+## Analytics and experiment reads
+
+The Analytics pages and the experiment pages are readable from the terminal.
+Each command reads one page for one target and window (`--from`, `--until`; the
+last 30 days by default). `--json` prints the service's reply unchanged.
+
+```sh
+restage analytics overview
+restage analytics overview --all-apps
+restage analytics explore --dimension platform
+restage analytics surface --surface <id>
+restage analytics taps --surface <id> --version <ordinal>
+restage analytics health
+restage experiment list
+restage experiment results --experiment <id>
+```
+
 ## Experiments (beta)
 
 `restage experiment` has one subcommand per experiment operation: drafting,
-validation, review, activation, pausing, concluding, and reading results. It
-is hidden until you set `RESTAGE_EXPERIMENTAL=1`, because Restage Cloud does
-not serve these operations yet. Run `restage experiment --help` for the full
-list.
+validation, review, activation, pausing, concluding, and reading. The write
+subcommands are hidden until you set `RESTAGE_EXPERIMENTAL=1`, because
+Restage Cloud does not serve these operations yet. `list` and `results` are
+always available. Run `restage experiment --help` for the full list.
 
 ```sh
 restage experiment discover
@@ -321,7 +346,6 @@ restage experiment review --draft-id <id> --draft-revision-id <rev> \
 restage experiment activate --draft-id <id> --draft-revision-id <rev> \
   --expected-cas <token> --review-id <id> --review-digest <digest> --yes
 
-restage experiment list
 restage experiment read --experiment-id <id>
 restage experiment pause --experiment-id <id> --expected-lifecycle-ordinal <n>
 ```

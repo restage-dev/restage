@@ -1,0 +1,571 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:analyzer/dart/element/element.dart';
+import 'package:build/build.dart';
+import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/durable_state.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show
+        LibraryContractHeader,
+        libraryContractSnapshotDirectory,
+        libraryContractSnapshotVersion;
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+const String _kSnapshotGeneratedAt = '1970-01-01T00:00:00Z';
+
+/// One custom library's recorded contract at one capability version.
+@immutable
+final class LibraryContractSnapshot {
+  /// Creates a snapshot of [catalog], which holds only [library]'s entries.
+  const LibraryContractSnapshot({
+    required this.library,
+    required this.capabilityVersion,
+    required this.compatibleSince,
+    required this.catalog,
+    this.enumMembers = const {},
+  });
+
+  /// Decodes a snapshot file's [contents]; [source] names it in errors.
+  factory LibraryContractSnapshot.decode(String contents, String source) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(contents);
+    } on FormatException catch (error) {
+      throw FormatException('$source is not a library contract: $error');
+    }
+    final LibraryContractHeader(
+      :namespace,
+      :capabilityVersion,
+      :compatibleSince,
+    ) = LibraryContractHeader.fromJson(decoded, source);
+    final json = decoded! as Map<String, Object?>;
+    final enums = json['enumMembers'];
+    if (enums != null && enums is! Map<String, Object?>) {
+      throw FormatException('$source has malformed enumMembers.');
+    }
+    final entries = Map<String, Object?>.of(json)
+      ..remove('namespace')
+      ..remove('capabilityVersion')
+      ..remove('compatibleSince')
+      ..remove('enumMembers');
+    final catalog = decodeCatalog(
+      jsonEncode({
+        ...entries,
+        'generatedAt': _kSnapshotGeneratedAt,
+        'libraries': {
+          namespace: {
+            'version': '0.0.0',
+            'capabilityVersion': capabilityVersion,
+            if (compatibleSince > 1) 'compatibleSince': compatibleSince,
+          },
+        },
+      }),
+    );
+    return LibraryContractSnapshot(
+      library: catalog.libraries.keys.single,
+      capabilityVersion: capabilityVersion,
+      compatibleSince: compatibleSince,
+      catalog: catalog,
+      enumMembers: {
+        if (enums is Map<String, Object?>)
+          for (final MapEntry(:key, :value) in enums.entries)
+            key: (value! as List<Object?>).cast<String>(),
+      },
+    );
+  }
+
+  /// The snapshot of [library] in [catalog], or `null` when the library
+  /// declares no capability version.
+  ///
+  /// [enumMembers] maps `<library uri>#<enum>` to its member names.
+  static LibraryContractSnapshot? of(
+    Catalog catalog,
+    WidgetLibrary library, {
+    Map<String, List<String>> enumMembers = const {},
+  }) {
+    final info = catalog.libraries[library];
+    final capabilityVersion = info?.capabilityVersion;
+    if (info == null || capabilityVersion == null) return null;
+    final entries = Catalog(
+      schemaVersion: kSupportedSchemaVersion,
+      generatedAt: _kSnapshotGeneratedAt,
+      libraries: {
+        library: LibraryInfo(
+          version: '0.0.0',
+          capabilityVersion: capabilityVersion,
+          compatibleSince: info.compatibleSince,
+        ),
+      },
+      widgets: [
+        for (final widget in catalog.widgets)
+          if (widget.library == library) widget,
+      ],
+      structuredTypes: [
+        for (final structured in catalog.structuredTypes)
+          if (structured.library == library) structured,
+      ],
+      unions: [
+        for (final union in catalog.unions)
+          if (union.library == library) union,
+      ],
+      designTokens: [
+        for (final token in catalog.designTokens)
+          if (token.library == library) token,
+      ],
+    );
+    final referenced = _enumRefs(entries);
+    return LibraryContractSnapshot(
+      library: library,
+      capabilityVersion: capabilityVersion,
+      compatibleSince: info.compatibleSince,
+      catalog: entries,
+      enumMembers: {
+        for (final ref in referenced.toList()..sort())
+          if (enumMembers[ref] case final members?) ref: members,
+      },
+    );
+  }
+
+  /// The library this snapshot records.
+  final WidgetLibrary library;
+
+  /// The declared capability version.
+  final int capabilityVersion;
+
+  /// The oldest capability version this build still renders.
+  final int compatibleSince;
+
+  /// The library's catalog entries.
+  final Catalog catalog;
+
+  /// Member names of each enum the entries use, keyed `<library uri>#<enum>`.
+  final Map<String, List<String>> enumMembers;
+
+  /// Canonical JSON, free of timestamps and tool versions.
+  String encode() {
+    final entries = jsonDecode(encodeCatalog(catalog)) as Map<String, Object?>
+      ..remove('generatedAt')
+      ..remove('flutterVersion')
+      ..remove('libraries')
+      ..remove('compatRules')
+      ..remove('exclusions');
+    return '${const JsonEncoder.withIndent('  ').convert({
+          'namespace': library.namespace,
+          'capabilityVersion': capabilityVersion,
+          'compatibleSince': compatibleSince,
+          if (enumMembers.isNotEmpty) 'enumMembers': enumMembers,
+          ...entries,
+        })}\n';
+  }
+}
+
+/// What a build does with one library after comparing it to its snapshots.
+sealed class LibraryContractOutcome {
+  const LibraryContractOutcome();
+}
+
+/// The library matches its latest snapshot; nothing is written.
+final class LibraryContractUnchanged extends LibraryContractOutcome {
+  /// Creates an unchanged outcome.
+  const LibraryContractUnchanged();
+}
+
+/// The build passes and records [snapshot] as `v<capabilityVersion>.json`.
+final class LibraryContractRecorded extends LibraryContractOutcome {
+  /// Creates a recorded outcome.
+  const LibraryContractRecorded(this.snapshot);
+
+  /// The snapshot to write.
+  final LibraryContractSnapshot snapshot;
+}
+
+/// The build fails; each line names one problem.
+final class LibraryContractRefused extends LibraryContractOutcome {
+  /// Creates a refused outcome.
+  const LibraryContractRefused(this.lines);
+
+  /// Creates a refused outcome with one [line].
+  LibraryContractRefused.of(String line) : lines = [line];
+
+  /// One line per problem.
+  final List<String> lines;
+}
+
+/// Compares [current] with the [recorded] snapshots of the same library,
+/// keyed by capability version.
+LibraryContractOutcome evaluateLibraryContract(
+  LibraryContractSnapshot current,
+  Map<int, LibraryContractSnapshot> recorded,
+) {
+  if (recorded.isEmpty) return LibraryContractRecorded(current);
+  final namespace = current.library.namespace;
+  final latestVersion = recorded.keys.reduce((a, b) => a > b ? a : b);
+  final latest = recorded[latestVersion]!;
+  final version = current.capabilityVersion;
+  if (version < latestVersion) {
+    return LibraryContractRefused.of(
+      'Library `$namespace` declares capabilityVersion $version, below the '
+      'recorded v$latestVersion. It never moves back.',
+    );
+  }
+  if (current.compatibleSince < latest.compatibleSince) {
+    return LibraryContractRefused.of(
+      'Library `$namespace` declares compatibleSince '
+      '${current.compatibleSince}, below ${latest.compatibleSince} at '
+      'v$latestVersion. It never moves back.',
+    );
+  }
+
+  final changes = [
+    for (final change in diffCatalogs(latest.catalog, current.catalog))
+      if (_isContractBearing(change)) change,
+    ..._enumMemberChanges(latest, current),
+  ];
+  final breaking = [
+    for (final change in changes)
+      if (switch (classifyCatalogChange(change)) {
+        CompatClassification.breaking ||
+        CompatClassification.forwarding =>
+          true,
+        CompatClassification.free || CompatClassification.additive => false,
+      })
+        change,
+  ];
+  final additive = changes.any(
+        (change) =>
+            classifyCatalogChange(change) == CompatClassification.additive,
+      ) ||
+      _enumMembersAdded(latest, current);
+
+  if (breaking.isNotEmpty) {
+    if (version > latestVersion && current.compatibleSince == version) {
+      return LibraryContractRecorded(current);
+    }
+    final target = version > latestVersion ? version : latestVersion + 1;
+    final labels = _EntryLabels(latest.catalog, current.catalog);
+    String line(CatalogChange change) =>
+        '`${labels.of(change.affected)}` ${labels.describe(change)} since '
+        'library `$namespace` v$latestVersion. To ship this break, set '
+        'capabilityVersion: $target and compatibleSince: $target.';
+    return LibraryContractRefused([
+      for (final change in breaking) line(change),
+    ]);
+  }
+  if (version > latestVersion) return LibraryContractRecorded(current);
+  if (additive) {
+    return LibraryContractRefused.of(
+      'Library `$namespace` changed since v$latestVersion. Raise '
+      'capabilityVersion to ${latestVersion + 1}.',
+    );
+  }
+  if (current.compatibleSince != latest.compatibleSince) {
+    return LibraryContractRefused.of(
+      'Library `$namespace` changed compatibleSince at v$latestVersion. To '
+      'ship this break, set capabilityVersion: ${latestVersion + 1} and '
+      'compatibleSince: ${latestVersion + 1}.',
+    );
+  }
+  return const LibraryContractUnchanged();
+}
+
+// Editor metadata and token resolution do not change what an installed app
+// accepts.
+bool _isContractBearing(CatalogChange change) => switch (change) {
+      PropertyMetadataChanged() ||
+      TokenResolverChanged() ||
+      TokenFallbackChanged() =>
+        false,
+      _ => true,
+    };
+
+/// A removed or renamed enum member breaks every property that uses the enum.
+List<CatalogChange> _enumMemberChanges(
+  LibraryContractSnapshot latest,
+  LibraryContractSnapshot current,
+) {
+  final shrunk = {
+    for (final MapEntry(:key, :value) in latest.enumMembers.entries)
+      if (current.enumMembers[key] case final now?
+          when !value.every(now.contains))
+        key,
+  };
+  if (shrunk.isEmpty) return const [];
+  final namespace = current.library.namespace;
+  return [
+    for (final (wireId, shape) in _propertyShapes(current.catalog))
+      if (_enumRefsOf(shape).any(shrunk.contains))
+        PropertyShapeChanged(
+          affected: WireIdRef(library: namespace, wireId: wireId),
+          fields: const ['enumMembers'],
+        ),
+  ];
+}
+
+bool _enumMembersAdded(
+  LibraryContractSnapshot latest,
+  LibraryContractSnapshot current,
+) {
+  for (final MapEntry(:key, :value) in current.enumMembers.entries) {
+    final before = latest.enumMembers[key];
+    if (before != null && !value.every(before.contains)) return true;
+  }
+  return false;
+}
+
+Iterable<(WireId, CatalogValueShape?)> _propertyShapes(Catalog catalog) sync* {
+  for (final widget in catalog.widgets) {
+    for (final property in widget.properties) {
+      yield (property.wireId, property.valueShape);
+    }
+  }
+  for (final structured in catalog.structuredTypes) {
+    for (final field in structured.fields) {
+      yield (field.wireId, field.valueShape);
+    }
+  }
+}
+
+Iterable<String> _enumRefsOf(CatalogValueShape? shape) sync* {
+  switch (shape) {
+    case EnumShape(:final enumRef):
+      yield '${enumRef.libraryUri}#${enumRef.symbolName}';
+    case ListShape(:final itemShape):
+      yield* _enumRefsOf(itemShape);
+    case _:
+      break;
+  }
+}
+
+Set<String> _enumRefs(Catalog catalog) => {
+      for (final (_, shape) in _propertyShapes(catalog)) ..._enumRefsOf(shape),
+    };
+
+/// Resolves the members of every enum [catalog]'s entries use.
+Future<Map<String, List<String>>> resolveEnumMembers(
+  Resolver resolver,
+  Catalog catalog,
+) async {
+  final members = <String, List<String>>{};
+  for (final ref in _enumRefs(catalog)) {
+    final separator = ref.lastIndexOf('#');
+    final LibraryElement library;
+    try {
+      library = await resolver.libraryFor(
+        AssetId.resolve(Uri.parse(ref.substring(0, separator))),
+      );
+    } on Object {
+      continue;
+    }
+    final element = library.exportNamespace.get2(ref.substring(separator + 1));
+    if (element is EnumElement) {
+      members[ref] = [
+        for (final constant in element.constants)
+          if (constant.name case final name?) name,
+      ];
+    }
+  }
+  return members;
+}
+
+/// Reads every `v<N>.json` recorded for [library] under [root].
+Map<int, LibraryContractSnapshot> readLibraryContractSnapshots(
+  Directory root,
+  WidgetLibrary library,
+) {
+  final directory = _snapshotDirectory(root, library);
+  if (!directory.existsSync()) return const {};
+  final snapshots = <int, LibraryContractSnapshot>{};
+  for (final file in directory.listSync().whereType<File>()) {
+    final name = file.uri.pathSegments.last;
+    final version = libraryContractSnapshotVersion(name);
+    if (version == null) continue;
+    final source =
+        '$libraryContractSnapshotDirectory/${library.namespace}/$name';
+    final snapshot =
+        LibraryContractSnapshot.decode(file.readAsStringSync(), source);
+    if (snapshot.library != library || snapshot.capabilityVersion != version) {
+      throw FormatException(
+        '$source records library `${snapshot.library.namespace}` '
+        'v${snapshot.capabilityVersion}.',
+      );
+    }
+    snapshots[version] = snapshot;
+  }
+  return snapshots;
+}
+
+/// Writes [snapshot] to `v<capabilityVersion>.json` under [root].
+void writeLibraryContractSnapshot(
+  Directory root,
+  LibraryContractSnapshot snapshot,
+) {
+  final file = File.fromUri(
+    _snapshotDirectory(root, snapshot.library)
+        .uri
+        .resolve('v${snapshot.capabilityVersion}.json'),
+  );
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(snapshot.encode());
+}
+
+/// Checks every versioned custom library in [catalog] against the snapshots
+/// under [root], writing new ones when [write] is set.
+///
+/// Throws [LibraryContractException] naming every problem.
+void enforceLibraryContracts(
+  Catalog catalog, {
+  required Directory root,
+  required bool write,
+  Map<String, List<String>> enumMembers = const {},
+}) {
+  final lines = <String>[];
+  final libraries = catalog.libraries.keys.toList()
+    ..sort((a, b) => a.namespace.compareTo(b.namespace));
+  for (final library in libraries) {
+    if (WidgetLibrary.builtInByNamespace(library.namespace) != null) continue;
+    final current = LibraryContractSnapshot.of(
+      catalog,
+      library,
+      enumMembers: enumMembers,
+    );
+    if (current == null) continue;
+    final outcome = evaluateLibraryContract(
+      current,
+      readLibraryContractSnapshots(root, library),
+    );
+    switch (outcome) {
+      case LibraryContractUnchanged():
+        break;
+      case LibraryContractRecorded(:final snapshot):
+        if (write) writeLibraryContractSnapshot(root, snapshot);
+      case LibraryContractRefused(lines: final refused):
+        lines.addAll(refused);
+    }
+  }
+  if (lines.isNotEmpty) throw LibraryContractException(lines);
+}
+
+/// Runs [enforceLibraryContracts] against [package]'s root, when it resolves.
+Future<void> enforcePackageLibraryContracts(
+  Catalog catalog, {
+  required String package,
+  required bool write,
+  Map<String, List<String>> enumMembers = const {},
+}) async {
+  final root = await restagePackageRoot(package);
+  if (root == null) return;
+  enforceLibraryContracts(
+    catalog,
+    root: Directory.fromUri(root),
+    write: write,
+    enumMembers: enumMembers,
+  );
+}
+
+/// A library changed in a way its declared capability line does not allow.
+final class LibraryContractException implements Exception {
+  /// Creates an exception with one line per problem.
+  const LibraryContractException(this.lines);
+
+  /// One line per problem.
+  final List<String> lines;
+
+  @override
+  String toString() => lines.join('\n');
+}
+
+Directory _snapshotDirectory(Directory root, WidgetLibrary library) =>
+    Directory.fromUri(
+      root.uri
+          .resolve('$libraryContractSnapshotDirectory/${library.namespace}/'),
+    );
+
+/// Names catalog entries the way the developer wrote them.
+final class _EntryLabels {
+  _EntryLabels(this.before, this.after);
+
+  final Catalog before;
+  final Catalog after;
+
+  String of(WireIdRef ref) =>
+      _label(before, ref) ?? _label(after, ref) ?? '$ref';
+
+  String describe(CatalogChange change) => switch (change) {
+        EntryRemoved() => 'was removed',
+        EntryRenamed() => 'was renamed to `${_label(after, change.affected)}`',
+        EntryReplaced() => 'was replaced',
+        PropertyTypeChanged(:final from, :final to) =>
+          'changed type from ${from.name} to ${to.name}',
+        PropertyShapeChanged(fields: ['enumMembers']) =>
+          'lost or renamed an enum value',
+        PropertyShapeChanged(:final fields) => 'changed ${fields.join(', ')}',
+        RequiredFlagChanged() => 'became required',
+        SyntheticStrategyChanged() => 'changed how it is generated',
+        WidgetChildrenSlotChanged(:final from, :final to) =>
+          'changed its children from ${from.name} to ${to.name}',
+        UnionMemberRemoved(:final member) => 'lost member `${of(member)}`',
+        UnionDiscriminatorChanged() => 'changed its discriminator',
+        VariantArgumentsChanged() => 'changed its arguments',
+        TokenTypeChanged(:final from, :final to) =>
+          'changed type from ${from.name} to ${to.name}',
+        EntryAdded() ||
+        EntrySourceMoved() ||
+        EntryDeprecated() ||
+        PropertyDefaultChanged() ||
+        PropertyMetadataChanged() ||
+        UnionMemberAdded() ||
+        TokenResolverChanged() ||
+        TokenFallbackChanged() =>
+          'changed',
+      };
+
+  static String? _label(Catalog catalog, WireIdRef ref) {
+    for (final widget in catalog.widgets) {
+      if (widget.library.namespace != ref.library) continue;
+      if (widget.wireId == ref.wireId) return widget.name;
+      for (final property in widget.properties) {
+        if (property.wireId == ref.wireId) {
+          return '${widget.name}.${property.name}';
+        }
+      }
+    }
+    for (final structured in catalog.structuredTypes) {
+      if (structured.library.namespace != ref.library) continue;
+      if (structured.wireId == ref.wireId) return structured.name;
+      for (final field in structured.fields) {
+        if (field.wireId == ref.wireId) {
+          return '${structured.name}.${field.name}';
+        }
+      }
+      for (final variant in structured.variants) {
+        if (variant.wireId == ref.wireId) {
+          final accessor = switch (variant) {
+            ConstructorVariant(:final namedConstructor) => namedConstructor,
+            StaticMethodVariant(:final staticAccessor) ||
+            StaticGetterVariant(:final staticAccessor) ||
+            ConstValueVariant(:final staticAccessor) =>
+              staticAccessor,
+          };
+          return accessor == null || accessor.isEmpty
+              ? '${structured.name}()'
+              : '${structured.name}.$accessor';
+        }
+      }
+    }
+    for (final union in catalog.unions) {
+      if (union.library.namespace == ref.library &&
+          union.wireId == ref.wireId) {
+        return union.name;
+      }
+    }
+    for (final token in catalog.designTokens) {
+      if (token.library.namespace == ref.library &&
+          token.wireId == ref.wireId) {
+        return token.name;
+      }
+    }
+    return null;
+  }
+}

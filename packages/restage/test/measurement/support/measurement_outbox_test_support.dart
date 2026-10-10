@@ -11,6 +11,8 @@ MeasurementOutboxPreparedBatch outboxPreparedBatch({
   bool isFinal = false,
   String variant = 'default',
   int factCount = 1,
+  String? registrationFingerprint,
+  String? outcomeLinkCarrier,
 }) =>
     MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(
       workerPreparedBatch(
@@ -19,7 +21,9 @@ MeasurementOutboxPreparedBatch outboxPreparedBatch({
         isFinal: isFinal,
         variant: variant,
         factCount: factCount,
+        outcomeLinkCarrier: outcomeLinkCarrier,
       ),
+      registrationFingerprint: registrationFingerprint,
     );
 
 MeasurementWorkerPreparedBatch workerPreparedBatch({
@@ -28,6 +32,7 @@ MeasurementWorkerPreparedBatch workerPreparedBatch({
   bool isFinal = false,
   String variant = 'default',
   int factCount = 1,
+  String? outcomeLinkCarrier,
 }) =>
     workerPreparedBatchForRequest(
       ingestRequest(
@@ -35,6 +40,7 @@ MeasurementWorkerPreparedBatch workerPreparedBatch({
         isFinal: isFinal,
         variant: variant,
         factCount: factCount,
+        outcomeLinkCarrier: outcomeLinkCarrier,
       ),
       sessionId: sessionId,
       sequence: sequence,
@@ -73,6 +79,7 @@ MeasurementIngestRequestV1 ingestRequest({
   String variant = 'default',
   int factCount = 1,
   MeasurementPublicationBindingReferenceV1? bindingReference,
+  String? outcomeLinkCarrier,
 }) {
   if (factCount <= 0 || factCount > 1024) {
     throw ArgumentError.value(factCount, 'factCount');
@@ -98,6 +105,11 @@ MeasurementIngestRequestV1 ingestRequest({
           },
       ],
       'finality': {'kind': isFinal ? 'final' : 'pending'},
+      if (outcomeLinkCarrier != null) 'frameElapsedMicros': 2,
+      if (outcomeLinkCarrier != null)
+        'experimentAssignment': MeasurementExperimentAssignmentV1(
+          outcomeLinkCarrier: outcomeLinkCarrier,
+        ).toJson(),
       'kind': 'measurementFactFrame',
       'missingness': const <Object?>[],
       'publishedContext': ExactMeasurementPublicationContextRefV1(

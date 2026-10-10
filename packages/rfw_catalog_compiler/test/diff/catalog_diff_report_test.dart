@@ -64,9 +64,9 @@ void main() {
       expect(report.changes, hasLength(2));
       expect(
         report.changes.map((c) => c.classification).toSet(),
-        {CompatClassification.free, CompatClassification.additive},
+        {CompatClassification.breaking, CompatClassification.additive},
       );
-      expect(report.compatRules, isEmpty);
+      expect(report.compatRules.map((r) => r.affectedRef), [ref('w0001')]);
     });
   });
 }

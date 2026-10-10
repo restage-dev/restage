@@ -56,13 +56,14 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking, removal', () {
       expectSingleChange(
         computeCatalogDiff(
           catalog(widgets: [widgetEntry(wireId: 'w0001', name: 'A')]),
           catalog(widgets: [widgetEntry(wireId: 'w0001', name: 'B')]),
         ),
-        classification: CompatClassification.free,
+        classification: CompatClassification.breaking,
+        rule: CompatKind.removal,
       );
     });
 
@@ -148,13 +149,14 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking, removal', () {
       expectSingleChange(
         computeCatalogDiff(
           widgetWith([propertyEntry(wireId: 'p0001', name: 'a')]),
           widgetWith([propertyEntry(wireId: 'p0001', name: 'b')]),
         ),
-        classification: CompatClassification.free,
+        classification: CompatClassification.breaking,
+        rule: CompatKind.removal,
       );
     });
 
@@ -272,13 +274,14 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking, removal', () {
       expectSingleChange(
         computeCatalogDiff(
           structuredOf(structuredEntry(wireId: 's0001', name: 'A')),
           structuredOf(structuredEntry(wireId: 's0001', name: 'B')),
         ),
-        classification: CompatClassification.free,
+        classification: CompatClassification.breaking,
+        rule: CompatKind.removal,
       );
     });
 
@@ -371,7 +374,7 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking, removal', () {
       expectSingleChange(
         computeCatalogDiff(
           variantsOf([
@@ -381,7 +384,8 @@ void main() {
             factoryVariant(wireId: 'v0001', namedConstructor: 'rounded'),
           ]),
         ),
-        classification: CompatClassification.free,
+        classification: CompatClassification.breaking,
+        rule: CompatKind.removal,
       );
     });
 
@@ -451,13 +455,14 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking, removal', () {
       expectSingleChange(
         computeCatalogDiff(
           unionOf(unionEntry(wireId: 'u0001', name: 'A')),
           unionOf(unionEntry(wireId: 'u0001', name: 'B')),
         ),
-        classification: CompatClassification.free,
+        classification: CompatClassification.breaking,
+        rule: CompatKind.removal,
       );
     });
 
@@ -539,13 +544,14 @@ void main() {
       );
     });
 
-    test('rename → free', () {
+    test('rename → breaking, removal', () {
       expectSingleChange(
         computeCatalogDiff(
           tokenOf(designTokenEntry(wireId: 't0001', name: 'a')),
           tokenOf(designTokenEntry(wireId: 't0001', name: 'b')),
         ),
-        classification: CompatClassification.free,
+        classification: CompatClassification.breaking,
+        rule: CompatKind.removal,
       );
     });
 
@@ -645,14 +651,15 @@ void main() {
       expect(
         report.changes.map((c) => c.classification).toList(),
         [
-          CompatClassification.free,
+          CompatClassification.breaking,
           CompatClassification.breaking,
           CompatClassification.additive,
         ],
       );
-      expect(report.compatRules, hasLength(1));
-      expect(report.compatRules.single.affectedRef, ref('w0002'));
-      expect(report.compatRules.single.kind, CompatKind.removal);
+      expect(
+        report.compatRules.map((r) => r.affectedRef),
+        [ref('w0001'), ref('w0002')],
+      );
     });
   });
 }

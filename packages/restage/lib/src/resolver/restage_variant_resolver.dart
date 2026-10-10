@@ -781,7 +781,10 @@ final class _RestagePaywallExperimentPresentation
           }
           if (prefetched is FlowCandidatePrefetchAccepted) {
             final provisional = _PaywallExperimentHostedFlow(
-              snapshot: snapshot,
+              snapshot: snapshot.withAssignmentKey(
+                SurfaceAssignmentKeyProvider.confirmedKey ??
+                    snapshot.assignmentKey,
+              ),
               accepted: prefetched,
               paywallPublishedVersion: fresh.paywallPublishedVersion,
             );

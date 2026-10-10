@@ -528,12 +528,53 @@ void main() {
     http.Client acceptsEither() => mockHttpClient((request) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       switch (body['method']) {
-        case 'resolveTarget':
-          final slug = body['organizationSlug'] as String;
-          return resolveTargetResponse(
-            body,
-            organizationId: slug == 'acme' ? 11 : 12,
-            organizationSlug: slug,
+        case 'read':
+          final selected = body['organizationId'] as int? ?? 11;
+          return http.Response(
+            jsonEncode({
+              'organizationId': selected,
+              'session': {
+                'memberships': [
+                  {
+                    'organizationId': 11,
+                    'slug': 'acme',
+                    'name': 'Acme',
+                    'role': 'owner',
+                  },
+                  {
+                    'organizationId': 12,
+                    'slug': 'other',
+                    'name': 'Other',
+                    'role': 'owner',
+                  },
+                ],
+                'workspaceExperiences': <Object>[],
+              },
+              'projects': [
+                {'id': 1, 'slug': 'demo', 'name': 'Demo'},
+              ],
+              'apps': [
+                {'id': 5, 'projectId': 1, 'slug': 'mobile', 'name': 'Mobile'},
+              ],
+              'environments': [
+                {
+                  'id': 12,
+                  'appId': 5,
+                  'namedEnvironmentId': 22,
+                  'slug': 'staging',
+                },
+              ],
+              'environmentTargets': [
+                {
+                  'environmentTargetId': 12,
+                  'namedEnvironmentId': 22,
+                  'environmentSlug': 'staging',
+                  'runtimePlane': 'sandbox',
+                },
+              ],
+              'surfaces': <Object>[],
+            }),
+            200,
           );
         default:
           return publishSucceeded(

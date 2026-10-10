@@ -43,6 +43,46 @@ void main() {
       expect(cap.availableLibraries.single.version, 3);
     });
 
+    test('fromStampJson reads a declared break and validates it', () {
+      final cap = A2uiInstalledCapability.fromStampJson(const {
+        'catalogContentVersion': 4,
+        'availableLibraries': [
+          {'namespace': 'acme.widgets', 'version': 3, 'compatibleSince': 3},
+        ],
+      });
+      expect(cap.availableLibraries.single.compatibleSince, 3);
+      expect(
+        cap.availableLibraries.single,
+        isNot(
+          const A2uiAvailableLibrary(namespace: 'acme.widgets', version: 3),
+        ),
+      );
+      expect(
+        const A2uiAvailableLibrary(
+          namespace: 'acme.widgets',
+          version: 3,
+          compatibleSince: 1,
+        ),
+        const A2uiAvailableLibrary(namespace: 'acme.widgets', version: 3),
+      );
+      for (final since in <Object>[0, 4, '2']) {
+        expect(
+          () => A2uiInstalledCapability.fromStampJson({
+            'catalogContentVersion': 4,
+            'availableLibraries': [
+              {
+                'namespace': 'acme.widgets',
+                'version': 3,
+                'compatibleSince': since,
+              },
+            ],
+          }),
+          throwsFormatException,
+          reason: '$since',
+        );
+      }
+    });
+
     test('fromStampJson tolerates an absent availableLibraries list', () {
       final cap = A2uiInstalledCapability.fromStampJson(const {
         'catalogContentVersion': 1,

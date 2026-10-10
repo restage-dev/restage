@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:meta/meta.dart';
-import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 
@@ -136,6 +136,7 @@ class OperationTarget {
     this.runtimePlane,
     this.planeIsImplicit = true,
     this.identity,
+    this.snapshot,
   });
 
   /// Authenticated backend client.
@@ -171,10 +172,14 @@ class OperationTarget {
   /// The surface a surface operation names.
   final SurfaceLifecycleIdentity? identity;
 
+  /// The scope already admitted while resolving this call, if held.
+  final ProgrammaticScopeSnapshot? snapshot;
+
   /// [organizationId], or the caller's only organization.
   Future<int> organization() async {
     if (organizationId case final id?) return id;
-    final organizations = await DiscoveryApi(api).listOrganizations();
+    final organizations =
+        (snapshot ?? await readProgrammaticScope(api)).organizations;
     if (organizations.length == 1) return organizations.single.organizationId;
     throw TargetSelectionException(
       organizations.isEmpty

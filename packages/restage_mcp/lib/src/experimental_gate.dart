@@ -6,7 +6,6 @@ import 'api_runner.dart';
 import 'canonical_mutation_tool.dart';
 import 'experiment_activation_tool.dart';
 import 'experiment_apply_tool.dart';
-import 'experiment_results_tools.dart';
 import 'serving_record_rebuild_tool.dart';
 import 'tool_support.dart';
 
@@ -47,14 +46,6 @@ List<ToolEntry> experimentTools(
     (experimentApplyTool, (request) => handleExperimentApply(ctx, request)),
     changesLive: changesLiveExperiment,
     planeOf: declaredPlane,
-  ),
-  (
-    readExperimentResultsTool,
-    (request) => handleReadExperimentResults(ctx, request),
-  ),
-  (
-    readExperimentRosterTool,
-    (request) => handleReadExperimentRoster(ctx, request),
   ),
   liveGuarded(
     ctx,

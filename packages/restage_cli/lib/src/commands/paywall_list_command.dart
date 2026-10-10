@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -49,12 +48,9 @@ class PaywallListCommand extends Command<int> {
   Future<int> run() => runAuthed(_io, argResults, OperationScope.app, (
     ctx,
   ) async {
-    final summaries = await SurfaceApi(ctx.api).list(
-      project: ctx.project!,
-      app: ctx.app!.slug,
-      surfaceType: Surface.paywall,
-      organizationId: ctx.organizationId,
-      appId: ctx.app!.appId,
+    final summaries = ctx.snapshot!.surfaces(
+      appId: ctx.app!.appId!,
+      surfaceType: Surface.paywall.wireName,
     );
     if (argResults?['json'] as bool? ?? false) {
       _io.stdout.writeln(jsonEncode([for (final s in summaries) s.toJson()]));
@@ -68,26 +64,10 @@ class PaywallListCommand extends Command<int> {
     _io.stdout.writeln('SLUG\tNAME\tDRAFT-UPDATED\tPUBLISHED');
     for (final summary in summaries) {
       final draft = summary.draftUpdatedAt.toUtc().toIso8601String();
-      final published = _formatPublishedColumn(
-        summary.publishedVersionByEnvironment,
-      );
+      final published = formatPublishedColumn(summary);
       _io.stdout.writeln(
         '${summary.slug}\t${summary.name}\t$draft\t$published',
       );
     }
-  }
-
-  /// Render the `PUBLISHED` column.
-  ///
-  /// Each `env: version` pair contributes `env=version` when the version
-  /// is non-null. The whole column is a single dash (`-`) when no
-  /// environment has a published version yet.
-  String _formatPublishedColumn(Map<String, int?> byEnv) {
-    final published = <String>[
-      for (final entry in byEnv.entries)
-        if (entry.value != null) '${entry.key}=${entry.value}',
-    ];
-    if (published.isEmpty) return '-';
-    return published.join(', ');
   }
 }

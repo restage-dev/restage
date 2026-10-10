@@ -1,9 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('a throttled assignment is unavailable, not an error', () async {
@@ -28,12 +34,55 @@ void main() {
     expect(decision, isNull);
   });
 
-  test('a throttled credential registration yields no credential', () async {
-    final credential = await _clientAnswering(429).registerAssignmentCredential(
-      registrationNonce: 'A' * 43,
-      registrationCreatedAtMicros: 100,
+  test('a throttled folded registration keeps its durable tuple', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'throttled-folded-registration',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: () {},
     );
-    expect(credential, isNull);
+    SurfaceAssignmentKeyProvider.install(
+      key: store.resolve,
+      identityGeneration: () => store.generation,
+      registration: store.capture,
+      confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+          store.confirm(
+        attempt: attempt,
+        localRequestStartMicros: start,
+        credentialHandle: handle,
+        expiresAtMicros: expiry,
+        serverNowMicros: serverNow,
+      ),
+      refuseRegistration: store.refuse,
+    );
+    addTearDown(SurfaceAssignmentKeyProvider.clear);
+    final first = (await store.capture())!;
+    late Map<String, dynamic> sent;
+    final client = RestageRpcClient(
+      baseUrl: 'https://api.example.test',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('{"error":"rate_limited"}', 429,
+            headers: const {'retry-after': '5'});
+      }),
+    );
+    final outcome = await client.fetchSurfaceScreen(
+      SurfaceScreenDeliveryRequest(
+        surface: Surface.general,
+        slug: 'feature_announcement',
+        contractVersion: 7,
+      ),
+      registrationLease: await SurfaceAssignmentKeyProvider.captureLease(),
+    );
+    expect(outcome, isA<SurfaceScreenDeliveryTransportUnavailable>());
+    expect(sent['registrationNonce'], first.registrationNonce);
+    expect(
+        sent['registrationCreatedAtMicros'], first.registrationCreatedAtMicros);
+    final retry = (await store.capture())!;
+    expect(retry.tuple, first.tuple);
+    expect(retry.credentialHandle, isNull);
   });
 }
 

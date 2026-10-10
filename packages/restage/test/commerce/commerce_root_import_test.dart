@@ -18,6 +18,13 @@ const _commerceDataSymbols = <String>{
   'CommerceRequest',
   'CommerceResponse',
   'CommerceRestoreRequest',
+  'CommerceStore',
+  'CommerceStoreAdapter',
+  'CommerceStoreProduct',
+  'CommerceStoreProductKind',
+  'CommerceStorePurchasable',
+  'CommerceStoreTransaction',
+  'CommerceStoreTransactionStatus',
 };
 const _probedSymbols = <String>{_facadeSymbol, ..._commerceDataSymbols};
 const _expectedRootSymbols = <String>{_facadeSymbol};

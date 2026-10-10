@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 
 import 'delivery_input_budget.dart';
+import 'surface_assignment_credential_store.dart';
 
 /// Internal provider for the SDK-owned identity key used with hosted surface
 /// requests.
@@ -14,6 +15,11 @@ import 'delivery_input_budget.dart';
 /// work when that identity changes.
 abstract final class SurfaceAssignmentKeyProvider {
   static FutureOr<String?> Function()? _current;
+  static Future<SurfaceRegistrationAttempt?> Function()? _registration;
+  static String? Function()? _confirmedKey;
+  static Future<bool> Function(
+      SurfaceRegistrationAttempt, int, String, int, int)? _confirmRegistration;
+  static Future<void> Function(SurfaceRegistrationAttempt)? _refuseRegistration;
   static int Function()? _identityGeneration;
   static int _configurationEpoch = 0;
 
@@ -41,6 +47,10 @@ abstract final class SurfaceAssignmentKeyProvider {
     _configurationEpoch += 1;
     _current = provider;
     _identityGeneration = null;
+    _registration = null;
+    _confirmedKey = null;
+    _confirmRegistration = null;
+    _refuseRegistration = null;
   }
 
   /// Installs the production key and identity-generation providers together.
@@ -48,10 +58,19 @@ abstract final class SurfaceAssignmentKeyProvider {
   static void install({
     required FutureOr<String?> Function() key,
     required int Function() identityGeneration,
+    Future<SurfaceRegistrationAttempt?> Function()? registration,
+    String? Function()? confirmedKey,
+    Future<bool> Function(SurfaceRegistrationAttempt, int, String, int, int)?
+        confirmRegistration,
+    Future<void> Function(SurfaceRegistrationAttempt)? refuseRegistration,
   }) {
     _configurationEpoch += 1;
     _current = key;
     _identityGeneration = identityGeneration;
+    _registration = registration;
+    _confirmedKey = confirmedKey;
+    _confirmRegistration = confirmRegistration;
+    _refuseRegistration = refuseRegistration;
   }
 
   /// Resolves the current key, returning null when disabled, degraded, or
@@ -85,9 +104,22 @@ abstract final class SurfaceAssignmentKeyProvider {
     final generationProvider = _identityGeneration;
     final identityGeneration = generationProvider?.call() ?? 0;
     final provider = _current;
+    final registrationProvider = _registration;
 
     String? key;
-    if (provider != null) {
+    SurfaceRegistrationAttempt? registration;
+    if (registrationProvider != null) {
+      try {
+        registration = await DeliveryInputBudget.run(
+          (owned) => owned.bound(registrationProvider()),
+          shared: budget,
+          total: DeliveryInputBudget.defaultTotal,
+        );
+        key = registration?.credentialHandle;
+      } on Object {
+        registration = null;
+      }
+    } else if (provider != null) {
       try {
         final value = await DeliveryInputBudget.run(
           (owned) => owned.bound(Future.sync(provider)),
@@ -101,8 +133,12 @@ abstract final class SurfaceAssignmentKeyProvider {
     }
     return SurfaceAssignmentResolutionLease._(
       configurationEpoch: configurationEpoch,
-      identityGeneration: identityGeneration,
+      identityGeneration: registration?.generation ?? identityGeneration,
       assignmentKey: key,
+      registration: registration,
+      registrationRequired: registrationProvider != null,
+      confirmRegistration: _confirmRegistration,
+      refuseRegistration: _refuseRegistration,
     );
   }
 
@@ -117,26 +153,77 @@ abstract final class SurfaceAssignmentKeyProvider {
     }
   }
 
+  /// Captures the tuple associated with a Measurement frame before its send.
+  static Future<SurfaceRegistrationAttempt?>
+      captureRegistrationAttempt() async {
+    final provider = _registration;
+    if (provider == null) return null;
+    try {
+      return await DeliveryInputBudget.run(
+        (budget) => budget.bound(provider()),
+        total: DeliveryInputBudget.defaultTotal,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The handle confirmed by a folded serve in the current identity epoch.
+  static String? get confirmedKey => _confirmedKey?.call();
+
+  /// Discards a credential refused for the frame's captured tuple.
+  static Future<void> refuseRegistration(
+      SurfaceRegistrationAttempt attempt) async {
+    await _refuseRegistration?.call(attempt);
+  }
+
   /// Clears any configured provider.
   static void clear() => current = null;
 }
 
 /// Internal identity epoch attached to hosted paywall resolution work.
 @internal
-@immutable
 final class SurfaceAssignmentResolutionLease {
-  const SurfaceAssignmentResolutionLease._({
+  SurfaceAssignmentResolutionLease._({
     required int configurationEpoch,
     required int identityGeneration,
-    required this.assignmentKey,
-  })  : _configurationEpoch = configurationEpoch,
+    required String? assignmentKey,
+    required this.registration,
+    required this.registrationRequired,
+    required this.confirmRegistration,
+    required this.refuseRegistration,
+  })  : assignmentKey = assignmentKey,
+        sentAssignmentKey = assignmentKey,
+        _configurationEpoch = configurationEpoch,
         _identityGeneration = identityGeneration;
 
   final int _configurationEpoch;
   final int _identityGeneration;
 
   /// The assignment key captured for the hosted request, when available.
-  final String? assignmentKey;
+  String? assignmentKey;
+
+  /// The handle actually included when this request began.
+  final String? sentAssignmentKey;
+
+  /// Keeps content fetched with a new registration under its confirmed handle.
+  void confirmHandle(String handle) {
+    if (registration != null && sentAssignmentKey == null) {
+      assignmentKey = handle;
+    }
+  }
+
+  /// Persisted tuple captured before this request can leave the device.
+  final SurfaceRegistrationAttempt? registration;
+
+  /// A configured device sends no hosted request until its tuple is durable.
+  final bool registrationRequired;
+
+  bool get canSend => !registrationRequired || registration != null;
+
+  final Future<bool> Function(
+      SurfaceRegistrationAttempt, int, String, int, int)? confirmRegistration;
+  final Future<void> Function(SurfaceRegistrationAttempt)? refuseRegistration;
 
   /// Whether provider configuration, identity, and credential retention are unchanged.
   bool get isCurrent => SurfaceAssignmentKeyProvider._isLeaseCurrent(this);

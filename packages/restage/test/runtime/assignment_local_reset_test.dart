@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_assignment_persistence.dart';
@@ -13,6 +12,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+import '../surface_screen/surface_screen_test_support.dart';
 
 final _assignment = CanonicalSurfaceExperimentAssignmentV1(
   experimentId: ExperimentPublicIdV1('experiment.reset'),
@@ -29,33 +30,40 @@ bool _isAssignmentKey(String key) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late _ControlledPreferences storage;
-  var registrations = 0;
+  late ScreenFixture<String> screenFixture;
+  var surfaceRequests = 0;
+  var confirmedHandles = 0;
   Future<void> Function()? beforeResponse;
 
   setUp(() async {
     await Restage.debugResetAndWait();
     SharedPreferences.setMockInitialValues({});
     storage = _ControlledPreferences();
+    screenFixture = stringScreenFixture(slug: 'reset');
     SharedPreferencesStorePlatform.instance = storage;
-    registrations = 0;
+    surfaceRequests = 0;
+    confirmedHandles = 0;
     beforeResponse = null;
     Restage.configure(
       apiKey: 'rs_pk_reset',
       baseUrl: 'https://surfaces.example.com',
     );
+    final serverNow = DateTime.now().microsecondsSinceEpoch;
+    final responseBody = jsonEncode({
+      ...SurfaceScreenDeliveryDescriptorV1Codec.encode(
+          screenFixture.delivery()),
+      'credentialHandle': 'ic1.${'a' * 64}',
+      'expiresAtMicros': serverNow + 30 * Duration.microsecondsPerDay,
+      'serverNowMicros': serverNow,
+    });
     Restage.debugRestageRpcClient = RestageRpcClient(
       baseUrl: 'https://surfaces.example.com',
       apiKey: 'rs_pk_reset',
-      httpClient: MockClient((request) async {
-        expect(request.url.path, endsWith('measurement-assignment-credential'));
-        final number = ++registrations;
+      httpClient: screenFixture.hostedDelivery.client((request) async {
+        expect(request.url.path, '/sdk/v1/surface');
+        surfaceRequests++;
         await beforeResponse?.call();
-        return http.Response(
-            jsonEncode({
-              'credentialHandle': 'ic1.${number.toString().padLeft(64, '0')}',
-              'expiresAtMicros': 4102444800000000,
-            }),
-            200);
+        return http.Response(responseBody, 200);
       }),
     );
   });
@@ -75,12 +83,34 @@ void main() {
         assignment: _assignment,
       );
 
+  /// Simulates the store write after a successful folded serve. These tests
+  /// exercise local persistence races; the delayed-response case below uses
+  /// the actual surface RPC instead.
+  Future<SurfaceAssignmentResolutionLease> confirmLease() async {
+    final lease = await SurfaceAssignmentKeyProvider.captureLease();
+    final registration = lease.registration!;
+    final serverNow = DateTime.now().microsecondsSinceEpoch;
+    final handle =
+        'ic1.${(++confirmedHandles).toRadixString(16).padLeft(64, '0')}';
+    expect(
+        await lease.confirmRegistration!(
+          registration,
+          serverNow,
+          handle,
+          serverNow + 30 * Duration.microsecondsPerDay,
+          serverNow,
+        ),
+        isTrue);
+    lease.confirmHandle(handle);
+    return lease;
+  }
+
   Future<Set<String>> durableKeys() async =>
       (await storage.getAll()).keys.where(_isAssignmentKey).toSet();
 
   test('reset deletes retired records and keeps unrelated preferences',
       () async {
-    final first = await SurfaceAssignmentKeyProvider.captureLease();
+    final first = await confirmLease();
     await retain(first);
     final oldKeys = await durableKeys();
     expect(oldKeys, hasLength(2));
@@ -91,8 +121,10 @@ void main() {
     Restage.reset();
     expect(first.isCurrent, isFalse);
     final second = await SurfaceAssignmentKeyProvider.captureLease();
-    expect(second.assignmentKey, isNotNull);
-    expect(second.assignmentKey, isNot(first.assignmentKey));
+    expect(second.registration, isNotNull);
+    expect(second.registration!.registrationNonce,
+        isNot(first.registration!.registrationNonce));
+    expect(second.assignmentKey, isNull);
     expect((await durableKeys()).intersection(oldKeys), isEmpty);
     expect(await durableKeys(), hasLength(1));
     await prefs.reload();
@@ -114,7 +146,15 @@ void main() {
       entered.complete();
       return release.future;
     };
-    final pending = SurfaceAssignmentKeyProvider.captureLease();
+    final old = await SurfaceAssignmentKeyProvider.captureLease();
+    final pending = Restage.debugRestageRpcClient!.fetchSurfaceScreen(
+      SurfaceScreenDeliveryRequest(
+        surface: Surface.general,
+        slug: 'reset',
+        contractVersion: 1,
+      ),
+      registrationLease: old,
+    );
     await entered.future;
     Restage.reset();
     await SurfaceAssignmentPersistence.ready;
@@ -123,34 +163,71 @@ void main() {
     final current = await SurfaceAssignmentKeyProvider.captureLease();
     final currentKeys = await durableKeys();
     release.complete();
-    final stale = await pending;
-    expect(stale.assignmentKey, isNull);
-    expect(stale.isCurrent, isFalse);
+    expect(await pending, isA<SurfaceScreenDeliveryInvalidResponse>());
+    expect(old.assignmentKey, isNull);
+    expect(old.isCurrent, isFalse);
+    expect(surfaceRequests, 1);
+    expect(current.registration, isNotNull);
+    expect(current.assignmentKey, isNull);
     expect(current.isCurrent, isTrue);
     expect(await durableKeys(), currentKeys);
+
+    // The same otherwise-valid response confirms a live registration.
+    expect(
+      await Restage.debugRestageRpcClient!.fetchSurfaceScreen(
+        SurfaceScreenDeliveryRequest(
+          surface: Surface.general,
+          slug: 'reset',
+          contractVersion: 1,
+        ),
+        registrationLease: current,
+      ),
+      isA<SurfaceScreenDeliveryAvailable>(),
+    );
+    expect(current.assignmentKey, 'ic1.${'a' * 64}');
+    expect(surfaceRequests, 2);
+    expect(screenFixture.hostedDelivery.artifactRequests, hasLength(1));
   });
 
   for (final write in [1, 2]) {
-    test('reset erases an in-flight credential persistence write $write',
+    test('reset erases an in-flight registration persistence write $write',
         () async {
       storage.blockRegistrationWrite = write;
-      final pending = SurfaceAssignmentKeyProvider.captureLease();
+      final Future<void> pending;
+      if (write == 1) {
+        pending = SurfaceAssignmentKeyProvider.captureLease().then(
+          (lease) => expect(lease.registration, isNull),
+        );
+      } else {
+        final first = await SurfaceAssignmentKeyProvider.captureLease();
+        final now = DateTime.now().microsecondsSinceEpoch;
+        pending = first.confirmRegistration!(
+          first.registration!,
+          now,
+          'ic1.${'b' * 64}',
+          now + 30 * Duration.microsecondsPerDay,
+          now,
+        )
+            .then((accepted) => expect(accepted, isFalse));
+      }
       await storage.writeEntered.future;
       final oldKey = storage.blockedKey!;
       Restage.reset();
       storage.releaseWrite();
-      expect((await pending).assignmentKey, isNull);
+      await pending;
       await SurfaceAssignmentPersistence.ready;
       expect((await storage.getAll()).containsKey(oldKey), isFalse);
       final current = await SurfaceAssignmentKeyProvider.captureLease();
-      expect(current.assignmentKey, isNotNull);
+      expect(current.registration, isNotNull);
+      expect(current.registration!.registrationNonce, isNotNull);
+      expect(current.assignmentKey, isNull);
       expect(await durableKeys(), hasLength(1));
     });
   }
 
   test('reset erases an in-flight assignment write without losing the new one',
       () async {
-    final first = await SurfaceAssignmentKeyProvider.captureLease();
+    final first = await confirmLease();
     storage.blockAssignmentWrite = true;
     final pending = retain(first);
     await storage.writeEntered.future;
@@ -160,34 +237,40 @@ void main() {
     storage.releaseWrite();
     await pending;
     final second = await next;
-    await retain(second);
+    expect(second.registration, isNotNull);
+    final renewed = await confirmLease();
+    expect(renewed.registration!.registrationNonce,
+        second.registration!.registrationNonce);
+    await retain(renewed);
     expect((await storage.getAll()).containsKey(oldKey), isFalse);
     expect(await durableKeys(), hasLength(2));
     expect(
         await SurfaceCanonicalCarrierProvider.heldAssignment(
           surface: 'message',
           slug: 'reset',
-          assignmentKey: second.assignmentKey,
+          assignmentKey: renewed.assignmentKey,
         ),
         isNotNull);
   });
 
   test('failed erasure blocks enrollment until another explicit reset succeeds',
       () async {
-    final first = await SurfaceAssignmentKeyProvider.captureLease();
+    final first = await confirmLease();
     await retain(first);
     storage.failRemoval = true;
     Restage.reset();
     await expectLater(SurfaceAssignmentPersistence.ready, throwsStateError);
-    expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
-    expect(registrations, 1);
+    expect((await SurfaceAssignmentKeyProvider.captureLease()).registration,
+        isNull);
+    expect(surfaceRequests, 0);
     expect(await durableKeys(), isNotEmpty);
     storage.failRemoval = false;
     Restage.reset();
     await SurfaceAssignmentPersistence.ready;
     expect(await durableKeys(), isEmpty,
         reason: 'reload finds keys removed from the cache by a failed removal');
-    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+    expect((await SurfaceAssignmentKeyProvider.captureLease()).registration,
+        isNotNull);
   });
 
   test('cleanup waits for actor persistence before reloading preferences',
@@ -211,7 +294,7 @@ void main() {
 
   test('repeated resets do not accumulate retired records', () async {
     for (var i = 0; i < 3; i++) {
-      await retain(await SurfaceAssignmentKeyProvider.captureLease());
+      await retain(await confirmLease());
       expect(await durableKeys(), hasLength(2));
       Restage.reset();
       Restage.reset();

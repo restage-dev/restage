@@ -685,43 +685,6 @@ void main() {
     });
   });
 
-  group('ExperimentApi.listEveryPage', () {
-    test('concatenates pages and completes on a null cursor', () async {
-      var page = 0;
-      final api = _apiOver((request) async {
-        page++;
-        return http.Response(
-          jsonEncode(
-            byteDataWire(
-              listPage(
-                experimentIds: switch (page) {
-                  1 => const ['experiment.a'],
-                  2 => const <String>[],
-                  _ => const ['experiment.b'],
-                },
-                nextPageCursor: page < 3 ? 'cursor-${page + 1}' : null,
-              ),
-            ),
-          ),
-          200,
-        );
-      });
-
-      final drain = await api.listEveryPage(
-        target: fixtureTarget,
-        correlationId: fixtureCorrelationId('listExperiments'),
-      );
-
-      expect(page, 3);
-      final entries =
-          (drain as ExperimentPagesAccepted<List<ExperimentListEntryV1>>).value;
-      expect(entries.map((entry) => entry.experimentId.value), [
-        'experiment.a',
-        'experiment.b',
-      ]);
-    });
-  });
-
   group('experiment mutation payload discipline', () {
     test('a resolved serverDefault never reaches the transport', () async {
       var calls = 0;

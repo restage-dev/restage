@@ -554,7 +554,7 @@ ScriptStep _target(
   String environment,
   int environmentTargetId,
   RuntimePlane runtimePlane,
-) => resolveTargetStep(
+) => scopeTargetStep(
   {
     'environmentTargetId': environmentTargetId,
     'namedEnvironmentId': environmentTargetId + 100,
@@ -562,7 +562,7 @@ ScriptStep _target(
     'runtimePlane': runtimePlane.wireName,
   },
   appId: 5,
-  inspect: (body) => expect(body['runtimePlane'], runtimePlane.wireName),
+  inspect: (body) => expect(body['method'], 'read'),
 );
 
 http.Response _okStatus(http.Request request) {

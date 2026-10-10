@@ -291,6 +291,59 @@ void main() {
       );
     });
 
+    test('rejects a library that declared a break after the requirement', () {
+      final verdict = BlobRenderCapabilityGate.evaluate(
+        required: manifest(
+          floor: 1,
+          libraries: const [
+            LibraryRequirement(namespace: 'acme.widgets', minVersion: 3),
+          ],
+        ),
+        installed: installed(
+          catalog: 5,
+          libraries: const [
+            InstalledLibrary(
+              namespace: 'acme.widgets',
+              version: 4,
+              compatibleSince: 4,
+            ),
+          ],
+        ),
+      );
+      final rejected = verdict as BlobRenderRejected;
+      expect(
+        rejected.reason,
+        BlobRenderRejectionReason.requiredLibraryContractBroken,
+      );
+      expect(
+        rejected.message,
+        'requires library "acme.widgets" >= v3 '
+        '(installed v4, compatible since v4)',
+      );
+    });
+
+    test('accepts an additive bump over an older requirement', () {
+      final verdict = BlobRenderCapabilityGate.evaluate(
+        required: manifest(
+          floor: 1,
+          libraries: const [
+            LibraryRequirement(namespace: 'acme.widgets', minVersion: 3),
+          ],
+        ),
+        installed: installed(
+          catalog: 5,
+          libraries: const [
+            InstalledLibrary(
+              namespace: 'acme.widgets',
+              version: 4,
+              compatibleSince: 1,
+            ),
+          ],
+        ),
+      );
+      expect(verdict, const BlobRenderAccepted());
+    });
+
     test('checks the catalog floor before libraries', () {
       final verdict = BlobRenderCapabilityGate.evaluate(
         required: manifest(

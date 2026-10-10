@@ -1,5 +1,20 @@
 import 'dart:async';
 
+import 'package:restage_shared/commerce.dart'
+    show
+        CommerceIntentRequest,
+        CommerceIntentResponse,
+        CommercePurchaserStateRequest,
+        CommercePurchaserStateResponse,
+        CommerceReportRequest,
+        CommerceReportResponse,
+        EntitlementSummary;
+
+import '../restage_rpc_client/restage_rpc_client.dart';
+import '../restage_rpc_client/uuid_v4.dart';
+import 'commerce_report_queue.dart';
+import 'commerce_store_adapter.dart';
+
 final RegExp _commerceLogicalIdPattern = RegExp(r'^[a-z][a-z0-9._-]{0,127}$');
 final RegExp _commerceCodePattern = RegExp(r'^[a-z][a-z0-9._]{0,63}$');
 
@@ -231,8 +246,10 @@ final class CommercePurchaserStateStatusCode {
   );
 
   /// Purchaser state is current from the Restage authority.
-  static const available =
-      CommercePurchaserStateStatusCode._('available', true);
+  static const available = CommercePurchaserStateStatusCode._(
+    'available',
+    true,
+  );
 
   /// Retained state may be out of date and must not authorize fulfillment.
   static const stale = CommercePurchaserStateStatusCode._('stale', true);
@@ -407,16 +424,33 @@ final class CommerceActionResult extends CommerceResponse {
 
 /// The current purchaser-state authority status.
 final class CommercePurchaserState extends CommerceResponse {
-  CommercePurchaserState._({required this.status}) : super._();
+  CommercePurchaserState._({
+    required this.status,
+    List<EntitlementSummary> entitlements = const <EntitlementSummary>[],
+  })  : entitlements = List<EntitlementSummary>.unmodifiable(entitlements),
+        super._();
 
   final CommercePurchaserStateStatusCode status;
 
-  @override
-  bool operator ==(Object other) =>
-      other is CommercePurchaserState && other.status == status;
+  /// Entitlements last projected by the Restage authority.
+  final List<EntitlementSummary> entitlements;
 
   @override
-  int get hashCode => status.hashCode;
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! CommercePurchaserState ||
+        other.status != status ||
+        other.entitlements.length != entitlements.length) {
+      return false;
+    }
+    for (var index = 0; index < entitlements.length; index += 1) {
+      if (other.entitlements[index] != entitlements[index]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(status, Object.hashAll(entitlements));
 }
 
 abstract final class RestageCommerce {
@@ -441,7 +475,14 @@ final class _RetainedCommerceStateStream
     extends Stream<CommercePurchaserState> {
   _RetainedCommerceStateStream(this._state);
 
-  final CommercePurchaserState _state;
+  CommercePurchaserState _state;
+  final StreamController<CommercePurchaserState> _updates =
+      StreamController<CommercePurchaserState>.broadcast(sync: true);
+
+  void emit(CommercePurchaserState state) {
+    _state = state;
+    _updates.add(state);
+  }
 
   @override
   bool get isBroadcast => true;
@@ -454,6 +495,11 @@ final class _RetainedCommerceStateStream
     bool? cancelOnError,
   }) {
     final controller = StreamController<CommercePurchaserState>(sync: true);
+    final updates = _updates.stream.listen(
+      controller.add,
+      onDone: controller.close,
+    );
+    controller.onCancel = updates.cancel;
     final subscription = controller.stream.listen(
       onData,
       onError: onError,
@@ -467,20 +513,120 @@ final class _RetainedCommerceStateStream
 
 final class _RestageCommerce implements RestageCommerce {
   _RestageCommerce() {
-    _currentState = CommercePurchaserState._(
-      status: CommercePurchaserStateStatusCode.unavailable,
-    );
+    _currentState = _unavailableCommerceState();
     _states = _RetainedCommerceStateStream(_currentState);
+    _engine = _InactiveCommerceEngine(_currentState);
   }
 
-  late final CommercePurchaserState _currentState;
-  late final Stream<CommercePurchaserState> _states;
+  late CommercePurchaserState _currentState;
+  late final _RetainedCommerceStateStream _states;
+  late _CommerceEngine _engine;
+
+  void activate(
+    CommerceStoreAdapter adapter, {
+    required RestageRpcClient? Function() rpcClientProvider,
+    required Future<String> Function() applicationAnonymousTokenProvider,
+    CommerceRuntimeContext? Function()? runtimeContextProvider,
+    required Future<CommerceReportQueue> Function() reportQueueFactory,
+    Duration networkAttemptTimeout = const Duration(seconds: 15),
+    DateTime Function() clock = DateTime.now,
+  }) {
+    final engine = _engine;
+    if (engine is _StoreAdapterCommerceEngine) {
+      if (identical(engine.adapter, adapter)) return;
+      throw StateError('Commerce is already activated');
+    }
+    _engine = _StoreAdapterCommerceEngine(
+      adapter: adapter,
+      rpcClientProvider: rpcClientProvider,
+      applicationAnonymousTokenProvider: applicationAnonymousTokenProvider,
+      runtimeContextProvider: runtimeContextProvider,
+      reportQueueFactory: reportQueueFactory,
+      onState: _setState,
+      networkAttemptTimeout: networkAttemptTimeout,
+      clock: clock,
+    );
+  }
+
+  void configurationChanged() => _engine.configurationChanged();
+
+  void identityChanged() => _engine.identityChanged();
+
+  void foregrounded() => _engine.foregrounded();
+
+  /// Completes once every engine retired so far has settled.
+  Future<void> _retired = Future<void>.value();
+
+  Future<void> debugReset() {
+    _retired = Future.wait<void>(<Future<void>>[_retired, _engine.dispose()]);
+    final unavailable = _unavailableCommerceState();
+    if (_currentState != unavailable) _setState(unavailable);
+    _engine = _InactiveCommerceEngine(_currentState);
+    return _retired;
+  }
+
+  void _setState(CommercePurchaserState state) {
+    _currentState = state;
+    _states.emit(state);
+  }
+
+  CommerceStoreAdapter? get debugStoreAdapter {
+    final engine = _engine;
+    return engine is _StoreAdapterCommerceEngine ? engine.adapter : null;
+  }
 
   @override
   CommercePurchaserState get currentState => _currentState;
 
   @override
   Stream<CommercePurchaserState> get states => _states;
+
+  @override
+  Future<CommerceAvailability> availability(
+    CommerceAvailabilityRequest request,
+  ) =>
+      _engine.availability(request);
+
+  @override
+  Future<CommerceActionResult> purchase(CommercePurchaseRequest request) =>
+      _engine.purchase(request);
+
+  @override
+  Future<CommerceActionResult> restore() => _engine.restore();
+
+  @override
+  Future<CommercePurchaserState> refresh() => _engine.refresh();
+
+  @override
+  Future<R> perform<R extends CommerceResponse>(CommerceRequest<R> request) =>
+      request._dispatch(this);
+}
+
+abstract interface class _CommerceEngine {
+  Future<CommerceAvailability> availability(
+    CommerceAvailabilityRequest request,
+  );
+
+  Future<CommerceActionResult> purchase(CommercePurchaseRequest request);
+
+  Future<CommerceActionResult> restore();
+
+  Future<CommercePurchaserState> refresh();
+
+  void configurationChanged();
+
+  void identityChanged();
+
+  void foregrounded();
+
+  /// Stops new work; completes once work already started has settled.
+  Future<void> dispose();
+}
+
+final class _InactiveCommerceEngine implements _CommerceEngine {
+  const _InactiveCommerceEngine(this._currentState);
+
+  final CommercePurchaserState _currentState;
 
   @override
   Future<CommerceAvailability> availability(
@@ -504,29 +650,1492 @@ final class _RestageCommerce implements RestageCommerce {
   }
 
   @override
-  Future<CommerceActionResult> purchase(CommercePurchaseRequest request) async {
-    return CommerceActionResult._(
-      status: CommerceActionStatusCode.unavailable,
-      failureCode: CommerceFailureCode.notActivated,
-    );
-  }
+  Future<CommerceActionResult> purchase(
+    CommercePurchaseRequest request,
+  ) async =>
+      _unavailableAction(CommerceFailureCode.notActivated);
 
   @override
-  Future<CommerceActionResult> restore() async {
-    return CommerceActionResult._(
-      status: CommerceActionStatusCode.unavailable,
-      failureCode: CommerceFailureCode.notActivated,
-    );
-  }
+  Future<CommerceActionResult> restore() async =>
+      _unavailableAction(CommerceFailureCode.notActivated);
 
   @override
   Future<CommercePurchaserState> refresh() async => _currentState;
 
   @override
-  Future<R> perform<R extends CommerceResponse>(CommerceRequest<R> request) =>
-      request._dispatch(this);
+  void configurationChanged() {}
+
+  @override
+  void identityChanged() {}
+
+  @override
+  void foregrounded() {}
+
+  @override
+  Future<void> dispose() async {}
 }
+
+/// Configuration and purchaser identity captured before a commerce operation.
+/// Binds retained evidence to its original context. Only the fingerprint is
+/// safe to persist; the endpoint and credential are not.
+final class CommerceRuntimeContext {
+  CommerceRuntimeContext({
+    required this.configurationFingerprint,
+    required Future<String?> Function() applicationAnonymousTokenProvider,
+    bool Function()? isCurrent,
+  })  : _applicationAnonymousTokenProvider = applicationAnonymousTokenProvider,
+        _isCurrent = isCurrent ?? _alwaysCurrent {
+    if (configurationFingerprint.isEmpty) {
+      throw ArgumentError.value(
+        configurationFingerprint,
+        'configurationFingerprint',
+        'must not be empty',
+      );
+    }
+  }
+
+  final String configurationFingerprint;
+  final Future<String?> Function() _applicationAnonymousTokenProvider;
+  final bool Function() _isCurrent;
+
+  Future<String?> applicationAnonymousToken() =>
+      _applicationAnonymousTokenProvider();
+
+  bool get isCurrent => _isCurrent();
+}
+
+bool _alwaysCurrent() => true;
+
+final class _PendingCommerceAdmission {
+  _PendingCommerceAdmission({
+    required this.transaction,
+    required this.context,
+    required Future<String?> Function() applicationAnonymousTokenProvider,
+    this.requestDrainAfterPersist = true,
+  }) : _applicationAnonymousTokenProvider = applicationAnonymousTokenProvider {
+    _tokenResolution = _applicationAnonymousTokenProvider();
+  }
+
+  CommerceStoreTransaction transaction;
+  final CommerceRuntimeContext context;
+  final Future<String?> Function() _applicationAnonymousTokenProvider;
+  final bool requestDrainAfterPersist;
+  CommerceReportRecord? record;
+  final List<_RetainedCommerceTransaction> observedCompletions =
+      <_RetainedCommerceTransaction>[];
+  Future<String?>? _tokenResolution;
+  String? applicationAnonymousToken;
+  int retryAttempt = 0;
+  DateTime nextRetryAt = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  bool inFlight = false;
+  final Completer<CommerceReportRecord> durableRecord =
+      Completer<CommerceReportRecord>();
+
+  Future<String?> resolveApplicationAnonymousToken() =>
+      _tokenResolution ??= _applicationAnonymousTokenProvider();
+
+  void clearUnresolvedToken() => _tokenResolution = null;
+
+  void observeCompletion(_RetainedCommerceTransaction retained) {
+    if (!retained.matchesObservation(
+      transaction,
+      context.configurationFingerprint,
+    )) {
+      return;
+    }
+    for (final observed in observedCompletions) {
+      if (observed.matchesReport(retained.report)) {
+        observed.shareCompletionWith(retained);
+        return;
+      }
+    }
+    // Ownership may still be unresolved. Keep each saved owner's reference
+    // separate until admission identifies the matching queued subject.
+    observedCompletions.add(retained);
+  }
+
+  void retainCompletionTransaction(CommerceStoreTransaction candidate) {
+    if (!transaction.requiresDeviceCompletion &&
+        candidate.requiresDeviceCompletion) {
+      transaction = candidate;
+    }
+  }
+
+  void scheduleRetry(DateTime now) {
+    nextRetryAt = now.add(
+      commerceReportRetryDelay(retryAttempt),
+    );
+    retryAttempt += 1;
+  }
+}
+
+final class _RetainedCommerceTransaction {
+  _RetainedCommerceTransaction(this.report, this._transaction);
+
+  final CommerceReportRecord report;
+  CommerceStoreTransaction _transaction;
+  bool _deviceCompleted = false;
+  _RetainedCommerceTransaction? _sharedCompletion;
+
+  _RetainedCommerceTransaction get _completion {
+    final shared = _sharedCompletion;
+    if (shared == null) return this;
+    return _sharedCompletion = shared._completion;
+  }
+
+  CommerceStoreTransaction get transaction => _completion._transaction;
+  bool get deviceCompleted => _completion._deviceCompleted;
+  set deviceCompleted(bool value) => _completion._deviceCompleted = value;
+
+  void retainCompletionTransaction(CommerceStoreTransaction candidate) {
+    final completion = _completion;
+    if (!completion._deviceCompleted &&
+        !completion._transaction.requiresDeviceCompletion &&
+        candidate.requiresDeviceCompletion) {
+      completion._transaction = candidate;
+    }
+  }
+
+  void shareCompletionWith(_RetainedCommerceTransaction other) {
+    if (!matchesReport(other.report)) return;
+    final completion = _completion;
+    final shared = other._completion;
+    if (identical(completion, shared)) return;
+    completion._deviceCompleted |= shared._deviceCompleted;
+    completion.retainCompletionTransaction(shared._transaction);
+    // Redirect existing observers, including a native finish already awaiting
+    // its provider, so subsequent success and instance preference stay shared.
+    shared._sharedCompletion = completion;
+  }
+
+  bool matchesObservation(
+    CommerceStoreTransaction candidate,
+    String configurationFingerprint,
+  ) =>
+      report.configurationFingerprint == configurationFingerprint &&
+      report.store == candidate.store &&
+      report.storeTransactionId ==
+          _nonEmptyOrNull(candidate.storeTransactionId) &&
+      report.storeProductId == candidate.storeProductId &&
+      report.storeVerificationData == candidate.storeVerificationData;
+
+  bool matchesReport(CommerceReportRecord candidate) =>
+      report.hasSameProviderIdentity(candidate) &&
+      report.storeTransactionId == candidate.storeTransactionId &&
+      report.applicationAnonymousToken == candidate.applicationAnonymousToken &&
+      report.storeProductId == candidate.storeProductId &&
+      report.storeVerificationData == candidate.storeVerificationData;
+}
+
+final class _OwnedQueryMember {
+  _OwnedQueryMember(this.transaction);
+
+  CommerceStoreTransaction transaction;
+  int? attemptGeneration;
+  _PendingCommerceAdmission? completionAdmission;
+
+  void retainCompletionTransaction(CommerceStoreTransaction candidate) {
+    if (!transaction.requiresDeviceCompletion &&
+        candidate.requiresDeviceCompletion) {
+      transaction = candidate;
+    }
+  }
+}
+
+final class _StoreAdapterCommerceEngine implements _CommerceEngine {
+  _StoreAdapterCommerceEngine({
+    required this.adapter,
+    required RestageRpcClient? Function() rpcClientProvider,
+    required Future<String> Function() applicationAnonymousTokenProvider,
+    CommerceRuntimeContext? Function()? runtimeContextProvider,
+    required Future<CommerceReportQueue> Function() reportQueueFactory,
+    required void Function(CommercePurchaserState) onState,
+    Duration networkAttemptTimeout = const Duration(seconds: 15),
+    DateTime Function() clock = DateTime.now,
+  })  : _rpcClientProvider = rpcClientProvider,
+        _runtimeContextProvider = runtimeContextProvider ??
+            (() => CommerceRuntimeContext(
+                  configurationFingerprint: _defaultConfigurationFingerprint,
+                  applicationAnonymousTokenProvider: () async =>
+                      applicationAnonymousTokenProvider(),
+                )),
+        _reportQueueFactory = reportQueueFactory,
+        _onState = onState,
+        _networkAttemptTimeout = networkAttemptTimeout,
+        _clock = clock {
+    _transactions = adapter.transactions.listen(
+      _recordTransactionFromStore,
+      onError: (Object _, StackTrace __) {},
+    );
+    _requestDrain();
+    _requestOwnedRecovery();
+  }
+
+  static const String _subscriptionProductKind = 'autoRenewableSubscription';
+  static const String _defaultConfigurationFingerprint =
+      'unscoped-commerce-test-context';
+
+  final CommerceStoreAdapter adapter;
+  final RestageRpcClient? Function() _rpcClientProvider;
+  final CommerceRuntimeContext? Function() _runtimeContextProvider;
+  final Future<CommerceReportQueue> Function() _reportQueueFactory;
+  final void Function(CommercePurchaserState) _onState;
+  final Duration _networkAttemptTimeout;
+  final DateTime Function() _clock;
+  final Map<String, _RetainedCommerceTransaction> _transactionsByReportId =
+      <String, _RetainedCommerceTransaction>{};
+  final Map<String, _PendingCommerceAdmission> _pendingAdmissions =
+      <String, _PendingCommerceAdmission>{};
+  final Set<_PendingCommerceAdmission> _unresolvedAdmissions =
+      <_PendingCommerceAdmission>{};
+  final Set<String> _inFlightReportIds = <String>{};
+  final Set<String> _ownedQueryReservedReportIds = <String>{};
+  final Map<String, Future<CommerceReportResponse?>> _reportAttemptsById =
+      <String, Future<CommerceReportResponse?>>{};
+
+  late final StreamSubscription<CommerceStoreTransaction> _transactions;
+  Future<CommerceReportQueue>? _queueFuture;
+  Future<void> _operations = Future<void>.value();
+  Future<void>? _drainInFlight;
+  bool _drainRequested = false;
+  Timer? _retryTimer;
+  bool _ownedRecoveryInFlight = false;
+  bool _ownedRecoveryRequested = false;
+  int _ownedRecoveryAttempt = 0;
+  DateTime? _nextOwnedRecoveryAt;
+  int _ownedQueryGeneration = 0;
+  bool _ownedSnapshotCurrent = false;
+  CommerceRuntimeContext? _ownedSnapshotContext;
+  String? _ownedSnapshotConfigurationFingerprint;
+  String? _ownedSnapshotApplicationAnonymousToken;
+  List<EntitlementSummary> _ownedSnapshotEntitlements =
+      const <EntitlementSummary>[];
+  int _stateEpoch = 0;
+  int _statePublicationRevision = 0;
+  DateTime? _lastPublishedPurchaserStateAt;
+  late CommercePurchaserState _lastPublishedPurchaserState = _staleState();
+  bool _disposed = false;
+
+  @override
+  Future<CommerceAvailability> availability(
+    CommerceAvailabilityRequest request,
+  ) async {
+    final CommerceFailureCode? failureCode;
+    if (!request.capability.isKnown || !adapter.store.isKnown) {
+      failureCode = CommerceFailureCode.unsupportedCapability;
+    } else if (request.offerId != null &&
+        request.capability != CommerceCapabilityCode.purchase) {
+      failureCode = CommerceFailureCode.invalidRequest;
+    } else {
+      failureCode = null;
+    }
+    return CommerceAvailability._(
+      capability: request.capability,
+      offerId: request.offerId,
+      available: failureCode == null,
+      failureCode: failureCode,
+    );
+  }
+
+  @override
+  Future<CommerceActionResult> purchase(CommercePurchaseRequest request) =>
+      _run(() async {
+        if (_disposed || !adapter.store.isKnown) {
+          return _unavailableAction(CommerceFailureCode.unsupportedCapability);
+        }
+        try {
+          await _queue();
+        } on Object {
+          return _unavailableAction(CommerceFailureCode.unsupportedCapability);
+        }
+
+        final context = _currentContext();
+        final token = await _applicationAnonymousToken(context);
+        final client = _rpcClientProvider();
+        if (context == null ||
+            !context.isCurrent ||
+            token == null ||
+            !isValidUuidV4(token) ||
+            client == null) {
+          return _failedAction(CommerceFailureCode.unsupportedResponse);
+        }
+        final intentId = generateUuidV4();
+        final response = await client
+            .createCommerceIntent(
+              CommerceIntentRequest(
+                intentId: intentId,
+                offerId: request.offerId.value,
+                store: adapter.store.value,
+                appAnonymousToken: token,
+              ),
+            )
+            .timeout(_networkAttemptTimeout);
+        if (response == null ||
+            response.intentId != intentId ||
+            response.status != 'ready' ||
+            !context.isCurrent) {
+          return _failedAction(CommerceFailureCode.unsupportedResponse);
+        }
+        final resolved = response.resolved;
+        if (resolved.productKind != _subscriptionProductKind ||
+            resolved.offerSignature != null) {
+          return _failedAction(CommerceFailureCode.unsupportedCapability);
+        }
+
+        final products = await adapter.queryProducts({resolved.storeProductId});
+        if (!context.isCurrent) {
+          return _failedAction(CommerceFailureCode.unsupportedResponse);
+        }
+        final product = _matchingProduct(products, response);
+        if (product == null) {
+          return _failedAction(CommerceFailureCode.unsupportedResponse);
+        }
+        final presented = await adapter.startPurchase(
+          CommerceStorePurchasable(
+            product: product,
+            applicationAccountToken: resolved.appAccountToken,
+          ),
+        );
+        return CommerceActionResult._(
+          status: presented
+              ? CommerceActionStatusCode.pending
+              : CommerceActionStatusCode.notPresented,
+        );
+      }).catchError(
+        (Object _) => _failedAction(CommerceFailureCode.unsupportedResponse),
+      );
+
+  @override
+  Future<CommerceActionResult> restore() => _run(() async {
+        if (_disposed) {
+          return _unavailableAction(CommerceFailureCode.unsupportedCapability);
+        }
+        try {
+          final state = await _refresh();
+          if (state.status != CommercePurchaserStateStatusCode.available) {
+            return _failedAction(CommerceFailureCode.unsupportedResponse);
+          }
+          return CommerceActionResult._(
+            status: CommerceActionStatusCode.submittedForReconciliation,
+          );
+        } on Object {
+          return _failedAction(CommerceFailureCode.unsupportedResponse);
+        }
+      });
+
+  @override
+  Future<CommercePurchaserState> refresh() => _run(_refresh);
+
+  Future<CommercePurchaserState> _refresh() async {
+    if (_disposed) return _staleState();
+    final epoch = _stateEpoch;
+    final context = _currentContext();
+    final queryGeneration = ++_ownedQueryGeneration;
+    _clearOwnedSnapshot();
+    _emit(_staleState());
+    final publicationRevision = _statePublicationRevision;
+    String? token;
+    try {
+      token = await _applicationAnonymousToken(
+        context,
+      ).timeout(_networkAttemptTimeout);
+    } on Object {
+      return _lastPublishedPurchaserState;
+    }
+    final client = _rpcClientProvider();
+    if (context == null ||
+        !context.isCurrent ||
+        token == null ||
+        !isValidUuidV4(token) ||
+        client == null) {
+      return _lastPublishedPurchaserState;
+    }
+    try {
+      final queried = await adapter.queryOwnedTransactions().timeout(
+            _networkAttemptTimeout,
+          );
+      if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
+        return _staleState();
+      }
+      final members = <String, _OwnedQueryMember>{};
+      for (final transaction in queried) {
+        if (!_isReportableTransaction(transaction)) {
+          throw StateError('Owned transaction snapshot is incomplete');
+        }
+        final key = _transactionKey(
+          transaction,
+          context.configurationFingerprint,
+          token,
+        );
+        members
+            .putIfAbsent(key, () => _OwnedQueryMember(transaction))
+            .retainCompletionTransaction(transaction);
+      }
+      final reportResults = await Future.wait([
+        for (final member in members.values)
+          _verifyOwnedQueryMember(
+            member,
+            context: context,
+            applicationAnonymousToken: token,
+            epoch: epoch,
+            queryGeneration: queryGeneration,
+          ),
+      ]).timeout(_networkAttemptTimeout);
+      if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
+        return _staleState();
+      }
+      if (members.values.any(
+        (member) => member.attemptGeneration != queryGeneration,
+      )) {
+        throw StateError('Owned transaction attempt was not query-scoped');
+      }
+      final scopedEntitlements = <EntitlementSummary>[];
+      for (final response in reportResults) {
+        final verified = response?.verifiedPurchaseState;
+        if (response?.outcome != 'verified' ||
+            verified == null ||
+            verified.status != 'current') {
+          throw StateError('Owned transaction was not freshly verified');
+        }
+        scopedEntitlements.addAll(verified.entitlements);
+      }
+      final knownTransactionIds = await _knownTransactionIds(
+        context,
+        token,
+      ).timeout(_networkAttemptTimeout);
+      if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
+        return _staleState();
+      }
+      final response = await client
+          .fetchCommercePurchaserState(
+            CommercePurchaserStateRequest(
+              appAnonymousToken: token,
+              knownStoreTransactionIds: knownTransactionIds,
+            ),
+          )
+          .timeout(_networkAttemptTimeout);
+      if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
+        return _staleState();
+      }
+      if (response == null) {
+        throw StateError('Canonical purchaser state is unavailable');
+      }
+      if (response.status != 'current') {
+        _clearOwnedSnapshot();
+        return _emitFreshState(
+          response,
+          context: context,
+          applicationAnonymousToken: token,
+        );
+      }
+      final lastPublishedAt = _lastPublishedPurchaserStateAt;
+      if (lastPublishedAt != null &&
+          response.retrievedAt.isBefore(lastPublishedAt)) {
+        _clearOwnedSnapshot();
+        return _lastPublishedPurchaserState;
+      }
+      _ownedSnapshotCurrent = true;
+      _ownedSnapshotContext = context;
+      _ownedSnapshotConfigurationFingerprint = context.configurationFingerprint;
+      _ownedSnapshotApplicationAnonymousToken = token;
+      _ownedSnapshotEntitlements = List<EntitlementSummary>.unmodifiable(
+        _selectEntitlements(scopedEntitlements),
+      );
+      final state = _emitFreshState(
+        response,
+        context: context,
+        applicationAnonymousToken: token,
+      );
+      _ownedRecoveryAttempt = 0;
+      _nextOwnedRecoveryAt = null;
+      return state;
+    } on Object {
+      if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
+        return _staleState();
+      }
+      _clearOwnedSnapshot();
+      return _emitStaleIfUnchanged(publicationRevision);
+    }
+  }
+
+  @override
+  void configurationChanged() {
+    final context = _currentContext();
+    if (context != null &&
+        _ownedSnapshotCurrent &&
+        (_ownedSnapshotContext?.isCurrent ?? false) &&
+        _ownedSnapshotConfigurationFingerprint ==
+            context.configurationFingerprint) {
+      _retryPendingAdmissions();
+      _requestDrain();
+      _scheduleRetryWake();
+      return;
+    }
+    _invalidateState();
+    _retryPendingAdmissions();
+    _requestDrain();
+    _requestOwnedRecovery(force: true);
+    _scheduleRetryWake();
+  }
+
+  @override
+  void identityChanged() {
+    _invalidateState();
+    _retryPendingAdmissions();
+    _requestDrain();
+    _requestOwnedRecovery(force: true);
+    _scheduleRetryWake();
+  }
+
+  @override
+  void foregrounded() {
+    _retryPendingAdmissions();
+    _requestDrain();
+    _requestOwnedRecovery(force: true);
+  }
+
+  @override
+  Future<void> dispose() async {
+    _disposed = true;
+    _retryTimer?.cancel();
+    await _transactions.cancel();
+    while (_inFlight.isNotEmpty) {
+      await Future.wait(_inFlight.toList());
+    }
+  }
+
+  /// Background work that [dispose] waits for.
+  final Set<Future<void>> _inFlight = <Future<void>>{};
+
+  void _track(Future<void> work) {
+    late final Future<void> settled;
+    settled = work.catchError((Object _) {}).whenComplete(
+          () => _inFlight.remove(settled),
+        );
+    _inFlight.add(settled);
+  }
+
+  CommerceStoreProduct? _matchingProduct(
+    List<CommerceStoreProduct> products,
+    CommerceIntentResponse response,
+  ) {
+    final resolved = response.resolved;
+    final matches = products.where(
+      (product) =>
+          product.store == adapter.store &&
+          product.storeProductId == resolved.storeProductId &&
+          product.kind == CommerceStoreProductKind.subscription &&
+          product.basePlanId == resolved.basePlanId &&
+          product.storeOfferIdentifier == resolved.storeOfferIdentifier,
+    );
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  void _recordTransactionFromStore(CommerceStoreTransaction transaction) {
+    if (!_isReportableTransaction(transaction)) return;
+    final context = _currentContext();
+    if (context == null || !context.isCurrent) return;
+    final admission = _PendingCommerceAdmission(
+      transaction: transaction,
+      context: context,
+      applicationAnonymousTokenProvider: () =>
+          _applicationAnonymousToken(context),
+    );
+    _captureObservedCompletions(admission);
+    _unresolvedAdmissions.add(admission);
+    _admit(admission);
+  }
+
+  void _captureObservedCompletions(_PendingCommerceAdmission admission) {
+    final observed = <_RetainedCommerceTransaction>[
+      ..._transactionsByReportId.values,
+      for (final pending in <_PendingCommerceAdmission>{
+        ..._unresolvedAdmissions,
+        ..._pendingAdmissions.values,
+      })
+        ...pending.observedCompletions,
+    ];
+    for (final retained in observed) {
+      admission.observeCompletion(retained);
+    }
+  }
+
+  bool _isReportableTransaction(CommerceStoreTransaction transaction) {
+    if (_disposed || transaction.store != adapter.store) return false;
+    if (transaction.store != CommerceStore.appStore &&
+        transaction.store != CommerceStore.playStore) {
+      return false;
+    }
+    if (transaction.status != CommerceStoreTransactionStatus.purchased &&
+        transaction.status != CommerceStoreTransactionStatus.restored) {
+      return false;
+    }
+    final verificationData = transaction.storeVerificationData;
+    if (verificationData == null ||
+        verificationData.isEmpty ||
+        transaction.storeProductId.isEmpty) {
+      return false;
+    }
+    final transactionId = _nonEmptyOrNull(transaction.storeTransactionId);
+    return transaction.store != CommerceStore.appStore || transactionId != null;
+  }
+
+  String _transactionKey(
+    CommerceStoreTransaction transaction,
+    String configurationFingerprint,
+    String applicationAnonymousToken,
+  ) =>
+      '$configurationFingerprint\u0000$applicationAnonymousToken\u0000'
+      '${transaction.store.value}\u0000'
+      '${transaction.storeTransactionId ?? transaction.storeVerificationData}'
+      '\u0000${transaction.storeProductId}'
+      '\u0000${transaction.storeVerificationData}';
+
+  void _admit(_PendingCommerceAdmission admission) {
+    if (_disposed ||
+        admission.inFlight ||
+        admission.nextRetryAt.isAfter(_now())) {
+      return;
+    }
+    admission.inFlight = true;
+    _track(_admitPending(admission));
+  }
+
+  Future<void> _admitPending(_PendingCommerceAdmission admission) async {
+    try {
+      var record = admission.record;
+      if (record == null) {
+        final context = admission.context;
+        var token = admission.applicationAnonymousToken;
+        if (token == null) {
+          token = await admission.resolveApplicationAnonymousToken();
+          if (token != null && isValidUuidV4(token)) {
+            admission.applicationAnonymousToken = token;
+          }
+        }
+        if (token == null || !isValidUuidV4(token)) {
+          if (!context.isCurrent) {
+            _removeAdmission(admission);
+          } else {
+            admission.clearUnresolvedToken();
+            _retryAdmission(admission);
+          }
+          return;
+        }
+        final key = _transactionKey(
+          admission.transaction,
+          context.configurationFingerprint,
+          token,
+        );
+        final existing = _pendingAdmissions[key];
+        if (existing != null && !identical(existing, admission)) {
+          existing.retainCompletionTransaction(admission.transaction);
+          for (final observed in admission.observedCompletions) {
+            existing.observeCompletion(observed);
+          }
+          _removeAdmission(admission);
+          return;
+        }
+        _unresolvedAdmissions.remove(admission);
+        _pendingAdmissions[key] = admission;
+        record = CommerceReportRecord(
+          reportId: generateUuidV4(),
+          store: admission.transaction.store,
+          storeVerificationData: admission.transaction.storeVerificationData!,
+          storeProductId: admission.transaction.storeProductId,
+          storeTransactionId: _nonEmptyOrNull(
+            admission.transaction.storeTransactionId,
+          ),
+          applicationAnonymousToken: token,
+          configurationFingerprint: context.configurationFingerprint,
+        );
+        admission.record = record;
+      }
+      final queued = await (await _queue()).enqueue(record);
+      if (_disposed) return;
+      if (!admission.requestDrainAfterPersist) {
+        _ownedQueryReservedReportIds
+          ..remove(record.reportId)
+          ..add(queued.reportId);
+      }
+      _retainTransactionForReport(queued, admission);
+      if (!admission.durableRecord.isCompleted) {
+        admission.durableRecord.complete(queued);
+      }
+      _removeAdmission(admission);
+      if (admission.requestDrainAfterPersist) _requestDrain();
+      _scheduleRetryWake();
+    } on Object {
+      _retryAdmission(admission);
+    } finally {
+      admission.inFlight = false;
+      if (_containsAdmission(admission)) _scheduleRetryWake();
+    }
+  }
+
+  bool _containsAdmission(_PendingCommerceAdmission admission) =>
+      _unresolvedAdmissions.contains(admission) ||
+      _pendingAdmissions.values.any((value) => identical(value, admission));
+
+  void _removeAdmission(_PendingCommerceAdmission admission) {
+    _unresolvedAdmissions.remove(admission);
+    _pendingAdmissions.removeWhere((_, value) => identical(value, admission));
+  }
+
+  void _retryAdmission(_PendingCommerceAdmission admission) {
+    if (_disposed) return;
+    admission.scheduleRetry(_now());
+  }
+
+  void _retainTransactionForReport(
+    CommerceReportRecord report,
+    _PendingCommerceAdmission admission,
+  ) {
+    var retained = _transactionsByReportId[report.reportId];
+    if (retained == null || !retained.matchesReport(report)) {
+      retained = _RetainedCommerceTransaction(report, admission.transaction);
+      _transactionsByReportId[report.reportId] = retained;
+    }
+    for (final observed in admission.observedCompletions) {
+      observed.shareCompletionWith(retained);
+    }
+    retained.retainCompletionTransaction(admission.transaction);
+    // An observation can predate the first durable admission. Attach the new
+    // reference before retirement can remove this report's collection root.
+    // Pending observations retain it only until their own admission settles.
+    for (final pending in <_PendingCommerceAdmission>{
+      ..._unresolvedAdmissions,
+      ..._pendingAdmissions.values,
+    }) {
+      pending.observeCompletion(retained);
+    }
+  }
+
+  void _retryPendingAdmissions() {
+    final now = _now();
+    final admissions = <_PendingCommerceAdmission>{
+      ..._unresolvedAdmissions,
+      ..._pendingAdmissions.values,
+    };
+    for (final admission in admissions) {
+      if (!admission.nextRetryAt.isAfter(now)) _admit(admission);
+    }
+  }
+
+  Future<CommerceReportRecord> _durableReportForOwnedMember(
+    _OwnedQueryMember member, {
+    required CommerceRuntimeContext context,
+    required String applicationAnonymousToken,
+  }) {
+    final transaction = member.transaction;
+    final key = _transactionKey(
+      transaction,
+      context.configurationFingerprint,
+      applicationAnonymousToken,
+    );
+    var admission = _pendingAdmissions[key];
+    if (admission == null) {
+      admission = _PendingCommerceAdmission(
+        transaction: transaction,
+        context: context,
+        applicationAnonymousTokenProvider: () async =>
+            applicationAnonymousToken,
+        requestDrainAfterPersist: false,
+      )
+        ..applicationAnonymousToken = applicationAnonymousToken
+        ..record = CommerceReportRecord(
+          reportId: generateUuidV4(),
+          store: transaction.store,
+          storeVerificationData: transaction.storeVerificationData!,
+          storeProductId: transaction.storeProductId,
+          storeTransactionId: _nonEmptyOrNull(
+            transaction.storeTransactionId,
+          ),
+          applicationAnonymousToken: applicationAnonymousToken,
+          configurationFingerprint: context.configurationFingerprint,
+        );
+      _pendingAdmissions[key] = admission;
+      _ownedQueryReservedReportIds.add(admission.record!.reportId);
+    } else {
+      admission.retainCompletionTransaction(transaction);
+    }
+    // Keep this member's observed completion live across fresh report UUIDs.
+    for (final observed in member.completionAdmission?.observedCompletions ??
+        const <_RetainedCommerceTransaction>[]) {
+      admission.observeCompletion(observed);
+    }
+    member.completionAdmission = admission;
+    _captureObservedCompletions(admission);
+    _admit(admission);
+    return admission.durableRecord.future;
+  }
+
+  Future<CommerceReportResponse?> _verifyOwnedQueryMember(
+    _OwnedQueryMember member, {
+    required CommerceRuntimeContext context,
+    required String applicationAnonymousToken,
+    required int epoch,
+    required int queryGeneration,
+  }) async {
+    String? reservedReportId;
+    try {
+      var record = await _durableReportForOwnedMember(
+        member,
+        context: context,
+        applicationAnonymousToken: applicationAnonymousToken,
+      );
+      if (_ownedQueryReservedReportIds.contains(record.reportId)) {
+        reservedReportId = record.reportId;
+      }
+      while (true) {
+        final collision = _reportAttemptsById[record.reportId];
+        if (collision == null) break;
+        await collision.timeout(_networkAttemptTimeout);
+        record = await _durableReportForOwnedMember(
+          member,
+          context: context,
+          applicationAnonymousToken: applicationAnonymousToken,
+        );
+        if (reservedReportId != record.reportId) {
+          _ownedQueryReservedReportIds.remove(reservedReportId);
+          reservedReportId = null;
+        }
+        if (_ownedQueryReservedReportIds.contains(record.reportId)) {
+          reservedReportId = record.reportId;
+        }
+      }
+      if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
+        throw StateError('Owned transaction query context changed');
+      }
+      member.attemptGeneration = queryGeneration;
+      _ownedQueryReservedReportIds.remove(record.reportId);
+      reservedReportId = null;
+      return await _startReportAttempt(
+        record,
+        context: context,
+        epoch: epoch,
+        publishPurchaserState: false,
+      );
+    } finally {
+      member.completionAdmission = null;
+      final reserved = reservedReportId;
+      if (reserved != null && _ownedQueryReservedReportIds.remove(reserved)) {
+        _requestDrain();
+        _scheduleRetryWake();
+      }
+    }
+  }
+
+  void _requestDrain() {
+    if (_disposed) return;
+    _drainRequested = true;
+    if (_drainInFlight != null) return;
+    Future<void>? drain;
+    drain = _drain().whenComplete(() {
+      if (identical(_drainInFlight, drain)) {
+        _drainInFlight = null;
+        if (_drainRequested && !_disposed) _requestDrain();
+      }
+    });
+    _drainInFlight = drain;
+    _track(drain);
+  }
+
+  Future<void> _drain() async {
+    while (!_disposed && _drainRequested) {
+      _drainRequested = false;
+      await _flushDueReports();
+    }
+  }
+
+  Future<void> _flushDueReports() async {
+    if (_disposed) return;
+    final scope = _currentContext();
+    if (scope == null || !scope.isCurrent || _rpcClientProvider() == null) {
+      await _scheduleNextRetry();
+      return;
+    }
+
+    final CommerceReportQueue queue;
+    final List<CommerceReportRecord> reports;
+    try {
+      queue = await _queue();
+      reports = await queue.due();
+    } on Object {
+      await _scheduleNextRetry();
+      return;
+    }
+
+    for (final report in reports) {
+      if (_disposed) return;
+      final context = _currentContext();
+      if (context == null ||
+          !context.isCurrent ||
+          context.configurationFingerprint != report.configurationFingerprint) {
+        continue;
+      }
+      if (_rpcClientProvider() == null) break;
+      if (_reportAttemptsById.containsKey(report.reportId) ||
+          _ownedQueryReservedReportIds.contains(report.reportId)) {
+        continue;
+      }
+      final epoch = _stateEpoch;
+      await _startReportAttempt(
+        report,
+        context: context,
+        epoch: epoch,
+        publishPurchaserState: true,
+        requireDurableDue: true,
+      );
+    }
+    await _scheduleNextRetry(queue);
+  }
+
+  Future<CommerceReportResponse?> _startReportAttempt(
+    CommerceReportRecord report, {
+    required CommerceRuntimeContext context,
+    required int epoch,
+    required bool publishPurchaserState,
+    bool requireDurableDue = false,
+  }) {
+    final active = _reportAttemptsById[report.reportId];
+    if (active != null) return active;
+    late Future<CommerceReportResponse?> attempt;
+    attempt = _performReportAttempt(
+      report,
+      context: context,
+      epoch: epoch,
+      publishPurchaserState: publishPurchaserState,
+      requireDurableDue: requireDurableDue,
+    ).whenComplete(() {
+      if (identical(_reportAttemptsById[report.reportId], attempt)) {
+        _reportAttemptsById.remove(report.reportId);
+        _inFlightReportIds.remove(report.reportId);
+        _scheduleRetryWake();
+      }
+    });
+    _reportAttemptsById[report.reportId] = attempt;
+    _inFlightReportIds.add(report.reportId);
+    return attempt;
+  }
+
+  Future<CommerceReportResponse?> _performReportAttempt(
+    CommerceReportRecord report, {
+    required CommerceRuntimeContext context,
+    required int epoch,
+    required bool publishPurchaserState,
+    required bool requireDurableDue,
+  }) async {
+    final queue = await _queue();
+    var currentReport = report;
+    if (requireDurableDue) {
+      // An earlier sender can acknowledge or reschedule this saved due entry.
+      final due = await queue.due();
+      final live = due.where(
+        (candidate) => candidate.reportId == report.reportId,
+      );
+      if (live.isEmpty) return null;
+      currentReport = live.single;
+    }
+    if (!_isCurrentAttempt(context, epoch) ||
+        context.configurationFingerprint !=
+            currentReport.configurationFingerprint) {
+      await _scheduleRetry(queue, currentReport.reportId);
+      return null;
+    }
+    final client = _rpcClientProvider();
+    if (client == null ||
+        !_isCurrentAttempt(context, epoch) ||
+        context.configurationFingerprint !=
+            currentReport.configurationFingerprint) {
+      await _scheduleRetry(queue, currentReport.reportId);
+      return null;
+    }
+    final CommerceReportResponse? response;
+    try {
+      response = await client
+          .reportCommerce(
+            CommerceReportRequest(
+              reportId: currentReport.reportId,
+              intentId: currentReport.intentId,
+              store: currentReport.store.value,
+              storeVerificationData: currentReport.storeVerificationData,
+              storeProductId: currentReport.storeProductId,
+              storeTransactionId: currentReport.storeTransactionId,
+              appAnonymousToken: currentReport.applicationAnonymousToken,
+            ),
+          )
+          .timeout(_networkAttemptTimeout);
+    } on Object {
+      await _scheduleRetry(queue, currentReport.reportId);
+      return null;
+    }
+    if (_disposed || !_isCurrentAttempt(context, epoch)) {
+      await _scheduleRetry(queue, currentReport.reportId);
+      return response;
+    }
+    if (publishPurchaserState && response != null) {
+      await _emitReportStateIfCurrent(
+        currentReport,
+        context,
+        epoch,
+        response.purchaserState,
+      );
+    }
+    if (!_isCurrentAttempt(context, epoch)) {
+      await _scheduleRetry(queue, currentReport.reportId);
+      return response;
+    }
+    if (response == null ||
+        response.outcome == 'unknown' ||
+        response.outcome == 'pending') {
+      await _scheduleRetry(queue, currentReport.reportId);
+      return response;
+    }
+    if (response.outcome == 'verified' &&
+        currentReport.store == CommerceStore.appStore) {
+      final retained = _transactionsByReportId[currentReport.reportId];
+      if (retained != null &&
+          !retained.deviceCompleted &&
+          retained.transaction.requiresDeviceCompletion) {
+        try {
+          await adapter.completeTransaction(retained.transaction);
+          retained.deviceCompleted = true;
+        } on Object {
+          await _scheduleRetry(queue, currentReport.reportId);
+          return response;
+        }
+        if (!_isCurrentAttempt(context, epoch)) {
+          await _scheduleRetry(queue, currentReport.reportId);
+          return response;
+        }
+      }
+    }
+    await _acknowledge(queue, currentReport.reportId);
+    return response;
+  }
+
+  Future<void> _emitReportStateIfCurrent(
+    CommerceReportRecord report,
+    CommerceRuntimeContext context,
+    int epoch,
+    CommercePurchaserStateResponse state,
+  ) async {
+    if (await _isCurrentReportSubject(report, context, epoch) &&
+        _hasCurrentOwnedSnapshot(context, report.applicationAnonymousToken)) {
+      _emitFreshState(
+        state,
+        context: context,
+        applicationAnonymousToken: report.applicationAnonymousToken,
+      );
+    }
+  }
+
+  Future<bool> _isCurrentReportSubject(
+    CommerceReportRecord report,
+    CommerceRuntimeContext context,
+    int epoch,
+  ) async {
+    if (!_isCurrentAttempt(context, epoch)) return false;
+    final token = await _applicationAnonymousToken(context);
+    return token == report.applicationAnonymousToken &&
+        _isCurrentAttempt(context, epoch);
+  }
+
+  bool _isCurrentAttempt(CommerceRuntimeContext context, int epoch) {
+    if (_disposed || epoch != _stateEpoch || !context.isCurrent) return false;
+    final current = _currentContext();
+    return current != null &&
+        current.isCurrent &&
+        current.configurationFingerprint == context.configurationFingerprint;
+  }
+
+  bool _isCurrentOwnedAttempt(
+    CommerceRuntimeContext context,
+    int epoch,
+    int queryGeneration,
+  ) =>
+      queryGeneration == _ownedQueryGeneration &&
+      _isCurrentAttempt(context, epoch);
+
+  Future<void> _acknowledge(CommerceReportQueue queue, String reportId) async {
+    try {
+      await queue.acknowledge(reportId);
+      _transactionsByReportId.remove(reportId);
+    } on Object {
+      await _scheduleRetry(queue, reportId);
+    }
+  }
+
+  Future<void> _scheduleRetry(
+    CommerceReportQueue queue,
+    String reportId,
+  ) async {
+    try {
+      await queue.scheduleRetry(reportId);
+    } on Object {
+      return;
+    }
+  }
+
+  DateTime _now() => _clock().toUtc();
+
+  void _scheduleRetryWake() => _startBackground(_scheduleNextRetry);
+
+  Future<void> _scheduleNextRetry([CommerceReportQueue? readyQueue]) async {
+    _retryTimer?.cancel();
+    if (_disposed) return;
+
+    DateTime? next;
+    void consider(DateTime candidate) {
+      if (next == null || candidate.isBefore(next!)) next = candidate;
+    }
+
+    for (final admission in <_PendingCommerceAdmission>{
+      ..._unresolvedAdmissions,
+      ..._pendingAdmissions.values,
+    }) {
+      if (!admission.inFlight) consider(admission.nextRetryAt);
+    }
+    final recoveryAt = _nextOwnedRecoveryAt;
+    if (recoveryAt != null && !_ownedRecoveryInFlight) consider(recoveryAt);
+
+    final context = _currentContext();
+    if (context != null && context.isCurrent && _rpcClientProvider() != null) {
+      try {
+        final queue = readyQueue ?? await _queue();
+        final records = await queue.open();
+        if (context.isCurrent) {
+          for (final record in records) {
+            if (record.configurationFingerprint ==
+                    context.configurationFingerprint &&
+                !_inFlightReportIds.contains(record.reportId) &&
+                !_ownedQueryReservedReportIds.contains(record.reportId)) {
+              consider(record.nextRetryAt);
+            }
+          }
+        }
+      } on Object {
+        // A pending admission retries queue creation with the same backoff.
+      }
+    }
+
+    final retryAt = next;
+    if (retryAt == null || _disposed) return;
+    final delay = retryAt.difference(_now());
+    _retryTimer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      final retryOwnedRecovery = _isOwnedRecoveryDue();
+      _retryPendingAdmissions();
+      _requestDrain();
+      if (retryOwnedRecovery) _requestOwnedRecovery();
+      _scheduleRetryWake();
+    });
+  }
+
+  bool _isOwnedRecoveryDue() {
+    final retryAt = _nextOwnedRecoveryAt;
+    return retryAt != null && !retryAt.isAfter(_now());
+  }
+
+  void _requestOwnedRecovery({bool force = false}) {
+    if (_disposed ||
+        (!force && (_nextOwnedRecoveryAt?.isAfter(_now()) ?? false))) {
+      return;
+    }
+    _ownedRecoveryRequested = true;
+    if (_ownedRecoveryInFlight) return;
+    final context = _currentContext();
+    if (context == null || !context.isCurrent) {
+      return;
+    }
+    _ownedRecoveryRequested = false;
+    _ownedRecoveryInFlight = true;
+    _track(_recoverOwnedPurchases());
+  }
+
+  Future<void> _recoverOwnedPurchases() async {
+    try {
+      final state = await _run(_refresh);
+      if (state.status != CommercePurchaserStateStatusCode.available) {
+        throw StateError('Owned purchase recovery is not current');
+      }
+      _ownedRecoveryAttempt = 0;
+      _nextOwnedRecoveryAt = null;
+    } on Object {
+      _nextOwnedRecoveryAt = _now().add(
+        commerceReportRetryDelay(_ownedRecoveryAttempt),
+      );
+      _ownedRecoveryAttempt += 1;
+    } finally {
+      _ownedRecoveryInFlight = false;
+      if (_ownedRecoveryRequested && !_disposed) {
+        _requestOwnedRecovery(force: true);
+      } else if (_nextOwnedRecoveryAt != null) {
+        _scheduleRetryWake();
+      }
+    }
+  }
+
+  Future<List<String>> _knownTransactionIds(
+    CommerceRuntimeContext context,
+    String applicationAnonymousToken,
+  ) async {
+    if (!context.isCurrent) return const <String>[];
+    try {
+      final records = await (await _queue()).open();
+      if (!context.isCurrent) return const <String>[];
+      return records
+          .where(
+            (record) =>
+                record.configurationFingerprint ==
+                    context.configurationFingerprint &&
+                record.applicationAnonymousToken == applicationAnonymousToken,
+          )
+          .map((record) => record.storeTransactionId)
+          .whereType<String>()
+          .toSet()
+          .toList(growable: false);
+    } on Object {
+      return const <String>[];
+    }
+  }
+
+  CommerceRuntimeContext? _currentContext() {
+    try {
+      return _runtimeContextProvider();
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<String?> _applicationAnonymousToken(
+    CommerceRuntimeContext? context,
+  ) async {
+    if (context == null) return null;
+    try {
+      return await context.applicationAnonymousToken();
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<CommerceReportQueue> _queue() {
+    final current = _queueFuture;
+    if (current != null) return current;
+    final future = Future<CommerceReportQueue>.sync(_reportQueueFactory).then((
+      queue,
+    ) async {
+      await queue.open();
+      return queue;
+    });
+    _queueFuture = future;
+    unawaited(
+      future.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace __) {
+          if (identical(_queueFuture, future)) _queueFuture = null;
+        },
+      ),
+    );
+    return future;
+  }
+
+  void _invalidateState() {
+    _stateEpoch += 1;
+    _ownedQueryGeneration += 1;
+    _clearOwnedSnapshot();
+    _lastPublishedPurchaserStateAt = null;
+    _lastPublishedPurchaserState = _staleState();
+    _emit(_lastPublishedPurchaserState);
+  }
+
+  CommercePurchaserState _emitFreshState(
+    CommercePurchaserStateResponse response, {
+    required CommerceRuntimeContext context,
+    required String applicationAnonymousToken,
+  }) {
+    final last = _lastPublishedPurchaserStateAt;
+    if (last != null && response.retrievedAt.isBefore(last)) {
+      return _lastPublishedPurchaserState;
+    }
+    _lastPublishedPurchaserStateAt = response.retrievedAt;
+    _lastPublishedPurchaserState = _project(
+      _withOwnedSnapshot(
+        response,
+        context: context,
+        applicationAnonymousToken: applicationAnonymousToken,
+      ),
+    );
+    return _emit(_lastPublishedPurchaserState);
+  }
+
+  bool _hasCurrentOwnedSnapshot(
+    CommerceRuntimeContext context,
+    String applicationAnonymousToken,
+  ) =>
+      _ownedSnapshotCurrent &&
+      (_ownedSnapshotContext?.isCurrent ?? false) &&
+      _ownedSnapshotConfigurationFingerprint ==
+          context.configurationFingerprint &&
+      _ownedSnapshotApplicationAnonymousToken == applicationAnonymousToken &&
+      context.isCurrent;
+
+  CommercePurchaserStateResponse _withOwnedSnapshot(
+    CommercePurchaserStateResponse canonical, {
+    required CommerceRuntimeContext context,
+    required String applicationAnonymousToken,
+  }) {
+    if (!_hasCurrentOwnedSnapshot(context, applicationAnonymousToken)) {
+      return canonical;
+    }
+    return CommercePurchaserStateResponse(
+      status: canonical.status,
+      entitlements: _selectEntitlements([
+        ...canonical.entitlements,
+        ..._ownedSnapshotEntitlements,
+      ]),
+      retrievedAt: canonical.retrievedAt,
+    );
+  }
+
+  void _clearOwnedSnapshot() {
+    _ownedSnapshotCurrent = false;
+    _ownedSnapshotContext = null;
+    _ownedSnapshotConfigurationFingerprint = null;
+    _ownedSnapshotApplicationAnonymousToken = null;
+    _ownedSnapshotEntitlements = const <EntitlementSummary>[];
+  }
+
+  CommercePurchaserState _emitStaleIfUnchanged(int publicationRevision) {
+    if (publicationRevision != _statePublicationRevision) {
+      return _lastPublishedPurchaserState;
+    }
+    return _emit(_staleState());
+  }
+
+  CommercePurchaserState _project(CommercePurchaserStateResponse response) {
+    return CommercePurchaserState._(
+      status: switch (response.status) {
+        'current' => CommercePurchaserStateStatusCode.available,
+        'stale' => CommercePurchaserStateStatusCode.stale,
+        _ => CommercePurchaserStateStatusCode.unknown,
+      },
+      entitlements: response.entitlements,
+    );
+  }
+
+  CommercePurchaserState _staleState() =>
+      CommercePurchaserState._(status: CommercePurchaserStateStatusCode.stale);
+
+  CommercePurchaserState _emit(CommercePurchaserState state) {
+    if (!_disposed) {
+      _lastPublishedPurchaserState = state;
+      _statePublicationRevision += 1;
+      _onState(state);
+    }
+    return state;
+  }
+
+  Future<T> _run<T>(Future<T> Function() operation) {
+    final result = _operations.then((_) => operation());
+    _operations = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
+  }
+
+  void _startBackground(Future<void> Function() operation) {
+    _track(operation());
+  }
+}
+
+List<EntitlementSummary> _selectEntitlements(
+  Iterable<EntitlementSummary> candidates,
+) {
+  final selected = <String, EntitlementSummary>{};
+  for (final candidate in candidates) {
+    final current = selected[candidate.entitlementId];
+    if (current == null || _compareEntitlements(candidate, current) < 0) {
+      selected[candidate.entitlementId] = candidate;
+    }
+  }
+  final result = selected.values.toList(growable: false)
+    ..sort((left, right) => left.entitlementId.compareTo(right.entitlementId));
+  return result;
+}
+
+int _compareEntitlements(EntitlementSummary left, EntitlementSummary right) {
+  if (left.isEntitled != right.isEntitled) return left.isEntitled ? -1 : 1;
+  final leftUnbounded = left.expiresAtMs == null;
+  final rightUnbounded = right.expiresAtMs == null;
+  if (leftUnbounded != rightUnbounded) return leftUnbounded ? -1 : 1;
+  if (!leftUnbounded) {
+    final byExpiry = right.expiresAtMs!.compareTo(left.expiresAtMs!);
+    if (byExpiry != 0) return byExpiry;
+  }
+  var result = left.productId.compareTo(right.productId);
+  if (result != 0) return result;
+  result = left.source.compareTo(right.source);
+  if (result != 0) return result;
+  return left.status.compareTo(right.status);
+}
+
+CommercePurchaserState _unavailableCommerceState() => CommercePurchaserState._(
+      status: CommercePurchaserStateStatusCode.unavailable,
+    );
+
+CommerceActionResult _unavailableAction(CommerceFailureCode failureCode) =>
+    CommerceActionResult._(
+      status: CommerceActionStatusCode.unavailable,
+      failureCode: failureCode,
+    );
+
+CommerceActionResult _failedAction(CommerceFailureCode failureCode) =>
+    CommerceActionResult._(
+      status: CommerceActionStatusCode.failed,
+      failureCode: failureCode,
+    );
+
+String? _nonEmptyOrNull(String? value) =>
+    value == null || value.isEmpty ? null : value;
 
 final _RestageCommerce _restageCommerceInstance = _RestageCommerce();
 
 RestageCommerce get restageCommerceInstance => _restageCommerceInstance;
+
+void activateRestageCommerce(
+  CommerceStoreAdapter adapter, {
+  required RestageRpcClient? Function() rpcClientProvider,
+  required Future<String> Function() applicationAnonymousTokenProvider,
+  CommerceRuntimeContext? Function()? runtimeContextProvider,
+  Future<CommerceReportQueue> Function() reportQueueFactory =
+      createCommerceReportQueue,
+  Duration networkAttemptTimeout = const Duration(seconds: 15),
+  DateTime Function() clock = DateTime.now,
+}) =>
+    _restageCommerceInstance.activate(
+      adapter,
+      rpcClientProvider: rpcClientProvider,
+      applicationAnonymousTokenProvider: applicationAnonymousTokenProvider,
+      runtimeContextProvider: runtimeContextProvider,
+      reportQueueFactory: reportQueueFactory,
+      networkAttemptTimeout: networkAttemptTimeout,
+      clock: clock,
+    );
+
+void notifyRestageCommerceConfigurationChanged() =>
+    _restageCommerceInstance.configurationChanged();
+
+void notifyRestageCommerceIdentityChanged() =>
+    _restageCommerceInstance.identityChanged();
+
+void notifyRestageCommerceForegrounded() =>
+    _restageCommerceInstance.foregrounded();
+
+/// Resets commerce; completes once the stopped engine's work has settled.
+Future<void> debugResetRestageCommerce() =>
+    _restageCommerceInstance.debugReset();
+
+CommerceStoreAdapter? get debugRestageCommerceAdapter =>
+    _restageCommerceInstance.debugStoreAdapter;

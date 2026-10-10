@@ -521,6 +521,7 @@ final class ExpressionTranslator {
   // Per-call location context, set at the start of each [translate] call.
   String? _currentSourcePath;
   LineInfo? _currentLineInfo;
+  AstNode? _currentSourceUnit;
 
   // Per-call accumulator for the custom-widget definitions emitted while
   // translating (rfwName → body DSL), set at the start of each [translate]
@@ -737,6 +738,7 @@ final class ExpressionTranslator {
         _forcedCustomWidgetFactoryRoutes;
     _currentSourcePath = sourcePath;
     _currentLineInfo = lineInfo;
+    _currentSourceUnit = expr.root;
     _walk = _walk.copyWith(
       argNames: const {},
       stateFields: rootState == null
@@ -884,6 +886,7 @@ final class ExpressionTranslator {
       // read a stale source path / line info from a previous translation.
       _currentSourcePath = null;
       _currentLineInfo = null;
+      _currentSourceUnit = null;
     }
     if (dsl.isNotEmpty &&
         !suppressed &&
@@ -974,6 +977,7 @@ final class ExpressionTranslator {
   }) {
     _currentSourcePath = null;
     _currentLineInfo = null;
+    _currentSourceUnit = null;
     final issues = <Issue>[];
     final definitions = <String, String>{};
     final definitionStates = <String, Map<String, String>>{};
@@ -4292,15 +4296,8 @@ final class ExpressionTranslator {
       }
     }
 
-    // Named-intermediate inlining: a call whose method element the classifier
-    // captured for THIS definition body is inlined to the helper's body —
-    // element-resolved identity, never name (a custom / different-library
-    // look-alike resolves to a different element, is not captured, and falls
-    // through). Mirrors the classifier's `_resolveInlinableHelper`. Fires for
-    // ANY target — a bare own/top-level call (`_helper()`) or a qualified
-    // same-library static (`Helpers.row()`) — and is placed BEFORE the static
-    // value-substitution gate below so a captured static inlines rather than
-    // deferring as a widget construction.
+    // Inline helpers captured by resolved element identity, including static calls.
+    // Run before static value substitution so captured widget helpers inline.
     final helper = _walk.inlined.helpers[expr.methodName.element];
     if (helper != null) {
       return _inlineHelperBody(helper, expr, issues);
@@ -4318,7 +4315,7 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.customWidgetInliningDeferred,
           capabilityGapSubject: 'helper:${expr.methodName.name}',
-          message: "The helper '${expr.methodName.name}' cannot be inlined: "
+          message: "The helper '${_helperName(expr)}' cannot be inlined: "
               '$helperRefusal.',
           location: _locationOf(expr),
         ),
@@ -4355,6 +4352,24 @@ final class ExpressionTranslator {
     // construction (defer). A `target == null` bare call and an unresolved
     // target keep the name-based recognition (the synthetic-test affordance).
     if (target is SimpleIdentifier && !_frameworkOrUnresolved(target.element)) {
+      // A static method is never a construction of its owner.
+      if (expr.methodName.element case final MethodElement helper
+          when helper.isStatic) {
+        final reason = isInCallersPackage(expr, helper)
+            ? 'a helper must return a widget or a value of a class type'
+            : 'it is declared in another package, and helpers inline only '
+                'from this one';
+        issues.add(
+          Issue(
+            code: IssueCode.customWidgetInliningDeferred,
+            capabilityGapSubject: 'helper:$method',
+            message: "The helper '${target.name}.$method' cannot be inlined: "
+                '$reason.',
+            location: _locationOf(expr),
+          ),
+        );
+        return '';
+      }
       return _catalogWidgetConstruction(
         widgetName: target.name,
         flutterType: _flutterTypeOfMethodInvocation(expr),
@@ -10007,6 +10022,14 @@ final class ExpressionTranslator {
   }
 
   String _locationOf(AstNode node) {
+    // An inlined helper or widget body reports against its own file.
+    final unit = node.root;
+    final current = _currentSourceUnit;
+    if (current != null && unit != current && unit is CompilationUnit) {
+      final location = unit.lineInfo.getLocation(node.offset);
+      return '${_unitPath(unit, current)}:${location.lineNumber}:'
+          '${location.columnNumber}';
+    }
     final path = _currentSourcePath ?? '<unknown>';
     final li = _currentLineInfo;
     if (li == null) {
@@ -10014,6 +10037,28 @@ final class ExpressionTranslator {
     }
     final loc = li.getLocation(node.offset);
     return '$path:${loc.lineNumber}:${loc.columnNumber}';
+  }
+
+  /// A helper call's name as written: `Owner.method` for a static.
+  String _helperName(MethodInvocation expr) => switch (expr.target) {
+        SimpleIdentifier(:final name) => '$name.${expr.methodName.name}',
+        _ => expr.methodName.name,
+      };
+
+  /// [unit]'s path as the surface's own path is spelled: package-relative
+  /// within the surface's package, its full URI otherwise.
+  String _unitPath(CompilationUnit unit, AstNode surface) {
+    final uri = unit.declaredFragment?.source.uri;
+    if (uri == null) return '<unknown>';
+    final surfaceUri = surface is CompilationUnit
+        ? surface.declaredFragment?.source.uri
+        : null;
+    if (uri.scheme == 'package' &&
+        surfaceUri?.scheme == 'package' &&
+        uri.pathSegments.first == surfaceUri!.pathSegments.first) {
+      return 'lib/${uri.pathSegments.skip(1).join('/')}';
+    }
+    return '$uri';
   }
 
   /// Returns the canonical `'<library URI>#<class name>[.<ctor name>]'` for

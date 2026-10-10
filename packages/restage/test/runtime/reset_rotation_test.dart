@@ -5,13 +5,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
-import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/hosted_artifact_delivery.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -246,44 +246,84 @@ void main() {
       apiKey: 'rs_pk_test',
       baseUrl: 'http://127.0.0.1:1',
     );
+    final initialLease = await SurfaceAssignmentKeyProvider.captureLease();
+    expect(initialLease.registration, isNotNull);
+    expect(initialLease.canSend, isTrue);
 
+    final delivery = HostedArtifactFixture();
+    final sent = <Map<String, dynamic>>[];
+    final blob = _textBlob();
     var issued = 0;
-    Restage.debugRestageRpcClient = RestageRpcClient(
-      baseUrl: 'http://127.0.0.1:1',
+    final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      httpClient: MockClient((request) async => http.Response(
-            jsonEncode({
-              'credentialHandle': 'credential.reset.${++issued}',
-              'expiresAtMicros': 4102444800000000
-            }),
-            200,
-          )),
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'http://127.0.0.1:1',
+      assetFallback: _TextResolver(),
+      httpClient: delivery.client((request) async {
+        expect(request.url.path, '/sdk/v1/surface');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        sent.add(body);
+        final now = DateTime.now().microsecondsSinceEpoch;
+        return http.Response(
+          jsonEncode({
+            ...delivery.describe(testBlobDocument(
+              blob,
+              surfaceSlug: body['surfaceSlug'] as String,
+            )),
+            'credentialHandle':
+                'ic1.${(++issued).toRadixString(16).padLeft(64, '0')}',
+            'expiresAtMicros': now + 30 * Duration.microsecondsPerDay,
+            'serverNowMicros': now,
+          }),
+          200,
+        );
+      }),
     );
-    final resolver = _TextResolver();
-    await _mountPaywall(tester, id: 'before-reset', resolver: resolver);
-    final oldAssignmentKey = await SurfaceAssignmentKeyProvider.resolve();
+    await _mountPaywall(tester, id: 'pro_upgrade', resolver: resolver);
+    final firstRequestCount = sent.length;
+    final firstReadyCount = find.text('Ready').evaluate().length;
+    final old = await SurfaceAssignmentKeyProvider.captureLease();
+    final oldAssignmentKey = old.assignmentKey;
 
     // reset() is synchronous at its public boundary: code that fires or fetches
     // immediately after this call must already see the new participant.
     Restage.reset();
-    final immediateAssignmentKey = await SurfaceAssignmentKeyProvider.resolve();
+    final immediate = await SurfaceAssignmentKeyProvider.captureLease();
 
     await tester.pump();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+    expect(firstRequestCount, 1);
+    expect(firstReadyCount, 1);
 
     // A later real mount stays on the post-reset participant rather than
     // recovering the retired one.
-    await _mountPaywall(tester, id: 'after-reset', resolver: resolver);
-    final afterRealMountKey = await SurfaceAssignmentKeyProvider.resolve();
+    await _mountPaywall(tester, id: 'pro_upgrade', resolver: resolver);
+    final secondReadyCount = find.text('Ready').evaluate().length;
+    final secondRequestCount = sent.length;
+    final afterRealMountKey =
+        (await SurfaceAssignmentKeyProvider.captureLease()).assignmentKey;
     await tester.pump();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
 
+    expect(secondReadyCount, 1);
+    expect(secondRequestCount, 2);
     expect(oldAssignmentKey, isNotNull);
-    expect(immediateAssignmentKey, isNotNull);
-    expect(immediateAssignmentKey, isNot(oldAssignmentKey));
-    expect(afterRealMountKey, immediateAssignmentKey);
+    expect(old.isCurrent, isFalse);
+    expect(immediate.registration, isNotNull);
+    expect(immediate.registration!.registrationNonce,
+        isNot(old.registration!.registrationNonce));
+    expect(immediate.assignmentKey, isNull,
+        reason: 'reset does not enroll before another origin request');
+    expect(afterRealMountKey, isNotNull);
+    expect(afterRealMountKey, isNot(oldAssignmentKey));
+    expect(sent, hasLength(2));
+    expect(sent[0]['registrationNonce'], old.registration!.registrationNonce);
+    expect(sent[1]['registrationNonce'],
+        immediate.registration!.registrationNonce);
+    expect(delivery.artifactRequests, isNotEmpty);
+    expect(issued, 2);
   });
 }
 
@@ -335,30 +375,37 @@ Future<void> _mountPaywall(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: Scaffold(body: RestagePaywall(id: id, resolver: resolver)),
+      home: Scaffold(
+        body: RestagePaywall(
+          id: id,
+          resolver: resolver,
+          errorBuilder: (_, error) => Text('ERROR: $error'),
+        ),
+      ),
     ),
   );
+  // Advance the fake clock past the optional input budget before settling the
+  // hosted mount; pumpAndSettle alone need not advance a pending timer.
+  await tester.pump(const Duration(seconds: 3));
   await tester.pumpAndSettle();
 }
 
+Uint8List _textBlob() =>
+    Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+  import restage.core;
+  widget Paywall = Text(text: "Ready");
+''')));
+
 final class _TextResolver implements VariantResolver {
-  _TextResolver()
-      : _bytes = Uint8List.fromList(
-          encodeLibraryBlob(
-            parseLibraryFile('''
-              import restage.core;
-              widget Paywall = Text(text: "Ready");
-            '''),
-          ),
-        );
-
-  final Uint8List _bytes;
-
   @override
   Future<ResolvedVariant> resolve(
     String id, {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: _bytes, surfaceVersion: 'test', paywallId: id);
+      ResolvedVariant(
+        bytes: _textBlob(),
+        surfaceVersion: 'test',
+        paywallId: id,
+      );
 }

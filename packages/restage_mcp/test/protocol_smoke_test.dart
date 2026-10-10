@@ -63,7 +63,7 @@ void main() {
   test(
     'initialize -> tools/list -> tools/call against a real backend',
     () async {
-      // A stand-in backend on loopback that answers the paywall RPC.
+      // A stand-in backend on loopback that answers the admitted scope read.
       String? seenAuth;
       String? seenPath;
       final backend = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -77,16 +77,38 @@ void main() {
             ..statusCode = 200
             ..headers.contentType = ContentType.json
             ..write(
-              jsonEncode([
-                {
-                  'surfaceType': 'paywall',
-                  'slug': 'pro',
-                  'name': 'Pro',
-                  'draftUpdatedAt': '2026-06-01T00:00:00.000Z',
-                  'publishedVersionByEnvironment': {'production': 3},
-                  '__className__': 'SurfaceSummary',
+              jsonEncode({
+                'organizationId': 7,
+                'session': {
+                  'memberships': [
+                    {
+                      'organizationId': 7,
+                      'slug': 'acme',
+                      'name': 'Acme',
+                      'role': 'admin',
+                    },
+                  ],
+                  'workspaceExperiences': <Object>[],
                 },
-              ]),
+                'projects': [
+                  {'id': 1, 'slug': 'acme', 'name': 'Acme'},
+                ],
+                'apps': [
+                  {'id': 5, 'projectId': 1, 'slug': 'ios', 'name': 'iOS'},
+                ],
+                'environments': <Object>[],
+                'environmentTargets': <Object>[],
+                'surfaces': [
+                  {
+                    'appId': 5,
+                    'surfaceType': 'paywall',
+                    'slug': 'pro',
+                    'name': 'Pro',
+                    'draftUpdatedAt': '2026-06-01T00:00:00.000Z',
+                    'publishedVersionByEnvironment': {'production': 3},
+                  },
+                ],
+              }),
             );
           await request.response.close();
         }
@@ -164,9 +186,8 @@ void main() {
       final paywalls = result.structuredContent!['paywalls']! as List<dynamic>;
       expect((paywalls.single as Map)['slug'], 'pro');
 
-      // The real wire hit the surface RPC (paywalls list via the surface
-      // substrate) with the device-code auth header.
-      expect(seenPath, '/surface');
+      // The real wire hit the scope RPC with the device-code auth header.
+      expect(seenPath, '/scope');
       expect(seenAuth, 'Basic ${base64Encode(utf8.encode('keyId:key'))}');
     },
   );
@@ -183,15 +204,25 @@ void main() {
           ..statusCode = 200
           ..headers.contentType = ContentType.json
           ..write(
-            jsonEncode([
-              {
-                'organizationId': 7,
-                'slug': 'acme',
-                'name': 'Acme',
-                'role': 'admin',
-                '__className__': 'OrganizationMembershipView',
+            jsonEncode({
+              'organizationId': 7,
+              'session': {
+                'memberships': [
+                  {
+                    'organizationId': 7,
+                    'slug': 'acme',
+                    'name': 'Acme',
+                    'role': 'admin',
+                  },
+                ],
+                'workspaceExperiences': <Object>[],
               },
-            ]),
+              'projects': <Object>[],
+              'apps': <Object>[],
+              'environments': <Object>[],
+              'environmentTargets': <Object>[],
+              'surfaces': <Object>[],
+            }),
           );
         await request.response.close();
       }
@@ -210,7 +241,7 @@ void main() {
     expect(result.isError, isNot(true));
     final orgs = result.structuredContent!['organizations']! as List<dynamic>;
     expect((orgs.single as Map)['slug'], 'acme');
-    expect(seenPath, '/organization');
+    expect(seenPath, '/scope');
   });
 
   test(

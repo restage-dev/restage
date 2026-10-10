@@ -223,8 +223,10 @@ final class MeasurementHostConstructionOwner {
   MeasurementHostConstructionOwner.production({
     required MeasurementHostConstructionProfileReadPort profileReadPort,
     Future<void>? startupBarrier,
+    Future<void> Function(String fingerprint)? onRegistrationRefused,
   })  : _startupBarrier = startupBarrier,
         _profileReadPort = profileReadPort,
+        _onRegistrationRefused = onRegistrationRefused,
         _pathResolver = null,
         _assignmentCredentialPort = null,
         _monotonicClock = _StopwatchMonotonicClock(),
@@ -238,8 +240,10 @@ final class MeasurementHostConstructionOwner {
     MeasurementHostAssignmentCredentialPort? assignmentCredentialPort,
     MeasurementCaptureMonotonicClock? monotonicClock,
     MeasurementHostConstructionWorkerRuntimeStarter? workerRuntimeStarter,
+    Future<void> Function(String fingerprint)? onRegistrationRefused,
   })  : _startupBarrier = null,
         _profileReadPort = profileReadPort,
+        _onRegistrationRefused = onRegistrationRefused,
         _pathResolver = pathResolver,
         _assignmentCredentialPort = assignmentCredentialPort,
         _monotonicClock = monotonicClock ?? _StopwatchMonotonicClock(),
@@ -256,6 +260,8 @@ final class MeasurementHostConstructionOwner {
   Future<void>? _cancellationFuture;
   Future<void>? _privacyPurgeCompletion;
   final MeasurementHostConstructionProfileReadPort _profileReadPort;
+  final Future<void> Function(String fingerprint)? _onRegistrationRefused;
+  StreamSubscription<String>? _registrationRefusalSubscription;
   final MeasurementWorkerOwnedDeliveryPathResolver? _pathResolver;
   final MeasurementHostAssignmentCredentialPort? _assignmentCredentialPort;
   final MeasurementCaptureMonotonicClock _monotonicClock;
@@ -305,6 +311,7 @@ final class MeasurementHostConstructionOwner {
     required MeasurementCaptureAdmission capabilityAdmission,
     required String Function() captureSessionNonceSource,
     MeasurementExperimentAssignmentV1? experimentAssignment,
+    String? registrationFingerprint,
     MeasurementPresentationContextV1? presentationContext,
     String? routingSelectionReceipt,
   }) async {
@@ -359,6 +366,7 @@ final class MeasurementHostConstructionOwner {
           experimentAssignmentCanonicalBytes: experimentAssignment == null
               ? null
               : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
+          registrationFingerprint: registrationFingerprint,
           publicationContextCanonicalBytes:
               resolvedMount.publicationContextRef.canonicalBytes,
           routes: [
@@ -533,6 +541,18 @@ final class MeasurementHostConstructionOwner {
       return null;
     }
     _runtime = runtime;
+    if (_onRegistrationRefused case final onRefused?) {
+      // This post-quarantine signal is in-process, not a crash-atomic store
+      // commit. A crash in that interval leaves the current tuple for the next
+      // serve to refuse; an old outbox frame can never retire a newer tuple.
+      _registrationRefusalSubscription = runtime.registrationRefusals.listen(
+        (fingerprint) {
+          if (_closed || _cancellation.isCancelled) return;
+          unawaited(Future.sync(() => onRefused(fingerprint))
+              .catchError((Object _) {}));
+        },
+      );
+    }
     return runtime;
   }
 
@@ -615,6 +635,7 @@ final class MeasurementHostConstructionOwner {
       await runtime.reset(MeasurementOutboxPurgeReason.privacyReset);
     }
     await _closeFuture;
+    await _registrationRefusalSubscription?.cancel();
   }
 
   /// Finalizes all live sessions, then closes the one owned worker exactly once.
@@ -642,6 +663,7 @@ final class MeasurementHostConstructionOwner {
         _runtime ?? (runtimeFuture == null ? null : await runtimeFuture);
     if (runtime == null || _cancellation.isCancelled) return;
     await runtime.shutdown();
+    await _registrationRefusalSubscription?.cancel();
   }
 }
 

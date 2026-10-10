@@ -254,6 +254,7 @@ final class MeasurementWorkerSessionRegistration {
     List<int>? experimentAssignmentCanonicalBytes,
     List<int>? presentationContextCanonicalBytes,
     this.routingSelectionReceipt,
+    this.registrationFingerprint,
   })  : _orderedCaptureCanonicalBytesV1 = orderedCaptureCanonicalBytesV1 == null
             ? null
             : Uint8List.fromList(orderedCaptureCanonicalBytesV1),
@@ -293,6 +294,10 @@ final class MeasurementWorkerSessionRegistration {
         (routingSelectionReceipt != null &&
             (routingSelectionReceipt!.isEmpty ||
                 routingSelectionReceipt!.length > 4096)) ||
+        (registrationFingerprint != null &&
+            (_experimentAssignmentCanonicalBytes == null ||
+                !RegExp(r'^[0-9a-f]{64}$')
+                    .hasMatch(registrationFingerprint!))) ||
         firstSequence <= 0 ||
         firstSequence > kMeasurementWorkerMaximumPortableInteger) {
       throw ArgumentError('Invalid measurement worker session registration');
@@ -332,6 +337,9 @@ final class MeasurementWorkerSessionRegistration {
   /// Opaque routing receipt supplied with the delivery.
   final String? routingSelectionReceipt;
 
+  /// Private namespace-bound identity of the serve registration for this assignment.
+  final String? registrationFingerprint;
+
   final Uint8List? _experimentAssignmentCanonicalBytes;
 
   /// Closed assignment bytes, defensively copied for worker transfer.
@@ -362,6 +370,7 @@ final class MeasurementWorkerSessionRegistration {
         reportedSdkVersion,
         presentationContextCanonicalBytes,
         routingSelectionReceipt,
+        registrationFingerprint,
       ];
 
   static MeasurementWorkerSessionRegistration fromWire(Object? value) {
@@ -369,7 +378,8 @@ final class MeasurementWorkerSessionRegistration {
     if (values.length != 7 &&
         values.length != 8 &&
         values.length != 10 &&
-        values.length != 12)
+        values.length != 12 &&
+        values.length != 13)
       throw ArgumentError('Invalid worker registration length');
     final rawRoutes = _requireList(values[3]);
     return MeasurementWorkerSessionRegistration(
@@ -379,6 +389,9 @@ final class MeasurementWorkerSessionRegistration {
               : null,
       routingSelectionReceipt: values.length >= 12 && values[11] != null
           ? _requireString(values[11])
+          : null,
+      registrationFingerprint: values.length >= 13 && values[12] != null
+          ? _requireString(values[12])
           : null,
       orderedCaptureCanonicalBytesV1: values.length >= 8 && values[7] != null
           ? _requireBytes(values[7])

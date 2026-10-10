@@ -4,11 +4,23 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/src/capability/widget_vocabulary.dart';
 
-/// One installed custom widget library and its declared capability version.
+/// One installed custom widget library, its declared capability version, and
+/// the oldest version whose content it still renders.
 @immutable
 final class InstalledLibrary {
-  /// Creates an installed library entry.
-  const InstalledLibrary({required this.namespace, this.version});
+  /// Creates an installed library entry. [compatibleSince] must be null for an
+  /// unversioned library, and otherwise between 1 and [version].
+  const InstalledLibrary({
+    required this.namespace,
+    this.version,
+    this.compatibleSince,
+  }) : assert(
+          compatibleSince == null ||
+              (version != null &&
+                  compatibleSince >= 1 &&
+                  compatibleSince <= version),
+          'compatibleSince must be between 1 and version',
+        );
 
   /// Decodes an installed library entry from its JSON wire form.
   factory InstalledLibrary.fromJson(Map<String, dynamic> json) {
@@ -22,8 +34,26 @@ final class InstalledLibrary {
       throw FormatException('malformed InstalledLibrary: $json');
     }
 
-    return InstalledLibrary(namespace: namespace, version: version as int?);
+    final compatibleSince = json['compatibleSince'];
+    // Only an absent key means 1; an explicit null is malformed.
+    if (json.containsKey('compatibleSince') &&
+        !isValidCompatibleSince(compatibleSince, version as int?)) {
+      throw FormatException('malformed InstalledLibrary: $json');
+    }
+
+    return InstalledLibrary(
+      namespace: namespace,
+      version: version as int?,
+      compatibleSince: compatibleSince as int?,
+    );
   }
+
+  /// Whether [compatibleSince] is a valid value for a library at [version].
+  static bool isValidCompatibleSince(Object? compatibleSince, int? version) =>
+      compatibleSince is int &&
+      version != null &&
+      compatibleSince >= 1 &&
+      compatibleSince <= version;
 
   /// The library namespace.
   final String namespace;
@@ -31,10 +61,19 @@ final class InstalledLibrary {
   /// The declared capability version, or `null` when unversioned.
   final int? version;
 
-  /// JSON wire form.
+  /// The oldest capability version whose content this library still renders,
+  /// or `null` for 1.
+  final int? compatibleSince;
+
+  /// [compatibleSince], with `null` read as 1.
+  int get effectiveCompatibleSince => compatibleSince ?? 1;
+
+  /// JSON wire form. `compatibleSince` is written only when above 1.
   Map<String, dynamic> toJson() => {
         'namespace': namespace,
         'version': version,
+        if (effectiveCompatibleSince > 1)
+          'compatibleSince': effectiveCompatibleSince,
       };
 
   @override
@@ -42,10 +81,11 @@ final class InstalledLibrary {
       identical(this, other) ||
       other is InstalledLibrary &&
           other.namespace == namespace &&
-          other.version == version;
+          other.version == version &&
+          other.effectiveCompatibleSince == effectiveCompatibleSince;
 
   @override
-  int get hashCode => Object.hash(namespace, version);
+  int get hashCode => Object.hash(namespace, version, effectiveCompatibleSince);
 }
 
 /// The built-in and custom library capabilities installed in a renderer.
@@ -129,9 +169,12 @@ final class InstalledCapability {
 
   /// Returns the installed version for [namespace], or `null` if the library
   /// is absent or unversioned.
-  int? versionOf(String namespace) {
+  int? versionOf(String namespace) => libraryOf(namespace)?.version;
+
+  /// Returns the installed library named [namespace], or `null` if absent.
+  InstalledLibrary? libraryOf(String namespace) {
     for (final library in installedLibraries) {
-      if (library.namespace == namespace) return library.version;
+      if (library.namespace == namespace) return library;
     }
     return null;
   }

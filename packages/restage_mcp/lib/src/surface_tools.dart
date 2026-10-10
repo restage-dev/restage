@@ -52,8 +52,9 @@ final _listSurfacesTool = Tool(
   description:
       'List the surfaces under a Restage project and app, of one surfaceType '
       "or of every type when it is left out. Returns each surface's type, "
-      'slug, name, last-draft timestamp, and per-environment published '
-      'versions.',
+      'slug, name, last-draft timestamp, and the version each environment '
+      'target serves, by environment and runtime plane. Archived surfaces are left out unless includeArchived is '
+      'true; each carries archivedAt.',
   inputSchema: Schema.object(
     properties: {
       ...appProperties(),
@@ -61,6 +62,9 @@ final _listSurfacesTool = Tool(
       'surfaceType': UntitledSingleSelectEnumSchema(
         description: 'Optional surface type. Omit to list every type.',
         values: surfaceTypeWireNames,
+      ),
+      'includeArchived': Schema.bool(
+        description: 'Include archived surfaces. Defaults to false.',
       ),
     },
     required: appRequired,
@@ -71,8 +75,8 @@ final _listPaywallsTool = Tool(
   name: 'restage_list_paywalls',
   description:
       'List the paywalls under a Restage project and app. Returns each '
-      "paywall's slug, name, last-draft timestamp, and per-environment "
-      'published versions.',
+      "paywall's slug, name, last-draft timestamp, and the version each "
+      'environment target serves, by environment and runtime plane.',
   inputSchema: Schema.object(
     properties: appProperties(),
     required: appRequired,
@@ -286,31 +290,61 @@ final _unfreezeSurfaceTool = Tool(
 
 Future<CallToolResult> _listSurfaces(ToolContext ctx, CallToolRequest request) {
   return ctx.authed('listing surfaces', (api) async {
-    final types = request.optStr('surfaceType') == null
-        ? kLifecycleSurfaceTypes.toList()
-        : [surfaceTypeOf(request)];
-    final surfaces = <Map<String, dynamic>>[];
-    for (final type in types) {
-      final summaries = await SurfaceApi(api).list(
-        project: request.str('projectSlug'),
-        app: request.str('appSlug'),
-        surfaceType: type,
-        organizationId: request.optInt('organizationId'),
-        appId: request.optInt('appId'),
+    final snapshot = await readProgrammaticScope(
+      api,
+      organizationId: request.optInt('organizationId'),
+    );
+    if (request.optInt('organizationId') == null &&
+        snapshot.organizations.length != 1) {
+      throw const TargetSelectionException(
+        'Pass organizationId to select an organization.',
       );
-      surfaces.addAll([for (final summary in summaries) summary.toJson()]);
     }
+    final app = snapshot
+        .apps(request.str('projectSlug'))
+        .where((app) => app.slug == request.str('appSlug'))
+        .firstOrNull;
+    final requestedAppId = request.optInt('appId');
+    if (app?.appId == null ||
+        (requestedAppId != null && app!.appId != requestedAppId)) {
+      throw const TargetSelectionException('No app matches those selectors.');
+    }
+    final type = request.optStr('surfaceType');
+    if (type != null) surfaceTypeOf(request);
+    final surfaces = [
+      for (final surface in snapshot.surfaces(
+        appId: app!.appId!,
+        surfaceType: type,
+        includeArchived: request.optBool('includeArchived') ?? false,
+      ))
+        surface.toJson(),
+    ];
     return jsonResult(<String, Object?>{'surfaces': surfaces});
   });
 }
 
 Future<CallToolResult> _listPaywalls(ToolContext ctx, CallToolRequest request) {
   return ctx.authed('listing paywalls', (api) async {
-    final summaries = await SurfaceApi(api).list(
-      project: request.str('projectSlug'),
-      app: request.str('appSlug'),
-      surfaceType: Surface.paywall,
+    final snapshot = await readProgrammaticScope(
+      api,
       organizationId: request.optInt('organizationId'),
+    );
+    if (request.optInt('organizationId') == null &&
+        snapshot.organizations.length != 1) {
+      throw const TargetSelectionException(
+        'Pass organizationId to select an organization.',
+      );
+    }
+    final app = snapshot
+        .apps(request.str('projectSlug'))
+        .where((app) => app.slug == request.str('appSlug'))
+        .firstOrNull;
+    if (app?.appId == null) {
+      throw const TargetSelectionException('No app matches those selectors.');
+    }
+    final summaries = snapshot.surfaces(
+      appId: app!.appId!,
+      surfaceType: Surface.paywall.wireName,
     );
     return jsonResult(<String, Object?>{
       'paywalls': [for (final summary in summaries) summary.toJson()],

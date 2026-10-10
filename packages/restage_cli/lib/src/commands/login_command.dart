@@ -121,9 +121,14 @@ class LoginCommand extends Command<int> {
         return 2;
       }
 
+      final verificationLink = start.verificationLink(
+        expiresAt: DateTime.now().add(
+          Duration(seconds: start.expiresInSeconds),
+        ),
+      );
       _stdout
         ..writeln('To finish signing in, visit:')
-        ..writeln('  ${start.verificationUri}')
+        ..writeln('  $verificationLink')
         ..writeln()
         ..writeln('and enter the verification code:')
         ..writeln('  ${start.userCode}')
@@ -134,7 +139,7 @@ class LoginCommand extends Command<int> {
       if (!noBrowser && openFlag) {
         if (_isSafeVerificationUri(start.verificationUri)) {
           try {
-            await _openBrowser(start.verificationUri);
+            await _openBrowser(verificationLink);
           } on Object {
             _stdout.writeln(
               "Couldn't open a browser automatically — open the URL above "

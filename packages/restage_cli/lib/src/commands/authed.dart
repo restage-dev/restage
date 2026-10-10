@@ -2,14 +2,15 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
+import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -93,6 +94,7 @@ class AuthedContext {
     this.project,
     this.app,
     this.target,
+    this.snapshot,
   });
 
   /// The command's I/O.
@@ -122,6 +124,9 @@ class AuthedContext {
   /// The resolved exact target, at target scope.
   final LifecycleContext? target;
 
+  /// The admitted scope used to resolve organization, project and app.
+  final ProgrammaticScopeSnapshot? snapshot;
+
   /// Output sink.
   StringSink get stdout => io.stdout;
 
@@ -150,9 +155,10 @@ Future<int> runAuthed(
     stderr.writeln(notSignedInSentence());
     return 1;
   }
-  final config = (await loadRestageConfig(
+  final loaded = await loadRestageConfig(
     from: Directory(_option(argResults, 'directory') ?? '.'),
-  ))?.config;
+  );
+  final config = loaded?.config;
   final Uri apiEndpoint;
   final RestageApi api;
   try {
@@ -180,6 +186,42 @@ Future<int> runAuthed(
       config: config,
     );
     if (ctx == null) return 1;
+    if (loaded != null && config != null) {
+      RestageConfig? confirmed;
+      final target = ctx.target;
+      if (target != null &&
+          target.project == config.project &&
+          target.app == config.app &&
+          target.environment == config.defaultEnvironment &&
+          (config.organization == null ||
+              config.organization == target.organizationSlug) &&
+          (config.plane == null || config.plane == target.runtimePlane)) {
+        confirmed = config.withResolvedIds(
+          organizationId: target.organizationId,
+          appId: target.appId,
+          environmentTargetId: target.environmentTargetId,
+          namedEnvironmentId: target.namedEnvironmentId,
+        );
+      } else if (ctx.organization case final organization?
+          when config.organization == null ||
+              organization.slug == config.organization) {
+        if (ctx.project == config.project &&
+            ctx.app?.slug == config.app &&
+            ctx.app?.appId != null) {
+          confirmed = config.withConfirmedAppIds(
+            organization.organizationId,
+            ctx.app!.appId!,
+          );
+        } else if (ctx.project == null || ctx.project == config.project) {
+          confirmed = config.withConfirmedOrganizationId(
+            organization.organizationId,
+          );
+        }
+      }
+      if (confirmed != null && confirmed.toYaml() != config.toYaml()) {
+        await writeRestageConfig(loaded.source, confirmed);
+      }
+    }
     return await body(ctx);
   } on TargetSelectionException catch (e) {
     stderr.writeln(e.message);
@@ -218,6 +260,7 @@ Future<AuthedContext?> _resolveScope({
     String? project,
     AppSummary? app,
     LifecycleContext? target,
+    ProgrammaticScopeSnapshot? snapshot,
   }) => AuthedContext._(
     io: io,
     api: api,
@@ -228,6 +271,7 @@ Future<AuthedContext?> _resolveScope({
     project: project,
     app: app,
     target: target,
+    snapshot: snapshot,
   );
 
   if (scope == OperationScope.account) return build();
@@ -242,38 +286,103 @@ Future<AuthedContext?> _resolveScope({
     );
     return target == null ? null : build(target: target);
   }
-  final discovery = DiscoveryApi(api);
-  final organization = await resolveActiveOrganization(
-    api: discovery,
-    interactive: io.interactive,
-    stderr: io.stderr,
-    preferredSlug: _option(argResults, 'organization') ?? config?.organization,
-  );
-  if (organization == null) return null;
+  final preferredOrganization =
+      _option(argResults, 'organization') ?? config?.organization;
+  final hintId = preferredOrganization == config?.organization
+      ? config?.organizationId
+      : null;
+  var snapshot = await readProgrammaticScope(api, organizationId: hintId);
+  OrganizationSummary? organization;
+  if (preferredOrganization != null) {
+    organization = snapshot.organizations
+        .where((candidate) => candidate.slug == preferredOrganization)
+        .firstOrNull;
+    if (organization == null) {
+      io.stderr.writeln('No organization found for `$preferredOrganization`.');
+      return null;
+    }
+    if (organization.organizationId != snapshot.organizationId) {
+      snapshot = await readProgrammaticScope(
+        api,
+        organizationId: organization.organizationId,
+      );
+    }
+  } else if (snapshot.organizations.length == 1) {
+    organization = snapshot.organizations.single;
+  } else if (snapshot.organizations.isEmpty) {
+    io.stderr.writeln('No organizations found for this account.');
+    return null;
+  } else if (io.interactive.isInteractive) {
+    organization = await io.interactive
+        .select<OrganizationSummary>('Which organization?', [
+          for (final candidate in snapshot.organizations)
+            (label: candidate.slug, value: candidate),
+        ]);
+    if (organization.organizationId != snapshot.organizationId) {
+      snapshot = await readProgrammaticScope(
+        api,
+        organizationId: organization.organizationId,
+      );
+    }
+  } else {
+    io.stderr.writeln(ambiguousOrganizationSentence(snapshot.organizations));
+    return null;
+  }
   if (scope == OperationScope.organization) {
-    return build(organization: organization);
+    return build(organization: organization, snapshot: snapshot);
   }
-  final project = await resolveProjectSlug(
-    discovery: discovery,
-    interactive: io.interactive,
-    stderr: io.stderr,
-    organizationId: organization.organizationId,
-    preferredSlug: _option(argResults, 'project') ?? config?.project,
-  );
+  final project =
+      _option(argResults, 'project') ??
+      config?.project ??
+      (await pickOne<ProjectSummary>(
+        interactive: io.interactive,
+        stderr: io.stderr,
+        prompt: 'Which project?',
+        options: [
+          for (final project in snapshot.projects)
+            (label: '${project.name} (${project.slug})', value: project),
+        ],
+        missingFlag: '--project <slug>',
+      ))?.slug;
   if (project == null) return null;
-  if (scope == OperationScope.project) {
-    return build(organization: organization, project: project);
+  if (!snapshot.projects.any((candidate) => candidate.slug == project)) {
+    io.stderr.writeln('No option found for --project <slug>: $project.');
+    return null;
   }
-  final app = await resolveApp(
-    discovery: discovery,
-    interactive: io.interactive,
-    stderr: io.stderr,
-    organizationId: organization.organizationId,
-    projectSlug: project,
-    preferredSlug: _option(argResults, 'app') ?? config?.app,
-  );
+  if (scope == OperationScope.project) {
+    return build(
+      organization: organization,
+      project: project,
+      snapshot: snapshot,
+    );
+  }
+  final apps = snapshot.apps(project);
+  final preferredApp = _option(argResults, 'app') ?? config?.app;
+  final app = preferredApp != null
+      ? apps.where((candidate) => candidate.slug == preferredApp).firstOrNull
+      : await pickOne<AppSummary>(
+          interactive: io.interactive,
+          stderr: io.stderr,
+          prompt: 'Which app?',
+          options: [
+            for (final candidate in apps)
+              (
+                label: '${candidate.name} (${candidate.slug})',
+                value: candidate,
+              ),
+          ],
+          missingFlag: '--app <slug>',
+        );
+  if (app == null && preferredApp != null) {
+    io.stderr.writeln('No option found for --app <slug>: $preferredApp.');
+  }
   if (app == null) return null;
-  return build(organization: organization, project: project, app: app);
+  return build(
+    organization: organization,
+    project: project,
+    app: app,
+    snapshot: snapshot,
+  );
 }
 
 Future<LifecycleContext?> _resolveTarget({
@@ -311,7 +420,19 @@ Future<LifecycleContext?> _resolveTarget({
     environmentSlug: environment,
     organizationSlug:
         _option(argResults, 'organization') ?? config?.organization,
-    organizationId: organizationIdOption(argResults),
+    organizationId:
+        organizationIdOption(argResults) ??
+        (config?.organization ==
+                (_option(argResults, 'organization') ?? config?.organization)
+            ? config?.organizationId
+            : null),
+    environmentTargetId:
+        config?.project == project &&
+            config?.app == app &&
+            config?.defaultEnvironment == environment &&
+            (argResults == null || !argResults.wasParsed('plane'))
+        ? config?.environmentTargetId
+        : null,
     runtimePlane: resolveRuntimePlane(argResults, config),
     configuredPlane: config?.plane,
   );

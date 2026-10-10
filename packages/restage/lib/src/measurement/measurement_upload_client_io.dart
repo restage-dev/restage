@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -102,6 +103,12 @@ final class _IoMeasurementUploadClient implements MeasurementUploadClient {
       }
       if (response.statusCode >= HttpStatus.badRequest &&
           response.statusCode < HttpStatus.internalServerError) {
+        final fingerprint = lease.registrationFingerprint;
+        if (response.statusCode == HttpStatus.badRequest &&
+            fingerprint != null &&
+            _isRegistrationRefusal(responseBytes.takeBytes())) {
+          return MeasurementUploadOutcome.registrationRefused(fingerprint);
+        }
         return const MeasurementUploadOutcome.rejected(
           MeasurementOutboxQuarantineReason.permanentRejection,
         );
@@ -117,6 +124,18 @@ final class _IoMeasurementUploadClient implements MeasurementUploadClient {
       return const MeasurementUploadOutcome.retryable();
     } finally {
       client.close(force: true);
+    }
+  }
+
+  static bool _isRegistrationRefusal(List<int> bytes) {
+    try {
+      final body = jsonDecode(utf8.decode(bytes, allowMalformed: false));
+      return body is Map<String, dynamic> &&
+          body.length == 2 &&
+          body['error'] == 'refused' &&
+          body['reason'] == 'registrationRefused';
+    } on Object {
+      return false;
     }
   }
 }

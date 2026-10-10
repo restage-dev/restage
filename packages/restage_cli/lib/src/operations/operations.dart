@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/app_admin_api.dart';
-import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -20,6 +20,20 @@ const storeVendorWireNames = <String>['appStore', 'playStore'];
 
 /// The CLI value that unmaps a store from a slot.
 const unmappedProductId = 'none';
+
+void _requireSelectedOrganization(
+  ProgrammaticScopeSnapshot snapshot,
+  OperationTarget target,
+) {
+  if (target.organizationId == null && snapshot.organizations.length != 1) {
+    throw TargetSelectionException(
+      snapshot.organizations.isEmpty
+          ? 'No organizations found for this account.'
+          : 'You belong to multiple organizations. Pass '
+                '${target.syntax.organization}.',
+    );
+  }
+}
 
 /// Every operation the CLI and the MCP server share, in CLI order.
 @experimental
@@ -41,9 +55,9 @@ final List<Operation> sharedOperations = [
       (header: 'ROLE', key: 'role'),
     ],
     call: (target, _) async => [
-      for (final organization in await DiscoveryApi(
+      for (final organization in (await readProgrammaticScope(
         target.api,
-      ).listOrganizations())
+      )).organizations)
         organization.toJson(),
     ],
   ),
@@ -89,9 +103,19 @@ final List<Operation> sharedOperations = [
       (header: 'SLUG', key: 'slug'),
       (header: 'NAME', key: 'name'),
     ],
-    call: (target, _) async => _rows(target.api, 'project', 'listProjects', {
-      'organizationId': await target.organization(),
-    }),
+    call: (target, _) async {
+      final snapshot =
+          target.snapshot ??
+          await readProgrammaticScope(
+            target.api,
+            organizationId: target.organizationId,
+          );
+      _requireSelectedOrganization(snapshot, target);
+      return [
+        for (final project in snapshot.projects)
+          {'slug': project.slug, 'name': project.name},
+      ];
+    },
   ),
   Operation(
     cliPath: 'apps',
@@ -104,10 +128,19 @@ final List<Operation> sharedOperations = [
       (header: 'SLUG', key: 'slug'),
       (header: 'NAME', key: 'name'),
     ],
-    call: (target, _) async => _rows(target.api, 'app', 'listApps', {
-      'organizationId': await target.organization(),
-      'projectSlug': target.project,
-    }),
+    call: (target, _) async {
+      final snapshot =
+          target.snapshot ??
+          await readProgrammaticScope(
+            target.api,
+            organizationId: target.organizationId,
+          );
+      _requireSelectedOrganization(snapshot, target);
+      return [
+        for (final app in snapshot.apps(target.project!))
+          {'id': app.appId, 'slug': app.slug, 'name': app.name},
+      ];
+    },
   ),
   Operation(
     cliPath: 'envs',
@@ -119,11 +152,25 @@ final List<Operation> sharedOperations = [
     scope: OperationScope.project,
     resultKey: 'environments',
     columns: const [(header: 'SLUG', key: 'slug')],
-    call: (target, _) async =>
-        _rows(target.api, 'environment', 'listEnvironments', {
-          'organizationId': await target.organization(),
-          'projectSlug': target.project,
-        }),
+    call: (target, _) async {
+      final snapshot =
+          target.snapshot ??
+          await readProgrammaticScope(
+            target.api,
+            organizationId: target.organizationId,
+          );
+      _requireSelectedOrganization(snapshot, target);
+      final seen = <String>{};
+      return [
+        for (final environment in snapshot.environments(target.project!))
+          if (seen.add(environment.slug))
+            {
+              'id': environment.environmentTargetId,
+              'appId': environment.appId,
+              'slug': environment.slug,
+            },
+      ];
+    },
   ),
   Operation(
     cliPath: 'targets',
@@ -154,14 +201,36 @@ final List<Operation> sharedOperations = [
       (header: 'PLANE', key: 'runtimePlane'),
     ],
     call: (target, args) async {
-      final rows =
-          await _rows(target.api, 'environment', 'listEnvironmentTargets', {
-            'organizationId': await target.organization(),
-            'projectSlug': target.project,
-            'appSlug': target.app,
-            'appId': ?(args.optInt('appId') ?? target.appId),
-            'runtimePlane': ?args.optStr('runtimePlane'),
-          });
+      final snapshot =
+          target.snapshot ??
+          await readProgrammaticScope(
+            target.api,
+            organizationId: target.organizationId,
+          );
+      _requireSelectedOrganization(snapshot, target);
+      final apps = snapshot.apps(target.project!);
+      final app = apps.where((app) => app.slug == target.app).firstOrNull;
+      final requestedAppId = args.optInt('appId');
+      if (app == null ||
+          (requestedAppId != null && app.appId != requestedAppId)) {
+        throw const TargetSelectionException('No app matches those selectors.');
+      }
+      final rows = [
+        for (final environment in snapshot.targets(
+          projectSlug: target.project!,
+          appSlug: target.app!,
+          runtimePlane: switch (args.optStr('runtimePlane')) {
+            final value? => RuntimePlane.fromWireName(value),
+            null => null,
+          },
+        ))
+          <String, Object?>{
+            'environmentTargetId': environment.environmentTargetId,
+            'namedEnvironmentId': environment.namedEnvironmentId,
+            'environmentSlug': environment.environmentSlug,
+            'runtimePlane': environment.runtimePlane.wireName,
+          },
+      ];
       return rows..sort(
         (left, right) => (left['environmentTargetId']! as int).compareTo(
           right['environmentTargetId']! as int,
@@ -769,6 +838,8 @@ final List<Operation> sharedOperations = [
         'it. Requires an admin role.',
     scope: OperationScope.target,
     surface: true,
+    params: const [_versionNameParam],
+    validate: _versionNameValid,
     render: (out, value, _, target) {
       final pushed = value! as Map<String, Object?>;
       final slug = target.identity!.slug;
@@ -791,7 +862,7 @@ final List<Operation> sharedOperations = [
       );
       if (pushed['buildNotice'] case final String notice) out.writeln(notice);
     },
-    call: (target, _) async {
+    call: (target, args) async {
       final identity = target.identity!;
       final revision = await SurfaceApi(target.api).publish(
         project: target.project!,
@@ -802,6 +873,7 @@ final List<Operation> sharedOperations = [
         environmentTargetId: target.environmentTargetId,
         runtimePlane: target.runtimePlane,
         organizationId: target.organizationId,
+        label: args.optStr('name'),
       );
       final notice = await draftCoverageNotice(
         api: target.api,
@@ -817,7 +889,176 @@ final List<Operation> sharedOperations = [
       return <String, Object?>{'revision': revision, 'buildNotice': ?notice};
     },
   ),
+  Operation(
+    cliPath: 'surface rename-version',
+    mcpName: 'restage_rename_surface_version',
+    description: 'Name a version of a surface, or clear its name (admin).',
+    mcpDescription:
+        'Name one version of a surface in an environment, shown as '
+        '"v4 (name)" everywhere. An empty name clears it. Names are 60 '
+        'characters or fewer. Requires an admin role.',
+    scope: OperationScope.target,
+    surface: true,
+    params: const [
+      OperationParam(
+        'version',
+        cli: 'version',
+        type: ParamType.integer,
+        required: true,
+        help: 'The version to name.',
+      ),
+      OperationParam(
+        'name',
+        cli: 'name',
+        required: true,
+        help: 'The name. An empty name clears it.',
+      ),
+      OperationParam(
+        'contractVersion',
+        cli: 'contract-version',
+        type: ParamType.integer,
+        help:
+            'Positive standalone-screen contract version. Omit for other '
+            'surfaces.',
+      ),
+    ],
+    validate: _versionNameValid,
+    render: (out, value, args, target) {
+      final version = args.integer('version');
+      final name = (args.optStr('name') ?? '').trim();
+      out.writeln(
+        name.isEmpty
+            ? 'Cleared the name of v$version of "${target.identity!.slug}".'
+            : 'Named v$version of "${target.identity!.slug}" "$name".',
+      );
+    },
+    call: (target, args) async {
+      final identity = target.identity!;
+      await SurfaceApi(target.api).renameVersion(
+        project: target.project!,
+        app: target.app!,
+        surfaceType: identity.surface,
+        surfaceSlug: identity.slug,
+        environment: target.environment!,
+        version: args.integer('version'),
+        label: args.optStr('name'),
+        environmentTargetId: target.environmentTargetId,
+        runtimePlane: target.runtimePlane,
+        organizationId: target.organizationId,
+        contractVersion: args.optInt('contractVersion'),
+      );
+      return <String, Object?>{
+        'version': args.integer('version'),
+        'name': ?_normalizedName(args.optStr('name')),
+      };
+    },
+  ),
+  Operation(
+    cliPath: 'surface archive',
+    mcpName: 'restage_archive_surface',
+    description:
+        'Archive a surface (admin). It stops serving in every environment.',
+    mcpDescription:
+        'Archive a surface. It stops serving in every environment and moves '
+        'to Archived. Its versions and analytics stay. '
+        'restage_restore_surface brings it back. Requires an admin role.',
+    scope: OperationScope.app,
+    surface: true,
+    render: (out, _, _, _) => out.writeln('Surface archived.'),
+    call: (target, _) async {
+      await SurfaceApi(target.api).archive(
+        project: target.project!,
+        app: target.app!,
+        surfaceType: target.identity!.surface,
+        surfaceSlug: target.identity!.slug,
+        organizationId: target.organizationId,
+      );
+      return <String, Object?>{'archived': target.identity!.slug};
+    },
+  ),
+  Operation(
+    cliPath: 'surface restore',
+    mcpName: 'restage_restore_surface',
+    description:
+        'Restore an archived surface (admin). It serves again once a '
+        'version is published.',
+    mcpDescription:
+        'Restore an archived surface to the surface list. It serves again '
+        'when a version is published. Requires an admin role.',
+    scope: OperationScope.app,
+    surface: true,
+    render: (out, _, _, _) => out.writeln('Surface restored.'),
+    call: (target, _) async {
+      await SurfaceApi(target.api).restore(
+        project: target.project!,
+        app: target.app!,
+        surfaceType: target.identity!.surface,
+        surfaceSlug: target.identity!.slug,
+        organizationId: target.organizationId,
+      );
+      return <String, Object?>{'restored': target.identity!.slug};
+    },
+  ),
+  Operation(
+    cliPath: 'surface delete',
+    mcpName: 'restage_delete_surface',
+    description:
+        'Delete an archived surface for good (admin). --confirm must be its '
+        'id. This cannot be undone.',
+    mcpDescription:
+        'Delete an archived surface for good. Its versions are removed and '
+        'their storage is freed; this cannot be undone. Refused while a '
+        'running experiment, a delivery rule or requests in the last 30 '
+        'days still use it. confirm must repeat the surface id. Requires '
+        'an admin role.',
+    scope: OperationScope.app,
+    surface: true,
+    params: const [
+      OperationParam(
+        'confirm',
+        cli: 'confirm',
+        required: true,
+        help: "The surface's id, repeated to confirm.",
+      ),
+    ],
+    render: (out, _, _, _) => out.writeln('Surface deleted.'),
+    call: (target, args) async {
+      final slug = target.identity!.slug;
+      if (args.str('confirm') != slug) {
+        throw TargetSelectionException(
+          'The confirmation does not match the surface id "$slug".',
+        );
+      }
+      await SurfaceApi(target.api).deleteForGood(
+        project: target.project!,
+        app: target.app!,
+        surfaceType: target.identity!.surface,
+        surfaceSlug: slug,
+        organizationId: target.organizationId,
+      );
+      return <String, Object?>{'deleted': slug};
+    },
+  ),
 ];
+
+/// The longest version name.
+const _versionNameMaxLength = 60;
+
+const _versionNameParam = OperationParam(
+  'name',
+  cli: 'name',
+  help: 'A name for the pushed version, 60 characters or fewer.',
+);
+
+String? _normalizedName(String? name) {
+  final trimmed = name?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+String? _versionNameValid(OperationArgs args, String Function(String) _) =>
+    (_normalizedName(args.optStr('name'))?.length ?? 0) > _versionNameMaxLength
+    ? 'Names are 60 characters or fewer.'
+    : null;
 
 /// The active keys whose prefix matches [key], each with the organization,
 /// project, app and environment target it belongs to. [key] never leaves
@@ -829,14 +1070,14 @@ Future<List<Map<String, Object?>>> resolveApiKey(
   int? organizationId,
   String? organizationSlug,
 }) async {
-  final discovery = DiscoveryApi(api);
-  final admin = AppAdminApi(api);
   final plane = RegExp(r'^rs_(?:pk|sk)_(sandbox|live)_').firstMatch(key);
-  final runtimePlane = plane == null
-      ? null
-      : RuntimePlane.fromWireName(plane.group(1)!);
+  final runtimePlane = plane?.group(1);
+  final initial = await readProgrammaticScope(
+    api,
+    organizationId: organizationId,
+  );
   final organizations = [
-    for (final organization in await discovery.listOrganizations())
+    for (final organization in initial.organizations)
       if ((organizationId == null ||
               organization.organizationId == organizationId) &&
           (organizationSlug == null || organization.slug == organizationSlug))
@@ -847,54 +1088,62 @@ Future<List<Map<String, Object?>>> resolveApiKey(
   }
   final matches = <Map<String, Object?>>[];
   for (final organization in organizations) {
-    final id = organization.organizationId;
-    for (final project in await discovery.listProjects(id)) {
-      final apps = await discovery.listApps(
-        organizationId: id,
-        projectSlug: project.slug,
-      );
-      for (final app in apps) {
-        final targets = await discovery.listEnvironmentTargets(
-          organizationId: id,
-          projectSlug: project.slug,
-          appSlug: app.slug,
-          appId: app.appId,
-          runtimePlane: runtimePlane,
-        );
-        for (final environment in targets) {
-          final keys = await admin.listApiKeys(
-            project: project.slug,
-            app: app.slug,
-            environment: environment.environmentSlug,
-            environmentTargetId: environment.environmentTargetId,
-            runtimePlane: environment.runtimePlane,
-            organizationId: id,
+    final snapshot = organization.organizationId == initial.organizationId
+        ? initial
+        : await readProgrammaticScope(
+            api,
+            organizationId: organization.organizationId,
           );
-          for (final row in keys) {
-            final prefix = row['keyPrefix'] as String? ?? '';
-            final stem = prefix.endsWith('...')
-                ? prefix.substring(0, prefix.length - 3)
-                : prefix;
-            if (stem.isEmpty ||
-                !(key.startsWith(stem) || stem.startsWith(key))) {
-              continue;
-            }
-            matches.add({
-              'organizationId': id,
-              'organizationSlug': organization.slug,
-              'projectSlug': project.slug,
-              'appSlug': app.slug,
-              'appId': app.appId,
-              'environmentSlug': environment.environmentSlug,
-              'runtimePlane': environment.runtimePlane.wireName,
-              'environmentTargetId': environment.environmentTargetId,
-              'apiKeyId': row['id'],
-              'kind': row['kind'],
-              'keyPrefix': prefix,
-            });
-          }
-        }
+    final document = snapshot.document;
+    final projects = {
+      for (final row in document['projects'] as List<dynamic>)
+        (row as Map<String, dynamic>)['id'] as int: row,
+    };
+    final apps = {
+      for (final row in document['apps'] as List<dynamic>)
+        (row as Map<String, dynamic>)['id'] as int: row,
+    };
+    final environments = {
+      for (final row in document['environments'] as List<dynamic>)
+        (row as Map<String, dynamic>)['id'] as int: row,
+    };
+    final targets = {
+      for (final row in document['environmentTargets'] as List<dynamic>)
+        (row as Map<String, dynamic>)['environmentTargetId'] as int: row,
+    };
+    for (final raw in document['apiKeys'] as List<dynamic>) {
+      final row = raw as Map<String, dynamic>;
+      if (row['revokedAt'] != null) continue;
+      final prefix = row['keyPrefix'] as String? ?? '';
+      final stem = prefix.endsWith('...')
+          ? prefix.substring(0, prefix.length - 3)
+          : prefix;
+      if (stem.isEmpty || !(key.startsWith(stem) || stem.startsWith(key))) {
+        continue;
       }
+      final environment = environments[row['environmentId']];
+      if (environment == null) continue;
+      final target = targets[environment['id']];
+      final app = apps[environment['appId']];
+      if (target == null || app == null) continue;
+      final project = projects[app['projectId']];
+      if (project == null) continue;
+      if (runtimePlane != null && target['runtimePlane'] != runtimePlane) {
+        continue;
+      }
+      matches.add({
+        'organizationId': snapshot.organizationId,
+        'organizationSlug': organization.slug,
+        'projectSlug': project['slug'],
+        'appSlug': app['slug'],
+        'appId': app['id'],
+        'environmentSlug': target['environmentSlug'],
+        'runtimePlane': target['runtimePlane'],
+        'environmentTargetId': target['environmentTargetId'],
+        'apiKeyId': row['id'],
+        'kind': row['kind'],
+        'keyPrefix': prefix,
+      });
     }
   }
   if (matches.isEmpty) {
@@ -938,16 +1187,3 @@ const _slotColumns = <OperationColumn>[
   (header: 'NAME', key: 'name'),
   (header: 'ENTITLEMENT', key: 'entitlement'),
 ];
-
-Future<List<Map<String, Object?>>> _rows(
-  RestageApi api,
-  String endpoint,
-  String method,
-  Map<String, dynamic> args,
-) async {
-  final raw = await api.call(endpoint, method, args);
-  return [
-    for (final row in raw as List<dynamic>)
-      (row! as Map).cast<String, Object?>(),
-  ];
-}

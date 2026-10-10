@@ -42,10 +42,15 @@ final class RestageLibrary {
     required this.library,
     this.package,
     this.capabilityVersion,
-  }) : assert(
+    this.compatibleSince = 1,
+  })  : assert(
           capabilityVersion == null || capabilityVersion >= 1,
           'capabilityVersion must be a positive monotonic version (>= 1) when '
           'set',
+        ),
+        assert(
+          compatibleSince >= 1 && compatibleSince <= (capabilityVersion ?? 1),
+          'compatibleSince must be between 1 and capabilityVersion',
         );
 
   /// Library namespace this package contributes to.
@@ -71,4 +76,11 @@ final class RestageLibrary {
   /// build fails if a *referenced* library has not declared a
   /// [capabilityVersion]. An unreferenced library that omits it is left alone.
   final int? capabilityVersion;
+
+  /// The oldest [capabilityVersion] whose surfaces this build still renders.
+  ///
+  /// Leave it at `1` while changes only add. Renaming, removing, or retyping a
+  /// widget or property is a break: raise [capabilityVersion] and set
+  /// [compatibleSince] to the same value. It never moves back.
+  final int compatibleSince;
 }

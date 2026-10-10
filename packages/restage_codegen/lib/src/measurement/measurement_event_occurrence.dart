@@ -279,7 +279,7 @@ String measurementHelperIdentity(ExecutableElement executable) {
   final libraryUri = executable.library.identifier;
   final executableName = executable.name;
   final owner = executable.enclosingElement;
-  final ownerName = owner is InterfaceElement ? owner.name : null;
+  final ownerName = owner is InstanceElement ? owner.name : null;
   if (libraryUri.isEmpty ||
       executableName == null ||
       executableName.isEmpty ||

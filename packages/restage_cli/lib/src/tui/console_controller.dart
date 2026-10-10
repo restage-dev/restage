@@ -48,6 +48,7 @@ class ConsoleController {
         environments: snapshot.environments,
         surfaces: snapshot.surfaces,
         builds: snapshot.builds,
+        overview: snapshot.overview,
       );
       await refreshStatus();
       await refreshAudit();

@@ -99,6 +99,29 @@ app: my-app
       );
     });
 
+    test('resolved IDs round-trip and reject invalid hints', () {
+      const config = RestageConfig(
+        project: 'p',
+        app: 'a',
+        organizationId: 7,
+        appId: 5,
+        environmentTargetId: 12,
+        namedEnvironmentId: 22,
+      );
+      final parsed = RestageConfig.fromYaml(config.toYaml());
+      expect(parsed.organizationId, 7);
+      expect(parsed.appId, 5);
+      expect(parsed.environmentTargetId, 12);
+      expect(parsed.namedEnvironmentId, 22);
+      expect(
+        () => RestageConfig.fromYaml('project: p\napp: a\nappId: -5\n'),
+        throwsA(isA<RestageConfigFormatException>()),
+      );
+      expect(config.withConfirmedOrganizationId(8).appId, isNull);
+      expect(config.withConfirmedAppIds(7, 6).environmentTargetId, isNull);
+      expect(config.withConfirmedAppIds(7, 5).environmentTargetId, 12);
+    });
+
     test('throws on missing required keys', () {
       const src = '''
 project: my-project
