@@ -17,7 +17,7 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '48adf8f9e6555e8608fb561805e434f43761004c4978888bbd957204c475e31d',
+      '1c7a05df9f02bebd6264138f3603515ae2eae0afcc2df455444b01664b9cfa76',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

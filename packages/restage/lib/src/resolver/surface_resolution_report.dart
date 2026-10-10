@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:restage_shared/restage_shared.dart' show Surface;
 
 /// Where a resolved surface's content came from.
 enum SurfaceResolutionSource {
@@ -19,6 +20,7 @@ final class SurfaceResolutionReport {
   const SurfaceResolutionReport({
     required this.surface,
     required this.source,
+    this.surfaceType,
     this.reason,
     this.selectedRouteId,
     this.audienceRevisionRef,
@@ -28,8 +30,15 @@ final class SurfaceResolutionReport {
     this.defaultSelectionReason,
   });
 
-  /// The surface that resolved.
+  /// The resolved surface slug.
   final String surface;
+
+  /// The exact closed category of the resolved surface.
+  ///
+  /// SDK-produced reports always carry this value. It remains optional so
+  /// existing hosts that construct this public DTO directly remain source
+  /// compatible; consumers must not infer a category when it is absent.
+  final Surface? surfaceType;
 
   /// Where its content came from.
   final SurfaceResolutionSource source;
@@ -60,6 +69,7 @@ final class SurfaceResolutionReport {
       identical(this, other) ||
       other is SurfaceResolutionReport &&
           surface == other.surface &&
+          surfaceType == other.surfaceType &&
           source == other.source &&
           reason == other.reason &&
           selectedRouteId == other.selectedRouteId &&
@@ -72,6 +82,7 @@ final class SurfaceResolutionReport {
   @override
   int get hashCode => Object.hash(
       surface,
+      surfaceType,
       source,
       reason,
       selectedRouteId,
@@ -83,5 +94,5 @@ final class SurfaceResolutionReport {
 
   @override
   String toString() =>
-      'SurfaceResolutionReport(surface: $surface, source: $source, reason: $reason, selectedRouteId: $selectedRouteId, audienceRevisionRef: $audienceRevisionRef, routingRevisionOrdinal: $routingRevisionOrdinal, rolloutAllocationId: $rolloutAllocationId, rolloutBranch: $rolloutBranch, defaultSelectionReason: $defaultSelectionReason)';
+      'SurfaceResolutionReport(surface: $surface, surfaceType: $surfaceType, source: $source, reason: $reason, selectedRouteId: $selectedRouteId, audienceRevisionRef: $audienceRevisionRef, routingRevisionOrdinal: $routingRevisionOrdinal, rolloutAllocationId: $rolloutAllocationId, rolloutBranch: $rolloutBranch, defaultSelectionReason: $defaultSelectionReason)';
 }

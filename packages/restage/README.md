@@ -14,12 +14,6 @@
   <a href="LICENSE"><img alt="License: BSD-3-Clause" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
 </p>
 
-<!--
-  Logo: the split-r wordmark. GitHub renders the theme-matched SVG; viewers that
-  strip <picture> sources (pub.dev among them) fall back to the PNG banner on a
-  dark ground. The standalone mark ships alongside in /brand/.
--->
-
 Restage is a server-driven UI toolkit for Flutter. Build any part of your app
 with the widgets you already use and ship it over the air. Everything renders as
 real Flutter widgets in your app, using your theme.
@@ -163,30 +157,14 @@ RestageScreen(
 )
 ```
 
-Accepted input is normalized and copied synchronously. Equal normalized
-snapshots issue no renderer update. Setting `context:` back to null withdraws
-the namespace.
+Equal normalized snapshots cause no renderer update. Setting `context:` to
+null removes the namespace.
 
 Changing one scalar rebuilds the node whose own arguments read that path and
 the node's subtree; unchanged scalar siblings stay untouched. A list change
 rebuilds the list host and its rows. Reconciliation is positional: on insert
 and reorder, persistent row state stays with its position while authored row
 ids move.
-
-### Commerce
-
-`Restage.commerce` is the inert typed commerce seam. Using the facade with its
-typed request and result types requires both imports:
-
-```dart
-import 'package:restage/commerce.dart' as commerce;
-import 'package:restage/restage.dart' show Restage;
-```
-
-Commerce is inert in 2.0 and has no configuration hook. Any implementation
-requires explicit host opt-in; a package update alone never activates
-purchasing. Authored surfaces cannot initiate purchases or restores; explicit
-host-controlled code invokes the typed boundary.
 
 ### Delivery
 

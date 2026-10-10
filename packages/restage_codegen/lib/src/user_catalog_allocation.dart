@@ -951,7 +951,7 @@ WireIdRef? _resolvedTopLevelRef(WireIdRef? current, WireIdRef ref) {
 
 /// Rewrites a value shape's structured reference from the bare sentinel to
 /// [ref]; recurses into a list shape's item. Scalar / enum / union shapes are
-/// returned unchanged (unions are a later phase).
+/// returned unchanged.
 CatalogValueShape? _resolveShapeRef(CatalogValueShape? shape, WireIdRef ref) {
   if (shape == null) return null;
   return switch (shape) {

@@ -37,6 +37,7 @@ export 'src/flow_document/flow_document.dart';
 export 'src/flow_document/flow_document_codec.dart';
 export 'src/flow_document/flow_document_compatibility.dart';
 export 'src/flow_document/flow_document_hash.dart';
+export 'src/flow_document/flow_lifecycle_reachability.dart';
 export 'src/flow_document/flow_document_validation.dart';
 export 'src/flow_document/flow_predicate_sugar.dart';
 export 'src/flow_document/general_render_gate.dart';

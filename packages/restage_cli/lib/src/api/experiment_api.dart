@@ -164,16 +164,37 @@ final class ExperimentApi {
     }
   }
 
-  /// Drains discovery at [target] until the route reports no further page.
-  ///
-  /// Sections concatenate in source order across pages; an empty continuation
-  /// page is ordinary. Surfaces are kept by identity and revision together, so
-  /// one surface with two revisions contributes both.
+  /// Reads discovery pages in order, retaining each surface and revision pair.
+  /// [exactSurfaceReference] requests one immutable version in a single page.
+  /// Empty continuation pages are allowed.
   Future<ExperimentPageDrain<ExperimentDiscovery>> discoverEveryPage({
     required TargetCoordinate target,
     required String correlationId,
     int pageSize = 100,
+    ExperimentExactSurfaceReferenceV1? exactSurfaceReference,
   }) async {
+    if (exactSurfaceReference != null) {
+      final result = await execute(
+        request: experimentRequest(
+          operation:
+              ExperimentAuthoringOperationV1.discoverTargetsAndCapabilities,
+          correlationId: correlationId,
+          payload: {
+            'exactSurfaceReference': exactSurfaceReference.toJson(),
+            'pageSize': 1,
+          },
+        ),
+        target: target,
+      );
+      if (result is ExperimentAuthoringRefusedV1) {
+        return ExperimentPagesRefused(result);
+      }
+      final page =
+          (result as ExperimentAuthoringAcceptedV1).response
+              as ExperimentTargetDiscoveryV1;
+      return ExperimentPagesAccepted(_discoveryFromPage(page));
+    }
+
     final namedEnvironments = <ExperimentNamedEnvironmentOptionV1>[];
     final runtimePlanes = <ExperimentRuntimePlaneOptionV1>[];
     final surfaceCapabilities = <ExperimentSurfaceCapabilityV1>[];
@@ -261,6 +282,20 @@ final class ExperimentApi {
   }
 }
 
+/// Projects one discovery response without treating its cursor as a drain.
+ExperimentDiscovery _discoveryFromPage(ExperimentTargetDiscoveryV1 page) =>
+    ExperimentDiscovery(
+      target: page.target,
+      organizationLabel: page.organizationLabel,
+      appLabel: page.appLabel,
+      environmentLabel: page.environmentLabel,
+      namedEnvironments: List.unmodifiable(page.namedEnvironments),
+      runtimePlanes: List.unmodifiable(page.runtimePlanes),
+      surfaceCapabilities: List.unmodifiable(page.surfaceCapabilities),
+      metricCapabilities: List.unmodifiable(page.metricCapabilities),
+      actionAvailability: List.unmodifiable(page.actionAvailability),
+    );
+
 /// Builds one strict request document for a read operation.
 @experimental
 ExperimentAuthoringRequestV1 experimentRequest({
@@ -271,6 +306,8 @@ ExperimentAuthoringRequestV1 experimentRequest({
 }) => ExperimentAuthoringRequestV1.fromJson({
   'correlationId': correlationId,
   'idempotencyKey': ?idempotencyKey,
+  // This build reads an issue locator, so it asks for one.
+  'issueLocators': true,
   'kind': 'experimentAuthoringRequest',
   'operation': operation.wireName,
   'payload': payload,

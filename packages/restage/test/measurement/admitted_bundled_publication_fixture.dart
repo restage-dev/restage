@@ -11,6 +11,9 @@ final class AdmittedBundledPublicationFixture {
 
   static const artifactBytes = <int>[1, 2, 3];
 
+  /// The one authored screen mounted under the fixture's root.
+  static const childScreenId = 'child_screen';
+
   factory AdmittedBundledPublicationFixture.build() {
     final target = TargetCoordinate(
       organizationId: OrganizationId(101),
@@ -312,7 +315,39 @@ final class AdmittedBundledPublicationFixture {
       }),
       measurementPublicationDraft: publicationDraft,
     );
+    String carrier(bool left) =>
+        'mrv1.${base64UrlEncode(utf8.encode(rootEdgeToken.value)).replaceAll('=', '')}.${(left ? 'A' : 'B') * 32}';
+    // The root's own presentation and one child screen's, so a test can drive a
+    // child screen under a mounted root.
+    final orderedCapture = MeasurementOrderedCaptureV1(routes: [
+      MeasurementOrderedCaptureRouteV1(
+        occurrenceId: leftOccurrence.occurrenceId,
+        lineageId: leftOccurrence.lineageId,
+        channels: const [MeasurementOccurrenceChannelV1.presentation],
+        lifecycle: MeasurementLifecycleCaptureRouteV1(
+          carrier: carrier(true),
+          channel: MeasurementOccurrenceChannelV1.presentation,
+        ),
+      ),
+      MeasurementOrderedCaptureRouteV1(
+        occurrenceId: rightOccurrence.occurrenceId,
+        lineageId: rightOccurrence.lineageId,
+        channels: const [MeasurementOccurrenceChannelV1.presentation],
+        breakdownPointV1: MeasurementBreakdownPointV1(
+          kindV1: MeasurementBreakdownPointKindV1.pageIndex,
+          reference: childScreenId,
+          label: childScreenId,
+          authoredOrder: 0,
+        ),
+        lifecycle: MeasurementLifecycleCaptureRouteV1(
+          carrier: carrier(false),
+          channel: MeasurementOccurrenceChannelV1.presentation,
+          screenId: childScreenId,
+        ),
+      ),
+    ]);
     final binding = MeasurementPublicationBindingV1(
+      orderedCaptureV1: orderedCapture,
       publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
         authorityId: MeasurementPublicationAuthorityId('authority.fixture.v1'),
         externalPublicationAuthorityRef: 'mpa1.${'A' * 32}',

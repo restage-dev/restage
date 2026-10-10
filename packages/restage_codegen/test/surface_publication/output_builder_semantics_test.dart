@@ -428,7 +428,7 @@ void main() {
     // .rfwtxt, but its screen artifacts live under a differently-named
     // assets/paywalls/screens/paywall_<id>* family — there is no
     // assets/paywalls/<id>.rfw for the text to pair with by path math. This
-    // reproduces the exact shape the regen phase's hard stop found.
+    // exercises pairing when the text and binary output paths differ.
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );

@@ -87,6 +87,79 @@ void main() {
     }
   });
 
+  group('MeasurementOrderedCaptureDeclarationV1 breakdown points', () {
+    MeasurementBreakdownPointV1 point(
+            MeasurementBreakdownPointKindV1 kind, String reference) =>
+        MeasurementBreakdownPointV1(
+            kindV1: kind, reference: reference, label: reference);
+
+    test('a page names the screen whose presentation it observes', () {
+      final declaration = MeasurementOrderedCaptureDeclarationV1(
+        channels: const [MeasurementOccurrenceChannelV1.presentation],
+        lifecycleChannel: MeasurementOccurrenceChannelV1.presentation,
+        screenId: 'welcome',
+        breakdownPointV1:
+            point(MeasurementBreakdownPointKindV1.pageIndex, 'welcome'),
+      );
+      expect(declaration.breakdownPointV1!.reference, 'welcome');
+      expect(
+          MeasurementOrderedCaptureDeclarationV1.fromJson(
+                  decodeCanonicalObject(declaration.canonicalBytes))
+              .canonicalBytes,
+          orderedEquals(declaration.canonicalBytes));
+    });
+
+    test('a page naming another screen is refused', () {
+      expect(
+          () => MeasurementOrderedCaptureDeclarationV1(
+                channels: const [MeasurementOccurrenceChannelV1.presentation],
+                lifecycleChannel: MeasurementOccurrenceChannelV1.presentation,
+                screenId: 'welcome',
+                breakdownPointV1:
+                    point(MeasurementBreakdownPointKindV1.pageIndex, 'value'),
+              ),
+          throwsArgumentError);
+    });
+
+    test('a named interaction on the presentation channel is refused', () {
+      expect(
+          () => MeasurementOrderedCaptureDeclarationV1(
+                channels: const [MeasurementOccurrenceChannelV1.presentation],
+                lifecycleChannel: MeasurementOccurrenceChannelV1.presentation,
+                screenId: 'welcome',
+                breakdownPointV1: point(
+                    MeasurementBreakdownPointKindV1.namedInteraction,
+                    'welcome.presentation'),
+              ),
+          throwsArgumentError);
+    });
+
+    test('a question without its answer route is refused', () {
+      expect(
+          () => MeasurementOrderedCaptureDeclarationV1(
+                channels: const [MeasurementOccurrenceChannelV1.presentation],
+                breakdownPointV1:
+                    point(MeasurementBreakdownPointKindV1.question, 'category'),
+              ),
+          throwsArgumentError);
+    });
+
+    test('two routes cannot publish one point identity', () {
+      MeasurementOrderedCaptureRouteV1 route(String lineage) =>
+          MeasurementOrderedCaptureRouteV1(
+            occurrenceId: CanonicalDigest('a' * 64),
+            lineageId: PointLineageId(lineage),
+            channels: const [MeasurementOccurrenceChannelV1.presentation],
+            breakdownPointV1:
+                point(MeasurementBreakdownPointKindV1.pageIndex, 'welcome'),
+          );
+      expect(
+          () => MeasurementOrderedCaptureV1(
+              routes: [route('lineage.one'), route('lineage.two')]),
+          throwsArgumentError);
+    });
+  });
+
   group('MeasurementPresentationDiagnosticV1', () {
     for (final reports in MeasurementRootPresentationReportsV1.values) {
       for (final reason in MeasurementPresentationFinishReasonV1.values) {

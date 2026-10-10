@@ -17,6 +17,9 @@ enum MeasurementOccurrenceChannelV1 {
   dismiss,
 }
 
+/// Longest reference or label a breakdown point can carry.
+const kMeasurementBreakdownPointReferenceLimitV1 = 128;
+
 /// Closed published kinds of point an ordered capture route can describe.
 enum MeasurementBreakdownPointKindV1 {
   pageIndex,
@@ -33,9 +36,9 @@ final class MeasurementBreakdownPointV1 extends CanonicalValue {
     this.authoredOrder,
   }) {
     if (reference.isEmpty ||
-        reference.length > 128 ||
+        reference.length > kMeasurementBreakdownPointReferenceLimitV1 ||
         label.isEmpty ||
-        label.length > 128 ||
+        label.length > kMeasurementBreakdownPointReferenceLimitV1 ||
         (authoredOrder != null &&
             (authoredOrder! < 0 ||
                 authoredOrder! > kMaximumPortableJsonInteger))) {
@@ -61,6 +64,9 @@ final class MeasurementBreakdownPointV1 extends CanonicalValue {
   final String reference;
   final String label;
   final int? authoredOrder;
+
+  /// Identity of the band this point names, within one published version.
+  String get identity => '${kindV1.name}\u0000$reference';
 
   @override
   Map<String, Object?> toJson() => {
@@ -223,7 +229,13 @@ final class MeasurementOrderedCaptureV1 extends CanonicalValue {
     }
     final lifecycleKeys = <String>{};
     final answerKeys = <String>{};
+    final pointKeys = <String>{};
     for (final route in routes) {
+      final point = route.breakdownPointV1;
+      if (point != null && !pointKeys.add(point.identity)) {
+        throw ArgumentError(
+            'A breakdown point must have one exact published route');
+      }
       if (route.declaredAnswerV1 != null &&
           !answerKeys.add(route.declaredAnswerV1!.questionId))
         throw ArgumentError(
@@ -277,6 +289,7 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue {
     this.lifecycleChannel,
     this.screenId,
     this.declaredAnswerV1,
+    this.breakdownPointV1,
   }) : channels = List.unmodifiable(channels) {
     if (channels.isEmpty ||
         channels.toSet().length != channels.length ||
@@ -288,6 +301,15 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue {
                 screenId!.length > 256))) {
       throw ArgumentError('Invalid declared ordered capture channels');
     }
+    if (breakdownPointV1 != null &&
+        !_pointDescribesDeclaration(
+          point: breakdownPointV1!,
+          lifecycleChannel: lifecycleChannel,
+          screenId: screenId,
+          declaredAnswerV1: declaredAnswerV1,
+        )) {
+      throw ArgumentError('Breakdown point does not describe this route');
+    }
   }
 
   factory MeasurementOrderedCaptureDeclarationV1.fromJson(
@@ -297,11 +319,16 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue {
           'channels',
           'lifecycleChannel',
           'screenId',
-          'declaredAnswerV1'
+          'declaredAnswerV1',
+          'breakdownPointV1'
         },
         requiredKeys: const {'channels'},
         path: 'orderedCaptureDeclarationV1');
     return MeasurementOrderedCaptureDeclarationV1(
+      breakdownPointV1: reader.optionalObject('breakdownPointV1') == null
+          ? null
+          : MeasurementBreakdownPointV1.fromJson(
+              reader.object('breakdownPointV1')),
       declaredAnswerV1: reader.optionalObject('declaredAnswerV1') == null
           ? null
           : MeasurementDeclaredAnswerV1.fromJson(
@@ -324,8 +351,13 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue {
   final MeasurementOccurrenceChannelV1? lifecycleChannel;
   final String? screenId;
 
+  /// The drop-off band this route contributes to, absent when it names none.
+  final MeasurementBreakdownPointV1? breakdownPointV1;
+
   @override
   Map<String, Object?> toJson() => {
+        if (breakdownPointV1 != null)
+          'breakdownPointV1': breakdownPointV1!.toJson(),
         if (declaredAnswerV1 != null)
           'declaredAnswerV1': declaredAnswerV1!.toJson(),
         'channels': [for (final channel in channels) channel.name]..sort(),
@@ -334,6 +366,31 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue {
         if (screenId != null) 'screenId': screenId,
       };
 }
+
+/// Whether a point's kind and reference match the route that declares it.
+///
+/// A question names its own answer route, a page names the screen whose
+/// presentation it observes, and a named interaction names one non-presentation
+/// callback on an exact screen.
+bool _pointDescribesDeclaration({
+  required MeasurementBreakdownPointV1 point,
+  required MeasurementOccurrenceChannelV1? lifecycleChannel,
+  required String? screenId,
+  required MeasurementDeclaredAnswerV1? declaredAnswerV1,
+}) =>
+    switch (point.kindV1) {
+      MeasurementBreakdownPointKindV1.question => declaredAnswerV1 != null &&
+          point.reference == declaredAnswerV1.questionId,
+      MeasurementBreakdownPointKindV1.pageIndex =>
+        lifecycleChannel == MeasurementOccurrenceChannelV1.presentation &&
+            screenId != null &&
+            point.reference == screenId,
+      MeasurementBreakdownPointKindV1.namedInteraction =>
+        lifecycleChannel != null &&
+            lifecycleChannel != MeasurementOccurrenceChannelV1.presentation &&
+            screenId != null &&
+            point.reference == '$screenId.${lifecycleChannel.name}',
+    };
 
 /// Exact compiler-issued route for an actual root or authored-screen callback.
 final class MeasurementLifecycleCaptureRouteV1 extends CanonicalValue {

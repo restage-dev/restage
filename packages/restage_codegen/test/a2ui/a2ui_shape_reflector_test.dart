@@ -1070,7 +1070,7 @@ void main() {
     });
   });
 
-  group('Pass-2 hardening (deeper fail-open edges)', () {
+  group('unsupported nested shapes fail closed', () {
     Future<A2uiShapeResult> reflect(String source, String field) async {
       final type = await resolveFieldType(
         source,

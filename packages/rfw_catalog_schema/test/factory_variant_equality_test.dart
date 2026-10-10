@@ -4,8 +4,7 @@ import 'package:test/test.dart';
 /// Value-equality for the sealed [FactoryVariant] subtypes, [ArgMapping], and
 /// the [FactoryParameter] they carry.
 ///
-/// The sealed swap (the prior milestone) was behavior-neutral and left the
-/// variant types on identity equality. This locks the value-`==`/`hashCode`
+/// These tests enforce the value-`==`/`hashCode`
 /// the subtypes need to be usable in value contexts (set membership, dedup,
 /// `expect(decoded, original)` round-trips). Deep on the collection fields:
 /// two structurally-equal variants compare equal even when their

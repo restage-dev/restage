@@ -7,6 +7,7 @@ import 'package:restage_cli/src/commands/surface_list_command.dart';
 import 'package:restage_cli/src/commands/surface_lock_command.dart';
 import 'package:restage_cli/src/commands/surface_publish_command.dart';
 import 'package:restage_cli/src/commands/surface_rollback_command.dart';
+import 'package:restage_cli/src/commands/surface_routing_command.dart';
 import 'package:restage_cli/src/commands/surface_status_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -83,6 +84,15 @@ class SurfaceCommand extends Command<int> {
     );
     addSubcommand(
       SurfaceRollbackCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceRoutingCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,

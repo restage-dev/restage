@@ -403,6 +403,7 @@ void main() {
       expect(out, contains('freeze'));
       expect(out, contains('unfreeze'));
       expect(out, contains('rollback'));
+      expect(out, contains('routing'));
     });
 
     test('restage paywall --help lists lifecycle subcommands alongside '

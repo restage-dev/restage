@@ -132,6 +132,14 @@ void main() {
           // API keys (list + revoke only)
           'restage_list_api_keys',
           'restage_revoke_api_key',
+          // Routing
+          'restage_list_routing_audiences',
+          'restage_routing_audience_usage',
+          'restage_read_routing',
+          'restage_read_routing_revision',
+          'restage_preview_routing',
+          'restage_publish_routing',
+          'restage_rollback_route',
         ]),
         reason: 'the full launch tool surface is advertised',
       );

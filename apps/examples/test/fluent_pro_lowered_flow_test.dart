@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// End-to-end proof that the Fluent Pro paywall, authored with a
 /// `Navigator.push` from its "VIEW ALL PLANS" control to the second
 /// `@Paywall` "Choose a plan" screen, lowers to a flow at build time and
@@ -64,11 +66,13 @@ void _expectCheckOnTier(
 }
 
 void main() {
+  useSupportDirectoryChannel();
+
   late List<RestageEvent> events;
 
-  setUp(() {
+  setUp(() async {
     events = <RestageEvent>[];
-    Restage.debugReset();
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

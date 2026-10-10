@@ -50,14 +50,14 @@ const nativeClassFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeClassFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"native_class_flow\",\"initial\":\"native_preferences\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"native_preferences\":{\"contentHash\":\"sha256:78be5468f6983fad208e07c1534e1af3516e217253d9c27feb739d885aa482ed\",\"minClient\":1,\"path\":\"native_preferences.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"native_preferences\":{\"kind\":\"screen\",\"on\":{\"done\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"native_preferences\"}},\"version\":1}",
+        "{\"flow\":\"native_class_flow\",\"initial\":\"native_preferences\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"native_preferences\":{\"contentHash\":\"sha256:f8cc576dd701a0f3b792f267279e5d4f4b40550039879bdb7e54c5ff76366f4d\",\"minClient\":1,\"path\":\"native_preferences.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"native_preferences\":{\"kind\":\"screen\",\"on\":{\"done\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"native_preferences\"}},\"version\":1}",
     screens: {
       "native_preferences": NativePreferences.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '0fcfc16919b6c07a1a6842941055816b26b6c32787268317575fb6fea72b2f3c',
+      '787298cc311a0327d2e483babf91af0b06f76ef35c19f7b23ed1f6933a11eaa3',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -121,12 +121,12 @@ const nativeNamedFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeNamedFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"native_named_flow\",\"initial\":\"native_named\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"native_named\":{\"contentHash\":\"sha256:1c3ad74f1cfcb30572eafbb572c3d623dae6fcd28492091e98abc9a0185cd1e0\",\"minClient\":1,\"path\":\"native_named.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"native_named\":{\"kind\":\"screen\",\"on\":{\"done\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"native_named\"}},\"version\":1}",
+        "{\"flow\":\"native_named_flow\",\"initial\":\"native_named\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"native_named\":{\"contentHash\":\"sha256:18089332eee6f9d9a95bb7be49700670a03dd89e841ae1b55a5824972e523f46\",\"minClient\":1,\"path\":\"native_named.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"native_named\":{\"kind\":\"screen\",\"on\":{\"done\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"native_named\"}},\"version\":1}",
     screens: {},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '635a8cb1cc45e33ec9aa4eccf5b3096667610925de0c17d79a04bae18d0b0c28',
+      '0071e411238db09b083d1809fef6ec2d577d25fd58c732cc4fee03f0b2cedb06',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -198,14 +198,14 @@ const nativeOfferFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeOfferFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"native_offer_flow\",\"initial\":\"paywall_native_offer\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"paywall_native_offer\":{\"contentHash\":\"sha256:bc8cf4898c8f3f45b32e24d7e59f0458782437eff41f8f81f2cccc37e91d0659\",\"minClient\":1,\"path\":\"paywall_native_offer.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"paywall_native_offer\":{\"kind\":\"screen\",\"on\":{\"skip\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"paywall_native_offer\"}},\"version\":1}",
+        "{\"flow\":\"native_offer_flow\",\"initial\":\"paywall_native_offer\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"paywall_native_offer\":{\"contentHash\":\"sha256:9a66f37db83b652cad04b7fdc462e58ce24f1c320dd07a7a30096370f9e8ae5f\",\"minClient\":1,\"path\":\"paywall_native_offer.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"paywall_native_offer\":{\"kind\":\"screen\",\"on\":{\"skip\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"paywall_native_offer\"}},\"version\":1}",
     screens: {
       "paywall_native_offer": NativeOffer.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'b4083a8f990421623b46a033438290fe1729a5ff4b48f092b6a9be4a7a686a47',
+      '2758e2f7e6783df247a1144d95a145d3e848855bf1323863243a9f20d6daec8f',
 );
 
 NativeOfferFlowResult _decodeNativeOfferFlowResult(
@@ -264,7 +264,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeWelcomeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"actions\":{\"permission\":{\"actionName\":\"permission\",\"argsSchema\":{\"fields\":{},\"kind\":\"object\"},\"argsSchemaHash\":\"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a\",\"contractVersion\":1,\"idempotent\":false,\"minClient\":1,\"resultSchema\":{\"kind\":\"bool\"},\"resultSchemaHash\":\"sha256:b381695502a4099cf3610d182b471a2562086e5e8bdb11f4426f63ba512542b3\"}},\"flow\":\"native_welcome_flow\",\"flowState\":{\"completed\":{\"classification\":\"exportable\",\"default\":false,\"type\":\"bool\"}},\"initial\":\"native_welcome\",\"minClient\":1,\"outbound\":{\"terminalResult\":{\"fields\":{\"completed\":{\"ref\":{\"state\":\"completed\"},\"type\":\"bool\"}}}},\"schemaVersion\":1,\"screenArtifacts\":{\"native_preferences\":{\"contentHash\":\"sha256:78be5468f6983fad208e07c1534e1af3516e217253d9c27feb739d885aa482ed\",\"minClient\":1,\"path\":\"native_preferences.rfw\",\"schemaVersion\":1,\"version\":1},\"native_welcome\":{\"contentHash\":\"sha256:18ae76b6730060972c6662b40892a98bdb00d7e8135f80e4aa182460b5adc005\",\"minClient\":1,\"path\":\"native_welcome.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{\"completed\":true}},\"native_preferences\":{\"kind\":\"screen\",\"on\":{\"done\":{\"set\":{\"completed\":{\"type\":\"bool\",\"value\":{\"literal\":true,\"type\":\"bool\"}}},\"target\":\"offer\",\"type\":\"goto\"}},\"screen\":\"native_preferences\"},\"native_welcome\":{\"kind\":\"screen\",\"on\":{\"next\":{\"action\":\"permission\",\"resultPredicate\":{\"kind\":\"boolEquals\",\"value\":true},\"target\":\"native_preferences\",\"type\":\"action\"}},\"screen\":\"native_welcome\"},\"offer\":{\"contentHash\":\"sha256:583c3a9171c06171c1cb2e4bdb56b720cf7ab24248f9e16736236489c17d4d5a\",\"default\":{\"goto\":\"done\"},\"flow\":\"native_offer_flow\",\"kind\":\"subFlow\",\"minClient\":1,\"onComplete\":[{\"goto\":\"done\",\"when\":{}}],\"schemaVersion\":1,\"version\":1}},\"version\":1}",
+        "{\"actions\":{\"permission\":{\"actionName\":\"permission\",\"argsSchema\":{\"fields\":{},\"kind\":\"object\"},\"argsSchemaHash\":\"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a\",\"contractVersion\":1,\"idempotent\":false,\"minClient\":1,\"resultSchema\":{\"kind\":\"bool\"},\"resultSchemaHash\":\"sha256:b381695502a4099cf3610d182b471a2562086e5e8bdb11f4426f63ba512542b3\"}},\"flow\":\"native_welcome_flow\",\"flowState\":{\"completed\":{\"classification\":\"exportable\",\"default\":false,\"type\":\"bool\"}},\"initial\":\"native_welcome\",\"minClient\":1,\"outbound\":{\"terminalResult\":{\"fields\":{\"completed\":{\"ref\":{\"state\":\"completed\"},\"type\":\"bool\"}}}},\"schemaVersion\":1,\"screenArtifacts\":{\"native_preferences\":{\"contentHash\":\"sha256:f8cc576dd701a0f3b792f267279e5d4f4b40550039879bdb7e54c5ff76366f4d\",\"minClient\":1,\"path\":\"native_preferences.rfw\",\"schemaVersion\":1,\"version\":1},\"native_welcome\":{\"contentHash\":\"sha256:26bf27dc47ae803162ca00cc285c67f229683b7a4dac29dcc63b1c8023ecd68c\",\"minClient\":1,\"path\":\"native_welcome.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{\"completed\":true}},\"native_preferences\":{\"kind\":\"screen\",\"on\":{\"done\":{\"set\":{\"completed\":{\"type\":\"bool\",\"value\":{\"literal\":true,\"type\":\"bool\"}}},\"target\":\"offer\",\"type\":\"goto\"}},\"screen\":\"native_preferences\"},\"native_welcome\":{\"kind\":\"screen\",\"on\":{\"next\":{\"action\":\"permission\",\"resultPredicate\":{\"kind\":\"boolEquals\",\"value\":true},\"target\":\"native_preferences\",\"type\":\"action\"}},\"screen\":\"native_welcome\"},\"offer\":{\"contentHash\":\"sha256:26c5befc133fa7ed4b3145dce64502d01f859a706f6437489bd28e6351ff13fb\",\"default\":{\"goto\":\"done\"},\"flow\":\"native_offer_flow\",\"kind\":\"subFlow\",\"minClient\":1,\"onComplete\":[{\"goto\":\"done\",\"when\":{}}],\"schemaVersion\":1,\"version\":1}},\"version\":1}",
     screens: {
       "native_preferences": NativePreferences.new,
       "native_welcome": NativeWelcome.new,
@@ -272,7 +272,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
     children: {
       "native_offer_flow": CompiledFlow(
         documentJson:
-            "{\"flow\":\"native_offer_flow\",\"initial\":\"paywall_native_offer\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"paywall_native_offer\":{\"contentHash\":\"sha256:bc8cf4898c8f3f45b32e24d7e59f0458782437eff41f8f81f2cccc37e91d0659\",\"minClient\":1,\"path\":\"paywall_native_offer.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"paywall_native_offer\":{\"kind\":\"screen\",\"on\":{\"skip\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"paywall_native_offer\"}},\"version\":1}",
+            "{\"flow\":\"native_offer_flow\",\"initial\":\"paywall_native_offer\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"paywall_native_offer\":{\"contentHash\":\"sha256:9a66f37db83b652cad04b7fdc462e58ce24f1c320dd07a7a30096370f9e8ae5f\",\"minClient\":1,\"path\":\"paywall_native_offer.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"paywall_native_offer\":{\"kind\":\"screen\",\"on\":{\"skip\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"paywall_native_offer\"}},\"version\":1}",
         screens: {
           "paywall_native_offer": NativeOffer.new,
         },
@@ -281,7 +281,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
     },
   ),
   measurementPublicationDraftDigest:
-      'b119dfd4390542a4ca04be562e221acdb3977726cb43f77d812d608cb438f67b',
+      'e9b9c72fe42eda529a3179889a6b648231e40c6f1bd0e982a37b08e52021b108',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

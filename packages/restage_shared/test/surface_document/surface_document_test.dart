@@ -722,8 +722,7 @@ void main() {
     });
   });
 
-  group('version-strict decode + symmetric construction (Pass-1 hardening)',
-      () {
+  group('version-strict decoding preserves symmetric construction', () {
     test('a v2 envelope whose payload has no manifest section fails closed',
         () {
       // A genuine v1 payload frame (section-less) wrapped in a v2 header: the

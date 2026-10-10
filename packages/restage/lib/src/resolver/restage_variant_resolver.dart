@@ -152,6 +152,7 @@ final class RestageVariantResolver
       _requireCurrent(fresh.cacheEntry.assignmentLease);
       _cache[id] = fresh.cacheEntry;
       return reportSurfaceResolution<ResolvedVariant>(
+        Surface.paywall,
         id,
         fresh.cacheEntry.variant,
         SurfaceResolutionSource.fresh,
@@ -166,6 +167,7 @@ final class RestageVariantResolver
         _cacheLeaseIsCurrent(id, cached) &&
         _cacheStillRenderable(cached)) {
       return reportSurfaceResolution<ResolvedVariant>(
+        Surface.paywall,
         id,
         _asCacheHit(cached.variant),
         SurfaceResolutionSource.holdLastGood,
@@ -180,7 +182,11 @@ final class RestageVariantResolver
         locale: locale,
       );
       return reportSurfaceResolution<ResolvedVariant>(
-          id, variant, SurfaceResolutionSource.bundled);
+        Surface.paywall,
+        id,
+        variant,
+        SurfaceResolutionSource.bundled,
+      );
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Surface the hosted-unavailable
       // error (more informative than the bundled-asset-not-found): the
@@ -199,7 +205,7 @@ final class RestageVariantResolver
       BlobPaywallPayload(:final variant) => variant,
       FlowPaywallPayload(:final flow) => flow,
     };
-    reportSurfaceResolution(surface, leaf, source);
+    reportSurfaceResolution(Surface.paywall, surface, leaf, source);
     return payload;
   }
 

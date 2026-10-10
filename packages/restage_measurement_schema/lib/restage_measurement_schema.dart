@@ -1,7 +1,8 @@
 /// Deterministic measurement and experiment contracts.
 library;
 
-export 'src/canonical.dart';
+export 'src/canonical.dart'
+    hide decodeStrictCanonicalObject, strictCanonicalFidelityCanReturn;
 export 'src/collection_decision.dart';
 export 'src/experiment_authoring.dart';
 export 'src/governed_subject.dart';
@@ -26,3 +27,4 @@ export 'src/target.dart';
 export 'src/ordered_capture.dart';
 
 export 'src/declared_answers.dart';
+export 'src/delivery_diagnostics.dart';

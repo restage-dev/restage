@@ -1240,7 +1240,7 @@ void main() {
       // A write-back pair alongside a leaf field and a child slot — exercises
       // the path prelude, the `{path}` read-rewrite, the callback argument,
       // and the child wiring together. The emitted source is genui-dependent
-      // (a full compile/render is the milestone render-proof), so this probe
+      // and is exercised separately by render tests, so this probe
       // confirms it is at least syntactically valid Dart (balanced, escaped).
       final source = emitA2uiCatalogDart(
         catalogWith([

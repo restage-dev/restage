@@ -4,9 +4,13 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/onboarding/bare_surface_demo.dart';
 import 'package:restage_example/onboarding/flows/bare_surface.dart';
 
+import '_support/support_directory_channel.dart';
+
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

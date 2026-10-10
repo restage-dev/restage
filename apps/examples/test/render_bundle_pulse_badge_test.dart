@@ -161,7 +161,7 @@ void main() {
     expect(blob, hasLength(5640));
     expect(
       sha256.convert(blob).toString(),
-      'd60a3ccb5a07e11d15ebb3af55f29b1ebf8948462aac0604bfa4afea774ea163',
+      '7345407e6c04290bd288964d795889e92d948119de5ffe01312563e131e1962f',
     );
     expect(
       decodeLibraryBlob(Uint8List.fromList(blob))

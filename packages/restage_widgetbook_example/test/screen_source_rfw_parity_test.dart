@@ -10,11 +10,7 @@ void main() {
   test(
     'native sibling authoring leaves the canonical Screen RFW baseline exact',
     () {
-      // The generated descriptor is ordinary source and is read as a file.
-      // Its bytes moved with the generated-Dart changes
-      // (collection-directory part URI, the category-neutral ref, and the
-      // additive runtime provenance); the DELIVERY bytes below did not move at
-      // all, which is the property this baseline exists to hold.
+      // Pin the generated descriptor and canonical delivery bytes together.
       expect(
         sha256
             .convert(
@@ -23,18 +19,18 @@ void main() {
               ).readAsBytesSync(),
             )
             .toString(),
-        'c6fb2b5f325716f7911af3dc9dae0e75cb7a9034dd4afb8d7bc43d2c3836e238',
+        '88d33a47453596cc7e1a8a1b2cd624e40fbf7dde0a3c2f0e23a7850561f4a185',
         reason:
             'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       );
 
       const delivery = <String, String>{
         'assets/onboarding/screens/opaque_screen_proof.rfwtxt':
-            '5c173d7ce6d0a76ae96ed06113f1c22e76b311460788358d4a5f9fc68c722198',
+            '566db8996c86df38e03a8f68d7aef5f8edffcd42e42d8354270be54905c5a6a7',
         'assets/onboarding/screens/opaque_screen_proof.rfw':
-            '52a780c74fe59fd5f8d61b8e8e9039ad031fe99529416ed4c4d5746bb3a074bd',
+            '8cc8b91acac4f019533b9b6f5d38c8aed5fbb1e23edb9a1b23fe2883269aa71b',
         'assets/onboarding/screens/opaque_screen_proof.capability.json':
-            'f470665b7fa83785910bb6a81165146ef3f65ffbb88d3f1cbd0698b74304a969',
+            '4d6d51b9ffb9050f4dd471ba0c198eda72adc62dffad4c043a43a9c98e17cbf1',
       };
 
       final packaged = _packagedArtifacts();
@@ -61,7 +57,7 @@ void main() {
       'import restage.cupertino;\n'
       '\n'
       'widget OnboardingScreen = Center(child: ElevatedButton('
-      'onPressed: event "continue" { value: "preview" }, child: '
+      'onPressed: event "continue" {value: "preview"}, child: '
       'Text(text: "Opaque screen proof")));\n',
     );
     // A categorized `@Screen(surface:)` is standalone, so its handle is the
@@ -78,14 +74,9 @@ void main() {
         _packagedArtifacts()['assets/onboarding/screens/'
             'opaque_screen_proof.capability.json']!,
       ),
-      '{\n'
-      '  "blobSha256": '
-      '"sha256:52a780c74fe59fd5f8d61b8e8e9039ad031fe99529416ed4c4d5746bb3a074bd",\n'
-      '  "manifest": {\n'
-      '    "builtInFloor": 1,\n'
-      '    "requiredLibraries": []\n'
-      '  }\n'
-      '}',
+      '{"blobSha256":'
+      '"sha256:8cc8b91acac4f019533b9b6f5d38c8aed5fbb1e23edb9a1b23fe2883269aa71b",'
+      '"manifest":{"builtInFloor":1,"requiredLibraries":[]}}',
     );
   });
 }

@@ -98,6 +98,7 @@ void main() {
         ])
           SurfaceResolutionReport(
             surface: _surface,
+            surfaceType: Surface.paywall,
             source: source,
             selectedRouteId: expected?.selectedRouteId,
             audienceRevisionRef: expected?.audienceRevisionRef,
@@ -164,6 +165,7 @@ void main() {
           ])
             SurfaceResolutionReport(
               surface: fixture.ref.slug,
+              surfaceType: fixture.ref.surface,
               source: source,
               selectedRouteId: expected?.selectedRouteId,
               audienceRevisionRef: expected?.audienceRevisionRef,
@@ -177,9 +179,10 @@ void main() {
     }
   }
 
-  test('each selection fact participates in report equality and text', () {
+  test('each report fact participates in equality and text', () {
     final complete = SurfaceResolutionReport(
       surface: _surface,
+      surfaceType: Surface.paywall,
       source: SurfaceResolutionSource.fresh,
       selectedRouteId: 'route-a',
       audienceRevisionRef: 'audience-v2',
@@ -190,6 +193,7 @@ void main() {
     );
     final equal = SurfaceResolutionReport(
       surface: _surface,
+      surfaceType: Surface.paywall,
       source: SurfaceResolutionSource.fresh,
       selectedRouteId: 'route-a',
       audienceRevisionRef: 'audience-v2',
@@ -200,6 +204,7 @@ void main() {
     );
     expect(complete, equal);
     expect(complete.hashCode, equal.hashCode);
+    expect(complete.toString(), contains('surfaceType: Surface.paywall'));
     expect(complete.toString(), contains('selectedRouteId: route-a'));
     expect(complete.toString(), contains('audienceRevisionRef: audience-v2'));
     expect(complete.toString(), contains('routingRevisionOrdinal: 3'));
@@ -210,6 +215,7 @@ void main() {
     for (final other in [
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         audienceRevisionRef: 'audience-v2',
         routingRevisionOrdinal: 3,
@@ -219,6 +225,7 @@ void main() {
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         selectedRouteId: 'route-a',
         routingRevisionOrdinal: 3,
@@ -228,6 +235,7 @@ void main() {
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         selectedRouteId: 'route-a',
         audienceRevisionRef: 'audience-v2',
@@ -237,6 +245,7 @@ void main() {
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         selectedRouteId: 'route-a',
         audienceRevisionRef: 'audience-v2',
@@ -246,6 +255,7 @@ void main() {
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         selectedRouteId: 'route-a',
         audienceRevisionRef: 'audience-v2',
@@ -255,12 +265,24 @@ void main() {
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         selectedRouteId: 'route-a',
         audienceRevisionRef: 'audience-v2',
         routingRevisionOrdinal: 3,
         rolloutAllocationId: 'allocation-a',
         rolloutBranch: 'control',
+      ),
+      SurfaceResolutionReport(
+        surface: _surface,
+        surfaceType: Surface.message,
+        source: SurfaceResolutionSource.fresh,
+        selectedRouteId: 'route-a',
+        audienceRevisionRef: 'audience-v2',
+        routingRevisionOrdinal: 3,
+        rolloutAllocationId: 'allocation-a',
+        rolloutBranch: 'control',
+        defaultSelectionReason: 'no-match',
       ),
     ]) {
       expect(complete, isNot(other));
@@ -310,8 +332,13 @@ void main() {
         FlowPaywallPayload(:final flow) => flow,
       };
       expect(surfaceResolutionSourceFor(leaf), source);
-      expect(reports,
-          [SurfaceResolutionReport(surface: _surface, source: source)]);
+      expect(reports, [
+        SurfaceResolutionReport(
+          surface: _surface,
+          surfaceType: Surface.paywall,
+          source: source,
+        ),
+      ]);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
@@ -374,9 +401,63 @@ void main() {
     expect(find.text('Hosted flow'), findsOneWidget);
     expect(reports, const [
       SurfaceResolutionReport(
-          surface: 'first_run', source: SurfaceResolutionSource.fresh)
+        surface: 'first_run',
+        surfaceType: Surface.onboarding,
+        source: SurfaceResolutionSource.fresh,
+      )
     ]);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test(
+      'same-slug message and survey resolutions report their type in either order',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final reports = <SurfaceResolutionReport>[];
+    _configure(reports.add);
+    final delivery = HostedArtifactFixture();
+    const surfaces = <Surface>[Surface.message, Surface.survey];
+    final bodies = <Surface, Map<String, Object?>>{
+      for (final surface in surfaces)
+        surface: delivery.deliveryBody(_sameSlugFlowDocument(surface)),
+    };
+    final resolver = ServerFlowResolver(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: delivery.client((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final surface = Surface.fromWireName(body['surfaceType'] as String);
+        expect(body['surfaceSlug'], 'campaign');
+        return http.Response(jsonEncode(bodies[surface]), 200);
+      }),
+    );
+
+    for (final order in <List<Surface>>[
+      [Surface.message, Surface.survey],
+      [Surface.survey, Surface.message],
+    ]) {
+      reports.clear();
+      for (final surface in order) {
+        await resolver.resolve(
+          SurfaceFlowRef<Map<String, Object?>>(
+            id: 'campaign',
+            version: 1,
+            minClient: 1,
+            surface: surface,
+            decodeResult: (result) => result,
+          ),
+        );
+      }
+
+      expect(reports, [
+        for (final surface in order)
+          SurfaceResolutionReport(
+            surface: 'campaign',
+            surfaceType: surface,
+            source: SurfaceResolutionSource.fresh,
+          ),
+      ]);
+    }
   });
 
   testWidgets('mounted typed screen reports fresh', (tester) async {
@@ -406,7 +487,10 @@ void main() {
     expect(find.text('Bundled screen'), findsOneWidget);
     expect(reports, [
       SurfaceResolutionReport(
-          surface: fixture.ref.slug, source: SurfaceResolutionSource.fresh)
+        surface: fixture.ref.slug,
+        surfaceType: fixture.ref.surface,
+        source: SurfaceResolutionSource.fresh,
+      )
     ]);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -424,6 +508,7 @@ void main() {
     expect(reports, const [
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
       ),
     ]);
@@ -463,10 +548,12 @@ void main() {
     expect(reports, const [
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.holdLastGood,
       ),
     ]);
@@ -486,6 +573,7 @@ void main() {
     expect(reports, const [
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.bundled,
       ),
     ]);
@@ -561,37 +649,49 @@ void main() {
   test('the report has value equality', () {
     const report = SurfaceResolutionReport(
       surface: _surface,
+      surfaceType: Surface.paywall,
       source: SurfaceResolutionSource.holdLastGood,
       reason: 'Delivery unavailable',
     );
     final equal = SurfaceResolutionReport(
       surface: 'pro_${'upgrade'}',
+      surfaceType: Surface.paywall,
       source: SurfaceResolutionSource.holdLastGood,
       reason: 'Delivery unavailable',
     );
     expect(report, equal);
     expect(report.hashCode, equal.hashCode);
     expect(report.surface, _surface);
+    expect(report.surfaceType, Surface.paywall);
     expect(report.source, SurfaceResolutionSource.holdLastGood);
     expect(report.reason, 'Delivery unavailable');
     expect(
         report.toString(),
-        'SurfaceResolutionReport(surface: pro_upgrade, source: '
+        'SurfaceResolutionReport(surface: pro_upgrade, surfaceType: Surface.paywall, source: '
         'SurfaceResolutionSource.holdLastGood, reason: Delivery unavailable, selectedRouteId: null, audienceRevisionRef: null, routingRevisionOrdinal: null, rolloutAllocationId: null, rolloutBranch: null, defaultSelectionReason: null)');
     for (final other in const [
       SurfaceResolutionReport(
         surface: 'other',
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.holdLastGood,
         reason: 'Delivery unavailable',
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.fresh,
         reason: 'Delivery unavailable',
       ),
       SurfaceResolutionReport(
         surface: _surface,
+        surfaceType: Surface.paywall,
         source: SurfaceResolutionSource.holdLastGood,
+      ),
+      SurfaceResolutionReport(
+        surface: _surface,
+        surfaceType: Surface.message,
+        source: SurfaceResolutionSource.holdLastGood,
+        reason: 'Delivery unavailable',
       ),
     ]) {
       expect(report, isNot(other));
@@ -605,6 +705,46 @@ void _configure([void Function(SurfaceResolutionReport)? callback]) {
     analyticsEnabled: false,
     measurementEnabled: false,
     onSurfaceResolution: callback,
+  );
+}
+
+SurfaceDocument _sameSlugFlowDocument(Surface surface) {
+  final bytes =
+      rfwScreenBlob(text: 'Hosted ${surface.name} flow', event: 'next');
+  final document = FlowDocument(
+    flow: 'campaign',
+    version: 1,
+    schemaVersion: 1,
+    minClient: 1,
+    initial: 'welcome',
+    actions: const {},
+    screenArtifacts: {
+      'welcome': ScreenArtifact(
+        path: 'welcome.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: 1,
+        contentHash: FlowContentHash.compute(bytes),
+      ),
+    },
+    states: {
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {'next': FlowTransition.goto('done')},
+      ),
+      'done': EndFlowState(result: const {}),
+    },
+  );
+  return SurfaceDocument(
+    surfaceType: surface,
+    surfaceSlug: 'campaign',
+    version: 1,
+    minClient: 1,
+    publishedAt: DateTime.utc(2026),
+    payload: FlowSurfacePayload(
+      flowDocument: document,
+      screenBlobs: {'welcome': bytes},
+    ),
   );
 }
 

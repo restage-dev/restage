@@ -18,7 +18,7 @@ const messageOfferRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '549eb154015433042a5f49e2f81bce08f8c7ecfad17b58fa4d8e566d16724413',
+      'a0eec6e07248181a5913343fb44e05fded25d15ac8eb5fd208232d8e02d8b80f',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

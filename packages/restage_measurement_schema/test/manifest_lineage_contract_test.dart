@@ -41,6 +41,70 @@ void main() {
     expect(decoded.canonicalBytes, bytes);
   });
 
+  test('target equality uses each coordinate and preserves canonical fallback',
+      () {
+    final equal = TargetCoordinate.fromJson(target.toJson());
+    expect(target == equal, isTrue);
+    expect(target.hashCode, equal.hashCode);
+
+    final mutations = <TargetCoordinate>[
+      TargetCoordinate(
+        organizationId: OrganizationId(12),
+        appId: target.appId,
+        environmentTargetId: target.environmentTargetId,
+        namedEnvironmentId: target.namedEnvironmentId,
+        runtimePlane: target.runtimePlane,
+      ),
+      TargetCoordinate(
+        organizationId: target.organizationId,
+        appId: ApplicationId(24),
+        environmentTargetId: target.environmentTargetId,
+        namedEnvironmentId: target.namedEnvironmentId,
+        runtimePlane: target.runtimePlane,
+      ),
+      TargetCoordinate(
+        organizationId: target.organizationId,
+        appId: target.appId,
+        environmentTargetId: EnvironmentTargetId(32),
+        namedEnvironmentId: target.namedEnvironmentId,
+        runtimePlane: target.runtimePlane,
+      ),
+      TargetCoordinate(
+        organizationId: target.organizationId,
+        appId: target.appId,
+        environmentTargetId: target.environmentTargetId,
+        namedEnvironmentId: NamedEnvironmentId(38),
+        runtimePlane: target.runtimePlane,
+      ),
+      TargetCoordinate(
+        organizationId: target.organizationId,
+        appId: target.appId,
+        environmentTargetId: target.environmentTargetId,
+        namedEnvironmentId: target.namedEnvironmentId,
+        runtimePlane: RuntimePlane.live,
+      ),
+    ];
+
+    for (final mutation in mutations) {
+      expect(target == mutation, isFalse);
+      expect(
+        utf8.decode(mutation.canonicalBytes),
+        isNot(utf8.decode(target.canonicalBytes)),
+      );
+    }
+
+    final CanonicalValue canonicalTarget = target;
+    final CanonicalValue spoofed = _SpoofedTargetCoordinateValue(target);
+    expect(canonicalTarget == spoofed, isTrue);
+    expect(spoofed == canonicalTarget, isTrue);
+    expect(target.hashCode, spoofed.hashCode);
+    final CanonicalValue distinctSpoofed =
+        _SpoofedTargetCoordinateValue(mutations.first);
+    expect(canonicalTarget == distinctSpoofed, isFalse);
+    expect(distinctSpoofed == canonicalTarget, isFalse);
+    expect(target == Object(), isFalse);
+  });
+
   test('target rejects unknown versions, planes, and keys', () {
     for (final source in <String>[
       '{"appId":23,"environmentTargetId":31,'
@@ -932,6 +996,18 @@ void main() {
       );
     });
   });
+}
+
+final class _SpoofedTargetCoordinateValue extends CanonicalValue {
+  _SpoofedTargetCoordinateValue(this._target);
+
+  final TargetCoordinate _target;
+
+  @override
+  Type get runtimeType => TargetCoordinate;
+
+  @override
+  Map<String, Object?> toJson() => _target.toJson();
 }
 
 MeasurementPointOccurrenceV1 _copyOccurrence(

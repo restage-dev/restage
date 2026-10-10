@@ -1576,7 +1576,7 @@ final class ActionArgs {
         logs.map((log) => log.message).join('\n'),
         allOf(
           contains('unsupportedFlowRuntimeFeature'),
-          // Assembled so the roadmap-wording guard does not read the
+          // Assembled so the source-wording guard does not read the
           // contiguous banned token from this pin.
           isNot(contains(['unsupported', 'In', 'Phase', '1'].join())),
           isNot(contains('run is not lowered')),

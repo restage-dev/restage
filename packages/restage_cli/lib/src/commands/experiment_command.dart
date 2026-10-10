@@ -48,6 +48,10 @@ class ExperimentCommand extends Command<int> {
       _ReadCommand.new,
       _ResultsCommand.new,
       _ArchiveCommand.new,
+      _RegisterBuildCommand.new,
+      _ReadinessCommand.new,
+      _DeliveryOptionsCommand.new,
+      _RebuildServingRecordsCommand.new,
     ]) {
       addSubcommand(build(context));
     }
@@ -124,6 +128,14 @@ abstract class _ExperimentSubcommand extends Command<int> {
   /// Whether this operation changes live state and needs live confirmation.
   bool get changesLiveState => false;
 
+  /// Runs an operator call instead of a semantic operation. Null when this
+  /// subcommand names one.
+  Future<int>? operatorCall({
+    required RestageApi transport,
+    required TargetCoordinate target,
+    required bool asJson,
+  }) => null;
+
   /// Runs a drain instead of one request. Null when the operation is single.
   Future<ExperimentPageDrain<Object?>>? drain(
     ExperimentApi api,
@@ -157,7 +169,7 @@ abstract class _ExperimentSubcommand extends Command<int> {
     if (context == null) return 1;
 
     final payload = buildPayload();
-    if (payload == null && operation != null) return 1;
+    if (payload == null) return 1;
 
     final target = _targetOf(context);
     if (changesLiveState && !await _confirmLiveExperimentChange(target)) {
@@ -184,7 +196,7 @@ abstract class _ExperimentSubcommand extends Command<int> {
     if (operation != null) {
       try {
         final resolvedOperation = operation!;
-        final resolvedPayload = payload!;
+        final resolvedPayload = payload;
         final idempotencyKey = resolvedOperation.requiresIdempotencyKey
             ? (argResults?['idempotency-key'] as String?) ??
                   _newIdentity('idempotency')
@@ -210,6 +222,13 @@ abstract class _ExperimentSubcommand extends Command<int> {
     }
 
     try {
+      final operatorRun = operatorCall(
+        transport: transport,
+        target: target,
+        asJson: asJson,
+      );
+      if (operatorRun != null) return await operatorRun;
+
       final drained = drain(
         api,
         target,
@@ -274,10 +293,16 @@ abstract class _ExperimentSubcommand extends Command<int> {
     }
   }
 
-  String _refusalLine(ExperimentAuthoringRefusedV1 refused) =>
-      'Refused ${refused.operation.wireName}: '
-      '${refused.refusal.code.wireName}'
-      '${refused.refusal.retryable ? " (retryable)" : ""}.';
+  String _refusalLine(ExperimentAuthoringRefusedV1 refused) {
+    final refusal = refused.refusal;
+    final headline =
+        'Refused ${refused.operation.wireName}: ${refusal.code.wireName}'
+        '${refusal.retryable ? " (retryable)" : ""}.';
+    final locator = refusal.locator;
+    return locator == null
+        ? headline
+        : '$headline\n${_audienceConflictLine(locator, refusal.messageKey)}';
+  }
 
   /// Consent to change a running experiment on the live plane.
   ///
@@ -303,6 +328,30 @@ abstract class _ExperimentSubcommand extends Command<int> {
     if (value != null && value.isNotEmpty) return value;
     _stderr.writeln('Required: --$option <value>.');
     return null;
+  }
+
+  /// Reads a required non-negative integer option, or null after an error.
+  int? requireNonNegativeInt(String option) {
+    final raw = requireOption(option);
+    if (raw == null) return null;
+    final value = int.tryParse(raw);
+    if (value == null || value < 0) {
+      _stderr.writeln('--$option must be zero or a positive integer.');
+      return null;
+    }
+    return value;
+  }
+
+  /// Reads an optional positive integer option; null when absent or invalid.
+  int? optionalPositiveInt(String option) {
+    final raw = (argResults?[option] as String?)?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    final value = int.tryParse(raw);
+    if (value == null || value <= 0) {
+      _stderr.writeln('--$option must be a positive integer.');
+      return null;
+    }
+    return value;
   }
 
   /// Reads a required positive integer option, or null after an error.
@@ -346,6 +395,8 @@ abstract class _ExperimentSubcommand extends Command<int> {
 class _DiscoverCommand extends _ExperimentSubcommand {
   _DiscoverCommand(super.context);
 
+  ExperimentExactSurfaceReferenceV1? _exactSurfaceReference;
+
   @override
   String get name => 'discover';
 
@@ -357,14 +408,55 @@ class _DiscoverCommand extends _ExperimentSubcommand {
   ExperimentAuthoringOperationV1? get operation => null;
 
   @override
-  Map<String, Object?>? buildPayload() => null;
+  void addOptions(ArgParser parser) => parser
+    ..addOption(
+      'surface-id',
+      help: 'Exact published surface identity. Use with --surface-revision-id.',
+    )
+    ..addOption(
+      'surface-revision-id',
+      help:
+          'Exact published surface revision. It can inspect an inactive '
+          'published version without changing live delivery.',
+    );
+
+  @override
+  Map<String, Object?>? buildPayload() {
+    _exactSurfaceReference = null;
+    final surfaceId = (argResults?['surface-id'] as String?)?.trim();
+    final surfaceRevisionId = (argResults?['surface-revision-id'] as String?)
+        ?.trim();
+    if ((surfaceId == null || surfaceId.isEmpty) !=
+        (surfaceRevisionId == null || surfaceRevisionId.isEmpty)) {
+      _stderr.writeln(
+        'Pass --surface-id and --surface-revision-id together, or neither.',
+      );
+      return null;
+    }
+    if (surfaceId == null || surfaceId.isEmpty) return const {};
+    try {
+      _exactSurfaceReference = ExperimentExactSurfaceReferenceV1.fromJson({
+        'kind': 'exactSurfaceReference',
+        'surfaceId': surfaceId,
+        'surfaceRevisionId': surfaceRevisionId,
+      });
+    } on CanonicalFormatException catch (error) {
+      _stderr.writeln(error.message);
+      return null;
+    }
+    return const {};
+  }
 
   @override
   Future<ExperimentPageDrain<Object?>>? drain(
     ExperimentApi api,
     TargetCoordinate target,
     String correlationId,
-  ) => api.discoverEveryPage(target: target, correlationId: correlationId);
+  ) => api.discoverEveryPage(
+    target: target,
+    correlationId: correlationId,
+    exactSurfaceReference: _exactSurfaceReference,
+  );
 
   @override
   String renderDrained(Object? value) {
@@ -646,9 +738,33 @@ class _ValidateCommand extends _ExperimentSubcommand {
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
     final view = accepted.response as ExperimentValidationViewV1;
-    return 'Validated draft: ${view.issues.length} issues.';
+    return [
+      'Validated draft: ${view.issues.length} issues.',
+      ..._conflictLines(view.issues),
+    ].join('\n');
   }
 }
+
+/// One line per issue that names an experiment already holding the audience.
+Iterable<String> _conflictLines(
+  Iterable<ExperimentValidationIssueV1> issues,
+) sync* {
+  for (final issue in issues) {
+    final locator = issue.locator;
+    if (locator == null) continue;
+    yield _audienceConflictLine(locator, issue.messageKey);
+  }
+}
+
+/// One human-readable rendering of the typed audience-conflict diagnostic.
+String _audienceConflictLine(
+  ExperimentAudienceConflictLocatorV1 locator,
+  String messageKey,
+) =>
+    'Audience held by ${locator.conflictingExperimentId} '
+    '(its revision ${locator.conflictingAudienceRef.revisionId.value}, '
+    'this draft ${locator.proposedAudienceRef.revisionId.value}): '
+    '$messageKey';
 
 /// Issues an immutable review for a draft.
 class _ReviewCommand extends _ExperimentSubcommand {
@@ -823,7 +939,7 @@ class _ListCommand extends _ExperimentSubcommand {
   ExperimentAuthoringOperationV1? get operation => null;
 
   @override
-  Map<String, Object?>? buildPayload() => null;
+  Map<String, Object?>? buildPayload() => const {};
 
   @override
   Future<ExperimentPageDrain<Object?>>? drain(
@@ -872,6 +988,59 @@ class _ReadCommand extends _ExperimentSubcommand {
       'Read experiment.';
 }
 
+/// Reads what one finished experiment can hand to delivery.
+class _DeliveryOptionsCommand extends _ExperimentSubcommand {
+  _DeliveryOptionsCommand(super.context);
+
+  @override
+  String get name => 'delivery-options';
+
+  @override
+  String get description =>
+      'Read the surface, audience and per-arm delivery publication one '
+      'experiment offers.';
+
+  @override
+  ExperimentAuthoringOperationV1? get operation =>
+      ExperimentAuthoringOperationV1.readDeliveryOptions;
+
+  @override
+  void addOptions(ArgParser parser) => parser.addOption(
+    'experiment-id',
+    help: 'Experiment identity (required).',
+  );
+
+  @override
+  Map<String, Object?>? buildPayload() {
+    final experimentId = requireOption('experiment-id');
+    if (experimentId == null) return null;
+    return {'experimentId': experimentId};
+  }
+
+  @override
+  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
+    final view = accepted.response as ExperimentDeliveryOptionsViewV1;
+    return [
+      '${view.surfaceSlug} (${view.surfaceType.value}) for '
+          '${view.audienceLabel}, revision '
+          '${view.audienceRevisionId.value}',
+      for (final arm in view.arms)
+        '  ${arm.stableArmId.value}  ${arm.label}  '
+            '${_deliveryArmPublication(arm)}',
+    ].join('\n');
+  }
+}
+
+String _deliveryArmPublication(ExperimentDeliveryArmV1 arm) => switch (arm) {
+  ExperimentArmDeliveryV1(:final publishedVersion) =>
+    'version $publishedVersion',
+  ExperimentSurfaceContractArmDeliveryV1(
+    :final contractVersion,
+    :final publishedRevision,
+  ) =>
+    'revision $publishedRevision (contract $contractVersion)',
+};
+
 /// Reads one experiment's results.
 class _ResultsCommand extends _ExperimentSubcommand {
   _ResultsCommand(super.context);
@@ -915,6 +1084,195 @@ class _ResultsCommand extends _ExperimentSubcommand {
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
       'Read results.';
+}
+
+/// Registers what one installed app build can supply.
+class _RegisterBuildCommand extends _ExperimentSubcommand {
+  _RegisterBuildCommand(super.context);
+
+  @override
+  String get name => 'register-build';
+
+  @override
+  String get description =>
+      'Register what one installed app build reports for a context schema.';
+
+  @override
+  ExperimentAuthoringOperationV1? get operation =>
+      ExperimentAuthoringOperationV1.registerBuildCapabilities;
+
+  @override
+  void addOptions(ArgParser parser) => parser
+    ..addOption('platform', help: 'Platform of the installed build (required).')
+    ..addOption(
+      'app-build-ordinal',
+      help: 'Build number of the installed build (required).',
+    )
+    ..addOption(
+      'sdk-api-level',
+      help: 'Assignment API level that build ships (required).',
+    )
+    ..addOption(
+      'context-schema-id',
+      help: 'Context schema identity (required).',
+    )
+    ..addOption(
+      'context-schema-revision-id',
+      help: 'Exact context schema revision (required).',
+    )
+    ..addOption(
+      'context-schema-digest',
+      help: 'Semantic digest of that revision (required).',
+    );
+
+  @override
+  Map<String, Object?>? buildPayload() {
+    final platform = requireOption('platform');
+    final appBuildOrdinal = requireNonNegativeInt('app-build-ordinal');
+    final sdkApiLevel = requirePositiveInt('sdk-api-level');
+    final schemaId = requireOption('context-schema-id');
+    final revisionId = requireOption('context-schema-revision-id');
+    final digest = requireOption('context-schema-digest');
+    if (platform == null ||
+        appBuildOrdinal == null ||
+        sdkApiLevel == null ||
+        schemaId == null ||
+        revisionId == null ||
+        digest == null) {
+      return null;
+    }
+    return {
+      'appBuildOrdinal': appBuildOrdinal,
+      'contextSchemaRef': {
+        'contextSchemaId': schemaId,
+        'revisionId': revisionId,
+        'semanticDigest': digest,
+      },
+      'platform': platform,
+      'sdkApiLevel': sdkApiLevel,
+    };
+  }
+
+  @override
+  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
+    final view = accepted.response as ExperimentBuildCapabilityViewV1;
+    final reports = view.providedAttributeIds.map((id) => id.value).join(', ');
+    return '${view.storedNow ? 'Registered' : 'Already registered'} '
+        '${view.platform.value} ${view.appBuildOrdinal}: $reports.';
+  }
+}
+
+/// Reads the target's audiences and what one of them needs to run.
+class _ReadinessCommand extends _ExperimentSubcommand {
+  _ReadinessCommand(super.context);
+
+  @override
+  String get name => 'readiness';
+
+  @override
+  String get description =>
+      'List this target\'s audiences, and what one of them needs to run.';
+
+  @override
+  ExperimentAuthoringOperationV1? get operation =>
+      ExperimentAuthoringOperationV1.readExperimentReadiness;
+
+  @override
+  void addOptions(ArgParser parser) => parser
+    ..addOption(
+      'page-size',
+      help: 'Audiences to read, 1..100. Defaults to 100.',
+    )
+    ..addOption('page-cursor', help: 'Continue a previous page.')
+    ..addOption('audience-id', help: 'Audience to assess.')
+    ..addOption('audience-revision-id', help: 'Exact revision to assess.')
+    ..addOption('audience-digest', help: 'Semantic digest of that revision.');
+
+  @override
+  Map<String, Object?>? buildPayload() {
+    final pageSize = optionalPositiveInt('page-size');
+    if (pageSize == null && argResults?['page-size'] != null) return null;
+    final audienceId = argResults?['audience-id'] as String?;
+    final revisionId = argResults?['audience-revision-id'] as String?;
+    final digest = argResults?['audience-digest'] as String?;
+    final named = <String?>[audienceId, revisionId, digest];
+    // Half a reference names no revision of any audience, and completing it
+    // from elsewhere is the guess this refuses to make.
+    if (named.any((value) => value != null) &&
+        named.any((value) => value == null)) {
+      _stderr.writeln(
+        'Naming an audience needs --audience-id, --audience-revision-id and '
+        '--audience-digest together.',
+      );
+      return null;
+    }
+    return {
+      if (audienceId != null)
+        'audienceRef': {
+          'policyId': audienceId,
+          'revisionId': revisionId,
+          'semanticDigest': digest,
+        },
+      if (argResults?['page-cursor'] case final String cursor)
+        'pageCursor': cursor,
+      'pageSize': pageSize ?? 100,
+    };
+  }
+
+  @override
+  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
+    final view = accepted.response as ExperimentReadinessViewV1;
+    final lines = <String>[
+      for (final option in view.audiences)
+        '${option.reference.revisionId.value}  ${option.label} '
+            '(revision ${option.revisionOrdinal})',
+    ];
+    if (lines.isEmpty) lines.add('No audiences at this target.');
+    if (view.readiness case final readiness?) {
+      lines
+        ..add('')
+        ..addAll(_readinessLines(readiness));
+    }
+    return lines.join('\n');
+  }
+
+  List<String> _readinessLines(ExperimentAudienceReadinessV1 readiness) {
+    if (readiness.contextSchemaRef == null) {
+      return const [
+        'Ready to activate. This audience compares nothing an app build '
+            'reports.',
+      ];
+    }
+    final builds = readiness.registeredBuilds
+        .map((build) => '${build.platform.value} ${build.appBuildOrdinal}')
+        .join(', ');
+    return <String>[
+      readiness.activationBlocked
+          ? 'Cannot be activated yet.'
+          : 'Ready to activate.',
+      'Registered builds: ${builds.isEmpty ? 'none' : builds}',
+      for (final attribute in readiness.attributes)
+        '  ${attribute.assignmentAttributeId.value}: '
+            '${_supplyOf(readiness, attribute)}',
+    ];
+  }
+
+  String _supplyOf(
+    ExperimentAudienceReadinessV1 readiness,
+    ExperimentAttributeReadinessV1 attribute,
+  ) => switch (attribute.supply) {
+    ExperimentAttributeSupplyV1.registered => 'reported by every build',
+    ExperimentAttributeSupplyV1.appDeclaredValue =>
+      'supplied by your app while it runs, so an experiment cannot compare '
+          'it yet',
+    ExperimentAttributeSupplyV1.missingRegistration => switch (readiness
+        .buildsMissing(attribute)) {
+      final missing when missing.isEmpty => 'reported by no registered build',
+      final missing =>
+        'not reported by ${missing.map((build) => '${build.platform.value} '
+            '${build.appBuildOrdinal}').join(', ')}',
+    },
+  };
 }
 
 /// Archives or restores an experiment.
@@ -1019,4 +1377,120 @@ String _newIdentity(String prefix) {
       .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
       .join();
   return '$prefix-$hex';
+}
+
+/// Produces the serving records a target lacks, or counts what is missing.
+class _RebuildServingRecordsCommand extends _ExperimentSubcommand {
+  _RebuildServingRecordsCommand(super.context);
+
+  @override
+  String get name => 'rebuild-serving-records';
+
+  @override
+  String get description =>
+      'Produce the serving records this target lacks and report what is '
+      'left. Exits non-zero while any experiment is still missing one.';
+
+  @override
+  ExperimentAuthoringOperationV1? get operation => null;
+
+  @override
+  void addOptions(ArgParser parser) {
+    parser.addFlag(
+      'readiness-only',
+      negatable: false,
+      help:
+          'Inspect what is missing without producing anything. This does not '
+          're-prove sources, so only the full rebuild is the deploy readiness '
+          'gate.',
+    );
+  }
+
+  @override
+  Map<String, Object?>? buildPayload() => const {};
+
+  bool get _readinessOnly => argResults?['readiness-only'] as bool? ?? false;
+
+  @override
+  bool get changesLiveState => !_readinessOnly;
+
+  @override
+  Future<int>? operatorCall({
+    required RestageApi transport,
+    required TargetCoordinate target,
+    required bool asJson,
+  }) => _run(transport: transport, target: target, asJson: asJson);
+
+  Future<int> _run({
+    required RestageApi transport,
+    required TargetCoordinate target,
+    required bool asJson,
+  }) async {
+    final response = await transport.call(
+      'experimentActivation',
+      'rebuildServingRecords',
+      <String, dynamic>{
+        'organizationId': target.organizationId.value,
+        'appId': target.appId.value,
+        'environmentTargetId': target.environmentTargetId.value,
+        'namedEnvironmentId': target.namedEnvironmentId.value,
+        'runtimePlane': target.runtimePlane.wireName,
+        'readinessOnly': _readinessOnly,
+      },
+    );
+    final Map<String, Object?> readiness;
+    try {
+      readiness = jsonDecode(response as String) as Map<String, Object?>;
+    } on Object {
+      _stderr.writeln('The service returned an invalid readiness report.');
+      return 2;
+    }
+    if (asJson) {
+      _stdout.writeln(jsonEncode(readiness));
+    } else {
+      _stdout.writeln(_render(readiness));
+    }
+    return (readiness['ready'] as bool? ?? false) ? 0 : 1;
+  }
+
+  String _render(Map<String, Object?> readiness) {
+    final surfaces = (readiness['surfaces'] as List<Object?>? ?? const [])
+        .cast<Map<String, Object?>>();
+    final unrecoverable =
+        (readiness['unrecoverable'] as List<Object?>? ?? const [])
+            .cast<Map<String, Object?>>();
+    // A readiness read answers whether records are present, never whether
+    // their sources still say what the records say. Saying only "ready" would
+    // read as the stronger verdict it is not.
+    final reproven = readiness['sourcesReproven'] == true;
+    final present = readiness['ready'] == true;
+    var nominated = 0;
+    for (final surface in surfaces) {
+      nominated += surface['nominated']! as int;
+    }
+    final lines = <String>[
+      if (reproven)
+        present
+            ? 'Ready: every nominated experiment holds a current record and '
+                  'its sources re-prove it.'
+            : 'Not ready: see what is missing or unprovable below.'
+      else
+        '${readiness['missing']} of $nominated nominated experiments hold no '
+            'current record. Records present; sources not re-proven — run '
+            'rebuild.',
+      'Produced ${readiness['produced']}, superseded '
+          '${readiness['superseded'] ?? 0}.',
+      for (final entry in unrecoverable)
+        '  Unprovable: ${entry['experimentId']} (${entry['reason']}).',
+    ];
+    for (final surface in surfaces) {
+      lines.add(
+        '  ${surface['surfaceType']}/${surface['surfaceSlug']}: '
+        '${surface['nominated']} nominated, ${surface['missing']} missing, '
+        '${surface['produced']} produced, '
+        '${surface['superseded'] ?? 0} superseded.',
+      );
+    }
+    return lines.join('\n');
+  }
 }

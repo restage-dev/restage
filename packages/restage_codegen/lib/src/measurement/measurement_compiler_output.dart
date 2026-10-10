@@ -32,7 +32,7 @@ const String kRestageMeasurementOutputIndexFileName =
 
 /// The manifest privacy policy revision this compiler stamps.
 const String kMeasurementDefaultPrivacyPolicyRevisionId =
-    'restage.manifest-privacy.v2';
+    'restage.manifest-privacy.v3';
 
 /// The collection budget revision this compiler stamps.
 const String kMeasurementDefaultCollectionBudgetRevisionId =

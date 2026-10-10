@@ -1,4 +1,4 @@
-# Public-bound BSD-3-Clause package, pure Dart — uses the Dart team's recommended
+# BSD-3-Clause package, pure Dart — uses the Dart team's recommended
 # baseline (matches `dart create` defaults) instead of the workspace's
 # stricter `very_good_analysis`.
 

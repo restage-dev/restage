@@ -255,7 +255,7 @@ class BorderedBox extends StatelessWidget {
       // `ButtonStyle.styleFrom(...)` is a true static method the translator
       // does NOT lower. The classifier must keep it a `dartCall` (reducible —
       // "not supported yet"), NOT claim it composable and let emit silently
-      // fail. This is the safe boundary the chapter's honesty invariant wants.
+      // fail. Classification must reflect what the emitter can produce.
       final result = await classifyFixture(
         {
           'lib/styled_button.dart': '''

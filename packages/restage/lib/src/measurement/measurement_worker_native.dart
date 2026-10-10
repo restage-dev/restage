@@ -1470,6 +1470,14 @@ final class _WorkerSession {
     _beginNewSnapshotAfterCheckpoint();
   }
 
+  int advanceForTerminalDiagnosticAfterFinalFrame() {
+    if (nextSequence == kMeasurementWorkerMaximumPortableInteger) {
+      throw StateError('Cannot advance the maximum worker frame sequence');
+    }
+    nextSequence += 1;
+    return nextSequence;
+  }
+
   Uint8List buildCanonicalFrame({required bool isFinal}) {
     final facts = <Map<String, Object?>>[];
     for (var index = 0; index < _slots.length; index += 1) {
@@ -1655,11 +1663,14 @@ final class _WorkerPreparedBatch {
 
   factory _WorkerPreparedBatch.fromDiagnostic(
     _WorkerSession session,
-    Uint8List canonicalSummaryBytes,
-  ) {
+    Uint8List canonicalSummaryBytes, {
+    required bool followsFinalFrame,
+  }) {
     final diagnostic = MeasurementPresentationDiagnosticV1.fromCanonicalBytes(
         canonicalSummaryBytes);
-    final sequence = session.nextSequence;
+    final sequence = followsFinalFrame
+        ? session.advanceForTerminalDiagnosticAfterFinalFrame()
+        : session.nextSequence;
     final request = MeasurementPresentationDiagnosticRequestV1.fromDiagnostic(
       diagnostic,
       captureSessionNonce: session.captureSessionNonce,
@@ -2003,6 +2014,7 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
     _checkpoints[requestId] = _WorkerOwnedDeliveryCheckpointPending(
       session: session,
       isFinal: isFinal,
+      isTerminalDiagnostic: canonicalSummaryBytes != null,
       completer: completer,
     );
     try {
@@ -2284,7 +2296,11 @@ final class _NativeMeasurementWorkerOwnedDeliveryState
           isFinal: isFinal,
           workerOwnedByteCount: _workerOwnedByteCount,
         );
-        pending.session._onCheckpointResult(result, isFinal: pending.isFinal);
+        pending.session._onCheckpointResult(
+          result,
+          isFinal: pending.isFinal,
+          isTerminalDiagnostic: pending.isTerminalDiagnostic,
+        );
         pending.completer.complete(result);
       case MeasurementWorkerOwnedDeliveryDiscardResultMessage(
           :final requestId,
@@ -2459,11 +2475,13 @@ final class _WorkerOwnedDeliveryCheckpointPending {
   const _WorkerOwnedDeliveryCheckpointPending({
     required this.session,
     required this.isFinal,
+    required this.isTerminalDiagnostic,
     required this.completer,
   });
 
   final _NativeWorkerOwnedDeliverySessionState session;
   final bool isFinal;
+  final bool isTerminalDiagnostic;
   final Completer<MeasurementWorkerOwnedDeliveryCheckpointResult> completer;
 }
 
@@ -2494,6 +2512,7 @@ final class _NativeWorkerOwnedDeliverySessionState
   _NativeWorkerOwnedDeliverySessionStatus _status =
       _NativeWorkerOwnedDeliverySessionStatus.active;
   var _postFinalizeDiagnosticReported = false;
+  var _finalizedDiagnosticRetained = false;
   int _lastTimestampMicros = -1;
   int? _barrierRequestId;
 
@@ -2569,6 +2588,7 @@ final class _NativeWorkerOwnedDeliverySessionState
     // delivered first and still describes the attempt that produced it.
     final afterFinalize =
         _status == _NativeWorkerOwnedDeliverySessionStatus.finalized &&
+            _finalizedDiagnosticRetained &&
             !_postFinalizeDiagnosticReported;
     if (_status != _NativeWorkerOwnedDeliverySessionStatus.active &&
         !afterFinalize) {
@@ -2591,6 +2611,10 @@ final class _NativeWorkerOwnedDeliverySessionState
         ),
       );
     }
+    if (_status == _NativeWorkerOwnedDeliverySessionStatus.finalized &&
+        _finalizedDiagnosticRetained) {
+      return _runtime.requestDiscard(this);
+    }
     if (_status != _NativeWorkerOwnedDeliverySessionStatus.active) {
       return Future.value(
         _runtime._discardResult(
@@ -2604,9 +2628,12 @@ final class _NativeWorkerOwnedDeliverySessionState
   void _onCheckpointResult(
     MeasurementWorkerOwnedDeliveryCheckpointResult result, {
     required bool isFinal,
+    required bool isTerminalDiagnostic,
   }) {
     _barrierRequestId = null;
     if (!isFinal) return;
+    _finalizedDiagnosticRetained = !isTerminalDiagnostic &&
+        _admitsTerminalDiagnosticContinuation(result.outcome);
     _status = result.outcome ==
             MeasurementWorkerOwnedDeliveryCheckpointOutcome.unavailable
         ? _NativeWorkerOwnedDeliverySessionStatus.unavailable
@@ -2616,6 +2643,7 @@ final class _NativeWorkerOwnedDeliverySessionState
 
   void _onDiscardResult(MeasurementWorkerOwnedDeliveryDiscardResult result) {
     _barrierRequestId = null;
+    _finalizedDiagnosticRetained = false;
     _status = result.outcome ==
             MeasurementWorkerOwnedDeliveryDiscardOutcome.unavailable
         ? _NativeWorkerOwnedDeliverySessionStatus.unavailable
@@ -2623,8 +2651,10 @@ final class _NativeWorkerOwnedDeliverySessionState
     _runtime._sessions.remove(sessionId);
   }
 
-  void _markUnavailable() =>
-      _status = _NativeWorkerOwnedDeliverySessionStatus.unavailable;
+  void _markUnavailable() {
+    _finalizedDiagnosticRetained = false;
+    _status = _NativeWorkerOwnedDeliverySessionStatus.unavailable;
+  }
 }
 
 /// Native entrypoint for the one long-lived aggregation/outbox/upload worker.
@@ -2730,8 +2760,12 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   final bool debugTracing;
   final Map<String, _WorkerSession> _sessions = {};
 
-  /// The one finalized session still able to name itself in a terminal summary.
-  _WorkerSession? _finalizedDiagnosticSession;
+  /// Finalized sessions that can still each emit one terminal summary.
+  ///
+  /// These coordinates share [maximumSessions] with active sessions. Retaining
+  /// them by ID prevents one finalization from replacing another admitted
+  /// terminal diagnostic while keeping the worker's session ownership bounded.
+  final Map<String, _WorkerSession> _finalizedDiagnosticSessions = {};
   Future<void> _commandTail = Future<void>.value();
   ReceivePort? _commands;
   Timer? _retryTimer;
@@ -2795,14 +2829,16 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   }
 
   void _register(MeasurementWorkerOwnedDeliveryRegisterMessage message) {
-    if (_sessions.length >= maximumSessions) {
+    if (_ownedSessionCount >= maximumSessions) {
       _sendOpenRejected(
         requestId: message.requestId,
         outcome: MeasurementWorkerOpenSessionOutcome.saturated,
       );
       return;
     }
-    if (_sessions.containsKey(message.registration.sessionId)) {
+    if (_sessions.containsKey(message.registration.sessionId) ||
+        _finalizedDiagnosticSessions
+            .containsKey(message.registration.sessionId)) {
       _sendOpenRejected(
         requestId: message.requestId,
         outcome: MeasurementWorkerOpenSessionOutcome.invalid,
@@ -2859,9 +2895,9 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
         frameElapsedMicros: message.frameElapsedMicros);
     if (message.isFinal) {
       _sessions.remove(session.sessionId);
-      // Keep this one session's coordinates so a terminal summary can still
-      // name the attempt whose frame was just delivered.
-      _finalizedDiagnosticSession = session;
+      if (_admitsTerminalDiagnosticContinuation(result.outcome)) {
+        _finalizedDiagnosticSessions[session.sessionId] = session;
+      }
     }
     _sendCheckpointResult(
       requestId: message.requestId,
@@ -2873,13 +2909,16 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
 
   Future<void> _terminalDiagnostic(
       MeasurementWorkerOwnedDeliveryTerminalDiagnosticMessage message) async {
-    final session = _sessions.remove(message.sessionId) ??
-        _takeFinalized(message.sessionId);
+    final activeSession = _sessions.remove(message.sessionId);
+    final finalizedSession =
+        activeSession == null ? _takeFinalized(message.sessionId) : null;
+    final session = activeSession ?? finalizedSession;
     final result = session == null
         ? null
         : await _prepareAndDeliver(session,
             isFinal: true,
-            canonicalSummaryBytes: message.canonicalSummaryBytes);
+            canonicalSummaryBytes: message.canonicalSummaryBytes,
+            terminalDiagnosticFollowsFinalFrame: finalizedSession != null);
     _sendCheckpointResult(
       requestId: message.requestId,
       outcome: result?.outcome ??
@@ -2889,13 +2928,9 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
     );
   }
 
-  /// Takes the retained finalized session when [sessionId] is the one held.
-  _WorkerSession? _takeFinalized(String sessionId) {
-    final retained = _finalizedDiagnosticSession;
-    if (retained == null || retained.sessionId != sessionId) return null;
-    _finalizedDiagnosticSession = null;
-    return retained;
-  }
+  /// Removes and returns the retained finalized session for this exact ID.
+  _WorkerSession? _takeFinalized(String sessionId) =>
+      _finalizedDiagnosticSessions.remove(sessionId);
 
   void _discard(MeasurementWorkerOwnedDeliveryDiscardMessage message) {
     _takeFinalized(message.sessionId);
@@ -2917,6 +2952,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
     required bool isFinal,
     int? frameElapsedMicros,
     Uint8List? canonicalSummaryBytes,
+    bool terminalDiagnosticFollowsFinalFrame = false,
   }) async {
     if (canonicalSummaryBytes == null &&
         !session.admitFrameElapsed(frameElapsedMicros, isFinal: isFinal)) {
@@ -2930,8 +2966,11 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
     late final _WorkerPreparedBatch workerBatch;
     try {
       if (canonicalSummaryBytes != null) {
-        workerBatch =
-            _WorkerPreparedBatch.fromDiagnostic(session, canonicalSummaryBytes);
+        workerBatch = _WorkerPreparedBatch.fromDiagnostic(
+          session,
+          canonicalSummaryBytes,
+          followsFinalFrame: terminalDiagnosticFollowsFinalFrame,
+        );
       } else {
         if (isFinal) session.advanceForFinalization();
         workerBatch =
@@ -3052,6 +3091,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
   ) async {
     _closed = true;
     _retryTimer?.cancel();
+    _clearSessions();
     final result = await uploadCoordinator.purge(message.reason);
     final outcome = switch (result.outcome) {
       MeasurementOutboxPurgeOutcome.purgedUnacknowledged ||
@@ -3088,7 +3128,7 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
         break;
       }
     }
-    _sessions.clear();
+    _clearSessions();
     _closed = true;
     _retryTimer?.cancel();
     events.send(
@@ -3188,19 +3228,58 @@ final class _MeasurementWorkerOwnedDeliveryKernel {
     );
   }
 
-  int get _ownedByteCount => _sessions.values.fold<int>(
+  int get _ownedSessionCount =>
+      _sessions.length + _finalizedDiagnosticSessions.length;
+
+  int get _ownedByteCount => _sessions.values
+      .followedBy(_finalizedDiagnosticSessions.values)
+      .fold<int>(
         0,
         (total, session) => total + session.structuralOwnedByteCount,
       );
+
+  void _clearSessions() {
+    _sessions.clear();
+    _finalizedDiagnosticSessions.clear();
+  }
 
   void _fatal() {
     if (_closed) return;
     _closed = true;
     _retryTimer?.cancel();
+    _clearSessions();
     events.send(MeasurementWorkerOwnedDeliveryProtocol.fatal());
     _commands?.close();
   }
 }
+
+/// Test seam that drives the production delivery kernel through its closed wire.
+@visibleForTesting
+final class MeasurementWorkerOwnedDeliveryKernelTestHarness {
+  MeasurementWorkerOwnedDeliveryKernelTestHarness({
+    required SendPort events,
+    required MeasurementOutboxStore store,
+    required MeasurementOutboxUploadCoordinator uploadCoordinator,
+    required int maximumSessions,
+  }) : _kernel = _MeasurementWorkerOwnedDeliveryKernel(
+          events: events,
+          store: store,
+          uploadCoordinator: uploadCoordinator,
+          maximumSessions: maximumSessions,
+          workerIsolateId: 0,
+          debugTracing: false,
+        );
+
+  final _MeasurementWorkerOwnedDeliveryKernel _kernel;
+
+  /// Handles one exact UI-to-worker protocol value.
+  void dispatch(Object? raw) => _kernel.handle(raw);
+}
+
+bool _admitsTerminalDiagnosticContinuation(
+  MeasurementWorkerOwnedDeliveryCheckpointOutcome outcome,
+) =>
+    outcome != MeasurementWorkerOwnedDeliveryCheckpointOutcome.unavailable;
 
 final class _WorkerOwnedDeliveryPreparedResult {
   const _WorkerOwnedDeliveryPreparedResult({

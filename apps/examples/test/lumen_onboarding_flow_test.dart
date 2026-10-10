@@ -4,6 +4,8 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/onboarding/lumen_onboarding_demo.dart';
 import 'package:restage_example/user_factories.g.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// The flow ends on a fit-to-display (bounded) paywall; give the test a tall
 /// canvas so it renders without a false RenderFlex overflow under the wide Ahem
 /// test font.
@@ -15,8 +17,10 @@ void _useTallSurface(WidgetTester tester) {
 }
 
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

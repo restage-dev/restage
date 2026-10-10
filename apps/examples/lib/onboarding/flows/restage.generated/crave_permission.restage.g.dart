@@ -18,7 +18,7 @@ const cravePermissionFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '7db00203878987dd69ddcd26db9d6e0768b0177c8a77241bff43cb63d84c00b9',
+      '647d32250072b2b3a7540aa7cef0789a0ee84ee39331f45fcfd82e8514f0ef92',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

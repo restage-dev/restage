@@ -16,6 +16,7 @@ void main() {
   const experimentalToolNames = <String>[
     'restage_apply_canonical_mutation',
     'restage_activate_experiment',
+    'restage_rebuild_serving_records',
   ];
 
   late Directory tempDir;
@@ -43,7 +44,7 @@ void main() {
     return {for (final tool in tools.tools) tool.name};
   }
 
-  test('a default server lists neither experimental tool', () async {
+  test('a default server lists no experimental tool', () async {
     final names = await toolNames(environment: const {});
 
     for (final name in experimentalToolNames) {
@@ -60,7 +61,7 @@ void main() {
     expect(names, contains('restage_list_surfaces'));
   });
 
-  test('opting in lists both experimental tools', () async {
+  test('opting in lists every experimental tool', () async {
     final names = await toolNames(
       environment: const {experimentalOptInVariable: '1'},
     );

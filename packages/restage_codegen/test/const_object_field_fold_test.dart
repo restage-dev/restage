@@ -253,7 +253,7 @@ void main() {
       expect(folded.issues, isEmpty);
       expect(folded.dsl, '0xFF112233');
       // The fold re-runs the inline value recipe, so it is byte-identical to
-      // the inline literal by construction (the chapter's structural goal).
+      // the inline literal by construction.
       expect(folded.dsl, inline.dsl);
     });
 

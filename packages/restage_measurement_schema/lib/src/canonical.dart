@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -27,10 +28,13 @@ final class CanonicalFormatException implements Exception {
 /// Byte-exact canonical JSON used by all measurement hashes and fixtures.
 abstract final class CanonicalJsonCodec {
   /// Encodes [value] using the frozen canonical profile.
-  static Uint8List encode(Object? value) {
+  static Uint8List encode(Object? value) =>
+      Uint8List.fromList(utf8.encode(_encodeText(value)));
+
+  static String _encodeText(Object? value) {
     final output = StringBuffer();
     _writeValue(output, value);
-    return Uint8List.fromList(utf8.encode(output.toString()));
+    return output.toString();
   }
 
   /// Decodes only representations already in the frozen canonical form.
@@ -52,8 +56,8 @@ abstract final class CanonicalJsonCodec {
       throw CanonicalFormatException('Invalid JSON: ${error.message}');
     }
 
-    final encoded = encode(value);
-    if (!_bytesEqual(encoded, bytes)) {
+    final canonicalSource = _encodeText(value);
+    if (canonicalSource != source || _hasLeadingUtf8Bom(bytes)) {
       throw const CanonicalFormatException(
         'Input is valid JSON but not the canonical byte representation',
       );
@@ -105,8 +109,15 @@ abstract final class CanonicalJsonCodec {
   static void _writeString(StringBuffer output, String value) {
     _validateWellFormedUtf16(value);
     output.write('"');
+
+    var spanStart = 0;
     for (var index = 0; index < value.length; index++) {
       final unit = value.codeUnitAt(index);
+      if (unit >= 0x20 && unit != 0x22 && unit != 0x5C) continue;
+
+      if (spanStart < index) {
+        output.write(value.substring(spanStart, index));
+      }
       switch (unit) {
         case 0x08:
           output.write(r'\b');
@@ -127,14 +138,14 @@ abstract final class CanonicalJsonCodec {
             output
               ..write(r'\u00')
               ..write(unit.toRadixString(16).padLeft(2, '0'));
-          } else {
-            output.writeCharCode(unit);
-            if (_isHighSurrogate(unit)) {
-              index++;
-              output.writeCharCode(value.codeUnitAt(index));
-            }
           }
       }
+      spanStart = index + 1;
+    }
+    if (spanStart == 0) {
+      output.write(value);
+    } else if (spanStart < value.length) {
+      output.write(value.substring(spanStart));
     }
     output.write('"');
   }
@@ -142,16 +153,23 @@ abstract final class CanonicalJsonCodec {
   static int _compareUtf8(String left, String right) {
     _validateWellFormedUtf16(left);
     _validateWellFormedUtf16(right);
-    final leftBytes = utf8.encode(left);
-    final rightBytes = utf8.encode(right);
-    final sharedLength = leftBytes.length < rightBytes.length
-        ? leftBytes.length
-        : rightBytes.length;
+    final sharedLength =
+        left.length < right.length ? left.length : right.length;
     for (var index = 0; index < sharedLength; index++) {
-      final difference = leftBytes[index] - rightBytes[index];
-      if (difference != 0) return difference;
+      final leftUnit = left.codeUnitAt(index);
+      final rightUnit = right.codeUnitAt(index);
+      if (leftUnit == rightUnit) continue;
+      return _unicodeScalarAt(left, index, leftUnit) -
+          _unicodeScalarAt(right, index, rightUnit);
     }
-    return leftBytes.length - rightBytes.length;
+    return left.length - right.length;
+  }
+
+  static int _unicodeScalarAt(String value, int index, int unit) {
+    if (!_isHighSurrogate(unit)) return unit;
+    return 0x10000 +
+        ((unit - 0xD800) << 10) +
+        (value.codeUnitAt(index + 1) - 0xDC00);
   }
 
   static void _validateWellFormedUtf16(String value) {
@@ -176,6 +194,12 @@ abstract final class CanonicalJsonCodec {
   static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 
   static bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
+
+  static bool _hasLeadingUtf8Bom(List<int> bytes) =>
+      bytes.length >= 3 &&
+      bytes[0] == 0xEF &&
+      bytes[1] == 0xBB &&
+      bytes[2] == 0xBF;
 }
 
 /// Independently interpreted authorities with distinct hash namespaces.
@@ -383,7 +407,10 @@ enum CanonicalHashDomain {
 
   /// Complete typed exact-publication-context closure for one canonical
   /// authoring revision and its sealed dependencies.
-  canonicalPublicationContextClosure('canonical-publication-context-closure');
+  canonicalPublicationContextClosure('canonical-publication-context-closure'),
+
+  /// One durable projection of a proven experiment delivery claim.
+  experimentServingRecord('experiment-serving-record');
 
   const CanonicalHashDomain(this.wireName);
 
@@ -422,8 +449,45 @@ final class CanonicalDigest {
 
 /// Hashes already-canonical [bytes] under a frozen [domain].
 CanonicalDigest canonicalSha256(CanonicalHashDomain domain, List<int> bytes) {
-  final digest = sha256.convert(<int>[...domain.prefixBytes, ...bytes]);
-  return CanonicalDigest(digest.toString());
+  if (bytes is! Uint8List) {
+    final digest = sha256.convert(<int>[...domain.prefixBytes, ...bytes]);
+    return CanonicalDigest(digest.toString());
+  }
+  final output = _CanonicalDigestSink();
+  final sink = sha256.startChunkedConversion(output);
+  sink
+    ..add(domain.prefixBytes)
+    ..add(bytes)
+    ..close();
+  return CanonicalDigest(output.value.toString());
+}
+
+/// Receives the one digest emitted by a chunked [Hash] conversion.
+final class _CanonicalDigestSink implements Sink<Digest> {
+  Digest? _digest;
+
+  Digest get value {
+    final digest = _digest;
+    if (digest == null) {
+      throw StateError('Hash conversion closed without a digest');
+    }
+    return digest;
+  }
+
+  @override
+  void add(Digest value) {
+    if (_digest != null) {
+      throw StateError('Hash conversion emitted more than one digest');
+    }
+    _digest = value;
+  }
+
+  @override
+  void close() {
+    if (_digest == null) {
+      throw StateError('Hash conversion closed without a digest');
+    }
+  }
 }
 
 /// An immutable value with deterministic canonical bytes and deep equality.
@@ -447,6 +511,16 @@ abstract base class CanonicalValue {
   int get hashCode => Object.hash(runtimeType, utf8.decode(canonicalBytes));
 }
 
+/// Declares a document that owns its whole content and hands out nothing a
+/// caller can change, so what it encodes to is fixed at construction.
+///
+/// Only such a document may hold its digest. A document that keeps or exposes
+/// a nested map or list must not declare this: its bytes can change under a
+/// held digest.
+abstract interface class ImmutableCanonicalDocument {}
+
+final _canonicalDigests = Expando<CanonicalDigest>('canonicalDigest');
+
 /// A top-level hash authority with one fixed domain.
 abstract base class CanonicalDocument extends CanonicalValue {
   /// Creates an immutable canonical document.
@@ -456,8 +530,20 @@ abstract base class CanonicalDocument extends CanonicalValue {
   CanonicalHashDomain get hashDomain;
 
   /// Domain-separated digest of [canonicalBytes].
-  CanonicalDigest get canonicalDigest =>
-      canonicalSha256(hashDomain, canonicalBytes);
+  ///
+  /// Recomputed on every read unless the document declares
+  /// [ImmutableCanonicalDocument], in which case it is computed once and held
+  /// for as long as the document lives, at about 64 bytes. The canonical
+  /// bytes are never held.
+  CanonicalDigest get canonicalDigest {
+    if (this is! ImmutableCanonicalDocument) {
+      return canonicalSha256(hashDomain, canonicalBytes);
+    }
+    return _canonicalDigests[this] ??= canonicalSha256(
+      hashDomain,
+      canonicalBytes,
+    );
+  }
 }
 
 /// Strict reader used by closed contract decoders.
@@ -640,6 +726,164 @@ Map<String, Object?> decodeCanonicalObject(List<int> bytes) {
     throw const CanonicalFormatException('Document root must be an object');
   }
   return value;
+}
+
+/// Internal decoder that passes a privately immutable object graph to [callback].
+T decodeStrictCanonicalObject<T>(
+  List<int> bytes,
+  T Function(Map<String, Object?> root) callback,
+) =>
+    callback(_StrictCanonicalMap.fromCanonical(decodeCanonicalObject(bytes)));
+
+/// Internal structural check for an audited strict parsed object graph.
+bool strictCanonicalFidelityCanReturn(
+  Map<String, Object?> supplied,
+  Map<String, Object?> Function() reconstruct,
+) {
+  if (supplied is! _StrictCanonicalMap) return false;
+
+  final expected = reconstruct();
+  try {
+    return _strictCanonicalValuesEqual(expected, supplied);
+  } on Object catch (_) {
+    return false;
+  }
+}
+
+bool _strictCanonicalValuesEqual(Object? expected, Object? supplied) =>
+    switch (supplied) {
+      null => expected == null,
+      bool() => expected is bool && expected == supplied,
+      int() => expected is int && expected == supplied,
+      String() => expected is String && expected == supplied,
+      _StrictCanonicalList() => _strictCanonicalListsEqual(expected, supplied),
+      _StrictCanonicalMap() => _strictCanonicalMapsEqual(expected, supplied),
+      _ => false,
+    };
+
+bool _strictCanonicalListsEqual(
+  Object? expected,
+  _StrictCanonicalList supplied,
+) {
+  if (expected is! List<Object?> || expected.length != supplied.length) {
+    return false;
+  }
+  for (var index = 0; index < supplied.length; index++) {
+    if (!_strictCanonicalValuesEqual(expected[index], supplied[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _strictCanonicalMapsEqual(
+  Object? expected,
+  _StrictCanonicalMap supplied,
+) {
+  if (expected is! Map<String, Object?> || expected.length != supplied.length) {
+    return false;
+  }
+  for (final entry in supplied.entries) {
+    if (!expected.containsKey(entry.key) ||
+        !_strictCanonicalValuesEqual(expected[entry.key], entry.value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+Object? _strictCanonicalValue(Object? value) => switch (value) {
+      Map<String, Object?>() => _StrictCanonicalMap.fromCanonical(value),
+      List<Object?>() => _StrictCanonicalList.fromCanonical(value),
+      _ => value,
+    };
+
+final class _StrictCanonicalMap extends MapBase<String, Object?> {
+  _StrictCanonicalMap._(List<String> keys, List<Object?> values)
+      : _keys = List<String>.unmodifiable(keys),
+        _values = List<Object?>.unmodifiable(values),
+        _indices = Map<String, int>.unmodifiable({
+          for (var index = 0; index < keys.length; index++) keys[index]: index,
+        });
+
+  factory _StrictCanonicalMap.fromCanonical(Map<String, Object?> values) {
+    final keys = <String>[];
+    final closedValues = <Object?>[];
+    for (final entry in values.entries) {
+      keys.add(entry.key);
+      closedValues.add(_strictCanonicalValue(entry.value));
+    }
+    return _StrictCanonicalMap._(keys, closedValues);
+  }
+
+  final List<String> _keys;
+  final List<Object?> _values;
+  final Map<String, int> _indices;
+
+  @override
+  Iterable<String> get keys => _keys;
+
+  @override
+  Iterable<Object?> get values => _values;
+
+  @override
+  Iterable<MapEntry<String, Object?>> get entries => Iterable.generate(
+        _keys.length,
+        (index) => MapEntry(_keys[index], _values[index]),
+      );
+
+  @override
+  Object? operator [](Object? key) {
+    if (key is! String) return null;
+    final index = _indices[key];
+    return index == null ? null : _values[index];
+  }
+
+  @override
+  bool containsKey(Object? key) => key is String && _indices.containsKey(key);
+
+  @override
+  void operator []=(String key, Object? value) {
+    throw UnsupportedError('Strict canonical maps are immutable');
+  }
+
+  @override
+  Object? remove(Object? key) {
+    throw UnsupportedError('Strict canonical maps are immutable');
+  }
+
+  @override
+  void clear() {
+    throw UnsupportedError('Strict canonical maps are immutable');
+  }
+}
+
+final class _StrictCanonicalList extends ListBase<Object?> {
+  _StrictCanonicalList._(List<Object?> values)
+      : _values = List<Object?>.unmodifiable(values);
+
+  factory _StrictCanonicalList.fromCanonical(List<Object?> values) =>
+      _StrictCanonicalList._([
+        for (final value in values) _strictCanonicalValue(value),
+      ]);
+
+  final List<Object?> _values;
+
+  @override
+  int get length => _values.length;
+
+  @override
+  set length(int value) {
+    throw UnsupportedError('Strict canonical lists are immutable');
+  }
+
+  @override
+  Object? operator [](int index) => _values[index];
+
+  @override
+  void operator []=(int index, Object? value) {
+    throw UnsupportedError('Strict canonical lists are immutable');
+  }
 }
 
 /// Validates the common version and kind fields of a document reader.

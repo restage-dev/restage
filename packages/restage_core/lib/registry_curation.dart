@@ -252,9 +252,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     // structured walker as a placeholder. Composition is driven by the
     // `color` synthetic below and the recipe that hoists the BoxDecoration
     // inner ctor args back onto flat properties at translation time.
-    // Richer BoxDecoration shapes (gradient, border, borderRadius,
-    // boxShadow, image, shape) land in a sibling milestone — see the
-    // BoxConstraints follow-up for the same shape.
     synthetics: [
       PropertyEntry(
         wireId: WireId.unallocatedProperty,
@@ -649,8 +646,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     // `Matrix4` the catalog doesn't decompose. Ship the rotation
     // variant — single `angle: double` scalar plus `child` — under
     // the auto-derived `TransformRotate` catalog name so the limited
-    // scope is explicit. `Transform.scale` / `.translate` / general
-    // matrix variants land in a sibling milestone.
+    // scope is explicit. Other constructor variants are not registered here.
     constructorName: 'rotate',
     // `origin: Offset?` surfaces as an optional `offset` slot (the rotation
     // pivot). It is nullable with a null Flutter default — left optional with
@@ -675,8 +671,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     // default, and a required catalog slot would worsen UX for the
     // common case of just toggling visibility without a placeholder.
     // The `maintain*` knobs are accessibility / layout-preservation
-    // overrides for advanced use. Surface in a sibling milestone if
-    // a developer surfaces the gap.
+    // overrides for advanced use and are not exposed by this catalog entry.
     excludeParams: [
       'replacement',
       'maintainState',

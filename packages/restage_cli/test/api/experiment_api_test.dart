@@ -34,7 +34,10 @@ void main() {
         for (final operation in ExperimentAuthoringOperationV1.values)
           operation.wireName,
       ]);
-      expect(methods.toSet(), hasLength(16));
+      expect(
+        methods.toSet(),
+        hasLength(ExperimentAuthoringOperationV1.values.length),
+      );
       expect(urls, {'https://api.example.com/api/experimentAuthoring'});
     });
 
@@ -387,14 +390,109 @@ void main() {
   });
 
   group('ExperimentApi.discoverEveryPage', () {
+    test(
+      'reads one exact published surface without following a cursor',
+      () async {
+        final sent = <ExperimentAuthoringRequestV1>[];
+        final reference = ExperimentExactSurfaceReferenceV1.fromJson({
+          'kind': 'exactSurfaceReference',
+          'surfaceId': fixtureMintedSurfaceId('checkout'),
+          'surfaceRevisionId': fixtureMintedSurfaceRevisionId('checkout.r5'),
+        });
+        final api = _apiOver((request) async {
+          final body = jsonDecode(request.body) as Map<String, Object?>;
+          sent.add(
+            ExperimentAuthoringRequestV1.fromCanonicalBytes(
+              byteDataBytes(body['requestBytes']! as String),
+            ),
+          );
+          return http.Response(
+            jsonEncode(
+              byteDataWire(
+                discoveryPage(
+                  surfaces: const [('checkout', 'checkout.r5')],
+                  nextPageCursor: 'must-not-follow',
+                ),
+              ),
+            ),
+            200,
+          );
+        });
+
+        final drain = await api.discoverEveryPage(
+          target: fixtureTarget,
+          correlationId: fixtureCorrelationId('discoverTargetsAndCapabilities'),
+          exactSurfaceReference: reference,
+        );
+
+        expect(sent, hasLength(1));
+        expect(sent.single.payload, {
+          'exactSurfaceReference': reference.toJson(),
+          'pageSize': 1,
+        });
+        final discovery =
+            (drain as ExperimentPagesAccepted<ExperimentDiscovery>).value;
+        expect(
+          discovery
+              .surfaceCapabilities
+              .single
+              .surfaceReference
+              .surfaceRevisionId
+              .value,
+          fixtureMintedSurfaceRevisionId('checkout.r5'),
+        );
+      },
+    );
+
+    test('preserves an exact discovery refusal', () async {
+      final reference = ExperimentExactSurfaceReferenceV1.fromJson({
+        'kind': 'exactSurfaceReference',
+        'surfaceId': fixtureMintedSurfaceId('checkout'),
+        'surfaceRevisionId': fixtureMintedSurfaceRevisionId('checkout.r5'),
+      });
+      final api = _apiOver(
+        (_) async => http.Response(
+          jsonEncode(
+            byteDataWire(
+              refusalFor(
+                'discoverTargetsAndCapabilities',
+                ExperimentAuthoringRefusalCodeV1.capabilityUnavailable,
+              ),
+            ),
+          ),
+          200,
+        ),
+      );
+
+      final drain = await api.discoverEveryPage(
+        target: fixtureTarget,
+        correlationId: fixtureCorrelationId('discoverTargetsAndCapabilities'),
+        exactSurfaceReference: reference,
+      );
+
+      expect(
+        (drain as ExperimentPagesRefused<ExperimentDiscovery>)
+            .refusal
+            .refusal
+            .code,
+        ExperimentAuthoringRefusalCodeV1.capabilityUnavailable,
+      );
+    });
+
     test('threads each cursor and completes on a null cursor', () async {
       final cursors = <Object?>[];
+      final pageSizes = <Object?>[];
+      final hasExactSurfaceReference = <bool>[];
       final api = _apiOver((request) async {
         final body = jsonDecode(request.body) as Map<String, Object?>;
         final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
           byteDataBytes(body['requestBytes']! as String),
         );
         cursors.add(sent.payload['pageCursor']);
+        pageSizes.add(sent.payload['pageSize']);
+        hasExactSurfaceReference.add(
+          sent.payload.containsKey('exactSurfaceReference'),
+        );
         return http.Response(
           jsonEncode(
             byteDataWire(
@@ -422,6 +520,8 @@ void main() {
       );
 
       expect(cursors, [null, 'cursor-2', 'cursor-3']);
+      expect(pageSizes, [100, 100, 100]);
+      expect(hasExactSurfaceReference, everyElement(isFalse));
       final discovery =
           (drain as ExperimentPagesAccepted<ExperimentDiscovery>).value;
       expect(discovery.namedEnvironments.map((option) => option.label), [

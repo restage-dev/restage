@@ -133,6 +133,44 @@ Uint8List listPage({
   'schemaVersion': kMeasurementSchemaVersion,
 }).canonicalBytes;
 
+/// Canonical bytes of a delivery handover with the sealed audience and arms.
+Uint8List deliveryOptionsAccepted(
+  String correlationId, {
+  List<Map<String, Object?>>? arms,
+  TargetCoordinate? target,
+}) => ExperimentAuthoringResultV1.fromJson({
+  'correlationId': correlationId,
+  'kind': 'accepted',
+  'operation': 'readDeliveryOptions',
+  'response': {
+    'arms':
+        arms ??
+        [
+          {
+            'kind': 'experimentArmDelivery',
+            'label': 'Control',
+            'publishedVersion': 4,
+            'stableArmId': 'arm.control',
+          },
+          {
+            'kind': 'experimentArmDelivery',
+            'label': 'Treatment',
+            'publishedVersion': 5,
+            'stableArmId': 'arm.treatment',
+          },
+        ],
+    'audienceLabel': 'Sweden',
+    'audienceRevisionId': 'audience.sweden.v4',
+    'experimentId': 'experiment.checkout',
+    'kind': 'experimentDeliveryOptionsView',
+    'schemaVersion': kMeasurementSchemaVersion,
+    'surfaceSlug': 'checkout',
+    'surfaceType': 'paywall',
+    'target': (target ?? fixtureTarget).toJson(),
+  },
+  'schemaVersion': kMeasurementSchemaVersion,
+}).canonicalBytes;
+
 /// A `replaceDraft` request document with a caller-chosen unit selection.
 Map<String, Object?> replaceDraftRequestJson({
   required Map<String, Object?> randomizedUnitSelection,
@@ -179,6 +217,9 @@ Map<String, Object?> _requestPayload(
   ExperimentAuthoringOperationV1.readDraft ||
   ExperimentAuthoringOperationV1.validateDraft ||
   ExperimentAuthoringOperationV1.reviewDraft => fixtureDraftBinding,
+  ExperimentAuthoringOperationV1.readDeliveryOptions => const {
+    'experimentId': 'experiment.checkout',
+  },
   ExperimentAuthoringOperationV1.resolveDraft => {
     'draftId': fixtureDraftBinding['draftId'],
   },
@@ -218,6 +259,19 @@ Map<String, Object?> _requestPayload(
     'archived': true,
     'expectedControlPlaneOrdinal': 8,
     'experimentId': 'experiment.checkout',
+  },
+  ExperimentAuthoringOperationV1.registerBuildCapabilities => {
+    'appBuildOrdinal': 412,
+    'contextSchemaRef': {
+      'contextSchemaId': 'assignment.context.checkout',
+      'revisionId': 'assignment.context.checkout.v2',
+      'semanticDigest': 'c' * 64,
+    },
+    'platform': 'ios',
+    'sdkApiLevel': 3,
+  },
+  ExperimentAuthoringOperationV1.readExperimentReadiness => const {
+    'pageSize': 100,
   },
 };
 

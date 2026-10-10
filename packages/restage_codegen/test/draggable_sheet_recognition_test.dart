@@ -255,7 +255,8 @@ void main() {
     });
   });
 
-  group('reason strings are actionable and internal-doc-free', () {
+  group('reason strings describe supported behavior and corrective actions',
+      () {
     final reasons = <String>[
       kDraggableSheetSnapSizesUnsupportedReason,
       kDraggableSheetControllerUnsupportedReason,

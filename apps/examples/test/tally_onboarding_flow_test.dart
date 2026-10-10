@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/onboarding/tally_onboarding_demo.dart';
 
+import '_support/support_directory_channel.dart';
+
 /// Tall canvas so the full-screen onboarding renders without a false
 /// RenderFlex overflow under the wide Ahem test font.
 void _useTallSurface(WidgetTester tester) {
@@ -39,8 +41,10 @@ const _finalCta = {
 };
 
 void main() {
-  setUp(() {
-    Restage.debugReset();
+  useSupportDirectoryChannel();
+
+  setUp(() async {
+    await Restage.debugResetAndWait();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),
