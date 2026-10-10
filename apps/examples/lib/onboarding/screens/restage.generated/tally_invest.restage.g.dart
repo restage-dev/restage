@@ -1,10 +1,12 @@
 part of '../tally_invest.dart';
 
+// ignore_for_file: type=lint
+
 const tallyInvestScreenRef = NeutralFlowScreenRef(
   id: 'tally_invest',
   artifactPath: 'tally_invest.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use tallyInvestScreenRef')

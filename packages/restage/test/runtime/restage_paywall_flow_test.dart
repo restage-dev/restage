@@ -504,7 +504,6 @@ void main() {
         body: RestagePaywall(
           id: 'pro_upgrade',
           resolver: resolver,
-          cacheLastRender: true,
           onEvent: events.add,
           loadingBuilder: (_) => const Text('Loading child'),
           errorBuilder: (_, __) => const Text('Child unavailable'),
@@ -551,7 +550,6 @@ void main() {
         body: RestagePaywall(
           id: 'pro_upgrade',
           resolver: resolver,
-          cacheLastRender: true,
           onEvent: events.add,
           errorBuilder: (_, __) => const Text('Refresh failed visibly'),
         ),
@@ -582,58 +580,12 @@ void main() {
     final currentOld = find.text('Old rendered paywall').evaluate().length;
     final currentError = find.text('Refresh failed visibly').evaluate().length;
 
-    // A remount whose fresh resolution fails must re-host the cached OLD
-    // payload. This probes both that the failed candidate did not evict the
-    // rendered controller's cache and that version 1 remains the render owner.
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: RestagePaywall(
-          id: 'pro_upgrade',
-          resolver: resolver,
-          cacheLastRender: true,
-          onEvent: events.add,
-          errorBuilder: (_, __) => const Text('No cached old paywall'),
-        ),
-      ),
-    ));
-    await tester.pump();
-    expect(resolver.responses, hasLength(3));
-    resolver.responses[2].completeError(const RestagePaywallError(
-      code: RestageErrorCodes.deliveryUnavailable,
-      message: 'fresh remount failed',
-    ));
-    await tester.pumpAndSettle();
-
-    final cachedViews = events.whereType<PaywallViewed>().toList();
-    final cachedLoads = events.whereType<PaywallLoadCompleted>().toList();
-    final observed = (
-      currentOld: currentOld,
-      currentError: currentError,
-      cachedOld: find.text('Old rendered paywall').evaluate().length,
-      remountError: find.text('No cached old paywall').evaluate().length,
-      failures: events.whereType<PaywallLoadFailed>().length,
-      cachedViews: cachedViews.length,
-      cachedVersion:
-          cachedViews.isEmpty ? null : cachedViews.last.publishedVersion,
-      cacheHit: cachedLoads.isEmpty ? null : cachedLoads.last.cacheHit,
-    );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
     expect(
-      observed,
-      (
-        currentOld: 1,
-        currentError: 0,
-        cachedOld: 1,
-        remountError: 0,
-        failures: 0,
-        cachedViews: 1,
-        cachedVersion: 1,
-        cacheHit: true,
-      ),
+      (currentOld: currentOld, currentError: currentError),
+      (currentOld: 1, currentError: 0),
     );
   });
 
@@ -650,7 +602,6 @@ void main() {
         body: RestagePaywall(
           id: 'pro_upgrade',
           resolver: resolver,
-          cacheLastRender: true,
           onEvent: events.add,
           errorBuilder: (_, __) => const Text('Initial render unavailable'),
         ),
@@ -685,7 +636,6 @@ void main() {
         body: RestagePaywall(
           id: 'pro_upgrade',
           resolver: resolver,
-          cacheLastRender: true,
           onEvent: events.add,
           errorBuilder: (_, __) => const Text('Fresh delivery unavailable'),
         ),
@@ -743,7 +693,6 @@ void main() {
         body: RestagePaywall(
           id: 'pro_upgrade',
           resolver: resolver,
-          cacheLastRender: true,
           onEvent: events.add,
           errorBuilder: (_, __) => const Text('Refresh failed visibly'),
         ),
@@ -780,34 +729,6 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    events.clear();
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: RestagePaywall(
-          id: 'pro_upgrade',
-          resolver: resolver,
-          cacheLastRender: true,
-          onEvent: events.add,
-          errorBuilder: (_, __) => const Text('No cached old paywall'),
-        ),
-      ),
-    ));
-    await tester.pump();
-    resolver.responses[2].completeError(const RestagePaywallError(
-      code: RestageErrorCodes.deliveryUnavailable,
-      message: 'fresh remount failed',
-    ));
-    await tester.pumpAndSettle();
-    final viewed = events.whereType<PaywallViewed>().single;
-    final cachedObserved = (
-      old: find.text('Old rendered paywall').evaluate().length,
-      error: find.text('No cached old paywall').evaluate().length,
-      version: viewed.publishedVersion,
-      cacheHit: events.whereType<PaywallLoadCompleted>().single.cacheHit,
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-
     expect(
       currentObserved,
       (
@@ -819,10 +740,6 @@ void main() {
         dismissed: 0,
         escaped: null,
       ),
-    );
-    expect(
-      cachedObserved,
-      (old: 1, error: 0, version: 1, cacheHit: true),
     );
   });
 
@@ -1023,46 +940,8 @@ void main() {
     expect(custom.map((e) => e.eventName), contains('restageNavFoo'));
   });
 
-  testWidgets(
-      'a cacheLastRender flow re-hosted from the last-good cache reports '
-      'PaywallLoadCompleted.cacheHit == true (consistent with the blob path)',
+  testWidgets('an active-resolved flow is not re-hosted when a remount fails',
       (tester) async {
-    Restage.configure(apiKey: 'pk_test');
-    final resolver = _SeqFlowResolver(_navResolvedFlow());
-
-    Widget paywall(List<RestageEvent> received) => MaterialApp(
-          home: Scaffold(
-            body: RestagePaywall(
-              id: 'pro_upgrade',
-              resolver: resolver,
-              cacheLastRender: true,
-              onEvent: received.add,
-            ),
-          ),
-        );
-
-    // Mount 1: the fresh flow resolves + renders + caches (cacheHit false).
-    final first = <RestageEvent>[];
-    await tester.pumpWidget(paywall(first));
-    await tester.pumpAndSettle();
-    expect(find.text('See plans'), findsOneWidget);
-    expect(first.whereType<PaywallLoadCompleted>().single.cacheHit, isFalse);
-
-    // Remount: the fresh resolve fails -> fall back to the cached flow. The
-    // re-host must report a cache HIT (matching the blob fallback).
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpAndSettle();
-    final second = <RestageEvent>[];
-    await tester.pumpWidget(paywall(second));
-    await tester.pumpAndSettle();
-    expect(find.text('See plans'), findsOneWidget);
-    expect(second.whereType<PaywallLoadCompleted>().single.cacheHit, isTrue);
-  });
-
-  testWidgets(
-      'a cacheLastRender ACTIVE-resolved flow is NOT re-hosted un-re-gated from '
-      'the runtime cache — it defers to the resolver hold-last-good (fails '
-      'closed here)', (tester) async {
     Restage.configure(apiKey: 'pk_test');
     // The active-resolved flow renders once, then the resolver fails.
     final resolver =
@@ -1073,7 +952,6 @@ void main() {
             body: RestagePaywall(
               id: 'pro_upgrade',
               resolver: resolver,
-              cacheLastRender: true,
               onEvent: received.add,
             ),
           ),

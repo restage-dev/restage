@@ -12,7 +12,12 @@ import 'package:rfw/rfw.dart'
         WidgetLibrary,
         decodeLibraryBlob;
 
+import '../delivery/delivered_fonts.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_sections_carrier.dart';
+import '../delivery/render_deadline.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
+import '../delivery/surface_race.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show DeclaredEventDispatcher, SurfaceEventHandler;
@@ -29,8 +34,10 @@ import '../resolver/surface_delivery_observations.dart'
         withSurfaceDeliveryObservations;
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
+import '../runtime/first_paint_lease_guard.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 import '../runtime/installed_widget_vocabulary.dart';
+import '../runtime/local_values.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
@@ -98,6 +105,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   _ScreenStage? _stage;
   SurfaceScreenUnavailableError? _unavailableError;
   SurfaceDeliveryObservationCell? _observationCell;
+  RenderDeadline? _renderDeadline;
+
+  /// The compiled widget shown because nothing was ready by the deadline.
+  bool _showDeadlineFallback = false;
   var _resolutionEpoch = 0;
   var _dependenciesReady = false;
   ContextSnapshot? _context;
@@ -138,6 +149,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   @override
   void dispose() {
+    _renderDeadline?.cancel();
     _resolutionEpoch += 1;
     _disposeStage();
     _observationCell = null;
@@ -159,8 +171,13 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     _observationCell = null;
     _declaredEventIds = null;
     final epoch = ++_resolutionEpoch;
+    _renderDeadline?.cancel();
+    _renderDeadline = RenderDeadline.start(Restage.renderDeadline);
     _disposeStage();
-    setState(() => _unavailableError = null);
+    setState(() {
+      _unavailableError = null;
+      _showDeadlineFallback = false;
+    });
     unawaited(_resolveInScope(epoch));
   }
 
@@ -171,12 +188,12 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   Future<void> _resolve(int epoch) async {
     final screen = widget.screen;
-    final provenance = screen.provenance;
-
     final resolver = widget.resolver ?? Restage.defaultSurfaceScreenResolver;
     final ResolvedSurfaceScreen resolved;
     try {
-      resolved = await resolver.resolve(screen);
+      final raced = await _race(resolver, screen, epoch);
+      if (raced == null) return;
+      resolved = raced;
     } on SurfaceScreenUnavailableError catch (error) {
       _fail(epoch, error);
       return;
@@ -192,15 +209,45 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       return;
     }
     if (!_isCurrent(epoch)) return;
+    await _stageResolved(epoch, resolved);
+  }
 
+  Future<void> _stageResolved(int epoch, ResolvedSurfaceScreen resolved) async {
+    if (!(surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true)) {
+      await _resolveLocalAfterInvalidation(epoch);
+      return;
+    }
+    final provenance = widget.screen.provenance;
     try {
       final stage = _validateAndBuildStage(provenance, resolved);
+      stage.transaction = FirstPaintLeaseTransaction(
+        canCommit: () =>
+            _isCurrent(epoch) &&
+            identical(_stage, stage) &&
+            (surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true),
+        isInvalidatedByIdentityReset: () =>
+            !(surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true),
+        commit: () {},
+        afterCommit: () {
+          if (identical(_stage, stage)) stage.presentation.activate();
+        },
+        afterRejection: () {
+          if (!_isCurrent(epoch) || !identical(_stage, stage)) return;
+          _disposeStage();
+          unawaited(_resolveLocalAfterInvalidation(epoch));
+        },
+      );
       await _attachMeasurementSession(stage, resolved);
-      if (!_isCurrent(epoch)) {
+      if (!_isCurrent(epoch) ||
+          !(surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true)) {
         stage.dispose();
+        if (_isCurrent(epoch)) await _resolveLocalAfterInvalidation(epoch);
         return;
       }
-      setState(() => _stage = stage);
+      setState(() {
+        _stage = stage;
+        _showDeadlineFallback = false;
+      });
       _populateData();
     } on SurfaceScreenUnavailableError catch (error) {
       _fail(epoch, error);
@@ -216,8 +263,149 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     }
   }
 
-  /// Opens Measurement only after the host has independently validated the
-  /// exact resolved artifact, and before that artifact can enter the tree.
+  Future<void> _resolveLocalAfterInvalidation(int epoch) async {
+    final resolver = widget.resolver ?? Restage.defaultSurfaceScreenResolver;
+    final raced = racedResolverOf<ResolvedSurfaceScreen>(resolver);
+    final key = raced == null
+        ? null
+        : Restage.storeKeyFor(widget.screen, resolver: resolver);
+    ResolvedSurfaceScreen? local;
+    try {
+      // Keep the original deadline and its ready-local policy. A local lookup
+      // that completes after settlement cannot swap into the host floor.
+      local = raced == null
+          ? null
+          : (await raceSurface<ResolvedSurfaceScreen>(
+              deadline: _renderDeadline!,
+              fresh: () async => null,
+              bestLocal: () => raced.bestLocal(key!),
+            ))
+              .value;
+    } on Object {
+      // Local lookup failures still settle on the host's unavailable floor.
+    }
+    if (!_isCurrent(epoch)) return;
+    if (local != null &&
+        (surfaceAssignmentLeaseFor(local)?.isCurrent ?? true)) {
+      if (raced != null) reportRaceWinner(raced, key!, local);
+      await _stageResolved(epoch, local);
+    } else {
+      if (raced != null) reportRaceWinner(raced, key!, null);
+      _fail(epoch, _missing);
+    }
+  }
+
+  /// Races fresh content against local candidates until the render deadline.
+  ///
+  /// Returns null when the mount shows its compiled widget or keeps waiting.
+  Future<ResolvedSurfaceScreen?> _race(
+    SurfaceScreenResolver resolver,
+    SurfaceScreenRef<E> screen,
+    int epoch,
+  ) async {
+    final deadline = _renderDeadline!;
+    final raced = racedResolverOf<ResolvedSurfaceScreen>(resolver);
+    final key =
+        raced == null ? null : Restage.storeKeyFor(screen, resolver: resolver);
+    void report(ResolvedSurfaceScreen? rendered) {
+      if (raced != null) reportRaceWinner(raced, key!, rendered);
+    }
+
+    late final Future<ResolvedSurfaceScreen?> freshFuture;
+    Future<ResolvedSurfaceScreen?> fresh() => freshFuture = raced == null
+        ? resolver.resolve(screen)
+        : raced.fresh(
+            key!,
+            sendAssignmentKey: true,
+            keyDeadline: deadline.reached,
+          );
+    final outcome = await raceSurface<ResolvedSurfaceScreen>(
+      deadline: deadline,
+      fresh: fresh,
+      bestLocal: raced == null ? () async => null : () => raced.bestLocal(key!),
+      onLateFresh: (resolved) => _presentLateFresh(resolved, epoch, report),
+    );
+    if (!_isCurrent(epoch)) return null;
+    switch (outcome) {
+      case RaceLocal(:final freshError?):
+        // A hosted response that failed its checks never falls back.
+        report(null);
+        throw freshError;
+      case RaceFresh(:final value) || RaceLocal(:final value):
+        report(value);
+        return value;
+      case RaceNone(freshPending: true):
+        if (!widget.unavailable.hide) {
+          report(null);
+          setState(() => _showDeadlineFallback = true);
+        } else {
+          // Nothing to show yet: the mount settles on fresh's outcome.
+          unawaited(freshFuture.then(
+            (resolved) {
+              if (resolved == null) _failLate(null, epoch, report);
+            },
+            onError: (Object error) => _failLate(error, epoch, report),
+          ));
+        }
+        return null;
+      case RaceNone(:final freshError):
+        report(null);
+        if (freshError != null) throw freshError;
+        throw _missing;
+    }
+  }
+
+  static const SurfaceScreenUnavailableError _missing =
+      SurfaceScreenUnavailableError(
+    reason: SurfaceScreenUnavailableReason.missing,
+    message: 'The screen is not available.',
+  );
+
+  void _failLate(
+    Object? error,
+    int epoch,
+    void Function(ResolvedSurfaceScreen?) report,
+  ) {
+    if (!_isCurrent(epoch) || _stage != null || _unavailableError != null) {
+      return;
+    }
+    report(null);
+    _fail(
+      epoch,
+      switch (error) {
+        null => _missing,
+        final SurfaceScreenUnavailableError unavailable => unavailable,
+        _ => SurfaceScreenUnavailableError(
+            reason: SurfaceScreenUnavailableReason.invalidPayload,
+            message: 'The screen could not be resolved.',
+            cause: error,
+          ),
+      },
+    );
+  }
+
+  // Screens do not refresh in place: late content waits for the next mount
+  // unless nothing is shown yet.
+  void _presentLateFresh(
+    ResolvedSurfaceScreen resolved,
+    int epoch,
+    void Function(ResolvedSurfaceScreen?) report,
+  ) {
+    if (!_isCurrent(epoch) ||
+        _stage != null ||
+        _unavailableError != null ||
+        _showDeadlineFallback) {
+      return;
+    }
+    report(resolved);
+    unawaited(withSurfaceDeliveryObservations(
+      cell: _presentationObservations(),
+      resolve: () => _stageResolved(epoch, resolved),
+    ));
+  }
+
+  /// Opens Measurement in the background once the host has validated the
+  /// exact resolved artifact; the screen renders without waiting for it.
   ///
   /// The controller owns all host-independent resolution and degrades to an
   /// inert session. Its failure must never make a validated screen unavailable.
@@ -227,7 +415,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   ) async {
     try {
       stage.attachMeasurementSession(
-        await MeasurementHostSessionController.openForResolvedArtifact(
+        MeasurementHostSessionController.openDeferred(
           resolved,
           presentationObservations: _observationCell?.read,
         ),
@@ -281,12 +469,19 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       surfaceVersion:
           (resolved.publishedRevision ?? provenance.contractVersion).toString(),
     );
+    final data = DynamicContent();
+    final sections = surfaceSectionsFor(resolved);
     return _ScreenStage(
       provenance: provenance,
       resolved: resolved,
       runtime: runtime,
-      data: DynamicContent(),
+      data: data,
       presentation: presentation,
+      sections: sections,
+      local: LocalValues(
+        data,
+        seed: sections.localSeeds[kFlowScreenWidget.widget],
+      ),
     );
   }
 
@@ -331,6 +526,8 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   void _handleEvent(_ScreenStage stage, String name, Object? value) {
     if (!identical(_stage, stage)) return;
+    if (stage.local.intercept(name, value)) return;
+    value = withoutContextItemIndexes(value);
     if (isMeasurementTapEventName(name)) {
       stage.sanitizeAndRecordEvent(value);
       return;
@@ -358,7 +555,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   // Events from the fallback UI decode through the same generated contract.
   void _handleFallbackEvent(String name, Object? value) {
-    if (!mounted || _unavailableError == null) return;
+    if (!mounted || (_unavailableError == null && !_showDeadlineFallback)) {
+      return;
+    }
     final callback = widget.onEvent;
     if (callback == null) return;
     final ({E event})? decoded;
@@ -389,6 +588,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   void _handleRenderFailure(_ScreenStage stage, Object error) {
     if (!identical(_stage, stage)) return;
+    _forgetStoredCandidate();
     _fail(
       _resolutionEpoch,
       SurfaceScreenUnavailableError(
@@ -397,6 +597,17 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         cause: error,
       ),
     );
+  }
+
+  /// Drops the stored copy of a screen that failed to render, so the next
+  /// mount falls back instead of rendering it again.
+  void _forgetStoredCandidate() {
+    final resolver = widget.resolver ?? Restage.defaultSurfaceScreenResolver;
+    final raced = racedResolverOf<ResolvedSurfaceScreen>(resolver);
+    if (raced == null) return;
+    unawaited(raced.forgetStored(
+      Restage.storeKeyFor(widget.screen, resolver: resolver),
+    ));
   }
 
   bool _isPagerStageCurrent(_ScreenStage stage) {
@@ -428,6 +639,12 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   bool _isCurrent(int epoch) => mounted && epoch == _resolutionEpoch;
 
+  static const SurfaceScreenUnavailableError _deadlineFallbackError =
+      SurfaceScreenUnavailableError(
+    reason: SurfaceScreenUnavailableReason.missing,
+    message: 'No content was ready by the render deadline.',
+  );
+
   void _disposeStage() {
     final stage = _stage;
     _stage = null;
@@ -436,7 +653,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   @override
   Widget build(BuildContext context) {
-    final error = _unavailableError;
+    final error = _unavailableError ??
+        (_showDeadlineFallback && _stage == null
+            ? _deadlineFallbackError
+            : null);
     if (error != null) {
       if (widget.unavailable.hide) return const SizedBox.shrink();
       final screen = widget.screen;
@@ -454,28 +674,35 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     if (stage == null) {
       return widget.loadingBuilder?.call(context) ?? const SizedBox.shrink();
     }
-    return RuntimeErrorBoundary(
-      key: ValueKey<String>(
-        '${stage.resolved.contentHash}/${stage.resolved.publishedRevision ?? stage.resolved.contractVersion}',
-      ),
-      onFirstBuildSuccess: () {
-        if (identical(_stage, stage)) stage.presentation.activate();
-      },
-      onError: (error, _) {
-        markSurfaceDeliveryRenderFailed(stage.resolved);
-        _handleRenderFailure(stage, error);
-      },
-      errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: stage.wrapMeasuredRoot(
-        RestagePagerEventScope(
-          sink: _pagerSinkForStage(stage),
-          child: SurfaceDeliveryPaintBoundary(
-            resolved: stage.resolved,
-            child: RemoteWidget(
-              runtime: stage.runtime,
-              data: stage.data,
-              widget: kFlowScreenWidget,
-              onEvent: (name, value) => _handleEvent(stage, name, value),
+    return FirstPaintLeaseScope(
+      transaction: stage.transaction,
+      child: FirstPaintLeaseGuard(
+        transaction: stage.transaction,
+        armed: true,
+        child: RuntimeErrorBoundary(
+          key: ValueKey<String>(
+            '${stage.resolved.contentHash}/${stage.resolved.publishedRevision ?? stage.resolved.contractVersion}',
+          ),
+          onError: (error, _) {
+            markSurfaceDeliveryRenderFailed(stage.resolved);
+            _handleRenderFailure(stage, error);
+          },
+          errorReplacement: (_, __, ___) => const SizedBox.shrink(),
+          child: stage.wrapMeasuredRoot(
+            RestagePagerEventScope(
+              sink: _pagerSinkForStage(stage),
+              child: SurfaceDeliveryPaintBoundary(
+                resolved: stage.resolved,
+                child: DeliveredIconFontLoader.scope(
+                  stage.sections.iconFonts,
+                  child: RemoteWidget(
+                    runtime: stage.runtime,
+                    data: stage.data,
+                    widget: kFlowScreenWidget,
+                    onEvent: (name, value) => _handleEvent(stage, name, value),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -491,14 +718,19 @@ final class _ScreenStage {
     required this.runtime,
     required this.data,
     required this.presentation,
+    required this.sections,
+    required this.local,
   });
 
   final SurfaceScreenRuntimeProvenance provenance;
+  final SurfaceSections sections;
+  final LocalValues local;
   final ResolvedSurfaceScreen resolved;
   final Runtime runtime;
   final DynamicContent data;
   late final ContextPublisher contextPublisher = ContextPublisher(data);
   final RootAnalyticsPresentation presentation;
+  late final FirstPaintLeaseTransaction transaction;
 
   MeasurementHostSessionController? _measurementSession;
   var _disposed = false;
@@ -529,6 +761,8 @@ final class _ScreenStage {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    transaction.supersede();
+    local.clear();
     final measurementSession = _measurementSession;
     if (measurementSession != null) unawaited(measurementSession.teardown());
     presentation.dispose();

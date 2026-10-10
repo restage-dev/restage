@@ -1970,6 +1970,105 @@ final class AnswerFlow extends RestageFlow {
   });
 
   test(
+      'an onboarding answer routes through the flow publication when the '
+      'flow embeds a measured paywall', () async {
+    const paywall = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome_offer.restage.g.dart';
+@Paywall(id: 'welcome_offer')
+final class WelcomeOfferPaywall extends StatelessWidget {
+  const WelcomeOfferPaywall({super.key});
+  static const complete = SurfaceEvent<void>('complete');
+  @override
+  Widget build(BuildContext context) => FilledButton(onPressed: paywallEvent('complete'), child: const Text('Start'));
+}
+''';
+    const goalScreen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/goal_screen.restage.g.dart';
+@Screen(id: 'goal_screen')
+final class GoalScreen extends StatelessWidget {
+  const GoalScreen({super.key});
+  static const choose = SurfaceEvent<String>('choose');
+  @override
+  Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(choose, 'sleep'), child: const Text('Sleep'));
+}
+''';
+    const flow = '''
+import 'package:restage/restage.dart';
+import '../paywalls/welcome_offer.dart';
+import '../screens/goal_screen.dart';
+part 'restage.generated/welcome.restage.g.dart';
+const goal = FlowStateRef<String>('goal', classification: FlowStateClassification.internal);
+@FlowGraph(id: 'welcome', surface: Surface.onboarding)
+final welcome = FlowDefinition(start: GoalScreen, state: [goal], transitions: [Transition(GoalScreen.choose, capture: goal, to: WelcomeOfferPaywall), Transition.complete(WelcomeOfferPaywall.complete)], outbound: FlowOutboundPolicy(surveyAnswers: {'goal': goal}, measurementAnswers: {'goal': FlowAnswerMeasurement.category(outcomeKey: 'onboarding.goal', propertyName: 'goal', categoryLabels: {'sleep': 'Sleep better', 'focus': 'Focus'})}));
+''';
+    final sources = <String, String>{
+      'apps_examples|lib/paywalls/welcome_offer.dart': paywall,
+      'apps_examples|lib/screens/goal_screen.dart': goalScreen,
+      'apps_examples|lib/journeys/welcome.dart': flow,
+    };
+    final readerWriter =
+        await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+    for (final builder in [
+      onboardingScreenBuilder(BuilderOptions.empty),
+      onboardingFlowBuilder(BuilderOptions.empty),
+      const PackageSurfaceCompilerBuilder(_policyOptions)
+    ]) {
+      final result = await testBuilder(builder, sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true);
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    }
+    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+            AssetId('apps_examples', kRestageMeasurementCompilerOutputPath)));
+    final handoff = RestageSurfacePublicationBundle.fromJson(jsonDecode(
+        readerWriter.testing.readString(AssetId(
+            'apps_examples', kRestageSurfacePublicationCompilerBundlePath))));
+    final paywallPublication = output.publications.singleWhere((publication) =>
+        publication.selector.sourceKind == SurfaceSourceKind.paywall);
+    final flowPublication = output.publications
+        .singleWhere((publication) => publication.selector.slug == 'welcome');
+    final flowEntry = handoff.manifest!.publications
+        .singleWhere((entry) => entry.publication.slug == 'welcome');
+    ArtifactOccurrenceEdgeToken flowEdge(
+            bool Function(SurfacePublicationArtifact artifact) test) =>
+        flowPublication.routePlan.artifacts
+            .singleWhere((artifact) =>
+                artifact.artifactId ==
+                measurementArtifactIdForPublicationArtifactV1(
+                    flowPublication.selector,
+                    flowEntry.artifacts.singleWhere(test)))
+            .occurrenceEdgeToken;
+    final documentEdge = flowEdge((artifact) =>
+        artifact.role == SurfacePublicationArtifactRole.flowDocument);
+    final paywallScreenEdge = flowEdge((artifact) =>
+        artifact.role == SurfacePublicationArtifactRole.screenBlob &&
+        artifact.id == 'paywall_welcome_offer');
+
+    final answerRoute = flowPublication.routePlan.routes.singleWhere(
+        (route) => route.orderedCaptureV1?.declaredAnswerV1 != null);
+    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.questionId, 'goal');
+    expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.outcomeKey,
+        'onboarding.goal');
+    expect(answerRoute.artifactOccurrenceEdgeToken, documentEdge);
+    expect(answerRoute.artifactOccurrenceEdgeToken, isNot(paywallScreenEdge));
+    expect(
+        flowPublication.routePlan.routes.where(
+            (route) => route.artifactOccurrenceEdgeToken == paywallScreenEdge),
+        isNotEmpty,
+        reason: 'the embedded paywall keeps its own measured routes');
+    expect(
+        paywallPublication.routePlan.routes
+            .where((route) => route.orderedCaptureV1?.declaredAnswerV1 != null),
+        isEmpty);
+  });
+
+  test(
     'presentation-only legacy screen and flow carry finalized draft digests',
     () async {
       const screen = '''

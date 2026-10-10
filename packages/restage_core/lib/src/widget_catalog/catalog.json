@@ -7643,6 +7643,47 @@
       ]
     },
     {
+      "wireId": "w0058",
+      "name": "Semantics",
+      "library": "restage.core",
+      "category": "decoration",
+      "description": "A widget that annotates the widget tree with a description of the meaning of the widgets.",
+      "flutterType": "package:flutter/src/widgets/basic.dart#Semantics",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0646",
+          "name": "child",
+          "type": "widget",
+          "description": "",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0647",
+          "name": "label",
+          "type": "string",
+          "description": "",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0648",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 7
+    },
+    {
       "wireId": "w0029",
       "name": "SizedBox",
       "library": "restage.core",

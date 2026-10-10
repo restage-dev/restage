@@ -20,5 +20,15 @@ const firstRun = FlowDefinition(
     Transition(GoalStep.pick, capture: goal, to: ReadyStep),
     Transition.complete(ReadyStep.finish),
   ],
-  outbound: FlowOutboundPolicy(terminalResult: {'goal': goal}),
+  outbound: FlowOutboundPolicy(
+    terminalResult: {'goal': goal},
+    surveyAnswers: {'goal': goal},
+    measurementAnswers: {
+      'goal': FlowAnswerMeasurement.category(
+        outcomeKey: 'onboarding.goal',
+        propertyName: 'goal',
+        categoryLabels: {'focus': 'Focus better', 'sleep': 'Sleep better'},
+      ),
+    },
+  ),
 );

@@ -168,6 +168,17 @@ installs `RestageVariantResolver`, which fetches the active published version
 and falls back to the bundled copy when the fetch fails. Flows fetch through
 `ServerFlowResolver` (pass it as `flowResolver:`).
 
+A surface shows within a render deadline, 300 ms by default. If the published
+version hasn't arrived by then, the mount shows the best copy it already has:
+the last published version saved on the device, then your bundled copy, then
+the widget you wrote. The fetch keeps going in the background and saves what it
+receives. The next mount shows it, or the current one updates in place when
+live refresh is on. Set the deadline with
+`Restage.configure(renderDeadline: ...)`, and pass `surfaces:` to fetch the
+surfaces your app knows about as soon as it starts. When a user's experiment
+assignment isn't ready by the deadline, they see the fallback and are not
+counted in the experiment on that mount.
+
 For Restage Cloud, set `baseUrl` to the environment's edge API hostname (for
 example, `https://api-staging.restage.dev` on staging). The SDK sends hosted
 surface and Measurement requests through that hostname.

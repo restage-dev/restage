@@ -263,6 +263,10 @@ void main() {
         expect(request.url.path, '/sdk/v1/surface');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         sent.add(body);
+        expect(body['registrationNonce'], matches(r'^[A-Za-z0-9_-]{43}$'));
+        expect(body['registrationCreatedAtMicros'], isA<int>());
+        expect(body, isNot(contains('assignmentKey')),
+            reason: 'each cold participant enrolls through this mount');
         final now = DateTime.now().microsecondsSinceEpoch;
         return http.Response(
           jsonEncode({
@@ -384,9 +388,14 @@ Future<void> _mountPaywall(
       ),
     ),
   );
-  // Advance the fake clock past the optional input budget before settling the
-  // hosted mount; pumpAndSettle alone need not advance a pending timer.
-  await tester.pump(const Duration(seconds: 3));
+  // Platform observation replies need real event-loop turns. Keep the fake
+  // mount clock within its original deadline while those ready inputs settle.
+  for (var i = 0; i < 200 && find.text('Ready').evaluate().isEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 5)),
+    );
+    await tester.pump();
+  }
   await tester.pumpAndSettle();
 }
 

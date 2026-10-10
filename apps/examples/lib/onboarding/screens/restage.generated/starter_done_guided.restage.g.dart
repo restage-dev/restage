@@ -1,10 +1,12 @@
 part of '../starter_done_guided.dart';
 
+// ignore_for_file: type=lint
+
 const starterDoneGuidedScreenRef = NeutralFlowScreenRef(
   id: 'starter_done_guided',
   artifactPath: 'starter_done_guided.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use starterDoneGuidedScreenRef')

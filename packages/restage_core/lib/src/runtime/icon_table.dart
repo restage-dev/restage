@@ -1,5 +1,9 @@
 import 'package:flutter/foundation.dart' show immutable;
-import 'package:flutter/widgets.dart' show IconData;
+import 'package:flutter/widgets.dart'
+    show BuildContext, Color, Icon, IconData, Widget;
+
+import '../widgets/delivered_icon_fonts.dart';
+import '../widgets/restage_delivered_icon.dart';
 
 /// The icons a Restage surface can render, as one code-point table per icon
 /// font family.
@@ -207,6 +211,52 @@ IconData resolveInstalledIcon(
   if (icon != null) return icon;
   throw RestageIconUnavailableError(
     fontFamily: fontFamily,
+    codePoint: codePoint,
+    matchTextDirection: matchTextDirection,
+  );
+}
+
+/// Builds the icon a surface names by [codePoint] within [fontFamily].
+///
+/// The installed table wins; otherwise a font delivered with the surface that
+/// covers the code point draws it. Throws [RestageIconUnavailableError] when
+/// neither carries it.
+Widget restageIcon(
+  BuildContext context, {
+  required int codePoint,
+  String? fontFamily,
+  bool matchTextDirection = false,
+  double? size,
+  Color? color,
+  String? semanticLabel,
+}) {
+  final family = fontFamily ?? RestageIconTable.materialIconsFamily;
+  final installed = InstalledIconTable.current.lookUp(
+    family,
+    codePoint,
+    matchTextDirection: matchTextDirection,
+  );
+  if (installed != null) {
+    return Icon(
+      installed,
+      size: size,
+      color: color,
+      semanticLabel: semanticLabel,
+    );
+  }
+  final delivered = DeliveredIconFonts.lookUp(context, family);
+  if (delivered != null && delivered.codePoints.contains(codePoint)) {
+    return RestageDeliveredIcon(
+      codePoint: codePoint,
+      fontFamily: delivered.loadedFamily,
+      matchTextDirection: matchTextDirection,
+      size: size,
+      color: color,
+      semanticLabel: semanticLabel,
+    );
+  }
+  throw RestageIconUnavailableError(
+    fontFamily: family,
     codePoint: codePoint,
     matchTextDirection: matchTextDirection,
   );

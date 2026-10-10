@@ -1424,7 +1424,10 @@ final class _WorkerSession {
             record.value != MeasurementWorkerAppendValue.presentation)) {
       _appendTimed(
           record.routeIndex, ordered, channel, record.monotonicTimestampMicros,
-          answerValueV1: record.answerValueV1);
+          answerValueV1: record.answerValueV1,
+          // An item on a route that declares none keeps the plain tap.
+          itemValueV1:
+              ordered.interactionItemsV1 ? record.itemV1?.value : null);
     }
     if (record.value == MeasurementWorkerAppendValue.interaction &&
         slot.hasInteractionCounter) {
@@ -1441,7 +1444,7 @@ final class _WorkerSession {
 
   void _appendTimed(int index, MeasurementOrderedCaptureRouteV1 route,
       MeasurementOccurrenceChannelV1 channel, int micros,
-      {MeasurementAnswerValueV1? answerValueV1}) {
+      {MeasurementAnswerValueV1? answerValueV1, String? itemValueV1}) {
     if (_orderedIncomplete || !route.channels.contains(channel)) return;
     final timed = _timed.putIfAbsent(index, () => []);
     if (_orderedCount == measurementMaximumTimedOccurrencesPerRoot ||
@@ -1453,7 +1456,8 @@ final class _WorkerSession {
         ordinal: ++_orderedCount,
         channel: channel,
         elapsedMicros: micros,
-        answerValueV1: answerValueV1));
+        answerValueV1: answerValueV1,
+        itemValueV1: itemValueV1));
   }
 
   bool admitFrameElapsed(int? elapsed, {required bool isFinal}) {

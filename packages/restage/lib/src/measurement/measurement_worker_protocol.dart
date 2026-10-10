@@ -100,6 +100,21 @@ enum MeasurementWorkerAppendAcknowledgementOutcome {
   }
 }
 
+/// One validated item value carried by an interaction append.
+@immutable
+final class MeasurementWorkerAppendItem {
+  const MeasurementWorkerAppendItem._(this.value);
+
+  /// Returns the item when [value] is portable, else null.
+  static MeasurementWorkerAppendItem? tryCreate(String value) =>
+      measurementInteractionItemIsValidV1(value)
+          ? MeasurementWorkerAppendItem._(value)
+          : null;
+
+  /// Portable item value.
+  final String value;
+}
+
 /// Immutable compact record accepted at the UI capture edge.
 ///
 /// It deliberately carries only a precomputed route index, monotonic time, and
@@ -113,9 +128,13 @@ final class MeasurementWorkerAppendRecord {
     required this.monotonicTimestampMicros,
     required this.value,
     this.answerValueV1,
+    this.itemV1,
   }) {
     if ((answerValueV1 != null &&
             value != MeasurementWorkerAppendValue.interaction) ||
+        (itemV1 != null &&
+            (value != MeasurementWorkerAppendValue.interaction ||
+                answerValueV1 != null)) ||
         routeIndex < 0 ||
         monotonicTimestampMicros < 0 ||
         monotonicTimestampMicros > kMeasurementWorkerMaximumPortableInteger) {
@@ -132,6 +151,9 @@ final class MeasurementWorkerAppendRecord {
   /// Closed observation value.
   final MeasurementWorkerAppendValue value;
   final MeasurementAnswerValueV1? answerValueV1;
+
+  /// Which rendered item a tap hit, when its route declares items.
+  final MeasurementWorkerAppendItem? itemV1;
 }
 
 /// Fixed limits for one worker-owned capture session.
@@ -941,6 +963,7 @@ abstract final class MeasurementWorkerProtocol {
                 scale
               ],
           },
+        if (record.itemV1 != null) ['item', record.itemV1!.value],
       ];
 
   /// Builds one ordered checkpoint barrier.
@@ -1186,10 +1209,17 @@ abstract final class MeasurementWorkerProtocol {
     if (value == null) {
       throw const MeasurementWorkerProtocolException('invalid_append_value');
     }
+    final item = switch (values.length == 6 ? null : values[6]) {
+      ['item', final String value] =>
+        MeasurementWorkerAppendItem.tryCreate(value) ??
+            (throw const MeasurementWorkerProtocolException(
+                'invalid_item_value')),
+      _ => null,
+    };
     return MeasurementWorkerAppendMessage(
       sessionId: _requireString(values[2]),
       record: MeasurementWorkerAppendRecord(
-        answerValueV1: values.length == 6
+        answerValueV1: values.length == 6 || item != null
             ? null
             : switch (values[6]) {
                 ['category', final String value] =>
@@ -1202,6 +1232,7 @@ abstract final class MeasurementWorkerProtocol {
                 _ => throw const MeasurementWorkerProtocolException(
                     'invalid_answer_value'),
               },
+        itemV1: item,
         routeIndex: _requireInt(values[3]),
         monotonicTimestampMicros: _requireInt(values[4]),
         value: value,

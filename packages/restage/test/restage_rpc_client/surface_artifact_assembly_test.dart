@@ -155,4 +155,33 @@ void main() {
       }
     });
   });
+
+  group('payload sections', () {
+    final seeded = BlobSurfacePayload(
+      minClient: kSurfaceFeatureClientFloor,
+      blob: Uint8List.fromList(const <int>[1, 2, 3]),
+      localSeeds: const <String, Map<String, Object>>{
+        'form': <String, Object>{'name': ''},
+      },
+    );
+
+    test('a sections frame under the sections format assembles', () {
+      final outcome = assembleSurfaceArtifact(
+        descriptor: describing(
+          seeded,
+          payloadFormatVersion: kSurfaceArtifactSectionsPayloadFormatVersion,
+        ),
+        artifactBytes: seeded.canonicalBytes,
+      );
+      expect(outcome, isA<SurfaceArtifactAssembled>());
+    });
+
+    test('a sections frame under the older format is refused', () {
+      final outcome = assembleSurfaceArtifact(
+        descriptor: describing(seeded),
+        artifactBytes: seeded.canonicalBytes,
+      );
+      expect(outcome, isA<SurfaceArtifactUndecodable>());
+    });
+  });
 }

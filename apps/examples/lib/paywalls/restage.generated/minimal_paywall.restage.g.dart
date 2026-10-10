@@ -1,5 +1,7 @@
 part of '../minimal_paywall.dart';
 
+// ignore_for_file: type=lint
+
 final class MinimalPaywallSurface extends StatelessWidget {
   const MinimalPaywallSurface({
     super.key,

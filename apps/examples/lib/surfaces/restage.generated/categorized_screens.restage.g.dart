@@ -1,5 +1,7 @@
 part of '../categorized_screens.dart';
 
+// ignore_for_file: type=lint
+
 sealed class GeneralStatusEvent {
   const GeneralStatusEvent();
 }

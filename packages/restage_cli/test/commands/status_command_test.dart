@@ -28,6 +28,39 @@ void main() {
     }
   });
 
+  for (final missing in ['project', 'app']) {
+    test(
+      'a config without $missing names the key after one scope read',
+      () async {
+        final calls = <Map<String, dynamic>>[];
+        await seedCredential(store, endpoint: 'https://api.example.com/');
+        await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString(
+          '${missing == 'project' ? 'app: mobile' : 'project: alpha'}\n',
+        );
+        final exitCode = await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: _statusClient(
+            calls: calls,
+            workspaces: const [],
+            organizations: const [
+              {'organizationId': 7, 'slug': 'default', 'name': 'Default'},
+            ],
+          ),
+        ).run(['status', '-C', tempDir.path]);
+        expect(exitCode, 0, reason: stderr.toString());
+        expect(calls, hasLength(1));
+        expect(
+          stdout.toString(),
+          contains('restage_config.yaml has no `$missing`'),
+        );
+        expect(stdout.toString(), isNot(contains('$missing: null')));
+        expect(stdout.toString(), isNot(contains('config: project')));
+      },
+    );
+  }
+
   test('prints identity, endpoint, and active config context', () async {
     final calls = <Map<String, dynamic>>[];
     await seedCredential(store, endpoint: 'https://api.example.com/');

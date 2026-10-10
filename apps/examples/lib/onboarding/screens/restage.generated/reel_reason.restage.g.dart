@@ -1,10 +1,12 @@
 part of '../reel_reason.dart';
 
+// ignore_for_file: type=lint
+
 const reelReasonScreenRef = NeutralFlowScreenRef(
   id: 'reel_reason',
   artifactPath: 'reel_reason.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use reelReasonScreenRef')

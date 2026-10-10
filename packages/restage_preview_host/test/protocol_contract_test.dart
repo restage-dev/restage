@@ -1324,6 +1324,76 @@ void main() {
       expect(geometry.map((snapshot) => snapshot.generation), <int>[0, 3]);
     });
 
+    test('a repeated path arrives with every instance and its item', () async {
+      transport.receive(_origin, _ready());
+      final geometry = <GeometrySnapshot>[];
+      provider.geometry.listen(geometry.add);
+      await provider.render(_request(1));
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'settled',
+        'epoch': 1,
+        'diagnostics': <Object?>[],
+      });
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'geometry',
+        'epoch': 1,
+        'generation': 0,
+        'rects': <String, Object?>{
+          '["main"]': <double>[0, 0, 10, 10],
+          '["main","child"]': <double>[0, 0, 5, 5],
+        },
+        'instances': <String, Object?>{
+          '["main"]': <Object?>[
+            <Object?>[0, 0, 10, 10, 'a'],
+            <Object?>[0, 10, 10, 10, 'b'],
+          ],
+        },
+      });
+      expect(geometry, hasLength(1));
+      expect(
+          geometry.single.rects['["main"]'], const Rect.fromLTWH(0, 0, 10, 10));
+      expect(geometry.single.instances, <String, List<GeometryInstance>>{
+        '["main"]': const <GeometryInstance>[
+          GeometryInstance(Rect.fromLTWH(0, 0, 10, 10), item: 'a'),
+          GeometryInstance(Rect.fromLTWH(0, 10, 10, 10), item: 'b'),
+        ],
+        '["main","child"]': const <GeometryInstance>[
+          GeometryInstance(Rect.fromLTWH(0, 0, 5, 5)),
+        ],
+      });
+    });
+
+    test('instances must lead with the path\'s rect', () {
+      for (final instances in <Map<String, List<GeometryInstance>>>{
+        <String, List<GeometryInstance>>{
+          '["main"]': const <GeometryInstance>[
+            GeometryInstance(Rect.fromLTWH(0, 5, 1, 1)),
+          ],
+        },
+        <String, List<GeometryInstance>>{
+          '["main"]': const <GeometryInstance>[],
+        },
+        <String, List<GeometryInstance>>{
+          '["other"]': const <GeometryInstance>[
+            GeometryInstance(Rect.fromLTWH(0, 0, 1, 1)),
+          ],
+        },
+      }) {
+        expect(
+          () => GeometrySnapshot(
+            epoch: 1,
+            generation: 0,
+            rects: const <String, Rect>{'["main"]': Rect.fromLTWH(0, 0, 1, 1)},
+            instances: instances,
+          ),
+          throwsArgumentError,
+          reason: '$instances must be rejected',
+        );
+      }
+    });
+
     test('11. rejects invalid geometry and accepts negative origins and zeros',
         () async {
       final invalidRects = <Rect>[
@@ -2413,6 +2483,64 @@ void main() {
       final bytes = Uint8List.fromList(<int>[0, 127, 128, 255]);
       receiveRender(1, blob: bytes);
       expect(requests.single.blob, bytes);
+    });
+
+    test('sends every instance of a repeated or item-bearing path', () async {
+      receiveRender(1);
+      results[1]!.complete(
+        BundleRenderResult(
+          geometry: const <String, Rect>{
+            '["main"]': Rect.fromLTWH(0, 0, 10, 10),
+            '["main","child"]': Rect.fromLTWH(0, 0, 5, 5),
+            '["tag"]': Rect.fromLTWH(1, 1, 2, 2),
+          },
+          instances: const <String, List<GeometryInstance>>{
+            '["main"]': <GeometryInstance>[
+              GeometryInstance(Rect.fromLTWH(0, 0, 10, 10)),
+              GeometryInstance(Rect.fromLTWH(0, 10, 10, 10)),
+            ],
+            '["main","child"]': <GeometryInstance>[
+              GeometryInstance(Rect.fromLTWH(0, 0, 5, 5)),
+            ],
+            '["tag"]': <GeometryInstance>[
+              GeometryInstance(Rect.fromLTWH(1, 1, 2, 2), item: 'x'),
+            ],
+          },
+        ),
+      );
+      await pumpEventQueue();
+      server.publishGeometry(
+        1,
+        const <String, Rect>{'["main"]': Rect.fromLTWH(0, 0, 10, 10)},
+        instances: const <String, List<GeometryInstance>>{
+          '["main"]': <GeometryInstance>[
+            GeometryInstance(Rect.fromLTWH(0, 0, 10, 10), item: 'a'),
+            GeometryInstance(Rect.fromLTWH(0, 10, 10, 10), item: 'b'),
+          ],
+        },
+      );
+      frames.flush();
+      final geometry = transport.sent
+          .where((message) => message.payload['type'] == 'geometry')
+          .map((message) => message.payload['instances'])
+          .toList();
+      expect(geometry, <Object?>[
+        <String, Object?>{
+          '["main"]': <Object?>[
+            <Object?>[0.0, 0.0, 10.0, 10.0],
+            <Object?>[0.0, 10.0, 10.0, 10.0],
+          ],
+          '["tag"]': <Object?>[
+            <Object?>[1.0, 1.0, 2.0, 2.0, 'x'],
+          ],
+        },
+        <String, Object?>{
+          '["main"]': <Object?>[
+            <Object?>[0.0, 0.0, 10.0, 10.0, 'a'],
+            <Object?>[0.0, 10.0, 10.0, 10.0, 'b'],
+          ],
+        },
+      ]);
     });
 
     test('10. coalesces N geometry mutations to one emission per frame',

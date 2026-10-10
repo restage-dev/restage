@@ -68,11 +68,11 @@ final class MeasurementRouteEmissionBinding {
 final class MeasurementRouteEmissionPlan {
   /// Creates a plan from explicit structural event bindings.
   factory MeasurementRouteEmissionPlan(
-    Iterable<MeasurementRouteEmissionBinding> bindings,
-  ) {
+    Iterable<MeasurementRouteEmissionBinding> bindings, {
+    String? sourceRootIdentity,
+  }) {
     final markerByOccurrence = <MeasurementEventOccurrence, String>{};
     final refs = <String>{};
-    String? sourceRootIdentity;
     for (final binding in bindings) {
       final reference = binding.generatedReferenceId.value;
       if (!refs.add(reference)) {
@@ -165,7 +165,12 @@ final class MeasurementRouteEmissionPlan {
         ),
       );
     }
-    return MeasurementRouteEmissionPlan(bindings);
+    // The root scope is kept when no event is measured, so the translator
+    // can still say why.
+    return MeasurementRouteEmissionPlan(
+      bindings,
+      sourceRootIdentity: discovery.sourceProvenance?.resolvedSourceIdentity,
+    );
   }
 
   final Map<MeasurementEventOccurrence, String> _markerByOccurrence;
@@ -192,6 +197,7 @@ abstract final class MeasurementRouteEventMarkerEmitter {
   static String attach(
     String dsl, {
     required String? marker,
+    String? item,
   }) {
     final map = _eventArgumentMap(dsl);
     if (map == null) return dsl;
@@ -209,6 +215,8 @@ abstract final class MeasurementRouteEventMarkerEmitter {
     final separator = body.isEmpty ? '' : ', ';
     return '${dsl.substring(0, map.open + 1)}$body$separator'
         '$kMeasurementRouteReferenceMarkerKeyV1: ${_quote(marker)}'
+        '${item == null ? '' : ', $kMeasurementPublicationItemArgumentKeyV1: '
+            '$item'}'
         '${dsl.substring(map.close)}';
   }
 

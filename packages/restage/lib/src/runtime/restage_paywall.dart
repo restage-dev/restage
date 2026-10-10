@@ -10,7 +10,13 @@ import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
+import '../delivery/delivered_fonts.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_sections_carrier.dart';
+import '../delivery/render_deadline.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
+import '../delivery/surface_race.dart';
+import '../delivery/surface_ref.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
@@ -24,7 +30,10 @@ import '../flow/flow_experiment_mount.dart' show FlowMountRevalidationBoundary;
 import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
 import '../measurement/measurement_event_sanitizer.dart';
+import 'local_values.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart'
+    show measurementExperimentAssignmentFor;
 import '../resolver/surface_delivery_observations.dart'
     show
         SurfaceDeliveryObservationCell,
@@ -50,22 +59,8 @@ import 'paywall_controller.dart';
 import 'paywall_error.dart';
 import 'state_variables.dart';
 
-/// SDK-internal cache for the most-recently successfully resolved+rendered
-/// payload per paywall id — a blob (its bytes + served version) or a flow (its
-/// resolved document + screen blobs). Populated only when
-/// [RestagePaywall.cacheLastRender] is true at the time of a successful render.
-/// Cleared on [Restage.debugReset]. The sealed payload carries the served
-/// content identity, so a cache-fallback render reports the version of the
-/// surface the user actually sees.
-final Map<String, ResolvedPaywallPayload> _lastSuccessfulPayloads =
-    <String, ResolvedPaywallPayload>{};
-
-/// Internal: clears the in-memory paywall cache. Called by [Restage.debugReset]
-/// to drop cached state between test runs and from app startup paths that need
-/// to invalidate the cache.
-void resetRestagePaywallCache() {
-  _lastSuccessfulPayloads.clear();
-}
+/// Internal: kept for callers that reset SDK state; there is no paywall cache.
+void resetRestagePaywallCache() {}
 
 /// Visible-for-testing alias for [resetRestagePaywallCache], exported so
 /// tests can clear the cache without going through the full
@@ -110,6 +105,7 @@ class RestagePaywall extends StatefulWidget {
     this.resolver,
     this.onEvent,
     this.controller,
+    @Deprecated('Has no effect; the last accepted content is always kept.')
     this.cacheLastRender = false,
     this.loadingBuilder,
     this.errorBuilder,
@@ -146,12 +142,12 @@ class RestagePaywall extends StatefulWidget {
   /// Optional handle for programmatic dismiss / fireEvent from the host.
   final RestagePaywallController? controller;
 
-  /// When true, the most recently successfully decoded blob for [id] is
-  /// retained in an SDK-internal cache. On a subsequent failed resolution,
-  /// the cached blob is rendered as a fallback. Default: false.
+  /// Has no effect: the last content this install accepted is always kept.
+  @Deprecated('Has no effect; the last accepted content is always kept.')
   final bool cacheLastRender;
 
-  /// Builder shown while the paywall is loading. Default: [SizedBox.shrink].
+  /// Builder shown while the paywall is loading, for at most the render
+  /// deadline when [fallbackBuilder] is set. Default: [SizedBox.shrink].
   final WidgetBuilder? loadingBuilder;
 
   /// Builder shown when the paywall fails to load. Default: [SizedBox.shrink].
@@ -178,6 +174,8 @@ class RestagePaywall extends StatefulWidget {
 }
 
 class _RestagePaywallState extends State<RestagePaywall> {
+  static const String _paywallRootWidget = 'Paywall';
+
   static const LibraryName _paywallLibrary =
       LibraryName(<String>['restage', 'paywall']);
 
@@ -187,6 +185,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
   int _loadEpoch = 0;
   RestagePaywallError? _error;
   bool _useAuthoredFallback = false;
+  late final RenderDeadline _renderDeadline;
+
+  /// The compiled widget shown because nothing was ready by the deadline.
+  bool _showDeadlineFallback = false;
+  static const RestagePaywallError _deadlineFallbackError = RestagePaywallError(
+    code: RestageErrorCodes.deliveryUnavailable,
+    message: 'No content was ready by the render deadline.',
+  );
   DateTime? _mountedAt;
   bool _viewedFired = false;
   final Expando<bool> _viewedPresentations =
@@ -290,6 +296,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       surfaceId: widget.id,
     );
     _mountedAt = DateTime.now();
+    _renderDeadline = RenderDeadline.start(Restage.renderDeadline);
     widget.controller?.attachInternal(
       onDismiss: ({required DismissReason reason}) {
         _fireDismissed(reason);
@@ -356,7 +363,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // Nothing has rendered yet: the in-flight mount fetch is already
     // fresh-first, so a refresh would be redundant (and could race it).
     if (_blobPresentation == null &&
-        !(_flowTransaction?.isCommitted ?? false)) {
+        !(_flowTransaction?.isCommitted ?? false) &&
+        !_showDeadlineFallback) {
       return;
     }
     await _load(isRefresh: true);
@@ -530,11 +538,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _dismissedFired = true;
     final owner = _activeFlowMeasurementController;
     if (owner != null && !_terminalMeasurementControllers.contains(owner)) {
-      _flowMeasurementSessions[owner]
-          ?.recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+      _flowMeasurementSessions[owner]?.recordSurfaceEnd();
     }
-    _blobPresentation?.measurementSession
-        .recordLifecycle(MeasurementOccurrenceChannelV1.dismiss);
+    _blobPresentation?.measurementSession.recordSurfaceEnd();
     _fireEvent(PaywallDismissed(
       paywallId: widget.id,
       reason: reason,
@@ -568,9 +574,213 @@ class _RestagePaywallState extends State<RestagePaywall> {
     try {
       final payload = await withSurfaceDeliveryObservations(
         cell: _presentationObservations(),
-        resolve: () => _resolveStablePayload(resolver, epoch),
+        resolve: () => isRefresh
+            ? _resolveStablePayload(resolver, epoch)
+            : _raceInitialPayload(resolver, epoch, stopwatch),
       );
       if (payload == null) return;
+      await _presentPayload(
+        payload,
+        stopwatch: stopwatch,
+        epoch: epoch,
+        isRefresh: isRefresh,
+      );
+    } on RestagePaywallError catch (e) {
+      if (!mounted || epoch != _loadEpoch) return;
+      // A failed refresh keeps the current render and stays silent.
+      if (isRefresh) return;
+      await _finishInitialLoadFailure(e, stopwatch, epoch);
+    } catch (e, st) {
+      if (!mounted || epoch != _loadEpoch) return;
+      // A failed refresh keeps the current render and stays silent.
+      if (isRefresh) return;
+      _reportUnexpectedLoadFailure(e, st);
+      await _finishInitialLoadFailure(
+        _unexpectedLoadError(e, st),
+        stopwatch,
+        epoch,
+      );
+    }
+  }
+
+  /// Races fresh content against local candidates until the render deadline.
+  ///
+  /// Returns null when the mount shows its compiled widget or keeps waiting.
+  Future<ResolvedPaywallPayload?> _raceInitialPayload(
+    VariantResolver resolver,
+    int epoch,
+    Stopwatch stopwatch,
+  ) async {
+    final raced = racedResolverOf<ResolvedPaywallPayload>(resolver);
+    final key = raced == null
+        ? null
+        : Restage.storeKeyFor(PaywallRef(widget.id), resolver: resolver);
+    void report(ResolvedPaywallPayload? rendered) {
+      if (raced != null) reportRaceWinner(raced, key!, rendered);
+    }
+
+    late final Future<ResolvedPaywallPayload?> freshFuture;
+    final outcome = await withPaywallPresentationGuard(
+      guard: () => mounted && epoch == _loadEpoch,
+      resolve: () => raceSurface<ResolvedPaywallPayload>(
+        deadline: _renderDeadline,
+        fresh: () => freshFuture = raced == null
+            ? _resolveStablePayload(resolver, epoch)
+            : raced.fresh(
+                key!,
+                sendAssignmentKey: true,
+                keyDeadline: _renderDeadline.reached,
+              ),
+        bestLocal:
+            raced == null ? () async => null : () => raced.bestLocal(key!),
+        onLateFresh: (payload) =>
+            _presentLateFresh(payload, epoch, stopwatch, report),
+      ),
+    );
+    if (!mounted || epoch != _loadEpoch) {
+      outcome.value?.abandonHostedLastGood();
+      return null;
+    }
+    switch (outcome) {
+      case RaceFresh(:final value) || RaceLocal(:final value):
+        report(value);
+        return value;
+      case RaceNone(freshPending: true):
+        if (widget.fallbackBuilder != null && !_viewedFired) {
+          report(null);
+          setState(() => _showDeadlineFallback = true);
+        } else {
+          // Nothing to show yet: the mount settles on fresh's outcome.
+          unawaited(freshFuture.then(
+            (payload) {
+              if (payload == null)
+                _failLate(null, null, epoch, stopwatch, report);
+            },
+            onError: (Object error, StackTrace stack) =>
+                _failLate(error, stack, epoch, stopwatch, report),
+          ));
+        }
+        return null;
+      case RaceNone(:final freshError):
+        report(null);
+        if (freshError != null) throw freshError;
+        throw RestagePaywallError(
+          code: RestageErrorCodes.deliveryUnavailable,
+          message: 'No content is available for ${widget.id}.',
+        );
+    }
+  }
+
+  /// A mount that showed nothing at the deadline fails once fresh fails.
+  void _failLate(
+    Object? error,
+    StackTrace? stack,
+    int epoch,
+    Stopwatch stopwatch,
+    void Function(ResolvedPaywallPayload?) report,
+  ) {
+    if (!mounted || epoch != _loadEpoch || !_nothingShown) return;
+    report(null);
+    final RestagePaywallError failure;
+    if (error == null) {
+      failure = RestagePaywallError(
+        code: RestageErrorCodes.deliveryUnavailable,
+        message: 'No content is available for ${widget.id}.',
+      );
+    } else if (error is RestagePaywallError) {
+      failure = error;
+    } else {
+      _reportUnexpectedLoadFailure(error, stack ?? StackTrace.current);
+      failure = _unexpectedLoadError(error, stack ?? StackTrace.current);
+    }
+    unawaited(_finishInitialLoadFailure(failure, stopwatch, epoch));
+  }
+
+  bool get _nothingShown =>
+      _blobPresentation == null &&
+      _pendingBlobStage == null &&
+      _flowController == null &&
+      _error == null &&
+      !_showDeadlineFallback;
+
+  /// Fresh content accepted after the mount already settled.
+  void _presentLateFresh(
+    ResolvedPaywallPayload payload,
+    int epoch,
+    Stopwatch stopwatch,
+    void Function(ResolvedPaywallPayload?) report,
+  ) {
+    if (!mounted || epoch != _loadEpoch) {
+      payload.abandonHostedLastGood();
+      return;
+    }
+    if (_nothingShown) {
+      _lateReports[payload] = LateRenderReport(() => report(payload));
+      unawaited(_presentGuarded(payload, stopwatch, epoch, isRefresh: false));
+      return;
+    }
+    final liveRefresh = Restage.effectiveLiveRefreshTriggers(
+      widget.id,
+      widgetOverride: widget.liveRefresh,
+    ).isNotEmpty;
+    // Assigned content arriving after the mount settled is kept for the next
+    // mount; showing it now would expose an arm the mount did not wait for.
+    if (!liveRefresh ||
+        _error != null ||
+        !_canSwap() ||
+        _carriesAssignment(payload)) {
+      payload.abandonHostedLastGood();
+      return;
+    }
+    _lateReports[payload] = LateRenderReport(() => report(payload));
+    unawaited(
+      _presentGuarded(payload, stopwatch, ++_loadEpoch, isRefresh: true),
+    );
+  }
+
+  static bool _carriesAssignment(ResolvedPaywallPayload payload) {
+    final owner = switch (payload) {
+      BlobPaywallPayload(:final variant) => variant,
+      FlowPaywallPayload(:final flow) => flow,
+    };
+    return payload.hasHostedExperimentAuthority ||
+        measurementExperimentAssignmentFor(owner) != null;
+  }
+
+  Future<void> _presentGuarded(
+    ResolvedPaywallPayload payload,
+    Stopwatch stopwatch,
+    int epoch, {
+    required bool isRefresh,
+  }) async {
+    try {
+      await _presentPayload(
+        payload,
+        stopwatch: stopwatch,
+        epoch: epoch,
+        isRefresh: isRefresh,
+      );
+    } on RestagePaywallError catch (e) {
+      if (!mounted || epoch != _loadEpoch || isRefresh) return;
+      await _finishInitialLoadFailure(e, stopwatch, epoch);
+    } catch (e, st) {
+      if (!mounted || epoch != _loadEpoch || isRefresh) return;
+      _reportUnexpectedLoadFailure(e, st);
+      await _finishInitialLoadFailure(
+        _unexpectedLoadError(e, st),
+        stopwatch,
+        epoch,
+      );
+    }
+  }
+
+  Future<void> _presentPayload(
+    ResolvedPaywallPayload payload, {
+    required Stopwatch stopwatch,
+    required int epoch,
+    required bool isRefresh,
+  }) async {
+    {
       // This check is intentionally the first work after the await. A newer
       // load supersedes this result, while an actor boundary re-enters the same
       // resolver ladder before payload shape, decode, or host state can move.
@@ -652,21 +862,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
         loadDuration: stopwatch.elapsed,
         cacheHit: variant.cacheHit,
       );
-    } on RestagePaywallError catch (e) {
-      if (!mounted || epoch != _loadEpoch) return;
-      // A failed refresh keeps the current render and stays silent.
-      if (isRefresh) return;
-      await _finishInitialLoadFailure(e, stopwatch, epoch);
-    } catch (e, st) {
-      if (!mounted || epoch != _loadEpoch) return;
-      // A failed refresh keeps the current render and stays silent.
-      if (isRefresh) return;
-      _reportUnexpectedLoadFailure(e, st);
-      await _finishInitialLoadFailure(
-        _unexpectedLoadError(e, st),
-        stopwatch,
-        epoch,
-      );
     }
   }
 
@@ -675,8 +870,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     Stopwatch stopwatch,
     int epoch,
   ) async {
-    if (!mounted || epoch != _loadEpoch) return;
-    if (await _tryFallbackToCache(stopwatch, epoch)) return;
     if (!mounted || epoch != _loadEpoch) return;
     setState(() => _setInitialError(error));
     _fireEvent(PaywallLoadFailed(
@@ -878,6 +1071,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowUnavailableError error,
   ) {
     if (identical(_pendingFlowController, controller)) {
+      if (error.reason == 'render_failed') _forgetStoredCandidate();
       // Silent: keep the current render. No _error, no PaywallLoadFailed, and no
       // cache eviction — the pending flow was never what the user saw.
       _scheduleDiscardPendingFlow(controller);
@@ -972,10 +1166,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// returned normally for the exact authority transaction.
   void _publishRenderedPayload(ResolvedPaywallPayload payload) {
     payload.publishHostedLastGood();
-    if (widget.cacheLastRender && !payload.hasHostedExperimentAuthority) {
-      _lastSuccessfulPayloads[widget.id] = payload;
-    }
+    _lateReports[payload]?.painted();
   }
+
+  /// Late content reported only once it paints.
+  final Expando<LateRenderReport> _lateReports =
+      Expando<LateRenderReport>('late paywall reports');
 
   void _finishPendingFlowPaintCommit(
     RestageFlowController<void> pending,
@@ -1579,18 +1775,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     return controller;
   }
 
-  /// Opens the root-owned session before the flow controller installs a screen.
-  ///
-  /// The controller's package-internal admission hook invokes this only after
-  /// it has resolved the exact root. [payload] retains that exact resolved
-  /// paywall provenance (including hosted precedence or bundled identity), so
-  /// the session never reconstructs identity from a mutable controller state.
+  /// Attaches the background Measurement session before installing a screen.
+  /// Uses [payload]'s resolved provenance after root admission, preserving hosted
+  /// precedence or bundled identity without rereading mutable controller state.
   Future<void> _openMeasurementSessionForFlow(
     RestageFlowController<void> controller,
     FlowPaywallPayload payload,
   ) async {
-    final session =
-        await MeasurementHostSessionController.openForResolvedArtifact(
+    final session = MeasurementHostSessionController.openDeferred(
       payload,
       presentationObservations: _observationCell?.read,
     );
@@ -1679,12 +1871,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     bool fromCache,
   ) {
     if (event is! FlowStarted) return;
-    // Render commitment already happened before a refresh controller could be
-    // promoted. Keep its committed payload cached; lifecycle announcement is
-    // exact-once and is therefore inert for later start events.
-    if (widget.cacheLastRender && !payload.hasHostedExperimentAuthority) {
-      _lastSuccessfulPayloads[widget.id] = payload;
-    }
     _announceFlowLoaded(
       stopwatch.elapsed,
       fromCache || payload.flow.cacheHit,
@@ -1787,11 +1973,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowUnavailableError error,
   ) {
     if (!mounted || !identical(_flowController, controller)) return;
+    if (error.reason == 'render_failed') _forgetStoredCandidate();
     _finalizeMeasurementSessionForFlow(controller);
-    // Evict a poisonous cached flow so a later fallback does not re-host an
-    // unrenderable flow forever (mirrors the blob path's cache eviction on a
-    // decode failure). A no-op when nothing is cached.
-    _lastSuccessfulPayloads.remove(widget.id);
     final err = RestagePaywallError(
       code: RestageErrorCodes.renderError,
       message: 'The navigation paywall "${widget.id}" could not be hosted '
@@ -1825,8 +2008,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required Duration loadDuration,
     required bool cacheHit,
   }) async {
-    final measurementSession =
-        await MeasurementHostSessionController.openForResolvedArtifact(
+    final measurementSession = MeasurementHostSessionController.openDeferred(
       payload,
       presentationObservations: _observationCell?.read,
     );
@@ -1877,6 +2059,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       payload: payload,
       runtime: runtime,
       data: data,
+      sections: surfaceSectionsFor(payload.variant),
       epoch: epoch,
       isRefresh: isRefresh,
       loadDuration: loadDuration,
@@ -2022,7 +2205,19 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
   }
 
+  /// Drops this paywall's stored copy after a candidate failed to render, so
+  /// the next mount falls back instead of rendering it again.
+  void _forgetStoredCandidate() {
+    final resolver = widget.resolver ?? Restage.defaultResolver;
+    final raced = racedResolverOf<ResolvedPaywallPayload>(resolver);
+    if (raced == null) return;
+    unawaited(raced.forgetStored(
+      Restage.storeKeyFor(PaywallRef(widget.id), resolver: resolver),
+    ));
+  }
+
   void _handleBlobBuildFailure(_BlobStage stage, Object error) {
+    _forgetStoredCandidate();
     if (stage.transaction.isCommitted) {
       _fireEvent(PaywallLoadFailed(
         paywallId: widget.id,
@@ -2071,78 +2266,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
         .addPostFrameCallback((_) => _disposeBlobStage(stage));
   }
 
-  /// Attempt to render from the SDK-internal cache. Returns `true` if a cached
-  /// payload was found and applied (a blob decoded + rendered, or a flow
-  /// re-hosted) — in which case the caller should abort its error path. Returns
-  /// `false` if no cache was available or the cached blob failed to decode.
-  ///
-  /// On cache decode failure: evict the poisonous entry so a later success
-  /// can repopulate, and fire a structured `PaywallLoadFailed` event so the
-  /// host sees the cache failure separately from the original resolver
-  /// failure (otherwise the cached-blob corruption is invisible).
-  Future<bool> _tryFallbackToCache(Stopwatch stopwatch, int epoch) async {
-    if (!widget.cacheLastRender) return false;
-    final cached = _lastSuccessfulPayloads[widget.id];
-    if (cached == null) return false;
-    final assignmentLease = cached.assignmentLease;
-    if (assignmentLease != null && !assignmentLease.isCurrent) {
-      _lastSuccessfulPayloads.remove(widget.id);
-      return false;
-    }
-    switch (cached) {
-      case FlowPaywallPayload(:final resolvedFromActiveArm):
-        // An ACTIVE-resolved flow must NOT be re-hosted here un-re-gated: a
-        // server-resolved active document whose contract no longer subsets the
-        // (app-updated) bundled contract, or whose required libraries were
-        // unregistered, would be re-served unchecked. Defer to the resolver's
-        // own re-gated hold-last-good (it re-runs the render gate + retained
-        // checks against the CURRENT bundled contract). A
-        // BUNDLED flow re-hosts directly — its document + screen blobs are
-        // app-bundle-trusted, so there is no active contract to drift.
-        if (resolvedFromActiveArm) return false;
-        if (!mounted) return false;
-        _startFlow(cached, stopwatch, epoch: epoch, fromCache: true);
-        return true;
-      case BlobPaywallPayload(:final variant):
-        try {
-          final library = decodeLibraryBlob(variant.bytes);
-          if (!mounted) return false;
-          return await _stageBlob(
-            cached,
-            library,
-            epoch: epoch,
-            isRefresh: false,
-            loadDuration: stopwatch.elapsed,
-            cacheHit: true,
-          );
-        } catch (e, st) {
-          // Evict the poisonous payload (bytes + version travel together on the
-          // sealed payload, so there is no orphaned version to mis-attribute).
-          _lastSuccessfulPayloads.remove(widget.id);
-          markSurfaceDeliveryRenderFailed(
-            variant,
-            reason: SurfaceDeliveryReceiptReason.decodeFailed,
-          );
-          FlutterError.reportError(FlutterErrorDetails(
-            exception: e,
-            stack: st,
-            library: 'restage',
-            context: ErrorDescription(
-              'decoding cached paywall blob for ${widget.id} (cache evicted)',
-            ),
-          ));
-          _fireEvent(PaywallLoadFailed(
-            paywallId: widget.id,
-            errorCode: RestageErrorCodes.decodeFailed,
-            message: 'Cached .rfw blob for ${widget.id} failed to decode '
-                '(cache evicted): $e',
-            retryable: true,
-          ));
-          return false;
-        }
-    }
-  }
-
   void _disposeFlowControllerAfterDetach(
     RestageFlowController<void> controller,
   ) {
@@ -2175,6 +2298,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   @override
   void dispose() {
+    _renderDeadline.cancel();
     if (_refreshHandle case final handle?) {
       SurfaceRefreshRegistry.instance.unregister(handle);
     }
@@ -2266,6 +2390,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
     String name,
     Object? args,
   ) {
+    if (stage.local.intercept(name, args)) {
+      _userInteracted = true;
+      return;
+    }
+    args = withoutContextItemIndexes(args);
     _handleRfwEvent(
       name,
       args,
@@ -2292,7 +2421,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
   Widget build(BuildContext context) {
     if (_error != null) {
       if (_useAuthoredFallback && widget.fallbackBuilder != null) {
-        return _buildAuthoredFallback(_error!);
+        final error = _error!;
+        return _buildAuthoredFallback(
+          error,
+          isCurrent: () =>
+              mounted && _useAuthoredFallback && identical(_error, error),
+        );
       }
       final builder = widget.errorBuilder;
       return builder == null
@@ -2300,12 +2434,22 @@ class _RestagePaywallState extends State<RestagePaywall> {
           : builder(context, _error!);
     }
     final flowController = _flowController;
-    final Widget current = flowController != null &&
-            _canBuildHostedFlow(flowController)
-        ? _buildHostedFlowLayer(flowController, staged: false)
-        : _blobPresentation != null
-            ? _buildBlobLayer(_blobPresentation!, staged: false)
-            : (widget.loadingBuilder?.call(context) ?? const SizedBox.shrink());
+    final Widget current =
+        flowController != null && _canBuildHostedFlow(flowController)
+            ? _buildHostedFlowLayer(flowController, staged: false)
+            : _blobPresentation != null
+                ? _buildBlobLayer(_blobPresentation!, staged: false)
+                : _showDeadlineFallback && widget.fallbackBuilder != null
+                    ? _buildAuthoredFallback(
+                        _deadlineFallbackError,
+                        isCurrent: () =>
+                            mounted &&
+                            _showDeadlineFallback &&
+                            _blobPresentation == null &&
+                            _flowController == null,
+                      )
+                    : (widget.loadingBuilder?.call(context) ??
+                        const SizedBox.shrink());
     final pending = _pendingFlowIsStaged ? _pendingFlowController : null;
     // Keep a stable Stack across flow staging and promotion. The controller-keyed
     // candidate moves from the second slot to the first without remounting, so
@@ -2327,9 +2471,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     );
   }
 
-  Widget _buildAuthoredFallback(RestagePaywallError error) {
-    bool isCurrent() =>
-        mounted && _useAuthoredFallback && identical(_error, error);
+  Widget _buildAuthoredFallback(
+    RestagePaywallError error, {
+    required bool Function() isCurrent,
+  }) {
     return RestageContextSnapshotScope(
       snapshot: _context,
       child: RestagePaywallEventTargetScope(
@@ -2372,10 +2517,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
         transaction != null && transaction.isReady && !transaction.isCommitted;
     Widget child = RestageContextSnapshotScope(
       snapshot: _context,
-      child: RestageFlowView<void>(
-        controller: controller,
-        onScreenEvent: _interceptFlowScreenEvent,
-        loadingBuilder: widget.loadingBuilder,
+      child: LocalWriteListener(
+        onWrite: () => _userInteracted = true,
+        child: RestageFlowView<void>(
+          controller: controller,
+          onScreenEvent: _interceptFlowScreenEvent,
+          loadingBuilder: widget.loadingBuilder,
+        ),
       ),
     );
     final measurementSession = _flowMeasurementSessions[controller];
@@ -2472,14 +2620,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
                           transaction: stage.transaction,
                           child: SurfaceDeliveryPaintBoundary(
                             resolved: stage.payload.variant,
-                            child: RemoteWidget(
-                              runtime: stage.runtime,
-                              data: stage.data,
-                              widget: const FullyQualifiedWidgetName(
-                                _paywallLibrary,
-                                'Paywall',
+                            child: DeliveredIconFontLoader.scope(
+                              stage.sections.iconFonts,
+                              child: RemoteWidget(
+                                runtime: stage.runtime,
+                                data: stage.data,
+                                widget: const FullyQualifiedWidgetName(
+                                  _paywallLibrary,
+                                  _paywallRootWidget,
+                                ),
+                                onEvent: stage.eventHandler,
                               ),
-                              onEvent: stage.eventHandler,
                             ),
                           ),
                         ),
@@ -2549,6 +2700,7 @@ final class _BlobStage {
     required this.payload,
     required this.runtime,
     required this.data,
+    required this.sections,
     required this.epoch,
     required this.isRefresh,
     required this.loadDuration,
@@ -2556,11 +2708,16 @@ final class _BlobStage {
     required this.transaction,
     required this.analyticsPresentation,
     required this.measurementSession,
-  });
+  }) : local = LocalValues(
+          data,
+          seed: sections.localSeeds[_RestagePaywallState._paywallRootWidget],
+        );
 
   final BlobPaywallPayload payload;
   final Runtime runtime;
   final DynamicContent data;
+  final SurfaceSections sections;
+  final LocalValues local;
   late final ContextPublisher contextPublisher = ContextPublisher(data);
   final int epoch;
   final bool isRefresh;
@@ -2578,6 +2735,7 @@ final class _BlobStage {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    local.clear();
     transaction.supersede();
     unawaited(measurementSession.teardown());
     analyticsPresentation.dispose();

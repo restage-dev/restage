@@ -7,6 +7,7 @@ import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
 import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
+import 'package:restage_shared/src/surface_feature_client_floor.dart';
 
 /// Product surface category carried by a delivered document envelope.
 ///
@@ -118,6 +119,18 @@ sealed class SurfacePayload {
   /// to the empty list.
   List<LibraryRequirement> get requiredLibraries;
 
+  /// Subset icon fonts delivered with this payload, sorted by family then
+  /// package (possibly empty).
+  List<DeliveredIconFont> get iconFonts;
+
+  /// Initial screen-local values, keyed by root widget or screen name, then by
+  /// value key (possibly empty).
+  Map<String, Map<String, Object>> get localSeeds;
+
+  /// Whether this payload carries an icon-font or local-seed section. Such a
+  /// payload requires [kSurfaceFeatureClientFloor].
+  bool get carriesSections => iconFonts.isNotEmpty || localSeeds.isNotEmpty;
+
   /// Canonical payload bytes used as the content-hash domain.
   Uint8List get canonicalBytes;
 
@@ -125,16 +138,13 @@ sealed class SurfacePayload {
   String get contentHash;
 
   /// Decodes a canonical payload frame.
-  ///
-  /// When [requireRequiredLibraries] is true the frame MUST carry a
-  /// required-libraries section (the envelope codec passes this for a
-  /// format-version-2 envelope, so a v2 payload missing its section fails
-  /// closed instead of silently decoding to the empty list). The default
-  /// (false) preserves the standalone/cached-payload path, where a
-  /// pre-version-2 frame is exactly-consuming and decodes to the empty list.
+  /// [requireRequiredLibraries] requires the libraries section for v2 envelopes;
+  /// otherwise older frames may decode to an empty list.
+  /// [allowSections] controls whether icon-font and local-seed sections are accepted.
   static SurfacePayload decode(
     List<int> bytes, {
     bool requireRequiredLibraries = false,
+    bool allowSections = true,
   }) {
     try {
       final reader = _PayloadReader(bytes);
@@ -144,11 +154,13 @@ sealed class SurfacePayload {
           return _decodeFlowPayload(
             reader,
             requireRequiredLibraries: requireRequiredLibraries,
+            allowSections: allowSections,
           );
         case _blobPayloadKind:
           return _decodeBlobPayload(
             reader,
             requireRequiredLibraries: requireRequiredLibraries,
+            allowSections: allowSections,
           );
         default:
           throw FormatException('Unsupported surface payload kind "$kind".');
@@ -172,6 +184,24 @@ final class FlowSurfacePayload extends SurfacePayload {
     required FlowDocument flowDocument,
     required Map<String, Uint8List> screenBlobs,
     List<LibraryRequirement> requiredLibraries = const [],
+    List<DeliveredIconFont> iconFonts = const [],
+    Map<String, Map<String, Object>> localSeeds = const {},
+  }) =>
+      FlowSurfacePayload._create(
+        flowDocument: flowDocument,
+        screenBlobs: screenBlobs,
+        requiredLibraries: requiredLibraries,
+        iconFonts: iconFonts,
+        localSeeds: localSeeds,
+      );
+
+  factory FlowSurfacePayload._create({
+    required FlowDocument flowDocument,
+    required Map<String, Uint8List> screenBlobs,
+    required List<LibraryRequirement> requiredLibraries,
+    required List<DeliveredIconFont> iconFonts,
+    required Map<String, Map<String, Object>> localSeeds,
+    _SeedWireMap? seedWire,
   }) {
     _checkIsomorphicScreenBlobs(flowDocument, screenBlobs);
     final frozenBlobs = Map<String, Uint8List>.unmodifiable({
@@ -179,15 +209,34 @@ final class FlowSurfacePayload extends SurfacePayload {
         entry.key: _freezeBytes(entry.value),
     });
     final canonicalLibraries = _canonicalRequiredLibraries(requiredLibraries);
+    final canonicalFonts = _canonicalIconFonts(iconFonts);
+    final canonicalSeeds = _canonicalLocalSeeds(localSeeds);
+    for (final root in canonicalSeeds.keys) {
+      if (!frozenBlobs.containsKey(root)) {
+        throw ArgumentError.value(
+          root,
+          'localSeeds',
+          'must name a screen of the flow',
+        );
+      }
+    }
+    _checkSectionFloor(
+      flowDocument.minClient,
+      carriesSections: canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
+    );
     final canonicalBytes = _buildFlowCanonicalBytes(
       flowDocument: flowDocument,
       screenBlobs: frozenBlobs,
       requiredLibraries: canonicalLibraries,
+      iconFonts: canonicalFonts,
+      seedWire: seedWire ?? _seedWireOf(canonicalSeeds),
     );
     return FlowSurfacePayload._(
       flowDocument: flowDocument,
       screenBlobs: frozenBlobs,
       requiredLibraries: canonicalLibraries,
+      iconFonts: canonicalFonts,
+      localSeeds: canonicalSeeds,
       canonicalBytes: _freezeBytes(canonicalBytes),
       contentHash: 'sha256:${crypto.sha256.convert(canonicalBytes)}',
     );
@@ -197,6 +246,8 @@ final class FlowSurfacePayload extends SurfacePayload {
     required this.flowDocument,
     required this.screenBlobs,
     required this.requiredLibraries,
+    required this.iconFonts,
+    required this.localSeeds,
     required Uint8List canonicalBytes,
     required this.contentHash,
   }) : _canonicalBytes = canonicalBytes;
@@ -214,6 +265,13 @@ final class FlowSurfacePayload extends SurfacePayload {
   /// document, so the document's own contract is untouched.
   @override
   final List<LibraryRequirement> requiredLibraries;
+
+  @override
+  final List<DeliveredIconFont> iconFonts;
+
+  /// Initial screen-local values keyed by screen identifier.
+  @override
+  final Map<String, Map<String, Object>> localSeeds;
 
   /// Flow document carried by this payload.
   final FlowDocument flowDocument;
@@ -256,18 +314,46 @@ final class BlobSurfacePayload extends SurfacePayload {
     required int minClient,
     required Uint8List blob,
     List<LibraryRequirement> requiredLibraries = const [],
+    List<DeliveredIconFont> iconFonts = const [],
+    Map<String, Map<String, Object>> localSeeds = const {},
+  }) =>
+      BlobSurfacePayload._create(
+        minClient: minClient,
+        blob: blob,
+        requiredLibraries: requiredLibraries,
+        iconFonts: iconFonts,
+        localSeeds: localSeeds,
+      );
+
+  factory BlobSurfacePayload._create({
+    required int minClient,
+    required Uint8List blob,
+    required List<LibraryRequirement> requiredLibraries,
+    required List<DeliveredIconFont> iconFonts,
+    required Map<String, Map<String, Object>> localSeeds,
+    _SeedWireMap? seedWire,
   }) {
     final frozenBlob = _freezeBytes(blob);
     final canonicalLibraries = _canonicalRequiredLibraries(requiredLibraries);
+    final canonicalFonts = _canonicalIconFonts(iconFonts);
+    final canonicalSeeds = _canonicalLocalSeeds(localSeeds);
+    _checkSectionFloor(
+      minClient,
+      carriesSections: canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
+    );
     final canonicalBytes = _buildBlobCanonicalBytes(
       minClient: minClient,
       blob: frozenBlob,
       requiredLibraries: canonicalLibraries,
+      iconFonts: canonicalFonts,
+      seedWire: seedWire ?? _seedWireOf(canonicalSeeds),
     );
     return BlobSurfacePayload._(
       minClient: minClient,
       blob: frozenBlob,
       requiredLibraries: canonicalLibraries,
+      iconFonts: canonicalFonts,
+      localSeeds: canonicalSeeds,
       canonicalBytes: _freezeBytes(canonicalBytes),
       contentHash: 'sha256:${crypto.sha256.convert(canonicalBytes)}',
     );
@@ -277,6 +363,8 @@ final class BlobSurfacePayload extends SurfacePayload {
     required this.minClient,
     required this.blob,
     required this.requiredLibraries,
+    required this.iconFonts,
+    required this.localSeeds,
     required Uint8List canonicalBytes,
     required this.contentHash,
   }) : _canonicalBytes = canonicalBytes;
@@ -294,6 +382,13 @@ final class BlobSurfacePayload extends SurfacePayload {
   /// namespace). Carried in the canonical bytes so the content hash covers it.
   @override
   final List<LibraryRequirement> requiredLibraries;
+
+  @override
+  final List<DeliveredIconFont> iconFonts;
+
+  /// Initial screen-local values keyed by root widget name.
+  @override
+  final Map<String, Map<String, Object>> localSeeds;
 
   /// The single rendered-screen blob.
   final Uint8List blob;
@@ -316,6 +411,53 @@ final class BlobSurfacePayload extends SurfacePayload {
 
   @override
   int get hashCode => contentHash.hashCode;
+}
+
+/// A subset icon font delivered inside a payload for one icon font family.
+@immutable
+final class DeliveredIconFont {
+  /// Creates a delivered font for [family], optionally owned by [fontPackage].
+  factory DeliveredIconFont({
+    required String family,
+    required Uint8List bytes,
+    String? fontPackage,
+  }) {
+    if (family.isEmpty) {
+      throw ArgumentError.value(family, 'family', 'must not be empty');
+    }
+    if (fontPackage != null && fontPackage.isEmpty) {
+      throw ArgumentError.value(
+        fontPackage,
+        'fontPackage',
+        'must be absent or non-empty',
+      );
+    }
+    if (bytes.isEmpty) {
+      throw ArgumentError.value(bytes.length, 'bytes', 'must not be empty');
+    }
+    return DeliveredIconFont._(family, fontPackage, _freezeBytes(bytes));
+  }
+
+  const DeliveredIconFont._(this.family, this.fontPackage, this.bytes);
+
+  /// The icon font family the author's code points belong to.
+  final String family;
+
+  /// The package that declares [family], or null for an app or SDK font.
+  final String? fontPackage;
+
+  /// The font file (sfnt) bytes.
+  final Uint8List bytes;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DeliveredIconFont &&
+      other.family == family &&
+      other.fontPackage == fontPackage &&
+      _bytesEqual(other.bytes, bytes);
+
+  @override
+  int get hashCode => Object.hash(family, fontPackage, bytes.length);
 }
 
 /// A versioned document for delivering a product surface.
@@ -462,6 +604,7 @@ const String _blobPayloadKind = kBlobPayloadKind;
 SurfacePayload _decodeBlobPayload(
   _PayloadReader reader, {
   required bool requireRequiredLibraries,
+  required bool allowSections,
 }) {
   final minClient = reader.readUint32('blob minClient');
   final blob = reader.readLengthPrefixedBytes('blob');
@@ -472,19 +615,21 @@ SurfacePayload _decodeBlobPayload(
   // must be fully consumed.
   final requiredLibraries =
       _readOptionalRequiredLibraries(reader, requireRequiredLibraries);
-  if (reader.hasRemaining) {
-    throw const FormatException('Unexpected trailing payload bytes.');
-  }
-  return BlobSurfacePayload(
+  final sections = _readSections(reader, allowSections: allowSections);
+  return BlobSurfacePayload._create(
     minClient: minClient,
     blob: blob,
     requiredLibraries: requiredLibraries,
+    iconFonts: sections.iconFonts,
+    localSeeds: sections.localSeeds,
+    seedWire: sections.seedWire,
   );
 }
 
 SurfacePayload _decodeFlowPayload(
   _PayloadReader reader, {
   required bool requireRequiredLibraries,
+  required bool allowSections,
 }) {
   final flowDocumentJson = reader.readLengthPrefixedUtf8('flow document');
   final flowDocument = FlowDocumentCodec.decodeJson(flowDocumentJson);
@@ -504,14 +649,15 @@ SurfacePayload _decodeFlowPayload(
   // the frame must be fully consumed.
   final requiredLibraries =
       _readOptionalRequiredLibraries(reader, requireRequiredLibraries);
-  if (reader.hasRemaining) {
-    throw const FormatException('Unexpected trailing payload bytes.');
-  }
+  final sections = _readSections(reader, allowSections: allowSections);
   try {
-    return FlowSurfacePayload(
+    return FlowSurfacePayload._create(
       flowDocument: flowDocument,
       screenBlobs: screenBlobs,
       requiredLibraries: requiredLibraries,
+      iconFonts: sections.iconFonts,
+      localSeeds: sections.localSeeds,
+      seedWire: sections.seedWire,
     );
   } on Object catch (error) {
     if (error is ArgumentError) {
@@ -562,6 +708,8 @@ Uint8List _buildFlowCanonicalBytes({
   required FlowDocument flowDocument,
   required Map<String, Uint8List> screenBlobs,
   required List<LibraryRequirement> requiredLibraries,
+  required List<DeliveredIconFont> iconFonts,
+  required _SeedWireMap seedWire,
 }) {
   final builder = BytesBuilder();
   _addLengthPrefixedBytes(builder, utf8.encode(_flowPayloadKind));
@@ -576,6 +724,7 @@ Uint8List _buildFlowCanonicalBytes({
     _addLengthPrefixedBytes(builder, screenBlobs[id]!);
   }
   _addRequiredLibraries(builder, requiredLibraries);
+  _addSections(builder, iconFonts, seedWire);
   return builder.toBytes();
 }
 
@@ -583,12 +732,15 @@ Uint8List _buildBlobCanonicalBytes({
   required int minClient,
   required Uint8List blob,
   required List<LibraryRequirement> requiredLibraries,
+  required List<DeliveredIconFont> iconFonts,
+  required _SeedWireMap seedWire,
 }) {
   final builder = BytesBuilder();
   _addLengthPrefixedBytes(builder, utf8.encode(_blobPayloadKind));
   _addUint32(builder, minClient);
   _addLengthPrefixedBytes(builder, blob);
   _addRequiredLibraries(builder, requiredLibraries);
+  _addSections(builder, iconFonts, seedWire);
   return builder.toBytes();
 }
 
@@ -706,6 +858,294 @@ List<LibraryRequirement> _readRequiredLibraries(_PayloadReader reader) {
     );
   }
   return libraries;
+}
+
+const int _iconFontsSectionTag = 1;
+const int _localSeedsSectionTag = 2;
+
+const int _seedString = 1;
+const int _seedInt = 2;
+const int _seedDouble = 3;
+const int _seedBool = 4;
+
+const int _maxSeedStringLength = 4096;
+final RegExp _seedKeyPattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$');
+
+void _checkSectionFloor(int minClient, {required bool carriesSections}) {
+  if (carriesSections && minClient < kSurfaceFeatureClientFloor) {
+    throw ArgumentError.value(
+      minClient,
+      'minClient',
+      'must be at least $kSurfaceFeatureClientFloor for a payload with icon '
+          'fonts or local seeds',
+    );
+  }
+}
+
+int _compareIconFonts(DeliveredIconFont a, DeliveredIconFont b) {
+  final byFamily = a.family.compareTo(b.family);
+  if (byFamily != 0) return byFamily;
+  return (a.fontPackage ?? '').compareTo(b.fontPackage ?? '');
+}
+
+List<DeliveredIconFont> _canonicalIconFonts(List<DeliveredIconFont> fonts) {
+  final sorted = List<DeliveredIconFont>.of(fonts)..sort(_compareIconFonts);
+  for (var index = 1; index < sorted.length; index += 1) {
+    if (_compareIconFonts(sorted[index - 1], sorted[index]) == 0) {
+      throw ArgumentError.value(
+        sorted[index].family,
+        'iconFonts',
+        'duplicate family and package',
+      );
+    }
+  }
+  return List<DeliveredIconFont>.unmodifiable(sorted);
+}
+
+Map<String, Map<String, Object>> _canonicalLocalSeeds(
+  Map<String, Map<String, Object>> seeds,
+) {
+  final roots = seeds.keys.toList()..sort();
+  return Map<String, Map<String, Object>>.unmodifiable({
+    for (final root in roots) root: _canonicalSeedMap(root, seeds[root]!),
+  });
+}
+
+Map<String, Object> _canonicalSeedMap(String root, Map<String, Object> seed) {
+  if (root.isEmpty) {
+    throw ArgumentError.value(root, 'localSeeds', 'root must not be empty');
+  }
+  if (seed.isEmpty) {
+    throw ArgumentError.value(root, 'localSeeds', 'root has no values');
+  }
+  final keys = seed.keys.toList()..sort();
+  return Map<String, Object>.unmodifiable({
+    for (final key in keys) key: _checkSeedValue(key, seed[key]),
+  });
+}
+
+Object _checkSeedValue(String key, Object? value) {
+  if (!_seedKeyPattern.hasMatch(key)) {
+    throw ArgumentError.value(key, 'localSeeds', 'invalid key');
+  }
+  if (value is bool) return value;
+  if (value is String) {
+    if (value.length > _maxSeedStringLength) {
+      throw ArgumentError.value(
+        value.length,
+        'localSeeds',
+        'string "$key" exceeds $_maxSeedStringLength UTF-16 units',
+      );
+    }
+    return value;
+  }
+  if (value is num) {
+    if (!value.isFinite) {
+      throw ArgumentError.value(value, 'localSeeds', 'must be finite');
+    }
+    return value;
+  }
+  throw ArgumentError.value(
+    value,
+    'localSeeds',
+    'value "$key" must be a string, number or bool',
+  );
+}
+
+/// Appends each non-empty section as `[u32 tag][section]`, tags ascending. A
+/// payload without sections keeps the frame it had before sections existed.
+void _addSections(
+  BytesBuilder builder,
+  List<DeliveredIconFont> iconFonts,
+  _SeedWireMap localSeeds,
+) {
+  if (iconFonts.isNotEmpty) {
+    _addUint32(builder, _iconFontsSectionTag);
+    _addUint32(builder, iconFonts.length);
+    for (final font in iconFonts) {
+      _addLengthPrefixedBytes(builder, utf8.encode(font.family));
+      final package = font.fontPackage;
+      _addUint32(builder, package == null ? 0 : 1);
+      if (package != null) {
+        _addLengthPrefixedBytes(builder, utf8.encode(package));
+      }
+      _addLengthPrefixedBytes(builder, font.bytes);
+    }
+  }
+  if (localSeeds.isNotEmpty) {
+    _addUint32(builder, _localSeedsSectionTag);
+    _addUint32(builder, localSeeds.length);
+    for (final root in localSeeds.entries) {
+      _addLengthPrefixedBytes(builder, utf8.encode(root.key));
+      _addUint32(builder, root.value.length);
+      for (final entry in root.value.entries) {
+        _addLengthPrefixedBytes(builder, utf8.encode(entry.key));
+        _addUint32(builder, entry.value.type);
+        _addLengthPrefixedBytes(builder, utf8.encode(entry.value.text));
+      }
+    }
+  }
+}
+
+typedef _Sections = ({
+  List<DeliveredIconFont> iconFonts,
+  Map<String, Map<String, Object>> localSeeds,
+  _SeedWireMap? seedWire,
+});
+
+/// A seed value's wire type and spelling.
+typedef _SeedWire = ({int type, String text});
+
+typedef _SeedWireMap = Map<String, Map<String, _SeedWire>>;
+
+/// Wire form of canonical seeds. A decoded payload keeps the form it was read
+/// with instead, so it re-encodes to the same bytes on every platform.
+_SeedWireMap _seedWireOf(Map<String, Map<String, Object>> seeds) => {
+      for (final root in seeds.entries)
+        root.key: {
+          for (final entry in root.value.entries)
+            entry.key: switch (entry.value) {
+              final bool value => (
+                  type: _seedBool,
+                  text: value ? 'true' : 'false',
+                ),
+              final String value => (type: _seedString, text: value),
+              final int value => (type: _seedInt, text: value.toString()),
+              final Object value => (
+                  type: _seedDouble,
+                  text: (value as double).toString(),
+                ),
+            },
+        },
+    };
+
+/// Reads the sections [_addSections] writes and requires the frame to end.
+/// Order, emptiness and value spelling are checked so only canonical bytes
+/// decode.
+_Sections _readSections(_PayloadReader reader, {required bool allowSections}) {
+  var iconFonts = const <DeliveredIconFont>[];
+  var localSeeds = const <String, Map<String, Object>>{};
+  _SeedWireMap? seedWire;
+  var previousTag = 0;
+  while (reader.hasRemaining) {
+    final tag = reader.readUint32('section tag');
+    if (!allowSections) {
+      throw const FormatException(
+        'This payload format does not carry icon-font or local-seed sections.',
+      );
+    }
+    if (tag <= previousTag) {
+      throw FormatException('Payload section $tag is out of order.');
+    }
+    previousTag = tag;
+    switch (tag) {
+      case _iconFontsSectionTag:
+        iconFonts = _readIconFonts(reader);
+      case _localSeedsSectionTag:
+        (localSeeds, seedWire) = _readLocalSeeds(reader);
+      default:
+        throw FormatException('Unsupported payload section $tag.');
+    }
+  }
+  return (iconFonts: iconFonts, localSeeds: localSeeds, seedWire: seedWire);
+}
+
+List<DeliveredIconFont> _readIconFonts(_PayloadReader reader) {
+  final count = reader.readUint32('icon font count');
+  if (count == 0) {
+    throw const FormatException('An icon-font section must not be empty.');
+  }
+  final fonts = <DeliveredIconFont>[];
+  for (var index = 0; index < count; index += 1) {
+    final family = reader.readLengthPrefixedUtf8('icon font family');
+    final hasPackage = reader.readUint32('icon font package flag');
+    if (hasPackage > 1) {
+      throw const FormatException('Invalid icon font package flag.');
+    }
+    final package = hasPackage == 1
+        ? reader.readLengthPrefixedUtf8('icon font package')
+        : null;
+    final bytes = reader.readLengthPrefixedBytes('icon font');
+    final font = DeliveredIconFont(
+      family: family,
+      fontPackage: package,
+      bytes: bytes,
+    );
+    if (fonts.isNotEmpty && _compareIconFonts(fonts.last, font) >= 0) {
+      throw const FormatException(
+        'Icon fonts must be strictly ascending by family and package.',
+      );
+    }
+    fonts.add(font);
+  }
+  return fonts;
+}
+
+(Map<String, Map<String, Object>>, _SeedWireMap) _readLocalSeeds(
+  _PayloadReader reader,
+) {
+  final rootCount = reader.readUint32('local seed root count');
+  if (rootCount == 0) {
+    throw const FormatException('A local-seed section must not be empty.');
+  }
+  final seeds = <String, Map<String, Object>>{};
+  final wire = <String, Map<String, _SeedWire>>{};
+  String? previousRoot;
+  for (var index = 0; index < rootCount; index += 1) {
+    final root = reader.readLengthPrefixedUtf8('local seed root');
+    if (previousRoot != null && root.compareTo(previousRoot) <= 0) {
+      throw const FormatException(
+        'Local seed roots must be strictly ascending.',
+      );
+    }
+    previousRoot = root;
+    final entryCount = reader.readUint32('local seed count');
+    final values = <String, Object>{};
+    final spelled = <String, _SeedWire>{};
+    String? previousKey;
+    for (var entry = 0; entry < entryCount; entry += 1) {
+      final key = reader.readLengthPrefixedUtf8('local seed key');
+      if (previousKey != null && key.compareTo(previousKey) <= 0) {
+        throw const FormatException(
+          'Local seed keys must be strictly ascending.',
+        );
+      }
+      previousKey = key;
+      final type = reader.readUint32('local seed type');
+      final text = reader.readLengthPrefixedUtf8('local seed value');
+      values[key] = _parseSeedValue(type, text);
+      spelled[key] = (type: type, text: text);
+    }
+    seeds[root] = values;
+    wire[root] = spelled;
+  }
+  return (seeds, wire);
+}
+
+Object _parseSeedValue(int type, String text) {
+  switch (type) {
+    case _seedString:
+      return text;
+    case _seedBool:
+      if (text != 'true' && text != 'false') {
+        throw FormatException('Invalid local seed bool "$text".');
+      }
+      return text == 'true';
+    case _seedInt:
+      final parsed = int.tryParse(text);
+      if (parsed == null || parsed.toString() != text) {
+        throw FormatException('Invalid local seed int "$text".');
+      }
+      return parsed;
+    case _seedDouble:
+      final parsed = double.tryParse(text);
+      if (parsed == null || text.trim() != text) {
+        throw FormatException('Invalid local seed double "$text".');
+      }
+      return parsed;
+    default:
+      throw FormatException('Unsupported local seed type $type.');
+  }
 }
 
 void _addLengthPrefixedBytes(BytesBuilder builder, List<int> bytes) {

@@ -1,10 +1,12 @@
 part of '../value.dart';
 
+// ignore_for_file: type=lint
+
 const valueScreenRef = NeutralFlowScreenRef(
   id: 'value',
   artifactPath: 'value.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use valueScreenRef')

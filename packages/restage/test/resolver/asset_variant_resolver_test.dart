@@ -27,7 +27,10 @@ void main() {
       variant.surfaceVersion,
       FlowContentHash.compute(Uint8List.fromList([1, 2, 3])).value,
     );
-    expect(bundle.loadedKeys, ['assets/paywalls/test.rfw']);
+    expect(bundle.loadedKeys, [
+      'assets/paywalls/test.rfw',
+      'assets/paywalls/test.local.json',
+    ]);
   });
 
   test('throws RestagePaywallError on missing asset', () async {
@@ -66,6 +69,7 @@ void main() {
       expect(bundle.loadedKeys, [
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/paywalls/screens/paywall_pro_upgrade.rfw',
+        'assets/paywalls/pro_upgrade.local.json',
       ]);
     });
 
@@ -87,6 +91,7 @@ void main() {
       expect(bundle.loadedKeys, [
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/paywalls/pro_upgrade.rfw',
+        'assets/paywalls/pro_upgrade.local.json',
       ]);
     });
 
@@ -172,7 +177,10 @@ void main() {
 
       expect(variant.bytes, blobBytes);
       expect(variant.paywallId, 'pro_upgrade');
-      expect(bundle.loadedKeys, ['assets/paywalls/pro_upgrade.rfw']);
+      expect(bundle.loadedKeys, [
+        'assets/paywalls/pro_upgrade.rfw',
+        'assets/paywalls/pro_upgrade.local.json',
+      ]);
     });
   });
 

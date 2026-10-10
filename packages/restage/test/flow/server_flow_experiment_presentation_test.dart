@@ -10,6 +10,8 @@ import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_experiment_mount.dart';
+import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
@@ -22,6 +24,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'flow_test_support.dart';
 
+import '../support/held_assignment.dart';
+import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../support/supported_policy_revisions_body.dart';
 
@@ -49,6 +53,81 @@ void main() {
   tearDown(debugResetOsVersion);
   setUp(() => debugSetOsVersion(null));
   setUp(Restage.debugReset);
+
+  test(
+      'first experiment flow obtains its folded handle before binding the mount',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SurfaceAssignmentCredentialStore(
+      namespace: 'cold-flow',
+      actor: () async => 'actor',
+      identityGeneration: () => 0,
+      onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
+    );
+    SurfaceCanonicalCarrierProvider.enableAssignmentRetention('cold-flow');
+    SurfaceAssignmentKeyProvider.install(
+      key: store.resolve,
+      localKey: store.resolveLocal,
+      identityGeneration: () => store.generation,
+      registration: store.capture,
+      confirmedKey: () => store.currentHandle,
+      confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+          store.confirm(
+        attempt: attempt,
+        localRequestStartMicros: start,
+        credentialHandle: handle,
+        expiresAtMicros: expiry,
+        serverNowMicros: serverNow,
+      ),
+      refuseRegistration: store.refuse,
+    );
+    final bundledBytes = screenBlob('Bundled', 'next');
+    final candidateBytes = screenBlob('Assigned flow', 'next');
+    final server = _ControlledServer();
+    final resolver = ServerFlowResolver(
+      baseUrl: _baseUrl,
+      apiKey: _apiKey,
+      active: true,
+      bundle:
+          _bundleFor(_screenDocument(screenBytes: bundledBytes), bundledBytes),
+      httpClient: server.client,
+    );
+    final source = FlowMountRuntimeSeedSource(
+      flow: _flowRef,
+      actions: null,
+      installedSignalNames: const {},
+    );
+    final presentation = resolver.createExperimentPresentation(
+      flow: _flowRef,
+      captureSeed: source.capture,
+    );
+    addTearDown(presentation.disposePresentation);
+    final pending = presentation.resolveActiveRoot(_flowRef);
+    await _waitFor(() => server.requests.isNotEmpty);
+    final request = _requestBody(server.requests.single);
+    expect(request['registrationNonce'], isA<String>());
+    expect(request, isNot(contains('assignmentKey')));
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final handle = 'ic1.${'a' * 64}';
+    server.respondJson(0, {
+      ..._contentBody(_envelope(
+          _screenDocument(version: 2, screenBytes: candidateBytes),
+          {'welcome': candidateBytes})),
+      'credentialHandle': handle,
+      'expiresAtMicros': now + 30 * Duration.microsecondsPerDay,
+      'serverNowMicros': now,
+      'assignment': canonicalAssignmentFixture().toJson(),
+    });
+    final resolved = await pending;
+    expect(resolved.screenBlobs['welcome'], candidateBytes);
+    expect(measurementExperimentAssignmentFor(resolved),
+        canonicalAssignmentFixture());
+    expect(measurementRegistrationFingerprintFor(resolved),
+        (await store.capture())!.fingerprint);
+    expect(store.currentHandle, handle);
+    expect(presentation.revalidate(FlowMountRevalidationBoundary.firstPaint),
+        isTrue);
+  });
 
   testWidgets(
       'identity drift during metering lookup publishes no stale warm request',
@@ -835,7 +914,7 @@ void main() {
 
   test('HLG marks the complete pinned root and child closure as cache hits',
       () async {
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
+    holdAssignmentsUnder('actor-a');
     const rootRef = OnboardingFlowRef<Object?>(
       id: 'first_run',
       version: 1,

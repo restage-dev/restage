@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:restage/restage.dart';
@@ -44,13 +43,14 @@ class _RenderHostAppState extends State<RenderHostApp> {
   final GlobalKey _snapshotKey = GlobalKey();
   late final RenderProtocolServer _server;
   late final GeometryRegistry _geometryRegistry;
-  late final StreamSubscription<Map<String, Rect>> _geometrySubscription;
+  late final StreamSubscription<Map<String, List<GeometryInstance>>>
+      _geometrySubscription;
   late final List<RestageWidgetLibraryRegistration> _registrations;
   final RenderCompletionTracker _completions = RenderCompletionTracker();
   RenderRequest? _request;
   RemoteWidgetLibrary? _library;
   String? _activeEntryWidgetName;
-  Map<String, Rect>? _lastGeometry;
+  Map<String, List<GeometryInstance>>? _lastGeometry;
   int? _latestRequestedEpoch;
 
   @override
@@ -65,11 +65,18 @@ class _RenderHostAppState extends State<RenderHostApp> {
       frameRenderBox: () =>
           _frameKey.currentContext?.findRenderObject() as RenderBox?,
     );
-    _geometrySubscription = _geometryRegistry.snapshots.listen((rects) {
+    _geometrySubscription =
+        _geometryRegistry.instanceSnapshots.listen((instances) {
       final epoch = _request?.epoch;
-      if (epoch == null || mapEquals(rects, _lastGeometry)) return;
-      _lastGeometry = Map<String, Rect>.unmodifiable(rects);
-      _server.publishGeometry(epoch, rects);
+      if (epoch == null || geometryInstancesEqual(instances, _lastGeometry)) {
+        return;
+      }
+      _lastGeometry = instances;
+      _server.publishGeometry(
+        epoch,
+        _geometryRegistry.capture(),
+        instances: instances,
+      );
     });
     _server = RenderProtocolServer(
       transport: widget.transport,
@@ -83,6 +90,7 @@ class _RenderHostAppState extends State<RenderHostApp> {
       render: _render,
       snapshot: _snapshot,
       mount: _render,
+      reveal: (path, index) => _geometryRegistry.reveal(path, index: index),
     )..start();
   }
 
@@ -190,11 +198,15 @@ class _RenderHostAppState extends State<RenderHostApp> {
   void _onRenderEvent(RenderEvent event) {
     switch (event) {
       case Settled(:final epoch):
-        final geometry = _geometryRegistry.capture();
-        _lastGeometry = geometry;
+        final instances = _geometryRegistry.captureInstances();
+        _lastGeometry = instances;
         _completions.completeSuccess(
           epoch,
-          geometry: geometry,
+          geometry: <String, Rect>{
+            for (final entry in instances.entries)
+              entry.key: entry.value.first.rect,
+          },
+          instances: instances,
         );
       case RenderError(:final epoch, :final message, :final path):
         final failure = BundleRenderFailure(message, path: path);

@@ -50,7 +50,8 @@ typedef FlutterToolchainResolver =
 ///
 /// A root named by [flagRoot] or [configRoot] is used as given. Otherwise the
 /// first SDK found wins: the project's FVM link, its `.fvmrc` or
-/// `.flutter-version` pin in the FVM cache, `FLUTTER_ROOT`, then `PATH`.
+/// `.flutter-version` pin in the FVM cache, the SDK its packages were last
+/// resolved with, `FLUTTER_ROOT`, then `PATH`.
 Future<FlutterToolchain> resolveBuildFlutterToolchain({
   required Directory projectRoot,
   String? flagRoot,
@@ -136,6 +137,8 @@ Iterable<({String root, String source})> _implicitCandidates(
     if (home != null) p.join(home, 'fvm'),
   ];
   var current = projectRoot.absolute;
+  String? resolvedRoot;
+  String? resolvedAt;
   while (true) {
     final link = p.join(current.path, '.fvm', 'flutter_sdk');
     yield (root: link, source: 'FVM link at ${p.dirname(link)}');
@@ -149,9 +152,21 @@ Iterable<({String root, String source})> _implicitCandidates(
         );
       }
     }
+    if (resolvedAt == null) {
+      final config = File(
+        p.join(current.path, '.dart_tool', 'package_config.json'),
+      );
+      if (config.existsSync()) {
+        resolvedAt = p.normalize(config.path);
+        resolvedRoot = _resolvedFlutterRoot(config);
+      }
+    }
     final parent = current.parent;
     if (parent.path == current.path) break;
     current = parent;
+  }
+  if (resolvedRoot != null) {
+    yield (root: resolvedRoot, source: resolvedAt!);
   }
   final flutterRoot = env['FLUTTER_ROOT'];
   if (flutterRoot != null && flutterRoot.isNotEmpty) {
@@ -163,6 +178,24 @@ Iterable<({String root, String source})> _implicitCandidates(
       if (directory.isEmpty) continue;
       yield (root: p.dirname(directory), source: 'PATH');
     }
+  }
+}
+
+/// The Flutter SDK `pub get` recorded in [config], if it names a local one.
+String? _resolvedFlutterRoot(File config) {
+  try {
+    final document = jsonDecode(config.readAsStringSync());
+    if (document is! Map<String, dynamic>) return null;
+    final root = document['flutterRoot'];
+    if (root is! String) return null;
+    final uri = Uri.parse(root);
+    return uri.scheme == 'file' ? uri.toFilePath() : null;
+  } on FileSystemException {
+    return null;
+  } on FormatException {
+    return null;
+  } on UnsupportedError {
+    return null;
   }
 }
 

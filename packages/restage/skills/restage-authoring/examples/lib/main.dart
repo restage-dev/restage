@@ -4,6 +4,7 @@ import 'package:restage/restage.dart';
 import 'messages/weekly_recap.dart';
 import 'onboarding/first_run.dart';
 import 'paywalls/pro_upgrade.dart';
+import 'restage_surfaces.g.dart';
 import 'surveys/mood_check.dart';
 
 const _baseUrl = 'https://api.restage.dev';
@@ -18,6 +19,8 @@ void main() {
     flowResolver: _apiKey.isEmpty
         ? null
         : ServerFlowResolver(baseUrl: _baseUrl, apiKey: _apiKey, active: true),
+    // Fetch every surface in the background at startup.
+    surfaces: restageSurfaces,
   );
   runApp(const MaterialApp(home: HomePage()));
 }
@@ -42,7 +45,9 @@ class HomePage extends StatelessWidget {
           ),
           MoodCheckSurface(
             onEvent: (event) => switch (event) {
-              MoodCheckSubmitEvent(:final value) => debugPrint('mood: $value'),
+              MoodCheckSubmitEvent(:final arguments) => debugPrint(
+                  'mood: ${arguments['mood']}, note: ${arguments['note']}',
+                ),
               MoodCheckRemindMeEvent(:final value) =>
                 debugPrint('remind: $value'),
             },

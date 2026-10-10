@@ -174,6 +174,27 @@ const List<PropertyEntry> _kButtonStyleSizeSynthetics = [
 /// `const CircleBorder()` as the `??` fallback.
 const String _kAvatarBorderCircle = 'circle';
 
+/// Keyboard type named on the wire; decoded to the matching `TextInputType`.
+const _kKeyboardTypeSynthetic = PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: 'keyboardType',
+  type: PropertyType.string,
+  description: 'Keyboard to show: text, multiline, number, phone, '
+      'emailAddress, url or name.',
+  synthetic: 'textInputType',
+  constraints: RestageConstraints(
+    allowedValues: [
+      'text',
+      'multiline',
+      'number',
+      'phone',
+      'emailAddress',
+      'url',
+      'name',
+    ],
+  ),
+);
+
 /// `disabled` synthetic shared by every Material button. Gates the
 /// widget's `onPressed` handler when true, rather than being passed as a
 /// constructor arg (Flutter buttons have no `disabled:` parameter).
@@ -1511,14 +1532,71 @@ const List<BuiltinWidgetCuration> kCuration = [
     },
   ),
   // Free-form text input. Ships with both `onChanged` and `onSubmitted`
-  // (symmetric with `CupertinoTextField`). `decoration` is the
-  // structured `InputDecoration` parameter and is intentionally
-  // excluded: no decomposition recipe exists yet, and the bare-input
-  // shape covers paywall surveys / promo codes. Richer decoration
-  // (`label`, `border`, `prefixIcon`, `errorText`, ...) is a separate
-  // schema-gap escalation if developer demand surfaces.
+  // (symmetric with `CupertinoTextField`). `decoration` is surfaced as
+  // flat synthetics that rebuild one `InputDecoration`.
   BuiltinWidgetCuration<TextField>(
+    // The decoration, keyboard and input-action properties change the
+    // rendering capability. Core took 7 in the same change, so this takes 8.
+    sinceVersion: 8,
     category: WidgetCategory.input,
+    synthetics: [
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'hintText',
+        type: PropertyType.string,
+        description: 'Text shown inside the empty field.',
+        synthetic: 'inputDecorationText',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'labelText',
+        type: PropertyType.string,
+        description: 'Label shown above the field.',
+        synthetic: 'inputDecorationText',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'helperText',
+        type: PropertyType.string,
+        description: 'Supporting text shown below the field.',
+        synthetic: 'inputDecorationText',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'prefixIconCodepoint',
+        type: PropertyType.integer,
+        description: 'Codepoint of the icon shown before the text.',
+        synthetic: 'inputDecorationPrefixIcon',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'prefixIconFontFamily',
+        type: PropertyType.string,
+        description: 'Icon font family the prefix codepoint belongs to. '
+            'Defaults to the Material icon font when absent.',
+        synthetic: 'inputDecorationPrefixIconFontFamily',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'prefixIconMatchTextDirection',
+        type: PropertyType.boolean,
+        description: 'Selects the mirroring variant of the prefix codepoint. '
+            'Defaults to false.',
+        synthetic: 'inputDecorationPrefixIconMatchTextDirection',
+      ),
+      PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'border',
+        type: PropertyType.string,
+        description: 'Field border: none, underline or outline. Defaults to '
+            'the theme border when absent.',
+        synthetic: 'inputBorder',
+        constraints: RestageConstraints(
+          allowedValues: ['none', 'underline', 'outline'],
+        ),
+      ),
+      _kKeyboardTypeSynthetic,
+    ],
     propertyOverrides: {
       'onChanged': PropertyOverride(callbackSignature: 'ValueChanged<String>'),
       'onSubmitted': PropertyOverride(
@@ -1539,7 +1617,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'groupId',
       'decoration',
       'keyboardType',
-      'textInputAction',
       'textCapitalization',
       'strutStyle',
       'textAlign',

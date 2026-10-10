@@ -5,6 +5,8 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/paywall_completion.dart'
+    as measurement_completion;
 import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_resolved_event.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
@@ -166,6 +168,11 @@ final class MeasurementDiscoveredEvent {
 
   /// Exact structural callback position that can emit this route marker.
   final MeasurementEventOccurrence emissionOccurrence;
+
+  /// The authored event name this callback fires, when it names one.
+  String? get authoredEventName => measurement_completion.authoredEventName(
+        sourceExpression,
+      );
 }
 
 /// Complete source-discovery result, empty on rejection.
@@ -174,17 +181,20 @@ final class MeasurementSourceDiscoveryResult {
     required this.sourceProvenance,
     required List<MeasurementDiscoveredNode> nodes,
     required List<MeasurementDiscoveredEvent> events,
+    Set<String> completionEventNames = const {},
   })  : disposition = MeasurementSourceDiscoveryDisposition.accepted,
         rejectionReason = null,
         nodes = List.unmodifiable(nodes),
-        events = List.unmodifiable(events);
+        events = List.unmodifiable(events),
+        completionEventNames = Set.unmodifiable(completionEventNames);
 
   MeasurementSourceDiscoveryResult._rejected({required String reason})
       : disposition = MeasurementSourceDiscoveryDisposition.rejected,
         rejectionReason = reason,
         sourceProvenance = null,
         nodes = const [],
-        events = const [];
+        events = const [],
+        completionEventNames = const {};
 
   /// Whether the complete static source closure was available.
   final MeasurementSourceDiscoveryDisposition disposition;
@@ -197,6 +207,9 @@ final class MeasurementSourceDiscoveryResult {
 
   /// Resolved event slots ordered by node and slot identity.
   final List<MeasurementDiscoveredEvent> events;
+
+  /// Event names that complete a paywall rather than dismiss it.
+  final Set<String> completionEventNames;
 
   /// Fail-closed reason when static discovery could not be complete.
   final String? rejectionReason;
@@ -404,6 +417,12 @@ final class _MeasurementSourceDiscovery {
       sourceProvenance: provenance,
       nodes: _nodes,
       events: _events,
+      completionEventNames:
+          input.authority == MeasurementSourceAuthority.paywall
+              ? measurement_completion.paywallCompletionEvents(
+                  input.sourceClass,
+                )
+              : const {},
     );
   }
 
@@ -644,7 +663,15 @@ final class _MeasurementSourceDiscovery {
       session: _collectionSession,
       bindings: resolution.bindings,
     );
+    String? previousIteration;
     for (final entry in traversal.entries) {
+      final iteration = switch (entry) {
+        CollectionListElement(:final occurrence) =>
+          measurementStaticIterationKey(occurrence),
+        CollectionListRefusal() => null,
+      };
+      if (iteration != null && iteration == previousIteration) ordinal--;
+      previousIteration = iteration;
       // A run-time collection-`if` is one element built from several
       // branches, so every branch is visited at the same ordinal.
       final occurrences = switch (entry) {
@@ -813,6 +840,14 @@ final class _MeasurementSourceDiscovery {
   }) {
     final occurrence = context.occurrenceScope.widget(widgetClass);
     if (!_nodeKeys.add(occurrence.structuralOccurrenceKey)) {
+      // Static loop iterations share one node.
+      if (context.occurrenceScope.repeatedStatically) {
+        return _nodes.singleWhere(
+          (node) =>
+              node.structuralOccurrenceKey ==
+              occurrence.structuralOccurrenceKey,
+        );
+      }
       throw ArgumentError('A static measurement node occurrence is duplicated');
     }
     final node = MeasurementDiscoveredNode._(
@@ -920,6 +955,7 @@ final class _MeasurementSourceDiscovery {
       emissionOccurrence: emissionOccurrence,
     );
     if (!_eventKeys.add(_eventKey(event))) {
+      if (emissionOccurrence.repeatedStatically) return;
       throw ArgumentError(
         'A static measurement callback slot is duplicated',
       );

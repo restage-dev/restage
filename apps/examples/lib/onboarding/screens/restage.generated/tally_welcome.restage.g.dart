@@ -1,10 +1,12 @@
 part of '../tally_welcome.dart';
 
+// ignore_for_file: type=lint
+
 const tallyWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'tally_welcome',
   artifactPath: 'tally_welcome.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use tallyWelcomeScreenRef')

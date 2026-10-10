@@ -844,3 +844,7 @@
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0643","kind":"alloc","name":"analyticsId","owner":"w0033","source":"package:flutter/src/widgets/basic.dart#Transform.rotate.analyticsId","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0644","kind":"alloc","name":"analyticsId","owner":"w0034","source":"package:flutter/src/widgets/indexed_stack.dart#Visibility.analyticsId","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0645","kind":"alloc","name":"analyticsId","owner":"w0035","source":"package:flutter/src/widgets/basic.dart#Wrap.analyticsId","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"w0058","kind":"alloc","name":"Semantics","source":"package:flutter/src/widgets/basic.dart#Semantics","type":"widget"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0646","kind":"alloc","name":"child","owner":"w0058","source":"package:flutter/src/widgets/basic.dart#Semantics.child","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0647","kind":"alloc","name":"label","owner":"w0058","source":"package:flutter/src/widgets/basic.dart#Semantics.label","type":"property"}
+{"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0648","kind":"alloc","name":"analyticsId","owner":"w0058","source":"package:flutter/src/widgets/basic.dart#Semantics.analyticsId","type":"property"}

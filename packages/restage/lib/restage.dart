@@ -22,6 +22,7 @@ export 'src/authoring/onboarding_source.dart';
 export 'src/authoring/paywall_event.dart';
 export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
+export 'src/delivery/surface_ref.dart';
 export 'src/events/event_enums.dart';
 export 'src/events/restage_event.dart';
 export 'src/flow/compiled_flow.dart';

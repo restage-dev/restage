@@ -10,6 +10,7 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -41,6 +42,11 @@ final class RestageOutputsBuilder implements Builder {
       plan,
       builderKey: 'restage_codegen:outputs',
     );
+    // Generated parts and other non-authored files own no outputs.
+    if (buildStep.inputId.path != r'$package$' &&
+        !isAuthoredDartLibraryAsset(buildStep.inputId)) {
+      return;
+    }
 
     if (buildStep.inputId.path == r'$package$' && !plan.bundledRuntime) {
       await warnAboutUnbundledSurfaceMounts(buildStep);

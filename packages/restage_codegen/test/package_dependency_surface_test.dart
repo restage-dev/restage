@@ -33,14 +33,17 @@ void main() {
         'restage_shared',
         'rfw_catalog_compiler',
         'rfw_catalog_schema',
+        // Reads build.yaml; every consumer already resolves it through
+        // build_runner.
+        'yaml',
       },
       reason: 'Every package lib imports is declared, and restage_codegen '
           'must not gain further published dependencies.',
     );
     expect(
-      devDependencies,
-      contains('yaml'),
-      reason: 'YAML remains a test-only build.yaml parser.',
+      devDependencies.intersection(dependencies),
+      isEmpty,
+      reason: 'A package is either published or test-only.',
     );
   });
 }

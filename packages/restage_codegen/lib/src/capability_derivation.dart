@@ -1,14 +1,22 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart' show findWidgetsByName;
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show kLocalValueSetEventName, kMeasurementPublicationItemArgumentKeyV1;
 import 'package:restage_shared/restage_shared.dart'
-    show CapabilityManifest, LibraryRequirement, WidgetVocabulary;
+    show
+        CapabilityManifest,
+        LibraryRequirement,
+        WidgetVocabulary,
+        kSurfaceFeatureClientFloor;
+import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
 // Only the parsed-model node types are needed here; `WidgetLibrary` is the
 // catalog namespace type from `rfw_catalog_schema`, not RFW's runtime
 // widget-library type that this sublibrary also exports.
 import 'package:restage_shared/rfw_formats.dart'
     show
         ConstructorCall,
+        EventHandler,
         Loop,
         RemoteWidgetLibrary,
         Switch,
@@ -69,8 +77,9 @@ final class CapabilityDerivationResult {
 /// monotonic capability version before a surface may depend on it.
 CapabilityDerivationResult deriveCapabilityManifest(
   RemoteWidgetLibrary surface,
-  Catalog catalog,
-) {
+  Catalog catalog, {
+  bool requiresSurfaceFeatureFloor = false,
+}) {
   final referenced = <WidgetEntry>[];
   final ambiguous = <String>{};
   final localNames = {for (final widget in surface.widgets) widget.name};
@@ -107,6 +116,10 @@ CapabilityDerivationResult deriveCapabilityManifest(
     } else {
       customLibraries.add(entry.library);
     }
+  }
+  if ((requiresSurfaceFeatureFloor || _usesSurfaceFeatures(surface)) &&
+      builtInFloor < kSurfaceFeatureClientFloor) {
+    builtInFloor = kSurfaceFeatureClientFloor;
   }
   // Canonicalize by namespace so BOTH the requirements and the fail-when-
   // referenced diagnostics are deterministic — independent of the order the
@@ -151,6 +164,28 @@ CapabilityDerivationResult deriveCapabilityManifest(
       requiredLibraries: requiredLibraries,
     ),
     referencedWidgets: _canonicalReferences(referenced),
+  );
+}
+
+/// Whether [surface] ships a subset icon font (a literal icon), writes a
+/// screen-local value, or measures tapped items: each needs the feature floor.
+bool _usesSurfaceFeatures(RemoteWidgetLibrary surface) {
+  if (literalIconCodePoints(surface).isNotEmpty) return true;
+  bool visit(Object? node) => switch (node) {
+        EventHandler() => node.eventName == kLocalValueSetEventName ||
+            node.eventArguments
+                .containsKey(kMeasurementPublicationItemArgumentKeyV1) ||
+            visit(node.eventArguments),
+        ConstructorCall() => visit(node.arguments),
+        WidgetBuilderDeclaration() => visit(node.widget),
+        Loop() => visit(node.input) || visit(node.output),
+        Switch() => visit(node.input) || node.outputs.values.any(visit),
+        Map() => node.values.any(visit),
+        List() => node.any(visit),
+        _ => false,
+      };
+  return surface.widgets.any(
+    (widget) => visit(widget.initialState) || visit(widget.root),
   );
 }
 

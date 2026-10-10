@@ -805,12 +805,12 @@ final class MeasurementHostConstructionSession
   ///
   /// Carrier syntax and exact route membership were proven during
   /// [bindPresentation], outside the action callback/append edge.
-  void recordInteractionCarrier(String rawCarrier) {
+  void recordInteractionCarrier(String rawCarrier, {String? item}) {
     if (!_active || !_owner._admissionRemainsUsable(_admission)) return;
     final route = _routesByCarrier[rawCarrier];
     if (route == null) return;
     _presentationAttemptObserver.recordStepObserved();
-    route.edge.appendInteractionIdentity(route.identity);
+    route.edge.appendInteractionIdentity(route.identity, item: item);
   }
 
   void recordAnswer(String questionId, Object? rawValue) {

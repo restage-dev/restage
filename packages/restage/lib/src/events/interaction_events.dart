@@ -43,10 +43,11 @@ final class PagerPageChanged extends RestageEvent {
       };
 }
 
-/// Fired when a declared survey answer changes after a flow trigger settles.
+/// Fired when a declared answer changes after a flow trigger settles, on any
+/// typed flow surface: onboarding, message or survey.
 @immutable
 final class SurveyQuestionResponded extends RestageEvent {
-  /// Creates a survey answer event.
+  /// Creates an answer event.
   SurveyQuestionResponded({
     required this.questionId,
     required this.questionIndex,

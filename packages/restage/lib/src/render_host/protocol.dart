@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'document_path_codec.dart';
+import 'geometry_registry.dart' show GeometryInstance;
 import 'geometry_validation.dart';
 import 'manifest.dart';
 import 'snapshot_path_validation.dart';
@@ -17,6 +19,9 @@ const String renderSnapshotCapability = 'snapshot';
 
 /// Ready-handshake capability token for mounting an interactive surface.
 const String renderMountCapability = 'mount';
+
+/// Ready-handshake capability token for scrolling a marked node into view.
+const String renderRevealCapability = 'reveal';
 
 /// Transport-independent rendering surface consumed by tooling.
 abstract interface class SurfaceRenderProvider {
@@ -78,6 +83,30 @@ SurfaceMountProvider? surfaceMountProviderFor(SurfaceRenderProvider provider) {
   }
   return provider is SurfaceMountProvider
       ? provider as SurfaceMountProvider
+      : null;
+}
+
+/// Optional capability for scrolling one drawn instance of a marked node into
+/// view on the latest settled render.
+abstract interface class SurfaceRevealProvider {
+  /// Asks for the [index]th instance of [path]; false when nothing was asked.
+  bool reveal(String path, {int index = 0});
+}
+
+/// Negotiated optional reveal support for a render provider.
+abstract interface class SurfaceRevealCapability {
+  SurfaceRevealProvider? get revealProvider;
+}
+
+/// Resolves reveal support without widening [SurfaceRenderProvider].
+SurfaceRevealProvider? surfaceRevealProviderFor(
+  SurfaceRenderProvider provider,
+) {
+  if (provider is SurfaceRevealCapability) {
+    return (provider as SurfaceRevealCapability).revealProvider;
+  }
+  return provider is SurfaceRevealProvider
+      ? provider as SurfaceRevealProvider
       : null;
 }
 
@@ -173,7 +202,10 @@ final class GeometrySnapshot {
     required this.epoch,
     required this.generation,
     required Map<String, Rect> rects,
-  }) : rects = snapshotGeometry(rects, argumentName: 'rects') {
+    Map<String, List<GeometryInstance>>? instances,
+  })  : rects = snapshotGeometry(rects, argumentName: 'rects'),
+        instances =
+            snapshotInstances(rects, instances, argumentName: 'instances') {
     if (epoch < 0) {
       throw ArgumentError.value(epoch, 'epoch', 'must be non-negative');
     }
@@ -188,7 +220,12 @@ final class GeometrySnapshot {
 
   final int epoch;
   final int generation;
+
+  /// Each path's first drawn instance.
   final Map<String, Rect> rects;
+
+  /// Every drawn instance of each path, in drawn order.
+  final Map<String, List<GeometryInstance>> instances;
 }
 
 abstract interface class RenderEvent {}
@@ -286,7 +323,8 @@ final class RenderHostProvider
     implements
         SurfaceRenderProvider,
         SurfaceSnapshotCapability,
-        SurfaceMountCapability {
+        SurfaceMountCapability,
+        SurfaceRevealCapability {
   RenderHostProvider({
     required RenderMessageTransport transport,
     required this.bundleOrigin,
@@ -335,6 +373,9 @@ final class RenderHostProvider
   bool _disposed = false;
   bool _snapshotSupported = false;
   bool _mountSupported = false;
+  bool _revealSupported = false;
+  late final SurfaceRevealProvider _revealProvider =
+      _RenderRevealProvider(this);
   late final SurfaceSnapshotProvider _snapshotProvider =
       _RenderSnapshotProvider(this);
   late final SurfaceMountProvider _mountProvider = _RenderMountProvider(this);
@@ -362,6 +403,29 @@ final class RenderHostProvider
   @override
   SurfaceMountProvider? get mountProvider =>
       _mountSupported ? _mountProvider : null;
+
+  @override
+  SurfaceRevealProvider? get revealProvider =>
+      _revealSupported ? _revealProvider : null;
+
+  bool _reveal(String path, int index) {
+    final version = _negotiatedVersion;
+    final epoch = _latestEpoch;
+    if (_disposed || version == null || epoch == null) return false;
+    if (!_settled || _terminated || index < 0) return false;
+    DocumentPathCodec.decode(path);
+    _transport.send(
+      <String, Object?>{
+        'v': version,
+        'type': 'reveal',
+        'epoch': epoch,
+        'path': path,
+        'index': index,
+      },
+      targetOrigin: bundleOrigin,
+    );
+    return true;
+  }
 
   @override
   Stream<GeometrySnapshot> get geometry => _geometry.stream;
@@ -628,6 +692,7 @@ final class RenderHostProvider
       _engine = engine;
       _snapshotSupported = capabilities.contains(renderSnapshotCapability);
       _mountSupported = capabilities.contains(renderMountCapability);
+      _revealSupported = capabilities.contains(renderRevealCapability);
       _negotiatedVersion = overlap.last;
       _readyCompleter.complete(overlap.last);
     } on Object catch (error) {
@@ -723,6 +788,15 @@ final class _RenderMountProvider implements SurfaceMountProvider {
 
   @override
   Future<void> mount(RenderRequest request) => _owner._mount(request);
+}
+
+final class _RenderRevealProvider implements SurfaceRevealProvider {
+  const _RenderRevealProvider(this._owner);
+
+  final RenderHostProvider _owner;
+
+  @override
+  bool reveal(String path, {int index = 0}) => _owner._reveal(path, index);
 }
 
 Set<int> _snapshotSupportedVersions(Iterable<int> versions) {
@@ -833,24 +907,49 @@ List<RenderDiagnostic> _parseDiagnostics(Object? value) {
 }
 
 GeometrySnapshot _parseGeometry(Map<String, Object?> payload) {
-  final rects = <String, Rect>{};
-  for (final entry in _requiredMap(payload, 'rects').entries) {
-    final values = entry.value;
-    if (values is! List<Object?> ||
-        values.length != 4 ||
-        values.any((value) => value is! num)) {
-      throw const FormatException('rect must contain four numbers.');
+  final rects = <String, Rect>{
+    for (final entry in _requiredMap(payload, 'rects').entries)
+      entry.key: _parseRect(entry.value),
+  };
+  final instances = <String, List<GeometryInstance>>{};
+  if (payload['instances'] != null) {
+    for (final entry in _requiredMap(payload, 'instances').entries) {
+      final list = entry.value;
+      if (list is! List<Object?>) {
+        throw const FormatException('instances must be lists.');
+      }
+      instances[entry.key] = <GeometryInstance>[
+        for (final values in list)
+          if (values is List<Object?> && values.length == 5)
+            GeometryInstance(
+              _parseRect(values.sublist(0, 4)),
+              item: values[4] is String
+                  ? values[4]! as String
+                  : throw const FormatException('item must be a string.'),
+            )
+          else
+            GeometryInstance(_parseRect(values)),
+      ];
     }
-    rects[entry.key] = Rect.fromLTWH(
-      (values[0]! as num).toDouble(),
-      (values[1]! as num).toDouble(),
-      (values[2]! as num).toDouble(),
-      (values[3]! as num).toDouble(),
-    );
   }
   return GeometrySnapshot(
     epoch: _requiredInt(payload, 'epoch'),
     generation: _requiredInt(payload, 'generation'),
     rects: rects,
+    instances: instances,
+  );
+}
+
+Rect _parseRect(Object? values) {
+  if (values is! List<Object?> ||
+      values.length != 4 ||
+      values.any((value) => value is! num)) {
+    throw const FormatException('rect must contain four numbers.');
+  }
+  return Rect.fromLTWH(
+    (values[0]! as num).toDouble(),
+    (values[1]! as num).toDouble(),
+    (values[2]! as num).toDouble(),
+    (values[3]! as num).toDouble(),
   );
 }

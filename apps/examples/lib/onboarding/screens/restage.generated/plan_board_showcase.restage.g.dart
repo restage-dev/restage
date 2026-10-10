@@ -1,10 +1,12 @@
 part of '../plan_board_showcase.dart';
 
+// ignore_for_file: type=lint
+
 const planBoardShowcaseScreenRef = NeutralFlowScreenRef(
   id: 'plan_board_showcase',
   artifactPath: 'plan_board_showcase.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use planBoardShowcaseScreenRef')

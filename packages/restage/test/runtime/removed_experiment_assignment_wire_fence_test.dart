@@ -166,14 +166,14 @@ const _retiredAnalyticsKeys = <String>[
 ];
 
 const _surfaceResponseFenceLines = <String>{
-  "return json.containsKey('decision') ||",
+  "if (json.containsKey('decision') ||",
   "json.containsKey('experimentId') ||",
   "json.containsKey('variantId') ||",
-  "json.containsKey('experimentEpoch');",
+  "json.containsKey('experimentEpoch')) {",
 };
 
 final _surfaceResponseFence = RegExp(
-  r'''^  bool _containsRetiredSurfaceResponseField\(Map<String, dynamic> json\) \{.*?^  \}\n''',
+  r'''^  if \(json\.containsKey\('decision'\) \|\|\n.*?\) \{\n''',
   multiLine: true,
   dotAll: true,
 );

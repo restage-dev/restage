@@ -146,27 +146,13 @@ String _emitRegistrationFile({
   if (factoryDefinitions.isNotEmpty) {
     buf.writeln("import '${_flutterImportFor(library)}';");
   }
-  // Cross-package widget imports — emitted whenever a curated entry's
-  // class lives outside the primary Flutter import (e.g. a widget
-  // authored inside `restage_material` itself, whose `flutterType`
-  // resolves to `package:restage_material/...`). Mirrors the pattern
-  // in `user_factory_emitter.dart`: dedupe by source URI, drop
-  // `package:flutter/...` URIs (covered by the primary import), sort
-  // for byte-deterministic emit. Without this, the emitted factory
-  // body references a class the file doesn't import and analyze fails.
-  // `restage_core` carries `RestageDecoders` (helpers for property
-  // types not covered by rfw's `ArgumentDecoders`, e.g. `Duration`),
-  // `resolveThemeBinding` (the runtime resolver for theme-binding
-  // defaults) and `resolveInstalledIcon` (the installed-icon lookup).
-  // Emit the barrel import only when at least one factory body
-  // references one of them — keeps unused-import warnings out of
-  // libraries whose curation reaches none of them. Self-imports via
-  // `package:` URI resolve fine for the core library itself.
+  // Import non-Flutter widget classes by sorted, deduplicated source URI.
+  // Add the core barrel only when emitted factories use its runtime helpers.
   final referencesCoreRuntime = factoryDefinitions.any(
     (d) =>
         d.contains('RestageDecoders.') ||
         d.contains('resolveThemeBinding(') ||
-        d.contains('resolveInstalledIcon('),
+        d.contains('restageIcon('),
   );
   final primaryFlutterImport = _flutterImportFor(library);
   final extraWidgetImports = <String>{

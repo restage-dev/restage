@@ -978,10 +978,22 @@ Future<_LoweredFlow?> _lowerFlow(
       ? const FlowOutboundDeclarations()
       : _outboundDeclarations(outboundExpr, issues, assetId);
   if (flowState == null || outbound == null) return null;
+  final measurementAnswersExpr = _namedArg(flowCall, 'measurementAnswers');
+  if (measurementAnswersExpr != null &&
+      flow.delivery == FlowDeliveryMode.general) {
+    issues.add(
+      Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message: kGeneralFlowMeasurementAnswersRefusal,
+        location: '${assetId.path}#${flow.className}.buildFlow',
+      ),
+    );
+    return null;
+  }
   final Map<String, MeasurementDeclaredAnswerV1> measurementAnswers;
   try {
     measurementAnswers = parseFlowMeasurementAnswers(
-      _namedArg(flowCall, 'measurementAnswers'),
+      measurementAnswersExpr,
       outbound.surveyAnswers,
     );
   } on Object catch (error) {
@@ -1171,18 +1183,15 @@ Future<_LoweredFlow?> _lowerFlow(
     resolvedScreenBlobsByDeclarationIdentity,
   );
 
-  final orderedScreenArtifacts = screenArtifacts.entries.toList()
-    ..sort((left, right) => left.key.compareTo(right.key));
-  for (final entry in orderedScreenArtifacts) {
-    if (flow.minClient >= entry.value.minClient) continue;
-    issues.add(
-      Issue(
-        code: IssueCode.annotationEvaluationFailed,
-        message: 'Flow ${flow.id} minClient ${flow.minClient} does not cover '
-            'screen ${entry.key} minClient ${entry.value.minClient}.',
-        location: assetId.path,
-      ),
-    );
+  // The document covers every screen it ships, as a definition flow does.
+  var minClient = flowDocumentMinClient(
+    declared: flow.minClient,
+    surface: descriptors.flowSurface,
+    delivery: flow.delivery,
+    measuresAnswers: measurementAnswers.isNotEmpty,
+  );
+  for (final artifact in screenArtifacts.values) {
+    if (artifact.minClient > minClient) minClient = artifact.minClient;
   }
 
   if (issues.isNotEmpty) return null;
@@ -1197,7 +1206,7 @@ Future<_LoweredFlow?> _lowerFlow(
     flow: flow.id,
     version: flow.version,
     schemaVersion: schemaVersion,
-    minClient: flow.minClient,
+    minClient: minClient,
     deliveryMode: flow.delivery,
     initial: initial.id,
     actions: usedActionContracts,
@@ -4619,7 +4628,7 @@ part of '$stem.dart';
 const $refName = ${referenceConstructor('Map<String, Object?>')}(
   id: '${flow.id}',
   version: ${flow.version},
-  minClient: ${flow.minClient},
+  minClient: ${lowered.document.minClient},
   surface: Surface.${surface.wireName},
   deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
   decodeResult: $decoderName,
@@ -4650,7 +4659,7 @@ part of '$stem.dart';
 const $refName = ${referenceConstructor(resultClass)}(
   id: '${flow.id}',
   version: ${flow.version},
-  minClient: ${flow.minClient},
+  minClient: ${lowered.document.minClient},
   surface: Surface.${surface.wireName},
   deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
   decodeResult: $decoderName,

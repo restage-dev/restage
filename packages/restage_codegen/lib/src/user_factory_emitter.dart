@@ -125,6 +125,7 @@ String? emitUserFactoriesDart(
 
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
+  buf.writeln('// ignore_for_file: type=lint');
   buf
     ..writeln('//')
     ..writeln(
@@ -217,6 +218,7 @@ String emitEmptyUserFactoriesDart({
 }) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
+  buf.writeln('// ignore_for_file: type=lint');
   buf
     ..writeln()
     ..writeln("import 'package:restage/restage.dart';")

@@ -6,6 +6,8 @@ import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' show decodeLibraryBlob;
 
+import '../delivery/surface_sections_carrier.dart';
+import '../delivery/surface_store_key.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
@@ -51,7 +53,10 @@ abstract interface class FlowExperimentPresentationResolver
     implements
         FlowResolver,
         ActiveArmFlowResolver,
-        FlowExperimentPresentationAuthority {}
+        FlowExperimentPresentationAuthority {
+  /// The store key this presentation races under.
+  SurfaceStoreKey get storeKey;
+}
 
 /// Captures the production mutable authorities for one root presentation.
 ///
@@ -350,7 +355,10 @@ final class FlowMountContractSnapshot {
     FlowMountRevalidationBoundary boundary,
     FlowMountLeaseSeed current,
   ) =>
-      seed.sameIdentityAs(current);
+      seed.sameIdentityAs(current) &&
+      (assignmentKey == null ||
+          !SurfaceAssignmentKeyProvider.registrationConfigured ||
+          SurfaceAssignmentKeyProvider.confirmedKey == assignmentKey);
 }
 
 enum FlowCandidatePrefetchRejection {
@@ -518,12 +526,15 @@ final class _PinnedFlowResolver implements FlowResolver {
 
 ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
   return attachMeasurementPublicationBindingReference(
-    ResolvedFlow(
-      document: flow.document,
-      screenBlobs: flow.screenBlobs,
-      compiled: flow.compiled,
-      contentHash: flow.contentHash,
-      cacheHit: true,
+    copySurfaceSections(
+      flow,
+      ResolvedFlow(
+        document: flow.document,
+        screenBlobs: flow.screenBlobs,
+        compiled: flow.compiled,
+        contentHash: flow.contentHash,
+        cacheHit: true,
+      ),
     ),
     measurementPublicationBindingReferenceFor(flow),
     canonicalExperimentAssignment: measurementExperimentAssignmentFor(flow),

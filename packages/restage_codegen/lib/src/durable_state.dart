@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:build/build.dart';
+import 'package:glob/glob.dart';
 import 'package:package_config/package_config.dart';
+import 'package:yaml/yaml.dart';
 
 /// Resolves the package directory from the active package configuration.
 Future<Uri?> restagePackageRoot(String package) async {
@@ -87,3 +89,68 @@ void _requireAgreement(
     'Neither file was overwritten.',
   );
 }
+
+/// The build.yaml line that makes edits to the durable state trigger a rebuild.
+const String kUntrackedDurableStateAdvice =
+    'Add `additional_public_assets: [.restage/measurement-state.json, '
+    '.restage/wire-ids.events.jsonl]` to build.yaml so edits to these files '
+    'trigger a rebuild.';
+
+/// The [paths] that exist on disk under [packageRoot] but are not build
+/// inputs, so an edit to them does not invalidate a cached build.
+Future<List<String>> untrackedDurableRestageState({
+  required String package,
+  required Future<bool> Function(AssetId asset) canRead,
+  required Uri? packageRoot,
+  required Iterable<String> paths,
+}) async {
+  if (packageRoot == null) return const [];
+  final admitted = _buildYamlSourceGlobs(packageRoot);
+  return [
+    for (final path in paths)
+      // A file this build wrote is not an input yet; build.yaml decides.
+      if (File.fromUri(packageRoot.resolve(path)).existsSync() &&
+          !admitted.any((glob) => glob.matches(path)) &&
+          !await canRead(AssetId(package, path)))
+        path,
+  ];
+}
+
+// The paths the package's build.yaml admits as build inputs.
+List<Glob> _buildYamlSourceGlobs(Uri packageRoot) {
+  final file = File.fromUri(packageRoot.resolve('build.yaml'));
+  if (!file.existsSync()) return const [];
+  final Object? document;
+  try {
+    document = loadYaml(file.readAsStringSync());
+  } on YamlException {
+    return const [];
+  }
+  if (document is! YamlMap) return const [];
+  final patterns = <Object?>[
+    ...?(document['additional_public_assets'] as YamlList?),
+  ];
+  final targets = document['targets'];
+  if (targets is YamlMap) {
+    for (final target in targets.values) {
+      if (target is! YamlMap) continue;
+      final sources = target['sources'];
+      patterns.addAll(switch (sources) {
+        YamlList() => sources,
+        YamlMap() => (sources['include'] as YamlList?) ?? const <Object?>[],
+        _ => const <Object?>[],
+      });
+    }
+  }
+  return [
+    for (final pattern in patterns)
+      if (pattern is String) Glob(pattern),
+  ];
+}
+
+/// [message] with the build.yaml advice appended when the state it asks the
+/// author to edit is untracked.
+String withUntrackedStateAdvice(String message, {required bool untracked}) =>
+    untracked && message.endsWith('Then rebuild.')
+        ? '$message $kUntrackedDurableStateAdvice'
+        : message;

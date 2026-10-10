@@ -4,10 +4,13 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../authoring/flow_definition.dart' show FlowAnswerMeasurement;
+import '../delivery/surface_ref.dart';
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../runtime/surface_vocabulary.dart';
 import '../surface_screen/surface_screen_runtime_provenance.dart';
 import 'compiled_flow.dart';
+
+export '../delivery/surface_ref.dart';
 
 /// Base type for valid flow transition targets.
 sealed class FlowTargetRef {
@@ -148,7 +151,8 @@ final class SurfaceScreenEventContract<E> {
 /// [provenance] it carries, so a reference cannot exist without the contract
 /// that describes it, and the two cannot drift apart.
 @immutable
-final class SurfaceScreenRef<E> extends FlowScreenRef {
+final class SurfaceScreenRef<E> extends FlowScreenRef
+    implements RestageSurfaceRef {
   /// Creates a generated standalone screen reference.
   ///
   /// Everything but the typed event decoder is taken from [provenance]. The
@@ -251,7 +255,7 @@ typedef FlowResultDecoder<R> = R Function(Map<String, Object?> result);
 ///
 /// Generated descriptors carry the flow identity, category, compatibility
 /// floor, and typed terminal-result decoder.
-final class SurfaceFlowRef<R> {
+final class SurfaceFlowRef<R> implements RestageSurfaceRef {
   /// Creates a generated flow reference.
   const SurfaceFlowRef({
     required this.id,

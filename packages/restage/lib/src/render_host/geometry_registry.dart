@@ -1,8 +1,8 @@
 import 'dart:async' show Stream, StreamController, unawaited;
 
-import 'package:flutter/foundation.dart' show mapEquals;
+import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 import 'package:flutter/rendering.dart'
-    show MatrixUtils, Offset, Rect, RenderBox;
+    show MatrixUtils, Offset, Rect, RenderBox, RenderObject;
 import 'package:flutter/scheduler.dart' show FrameCallback, SchedulerBinding;
 import 'document_path_codec.dart';
 
@@ -11,6 +11,29 @@ typedef GeometryPostFrameScheduler = void Function(FrameCallback callback);
 
 /// Supplies the render box whose coordinate space defines geometry snapshots.
 typedef FrameRenderBoxProvider = RenderBox? Function();
+
+/// One drawn instance of an authored node.
+@immutable
+final class GeometryInstance {
+  /// Create an instance at [rect], optionally naming the [item] it draws.
+  const GeometryInstance(this.rect, {this.item});
+
+  /// Frame-relative bounds.
+  final Rect rect;
+
+  /// The data item this instance draws, when its marker names one.
+  final String? item;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GeometryInstance && other.rect == rect && other.item == item;
+
+  @override
+  int get hashCode => Object.hash(rect, item);
+
+  @override
+  String toString() => 'GeometryInstance($rect, item: $item)';
+}
 
 /// Tracks marker render boxes and emits changed frame-relative rect snapshots.
 ///
@@ -28,16 +51,27 @@ final class GeometryRegistry {
 
   final FrameRenderBoxProvider _frameRenderBox;
   final GeometryPostFrameScheduler _schedulePostFrameCallback;
-  final Map<String, RenderBox> _markers = <String, RenderBox>{};
+  final Map<String, List<_Marker>> _markers = <String, List<_Marker>>{};
   final StreamController<Map<String, Rect>> _snapshots =
       StreamController<Map<String, Rect>>.broadcast(sync: true);
+  final StreamController<Map<String, List<GeometryInstance>>> _instances =
+      StreamController<Map<String, List<GeometryInstance>>>.broadcast(
+    sync: true,
+  );
 
+  Map<String, List<GeometryInstance>> _previousInstances =
+      const <String, List<GeometryInstance>>{};
   Map<String, Rect> _previousSnapshot = const <String, Rect>{};
   bool _sweepScheduled = false;
   bool _disposed = false;
 
-  /// Changed geometry snapshots, coalesced to at most one per frame.
+  /// Changed geometry snapshots, coalesced to at most one per frame; a path
+  /// drawn more than once reports its first instance.
   Stream<Map<String, Rect>> get snapshots => _snapshots.stream;
+
+  /// Changed snapshots of every instance of every path, in drawn order.
+  Stream<Map<String, List<GeometryInstance>>> get instanceSnapshots =>
+      _instances.stream;
 
   /// Number of currently attached marker paths.
   int get registeredPathCount => _markers.length;
@@ -49,27 +83,59 @@ final class GeometryRegistry {
   /// snapshot notifications.
   Map<String, Rect> capture() {
     if (_disposed) throw StateError('GeometryRegistry is disposed.');
-    return Map<String, Rect>.unmodifiable(_capture());
+    return Map<String, Rect>.unmodifiable(_firsts(_capture()));
   }
 
-  /// Register [renderBox] under its compact JSON [path].
-  void register(String path, RenderBox renderBox) {
+  /// Capture every instance of every path, in drawn order.
+  Map<String, List<GeometryInstance>> captureInstances() {
+    if (_disposed) throw StateError('GeometryRegistry is disposed.');
+    return Map<String, List<GeometryInstance>>.unmodifiable(_capture());
+  }
+
+  /// Register [renderBox] as one instance of [path], drawing [item].
+  void register(String path, RenderBox renderBox, {String? item}) {
     if (_disposed) throw StateError('GeometryRegistry is disposed.');
     DocumentPathCodec.decode(path);
-    final existing = _markers[path];
-    if (identical(existing, renderBox)) return;
-    if (existing != null) {
-      throw StateError('Duplicate geometry marker path: $path');
+    final instances = _markers.putIfAbsent(path, () => <_Marker>[]);
+    final index =
+        instances.indexWhere((marker) => identical(marker.box, renderBox));
+    if (index >= 0) {
+      if (instances[index].item == item) return;
+      instances[index] = _Marker(renderBox, item);
+    } else {
+      instances.add(_Marker(renderBox, item));
     }
-    _markers[path] = renderBox;
     _ensureSweep();
   }
 
   /// Unregister [renderBox] when it detaches.
   void unregister(String path, RenderBox renderBox) {
-    if (!identical(_markers[path], renderBox)) return;
-    _markers.remove(path);
+    final instances = _markers[path];
+    if (instances == null) return;
+    final before = instances.length;
+    instances.removeWhere((marker) => identical(marker.box, renderBox));
+    if (instances.length == before) return;
+    if (instances.isEmpty) _markers.remove(path);
     _ensureSweep();
+  }
+
+  /// Scrolls the [index]th drawn instance of [path] into view; false when
+  /// there is no such instance.
+  bool reveal(String path, {int index = 0}) {
+    if (_disposed) return false;
+    final instances = _markers[path];
+    if (instances == null || index < 0 || index >= instances.length) {
+      return false;
+    }
+    final frame = _frameRenderBox();
+    if (frame != null && frame.attached && instances.length > 1) {
+      _sortByDrawnOrder(frame);
+    }
+    final box = instances[index].box;
+    if (!box.attached) return false;
+    box.showOnScreen();
+    _ensureSweep();
+    return true;
   }
 
   /// Stop future sweeps and close the snapshot stream.
@@ -78,6 +144,7 @@ final class GeometryRegistry {
     _disposed = true;
     _markers.clear();
     unawaited(_snapshots.close());
+    unawaited(_instances.close());
   }
 
   void _ensureSweep() {
@@ -95,27 +162,85 @@ final class GeometryRegistry {
 
   void _sweep() {
     final next = _capture();
-
-    if (mapEquals(next, _previousSnapshot)) return;
-    final snapshot = Map<String, Rect>.unmodifiable(next);
+    if (geometryInstancesEqual(next, _previousInstances)) return;
+    final firsts = _firsts(next);
+    final firstsChanged = !mapEquals(firsts, _previousSnapshot);
+    _previousInstances = Map<String, List<GeometryInstance>>.unmodifiable(next);
+    _instances.add(_previousInstances);
+    if (!firstsChanged) return;
+    final snapshot = Map<String, Rect>.unmodifiable(firsts);
     _previousSnapshot = snapshot;
     _snapshots.add(snapshot);
   }
 
-  Map<String, Rect> _capture() {
+  Map<String, List<GeometryInstance>> _capture() {
     final frame = _frameRenderBox();
-    final next = <String, Rect>{};
+    final next = <String, List<GeometryInstance>>{};
     if (frame == null || !frame.attached) return next;
+    if (_markers.values.any((instances) => instances.length > 1)) {
+      _sortByDrawnOrder(frame);
+    }
     for (final entry in _markers.entries) {
-      final marker = entry.value;
-      if (!marker.attached || !marker.hasSize) continue;
-      next[entry.key] = MatrixUtils.transformRect(
-        marker.getTransformTo(frame),
-        Offset.zero & marker.size,
-      );
+      final instances = <GeometryInstance>[
+        for (final marker in entry.value)
+          if (marker.box.attached && marker.box.hasSize)
+            GeometryInstance(
+              MatrixUtils.transformRect(
+                marker.box.getTransformTo(frame),
+                Offset.zero & marker.box.size,
+              ),
+              item: marker.item,
+            ),
+      ];
+      if (instances.isNotEmpty) {
+        next[entry.key] = List<GeometryInstance>.unmodifiable(instances);
+      }
     }
     return next;
   }
+
+  /// Orders each repeated path's instances as a depth-first walk meets them.
+  void _sortByDrawnOrder(RenderBox frame) {
+    final order = <RenderObject, int>{};
+    void visit(RenderObject node) {
+      order[node] = order.length;
+      node.visitChildren(visit);
+    }
+
+    visit(frame);
+    for (final instances in _markers.values) {
+      if (instances.length < 2) continue;
+      instances.sort(
+        (a, b) => (order[a.box] ?? order.length)
+            .compareTo(order[b.box] ?? order.length),
+      );
+    }
+  }
+}
+
+final class _Marker {
+  const _Marker(this.box, this.item);
+
+  final RenderBox box;
+  final String? item;
+}
+
+Map<String, Rect> _firsts(Map<String, List<GeometryInstance>> instances) =>
+    <String, Rect>{
+      for (final entry in instances.entries) entry.key: entry.value.first.rect,
+    };
+
+/// Whether [a] and [b] hold the same instances for the same paths.
+bool geometryInstancesEqual(
+  Map<String, List<GeometryInstance>>? a,
+  Map<String, List<GeometryInstance>>? b,
+) {
+  if (a == null || b == null) return identical(a, b);
+  if (a.length != b.length) return false;
+  for (final entry in a.entries) {
+    if (!listEquals(entry.value, b[entry.key])) return false;
+  }
+  return true;
 }
 
 void _defaultSchedulePostFrameCallback(FrameCallback callback) {

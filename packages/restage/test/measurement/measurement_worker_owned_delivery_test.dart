@@ -46,6 +46,17 @@ void main() {
         outcomeLinkCarrier: 'Y2Fycmllcg',
       ),
       registrationFingerprint: fingerprint,
+      orderedCaptureCanonicalBytesV1: MeasurementOrderedCaptureV1(routes: [
+        MeasurementOrderedCaptureRouteV1(
+          occurrenceId: CanonicalDigest('0' * 63 + '1'),
+          lineageId: PointLineageId('lineage.worker-owned'),
+          channels: const [
+            MeasurementOccurrenceChannelV1.presentation,
+            MeasurementOccurrenceChannelV1.interaction,
+          ],
+          interactionItemsV1: true,
+        ),
+      ]).canonicalBytes,
     );
     final opened = await runtime.openSession(registration);
     expect(opened.outcome, MeasurementWorkerOpenSessionOutcome.opened);
@@ -57,6 +68,7 @@ void main() {
         routeIndex: 0,
         monotonicTimestampMicros: 1,
         value: MeasurementWorkerAppendValue.interaction,
+        itemV1: MeasurementWorkerAppendItem.tryCreate('plan.yearly'),
       )),
       MeasurementWorkerAppendOutcome.accepted,
     );
@@ -71,6 +83,14 @@ void main() {
     );
     expect(request.factFrame.experimentAssignment?.outcomeLinkCarrier,
         'Y2Fycmllcg');
+    expect(
+        request.factFrame.facts.single.timedOccurrencesV1!
+            .where((occurrence) =>
+                occurrence.channel ==
+                MeasurementOccurrenceChannelV1.interaction)
+            .single
+            .itemValueV1,
+        'plan.yearly');
     final retained = await _readyRecords(support);
     expect(retained.single.batch.registrationFingerprint, fingerprint);
     expect(retained.single.batch.exactRequestBytes, received.single);
@@ -1283,6 +1303,7 @@ MeasurementWorkerSessionRegistration _registration(
   String sessionId, {
   MeasurementExperimentAssignmentV1? experimentAssignment,
   String? registrationFingerprint,
+  Uint8List? orderedCaptureCanonicalBytesV1,
   int firstSequence = 1,
 }) {
   final context = ExactMeasurementPublicationContextRefV1(
@@ -1308,6 +1329,7 @@ MeasurementWorkerSessionRegistration _registration(
         ? null
         : CanonicalJsonCodec.encode(experimentAssignment.toJson()),
     registrationFingerprint: registrationFingerprint,
+    orderedCaptureCanonicalBytesV1: orderedCaptureCanonicalBytesV1,
     publicationContextCanonicalBytes: context.canonicalBytes,
     routes: const [
       MeasurementWorkerRouteIdentity(

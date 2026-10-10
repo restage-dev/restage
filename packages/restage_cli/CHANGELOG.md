@@ -40,6 +40,11 @@ follow the cursor to the end, tolerate an empty page in the middle, and keep
 each section in the order the service sent it. Surfaces are kept by identity and
 revision together, so one surface with two revisions is two entries.
 
+`RestageConfig.project` and `RestageConfig.app` are nullable. A
+`restage_config.yaml` may leave either out; commands then take it from
+`--project` / `--app` or discovery, and name the missing key when neither
+supplies it. `restage init --force` updates an existing config without asking.
+
 Commands:
 
 - `restage login` / `restage logout` / `restage whoami` — device-authorization

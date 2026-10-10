@@ -18,7 +18,10 @@ import '../events/restage_event.dart'
         PagerPageChanged,
         RestageEvent;
 import '../measurement/measurement_event_sanitizer.dart';
+import '../delivery/surface_race.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart'
+    show measurementExperimentAssignmentFor;
 import '../resolver/surface_delivery_observations.dart'
     show
         SurfaceDeliveryObservationCell,
@@ -305,11 +308,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   /// it once its first screen is ready, and discards it silently on failure so
   /// a failed refresh keeps the current render (staleness is never an error
   /// state, and there is no loading flash on a successful re-host).
-  Future<void> _refresh() async {
+  Future<void> _refresh({
+    ResolvedFlow? adoptedRoot,
+    LateRenderReport? report,
+  }) async {
     if (!mounted || _controller == null) return;
     _disposePending(); // supersede any in-flight pending (the loser)
     late final RestageFlowController<R> pending;
     pending = _buildController(
+      adoptedRoot: adoptedRoot,
       onEvent: (event) {
         if (identical(_pendingController, pending)) {
           // Suppress the pending flow's lifecycle until promotion.
@@ -359,6 +366,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         transaction,
         presentation,
       ),
+      onPainted: report?.painted,
       afterRejection: () => _discardPending(pending),
     );
     _pendingController = pending;
@@ -645,6 +653,21 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       afterRejection: () => _restartRejectedInitial(controller, transaction),
       onPainted: () => _activateMeasurementOwner(controller),
     );
+    controller.onLateRoot = (root, report) {
+      final handle = _refreshHandle;
+      // Assigned content arriving after the mount settled is kept for the
+      // next mount, as for paywalls.
+      if (!mounted ||
+          !identical(_controller, controller) ||
+          handle == null ||
+          handle.triggers.isEmpty ||
+          !_canSwap() ||
+          measurementExperimentAssignmentFor(root) != null) {
+        return;
+      }
+      // Adopt the root as handed; an experiment mount re-resolves instead.
+      unawaited(_refresh(adoptedRoot: root, report: report));
+    };
     _controller = controller;
     _transaction = transaction;
     _presentation = presentation;
@@ -664,6 +687,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   /// mount/restart path ([_start]) and the live-refresh path ([_refresh]); only
   /// the lifecycle callbacks differ.
   RestageFlowController<R> _buildController({
+    ResolvedFlow? adoptedRoot,
     required void Function(RestageEvent) onEvent,
     required void Function(R result) onComplete,
     required void Function(FlowUnavailableError error) onUnavailable,
@@ -689,6 +713,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         flow: boundFlow,
         captureSeed: seedSource.capture,
       );
+    } else if (adoptedRoot != null) {
+      resolver = _AdoptedRootResolver(adoptedRoot, configuredResolver);
     } else {
       resolver = configuredResolver;
     }
@@ -923,8 +949,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     RestageFlowController<R> controller,
     Object resolvedOrPayload,
   ) async {
-    final session =
-        await MeasurementHostSessionController.openForResolvedArtifact(
+    final session = MeasurementHostSessionController.openDeferred(
       resolvedOrPayload,
       presentationObservations: _observationCell?.read,
     );
@@ -1157,3 +1182,23 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 /// what it mounts. Removed at 3.0.
 @Deprecated('Use RestageFlowGraph')
 typedef RestageSurfaceFlow<R> = RestageFlowGraph<R>;
+
+/// Serves one already accepted root, and every sub-flow through [_delegate].
+final class _AdoptedRootResolver
+    implements FlowResolver, ActiveArmFlowResolver {
+  _AdoptedRootResolver(this._root, this._delegate);
+
+  final ResolvedFlow _root;
+  final FlowResolver _delegate;
+
+  @override
+  bool get activeArmEnabled => true;
+
+  @override
+  Future<ResolvedFlow> resolveActiveRoot<R>(OnboardingFlowRef<R> flow) async =>
+      _root;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) =>
+      _delegate.resolve(flow);
+}

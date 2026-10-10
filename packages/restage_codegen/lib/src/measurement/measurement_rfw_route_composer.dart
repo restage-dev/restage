@@ -177,13 +177,14 @@ abstract final class MeasurementRfwRouteComposer {
       final replacement = '$kMeasurementRouteArgumentKeyV1: '
           '${_quote(route.carrier)}';
       final occurrences = _occurrences(result, needle);
-      if (occurrences != 1) {
+      final shared = route.orderedCaptureV1?.interactionItemsV1 ?? false;
+      if (occurrences != 1 && !(shared && occurrences > 1)) {
         throw FormatException(
           'Expected exactly one RFW text marker for generated reference '
           '${route.generatedReferenceId.value}; found $occurrences',
         );
       }
-      result = result.replaceFirst(needle, replacement);
+      result = result.replaceAll(needle, replacement);
     }
     if (result.contains(kMeasurementRouteReferenceMarkerKeyV1) ||
         result.contains(kMeasurementRouteReferenceMarkerPrefixV1)) {
@@ -545,9 +546,25 @@ abstract final class MeasurementRfwRouteComposer {
     _PresentationRewriteTracker presentation,
   ) {
     String? generatedReference;
+    Object? item;
     final businessArguments = <String, Object?>{};
     for (final entry in event.eventArguments.entries) {
       final key = entry.key;
+      if (key == kMeasurementPublicationItemArgumentKeyV1) {
+        final value = entry.value;
+        if (item != null ||
+            !((value is String && measurementInteractionItemIsValidV1(value)) ||
+                (value is fmt.LoopReference &&
+                    value.parts.length == 1 &&
+                    value.parts.single == kHostListItemPositionKey))) {
+          throw FormatException(
+            'RFW event ${event.eventName} contains a malformed Measurement '
+            'item',
+          );
+        }
+        item = value;
+        continue;
+      }
       if (!key.startsWith(kMeasurementPublicationReservedArgumentPrefixV1)) {
         businessArguments[key] = _rewriteValue(
           entry.value,
@@ -590,13 +607,29 @@ abstract final class MeasurementRfwRouteComposer {
           '$generatedReference',
         );
       }
-      if (!consumed.add(generatedReference)) {
+      final itemRoute = route.orderedCaptureV1?.interactionItemsV1 ?? false;
+      if (itemRoute != (item != null)) {
+        throw FormatException(
+          'RFW event ${event.eventName} disagrees with its route about an '
+          'item',
+        );
+      }
+      // One route is shared by every element of a repeated static source.
+      if (!consumed.add(generatedReference) && item == null) {
         throw FormatException(
           'Generated reference $generatedReference appears in more than one '
           'emitted RFW event',
         );
       }
       businessArguments[kMeasurementRouteArgumentKeyV1] = route.carrier;
+      if (item != null) {
+        businessArguments[kMeasurementPublicationItemArgumentKeyV1] = item;
+      }
+    } else if (item != null) {
+      throw FormatException(
+        'RFW event ${event.eventName} carries a Measurement item without a '
+        'route',
+      );
     }
     return fmt.EventHandler(event.eventName, businessArguments);
   }

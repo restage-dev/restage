@@ -68,11 +68,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///     metadata determines whether `<Call>` is a constructor or static factory.
 ///     Properties consumed by a recipe are excluded from the direct named-args
 ///     list.
-///   * `synthetic: 'iconData'` on an integer property resolves the
-///     codepoint through the app's installed icon table as
-///     `resolveInstalledIcon(value, fontFamily: <family>)` and
-///     emits positionally — must be paired with `positional: true` so
-///     the resolved value slots into Flutter's positional `icon` arg.
+///   * `synthetic: 'iconData'` on an integer property builds the whole
+///     widget as `restageIcon(context, codePoint: value, fontFamily: family)`,
+///     which draws from the installed icon table or a font
+///     delivered with the surface; it must be paired with `positional: true`.
 ///     `<family>` is the entry's `synthetic: 'iconFontFamily'` string
 ///     property when it declares one, defaulting to `'MaterialIcons'`,
 ///     and the Material literal when it declares none. An entry that
@@ -322,6 +321,14 @@ String? emitFactoryFunction(
     );
   }
 
+  final decoration = _inputDecorationArguments(entry);
+  if (decoration.isNotEmpty) {
+    argLines.add(
+      '    decoration: InputDecoration('
+      '${decoration.map((argument) => '$argument,').join(' ')}),',
+    );
+  }
+
   for (final p in entry.properties) {
     if (p.positional) continue;
     if (p.synthetic == _sizeFromHeightSynthetic) {
@@ -356,6 +363,13 @@ String? emitFactoryFunction(
       final value =
           _borderRadiusEmitWithCorners(uniform, entry, index: nativeIndex);
       argLines.add('    ${p.name}: $value,');
+      continue;
+    }
+    if (p.synthetic == _textInputTypeSynthetic) {
+      argLines.add(
+        '    ${p.name}: RestageDecoders.textInputType(source, '
+        'const ${_sourcePath(p.name)}),',
+      );
       continue;
     }
     if (p.synthetic != null) continue; // consumed elsewhere
@@ -478,6 +492,14 @@ String? emitFactoryFunction(
       preambleLines.isEmpty ? '' : '${preambleLines.join('\n')}\n\n';
 
   if (omissionConditions.isNotEmpty) {
+    if (positionalArguments.any(
+      (argument) => argument.property.synthetic == _iconDataSynthetic,
+    )) {
+      throw StateError(
+        "'${entry.name}' draws through restageIcon, which takes no "
+        'presence-aware arguments.',
+      );
+    }
     final invocation = _presenceAwareInvocation(
       entry,
       ctor,
@@ -493,6 +515,30 @@ $preamble  return $invocation;
 ''';
   }
 
+  final iconData = positionalArguments.firstWhereOrNull(
+    (argument) => argument.property.synthetic == _iconDataSynthetic,
+  );
+  if (iconData != null) {
+    final named = argLines.skip(positionalArguments.length).toList();
+    for (final line in named) {
+      final name = line.trim().split(':').first;
+      if (!_kRestageIconNamedArguments.contains(name)) {
+        throw StateError(
+          "'${entry.name}.$name' has no restageIcon parameter.",
+        );
+      }
+    }
+    return '''
+${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
+$preamble  return restageIcon(
+    context,
+    ${iconData.value},
+${named.join('\n')}
+  );
+}
+''';
+  }
+
   return '''
 ${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
 $preamble  return $ctor(
@@ -501,6 +547,13 @@ ${argLines.join('\n')}
 }
 ''';
 }
+
+/// The named parameters `restageIcon` takes beside the glyph.
+const Set<String> _kRestageIconNamedArguments = {
+  'size',
+  'color',
+  'semanticLabel',
+};
 
 String _presenceAwareInvocation(
   WidgetEntry entry,
@@ -637,19 +690,11 @@ String _presenceAwareCanonicalChildrenValue(
   );
 }
 
-/// Emits the positional value for [prop] on [entry] without a `name:`
-/// prefix. `iconData` synthetic looks the int codepoint up in the app's
-/// installed icon table, under the font family its sibling
-/// `iconFontFamily` property carries and the mirroring its sibling
-/// `iconMatchTextDirection` property carries; everything else falls through
-/// to the same scalar decoder used for named args.
-///
-/// Constructing an `IconData` from the wire value instead is what forces
-/// an app to retain the whole icon font.
-///
-/// For `required: true` codepoints, the inner expression mirrors
-/// [_decodeExpression]'s throw-on-missing contract so a malformed blob
-/// fails loudly. Non-required codepoints retain the `?? 0` fallback.
+/// Emits [prop] as a positional argument for [entry].
+/// Icon synthetics use `restageIcon` with font and mirroring arguments,
+/// avoiding dynamic `IconData` that retains the whole font.
+/// Required codepoints throw when missing; optional codepoints default to zero.
+/// Other properties use the named-argument scalar decoder.
 String _positionalEmit(
   PropertyEntry prop,
   WidgetEntry entry, {
@@ -670,8 +715,7 @@ String _positionalEmit(
         : '0';
     final family = _iconFontFamilyExpression(entry);
     final mirroring = _iconMatchTextDirectionArgument(entry);
-    return 'resolveInstalledIcon($read ?? $fallback, '
-        'fontFamily: $family$mirroring)';
+    return 'codePoint: $read ?? $fallback, fontFamily: $family$mirroring';
   }
   return _decodeExpression(
     prop,
@@ -710,6 +754,57 @@ String _iconMatchTextDirectionArgument(WidgetEntry entry) {
   if (mirroring == null) return '';
   final read = 'source.v<bool>(const ${_sourcePath(mirroring.name)}) ?? false';
   return ', matchTextDirection: $read';
+}
+
+/// The `InputDecoration` arguments [entry]'s decoration synthetics build, in
+/// catalog order. Empty when the entry declares none.
+List<String> _inputDecorationArguments(WidgetEntry entry) => [
+      for (final p in entry.properties)
+        switch (p.synthetic) {
+          _inputDecorationTextSynthetic =>
+            '${p.name}: source.v<String>(const ${_sourcePath(p.name)})',
+          _inputBorderSynthetic => '${p.name}: ${_inputBorderExpression(p)}',
+          _inputDecorationPrefixIconSynthetic =>
+            'prefixIcon: ${_prefixIconExpression(p, entry)}',
+          _ => null,
+        },
+    ].nonNulls.toList();
+
+/// A switch from [prop]'s closed border names to Flutter input borders; an
+/// absent or unknown name leaves the theme's border.
+String _inputBorderExpression(PropertyEntry prop) {
+  final arms = [
+    for (final name in _inputBorderNames(prop))
+      '${dartStringLiteral(name)} => ${_kInputBorders[name]}, ',
+  ].join();
+  return 'switch (source.v<String>(const ${_sourcePath(prop.name)})) '
+      '{${arms}_ => null}';
+}
+
+Iterable<String> _inputBorderNames(PropertyEntry prop) =>
+    prop.constraints.allowedValues?.map((value) => '$value') ??
+    _kInputBorders.keys;
+
+/// The prefix icon drawn by `restageIcon`, or `null` when the wire carries no
+/// prefix codepoint.
+String _prefixIconExpression(PropertyEntry prop, WidgetEntry entry) {
+  final read = 'source.v<int>(const ${_sourcePath(prop.name)})';
+  final family = entry.properties.firstWhereOrNull(
+    (p) => p.synthetic == _inputDecorationPrefixIconFontFamilySynthetic,
+  );
+  final mirroring = entry.properties.firstWhereOrNull(
+    (p) => p.synthetic == _inputDecorationPrefixIconMatchTextDirectionSynthetic,
+  );
+  final defaultFamily = dartStringLiteral(_defaultIconFontFamily);
+  final familyExpression = family == null
+      ? defaultFamily
+      : 'source.v<String>(const ${_sourcePath(family.name)}) ?? $defaultFamily';
+  final mirroringArgument = mirroring == null
+      ? ''
+      : ', matchTextDirection: '
+          'source.v<bool>(const ${_sourcePath(mirroring.name)}) ?? false';
+  return '$read == null ? null : restageIcon(context, codePoint: $read!, '
+      'fontFamily: $familyExpression$mirroringArgument)';
 }
 
 String _nativeRecipeEmit(
@@ -1377,6 +1472,39 @@ const String _iconMatchTextDirectionSynthetic = 'iconMatchTextDirection';
 /// The font family an icon codepoint belongs to when the wire names none.
 const String _defaultIconFontFamily = 'MaterialIcons';
 
+/// Strategy identifier for `PropertyEntry.synthetic`: a string field of the
+/// `InputDecoration` passed as `decoration:`, named like the property.
+const String _inputDecorationTextSynthetic = 'inputDecorationText';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: the decoration border,
+/// named by one of [_kInputBorders]' keys.
+const String _inputBorderSynthetic = 'inputBorder';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: the decoration's prefix
+/// icon codepoint, resolved through the installed icon table.
+const String _inputDecorationPrefixIconSynthetic = 'inputDecorationPrefixIcon';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: the font family the
+/// sibling prefix icon codepoint is looked up in.
+const String _inputDecorationPrefixIconFontFamilySynthetic =
+    'inputDecorationPrefixIconFontFamily';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: whether the sibling
+/// prefix icon codepoint means its mirroring glyph.
+const String _inputDecorationPrefixIconMatchTextDirectionSynthetic =
+    'inputDecorationPrefixIconMatchTextDirection';
+
+/// Strategy identifier for `PropertyEntry.synthetic`: a keyboard type named
+/// on the wire, decoded to the `TextInputType` argument of the same name.
+const String _textInputTypeSynthetic = 'textInputType';
+
+/// The border names an [_inputBorderSynthetic] property can carry.
+const Map<String, String> _kInputBorders = {
+  'none': 'InputBorder.none',
+  'underline': 'const UnderlineInputBorder()',
+  'outline': 'const OutlineInputBorder()',
+};
+
 /// Structured types whose validity Flutter enforces with a debug-only assert
 /// **from the render object rather than the constructor** — so a value
 /// assembled from a corrupt wire is only discovered inside `performLayout`,
@@ -1466,7 +1594,17 @@ const Set<String> kSupportedSyntheticStrategies = {
   _analyticsIdSynthetic,
   _preferredSizeHeightSynthetic,
   _sizeFromHeightSynthetic,
+  _inputDecorationTextSynthetic,
+  _inputBorderSynthetic,
+  _inputDecorationPrefixIconSynthetic,
+  _inputDecorationPrefixIconFontFamilySynthetic,
+  _inputDecorationPrefixIconMatchTextDirectionSynthetic,
+  _textInputTypeSynthetic,
 };
+
+bool _declaresPrefixIcon(WidgetEntry entry) => entry.properties.any(
+      (p) => p.synthetic == _inputDecorationPrefixIconSynthetic,
+    );
 
 /// Returns the non-exported function identifier for [entry]'s factory closure.
 ///
@@ -1592,6 +1730,16 @@ bool _isMechanicallyEmittable(
           .length >
       1) {
     return false;
+  }
+  for (final strategy in const [
+    _inputBorderSynthetic,
+    _inputDecorationPrefixIconSynthetic,
+    _inputDecorationPrefixIconFontFamilySynthetic,
+    _inputDecorationPrefixIconMatchTextDirectionSynthetic,
+  ]) {
+    if (entry.properties.where((p) => p.synthetic == strategy).length > 1) {
+      return false;
+    }
   }
 
   for (final prop in entry.properties) {
@@ -1925,6 +2073,24 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
     case _sizeFromHeightSynthetic:
       // The synthetic stands in for a `Size` argument of the same name.
       return prop.type == PropertyType.real;
+    case _inputDecorationTextSynthetic:
+    case _textInputTypeSynthetic:
+      return prop.type == PropertyType.string && !prop.positional;
+    case _inputBorderSynthetic:
+      // Every name the catalog admits must map to a Flutter border.
+      return prop.type == PropertyType.string &&
+          !prop.positional &&
+          _inputBorderNames(prop).every(_kInputBorders.containsKey);
+    case _inputDecorationPrefixIconSynthetic:
+      return prop.type == PropertyType.integer && !prop.positional;
+    case _inputDecorationPrefixIconFontFamilySynthetic:
+      return prop.type == PropertyType.string &&
+          !prop.positional &&
+          _declaresPrefixIcon(entry);
+    case _inputDecorationPrefixIconMatchTextDirectionSynthetic:
+      return prop.type == PropertyType.boolean &&
+          !prop.positional &&
+          _declaresPrefixIcon(entry);
     case _preferredSizeHeightSynthetic:
       // The synthetic supplies the height of the entry's
       // `PreferredSizeWidget` slot, so the entry must declare one.

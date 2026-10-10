@@ -332,7 +332,10 @@ void _validateDraftArtifactClosure({
   final expectedSurfaceId = _measurementSurfaceId(entry.publication);
   if (draft.surfaceId.value != expectedSurfaceId ||
       draft.deliverySurfaceType.value != entry.publication.surface.wireName ||
-      draft.artifacts.length != entry.artifacts.length) {
+      draft.artifacts.length !=
+          entry.artifacts
+              .where((artifact) => !artifact.role.isPayloadSection)
+              .length) {
     throw const FormatException(
       'the Measurement draft does not match its exact publication',
     );
@@ -347,6 +350,7 @@ void _validateDraftArtifactClosure({
     }
   }
   for (final artifact in entry.artifacts) {
+    if (artifact.role.isPayloadSection) continue;
     final artifactId = _measurementArtifactId(entry.publication, artifact);
     final measured = draftById[artifactId];
     final expectedKind = switch (artifact.role) {
@@ -355,6 +359,8 @@ void _validateDraftArtifactClosure({
       SurfacePublicationArtifactRole.screenBlob => 'rfw.blob',
       SurfacePublicationArtifactRole.capabilitySidecar =>
         'publication.capability-sidecar',
+      SurfacePublicationArtifactRole.iconFont => 'publication.icon-font',
+      SurfacePublicationArtifactRole.localSeeds => 'publication.local-seeds',
     };
     if (measured == null) {
       throw FormatException(

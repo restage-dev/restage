@@ -1,5 +1,7 @@
 part of '../get_started_screen.dart';
 
+// ignore_for_file: type=lint
+
 sealed class GetStartedScreenEvent {
   const GetStartedScreenEvent();
 }

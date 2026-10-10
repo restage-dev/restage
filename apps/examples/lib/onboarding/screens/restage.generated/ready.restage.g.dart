@@ -1,10 +1,12 @@
 part of '../ready.dart';
 
+// ignore_for_file: type=lint
+
 const readyScreenRef = NeutralFlowScreenRef(
   id: 'ready',
   artifactPath: 'ready.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use readyScreenRef')

@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart
 import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_surface_identity.dart';
+import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -50,11 +51,27 @@ final class MeasurementPublicationSourceArtifact {
 /// plan.
 final class MeasurementPublicationPlanningInput {
   MeasurementPublicationPlanningInput({
-    required this.entry,
+    required SurfacePublicationManifestEntry entry,
     this.flowDocument,
     this.measurementAnswers = const {},
     required Iterable<MeasurementPublicationSourceArtifact> sourceArtifacts,
-  }) : sourceArtifacts = List.unmodifiable(sourceArtifacts);
+  })  : entry = _withoutPayloadSections(entry),
+        sourceArtifacts = List.unmodifiable(sourceArtifacts);
+
+  /// [entry] without its payload section artifacts, which measure nothing.
+  static SurfacePublicationManifestEntry _withoutPayloadSections(
+    SurfacePublicationManifestEntry entry,
+  ) =>
+      entry.artifacts.any((artifact) => artifact.role.isPayloadSection)
+          ? SurfacePublicationManifestEntry(
+              artifacts: [
+                for (final artifact in entry.artifacts)
+                  if (!artifact.role.isPayloadSection) artifact,
+              ],
+              publication: entry.publication,
+              sources: entry.sources,
+            )
+          : entry;
 
   final SurfacePublicationManifestEntry entry;
   final FlowDocument? flowDocument;
@@ -667,11 +684,10 @@ _LedgerReconciliation _reconcile({
           ),
         );
         errors.add(
-          'Measurement identity reconciliation requires review for '
-          '${descriptor.structuralOccurrenceKey}; candidates='
-          '${candidates.map(
-                (candidate) => candidate.structuralOccurrenceKey,
-              ).toList()}.',
+          _reconciliationReviewMessage(
+            descriptor.structuralOccurrenceKey,
+            candidates,
+          ),
         );
         continue;
       }
@@ -911,7 +927,21 @@ MeasurementPublicationRoutePlanV1 _routePlan(
         if (event == null) {
           throw StateError('A discovered event has no active ledger binding.');
         }
-        final treatment = _automaticTreatment(event.sourceEventIdentity);
+        final emission = discoveredEvent.emissionOccurrence;
+        final treatment = _automaticTreatment(
+          event.sourceEventIdentity,
+          // A value slot repeated by a static loop has no item to tell its
+          // iterations apart.
+          prohibited:
+              (emission.repeatedStatically && emission.tapItem == null) ||
+                  // A local value write is never measured.
+                  recogniseLocalValueWrite(discoveredEvent.sourceExpression) !=
+                      null ||
+                  _isTextInputValueSlot(
+                    discoveredNode.resolvedWidgetIdentity,
+                    event.sourceEventIdentity,
+                  ),
+        );
         events.add(
           MeasurementPublicationDraftEventV1(
             nodeCodeIdentityId: ledger.codeIdentityId,
@@ -932,14 +962,30 @@ MeasurementPublicationRoutePlanV1 _routePlan(
             MeasurementPublicationDraftRouteSeedV1(
               generatedReferenceId: event.generatedReferenceId,
               artifactOccurrenceEdgeToken: edge,
-              orderedCaptureV1:
-                  MeasurementOrderedCaptureDeclarationV1(channels: const [
-                MeasurementOccurrenceChannelV1.presentation,
-                MeasurementOccurrenceChannelV1.interaction
-              ]),
+              orderedCaptureV1: MeasurementOrderedCaptureDeclarationV1(
+                channels: const [
+                  MeasurementOccurrenceChannelV1.presentation,
+                  MeasurementOccurrenceChannelV1.interaction
+                ],
+                interactionItemsV1: emission.tapItem != null,
+                completesSurfaceV1: discovery.completionEventNames
+                    .contains(discoveredEvent.authoredEventName),
+              ),
             ),
           );
         }
+      }
+    }
+    final measuredNames = {
+      for (final event in discovery.events) event.authoredEventName,
+    };
+    for (final name in discovery.completionEventNames) {
+      if (!measuredNames.contains(name)) {
+        throw ArgumentError(
+          "completesOn names the event '$name', which no tap on this "
+          "paywall fires. A tap names it with paywallEvent('$name') or "
+          'surfaceEvent(<the declared event constant>).',
+        );
       }
     }
   }
@@ -1338,6 +1384,8 @@ ArtifactKindId _artifactKind(SurfacePublicationArtifactRole role) =>
         SurfacePublicationArtifactRole.screenBlob => 'rfw.blob',
         SurfacePublicationArtifactRole.capabilitySidecar =>
           'publication.capability-sidecar',
+        SurfacePublicationArtifactRole.iconFont => 'publication.icon-font',
+        SurfacePublicationArtifactRole.localSeeds => 'publication.local-seeds',
       },
     );
 
@@ -1424,6 +1472,29 @@ MeasurementBreakdownPointV1? _lifecycleBreakdownPoint({
   );
 }
 
+String _reconciliationReviewMessage(
+  String target,
+  List<MeasurementCompilerLedgerNode> candidates,
+) {
+  final listed = candidates
+      .map((candidate) => '${candidate.structuralOccurrenceKey} '
+          '(${candidate.codeIdentityId.value})')
+      .join(', ');
+  final relocations = candidates
+      .map((candidate) =>
+          '{"codeIdentityId": "${candidate.codeIdentityId.value}", '
+          '"fromStructuralOccurrenceKey": '
+          '"${candidate.structuralOccurrenceKey}", '
+          '"toStructuralOccurrenceKey": "$target"}')
+      .join(' or ');
+  return "This build can't tell which earlier widget the one at $target "
+      'replaces (candidates: $listed). In '
+      '$kRestageMeasurementCompilerLedgerSourcePath, add $relocations to '
+      '"acceptedRelocations" to keep that widget\'s history, or add '
+      '{"structuralOccurrenceKey": "$target"} to "acceptedIntroductions" to '
+      'count it as new. Then rebuild.';
+}
+
 String _artifactHostLocator(MeasurementPublicationSelectorV1 selector,
         ArtifactOccurrenceEdgeToken edge) =>
     'compiler-artifact-host:${selector.key}:${edge.value}';
@@ -1431,7 +1502,20 @@ String _artifactHostLocator(MeasurementPublicationSelectorV1 selector,
 String _publicationHostLocator(MeasurementPublicationSelectorV1 selector) =>
     'compiler-publication-host:${selector.key}';
 
-_AutomaticTreatment _automaticTreatment(SourceEventIdentity event) {
+const _kTextInputWidgets = {
+  'package:flutter/src/material/text_field.dart#TextField',
+  'package:flutter/src/cupertino/text_field.dart#CupertinoTextField',
+};
+
+// Typed text is never measured.
+bool _isTextInputValueSlot(String widget, SourceEventIdentity event) =>
+    _kTextInputWidgets.contains(widget) &&
+    (event.value == 'onChanged' || event.value == 'onSubmitted');
+
+_AutomaticTreatment _automaticTreatment(
+  SourceEventIdentity event, {
+  bool prohibited = false,
+}) {
   final normalized = switch (event.value) {
     'onDismissed' ||
     'onClose' ||
@@ -1446,7 +1530,9 @@ _AutomaticTreatment _automaticTreatment(SourceEventIdentity event) {
     normalizedInteractionKind: normalized,
     privacyClass: MeasurementPrivacyClass.nonSensitive,
     semanticValueClass: SemanticValueClass.activityOnly,
-    collectionClass: MeasurementCollectionClass.tier2Coalesced,
+    collectionClass: prohibited
+        ? MeasurementCollectionClass.prohibited
+        : MeasurementCollectionClass.tier2Coalesced,
   );
 }
 

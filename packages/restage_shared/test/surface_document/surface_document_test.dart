@@ -579,7 +579,7 @@ void main() {
       final payloadBytes = reader.remaining();
       // A version beyond the supported ceiling is a shape this build cannot
       // read — reject rather than guess. Read first, before the hash check.
-      header['formatVersion'] = (header['formatVersion']! as int) + 1;
+      header['formatVersion'] = kMaxSupportedSurfaceEnvelopeVersion + 1;
       final tampered = _envelopeFrom(header, payloadBytes);
       expect(
         () => SurfaceDocumentCodec.decode(tampered),

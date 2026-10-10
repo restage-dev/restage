@@ -179,7 +179,12 @@ class SurfacePushCommand extends Command<int> {
         (argResults?['project'] as String?) ?? loadedConfig?.config.project;
     final app = (argResults?['app'] as String?) ?? loadedConfig?.config.app;
     if (project == null || app == null) {
-      _stderr.writeln(noProjectContextSentence());
+      _stderr.writeln(
+        missingProjectContextSentence(
+          hasConfig: loadedConfig != null,
+          projectMissing: project == null,
+        ),
+      );
       return 1;
     }
 

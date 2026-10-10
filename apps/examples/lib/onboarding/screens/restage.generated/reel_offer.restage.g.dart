@@ -1,5 +1,7 @@
 part of '../reel_offer.dart';
 
+// ignore_for_file: type=lint
+
 const reelOfferScreenRef = NeutralFlowScreenRef(
   id: 'reel_offer',
   artifactPath: 'reel_offer.rfw',

@@ -31,6 +31,9 @@ enum MeasurementHostSessionDebugState {
   /// No construction authority admitted Measurement work.
   disabled,
 
+  /// The session is still opening; what the mount records is held.
+  pending,
+
   /// An admitted session can receive bounded capture updates.
   active,
 
@@ -397,13 +400,21 @@ final class MeasurementHostSessionController
   })  : _captureSession = captureSession,
         _presentationRouteHandle = presentationRouteHandle,
         _routeTable = routeTable,
+        _completionRoutes = routeTable,
         _transport = transport,
         _debugState = MeasurementHostSessionDebugState.active;
+
+  MeasurementHostSessionController._pending({required bool workerOwned})
+      : _debugState = MeasurementHostSessionDebugState.pending,
+        _pendingRoute = MeasurementPendingPresentationRoute(),
+        _pendingWorkerOwned = workerOwned;
 
   MeasurementHostSessionController._workerOwned({
     required MeasurementHostConstructionSession constructionSession,
     required MeasurementPresentationRouteHandle presentationRouteHandle,
+    MeasurementRuntimeRouteTable? routeTable,
   })  : _constructionSession = constructionSession,
+        _completionRoutes = routeTable,
         _presentationRouteHandle = presentationRouteHandle,
         _debugState = MeasurementHostSessionDebugState.active;
 
@@ -441,6 +452,36 @@ final class MeasurementHostSessionController
 
   /// The longest a surface waits for its Measurement session to open.
   static const Duration openBudget = Duration(seconds: 3);
+
+  /// The most entries a pending session holds before its session opens.
+  static const int pendingEntryLimit = 256;
+
+  /// Opens Measurement in the background; the returned session never delays
+  /// paint.
+  ///
+  /// Until the session opens it holds the first-paint outcome and up to
+  /// [pendingEntryLimit] recorded entries, and replays them on open. A session
+  /// not open within [openBudget] is dropped with what it held.
+  static MeasurementHostSessionController openDeferred(
+    Object resolvedOrPayload, {
+    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+  }) {
+    if (!Restage.isMeasurementEnabled) {
+      return MeasurementHostSessionController._disabled();
+    }
+    final authority = MeasurementHostSessionConstructionRegistry._authority;
+    if (authority == null) return MeasurementHostSessionController._disabled();
+    final pending = MeasurementHostSessionController._pending(
+      workerOwned: authority._constructionOwner != null,
+    );
+    pending._pendingBound = Timer(openBudget, pending._dropPending);
+    unawaited(_openForResolvedArtifact(
+      resolvedOrPayload,
+      presentationObservations: presentationObservations,
+    ).then(pending._adoptOpened,
+        onError: (Object _) => pending._dropPending()));
+    return pending;
+  }
 
   static Future<MeasurementHostSessionController> _openForResolvedArtifact(
     Object resolvedOrPayload, {
@@ -587,6 +628,7 @@ final class MeasurementHostSessionController
         }
         final controller = MeasurementHostSessionController._workerOwned(
           constructionSession: constructionSession,
+          routeTable: routeTable,
           presentationRouteHandle: MeasurementPresentationRouteHandle.open(
             publishedSurfaceRevision: resolvedMount.publishedSurfaceRevision,
             captureSink: constructionSession,
@@ -641,10 +683,26 @@ final class MeasurementHostSessionController
   }
 
   MeasurementHostSessionDebugState _debugState;
+
+  // Pending mode: set only on a session returned by [openDeferred].
+  MeasurementPendingPresentationRoute? _pendingRoute;
+  bool _pendingWorkerOwned = false;
+  Timer? _pendingBound;
+  List<void Function(MeasurementHostSessionController opened)>?
+      _pendingEntries =
+      <void Function(MeasurementHostSessionController opened)>[];
+  bool _pendingOverflowLogged = false;
+  final MeasurementDeferredPresentationBinder _pendingBinder =
+      MeasurementDeferredPresentationBinder();
+  Completer<MeasurementIngestTransportOutcome?>? _pendingTeardown;
+  MeasurementHostSessionController? _opened;
+
   MeasurementRuntimeCaptureSession? _captureSession;
   MeasurementHostConstructionSession? _constructionSession;
   MeasurementPresentationRouteHandle? _presentationRouteHandle;
   MeasurementRuntimeRouteTable? _routeTable;
+  MeasurementRuntimeRouteTable? _completionRoutes;
+  bool _lastInteractionCompletes = false;
   MeasurementIngestTransport? _transport;
   MeasurementHostSessionLifecycleRegistration? _lifecycleRegistration;
   final Set<Future<void>> _pendingLifecycleCheckpoints = <Future<void>>{};
@@ -653,12 +711,82 @@ final class MeasurementHostSessionController
 
   /// Exposes lifecycle state only to focused internal tests.
   @visibleForTesting
-  MeasurementHostSessionDebugState get debugState => _debugState;
+  MeasurementHostSessionDebugState get debugState =>
+      _opened?.debugState ?? _debugState;
 
   /// Worker-backed session exposed only to focused construction-plane tests.
   @visibleForTesting
   MeasurementHostConstructionSession? get debugConstructionSession =>
-      _constructionSession;
+      _opened?._constructionSession ?? _constructionSession;
+
+  /// Entries a pending session holds, for focused tests.
+  @visibleForTesting
+  int get debugPendingEntryCount => _pendingEntries?.length ?? 0;
+
+  bool get _isPending =>
+      _debugState == MeasurementHostSessionDebugState.pending;
+
+  /// Holds [entry] for replay on open; returns false once the session opened.
+  bool _holdPending(void Function(MeasurementHostSessionController) entry) {
+    if (!_isPending) return false;
+    final entries = _pendingEntries!;
+    if (entries.length >= pendingEntryLimit) {
+      if (!_pendingOverflowLogged) {
+        _pendingOverflowLogged = true;
+        debugPrint(
+          '[restage] measurement held $pendingEntryLimit entries before its '
+          'session opened; later entries are dropped',
+        );
+      }
+      return true;
+    }
+    entries.add(entry);
+    return true;
+  }
+
+  void _adoptOpened(MeasurementHostSessionController opened) {
+    if (!_isPending) {
+      opened._disableAfterConstructionFailure();
+      return;
+    }
+    final handle = opened._presentationRouteHandle;
+    if (opened._debugState != MeasurementHostSessionDebugState.active ||
+        handle == null) {
+      _dropPending();
+      return;
+    }
+    _pendingBound?.cancel();
+    _pendingBound = null;
+    _opened = opened;
+    _debugState = MeasurementHostSessionDebugState.active;
+    _pendingRoute!.bind(handle);
+    _pendingBinder.resolve(opened._constructionSession);
+    final entries = _pendingEntries!;
+    _pendingEntries = null;
+    for (final entry in entries) {
+      try {
+        entry(opened);
+      } on Object {
+        // A replayed entry cannot affect the mounted host.
+      }
+    }
+    final teardown = _pendingTeardown;
+    if (teardown != null) {
+      _pendingTeardown = null;
+      teardown.complete(opened.teardown());
+    }
+  }
+
+  void _dropPending() {
+    if (!_isPending) return;
+    _debugState = MeasurementHostSessionDebugState.disabled;
+    _pendingBound?.cancel();
+    _pendingBound = null;
+    _pendingEntries = null;
+    _pendingBinder.resolve(null);
+    _pendingTeardown?.complete(null);
+    _pendingTeardown = null;
+  }
 
   bool _startLifecycleObservation(
     MeasurementHostSessionLifecycleRegistrar registrar,
@@ -718,6 +846,10 @@ final class MeasurementHostSessionController
 
   /// Wraps an admitted root with the exact successful-first-paint hook.
   Widget wrapRootSubtree(Widget child) {
+    final pendingRoute = _pendingRoute;
+    if (pendingRoute != null) {
+      return _DeferredMeasurementRoot(session: this, child: child);
+    }
     final presentationRouteHandle = _presentationRouteHandle;
     if (_debugState != MeasurementHostSessionDebugState.active ||
         presentationRouteHandle == null) {
@@ -747,12 +879,17 @@ final class MeasurementHostSessionController
   /// Measurement failures are isolated to this event occurrence and never
   /// escape into the host callback path.
   Object? sanitizeAndRecordEvent(Object? rawValue) {
+    final opened = _opened;
+    if (opened != null) return opened.sanitizeAndRecordEvent(rawValue);
     try {
       final sanitized = MeasurementEventSanitizer.sanitize(rawValue);
       if (sanitized.carrierStatus ==
               MeasurementEventCarrierStatus.exactV1Carrier &&
           sanitized.rawV1CarrierForResolution != null) {
-        _recordInteractionCarrier(sanitized.rawV1CarrierForResolution!);
+        _recordInteractionCarrier(
+          sanitized.rawV1CarrierForResolution!,
+          item: sanitized.itemValueForResolution,
+        );
       }
       return sanitized.businessValue;
     } on Object {
@@ -763,6 +900,9 @@ final class MeasurementHostSessionController
   /// Receives one successful private RFW presentation probe.
   @override
   void recordPresentedCarrier(String rawCarrier) {
+    final opened = _opened;
+    if (opened != null) return opened.recordPresentedCarrier(rawCarrier);
+    if (_holdPending((o) => o.recordPresentedCarrier(rawCarrier))) return;
     if (_constructionSession != null) return;
     final captureSession = _captureSession;
     final routeTable = _routeTable;
@@ -782,10 +922,15 @@ final class MeasurementHostSessionController
     }
   }
 
-  void _recordInteractionCarrier(String rawCarrier) {
+  void _recordInteractionCarrier(String rawCarrier, {String? item}) {
+    if (_holdPending(
+        (o) => o._recordInteractionCarrier(rawCarrier, item: item))) {
+      return;
+    }
+    _noteInteraction(rawCarrier);
     final constructionSession = _constructionSession;
     if (constructionSession != null) {
-      constructionSession.recordInteractionCarrier(rawCarrier);
+      constructionSession.recordInteractionCarrier(rawCarrier, item: item);
       return;
     }
     final captureSession = _captureSession;
@@ -800,13 +945,18 @@ final class MeasurementHostSessionController
         context: routeTable.mountedArtifactContext,
         token: OpaqueMeasurementEventSlotToken(rawCarrier),
       );
-      if (route != null) captureSession.recordInteraction(route);
+      if (route != null) {
+        captureSession.recordInteraction(route, itemValueV1: item);
+      }
     } on Object {
       return;
     }
   }
 
   void recordAnswer(String questionId, Object? rawValue) {
+    final opened = _opened;
+    if (opened != null) return opened.recordAnswer(questionId, rawValue);
+    if (_holdPending((o) => o.recordAnswer(questionId, rawValue))) return;
     final construction = _constructionSession;
     if (construction != null) {
       construction.recordAnswer(questionId, rawValue);
@@ -828,11 +978,60 @@ final class MeasurementHostSessionController
     if (route != null) capture.recordAnswer(route, value);
   }
 
+  /// Latches whether the latest measured interaction completes the surface;
+  /// events without a measured route leave the latch as it was.
+  void _noteInteraction(String rawCarrier) {
+    if (_holdPending((o) => o._noteInteraction(rawCarrier))) return;
+    _lastInteractionCompletes = _completesSurface(rawCarrier);
+  }
+
+  bool _completesSurface(String rawCarrier) {
+    final table = _completionRoutes;
+    if (table == null) return false;
+    try {
+      final handle = table.resolveOpaqueRoute(
+        context: table.mountedArtifactContext,
+        token: OpaqueMeasurementEventSlotToken(rawCarrier),
+      );
+      if (handle == null) return false;
+      return table.orderedCaptureV1?.routes.any((route) =>
+              route.completesSurfaceV1 &&
+              route.occurrenceId == handle.occurrenceId &&
+              route.lineageId == handle.lineageId) ??
+          false;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Whether the latest authored interaction completes the surface, for tests.
+  @visibleForTesting
+  bool get debugLastInteractionCompletes =>
+      _opened?.debugLastInteractionCompletes ?? _lastInteractionCompletes;
+
+  /// Records how the surface ended: completion when the latest authored
+  /// interaction's route completes the surface, otherwise dismiss.
+  void recordSurfaceEnd() {
+    final opened = _opened;
+    if (opened != null) return opened.recordSurfaceEnd();
+    if (_holdPending((o) => o.recordSurfaceEnd())) return;
+    recordLifecycle(_lastInteractionCompletes
+        ? MeasurementOccurrenceChannelV1.completion
+        : MeasurementOccurrenceChannelV1.dismiss);
+  }
+
   bool _rootLifecyclePresented = false;
 
   /// Resolves a real root or screen callback inside this session's publication.
   void recordLifecycle(MeasurementOccurrenceChannelV1 channel,
       {String? screenId}) {
+    final opened = _opened;
+    if (opened != null) {
+      return opened.recordLifecycle(channel, screenId: screenId);
+    }
+    if (_holdPending((o) => o.recordLifecycle(channel, screenId: screenId))) {
+      return;
+    }
     final construction = _constructionSession;
     if (construction != null) {
       construction.recordLifecycle(channel, screenId: screenId);
@@ -858,6 +1057,14 @@ final class MeasurementHostSessionController
   /// Records an actual lifecycle event with its exact published route carrier.
   void recordDeclaredOccurrenceCarrier(
       String rawCarrier, MeasurementOccurrenceChannelV1 channel) {
+    final opened = _opened;
+    if (opened != null) {
+      return opened.recordDeclaredOccurrenceCarrier(rawCarrier, channel);
+    }
+    if (_holdPending(
+        (o) => o.recordDeclaredOccurrenceCarrier(rawCarrier, channel))) {
+      return;
+    }
     final construction = _constructionSession;
     if (construction != null) {
       construction.recordDeclaredOccurrenceCarrier(rawCarrier, channel);
@@ -886,6 +1093,8 @@ final class MeasurementHostSessionController
 
   /// Emits and submits one nonterminal cumulative frame when active.
   Future<MeasurementIngestTransportOutcome?> checkpoint() async {
+    final opened = _opened;
+    if (opened != null) return opened.checkpoint();
     final constructionSession = _constructionSession;
     if (constructionSession != null) {
       try {
@@ -909,6 +1118,13 @@ final class MeasurementHostSessionController
 
   /// Finalizes and submits one terminal frame at most once.
   Future<MeasurementIngestTransportOutcome?> teardown() {
+    final opened = _opened;
+    if (opened != null) return opened.teardown();
+    if (_isPending) {
+      return (_pendingTeardown ??=
+              Completer<MeasurementIngestTransportOutcome?>())
+          .future;
+    }
     final existing = _teardownFuture;
     if (existing != null) return existing;
     if (_debugState != MeasurementHostSessionDebugState.active) {
@@ -1002,5 +1218,29 @@ Object? _businessSafeEventFallback(Object? rawValue) {
     return businessValue;
   } on Object {
     return const <Object?, Object?>{};
+  }
+}
+
+/// The root of a surface whose session is still opening. Its shape never
+/// changes when the session opens, so the surface does not remount.
+final class _DeferredMeasurementRoot extends StatelessWidget {
+  const _DeferredMeasurementRoot({required this.session, required this.child});
+
+  final MeasurementHostSessionController session;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final hooked = MeasurementPresentationCommitHook(
+      routeHandle: session._pendingRoute!,
+      child: child,
+    );
+    if (!session._pendingWorkerOwned) {
+      return MeasurementRfwPresentationScope(sink: session, child: hooked);
+    }
+    return MeasurementRfwPresentationBinderScope(
+      binder: session._pendingBinder,
+      child: hooked,
+    );
   }
 }

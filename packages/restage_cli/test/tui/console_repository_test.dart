@@ -172,6 +172,80 @@ void main() {
     },
   );
 
+  for (final cachedAppId in [5, 99]) {
+    test(
+      'target hints stay tied to app $cachedAppId in the fresh scope',
+      () async {
+        await seedCredential(store);
+        await seedRestageConfig(
+          tempDir,
+          'alpha',
+          'mobile',
+          defaultEnvironment: 'prod',
+          organization: 'restage',
+          endpoint: 'http://localhost:8080/',
+        );
+        final config = File(p.join(tempDir.path, 'restage_config.yaml'));
+        await config.writeAsString(
+          '${await config.readAsString()}'
+          'organizationId: 7\nappId: $cachedAppId\n'
+          'environmentTargetId: 32\nnamedEnvironmentId: 41\n',
+        );
+        var scopeReads = 0;
+        final repo = DefaultConsoleRepository(
+          credentialStore: store,
+          directory: tempDir,
+          httpClient: scriptedHttpClient([
+            (request) {
+              scopeReads++;
+              return _sameSlugScopeSnapshot(request);
+            },
+          ], withDefaultTargetDiscovery: false),
+        );
+        final snapshot = await repo.load();
+        expect(scopeReads, 1);
+        expect(
+          snapshot.context.environmentTargetId,
+          cachedAppId == 5 ? 32 : 31,
+        );
+        final saved = await config.readAsString();
+        expect(saved, contains('appId: 5'));
+        expect(
+          saved,
+          contains('environmentTargetId: ${cachedAppId == 5 ? 32 : 31}'),
+        );
+      },
+    );
+  }
+
+  test('names a key restage_config.yaml does not set', () async {
+    await seedCredential(store);
+    await File(
+      p.join(tempDir.path, 'restage_config.yaml'),
+    ).writeAsString('project: alpha\ndefaultEnvironment: staging\n');
+
+    final repo = DefaultConsoleRepository(
+      credentialStore: store,
+      directory: tempDir,
+      httpClient: mockHttpClient(
+        (_) => fail('HTTP should not be called'),
+        withDefaultTargetDiscovery: false,
+      ),
+    );
+
+    await expectLater(
+      repo.load(),
+      throwsA(
+        isA<ConsoleLoadException>().having(
+          (e) => e.message,
+          'message',
+          'restage_config.yaml has no `app`. Add `app: <slug>` to it, or '
+              'pass --app <slug>.',
+        ),
+      ),
+    );
+  });
+
   test('rejects a config endpoint mismatch before any HTTP call', () async {
     await seedCredential(store, endpoint: 'http://localhost:8080/');
     await seedRestageConfig(
@@ -229,7 +303,8 @@ void main() {
         isA<ConsoleLoadException>().having(
           (e) => e.message,
           'message',
-          'No app found for restage_config.yaml app: examples.',
+          'restage_config.yaml names app `examples`, which does not exist in '
+              'project `alpha` of `restage`. Apps there: `mobile`.',
         ),
       ),
     );

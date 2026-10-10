@@ -38,6 +38,7 @@ dependencies:
     path: ../rfw_catalog_compiler
   rfw_catalog_schema:
     path: ../rfw_catalog_schema
+  yaml: ^3.1.2
 
 dev_dependencies:
   # Exact pins, not ranges. The build-integration tests configure the
@@ -62,6 +63,3 @@ dev_dependencies:
   restage_cli:
     path: ../restage_cli
   test: ^1.25.0
-  # Parses build.yaml in the build.yaml ↔ Builder.buildExtensions consistency
-  # test (the production build_runner reads build.yaml; tests read the getter).
-  yaml: ^3.1.2

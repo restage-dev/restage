@@ -7,6 +7,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/commerce.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_artifact_store.dart' show StoredSurface;
 import '../measurement/measurement_sdk_runtime_session.dart'
     show measurementReportedSdkVersion;
 import '../measurement/measurement_resolved_publication_provenance.dart'
@@ -92,6 +93,7 @@ final class SurfaceFetchResult {
     this.routingSelectionReceipt,
     this.routingSelectionProvenance,
     this.assignmentDiagnostic,
+    this.stored,
   });
 
   /// What the artifact half of this delivery produced: the assembled document,
@@ -122,6 +124,10 @@ final class SurfaceFetchResult {
   /// Never set beside an assignment: a serve either commits one or explains
   /// its absence.
   final SurfaceAssignmentDiagnostic? assignmentDiagnostic;
+
+  /// The delivery exactly as served, when its artifact assembled.
+  @internal
+  final StoredSurface? stored;
 }
 
 /// SDK-internal result of fetching a surface stamp.
@@ -189,6 +195,7 @@ final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
     this.routingSelectionReceipt,
     this.routingSelectionProvenance,
     this.assignmentDiagnostic,
+    this.stored,
   });
 
   /// The strict shared delivery response.
@@ -208,6 +215,10 @@ final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
 
   /// Exact immutable Measurement reference carried beside [response].
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+
+  /// The delivery exactly as served.
+  @internal
+  final StoredSurface? stored;
 }
 
 /// The requested standalone screen has no active hosted response.
@@ -961,18 +972,14 @@ class RestageRpcClient {
     }
   }
 
-  /// Fetches a hosted surface delivery for [surfaceSlug] of [surfaceType].
+  /// Fetches [surfaceSlug] of [surfaceType] at [version].
+  /// Omitting [version] requests active delivery where the surface type supports it.
+  /// Returns null for network errors, non-2xx responses or invalid descriptors.
+  /// Successful responses include the artifact outcome and contract-retry signals.
   ///
-  /// Pass an explicit [version] to fetch that exact published version. Omit it
-  /// (pass `null`) to ask the server for the currently-active version — the
-  /// `version` key is then left out of the request body, which the serve route
-  /// treats as the active-version request for surface types that support it
-  /// (paywalls). Returns `null` on a network error, non-2xx status, unsupported
-  /// response field, or missing/invalid artifact descriptor. A `null` is the
-  /// caller's signal to treat the surface as unavailable. A successful response
-  /// carries an artifact outcome and any contract-retry signals. Pass
-  /// [inputs] already gathered by the caller, or they are gathered here under
-  /// a deadline of their own.
+  /// Uses supplied [inputs], or gathers them within their own deadline.
+  /// Disabling [sendAssignmentKey] or missing [keyDeadline] omits both the
+  /// assignment key and held assignment.
   Future<SurfaceFetchResult?> fetchSurface({
     required String surfaceType,
     required String surfaceSlug,
@@ -980,18 +987,34 @@ class RestageRpcClient {
     String? assignmentKey,
     SurfaceRequestPublicationGuard? publicationGuard,
     SurfaceRequestInputs? inputs,
+    bool sendAssignmentKey = true,
+    Future<void>? keyDeadline,
+    SurfaceAssignmentResolutionLease? registrationLease,
   }) =>
       DeliveryInputBudget.run(shared: inputs?.budget, (budget) async {
+        if (!sendAssignmentKey) assignmentKey = null;
         final gathered = inputs ??
             await SurfaceRequestInputs.gather(
               budget: budget,
               surface: surfaceType,
               slug: surfaceSlug,
               assignmentKey: assignmentKey,
+              sendAssignmentKey: sendAssignmentKey,
+              keyDeadline: keyDeadline,
+              capturedLease: registrationLease,
             );
-        final lease = gathered.lease;
-        if (!lease.canSend) return null;
-        assignmentKey ??= lease.assignmentKey;
+        var lease = sendAssignmentKey
+            ? gathered.lease
+            : gathered.lease.withoutAssignment();
+        if (inputs != null && keyDeadline != null) {
+          var deadlinePassed = false;
+          keyDeadline.then((_) => deadlinePassed = true);
+          await Future<void>.value();
+          if (deadlinePassed) lease = lease.withoutAssignment();
+        }
+        if (sendAssignmentKey) assignmentKey ??= lease.assignmentKey;
+        if (!lease.assignmentsAllowed) assignmentKey = null;
+        if (!lease.canSend || !lease.isCurrent) return null;
         final meteringKey = gathered.meteringKey;
         // An explicit version asks for that version, so no decision reads it.
         final analyticsAnonymousId =
@@ -999,7 +1022,9 @@ class RestageRpcClient {
         // Both carriers are forwarded verbatim and only when they satisfy the
         // wire grammar, so a malformed one is never sent as if it were readable.
         final builtIns = _carrierOrNull(gathered.builtIns);
-        final heldAssignment = _carrierOrNull(gathered.heldAssignment);
+        final heldAssignment = sendAssignmentKey && assignmentKey != null
+            ? _carrierOrNull(gathered.heldAssignment)
+            : null;
         final registration = lease.registration;
         if (publicationGuard != null) {
           final bool canPublish;
@@ -1065,82 +1090,66 @@ class RestageRpcClient {
         final json = httpResult.json;
         if (json == null) return null;
         if (!await _acceptFoldedRegistration(
-          json,
-          lease,
-          requestStartedAtMicros,
-        )) {
+            json, lease, requestStartedAtMicros)) {
           return null;
         }
-        if (_containsRetiredSurfaceResponseField(json)) {
-          debugPrint(
-              '[restage] surface delivery contains an unsupported field');
-          return null;
-        }
-        final SurfaceArtifactDescriptor descriptor;
-        try {
-          descriptor =
-              SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
-        } on FormatException catch (error) {
-          // Includes the version gates: a delivery this build does not understand
-          // is refused HERE, before a byte of it is fetched.
-          debugPrint('[restage] surface delivery was not readable: $error');
+        final body = _decodeSurfaceBody(json);
+        if (body == null) return null;
+        if (body.assignment != null &&
+            (!lease.assignmentsAllowed ||
+                registration != null &&
+                    (lease.assignmentKey == null ||
+                        assignmentKey != lease.sentAssignmentKey))) {
           return null;
         }
 
-        // Decoded before the artifact request: an assignment this build cannot
-        // read refuses the delivery rather than spending a fetch on it.
-        final routingSelectionProvenance =
-            SurfaceRoutingSelectionProvenanceV1.normalize(
-          json['routingSelectionProvenance'],
-        );
-        final rawReceipt = json['routingSelectionReceipt'];
-        final routingSelectionReceipt =
-            rawReceipt is String && rawReceipt.length <= 4096
-                ? rawReceipt
-                : null;
-        final rawAssignment = json['assignment'];
-        final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
-        final CanonicalSurfaceExperimentAssignmentV1? assignment;
-        try {
-          assignment = (rawAssignment == null || diagnostic != null)
-              ? null
-              : CanonicalSurfaceExperimentAssignmentV1Codec.decode(
-                  rawAssignment);
-        } on FormatException catch (error) {
-          debugPrint('[restage] surface assignment was not readable: $error');
-          return null;
-        }
-
-        final attempt = lease.registration;
-        if (assignment != null &&
-            attempt != null &&
-            assignmentKey == lease.sentAssignmentKey) {
-          stampAssignmentRegistrationFingerprint(
-            assignment,
-            attempt.fingerprint,
-          );
-        }
-
-        if (assignmentKey == lease.sentAssignmentKey) {
+        if (sendAssignmentKey && assignmentKey == lease.sentAssignmentKey) {
+          final assignment = body.assignment;
+          if (assignment != null && registration != null) {
+            stampAssignmentRegistrationFingerprint(
+                assignment, registration.fingerprint);
+          }
           await budget.bound(SurfaceCanonicalCarrierProvider.retain(
             surface: surfaceType,
             slug: surfaceSlug,
             lease: lease,
-            assignment: assignment,
+            assignment: body.assignment,
           ));
         }
-        final artifact = await _resolveArtifact(descriptor);
+        final (:outcome, :bytes) = await _resolveArtifact(body.descriptor);
+        final bindingHeader = _headerValue(
+          httpResult.headers,
+          _measurementPublicationBindingHeaderV1.toLowerCase(),
+        );
 
         return SurfaceFetchResult(
-          artifact: artifact,
+          artifact: outcome,
           publicationBindingReference:
               _measurementPublicationBindingReferenceFromHeaders(
             httpResult.headers,
           ),
-          canonicalExperimentAssignment: assignment,
-          routingSelectionReceipt: routingSelectionReceipt,
-          routingSelectionProvenance: routingSelectionProvenance,
-          assignmentDiagnostic: diagnostic,
+          canonicalExperimentAssignment: body.assignment,
+          routingSelectionReceipt: body.routingSelectionReceipt,
+          routingSelectionProvenance: body.routingSelectionProvenance,
+          assignmentDiagnostic: body.diagnostic,
+          stored: outcome is SurfaceArtifactAssembled && bytes != null
+              ? StoredSurface(
+                  descriptorJson: httpResult.bodyBytes,
+                  artifactBytes: bytes,
+                  sidecar: _storedSidecar(
+                    bindingHeader: bindingHeader,
+                    assignmentKey: sendAssignmentKey
+                        ? assignmentKey == lease.sentAssignmentKey
+                            ? lease.assignmentKey
+                            : assignmentKey
+                        : null,
+                    registrationFingerprint:
+                        assignmentKey == lease.sentAssignmentKey
+                            ? registration?.fingerprint
+                            : null,
+                  ),
+                )
+              : null,
         );
       });
 
@@ -1191,19 +1200,12 @@ class RestageRpcClient {
     );
     if (accepted && lease.isCurrent) {
       lease.confirmHandle(handle);
-      return true;
+      return lease.isCurrent;
     }
     return false;
   }
 
   static int _utcNowMicros() => DateTime.now().toUtc().microsecondsSinceEpoch;
-
-  bool _containsRetiredSurfaceResponseField(Map<String, dynamic> json) {
-    return json.containsKey('decision') ||
-        json.containsKey('experimentId') ||
-        json.containsKey('variantId') ||
-        json.containsKey('experimentEpoch');
-  }
 
   /// Fetches, verifies and assembles the artifact [descriptor] names.
   ///
@@ -1211,7 +1213,7 @@ class RestageRpcClient {
   /// on the way — the request, the store's answer, the bytes themselves —
   /// funnels into one outcome type and is reported once, here, so a resolver's
   /// fallback is never taken in silence.
-  Future<SurfaceArtifactOutcome> _resolveArtifact(
+  Future<({SurfaceArtifactOutcome outcome, Uint8List? bytes})> _resolveArtifact(
     SurfaceArtifactDescriptor descriptor,
   ) async {
     // An artifact is content-addressed, so a re-resolve that names the same one
@@ -1233,9 +1235,15 @@ class RestageRpcClient {
       // Re-assembled from THIS delivery's description, never replayed from the
       // one that filled the cache: the version, publication time and shape
       // claim belong to the resolve, not to the bytes.
-      return _reported(
-        descriptor,
-        assembleSurfaceArtifact(descriptor: descriptor, artifactBytes: held),
+      return (
+        outcome: _reported(
+          descriptor,
+          await loadSurfaceArtifactIconFonts(
+            assembleSurfaceArtifact(
+                descriptor: descriptor, artifactBytes: held),
+          ),
+        ),
+        bytes: held,
       );
     }
 
@@ -1276,7 +1284,13 @@ class RestageRpcClient {
         _heldArtifactBytes += bytes.length;
       }
     }
-    return _reported(descriptor, outcome);
+    return (
+      outcome: _reported(
+        descriptor,
+        await loadSurfaceArtifactIconFonts(outcome),
+      ),
+      bytes: bytes,
+    );
   }
 
   /// Reports [outcome] if it is a refusal, and returns it either way.
@@ -1339,7 +1353,8 @@ class RestageRpcClient {
     String? readerHostDataContractHash,
     SurfaceAssignmentResolutionLease? registrationLease,
   }) async {
-    if (registrationLease != null && !registrationLease.canSend) {
+    if (registrationLease != null &&
+        (!registrationLease.canSend || !registrationLease.isCurrent)) {
       return const SurfaceScreenDeliveryTransportUnavailable();
     }
     final uri = Uri.parse('$_baseUrl/sdk/v1/surface');
@@ -1412,55 +1427,46 @@ class RestageRpcClient {
       );
     }
 
-    final String? routingSelectionReceipt;
-    final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
-    final SurfaceScreenDeliveryDescriptor described;
-    final CanonicalSurfaceExperimentAssignmentV1? assignment;
-    final SurfaceAssignmentDiagnostic? diagnostic;
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Expected a screen delivery object.');
-      }
-      if (registrationLease != null &&
-          !await _acceptFoldedRegistration(
-            decoded,
-            registrationLease,
-            requestStartedAtMicros,
-          )) {
-        throw const FormatException('Invalid registration metadata.');
-      }
-      final descriptor = Map<String, dynamic>.of(decoded);
-      descriptor.remove('credentialHandle');
-      descriptor.remove('expiresAtMicros');
-      descriptor.remove('serverNowMicros');
-      routingSelectionProvenance =
-          SurfaceRoutingSelectionProvenanceV1.normalize(
-        descriptor.remove('routingSelectionProvenance'),
-      );
-      final rawReceipt = descriptor.remove('routingSelectionReceipt');
-      routingSelectionReceipt =
-          rawReceipt is String && rawReceipt.length <= 4096 ? rawReceipt : null;
-      final rawAssignment = descriptor.remove('assignment');
-      diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
-      assignment = rawAssignment == null || diagnostic != null
-          ? null
-          : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
-      final screenAttempt = registrationLease?.registration;
-      if (assignment != null &&
-          screenAttempt != null &&
-          request.assignmentKey == registrationLease!.sentAssignmentKey) {
-        stampAssignmentRegistrationFingerprint(
-          assignment,
-          screenAttempt.fingerprint,
+    if (registrationLease != null) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map<String, dynamic> ||
+            !await _acceptFoldedRegistration(
+                decoded, registrationLease, requestStartedAtMicros)) {
+          return const SurfaceScreenDeliveryInvalidResponse(
+            SurfaceScreenDeliveryInvalidResponseReason.malformed,
+          );
+        }
+      } on Object {
+        return const SurfaceScreenDeliveryInvalidResponse(
+          SurfaceScreenDeliveryInvalidResponseReason.malformed,
         );
       }
-      described = SurfaceScreenDeliveryDescriptorV1Codec.decode(descriptor);
-    } on Object {
-      debugPrint('[restage] standalone-screen delivery response was malformed');
+    }
+    final screenBody = _decodeScreenBody(response.body);
+    if (screenBody == null) {
       return const SurfaceScreenDeliveryInvalidResponse(
         SurfaceScreenDeliveryInvalidResponseReason.malformed,
       );
+    }
+
+    final assignment = screenBody.assignment;
+    if (assignment != null &&
+        registrationLease != null &&
+        (!registrationLease.assignmentsAllowed ||
+            registration != null &&
+                (registrationLease.assignmentKey == null ||
+                    request.assignmentKey !=
+                        registrationLease.sentAssignmentKey))) {
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.malformed,
+      );
+    }
+    if (assignment != null &&
+        registration != null &&
+        request.assignmentKey == registrationLease!.sentAssignmentKey) {
+      stampAssignmentRegistrationFingerprint(
+          assignment, registration.fingerprint);
     }
 
     // The content is fetched and assembled through the same seam every other
@@ -1468,71 +1474,31 @@ class RestageRpcClient {
     // constructor — so the fingerprint is recomputed against the document that
     // was actually assembled out of the fetched bytes, which is the only
     // version of that check that says anything about them.
-    final artifact = await _resolveArtifact(described.artifact);
-    final SurfaceScreenDeliveryResponse delivery;
-    switch (artifact) {
-      case SurfaceArtifactAssembled(:final document):
-        try {
-          delivery = described.completeWith(
-            document,
-            readerHostDataContractHash: readerHostDataContractHash,
-          );
-        } on SurfaceScreenContractFingerprintMismatch {
-          debugPrint(
-            '[restage] standalone-screen delivery contract does not match '
-            'this build',
-          );
-          return const SurfaceScreenDeliveryInvalidResponse(
-            SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
-          );
-        } on FormatException {
-          debugPrint(
-            '[restage] standalone-screen delivery did not match its content',
-          );
-          return const SurfaceScreenDeliveryInvalidResponse(
-            SurfaceScreenDeliveryInvalidResponseReason.malformed,
-          );
-        }
-      case SurfaceArtifactUnavailable():
-        // The delivery resolved and its content did not arrive. Treated as
-        // transport unavailability, which is what it is, and which is the one
-        // classification eligible for the bundled fallback — the alternative
-        // would fail a screen the app can render perfectly well offline.
-        return const SurfaceScreenDeliveryTransportUnavailable();
-      case SurfaceArtifactUndecodable():
-        debugPrint('[restage] standalone-screen content was malformed');
-        return const SurfaceScreenDeliveryInvalidResponse(
-          SurfaceScreenDeliveryInvalidResponseReason.malformed,
-        );
-    }
-
-    if (delivery.document.surfaceType != request.surface ||
-        delivery.document.surfaceSlug != request.slug) {
-      debugPrint(
-        '[restage] standalone-screen delivery response did not match '
-        'the requested identity',
-      );
-      return const SurfaceScreenDeliveryInvalidResponse(
-        SurfaceScreenDeliveryInvalidResponseReason.identityMismatch,
-      );
-    }
-    if (delivery.contractVersion != request.contractVersion) {
-      debugPrint(
-        '[restage] standalone-screen delivery response did not match '
-        'the requested contract version',
-      );
-      return const SurfaceScreenDeliveryInvalidResponse(
-        SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
-      );
-    }
-    return SurfaceScreenDeliveryAvailable(
-      delivery,
-      canonicalExperimentAssignment: assignment,
-      routingSelectionReceipt: routingSelectionReceipt,
-      routingSelectionProvenance: routingSelectionProvenance,
-      assignmentDiagnostic: diagnostic,
+    final (:outcome, :bytes) =
+        await _resolveArtifact(screenBody.described.artifact);
+    final bindingHeader = _headerValue(
+      response.headers,
+      _measurementPublicationBindingHeaderV1.toLowerCase(),
+    );
+    return _completeScreenDelivery(
+      screenBody,
+      outcome,
+      request,
+      readerHostDataContractHash: readerHostDataContractHash,
       publicationBindingReference:
           _measurementPublicationBindingReferenceFromHeaders(response.headers),
+      stored: bytes == null
+          ? null
+          : StoredSurface(
+              descriptorJson: response.bodyBytes,
+              artifactBytes: bytes,
+              sidecar: _storedSidecar(
+                bindingHeader: bindingHeader,
+                assignmentKey:
+                    registrationLease?.assignmentKey ?? request.assignmentKey,
+                registrationFingerprint: registration?.fingerprint,
+              ),
+            ),
     );
   }
 
@@ -1686,6 +1652,7 @@ class RestageRpcClient {
       statusCode: response.statusCode,
       json: json,
       headers: response.headers,
+      bodyBytes: response.bodyBytes,
     );
   }
 }
@@ -1695,11 +1662,13 @@ final class _JsonObjectHttpResponse {
     required this.statusCode,
     required this.json,
     required this.headers,
+    required this.bodyBytes,
   });
 
   final int statusCode;
   final Map<String, dynamic>? json;
   final Map<String, String> headers;
+  final Uint8List bodyBytes;
 }
 
 String? _headerValue(Map<String, String> headers, String name) {
@@ -2022,4 +1991,300 @@ String? supportedPolicyRevisionsCarrier() {
       collectionBudgetFloor: collectionBudgetPolicyFloor,
     ).canonicalBytes,
   ).replaceAll('=', '');
+}
+
+const _sidecarMeasurementBinding = 'measurementBinding';
+const _sidecarAssignmentKey = 'assignmentKey';
+const _sidecarRegistrationFingerprint = 'registrationFingerprint';
+
+Map<String, Object?> _storedSidecar({
+  required String? bindingHeader,
+  required String? assignmentKey,
+  String? registrationFingerprint,
+}) =>
+    <String, Object?>{
+      if (bindingHeader != null) _sidecarMeasurementBinding: bindingHeader,
+      if (assignmentKey != null) _sidecarAssignmentKey: assignmentKey,
+      if (registrationFingerprint != null)
+        _sidecarRegistrationFingerprint: registrationFingerprint,
+    };
+
+MeasurementPublicationBindingReferenceV1? _storedBindingReference(
+  StoredSurface stored,
+) {
+  final header = stored.sidecar[_sidecarMeasurementBinding];
+  if (header is! String) return null;
+  return _measurementPublicationBindingReferenceFromHeaders(
+    <String, String>{_measurementPublicationBindingHeaderV1: header},
+  );
+}
+
+/// The assignment key a stored delivery was requested with, if any.
+@internal
+String? storedSurfaceAssignmentKey(StoredSurface stored) {
+  final key = stored.sidecar[_sidecarAssignmentKey];
+  return key is String ? key : null;
+}
+
+@internal
+String? storedSurfaceRegistrationFingerprint(StoredSurface stored) {
+  final fingerprint = stored.sidecar[_sidecarRegistrationFingerprint];
+  return fingerprint is String &&
+          RegExp(r'^[0-9a-f]{64}$').hasMatch(fingerprint)
+      ? fingerprint
+      : null;
+}
+
+void _stampStoredAssignment(
+    StoredSurface stored, CanonicalSurfaceExperimentAssignmentV1? assignment) {
+  final fingerprint = storedSurfaceRegistrationFingerprint(stored);
+  if (assignment != null && fingerprint != null) {
+    stampAssignmentRegistrationFingerprint(assignment, fingerprint);
+  }
+}
+
+typedef _SurfaceBody = ({
+  SurfaceArtifactDescriptor descriptor,
+  SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
+  String? routingSelectionReceipt,
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
+  SurfaceAssignmentDiagnostic? diagnostic,
+});
+
+/// Decodes a surface delivery body, or null when it is not one this build
+/// reads.
+_SurfaceBody? _decodeSurfaceBody(Map<String, dynamic> json) {
+  if (json.containsKey('decision') ||
+      json.containsKey('experimentId') ||
+      json.containsKey('variantId') ||
+      json.containsKey('experimentEpoch')) {
+    debugPrint('[restage] surface delivery contains an unsupported field');
+    return null;
+  }
+  final SurfaceArtifactDescriptor descriptor;
+  try {
+    descriptor = SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
+  } on FormatException catch (error) {
+    // Includes the version gates: a delivery this build does not understand
+    // is refused HERE, before a byte of it is fetched.
+    debugPrint('[restage] surface delivery was not readable: $error');
+    return null;
+  }
+
+  // Decoded before the artifact request: an assignment this build cannot
+  // read refuses the delivery rather than spending a fetch on it.
+  final routingSelectionProvenance =
+      SurfaceRoutingSelectionProvenanceV1.normalize(
+    json['routingSelectionProvenance'],
+  );
+  final rawReceipt = json['routingSelectionReceipt'];
+  final routingSelectionReceipt =
+      rawReceipt is String && rawReceipt.length <= 4096 ? rawReceipt : null;
+  final rawAssignment = json['assignment'];
+  final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
+  final CanonicalSurfaceExperimentAssignmentV1? assignment;
+  try {
+    assignment = (rawAssignment == null || diagnostic != null)
+        ? null
+        : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
+  } on FormatException catch (error) {
+    debugPrint('[restage] surface assignment was not readable: $error');
+    return null;
+  }
+  return (
+    descriptor: descriptor,
+    routingSelectionProvenance: routingSelectionProvenance,
+    routingSelectionReceipt: routingSelectionReceipt,
+    assignment: assignment,
+    diagnostic: diagnostic,
+  );
+}
+
+/// Re-reads a stored surface delivery through the same decode and assembly
+/// a fresh one passes. No network.
+@internal
+Future<SurfaceFetchResult?> replayStoredSurface(StoredSurface stored) async {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(utf8.decode(stored.descriptorJson));
+  } on Object {
+    return null;
+  }
+  if (decoded is! Map) return null;
+  final body = _decodeSurfaceBody(Map<String, dynamic>.from(decoded));
+  if (body == null) return null;
+  _stampStoredAssignment(stored, body.assignment);
+  final outcome = await loadSurfaceArtifactIconFonts(
+    assembleSurfaceArtifact(
+      descriptor: body.descriptor,
+      artifactBytes: stored.artifactBytes,
+    ),
+  );
+  if (outcome is! SurfaceArtifactAssembled) return null;
+  return SurfaceFetchResult(
+    artifact: outcome,
+    publicationBindingReference: _storedBindingReference(stored),
+    canonicalExperimentAssignment: body.assignment,
+    routingSelectionReceipt: body.routingSelectionReceipt,
+    routingSelectionProvenance: body.routingSelectionProvenance,
+    assignmentDiagnostic: body.diagnostic,
+    stored: stored,
+  );
+}
+
+typedef _ScreenBody = ({
+  SurfaceScreenDeliveryDescriptor described,
+  SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
+  String? routingSelectionReceipt,
+  CanonicalSurfaceExperimentAssignmentV1? assignment,
+  SurfaceAssignmentDiagnostic? diagnostic,
+});
+
+_ScreenBody? _decodeScreenBody(String responseBody) {
+  try {
+    final decoded = jsonDecode(responseBody);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Expected a screen delivery object.');
+    }
+    final descriptor = Map<String, dynamic>.of(decoded);
+    descriptor.remove('credentialHandle');
+    descriptor.remove('expiresAtMicros');
+    descriptor.remove('serverNowMicros');
+    final routingSelectionProvenance =
+        SurfaceRoutingSelectionProvenanceV1.normalize(
+      descriptor.remove('routingSelectionProvenance'),
+    );
+    final rawReceipt = descriptor.remove('routingSelectionReceipt');
+    final routingSelectionReceipt =
+        rawReceipt is String && rawReceipt.length <= 4096 ? rawReceipt : null;
+    final rawAssignment = descriptor.remove('assignment');
+    final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
+    final assignment = rawAssignment == null || diagnostic != null
+        ? null
+        : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
+    return (
+      described: SurfaceScreenDeliveryDescriptorV1Codec.decode(descriptor),
+      routingSelectionProvenance: routingSelectionProvenance,
+      routingSelectionReceipt: routingSelectionReceipt,
+      assignment: assignment,
+      diagnostic: diagnostic,
+    );
+  } on Object {
+    debugPrint('[restage] standalone-screen delivery response was malformed');
+    return null;
+  }
+}
+
+SurfaceScreenDeliveryResult _completeScreenDelivery(
+  _ScreenBody body,
+  SurfaceArtifactOutcome artifact,
+  SurfaceScreenDeliveryRequest request, {
+  required String? readerHostDataContractHash,
+  required MeasurementPublicationBindingReferenceV1?
+      publicationBindingReference,
+  required StoredSurface? stored,
+}) {
+  final SurfaceScreenDeliveryResponse delivery;
+  switch (artifact) {
+    case SurfaceArtifactAssembled(:final document):
+      try {
+        delivery = body.described.completeWith(
+          document,
+          readerHostDataContractHash: readerHostDataContractHash,
+        );
+      } on SurfaceScreenContractFingerprintMismatch {
+        debugPrint(
+          '[restage] standalone-screen delivery contract does not match '
+          'this build',
+        );
+        return const SurfaceScreenDeliveryInvalidResponse(
+          SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
+        );
+      } on FormatException {
+        debugPrint(
+          '[restage] standalone-screen delivery did not match its content',
+        );
+        return const SurfaceScreenDeliveryInvalidResponse(
+          SurfaceScreenDeliveryInvalidResponseReason.malformed,
+        );
+      }
+    case SurfaceArtifactUnavailable():
+      // The delivery resolved and its content did not arrive. Treated as
+      // transport unavailability, which is what it is, and which is the one
+      // classification eligible for the bundled fallback — the alternative
+      // would fail a screen the app can render perfectly well offline.
+      return const SurfaceScreenDeliveryTransportUnavailable();
+    case SurfaceArtifactUndecodable():
+      debugPrint('[restage] standalone-screen content was malformed');
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.malformed,
+      );
+  }
+
+  if (delivery.document.surfaceType != request.surface ||
+      delivery.document.surfaceSlug != request.slug) {
+    debugPrint(
+      '[restage] standalone-screen delivery response did not match '
+      'the requested identity',
+    );
+    return const SurfaceScreenDeliveryInvalidResponse(
+      SurfaceScreenDeliveryInvalidResponseReason.identityMismatch,
+    );
+  }
+  if (delivery.contractVersion != request.contractVersion) {
+    debugPrint(
+      '[restage] standalone-screen delivery response did not match '
+      'the requested contract version',
+    );
+    return const SurfaceScreenDeliveryInvalidResponse(
+      SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
+    );
+  }
+  return SurfaceScreenDeliveryAvailable(
+    delivery,
+    canonicalExperimentAssignment: body.assignment,
+    routingSelectionReceipt: body.routingSelectionReceipt,
+    routingSelectionProvenance: body.routingSelectionProvenance,
+    assignmentDiagnostic: body.diagnostic,
+    publicationBindingReference: publicationBindingReference,
+    stored: stored,
+  );
+}
+
+/// Re-reads a stored screen delivery for [request] through the same decode,
+/// assembly and correlation a fresh one passes. No network.
+@internal
+Future<SurfaceScreenDeliveryResult> replayStoredSurfaceScreen(
+  StoredSurface stored,
+  SurfaceScreenDeliveryRequest request, {
+  String? readerHostDataContractHash,
+}) async {
+  final String responseBody;
+  try {
+    responseBody = utf8.decode(stored.descriptorJson);
+  } on FormatException {
+    return const SurfaceScreenDeliveryInvalidResponse(
+      SurfaceScreenDeliveryInvalidResponseReason.malformed,
+    );
+  }
+  final body = _decodeScreenBody(responseBody);
+  if (body == null) {
+    return const SurfaceScreenDeliveryInvalidResponse(
+      SurfaceScreenDeliveryInvalidResponseReason.malformed,
+    );
+  }
+  _stampStoredAssignment(stored, body.assignment);
+  return _completeScreenDelivery(
+    body,
+    await loadSurfaceArtifactIconFonts(
+      assembleSurfaceArtifact(
+        descriptor: body.described.artifact,
+        artifactBytes: stored.artifactBytes,
+      ),
+    ),
+    request,
+    readerHostDataContractHash: readerHostDataContractHash,
+    publicationBindingReference: _storedBindingReference(stored),
+    stored: stored,
+  );
 }

@@ -38,6 +38,38 @@ abstract interface class MeasurementRfwPresentationCaptureBinder {
   });
 }
 
+/// A binder whose target arrives after the surface first builds.
+///
+/// Probes under it keep their place in the tree and bind once [resolve] runs,
+/// so the surface's widget state survives the session opening.
+@internal
+final class MeasurementDeferredPresentationBinder extends ChangeNotifier
+    implements MeasurementRfwPresentationCaptureBinder {
+  MeasurementRfwPresentationCaptureBinder? _target;
+  var _resolved = false;
+
+  /// Whether [resolve] has run.
+  bool get isResolved => _resolved;
+
+  /// Sets the binder probes bind through; null leaves them unbound.
+  void resolve(MeasurementRfwPresentationCaptureBinder? target) {
+    if (_resolved) return;
+    _resolved = true;
+    _target = target;
+    notifyListeners();
+  }
+
+  @override
+  MeasurementCaptureEdge? bindPresentation({
+    required List<String> pointTokens,
+    required List<String> routeCarriers,
+  }) =>
+      _target?.bindPresentation(
+        pointTokens: pointTokens,
+        routeCarriers: routeCarriers,
+      );
+}
+
 /// Supplies the private presentation sink to an RFW runtime subtree.
 @internal
 final class MeasurementRfwPresentationScope extends InheritedWidget {
@@ -99,7 +131,7 @@ final class _MeasurementRfwEdgeInherited extends InheritedWidget {
     required super.child,
   });
 
-  final MeasurementCaptureEdge edge;
+  final MeasurementCaptureEdge? edge;
 
   @override
   bool updateShouldNotify(_MeasurementRfwEdgeInherited oldWidget) =>
@@ -208,6 +240,16 @@ Widget _buildBoundMeasurementPresented(
   final pointTokens = _validPointTokens(source);
   if (pointTokens.isEmpty) return child;
   final binder = MeasurementRfwPresentationBinderScope.maybeOf(context);
+  if (binder is MeasurementDeferredPresentationBinder) {
+    final routeCarriers = _validRouteCarriers(source);
+    if (pointTokens.length != routeCarriers.length) return child;
+    return _DeferredPresentationProbe(
+      binder: binder,
+      pointTokens: pointTokens,
+      routeCarriers: routeCarriers,
+      child: child,
+    );
+  }
   MeasurementCaptureEdge? edge;
   if (binder == null) {
     edge = MeasurementRfwPresentationCaptureScope.maybeOf(context);
@@ -227,6 +269,69 @@ Widget _buildBoundMeasurementPresented(
       child: child,
     ),
   );
+}
+
+/// Keeps one probe in place while its binder resolves, then binds it once.
+final class _DeferredPresentationProbe extends StatefulWidget {
+  const _DeferredPresentationProbe({
+    required this.binder,
+    required this.pointTokens,
+    required this.routeCarriers,
+    required this.child,
+  });
+
+  final MeasurementDeferredPresentationBinder binder;
+  final List<String> pointTokens;
+  final List<String> routeCarriers;
+  final Widget child;
+
+  @override
+  State<_DeferredPresentationProbe> createState() =>
+      _DeferredPresentationProbeState();
+}
+
+final class _DeferredPresentationProbeState
+    extends State<_DeferredPresentationProbe> {
+  MeasurementCaptureEdge? _edge;
+  var _bound = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.binder.addListener(_bindIfResolved);
+    _bindIfResolved();
+  }
+
+  @override
+  void dispose() {
+    widget.binder.removeListener(_bindIfResolved);
+    super.dispose();
+  }
+
+  void _bindIfResolved() {
+    if (_bound || !widget.binder.isResolved) return;
+    _bound = true;
+    MeasurementCaptureEdge? edge;
+    try {
+      edge = widget.binder.bindPresentation(
+        pointTokens: widget.pointTokens,
+        routeCarriers: widget.routeCarriers,
+      );
+    } on Object {
+      edge = null;
+    }
+    if (edge == null) return;
+    if (mounted) setState(() => _edge = edge);
+  }
+
+  @override
+  Widget build(BuildContext context) => _MeasurementRfwEdgeInherited(
+        edge: _edge,
+        child: _MeasurementRfwPresentationProbe(
+          pointTokens: widget.pointTokens,
+          child: widget.child,
+        ),
+      );
 }
 
 List<String> _validPointTokens(DataSource source) =>
@@ -292,6 +397,11 @@ final class _MeasurementRfwPresentationProbeState
       if (_slotAcceptsBoundary(context)) {
         _ownRegistry = _PaintObserverRegistry();
       }
+    } else if (_edge == null && !_attempted && edge != null) {
+      // A deferred binder resolved after the first build.
+      _edge = edge;
+      _ownRegistry?._boundary?.markNeedsPaint();
+      _enclosingRegistry?._boundary?.markNeedsPaint();
     } else if (!identical(_edge, edge)) {
       _edge = null;
       _attempted = true;

@@ -1,5 +1,7 @@
 part of '../message_offer_flow.dart';
 
+// ignore_for_file: type=lint
+
 const messageOfferRef = SurfaceFlowRef<
     MessageOfferResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'message_offer',

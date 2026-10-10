@@ -6,6 +6,7 @@ import 'dart:ui' show Locale;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -18,7 +19,6 @@ import 'package:restage/src/measurement/measurement_resolved_publication_provena
 
 import '../measurement/support/measurement_outbox_test_support.dart'
     show alternateBindingReference;
-import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../surface_screen/surface_screen_test_support.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
@@ -90,7 +90,7 @@ void main() {
           : null;
       expect(routingSelectionProvenanceFor(first), expected);
       expect(routingSelectionProvenanceFor(held),
-          same(routingSelectionProvenanceFor(first)));
+          routingSelectionProvenanceFor(first));
       expect(reports, [
         for (final source in [
           SurfaceResolutionSource.fresh,
@@ -514,19 +514,12 @@ void main() {
     ]);
   });
 
-  test('a held resolution reports held and keeps exact provenance', () async {
+  test('a held resolution reports held and keeps its delivered provenance',
+      () async {
     final reports = <SurfaceResolutionReport>[];
     _configure(reports.add);
     final fixture = _ResolutionFixture();
     final first = await fixture.resolver.resolve(_surface);
-    final reference = alternateBindingReference();
-    final assignment = canonicalAssignmentFixture();
-    // Seed non-null provenance on the cached payload to exercise its copy path.
-    attachMeasurementPublicationBindingReference(
-      first,
-      reference,
-      canonicalExperimentAssignment: assignment,
-    );
     fixture.failDelivery = true;
 
     final second = await fixture.resolver.resolve(_surface);
@@ -538,13 +531,10 @@ void main() {
     expect(surfaceResolutionSourceFor(first), SurfaceResolutionSource.fresh);
     expect(surfaceResolutionSourceFor(second),
         SurfaceResolutionSource.holdLastGood);
-    expect(measurementPublicationBindingReferenceFor(first), same(reference));
     expect(measurementPublicationBindingReferenceFor(second),
-        same(measurementPublicationBindingReferenceFor(first)));
-    expect(measurementExperimentAssignmentFor(second), same(assignment));
+        measurementPublicationBindingReferenceFor(first));
     expect(routingSelectionReceiptFor(first), _receipt);
-    expect(routingSelectionReceiptFor(second),
-        same(routingSelectionReceiptFor(first)));
+    expect(routingSelectionReceiptFor(second), _receipt);
     expect(reports, const [
       SurfaceResolutionReport(
         surface: _surface,
@@ -585,6 +575,8 @@ void main() {
     final fresh = await fixture.resolver.resolve(_surface);
     fixture.failDelivery = true;
     final held = await fixture.resolver.resolve(_surface);
+    // A fresh device: nothing stored for this surface yet.
+    sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
     final bundledFixture = _ResolutionFixture()..failDelivery = true;
     final bundled = await bundledFixture.resolver.resolve(_surface);
 
@@ -606,6 +598,8 @@ void main() {
     final fresh = await fixture.resolver.resolve(_surface);
     fixture.failDelivery = true;
     final held = await fixture.resolver.resolve(_surface);
+    // A fresh device: nothing stored for this surface yet.
+    sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
     final bundledFixture = _ResolutionFixture()..failDelivery = true;
     final bundled = await bundledFixture.resolver.resolve(_surface);
 

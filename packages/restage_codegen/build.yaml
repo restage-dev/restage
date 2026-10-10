@@ -50,6 +50,21 @@ builders:
       # The app aggregate folds the compiled surfaces' catalog entries out of
       # this builder's package-wide record, so it must be written first.
       - 'restage_codegen:user_factories'
+      - 'restage_codegen:restage_surfaces'
+
+  # `restageSurfaces`: every surface the package compiles, for
+  # `Restage.configure(surfaces:)`. It reads the generated parts, so every
+  # `.restage.g.dart` is written first.
+  restage_surfaces:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageSurfaceListBuilder']
+    build_extensions:
+      $lib$:
+        - "restage_surfaces.g.dart"
+    auto_apply: root_package
+    build_to: source
+    required_inputs: ['.restage.g.dart']
+    runs_before: []
 
   # The single owner of per-library generated Dart. One builder declares and
   # writes the whole `<stem>.restage.g.dart` family, so a library declaring a
@@ -100,6 +115,7 @@ builders:
         - "assets/paywalls/{{name}}.rfw"
         - "assets/paywalls/{{name}}.capability.json"
         - "assets/paywalls/{{name}}.navplan.json"
+        - "assets/paywalls/{{name}}.local.json"
         - "assets/paywalls/screens/paywall_{{name}}.rfw"
         - "assets/paywalls/screens/paywall_{{name}}.capability.json"
       "lib/paywalls/{{name}}.rfwtxt":

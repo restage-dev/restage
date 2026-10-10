@@ -147,6 +147,28 @@ String noProjectContextSentence([SelectorSyntax? syntax]) {
       '${syntax.app}.';
 }
 
+/// The sentence for a call that resolved no project or app: the key the
+/// project's restage_config.yaml lacks, or [noProjectContextSentence] when
+/// there is no config.
+String missingProjectContextSentence({
+  required bool hasConfig,
+  required bool projectMissing,
+  SelectorSyntax? syntax,
+}) {
+  syntax ??= currentSelectorSyntax;
+  if (!hasConfig) return noProjectContextSentence(syntax);
+  return missingConfigKeySentence(projectMissing ? 'project' : 'app', syntax);
+}
+
+/// The sentence for a restage_config.yaml that does not set [key], which is
+/// `project` or `app`.
+String missingConfigKeySentence(String key, [SelectorSyntax? syntax]) {
+  syntax ??= currentSelectorSyntax;
+  final argument = key == 'app' ? syntax.app : syntax.project;
+  return 'restage_config.yaml has no `$key`. Add `$key: <slug>` to it, or '
+      'pass $argument.';
+}
+
 /// The sentence for a call that names no environment.
 String environmentRequiredSentence([SelectorSyntax? syntax]) {
   syntax ??= currentSelectorSyntax;

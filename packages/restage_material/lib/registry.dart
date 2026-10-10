@@ -4527,6 +4527,20 @@ final Catalog kRegistry = Catalog(
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
+          wireId: WireId('p0491'),
+          name: 'textInputAction',
+          type: PropertyType.enumValue,
+          description:
+              '{@template flutter.widgets.TextField.textInputAction} The type of action button to use for the keyboard.',
+          enumType: 'TextInputAction',
+          constructorNullable: true,
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri: 'package:flutter/src/services/text_input.dart',
+                  symbolName: 'TextInputAction')),
+        ),
+        PropertyEntry(
           wireId: WireId('p0177'),
           name: 'obscureText',
           type: PropertyType.boolean,
@@ -4592,6 +4606,77 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
         ),
         PropertyEntry(
+          wireId: WireId('p0492'),
+          name: 'hintText',
+          type: PropertyType.string,
+          description: 'Text shown inside the empty field.',
+          synthetic: 'inputDecorationText',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0493'),
+          name: 'labelText',
+          type: PropertyType.string,
+          description: 'Label shown above the field.',
+          synthetic: 'inputDecorationText',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0494'),
+          name: 'helperText',
+          type: PropertyType.string,
+          description: 'Supporting text shown below the field.',
+          synthetic: 'inputDecorationText',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0495'),
+          name: 'prefixIconCodepoint',
+          type: PropertyType.integer,
+          description: 'Codepoint of the icon shown before the text.',
+          synthetic: 'inputDecorationPrefixIcon',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0496'),
+          name: 'prefixIconFontFamily',
+          type: PropertyType.string,
+          description:
+              'Icon font family the prefix codepoint belongs to. Defaults to the Material icon font when absent.',
+          synthetic: 'inputDecorationPrefixIconFontFamily',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0497'),
+          name: 'prefixIconMatchTextDirection',
+          type: PropertyType.boolean,
+          description:
+              'Selects the mirroring variant of the prefix codepoint. Defaults to false.',
+          synthetic: 'inputDecorationPrefixIconMatchTextDirection',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0498'),
+          name: 'border',
+          type: PropertyType.string,
+          description:
+              'Field border: none, underline or outline. Defaults to the theme border when absent.',
+          synthetic: 'inputBorder',
+          constraints: RestageConstraints(
+              allowedValues: ['none', 'underline', 'outline']),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0499'),
+          name: 'keyboardType',
+          type: PropertyType.string,
+          description:
+              'Keyboard to show: text, multiline, number, phone, emailAddress, url or name.',
+          synthetic: 'textInputType',
+          constraints: RestageConstraints(allowedValues: [
+            'text',
+            'multiline',
+            'number',
+            'phone',
+            'emailAddress',
+            'url',
+            'name'
+          ]),
+        ),
+        PropertyEntry(
           wireId: WireId('p0457'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -4599,6 +4684,7 @@ final Catalog kRegistry = Catalog(
           synthetic: 'analyticsId',
         ),
       ],
+      sinceVersion: 8,
     ),
     WidgetEntry(
       wireId: WireId('w0039'),
@@ -6373,4 +6459,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.material` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kMaterialCatalogContentVersion = 6;
+const int kMaterialCatalogContentVersion = 8;

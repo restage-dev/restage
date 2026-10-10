@@ -4,6 +4,7 @@ import 'dart:ui' show AppLifecycleState, Locale;
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart'
     show WidgetsBinding, WidgetsBindingObserver;
 import 'package:restage_shared/restage_shared.dart';
@@ -40,11 +41,19 @@ import '../measurement/restage_measurement.dart';
 import '../measurement/restage_privacy.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_delivery_evidence.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/render_deadline.dart';
+import '../delivery/surface_artifact_store.dart';
+import '../delivery/surface_ref.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../delivery/surface_delivery_receipt_uploader.dart';
 import '../events/restage_event.dart';
+import '../flow/flow_descriptors.dart';
+import '../flow/flow_experiment_mount.dart'
+    show FlowExperimentPresentationResolver;
 import '../flow/flow_resolver.dart';
+import '../flow/server_flow_resolver.dart';
 import '../surface_screen/asset_surface_screen_resolver.dart';
 import '../surface_screen/restage_surface_screen_resolver.dart';
 import '../surface_screen/surface_screen_types.dart';
@@ -177,6 +186,7 @@ abstract final class Restage {
       const AssetSurfaceScreenResolver();
   static int _configurationGeneration = 0;
   static bool _measurementEnabled = true;
+  static Duration _renderDeadline = RenderDeadline.defaultDuration;
   static MeasurementHostConstructionOwner? _measurementHostOwner;
   static SurfaceAssignmentCredentialStore? _assignmentCredentialStore;
   static final Set<MeasurementHostConstructionOwner>
@@ -274,6 +284,16 @@ abstract final class Restage {
   /// with the process is never resent, so the counts are lower bounds. Pass
   /// `false` to send none.
   ///
+  /// [surfaces] lists generated surface references whose latest content is
+  /// fetched in the background at startup, so a first mount can render it.
+  /// Paywalls already stored on the device, and stored surfaces listed here,
+  /// are refreshed the same way.
+  ///
+  /// [renderDeadline] (default 300 ms) bounds how long a mounted surface waits
+  /// for fresh content. At the deadline it renders the last content this
+  /// install accepted, the bundled asset, or the compiled widget, and the
+  /// fetch continues in the background for the next mount.
+  ///
   /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
   /// update signals. A custom [updateChannel] takes precedence when both are
   /// provided. If hosted refresh is unavailable, mounted surfaces continue
@@ -331,6 +351,8 @@ abstract final class Restage {
     bool governedMeasurementTransportEnabled = false,
     RestageGovernedMeasurementTransport? governedMeasurementTransport,
     bool deliveryReceiptsEnabled = true,
+    Duration renderDeadline = const Duration(milliseconds: 300),
+    List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
   }) {
     configureWithInstalledCatalog(
       apiKey: apiKey,
@@ -351,6 +373,8 @@ abstract final class Restage {
       governedMeasurementTransportEnabled: governedMeasurementTransportEnabled,
       governedMeasurementTransport: governedMeasurementTransport,
       deliveryReceiptsEnabled: deliveryReceiptsEnabled,
+      renderDeadline: renderDeadline,
+      surfaces: surfaces,
     );
     registerWidgets?.call(
       includeMaterial: includeMaterial,
@@ -410,6 +434,8 @@ abstract final class Restage {
     bool governedMeasurementTransportEnabled = false,
     RestageGovernedMeasurementTransport? governedMeasurementTransport,
     bool deliveryReceiptsEnabled = true,
+    Duration renderDeadline = const Duration(milliseconds: 300),
+    List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
   }) {
     if (governedMeasurementTransportEnabled &&
         governedMeasurementTransport != null) {
@@ -425,6 +451,7 @@ abstract final class Restage {
     }
     _configurationGeneration += 1;
     _measurementEnabled = measurementEnabled;
+    _renderDeadline = renderDeadline;
     _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
@@ -509,6 +536,7 @@ abstract final class Restage {
       rateLimited: _emitSurfaceDeliveryRateLimited,
     );
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
+    if (apiKey != null) unawaited(_prefetchSurfaces(surfaces));
     notifyRestageCommerceConfigurationChanged();
     _reportDeliveryConfiguration(
       hasResolverOverride: resolver != null ||
@@ -525,6 +553,137 @@ abstract final class Restage {
       });
     }
   }
+
+  /// Fetches at most this many surfaces at once when prefetching.
+  static const int _prefetchConcurrency = 4;
+
+  // Background fetches create no assignment: they are not mounts.
+  static Future<void> _prefetchSurfaces(
+      List<RestageSurfaceRef> surfaces) async {
+    final apiKey = _apiKey;
+    if (apiKey == null) return;
+    final generation = _configurationGeneration;
+    final scope = SurfaceStoreKey.scopeFor(
+      apiKey: apiKey,
+      environment: _environment.name,
+    );
+    // Registers every listed reference with its resolver before revalidating.
+    final listed = <SurfaceStoreKey>{
+      for (final ref in surfaces) _storeKeyFor(scope, ref),
+    };
+    final keys = <SurfaceStoreKey>{...listed};
+    try {
+      for (final key in await sharedSurfaceArtifactStore.keys()) {
+        // A stored flow or screen can only be re-gated through its reference.
+        if (key.scope != scope) continue;
+        if (key.surfaceType != Surface.paywall.wireName &&
+            !listed.contains(key)) {
+          continue;
+        }
+        keys.add(key);
+      }
+    } on Object {
+      // An unreadable store still lets the listed surfaces prefetch.
+    }
+    // Stay off the first frame: prefetch starts once it has rendered.
+    try {
+      await SchedulerBinding.instance.endOfFrame;
+    } on Object {
+      // No binding yet: nothing to render, so nothing to stay off.
+    }
+    if (generation != _configurationGeneration) return;
+    final queue = keys.toList();
+    Future<void> worker() async {
+      while (queue.isNotEmpty) {
+        if (generation != _configurationGeneration) return;
+        final key = queue.removeAt(0);
+        final resolver = _racedResolverFor(key);
+        if (resolver == null) continue;
+        try {
+          await resolver.fresh(key, sendAssignmentKey: false);
+        } on Object {
+          // A failed prefetch leaves the surface for its next mount.
+        }
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < _prefetchConcurrency; i += 1) worker(),
+    ]);
+  }
+
+  /// The store key for [ref] under the configured credential, using
+  /// [resolver]'s own key when it is a built-in hosted resolver.
+  @internal
+  static SurfaceStoreKey storeKeyFor(RestageSurfaceRef ref,
+      {Object? resolver}) {
+    final apiKey = _apiKey;
+    final scope = apiKey == null
+        ? ''
+        : SurfaceStoreKey.scopeFor(
+            apiKey: apiKey,
+            environment: _environment.name,
+          );
+    return _storeKeyFor(scope, ref, resolver: resolver);
+  }
+
+  static SurfaceStoreKey _storeKeyFor(
+    String scope,
+    RestageSurfaceRef ref, {
+    Object? resolver,
+  }) {
+    final paywalls = resolver ?? _defaultResolver;
+    final flows = resolver ?? _defaultFlowResolver;
+    final screens = resolver ?? _defaultSurfaceScreenResolver;
+    if (resolver is FlowExperimentPresentationResolver &&
+        ref is SurfaceFlowRef) {
+      return resolver.storeKey;
+    }
+    return switch (ref) {
+      PaywallRef(:final id) when paywalls is RestageVariantResolver =>
+        paywalls.storeKeyFor(id),
+      SurfaceFlowRef() when flows is ServerFlowResolver =>
+        flows.storeKeyFor(ref),
+      SurfaceScreenRef() when screens is RestageScreenResolver =>
+        screens.storeKeyFor(ref),
+      PaywallRef(:final id) => SurfaceStoreKey(
+          scope: scope,
+          surfaceType: Surface.paywall.wireName,
+          slug: id,
+          contractVersion: 0,
+        ),
+      SurfaceFlowRef(:final surface, :final id) => SurfaceStoreKey(
+          scope: scope,
+          surfaceType: surface.wireName,
+          slug: id,
+          contractVersion: 0,
+        ),
+      SurfaceScreenRef(:final slug, :final contractVersion) => SurfaceStoreKey(
+          scope: scope,
+          surfaceType: SurfaceSourceKind.screen.wireName,
+          slug: slug,
+          contractVersion: contractVersion,
+        ),
+      _ => throw ArgumentError.value(ref, 'surfaces', 'unknown reference'),
+    };
+  }
+
+  static RacedSurfaceResolver<Object?>? _racedResolverFor(SurfaceStoreKey key) {
+    final Object resolver;
+    if (key.surfaceType == Surface.paywall.wireName) {
+      resolver = _defaultResolver;
+    } else if (key.surfaceType == SurfaceSourceKind.screen.wireName) {
+      resolver = _defaultSurfaceScreenResolver;
+    } else {
+      resolver = _defaultFlowResolver;
+    }
+    return racedResolverOf<Object?>(resolver);
+  }
+
+  /// The install's last accepted surface deliveries.
+  @internal
+  static SurfaceArtifactStore get surfaceArtifactStore =>
+      sharedSurfaceArtifactStore;
 
   static void _reportDeliveryConfiguration(
       {required bool hasResolverOverride}) {
@@ -652,6 +811,7 @@ abstract final class Restage {
     SurfaceAssignmentKeyProvider.install(
       key: credentialStore.resolve,
       identityGeneration: () => credentialStore.generation,
+      localKey: credentialStore.resolveLocal,
       registration: () => configurationGeneration == _configurationGeneration
           ? credentialStore.capture()
           : Future.value(null),
@@ -760,6 +920,7 @@ abstract final class Restage {
   /// request erasure.
   /// Inert until [configure] supplies a `baseUrl`.
   static void reset() {
+    unawaited(clearSurfaceArtifactStores());
     _measurementHostOwner?.resetSdkRuntimeSession();
     _rpcClient?.forgetPublicationBindings();
     final identity = _analyticsIdentity;
@@ -888,6 +1049,10 @@ abstract final class Restage {
   @internal
   static bool get isMeasurementEnabled => _measurementEnabled;
 
+  /// How long a mount waits before rendering local content.
+  @internal
+  static Duration get renderDeadline => _renderDeadline;
+
   static RestageRpcClient? _requireRpcClient() {
     return _rpcClient ??= _buildRpcClient();
   }
@@ -962,9 +1127,9 @@ abstract final class Restage {
   @internal
   static String? get debugApiKey => _apiKey;
 
-  /// Test-only — exposes the environment passed to [configure].
+  /// The environment passed to [configure].
   @internal
-  static RestageEnvironment get debugEnvironment => _environment;
+  static RestageEnvironment get configuredEnvironment => _environment;
 
   /// Test-only — exposes the resolver `RestagePaywall` will use by default.
   @internal
@@ -1008,6 +1173,8 @@ abstract final class Restage {
     _defaultFlowResolver = const AssetFlowResolver();
     _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
     _measurementEnabled = true;
+    _renderDeadline = RenderDeadline.defaultDuration;
+    unawaited(clearSurfaceArtifactStores());
     _liveRefresh = const {};
     _liveRefreshOverrides = const {};
     _updateChannel = null;

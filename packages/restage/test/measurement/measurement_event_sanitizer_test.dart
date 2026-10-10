@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/flow/flow_runtime_support.dart'
     show normalizeEventArgs;
 import 'package:restage/src/measurement/measurement_event_sanitizer.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 const _routeKey = '__restage_measurement_route_v1';
+const _itemKey = '__restage_measurement_item_v1';
 const _reservedPrefix = '__restage_measurement_';
 
 void main() {
@@ -91,6 +93,23 @@ void main() {
       expect(sanitized.rawV1CarrierForResolution, carrier);
     });
 
+    test('accepts an exact carrier whose edge needs base64 padding', () {
+      for (final edge in ['edge.bundled-root', 'edge.root-a']) {
+        final carrier =
+            'mrv1.${_base64Url(utf8.encode(edge))}.${_base64Url(List<int>.generate(24, (index) => index))}';
+        final sanitized = MeasurementEventSanitizer.sanitize({
+          _routeKey: carrier,
+        });
+
+        expect(
+          sanitized.carrierStatus,
+          MeasurementEventCarrierStatus.exactV1Carrier,
+          reason: edge,
+        );
+        expect(sanitized.rawV1CarrierForResolution, carrier);
+      }
+    });
+
     test('classifies wrong type and malformed exact V1 carriers privately', () {
       final cases = <Object?>[
         null,
@@ -150,6 +169,92 @@ void main() {
         }
       },
     );
+
+    test('reserved key names match the published carrier contract', () {
+      expect(_routeKey, kMeasurementPublicationRouteArgumentKeyV1);
+      expect(_itemKey, kMeasurementPublicationItemArgumentKeyV1);
+      expect(_itemKey,
+          startsWith(kMeasurementPublicationReservedArgumentPrefixV1));
+    });
+
+    test('admits a valid item beside the route and strips both keys', () {
+      final input = <String, Object?>{
+        'business': 1,
+        _routeKey: _validCarrier(),
+        _itemKey: 'pro.yearly:v2',
+      };
+
+      final sanitized = MeasurementEventSanitizer.sanitize(input);
+
+      expect(sanitized.businessValue, {'business': 1});
+      expect(
+        sanitized.carrierStatus,
+        MeasurementEventCarrierStatus.exactV1Carrier,
+      );
+      expect(sanitized.rawV1CarrierForResolution, _validCarrier());
+      expect(sanitized.itemValueForResolution, 'pro.yearly:v2');
+      expect(input[_itemKey], 'pro.yearly:v2');
+    });
+
+    test('keeps the tap and drops an invalid item', () {
+      final cases = <Object?>[
+        null,
+        7,
+        '',
+        'has space',
+        'slash/item',
+        'a' * 65,
+        const ['list'],
+      ];
+      for (final item in cases) {
+        final sanitized = MeasurementEventSanitizer.sanitize({
+          'business': 1,
+          _routeKey: _validCarrier(),
+          _itemKey: item,
+        });
+
+        expect(sanitized.businessValue, {'business': 1}, reason: '$item');
+        expect(
+          sanitized.carrierStatus,
+          MeasurementEventCarrierStatus.exactV1Carrier,
+          reason: '$item',
+        );
+        expect(sanitized.rawV1CarrierForResolution, _validCarrier());
+        expect(sanitized.itemValueForResolution, isNull, reason: '$item');
+      }
+    });
+
+    test('an item never admits a tap without a valid route', () {
+      final cases = <Map<String, Object?>>[
+        {'business': 1, _itemKey: 'item-1'},
+        {'business': 1, _routeKey: 'malformed', _itemKey: 'item-1'},
+        {
+          'business': 1,
+          _routeKey: _validCarrier(),
+          _itemKey: 'item-1',
+          '${_reservedPrefix}future': 'x',
+        },
+      ];
+      for (final input in cases) {
+        final sanitized = MeasurementEventSanitizer.sanitize(input);
+
+        expect(sanitized.businessValue, {'business': 1});
+        expect(
+          sanitized.carrierStatus,
+          isNot(MeasurementEventCarrierStatus.exactV1Carrier),
+        );
+        expect(sanitized.rawV1CarrierForResolution, isNull);
+        expect(sanitized.itemValueForResolution, isNull);
+      }
+      expect(
+        MeasurementEventSanitizer.sanitize(cases.first).carrierStatus,
+        MeasurementEventCarrierStatus.unknownFutureOrMultipleReservedKeys,
+      );
+      expect(
+        MeasurementEventSanitizer.sanitize(cases.last).carrierStatus,
+        MeasurementEventCarrierStatus.unknownFutureOrMultipleReservedKeys,
+      );
+    });
 
     test('does not mutate source maps when Measurement is disabled', () {
       final input = <String, Object?>{

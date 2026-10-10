@@ -130,4 +130,52 @@ void main() {
     expect(code, 0, reason: err.toString());
     expect(jsonDecode(out.toString()), isEmpty);
   });
+
+  group('a restage_config.yaml without project', () {
+    setUp(() async {
+      await File(
+        p.join(root.path, 'restage_config.yaml'),
+      ).writeAsString('plane: sandbox\n');
+    });
+
+    test('takes the slugs from flags', () async {
+      final calls = <Map<String, dynamic>>[];
+      final code = await run(backend(calls: calls), [
+        '--project',
+        'demo',
+        '--app',
+        'mobile',
+      ]);
+
+      expect(code, 0, reason: err.toString());
+      expect(calls.single['projectSlug'], 'demo');
+      expect(calls.single['appSlug'], 'mobile');
+    });
+
+    test('names the missing key and the fix', () async {
+      final code = await run(backend(), ['--app', 'mobile']);
+
+      expect(code, 1);
+      expect(
+        err.toString(),
+        'restage_config.yaml has no `project`. Add `project: <slug>` to it, '
+        'or pass --project <slug>.\n',
+      );
+    });
+  });
+
+  test('a malformed restage_config.yaml is a clean error', () async {
+    await File(
+      p.join(root.path, 'restage_config.yaml'),
+    ).writeAsString('project: 123\napp: mobile\n');
+
+    final code = await run(backend());
+
+    expect(code, 1);
+    expect(
+      err.toString(),
+      'Could not read restage_config.yaml: Expected `project` to be a string, '
+      'got int.\n',
+    );
+  });
 }

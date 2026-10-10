@@ -12,8 +12,8 @@ final class MeasurementPresentationCommitHook extends StatefulWidget {
     required this.child,
   });
 
-  /// Opaque lifetime handle for the exact mounted publication.
-  final MeasurementPresentationRouteHandle routeHandle;
+  /// Opaque lifetime route for the exact mounted publication.
+  final MeasurementPresentationRoute routeHandle;
 
   /// Mounted surface subtree whose first successful paint is observed.
   final Widget child;
@@ -98,7 +98,7 @@ final class _MeasurementPresentationPaintBoundary
     required super.child,
   });
 
-  final MeasurementPresentationRouteHandle routeHandle;
+  final MeasurementPresentationRoute routeHandle;
   final bool Function() takeFirstPaintAcknowledgement;
 
   @override
@@ -125,10 +125,10 @@ final class _RenderMeasurementPresentationPaintBoundary extends RenderProxyBox {
     this._takeFirstPaintAcknowledgement,
   );
 
-  MeasurementPresentationRouteHandle _routeHandle;
+  MeasurementPresentationRoute _routeHandle;
   bool Function() _takeFirstPaintAcknowledgement;
 
-  set routeHandle(MeasurementPresentationRouteHandle value) {
+  set routeHandle(MeasurementPresentationRoute value) {
     if (identical(_routeHandle, value)) return;
     _routeHandle = value;
     markNeedsPaint();

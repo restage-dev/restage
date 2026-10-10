@@ -13,59 +13,73 @@ import 'surface_metering_key_provider.dart';
 final class SurfaceRequestInputs {
   SurfaceRequestInputs._({
     required this.budget,
-    required this.lease,
+    required SurfaceAssignmentResolutionLease lease,
+    required bool Function() assignmentDeadlinePassed,
     required this.meteringKey,
     required this.builtIns,
     required this.heldAssignment,
     required String? analyticsAnonymousId,
     required int analyticsGeneration,
-  })  : _analyticsAnonymousId = analyticsAnonymousId,
+  })  : _lease = lease,
+        _assignmentDeadlinePassed = assignmentDeadlinePassed,
+        _analyticsAnonymousId = analyticsAnonymousId,
         _analyticsGeneration = analyticsGeneration;
 
-  /// Reads every input concurrently; only the held assignment waits for the
-  /// lease, because it is keyed by [assignmentKey] or the lease's key.
+  /// Reads every input concurrently under [budget]; only the held assignment
+  /// waits for the lease, because it is keyed by [assignmentKey] or the
+  /// lease's key. With [sendAssignmentKey] false neither the key nor a held
+  /// assignment is read; a key not ready before [keyDeadline] is absent.
   static Future<SurfaceRequestInputs> gather({
     required DeliveryInputBudget budget,
     required String surface,
     required String slug,
     int? contractVersion,
     String? assignmentKey,
+    bool sendAssignmentKey = true,
+    Future<void>? keyDeadline,
+    SurfaceAssignmentResolutionLease? capturedLease,
   }) async {
+    var deadlinePassed = false;
+    if (keyDeadline != null) {
+      keyDeadline.then((_) => deadlinePassed = true);
+    }
     final analyticsGeneration = SurfaceAnalyticsIdentityProvider.generation;
     final observationCell = SurfaceCanonicalCarrierProvider.hasBuiltIns
         ? currentSurfaceDeliveryObservationCell()
         : null;
-    // The key and the assignment held under it wait under their own budget of
-    // the default input deadline.
-    final keyBudget = DeliveryInputBudget(DeliveryInputBudget.defaultTotal);
-    final lease = SurfaceAssignmentKeyProvider.captureLease(budget: keyBudget);
-    final List<Object?> values;
-    try {
-      values = await Future.wait<Object?>([
-        lease,
-        budget.bound(SurfaceMeteringKeyProvider.currentKey()),
-        budget.bound(SurfaceAnalyticsIdentityProvider.anonymousId()),
-        // A turn later: observations read the host's view, which a host that
-        // starts resolving from initState cannot depend on yet.
-        budget.bound(Future<String?>.microtask(() => observationCell != null
-            ? observationCell
-                .read()
-                .then((observations) => observations.canonicalBuiltInsBase64())
-            : SurfaceCanonicalCarrierProvider.builtIns())),
-        lease.then((captured) =>
-            keyBudget.bound(SurfaceCanonicalCarrierProvider.heldAssignment(
+    final lease = capturedLease == null
+        ? SurfaceAssignmentKeyProvider.captureLease(
+            budget: budget,
+            resolveKey: sendAssignmentKey,
+            keyDeadline: keyDeadline,
+          )
+        : Future.value(sendAssignmentKey
+            ? capturedLease
+            : capturedLease.withoutAssignment());
+    final values = await Future.wait<Object?>([
+      lease,
+      budget.bound(SurfaceMeteringKeyProvider.currentKey()),
+      budget.bound(SurfaceAnalyticsIdentityProvider.anonymousId()),
+      // A turn later: observations read the host's view, which a host that
+      // starts resolving from initState cannot depend on yet.
+      budget.bound(Future<String?>.microtask(() => observationCell != null
+          ? observationCell
+              .read()
+              .then((observations) => observations.canonicalBuiltInsBase64())
+          : SurfaceCanonicalCarrierProvider.builtIns())),
+      lease.then((captured) => sendAssignmentKey
+          ? budget.bound(SurfaceCanonicalCarrierProvider.heldAssignment(
               surface: surface,
               slug: slug,
               contractVersion: contractVersion,
               assignmentKey: assignmentKey ?? captured.assignmentKey,
-            ))),
-      ]);
-    } finally {
-      keyBudget.close();
-    }
+            ))
+          : null),
+    ]);
     return SurfaceRequestInputs._(
       budget: budget,
       lease: values[0]! as SurfaceAssignmentResolutionLease,
+      assignmentDeadlinePassed: () => deadlinePassed,
       meteringKey: values[1] as String?,
       analyticsAnonymousId: values[2] as String?,
       analyticsGeneration: analyticsGeneration,
@@ -78,7 +92,11 @@ final class SurfaceRequestInputs {
   final DeliveryInputBudget budget;
 
   /// The identity lease captured for the request.
-  final SurfaceAssignmentResolutionLease lease;
+  SurfaceAssignmentResolutionLease get lease =>
+      _assignmentDeadlinePassed() ? _lease.withoutAssignment() : _lease;
+
+  final SurfaceAssignmentResolutionLease _lease;
+  final bool Function() _assignmentDeadlinePassed;
 
   /// The metering key, when one answered.
   final String? meteringKey;

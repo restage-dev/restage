@@ -31,7 +31,8 @@ Write surfaces in Dart and let the build compile them. Never hand-write or edit 
    handle its events in `onEvent` or `onComplete`.
 5. **Verify.** Run `flutter analyze` and the app's tests. A generated mount renders the
    widget you wrote when nothing is published, so the app works before any delivery
-   setup.
+   setup. To test the compiled surface itself, bundle it first (*Bundled surfaces* in
+   [references/setup-and-delivery.md](references/setup-and-delivery.md)).
 6. **Deliver**, only when the user wants to. `restage surface push <id>` uploads a
    version and changes nothing users see. `restage surface publish <id>` makes it live
    for every installed app. **Ask before publishing.** See
@@ -135,15 +136,33 @@ UpperCamelCase, then `Event`.
   for taps and value callbacks alike: `onPressed: surfaceEvent(dismiss)`,
   `onChanged: surfaceEvent(pick)`. When the widget passes a value (a Switch, a
   TextField), that value is the event's value.
+- An event can carry a map: `surfaceEvent(submit, {'mood': mood, 'note': note})`
+  with `SurfaceEvent<Map<String, Object?>>`. The generated class exposes it as
+  `arguments`.
 - Don't wrap it in a closure: `() => surfaceEvent(...)` returns the callback without
   calling it, so the event never fires when your own widget shows. The build warns.
 - In a standalone `@Paywall()`, fire events with `paywallEvent('name', args: {...})`.
   The generated paywall mount delivers them as `PaywallCustomEvent` with `eventName`
   and `args`. A paywall used as a flow step declares `SurfaceEvent`s for its
   transitions, like any screen.
+- A paywall can end as completed rather than dismissed. List the events whose taps
+  complete it: `@Paywall(completesOn: [ProUpgradePaywall.startTrial])`, with
+  `static const startTrial = SurfaceEvent<void>('start_trial');`. Every other way out
+  is recorded as a dismissal. Naming an event that no tap fires stops the build.
+- The dashboard and MCP name each tap from a `Semantics(label: ...)` around it, or
+  else from its text, its tooltip, then its icon. Wrap a tap in
+  `Semantics(label: 'Choose plan')` to name it yourself.
+- Taps inside a `for` loop are counted per item. In a loop over a list literal or a
+  same-file `const` list, the item is the element's `key: ValueKey('...')` or its
+  position. In a loop over a host-data list of objects or maps, the item is the
+  element's position. Loops over a host-data list of strings or numbers keep one
+  count for all their taps; `dart run build_runner build --verbose` shows the build's
+  note on why.
+  Value callbacks never carry an item.
 - A surface can only report what happened. Navigation, purchases, permissions and API
-  calls run in app code that reacts to the event. `Navigator`, `setState` closures and
-  other inline callbacks in a surface's `build()` stop the build.
+  calls run in app code that reacts to the event. `Navigator`, tap closures such as
+  `() => setState(...)` and other inline callbacks in a surface's `build()` stop the
+  build. The one exception is a value callback that writes screen state (below).
 
 ## Host data
 
@@ -181,10 +200,27 @@ Most ordinary Flutter compiles as written. The rules, with what to write instead
 - Only catalog properties are accepted. For example, `ListTile` has no `selected`.
   The error lists the properties that exist.
 - `Theme.of(context)` reads stay live and follow the app's theme.
-- Selection state: a `StatefulWidget` surface may keep `bool` or `int` fields in its
-  `State`, changed by named methods with one assignment inside `setState`, passed by
-  reference (`onTap: pickGood`). See
-  [examples/lib/surveys/mood_check.dart](examples/lib/surveys/mood_check.dart).
+- Screen state: a `StatefulWidget` surface may keep `String`, `int`, `double` and
+  `bool` fields in its `State`, each with a literal initial value.
+  - A value callback writes the value as is:
+    `onChanged: (value) => setState(() => note = value)` on a `TextField`,
+    `CupertinoTextField`, `Switch`, `Slider` or other value widget. Anything else in
+    the callback, such as `value.trim()`, stops the build.
+  - A named method with one assignment inside `setState`, passed by reference
+    (`onTap: pickGood`), also changes a field. On a field a value callback writes, it
+    can only assign a literal, such as a Clear button setting `''`.
+  - Reads of the field show its current value. Send it to the app with an event:
+    `surfaceEvent(submit, {'note': note})`. What the user types stays on the device
+    and is never measured.
+
+  See [examples/lib/surveys/mood_check.dart](examples/lib/surveys/mood_check.dart).
+- `TextField` takes `decoration: InputDecoration(...)` with `hintText`, `labelText`,
+  `helperText`, `prefixIcon: Icon(...)` and `border` (`InputBorder.none`,
+  `UnderlineInputBorder()` or `OutlineInputBorder()`). Other decoration fields stop
+  the build. `keyboardType` takes a named `TextInputType` (`text`, `multiline`,
+  `number`, `phone`, `emailAddress`, `url`, `name`), and `textInputAction` a
+  `TextInputAction`. `CupertinoTextField` takes `placeholder`, `keyboardType` and
+  `textInputAction`.
 - Gestures, painting and animation belong in compiled widgets: a `@RestageWidget` of
   your own, or catalog widgets such as `RestageModalSheet`, `RestageDraggableSheet` and
   `RestagePager`.
@@ -206,9 +242,9 @@ const firstRun = FlowDefinition(
 ```
 
 Each step is a `@Screen()` in its own file. The build generates `firstRunRef`, a typed
-`FirstRunResult`, and `FirstRunSurface(onComplete: (result) => ...)`. Decisions, host
-actions, seeded state, subflows and over-the-air graph changes are covered in
-[references/flows.md](references/flows.md).
+`FirstRunResult`, and `FirstRunSurface(onComplete: (result) => ...)`. Answers,
+decisions, host actions, seeded state, subflows and over-the-air graph changes are
+covered in [references/flows.md](references/flows.md).
 
 ## Custom widgets
 
@@ -222,7 +258,10 @@ startup call is needed. See [references/custom-widgets.md](references/custom-wid
 
 A published version can change layout, copy, styling, and how surfaces compose the
 widgets the installed app already has: the built-in catalog plus your registered custom
-widgets. It can also change what flow screens show.
+widgets. It can also change what flow screens show, and use any icon from the Material
+and Cupertino icon fonts or an icon font your app's packages declare: the surface
+carries the icons it names. An icon chosen from host data at run time must be one the
+app itself draws.
 
 These need a new app build:
 
@@ -234,13 +273,20 @@ These need a new app build:
 
 Treat events, host data and results as the contract between a surface and the app.
 The SDK refuses a published version that needs something the installed app lacks, and
-shows the compiled-in widget instead.
+shows the compiled-in widget instead. Apps built with an older SDK also refuse versions
+that use delivered icons, screen state written by value callbacks, per-item taps,
+paywall completion, or answers on onboarding and message flows.
 
 ## Delivery and tools
 
 - Without `Restage.configure(apiKey: ..., baseUrl: ...)`, generated mounts render the
   widget you wrote. With it, paywalls and standalone screens fetch the live published
   version. Flows also need `flowResolver: ServerFlowResolver(..., active: true)`.
+- A mount waits up to the render deadline, `renderDeadline:` (300 ms by default), for
+  the published version. Then it shows the last published version saved on the device,
+  the bundled copy, or the widget you wrote, and saves what arrives for the next mount.
+  Pass `surfaces: restageSurfaces` (generated in `lib/restage_surfaces.g.dart`) to
+  fetch every surface as the app starts.
 - Measurement is on by default with hosted delivery. Don't add tracking calls for
   surface interactions. `measurementEnabled: false` (a constant) switches it off.
 - The `restage` CLI pushes and publishes. The `restage_mcp` MCP server gives an agent
@@ -250,8 +296,9 @@ shows the compiled-in widget instead.
 ## Examples
 
 [examples/lib/](examples/lib/) is a complete app that compiles with the current SDK:
-a message with host data and a custom widget, a stateful survey, a three-step onboarding
-flow, a paywall, the widget library file, and `main.dart` mounting all of them.
+a message with host data and a custom widget, a survey with a selection and a typed
+note, a three-step onboarding flow that records an answer, a paywall that completes on
+its start-trial tap, the widget library file, and `main.dart` mounting all of them.
 
 ## Keeping this skill current
 

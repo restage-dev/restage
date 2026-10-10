@@ -21,16 +21,22 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocument,
         Surface;
 
+import '../delivery/surface_sections_carrier.dart';
+import '../runtime/local_values.dart' show SurfaceSections;
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_artifact_store.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../assets/bundled_asset_source.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
+import '../resolver/restage_variant_resolver.dart' show RestageEnvironment;
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/report_surface_resolution.dart';
 import '../resolver/surface_resolution_report.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
+import '../runtime/restage.dart';
 import '../runtime/surface_vocabulary.dart';
 import 'bundled_flow_loader.dart';
 import 'compiled_flow.dart';
@@ -86,43 +92,73 @@ final class ServerFlowResolver
         ActiveArmFlowResolver,
         FlowExperimentMountFactory,
         FlowExperimentArtifactMetadataProvider {
-  /// Creates a resolver backed by the SDK surface endpoint.
-  ///
-  /// [active] opts into the active arm (default false → exact-only, byte
-  /// unchanged). [bundle] supplies the bundled flow assets the active arm reads
-  /// as the client contract + bundled fallback (defaults to the app's
-  /// `rootBundle`); it is unused on the exact path. Exact requests derive their
-  /// surface namespace solely from the resolved flow descriptor, and the active
-  /// arm uses that same descriptor-owned namespace.
+  /// Creates a resolver using the SDK surface endpoint.
+  /// [active] enables active delivery; otherwise requests are exact-version only.
+  /// The flow descriptor supplies the namespace. [bundle] supplies active-delivery
+  /// contracts and fallback assets, defaulting to `rootBundle`.
+  /// [environment] defaults to the SDK configuration.
   ServerFlowResolver({
     required String baseUrl,
     required String apiKey,
     http.Client? httpClient,
     bool active = false,
     AssetBundle? bundle,
+    RestageEnvironment? environment,
   })  : _active = active,
         _bundle = bundle,
+        _apiKey = apiKey,
+        _environment = environment,
         _client = RestageRpcClient(
           baseUrl: baseUrl,
           apiKey: apiKey,
           httpClient: httpClient,
-        );
+        ) {
+    registerRacedResolver(this, _raced);
+  }
 
   final RestageRpcClient _client;
   final bool _active;
   final AssetBundle? _bundle;
+  final String _apiKey;
+  final RestageEnvironment? _environment;
 
-  /// The version-pinned exact cache, keyed by (surface type, slug, version).
-  final Map<String, _CachedServerFlow> _cache = {};
+  // The configured environment when none was passed.
+  String get _scope => SurfaceStoreKey.scopeFor(
+        apiKey: _apiKey,
+        environment: (_environment ?? Restage.configuredEnvironment).name,
+      );
+  late final RacedSurfaceDelegate<ResolvedFlow> _raced =
+      RacedSurfaceDelegate<ResolvedFlow>(bestLocal: bestLocal, fresh: fresh);
 
-  /// The active-arm hold-last-good cache, keyed by (surface type, flow id), not
-  /// version: it holds the last gate-accepted active document for a flow,
-  /// re-gated against the current client contract on every hit so a
-  /// stale-but-incompatible active is never served. Separate from [_cache] so
-  /// contract-version (the exact key) never collides with resolved-active-
-  /// version.
-  final Map<String, _CachedServerFlow> _activeCache = {};
-  final Map<String, _ExperimentHostedFlow> _experimentActiveCache = {};
+  /// Where accepted deliveries persist.
+  @internal
+  SurfaceArtifactStore get store => sharedSurfaceArtifactStore;
+
+  /// The store key for [flow]'s active root. Active content is re-gated
+  /// against the current contract on read, so it carries no version.
+  @internal
+  SurfaceStoreKey storeKeyFor<R>(SurfaceFlowRef<R> flow) {
+    final key = SurfaceStoreKey(
+      scope: _scope,
+      surfaceType: flow.surfaceType.wireName,
+      slug: flow.id,
+      contractVersion: 0,
+    );
+    _refs[key] = flow as SurfaceFlowRef<Object?>;
+    return key;
+  }
+
+  SurfaceStoreKey _exactStoreKeyFor<R>(SurfaceFlowRef<R> flow) =>
+      SurfaceStoreKey(
+        scope: _scope,
+        surfaceType: flow.surfaceType.wireName,
+        slug: flow.id,
+        contractVersion: flow.version,
+      );
+
+  /// The flow each raced store key was issued for.
+  final Map<SurfaceStoreKey, SurfaceFlowRef<Object?>> _refs =
+      <SurfaceStoreKey, SurfaceFlowRef<Object?>>{};
 
   AssetBundle get _effectiveBundle => restageAssetSource(_bundle);
 
@@ -159,36 +195,20 @@ final class ServerFlowResolver
   Future<ResolvedFlow> _resolveExact<R>(
     OnboardingFlowRef<R> flow, {
     bool Function()? publicationGuard,
+    bool sendAssignmentKey = true,
+    Future<void>? keyDeadline,
+    List<(SurfaceStoreKey, StoredSurface)>? acceptedInto,
   }) async {
-    final cacheKey = _cacheKey(flow);
-    final cached = _cache[cacheKey];
-    if (cached != null) {
-      // Re-run the capability gate on every cache hit: a custom library may have
-      // been unregistered or downgraded since the document was cached, so a
-      // stale renderable must not be served without re-affirming the floor. The
-      // installed built-in catalog dimension is a compile-time const (it cannot
-      // drift at runtime) but is cheap to re-affirm alongside.
-      if (cached.document.minClient >
-          RestageBuiltInCatalogCapabilities.currentVersion) {
-        throw _error(
-          flow,
-          'unsupported_min_client',
-          'Flow minClient ${cached.document.minClient} exceeds the installed '
-              'built-in catalog version '
-              '${RestageBuiltInCatalogCapabilities.currentVersion}.',
-        );
+    final exactKey = _exactStoreKeyFor(flow);
+    // An exact version is immutable, so the stored copy answers first. It
+    // passes the same checks a fetched one does.
+    final held = await _readStored(exactKey);
+    if (held != null) {
+      try {
+        return _acceptExact(flow, held, cacheHit: true);
+      } on FlowUnavailableError {
+        // A stored copy that no longer passes is fetched again.
       }
-      _checkRequiredLibraries(flow, cached.requiredLibraries);
-      // An exact version is a deliberate pin, so serving it again is not a hold.
-      return reportSurfaceResolution(
-        flow.surface,
-        flow.id,
-        _own(
-          cached.toResolvedFlow(cacheHit: true),
-          requiredLibraries: cached.requiredLibraries,
-        ),
-        SurfaceResolutionSource.fresh,
-      );
     }
 
     final SurfaceFetchResult? result;
@@ -198,6 +218,8 @@ final class ServerFlowResolver
         surfaceSlug: flow.id,
         version: flow.version,
         publicationGuard: publicationGuard,
+        sendAssignmentKey: sendAssignmentKey,
+        keyDeadline: keyDeadline,
       );
     } on SurfaceRequestPublicationRejected {
       throw const _ExperimentSeedDrift();
@@ -210,11 +232,25 @@ final class ServerFlowResolver
         'Flow "${flow.id}" version ${flow.version} is unavailable.',
       );
     }
+    final resolved = _acceptExact(flow, result, cacheHit: false);
+    final stored = result.stored;
+    if (stored != null) {
+      if (acceptedInto != null) {
+        acceptedInto.add((exactKey, stored));
+      } else {
+        await _persist(exactKey, stored);
+      }
+    }
+    return resolved;
+  }
 
-    // The exact arm has never had a soft ladder — it throws, and it says WHY.
-    // Keeping the two reasons apart matters here: a host told "could not read
-    // the content" for a delivery whose content never arrived would go looking
-    // at the wrong thing entirely.
+  /// Runs every exact-version check on [result]; throws with the reason.
+  ResolvedFlow _acceptExact<R>(
+    OnboardingFlowRef<R> flow,
+    SurfaceFetchResult result, {
+    required bool cacheHit,
+  }) {
+    // The exact arm throws, and says why.
     final SurfaceDocument surfaceDocument;
     switch (result.artifact) {
       case SurfaceArtifactAssembled(:final document):
@@ -244,117 +280,60 @@ final class ServerFlowResolver
     }
 
     final document = payload.flowDocument;
-    final screenBlobs = payload.screenBlobs;
     _checkCompatibility(flow, document);
-    // The flow capability gate is envelope-level: the required custom libraries
-    // ride the SurfaceDocument manifest (not the flow document), verified
-    // against the runtime registry before render. The flow document's own
-    // contract is untouched.
+    // The required custom libraries ride the envelope, not the flow document.
     _checkRequiredLibraries(flow, surfaceDocument.requiredLibraries);
     _checkValidation(flow, document);
 
-    final cachedFlow = _CachedServerFlow.from(
-      document,
-      screenBlobs,
-      surfaceDocument.requiredLibraries,
-      publicationBindingReference: result.publicationBindingReference,
-      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
-      routingSelectionReceipt: result.routingSelectionReceipt,
-      routingSelectionProvenance: result.routingSelectionProvenance,
-    );
-    _cache[cacheKey] = cachedFlow;
+    final cachedFlow = _cachedFrom(result, surfaceDocument, payload);
+    // An exact version is a deliberate pin, so serving it again is not a hold.
     return reportSurfaceResolution(
       flow.surface,
       flow.id,
       _own(
-        cachedFlow.toResolvedFlow(cacheHit: false),
+        cachedFlow.toResolvedFlow(cacheHit: cacheHit),
         requiredLibraries: cachedFlow.requiredLibraries,
       ),
       SurfaceResolutionSource.fresh,
     );
   }
 
+  _CachedServerFlow _cachedFrom(
+    SurfaceFetchResult result,
+    SurfaceDocument surfaceDocument,
+    FlowSurfacePayload payload,
+  ) =>
+      _CachedServerFlow.from(
+        payload.flowDocument,
+        payload.screenBlobs,
+        surfaceDocument.requiredLibraries,
+        publicationBindingReference: result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
+        sections: surfaceSectionsOf(payload),
+      );
+
+  Future<void> _persist(SurfaceStoreKey key, StoredSurface? stored) =>
+      persistAcceptedDelivery(store, key, stored);
+
+  Future<SurfaceFetchResult?> _readStored(SurfaceStoreKey key) async {
+    try {
+      final stored = await store.read(key);
+      return stored == null ? null : await replayStoredSurface(stored);
+    } on Object {
+      return null;
+    }
+  }
+
   @internal
   @override
   Future<ResolvedFlow> resolveActiveRoot<R>(OnboardingFlowRef<R> flow) async {
-    // Self-enforce the opt-in: the active arm runs ONLY when this resolver was
-    // constructed `active: true`. The controller already gates on
-    // [activeArmEnabled], so this is a no-op on the real path; it makes the flag
-    // load-bearing where the behavior lives, so a direct call on a non-active
-    // resolver fails safe to the exact path rather than going active off-flag.
+    // The active arm runs only when this resolver was constructed active.
     if (!_active) return resolve(flow);
-
-    final activeCacheKey = _activeCacheKey(flow);
-
-    // The generated Dart graph supplies the original contract without requiring
-    // screen assets. Older references retain the bundled baseline path.
-    final bundled = await _loadClientBaseline(flow);
-
-    if (bundled != null) {
-      // Tier 1 — fresh active fetch + contract gate. A fetch failure or a
-      // rejected document (any retained backstop check OR the gate) funnels
-      // into the SAME ladder; a rejected active is NEVER rendered.
-      final active = await _fetchActive(flow);
-      if (active != null &&
-          _renderGateAccepts(
-            client: bundled.document,
-            active: active.document,
-          )) {
-        _activeCache[activeCacheKey] = active;
-        return reportSurfaceResolution(
-          flow.surface,
-          flow.id,
-          _own(
-            active.toResolvedFlow(cacheHit: false),
-            requiredLibraries: active.requiredLibraries,
-          ),
-          SurfaceResolutionSource.fresh,
-        );
-      }
-
-      // Tier 2 — hold-last-good (in-memory, keyed by flow id). Re-run the gate
-      // AND the capability floor/library checks against the CURRENT bundled
-      // contract + runtime registry: a stale active that no longer renders
-      // safely is not served.
-      final cached = _activeCache[activeCacheKey];
-      if (cached != null &&
-          _renderGateAccepts(
-            client: bundled.document,
-            active: cached.document,
-          ) &&
-          _passesRetainedChecks(
-            flow,
-            cached.document,
-            cached.requiredLibraries,
-          )) {
-        return reportSurfaceResolution(
-          flow.surface,
-          flow.id,
-          _own(
-            cached.toResolvedFlow(cacheHit: true),
-            requiredLibraries: cached.requiredLibraries,
-          ),
-          SurfaceResolutionSource.holdLastGood,
-          reason: active == null
-              ? SurfaceDeliveryReceiptReason.offline
-              : SurfaceDeliveryReceiptReason.unsupported,
-        );
-      }
-
-      // Tier 3 — the client's own bundled document (exact; its version equals
-      // the requested version, so the controller's retained version pin passes).
-      return reportSurfaceResolution(
-        flow.surface,
-        flow.id,
-        bundled,
-        SurfaceResolutionSource.bundled,
-        reason: active == null
-            ? SurfaceDeliveryReceiptReason.offline
-            : SurfaceDeliveryReceiptReason.unsupported,
-      );
-    }
-
-    // Tier 4 — nothing renderable: no bundled contract and no servable active.
+    final key = storeKeyFor(flow);
+    final resolved = await resolveRacedInOrder(_raced, key);
+    if (resolved != null) return resolved;
     throw _error(
       flow,
       'unavailable',
@@ -362,32 +341,167 @@ final class ServerFlowResolver
     );
   }
 
+  /// Local candidates for [key]: the stored active re-gated, then the baseline.
+  @internal
+  Future<ResolvedFlow?> bestLocal(SurfaceStoreKey key) async {
+    final flow = _refs[key];
+    if (flow == null) return null;
+    final baseline = await _loadClientBaseline(flow);
+    if (baseline == null) return null;
+    final held = await _readStored(key);
+    if (held != null) {
+      final active = await _acceptActive(flow, baseline, held, cacheHit: true);
+      if (active != null) {
+        return labelSurfaceSource<ResolvedFlow>(
+            active, SurfaceResolutionSource.holdLastGood);
+      }
+    }
+    return labelSurfaceSource<ResolvedFlow>(
+        baseline, SurfaceResolutionSource.bundled);
+  }
+
+  /// The active hosted flow for [key], gated and persisted on accept.
+  @internal
+  Future<ResolvedFlow?> fresh(
+    SurfaceStoreKey key, {
+    required bool sendAssignmentKey,
+    Future<void>? keyDeadline,
+  }) async {
+    // A key this resolver issued no ref for cannot be gated; nothing to do.
+    final flow = _refs[key];
+    if (flow == null) return null;
+    _raced.freshStarted(key);
+    // With no client contract there is nothing to gate an active against.
+    final baseline = await _loadClientBaseline(flow);
+    if (baseline == null) {
+      _raced.freshRefused(key, SurfaceDeliveryReceiptReason.unsupported);
+      return null;
+    }
+    final result = await _client.fetchSurface(
+      surfaceType: flow.surfaceType.wireName,
+      surfaceSlug: flow.id,
+      sendAssignmentKey: sendAssignmentKey,
+      keyDeadline: keyDeadline,
+      // version omitted → the delivery service's active-version arm.
+    );
+    if (result == null) {
+      _raced.freshRefused(key, SurfaceDeliveryReceiptReason.offline);
+      return null;
+    }
+    final active = await _acceptActive(flow, baseline, result, cacheHit: false);
+    if (active == null) {
+      _raced.freshRefused(key, SurfaceDeliveryReceiptReason.unsupported);
+      return null;
+    }
+    await _persist(key, result.stored);
+    return labelSurfaceSource<ResolvedFlow>(
+        active, SurfaceResolutionSource.fresh);
+  }
+
+  /// An active delivery that passes every retained check, the render gate
+  /// against [baseline], and, when stored under an assignment, the held
+  /// assignment check. Null otherwise.
+  Future<ResolvedFlow?> _acceptActive<R>(
+    OnboardingFlowRef<R> flow,
+    ResolvedFlow baseline,
+    SurfaceFetchResult result, {
+    required bool cacheHit,
+  }) async {
+    final SurfaceDocument surfaceDocument;
+    switch (result.artifact) {
+      case SurfaceArtifactAssembled(:final document):
+        surfaceDocument = document;
+      case SurfaceArtifactUnavailable():
+      case SurfaceArtifactUndecodable():
+        return null;
+    }
+    // The version is the server's active one; type and slug must still match.
+    if (surfaceDocument.surfaceType != flow.surfaceType ||
+        surfaceDocument.surfaceSlug != flow.id) {
+      return null;
+    }
+    final payload = surfaceDocument.payload;
+    if (payload is! FlowSurfacePayload) return null;
+    if (!_passesRetainedChecks(
+          flow,
+          payload.flowDocument,
+          surfaceDocument.requiredLibraries,
+        ) ||
+        !_renderGateAccepts(
+          client: baseline.document,
+          active: payload.flowDocument,
+        )) {
+      return null;
+    }
+    if (cacheHit) {
+      final stored = result.stored;
+      if (stored == null ||
+          !(await storedDeliveryIdentity(
+            stored: stored,
+            assignment: result.canonicalExperimentAssignment,
+            surface: flow.surfaceType.wireName,
+            slug: flow.id,
+          ))
+              .reusable) {
+        return null;
+      }
+    }
+    final cached = _cachedFrom(result, surfaceDocument, payload);
+    return _own(
+      cached.toResolvedFlow(cacheHit: cacheHit),
+      requiredLibraries: cached.requiredLibraries,
+    );
+  }
+
   Future<_ExperimentFreshFlow?> _fetchExperimentActive(
     OnboardingFlowRef<Object?> flow,
     FlowMountContractSnapshot snapshot,
-    FlowMountSeedCapture captureSeed,
-  ) async {
+    FlowMountSeedCapture captureSeed, {
+    required Future<void>? keyDeadline,
+    required bool sendAssignmentKey,
+    required SurfaceAssignmentResolutionLease registrationLease,
+  }) async {
     _requireExperimentSnapshotCurrent(
       snapshot,
       FlowMountRevalidationBoundary.request,
       captureSeed,
     );
-    final result = await _fetchExperimentSurface(
-      flow: flow,
-      snapshot: snapshot,
-      captureSeed: captureSeed,
-      boundary: FlowMountRevalidationBoundary.request,
-    );
+    final SurfaceFetchResult? result;
+    try {
+      result = await _client.fetchSurface(
+        surfaceType: flow.surfaceType.wireName,
+        surfaceSlug: flow.id,
+        assignmentKey: snapshot.assignmentKey,
+        sendAssignmentKey: sendAssignmentKey,
+        registrationLease: registrationLease,
+        keyDeadline: keyDeadline,
+        publicationGuard: () => _experimentSnapshotIsCurrent(
+          snapshot,
+          FlowMountRevalidationBoundary.request,
+          captureSeed,
+        ),
+      );
+    } on SurfaceRequestPublicationRejected {
+      throw const _ExperimentSeedDrift();
+    }
     _requireExperimentSnapshotCurrent(
       snapshot,
       FlowMountRevalidationBoundary.request,
       captureSeed,
     );
     if (result == null) return null;
+    final candidate = _experimentCandidate(flow, result, cacheHit: false);
+    return candidate == null
+        ? null
+        : _ExperimentFreshFlow(candidateRoot: candidate, stored: result.stored);
+  }
 
-    // Both artifact refusals reach the same `null` the decode failure always
-    // did — this arm's ladder treats an unrenderable active exactly like an
-    // absent one.
+  /// The active candidate in [result] when it passes the retained checks.
+  ResolvedFlow? _experimentCandidate(
+    OnboardingFlowRef<Object?> flow,
+    SurfaceFetchResult result, {
+    required bool cacheHit,
+  }) {
     final SurfaceDocument surfaceDocument;
     switch (result.artifact) {
       case SurfaceArtifactAssembled(:final document):
@@ -409,41 +523,11 @@ final class ServerFlowResolver
     )) {
       return null;
     }
-
-    final cached = _CachedServerFlow.from(
-      payload.flowDocument,
-      payload.screenBlobs,
-      surfaceDocument.requiredLibraries,
-      publicationBindingReference: result.publicationBindingReference,
-      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
-      routingSelectionReceipt: result.routingSelectionReceipt,
-      routingSelectionProvenance: result.routingSelectionProvenance,
+    final cached = _cachedFrom(result, surfaceDocument, payload);
+    return _own(
+      cached.toResolvedFlow(cacheHit: cacheHit),
+      requiredLibraries: cached.requiredLibraries,
     );
-    return _ExperimentFreshFlow(
-      candidateRoot: _own(
-        cached.toResolvedFlow(cacheHit: false),
-        requiredLibraries: cached.requiredLibraries,
-      ),
-    );
-  }
-
-  Future<SurfaceFetchResult?> _fetchExperimentSurface({
-    required OnboardingFlowRef<Object?> flow,
-    required FlowMountContractSnapshot snapshot,
-    required FlowMountSeedCapture captureSeed,
-    required FlowMountRevalidationBoundary boundary,
-  }) async {
-    try {
-      return await _client.fetchSurface(
-        surfaceType: flow.surfaceType.wireName,
-        surfaceSlug: flow.id,
-        assignmentKey: snapshot.assignmentKey,
-        publicationGuard: () =>
-            _experimentSnapshotIsCurrent(snapshot, boundary, captureSeed),
-      );
-    } on SurfaceRequestPublicationRejected {
-      throw const _ExperimentSeedDrift();
-    }
   }
 
   /// Selects the compiler-retained original, or the legacy bundled baseline.
@@ -479,66 +563,6 @@ final class ServerFlowResolver
       );
       return null;
     }
-  }
-
-  /// Fetches + validates the server's ACTIVE flow version. Runs every retained
-  /// runtime validity check EXCEPT the bare version pin (the binding backstop:
-  /// flow id, schemaVersion, doc + per-artifact floors, required libraries,
-  /// document validation) on the active document. Returns null on any fetch
-  /// failure, decode failure, envelope mismatch, or rejected check — a rejected
-  /// active never renders; it funnels into the fallback ladder.
-  Future<_CachedServerFlow?> _fetchActive<R>(OnboardingFlowRef<R> flow) async {
-    final result = await _client.fetchSurface(
-      surfaceType: flow.surfaceType.wireName,
-      surfaceSlug: flow.id,
-      // version omitted → the delivery service's active-version arm.
-    );
-    if (result == null) return null;
-
-    // Both artifact refusals reach the same `null` the decode failure always
-    // did — this arm's ladder treats an unrenderable active exactly like an
-    // absent one.
-    final SurfaceDocument surfaceDocument;
-    switch (result.artifact) {
-      case SurfaceArtifactAssembled(:final document):
-        surfaceDocument = document;
-      case SurfaceArtifactUnavailable():
-      case SurfaceArtifactUndecodable():
-        return null;
-    }
-
-    // Envelope identity, version-relaxed: the surface type + slug must still
-    // match (a substituted/mis-routed surface fails closed), but the version is
-    // the server's active version — the ONE identity dimension the active arm
-    // does not pin.
-    if (surfaceDocument.surfaceType != flow.surfaceType ||
-        surfaceDocument.surfaceSlug != flow.id) {
-      return null;
-    }
-
-    final payload = surfaceDocument.payload;
-    if (payload is! FlowSurfacePayload) return null;
-
-    final document = payload.flowDocument;
-    if (!_passesRetainedChecks(
-      flow,
-      document,
-      surfaceDocument.requiredLibraries,
-    )) {
-      return null;
-    }
-
-    return _CachedServerFlow.from(
-      // Assignment metadata is stored only with an accepted artifact so
-      // attribution describes what rendered.
-      document,
-      payload.screenBlobs,
-      surfaceDocument.requiredLibraries,
-      publicationBindingReference: result.publicationBindingReference,
-      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
-      routingSelectionReceipt: result.routingSelectionReceipt,
-      routingSelectionProvenance: result.routingSelectionProvenance,
-    );
   }
 
   /// Fail-closed render-gate selection. A general-marked bundled client can use
@@ -595,11 +619,14 @@ final class ServerFlowResolver
 
   ResolvedFlow _bundledResolvedFlow(BundledFlowArtifacts bundled) {
     return _own(
-      ResolvedFlow(
-        document: bundled.document,
-        screenBlobs: bundled.screenBlobs,
-        contentHash: bundled.documentHash,
-        cacheHit: false,
+      attachSurfaceSections(
+        ResolvedFlow(
+          document: bundled.document,
+          screenBlobs: bundled.screenBlobs,
+          contentHash: bundled.documentHash,
+          cacheHit: false,
+        ),
+        bundled.sections,
       ),
       requiredLibraries: const [],
     );
@@ -783,13 +810,6 @@ final class ServerFlowResolver
     );
   }
 
-  String _cacheKey<R>(OnboardingFlowRef<R> flow) {
-    return '${flow.surfaceType.wireName}\u0000${flow.id}\u0000${flow.version}';
-  }
-
-  String _activeCacheKey<R>(OnboardingFlowRef<R> flow) =>
-      '${flow.surfaceType.wireName}\u0000${flow.id}';
-
   FlowUnavailableError _error<R>(
     OnboardingFlowRef<R> flow,
     String reason,
@@ -806,9 +826,11 @@ final class ServerFlowResolver
 }
 
 final class _ServerFlowExperimentPresentation
+    with RacedSurfaceReporting<ResolvedFlow>
     implements
         FlowExperimentPresentationResolver,
-        FlowExperimentArtifactMetadataProvider {
+        FlowExperimentArtifactMetadataProvider,
+        RacedSurfaceResolver<ResolvedFlow> {
   _ServerFlowExperimentPresentation({
     required this.owner,
     required this.flow,
@@ -822,113 +844,208 @@ final class _ServerFlowExperimentPresentation
 
   FlowMountContractSnapshot? _snapshot;
   FlowResolver? _selectedResolver;
-  _ExperimentHostedFlow? _provisional;
   bool _disposed = false;
+  bool _baselineSelected = false;
+  bool _unstableIdentity = false;
+
+  /// The snapshot and closure resolver each candidate was chosen under.
+  final Expando<(FlowMountContractSnapshot?, FlowResolver)> _chosenWith =
+      Expando<(FlowMountContractSnapshot?, FlowResolver)>();
 
   @override
   bool get activeArmEnabled => owner.activeArmEnabled;
+
+  @override
+  SurfaceArtifactStore get store => owner.store;
+
+  @override
+  SurfaceStoreKey get storeKey => owner.storeKeyFor(flow);
 
   @override
   Future<ResolvedFlow> resolveActiveRoot<R>(
     OnboardingFlowRef<R> requestedFlow,
   ) async {
     if (!activeArmEnabled) return owner.resolve(requestedFlow);
+    final key = storeKey;
+    final fresh = await this.fresh(key, sendAssignmentKey: true);
+    if (fresh == null && _unstableIdentity) {
+      throw _unavailable('unstable_mount_identity');
+    }
+    final resolved = fresh ?? await bestLocal(key);
+    reportRacedSurface(this, key, resolved);
+    if (resolved != null) return resolved;
+    throw _unavailable('missing_bundled_baseline');
+  }
+
+  @override
+  void winnerReported(SurfaceStoreKey key, ResolvedFlow winner) {
+    final chosen = _chosenWith[winner];
+    if (chosen == null) return;
+    _baselineSelected = chosen.$1 == null;
+    _snapshot = chosen.$1 ?? _snapshot;
+    _selectedResolver = chosen.$2;
+  }
+
+  ResolvedFlow _chose(
+    ResolvedFlow root,
+    FlowMountContractSnapshot? snapshot,
+    FlowResolver resolver,
+  ) {
+    _chosenWith[root] = (snapshot, resolver);
+    return root;
+  }
+
+  @override
+  Future<ResolvedFlow?> fresh(
+    SurfaceStoreKey key, {
+    required bool sendAssignmentKey,
+    Future<void>? keyDeadline,
+  }) async {
+    freshStarted(key);
+    _unstableIdentity = false;
+    var sealDrifts = 0;
     for (var attempt = 0; attempt < 3 && !_disposed; attempt += 1) {
+      SurfaceAssignmentResolutionLease? registrationLease;
       final snapshotOutcome = await FlowMountContractSnapshotBuilder(
         captureSeed: captureSeed,
-        resolveAssignmentKey: SurfaceAssignmentKeyProvider.resolve,
+        resolveAssignmentKey: () async {
+          registrationLease = await SurfaceAssignmentKeyProvider.captureLease(
+            resolveKey: sendAssignmentKey,
+            keyDeadline: keyDeadline,
+          );
+          return registrationLease!.assignmentKey;
+        },
         resolver: _baselineResolver,
       ).seal();
-      if (_disposed) throw _unavailable('disposed');
+      if (_disposed) break;
       if (snapshotOutcome is FlowMountSnapshotRejected) {
         if (snapshotOutcome.reason == FlowMountSnapshotRejection.seedDrift) {
+          sealDrifts += 1;
           continue;
         }
-        throw _unavailable('invalid_baseline_closure');
+        break;
       }
-      final snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
-      _snapshot = snapshot;
+      var snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
+      _snapshot ??= snapshot;
 
-      var fallbackReason = SurfaceDeliveryReceiptReason.offline;
       try {
-        final fresh = await owner._fetchExperimentActive(
+        final fetched = await owner._fetchExperimentActive(
           flow,
           snapshot,
           captureSeed,
+          keyDeadline: keyDeadline,
+          sendAssignmentKey: sendAssignmentKey,
+          registrationLease: registrationLease!,
         );
-        if (_disposed) throw _unavailable('disposed');
-        if (fresh != null) {
-          fallbackReason = SurfaceDeliveryReceiptReason.unsupported;
-          final prefetched = await FlowCandidatePrefetcher.prefetch(
+        if (_disposed) break;
+        if (fetched == null) {
+          freshRefused(key, SurfaceDeliveryReceiptReason.offline);
+          return null;
+        }
+        snapshot = snapshot.withAssignmentKey(fetched.stored == null
+            ? registrationLease!.assignmentKey
+            : storedSurfaceAssignmentKey(fetched.stored!));
+        _snapshot = snapshot;
+        final children = <(SurfaceStoreKey, StoredSurface)>[];
+        final prefetched = await FlowCandidatePrefetcher.prefetch(
+          snapshot: snapshot,
+          captureSeed: captureSeed,
+          candidateRoot: fetched.candidateRoot,
+          resolver: _CandidateChildResolver(
+            owner: owner,
+            isLive: () => !_disposed,
             snapshot: snapshot,
             captureSeed: captureSeed,
-            candidateRoot: fresh.candidateRoot,
-            resolver: this,
+            keyDeadline: keyDeadline,
+            accepted: children,
+          ),
+        );
+        if (_disposed) break;
+        if (prefetched is FlowCandidatePrefetchAccepted) {
+          await owner._persist(key, fetched.stored);
+          for (final (childKey, stored) in children) {
+            await owner._persist(childKey, stored);
+          }
+          return labelSurfaceSource<ResolvedFlow>(
+            _chose(prefetched.candidateRoot, snapshot, prefetched.resolver),
+            SurfaceResolutionSource.fresh,
           );
-          if (_disposed) throw _unavailable('disposed');
-          if (prefetched is FlowCandidatePrefetchAccepted) {
-            _selectedResolver = prefetched.resolver;
-            _provisional = _ExperimentHostedFlow(
-              snapshot: snapshot,
-              accepted: prefetched,
-            );
-            return await reportSurfaceResolution(
-              flow.surface,
-              flow.id,
-              prefetched.candidateRoot,
-              SurfaceResolutionSource.fresh,
-            );
-          }
-          if (prefetched is FlowCandidatePrefetchRejected &&
-              prefetched.reason == FlowCandidatePrefetchRejection.seedDrift) {
-            continue;
-          }
         }
-      } on _ExperimentSeedDrift {
-        continue;
-      }
-
-      final key = owner._activeCacheKey(flow);
-      final held = owner._experimentActiveCache[key];
-      if (held != null) {
-        if (held.matches(snapshot) &&
-            _experimentSnapshotIsCurrent(
-              held.snapshot,
+        if ((prefetched is FlowCandidatePrefetchRejected &&
+                prefetched.reason ==
+                    FlowCandidatePrefetchRejection.seedDrift) ||
+            !_experimentSnapshotIsCurrent(
+              snapshot,
               FlowMountRevalidationBoundary.fallback,
               captureSeed,
             )) {
-          final accepted = held.accepted.asCacheHit();
-          _selectedResolver = accepted.resolver;
-          _provisional = null;
-          return reportSurfaceResolution(
-            flow.surface,
-            flow.id,
-            accepted.candidateRoot,
-            SurfaceResolutionSource.holdLastGood,
-            reason: fallbackReason,
-          );
+          continue;
         }
-        owner._experimentActiveCache.remove(key);
-      }
-
-      if (!_experimentSnapshotIsCurrent(
-        snapshot,
-        FlowMountRevalidationBoundary.fallback,
-        captureSeed,
-      )) {
+        freshRefused(key, SurfaceDeliveryReceiptReason.unsupported);
+        return null;
+      } on _ExperimentSeedDrift {
         continue;
       }
-      _selectedResolver = snapshot.baselineResolver;
-      _provisional = null;
-      return reportSurfaceResolution(
-        flow.surface,
-        flow.id,
-        snapshot.baselineRoot,
-        SurfaceResolutionSource.bundled,
-        reason: fallbackReason,
-      );
     }
-    throw _unavailable('unstable_mount_identity');
+    _unstableIdentity = sealDrifts == 3;
+    freshRefused(key, SurfaceDeliveryReceiptReason.offline);
+    return null;
+  }
+
+  @override
+  Future<ResolvedFlow?> bestLocal(SurfaceStoreKey key) async {
+    if (_disposed) return null;
+    final held = await owner._readStored(key);
+    if (held != null) {
+      final local = await _heldCandidate(key, held);
+      if (local != null) {
+        return labelSurfaceSource<ResolvedFlow>(
+            local, SurfaceResolutionSource.holdLastGood);
+      }
+    }
+    try {
+      final baseline = await _baselineResolver.resolve(flow);
+      return labelSurfaceSource<ResolvedFlow>(
+        _chose(baseline, null, _baselineResolver),
+        SurfaceResolutionSource.bundled,
+      );
+    } on FlowUnavailableError {
+      return null;
+    }
+  }
+
+  /// A stored candidate re-derived against the current snapshot, its
+  /// sub-flows read from the store only.
+  Future<ResolvedFlow?> _heldCandidate(
+    SurfaceStoreKey key,
+    SurfaceFetchResult held,
+  ) async {
+    final identity = await storedDeliveryIdentity(
+      stored: held.stored!,
+      assignment: held.canonicalExperimentAssignment,
+      surface: flow.surfaceType.wireName,
+      slug: flow.id,
+    );
+    if (!identity.reusable) return null;
+    final assignmentKey = identity.key;
+    final candidate = owner._experimentCandidate(flow, held, cacheHit: true);
+    if (candidate == null) return null;
+    final snapshotOutcome = await FlowMountContractSnapshotBuilder(
+      captureSeed: captureSeed,
+      resolveAssignmentKey: () => assignmentKey,
+      resolver: _baselineResolver,
+    ).seal();
+    if (_disposed || snapshotOutcome is! FlowMountSnapshotSealed) return null;
+    final snapshot = snapshotOutcome.snapshot;
+    final prefetched = await FlowCandidatePrefetcher.prefetch(
+      snapshot: snapshot,
+      captureSeed: captureSeed,
+      candidateRoot: candidate,
+      resolver: _StoredChildResolver(owner),
+    );
+    if (_disposed || prefetched is! FlowCandidatePrefetchAccepted) return null;
+    final accepted = prefetched.asCacheHit();
+    return _chose(accepted.candidateRoot, snapshot, accepted.resolver);
   }
 
   @override
@@ -959,6 +1076,8 @@ final class _ServerFlowExperimentPresentation
 
   @override
   bool revalidate(FlowMountRevalidationBoundary boundary) {
+    // The bundled baseline carries no hosted choice to go stale.
+    if (_baselineSelected) return !_disposed;
     final snapshot = _snapshot;
     if (_disposed || snapshot == null) return false;
     try {
@@ -968,27 +1087,16 @@ final class _ServerFlowExperimentPresentation
     }
   }
 
+  // Accepted candidates persist when accepted; render commitment adds nothing.
   @override
-  void publishHostedLastGood() {
-    final provisional = _provisional;
-    if (provisional == null) return;
-    if (!revalidate(FlowMountRevalidationBoundary.cachePublication)) {
-      _provisional = null;
-      return;
-    }
-    owner._experimentActiveCache[owner._activeCacheKey(flow)] = provisional;
-    _provisional = null;
-  }
+  void publishHostedLastGood() {}
 
   @override
-  void abandonHostedLastGood() {
-    _provisional = null;
-  }
+  void abandonHostedLastGood() {}
 
   @override
   void disposePresentation() {
     _disposed = true;
-    abandonHostedLastGood();
   }
 
   FlowUnavailableError _unavailable(String reason) => FlowUnavailableError(
@@ -998,6 +1106,73 @@ final class _ServerFlowExperimentPresentation
         message: 'Hosted flow "${flow.id}" could not complete its experiment '
             'mount transaction ($reason).',
       );
+}
+
+/// Fetches a candidate's exact sub-flows under its snapshot, collecting what
+/// to persist if the candidate is accepted.
+final class _CandidateChildResolver
+    implements FlowResolver, FlowExperimentArtifactMetadataProvider {
+  _CandidateChildResolver({
+    required this.owner,
+    required this.isLive,
+    required this.snapshot,
+    required this.captureSeed,
+    required this.keyDeadline,
+    required this.accepted,
+  });
+
+  final ServerFlowResolver owner;
+  final bool Function() isLive;
+  final FlowMountContractSnapshot snapshot;
+  final FlowMountSeedCapture captureSeed;
+  final Future<void>? keyDeadline;
+  final List<(SurfaceStoreKey, StoredSurface)> accepted;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) =>
+      owner._resolveExact(
+        flow,
+        publicationGuard: () =>
+            isLive() &&
+            _experimentSnapshotIsCurrent(
+              snapshot,
+              FlowMountRevalidationBoundary.candidatePrefetch,
+              captureSeed,
+            ),
+        sendAssignmentKey: snapshot.assignmentKey != null,
+        keyDeadline: keyDeadline,
+        acceptedInto: accepted,
+      );
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      owner.metadataFor(flow);
+}
+
+/// Reads a stored candidate's exact sub-flows from the store only.
+final class _StoredChildResolver
+    implements FlowResolver, FlowExperimentArtifactMetadataProvider {
+  const _StoredChildResolver(this.owner);
+
+  final ServerFlowResolver owner;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    final held = await owner._readStored(owner._exactStoreKeyFor(flow));
+    if (held == null) {
+      throw FlowUnavailableError(
+        flowId: flow.id,
+        flowVersion: flow.version,
+        reason: 'not_stored',
+        message: 'Flow "${flow.id}" version ${flow.version} is not stored.',
+      );
+    }
+    return owner._acceptExact(flow, held, cacheHit: true);
+  }
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      owner.metadataFor(flow);
 }
 
 final class _BundledExperimentResolver
@@ -1028,22 +1203,10 @@ final class _BundledExperimentResolver
 }
 
 final class _ExperimentFreshFlow {
-  const _ExperimentFreshFlow({required this.candidateRoot});
+  const _ExperimentFreshFlow({required this.candidateRoot, this.stored});
 
   final ResolvedFlow candidateRoot;
-}
-
-final class _ExperimentHostedFlow {
-  const _ExperimentHostedFlow({required this.snapshot, required this.accepted});
-
-  final FlowMountContractSnapshot snapshot;
-  final FlowCandidatePrefetchAccepted accepted;
-
-  bool matches(FlowMountContractSnapshot current) {
-    return snapshot.seed.sameIdentityAs(current.seed) &&
-        snapshot.assignmentKey == current.assignmentKey &&
-        snapshot.contentHash == current.contentHash;
-  }
+  final StoredSurface? stored;
 }
 
 final class _ExperimentSeedDrift implements Exception {
@@ -1093,6 +1256,7 @@ final class _CachedServerFlow {
     this.canonicalExperimentAssignment,
     this.routingSelectionReceipt,
     this.routingSelectionProvenance,
+    this.sections,
   );
 
   /// Builds a cache entry, computing the canonical-document content hash (the
@@ -1107,6 +1271,7 @@ final class _CachedServerFlow {
         canonicalExperimentAssignment,
     required String? routingSelectionReceipt,
     required SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance,
+    SurfaceSections sections = SurfaceSections.none,
   }) {
     return _CachedServerFlow(
       document,
@@ -1117,6 +1282,7 @@ final class _CachedServerFlow {
       canonicalExperimentAssignment,
       routingSelectionReceipt,
       routingSelectionProvenance,
+      sections,
     );
   }
 
@@ -1133,14 +1299,18 @@ final class _CachedServerFlow {
   final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
   final String? routingSelectionReceipt;
   final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
+  final SurfaceSections sections;
 
   ResolvedFlow toResolvedFlow({required bool cacheHit}) {
     return attachMeasurementPublicationBindingReference(
-      ResolvedFlow(
-        document: document,
-        screenBlobs: screenBlobs,
-        contentHash: contentHash,
-        cacheHit: cacheHit,
+      attachSurfaceSections(
+        ResolvedFlow(
+          document: document,
+          screenBlobs: screenBlobs,
+          contentHash: contentHash,
+          cacheHit: cacheHit,
+        ),
+        sections,
       ),
       publicationBindingReference,
       canonicalExperimentAssignment: canonicalExperimentAssignment,

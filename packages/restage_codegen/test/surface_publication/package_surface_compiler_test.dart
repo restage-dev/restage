@@ -2149,6 +2149,10 @@ MeasurementPublicationRoutePlanV1 _routePlanForEntry(
               SurfacePublicationArtifactRole.screenBlob => 'rfw.blob',
               SurfacePublicationArtifactRole.capabilitySidecar =>
                 'publication.capability-sidecar',
+              SurfacePublicationArtifactRole.iconFont =>
+                'publication.icon-font',
+              SurfacePublicationArtifactRole.localSeeds =>
+                'publication.local-seeds',
             },
           ),
           occurrenceEdgeToken: edgeByPath[artifact.path]!,

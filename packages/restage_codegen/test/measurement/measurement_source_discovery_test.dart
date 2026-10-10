@@ -6,7 +6,9 @@ import 'package:build/build.dart';
 import 'package:restage_codegen/restage_codegen.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
+import 'package:restage_codegen/src/paywall_completion.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -150,6 +152,33 @@ void main() {
       );
     });
 
+    test('reads the events a paywall declares as completing it', () async {
+      final fixture = await _resolveFixture(
+        _completingPaywallSource(),
+        assetPath: 'lib/paywalls/offer.dart',
+      );
+      final discovery = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.paywall,
+      );
+
+      expect(
+        discovery.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: discovery.rejectionReason,
+      );
+      expect(discovery.completionEventNames, {'subscribe'});
+      expect(
+        discovery.events.map((event) => event.authoredEventName),
+        unorderedEquals(<String>['subscribe', 'close']),
+      );
+      final owner = fixture.rootExpression
+          .thisOrAncestorOfType<ClassDeclaration>()!
+          .declaredFragment!
+          .element;
+      expect(paywallCompletionEvents(owner), {'subscribe'});
+    });
+
     test('discovers static collection leaves in deterministic order', () async {
       final fixture = await _resolveFixture(_collectionSource());
       final discovery = _discover(
@@ -163,38 +192,26 @@ void main() {
         reason: discovery.rejectionReason,
       );
       expect(discovery.events, isEmpty);
-      expect(discovery.nodes, hasLength(5));
-      expect(
-        discovery.nodes.map((node) => node.structuralOccurrenceKey),
-        containsAll([
-          contains('children[0]'),
-          contains('children[1]'),
-          contains('children[2]'),
-          contains('children[3]'),
-        ]),
-      );
+      // The two iterations of the static loop share one node.
+      expect(discovery.nodes, hasLength(4));
       final textKeys = discovery.nodes
           .where((node) => node.resolvedWidgetIdentity.endsWith('#Text'))
           .map((node) => node.structuralOccurrenceKey)
           .toList();
-      expect(textKeys.toSet(), hasLength(4));
+      expect(textKeys.toSet(), hasLength(3));
       expect(
         textKeys,
         containsAll([
           contains(
             'children[0]|collection:listElement[0]|'
-            'collection:listElement[0]|collection:loopIteration[0]',
+            'collection:loopIteration|widget:',
           ),
           contains(
-            'children[1]|collection:listElement[0]|'
-            'collection:listElement[1]|collection:loopIteration[1]',
-          ),
-          contains(
-            'children[2]|collection:listElement[1]|'
+            'children[1]|collection:listElement[1]|'
             'collection:selectedThen[0]|source:constDeclaration[0]',
           ),
           contains(
-            'children[3]|collection:listElement[2]|'
+            'children[2]|collection:listElement[2]|'
             'collection:listElement[0]',
           ),
         ]),
@@ -482,7 +499,7 @@ void main() {
       );
     });
 
-    test('accepts one selected callback and refuses repeated callback bodies',
+    test('accepts one selected callback and one shared repeated callback',
         () async {
       final selected = _discover(
         await _resolveFixture(_selectedCollectionCallbackSource()),
@@ -509,13 +526,13 @@ void main() {
       );
       expect(
         repeated.disposition,
-        MeasurementSourceDiscoveryDisposition.rejected,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: repeated.rejectionReason,
       );
+      expect(repeated.events, hasLength(1));
       expect(
-        repeated.rejectionReason,
-        contains(
-          'A collection-for body that binds a callback is unsupported',
-        ),
+        repeated.events.single.emissionOccurrence.tapItem,
+        isA<MeasurementStaticItem>(),
       );
     });
 
@@ -860,7 +877,7 @@ void main() {
       expect(
         discovery.nodes
             .where((node) => node.resolvedWidgetIdentity.endsWith('#Text')),
-        hasLength(2),
+        hasLength(1),
       );
     });
 
@@ -1976,6 +1993,32 @@ final class $className extends StatelessWidget {
 }
 ''';
 }
+
+String _completingPaywallSource() => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall(completesOn: [Offer.subscribe])
+final class Offer extends StatelessWidget {
+  const Offer({super.key});
+
+  static const subscribe = SurfaceEvent<Map<String, Object?>>('subscribe');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          ElevatedButton(
+            onPressed: paywallEvent('subscribe'),
+            child: const Text('Subscribe'),
+          ),
+          ElevatedButton(
+            onPressed: paywallEvent('close'),
+            child: const Text('Not now'),
+          ),
+        ],
+      );
+}
+''';
 
 String _collectionSource() => '''
 import 'package:flutter/material.dart';

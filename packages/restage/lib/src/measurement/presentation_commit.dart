@@ -59,12 +59,84 @@ final class MeasurementSuccessfulPresentationFact {
   final MeasurementMountedPublishedContext context;
 }
 
+/// The first-paint route a [MeasurementPresentationCommitHook] reports to.
+sealed class MeasurementPresentationRoute {
+  bool get _canCommitAfterSuccessfulPaint;
+  void _rejectFailedPaint();
+  void _recordGenuineRootPresentation();
+  void _recordSuccessfulFirstPaint();
+  void _abortForUnmount();
+}
+
+/// Holds one mount's first-paint outcome until its session opens.
+///
+/// [bind] replays the held outcome onto the session's route; later reports
+/// go straight to it.
+final class MeasurementPendingPresentationRoute
+    implements MeasurementPresentationRoute {
+  MeasurementPresentationRouteHandle? _bound;
+  var _painted = false;
+  var _paintFailed = false;
+  var _unmounted = false;
+  var _genuineRootPresentations = 0;
+
+  /// Replays the held outcome onto [handle] and forwards from now on.
+  void bind(MeasurementPresentationRouteHandle handle) {
+    if (_bound != null) return;
+    _bound = handle;
+    for (var i = 0; i < _genuineRootPresentations; i += 1) {
+      handle._recordGenuineRootPresentation();
+    }
+    if (_painted) {
+      handle._recordSuccessfulFirstPaint();
+    } else if (_paintFailed) {
+      handle._rejectFailedPaint();
+    }
+    if (_unmounted) handle.abandon();
+  }
+
+  bool get _held => !_painted && !_paintFailed && !_unmounted;
+
+  @override
+  bool get _canCommitAfterSuccessfulPaint =>
+      _bound?._canCommitAfterSuccessfulPaint ?? _held;
+
+  @override
+  void _rejectFailedPaint() {
+    final bound = _bound;
+    if (bound != null) return bound._rejectFailedPaint();
+    if (_held) _paintFailed = true;
+  }
+
+  @override
+  void _recordGenuineRootPresentation() {
+    final bound = _bound;
+    if (bound != null) return bound._recordGenuineRootPresentation();
+    _genuineRootPresentations += 1;
+  }
+
+  @override
+  void _recordSuccessfulFirstPaint() {
+    final bound = _bound;
+    if (bound != null) return bound._recordSuccessfulFirstPaint();
+    if (_held) _painted = true;
+  }
+
+  @override
+  void _abortForUnmount() {
+    final bound = _bound;
+    if (bound != null) return bound._abortForUnmount();
+    _unmounted = true;
+  }
+}
+
 /// Opaque route-lifetime handle consumed by [MeasurementPresentationCommitHook].
 ///
 /// A host creates one handle after it has resolved the mounted published
 /// context. Lifecycle transitions can only invalidate it; a handle never moves
 /// to another publication or reopens after a terminal transition.
-final class MeasurementPresentationRouteHandle {
+final class MeasurementPresentationRouteHandle
+    implements MeasurementPresentationRoute {
   MeasurementPresentationRouteHandle._({
     required PublishedSurfaceRevisionV1 publishedSurfaceRevision,
     required MeasurementPresentationCaptureSink captureSink,
@@ -106,18 +178,21 @@ final class MeasurementPresentationRouteHandle {
   /// Invalidates this handle because the capture lifecycle has rolled over.
   void rollover() => _invalidate(_MeasurementPresentationRouteState.rolledOver);
 
+  @override
   bool get _canCommitAfterSuccessfulPaint =>
       _state == _MeasurementPresentationRouteState.active;
 
   /// Invalidates this handle because the host abandoned the presentation.
   void abandon() => _invalidate(_MeasurementPresentationRouteState.aborted);
 
+  @override
   void _abortForUnmount() => abandon();
 
   /// Drives the failed-paint transition for a test.
   @visibleForTesting
   void rejectFailedPaintForTest() => _rejectFailedPaint();
 
+  @override
   void _rejectFailedPaint() {
     if (!_canCommitAfterSuccessfulPaint) return;
     _state = _MeasurementPresentationRouteState.paintFailed;
@@ -126,8 +201,10 @@ final class MeasurementPresentationRouteHandle {
   }
 
   /// Counts one genuine root paint report, whatever the route can still do.
+  @override
   void _recordGenuineRootPresentation() => _observer?.recordRootPresentation();
 
+  @override
   void _recordSuccessfulFirstPaint() {
     if (!_canCommitAfterSuccessfulPaint) return;
     _state = _MeasurementPresentationRouteState.delivering;

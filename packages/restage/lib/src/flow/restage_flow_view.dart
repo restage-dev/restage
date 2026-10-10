@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart' show CupertinoApp, CupertinoPage;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, internal;
 import 'package:flutter/material.dart' show MaterialApp, MaterialPage, Theme;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
+import 'package:restage_shared/restage_shared.dart' show DeliveredIconFont;
 import 'package:rfw/rfw.dart';
 
+import '../delivery/delivered_fonts.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_sections_carrier.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
 import '../authoring/event_dispatcher.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
@@ -15,8 +21,11 @@ import '../measurement/measurement_event_sanitizer.dart'
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
+import '../runtime/local_values.dart';
+import '../runtime/restage.dart';
 import 'compiled_flow.dart';
 import 'flow_controller.dart';
+import 'flow_resolver.dart' show ResolvedFlow;
 import 'flow_runtime_support.dart';
 import 'flow_transitions.dart';
 import 'system_back_policy.dart';
@@ -254,6 +263,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     // disposes, so each runtime has no remaining listeners and disposes
     // cleanly. (DynamicContent is not disposable and is reclaimed by GC.)
     for (final screen in _screens.values) {
+      screen.local.clear();
       screen.runtime?.dispose();
     }
     _screens.clear();
@@ -283,13 +293,23 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       return;
     }
     if (!_screens.containsKey(entryId)) {
+      final sections = _sectionsOf(controller);
+      final data = DynamicContent();
       final screen = _MountedScreen(
         entryId: entryId,
         runtime: library == null ? null : flowScreenRuntime(library),
         nativeScreen: nativeScreen,
         onEvent: (name, args) =>
             _handleScreenEvent(controller, entryId, name, args),
-        data: DynamicContent(),
+        data: data,
+        iconFonts: sections.iconFonts,
+        local: LocalValues(
+          data,
+          seed: switch (controller.currentScreenArtifactId) {
+            final id? => sections.localSeeds[id],
+            null => null,
+          },
+        ),
       );
       _screens[entryId] = screen;
       _populateData(screen);
@@ -340,6 +360,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
   void _clearScreens() {
     if (_screens.isEmpty) return;
     for (final screen in _screens.values) {
+      screen.local.clear();
       _disposeRuntimeAfterFrame(screen.runtime);
     }
     _screens.clear();
@@ -348,6 +369,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
 
   void _releaseScreen(int entryId) {
     final screen = _screens.remove(entryId);
+    screen?.local.clear();
     if (screen == null) return;
     _disposeRuntimeAfterFrame(screen.runtime);
   }
@@ -528,6 +550,14 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     );
   }
 
+  // The sections of the flow the current screen belongs to.
+  static SurfaceSections _sectionsOf(
+          RestageFlowController<Object?> controller) =>
+      switch (controller.currentResolvedFlow) {
+        final flow? => surfaceSectionsFor(flow),
+        null => SurfaceSections.none,
+      };
+
   void _handleScreenEvent(RestageFlowController<R> controller, int entryId,
       String name, Object? args) {
     if (isReservedCommerceEventName(name)) return;
@@ -535,6 +565,11 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
         entryId != controller.currentScreenEntryId) {
       return;
     }
+    if (_screens[entryId]?.local.intercept(name, args) ?? false) {
+      if (mounted) LocalWriteListener.notify(context);
+      return;
+    }
+    args = withoutContextItemIndexes(args);
     final normalized =
         normalizeEventArgs(sanitizeAndRecordHostFlowEvent(controller, args));
     if (isMeasurementTapEventName(name)) return;
@@ -559,6 +594,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
           controller.flow.id,
         );
         if (screen.entryId == controller.currentScreenEntryId) {
+          _forgetStoredRoot(controller);
           controller.reportRenderFailure(error);
         }
         widget.onRuntimeError?.call(error, stack);
@@ -569,11 +605,14 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
         surfaceSlug: controller.flow.id,
         child: screen.nativeScreen != null
             ? Builder(builder: (_) => screen.nativeScreen!())
-            : RemoteWidget(
-                runtime: screen.runtime!,
-                data: screen.data,
-                widget: kFlowScreenWidget,
-                onEvent: screen.onEvent),
+            : DeliveredIconFontLoader.scope(
+                screen.iconFonts,
+                child: RemoteWidget(
+                    runtime: screen.runtime!,
+                    data: screen.data,
+                    widget: kFlowScreenWidget,
+                    onEvent: screen.onEvent),
+              ),
       ),
     );
 
@@ -633,6 +672,17 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
 
 /// A screen page whose motion comes from a host-supplied
 /// [FlowTransitionBuilder] instead of the platform page transition.
+/// Drops the stored root of a flow whose screen failed to render, so the next
+/// mount falls back instead of rendering it again.
+void _forgetStoredRoot(RestageFlowController<Object?> controller) {
+  final resolver = controller.resolver;
+  final raced = racedResolverOf<ResolvedFlow>(resolver);
+  if (raced == null) return;
+  unawaited(raced.forgetStored(
+    Restage.storeKeyFor(controller.flow, resolver: resolver),
+  ));
+}
+
 class _FlowScreenPage extends Page<Object?> {
   const _FlowScreenPage({
     required super.key,
@@ -693,9 +743,13 @@ class _MountedScreen {
     required this.nativeScreen,
     required this.onEvent,
     required this.data,
+    required this.iconFonts,
+    required this.local,
   });
 
   final int entryId;
+  final List<DeliveredIconFont> iconFonts;
+  final LocalValues local;
   final Runtime? runtime;
   final CompiledFlowScreenBuilder? nativeScreen;
   final void Function(String name, Object? args) onEvent;

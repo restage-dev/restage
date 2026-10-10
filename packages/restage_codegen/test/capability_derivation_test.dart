@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/issue.dart' show IssueCode;
 import 'package:restage_shared/restage_shared.dart'
-    show LibraryRequirement, WidgetVocabulary;
+    show LibraryRequirement, WidgetVocabulary, kSurfaceFeatureClientFloor;
 import 'package:restage_shared/rfw_formats.dart' show parseLibraryFile;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -45,6 +45,92 @@ void main() {
       sinceVersion: 3,
     ),
   ]);
+
+  group('deriveCapabilityManifest — feature floor', () {
+    int floorOf(String dsl, {bool requiresSurfaceFeatureFloor = false}) {
+      final surface = parseLibraryFile(dsl, sourceIdentifier: 'test');
+      final result = deriveCapabilityManifest(
+        surface,
+        builtInCatalog,
+        requiresSurfaceFeatureFloor: requiresSurfaceFeatureFloor,
+      );
+      expect(result.issues, isEmpty);
+      return result.manifest!.builtInFloor;
+    }
+
+    test('a literal icon code point raises the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Column(children: [Banner(iconCodepoint: 59517)]);
+        '''),
+        kSurfaceFeatureClientFloor,
+      );
+    });
+
+    test('a named icon slot with a literal code point raises the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Banner(prefixIconCodepoint: 59517);
+        '''),
+        kSurfaceFeatureClientFloor,
+      );
+    });
+
+    test('a data-bound code point leaves the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Banner(iconCodepoint: data.icon);
+        '''),
+        2,
+      );
+    });
+
+    test('a screen-local value write raises the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Banner(onChanged: event "restage.local.set" {key: "note"});
+        '''),
+        kSurfaceFeatureClientFloor,
+      );
+    });
+
+    test('a tap that measures its item raises the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Banner(onTap: event "pick" {__restage_measurement_item_v1: "a"});
+        '''),
+        kSurfaceFeatureClientFloor,
+      );
+    });
+
+    test('an ordinary event leaves the floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Banner(onTap: event "pick" {});
+        '''),
+        2,
+      );
+    });
+
+    test('a surface feature the translation reports raises the floor', () {
+      expect(
+        floorOf(
+          '''
+          import restage.core;
+          widget Paywall = Text(text: "hi");
+        ''',
+          requiresSurfaceFeatureFloor: true,
+        ),
+        kSurfaceFeatureClientFloor,
+      );
+    });
+  });
 
   group('deriveCapabilityManifest — builtInFloor', () {
     test('a surface using only baseline built-ins floors at the baseline', () {

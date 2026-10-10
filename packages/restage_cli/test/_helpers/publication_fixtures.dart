@@ -359,6 +359,9 @@ widget Preview = Button(
             SurfacePublicationArtifactRole.screenBlob => 'rfw.blob',
             SurfacePublicationArtifactRole.capabilitySidecar =>
               'publication.capability-sidecar',
+            SurfacePublicationArtifactRole.iconFont => 'publication.icon-font',
+            SurfacePublicationArtifactRole.localSeeds =>
+              'publication.local-seeds',
           }),
           contentHash: CanonicalDigest(
             artifact.role == SurfacePublicationArtifactRole.screenBlob &&

@@ -116,7 +116,12 @@ class CatalogPushCommand extends Command<int> {
         (argResults?['project'] as String?) ?? loaded?.config.project;
     final app = (argResults?['app'] as String?) ?? loaded?.config.app;
     if (project == null || app == null) {
-      _stderr.writeln(noProjectContextSentence());
+      _stderr.writeln(
+        missingProjectContextSentence(
+          hasConfig: loaded != null,
+          projectMissing: project == null,
+        ),
+      );
       return 1;
     }
 

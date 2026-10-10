@@ -11,8 +11,43 @@ Restage needs Flutter 3.41 or newer. The optional `restage` CLI can do this step
 `restage init`, which also writes `restage_config.yaml` and a starter paywall. Pass
 `--no-starter` to skip the starter.
 
-No `build.yaml` is needed for the default setup. Generated mounts keep the widget you
-wrote as their fallback, so nothing has to be bundled as an asset.
+`restage init` adds the Restage state files to `build.yaml` so an edit to them
+triggers a rebuild. If you set up without `init`, add them yourself:
+
+```yaml
+additional_public_assets:
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+```
+
+Generated mounts keep the widget you wrote as their fallback, so nothing has to be
+bundled as an asset.
+
+## Bundled surfaces
+
+To ship the compiled surface inside the app, so it renders with no network and a test
+can prove it compiles, set `bundled_runtime: true` on every `restage_codegen` builder
+in `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:restage_source_roster:
+        options: &restage_placement
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options: *restage_placement
+      restage_codegen:generated_dart:
+        options: *restage_placement
+      restage_codegen:outputs:
+        options: *restage_placement
+```
+
+The build then writes each surface to `assets/restage/bundles/<path under lib>/`. List
+each of those directories under `flutter: assets:` in `pubspec.yaml`, since asset
+directories aren't recursive, and commit the bundles. A widget test that mounts the
+generated surface with `onUnavailable` set now fails if the compiled copy can't render.
 
 ## Build
 
@@ -20,6 +55,9 @@ wrote as their fallback, so nothing has to be bundled as an asset.
 dart run build_runner build   # once
 dart run build_runner watch   # while editing
 ```
+
+Run the build with the Dart that comes with Flutter, or set `FLUTTER_ROOT`: a surface
+that draws icons ships a subset of their icon font, cut with a Flutter SDK tool.
 
 Restart `watch` after adding, removing or renaming an annotated class. Hot reload
 doesn't replace a compiled surface that the app loads as an asset; hot restart (`R`)
@@ -31,6 +69,7 @@ The build writes, per annotated file:
   the reference (`<name>Ref`), and event and result types;
 - `.restage/build/bundles/.../<file>.rsbundle`: the compiled surface;
 - `.restage/build/metadata/restage.publication.json`: what `restage surface push` reads;
+- `lib/restage_surfaces.g.dart`: `restageSurfaces`, every surface the package compiles;
 - `lib/user_catalog.g.dart` and `lib/user_factories.g.dart` when the package declares
   custom widgets.
 
@@ -74,6 +113,7 @@ void main() {
         apiKey: apiKey,
         active: true,
       ),
+      surfaces: restageSurfaces, // from 'restage_surfaces.g.dart'
     );
   }
   runApp(const MyApp());
@@ -86,10 +126,20 @@ void main() {
 - `baseUrl` must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
 - Without `flowResolver`, flows render the version built into the app.
 - Call `Restage.configure()` with no key to render only what the app contains.
+- `surfaces: restageSurfaces` fetches every surface in the background as the app
+  starts, so a surface's first mount can show its published version.
 - A published version shows the next time the surface mounts. Live refresh, which
   updates a surface already on screen, is opt-in through the `liveRefresh` parameter.
 
 ## When delivery fails
+
+A mount waits up to the render deadline for the published version: 300 ms by default,
+set with `Restage.configure(renderDeadline: ...)`. If the version hasn't arrived by
+then, the mount shows the best copy it has: the last published version saved on the
+device, then the bundled copy, then the widget you wrote. The fetch keeps going and
+saves what it receives for the next mount. When a user's experiment assignment isn't
+ready by the deadline, they see the fallback and aren't counted in the experiment on
+that mount.
 
 A generated mount shows the widget you wrote when nothing is published, the network
 fails, or a published version can't render on this app. Its events still reach `onEvent`
@@ -124,5 +174,6 @@ targets:
 
 Then call the generated `registerRestageWidgets()` followed by
 `Restage.configureWithInstalledCatalog(...)` in place of `Restage.configure(...)`.
-Updates can then only use widgets the app draws somewhere. Release builds need no extra
-flags. Never pass `--no-tree-shake-icons`.
+Updates can then only use widgets the app draws somewhere. They can still use any icon:
+each surface carries the icons it names. Release builds need no extra flags. Never pass
+`--no-tree-shake-icons`.

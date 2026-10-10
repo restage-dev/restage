@@ -8,15 +8,11 @@ import '../screens/lumen_welcome.dart';
 
 part 'restage.generated/lumen_onboarding.restage.g.dart';
 
-/// A meditation onboarding flow that ends on an embedded subscription paywall.
-///
-/// The shape: welcome → two personalization questions (experience, goal) → a
-/// reminder **host-action gate** that advances only on a granted result → a
-/// recap → the welcome offer as the final flow screen via `paywallScreen(...)`,
-/// whose continue action ends the flow. The goal answer is recorded, and a
-/// `decision()` sends a user who is just curious past the reminder to the
-/// recap. The paywall's close and terms controls leave the graph as declared
-/// custom events.
+/// Meditation onboarding with experience and goal questions, a reminder gate,
+/// and an embedded subscription paywall. Curious users skip the reminder;
+/// others advance only when permission is granted. The paywall continues to
+/// the end of the flow.
+/// The goal is measured; closing the paywall or opening terms emits custom events.
 @FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class LumenOnboardingFlow extends RestageFlow {
   /// Host action that requests the daily-reminder permission and reports the
@@ -39,7 +35,7 @@ final class LumenOnboardingFlow extends RestageFlow {
       flowState: const {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
-          classification: FlowStateClassification.internal,
+          classification: FlowStateClassification.exportable,
         ),
       },
       outbound: const FlowOutboundDeclarations(
@@ -51,6 +47,14 @@ final class LumenOnboardingFlow extends RestageFlow {
             ),
           },
         ),
+        surveyAnswers: FlowOutboundPayloadDeclaration(
+          fields: {
+            'goal': FlowOutboundField(
+              type: FlowDataType.string,
+              ref: StateFlowOutboundRef(key: 'goal'),
+            ),
+          },
+        ),
         customEvents: {
           // Dismissing or reading the terms is host-owned; neither is a second
           // graph transition, and neither completes the flow.
@@ -59,6 +63,18 @@ final class LumenOnboardingFlow extends RestageFlow {
           'terms': FlowOutboundPayloadDeclaration(),
         },
       ),
+      measurementAnswers: const {
+        'goal': FlowAnswerMeasurement.category(
+          outcomeKey: 'onboarding.goal',
+          propertyName: 'goal',
+          categoryLabels: {
+            'sleep': 'Sleep better',
+            'stress': 'Less stress',
+            'focus': 'Deeper focus',
+            'curious': 'Just curious',
+          },
+        ),
+      },
       states: [
         screen(lumenWelcomeScreenRef)
             .on(LumenWelcomeScreen.next)

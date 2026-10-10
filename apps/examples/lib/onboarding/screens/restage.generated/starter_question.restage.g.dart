@@ -1,10 +1,12 @@
 part of '../starter_question.dart';
 
+// ignore_for_file: type=lint
+
 const starterQuestionScreenRef = NeutralFlowScreenRef(
   id: 'starter_question',
   artifactPath: 'starter_question.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use starterQuestionScreenRef')

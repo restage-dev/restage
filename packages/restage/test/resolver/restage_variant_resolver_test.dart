@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' show Locale;
 
@@ -7,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage/src/delivery/raced_surface_resolver.dart';
+import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
@@ -23,6 +26,7 @@ import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
 import '../fixtures/compiled_surfaces/native_flow.dart';
 import '../support/canonical_assignment_fixture.dart';
+import '../support/held_assignment.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../support/supported_policy_revisions_body.dart';
 
@@ -448,6 +452,7 @@ void main() {
   group('resolve — the tiered fallback ladder (hold-last-good → asset → throw)',
       () {
     test('holds the last good blob when a later fetch fails', () async {
+      holdAssignmentsUnder('assignment-key-a');
       final envelope =
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
       final bindingReference = _bindingReference('a');
@@ -493,6 +498,40 @@ void main() {
         bindingReference,
       );
       expect(measurementExperimentAssignmentFor(second), assignment);
+    });
+
+    test(
+        'a held blob served under an assignment is not reused once the '
+        'device no longer holds that assignment', () async {
+      holdAssignmentsUnder('assignment-key-a');
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _sequenceServer([
+          http.Response(
+            _surfaceResponseJson(
+              _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob),
+              assignment: canonicalAssignmentFixture(),
+            ),
+            200,
+          ),
+          http.Response(jsonEncode({'error': 'unavailable'}), 404),
+        ]),
+        assetFallback: _StubResolver(
+          returns: ResolvedVariant(
+            bytes: Uint8List.fromList([1]),
+            paywallId: 'pro_upgrade',
+            surfaceVersion: 'bundled',
+          ),
+        ),
+      );
+
+      await resolver.resolve('pro_upgrade');
+      SurfaceAssignmentKeyProvider.local = () => 'assignment-key-b';
+      final second = await resolver.resolve('pro_upgrade');
+
+      expect(second.bytes, [1]);
     });
 
     test('a REJECTED fresh blob funnels into the same ladder (serves cached)',
@@ -705,10 +744,12 @@ void main() {
       expect(flowPayload.paywallPublishedVersion, isNull);
       expect(flowPayload.flow.document.version, 1);
       expect(flowPayload.flow.screenBlobs['welcome'], bundledScreen);
-      expect(bundle.loadedKeys, [
+      // Both the gate and the local candidate read the bundled contract.
+      expect(bundle.loadedKeys.toSet(), {
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/paywalls/screens/paywall_pro_upgrade.rfw',
-      ]);
+        'assets/paywalls/pro_upgrade.local.json',
+      });
     });
 
     test(
@@ -747,6 +788,7 @@ void main() {
 
     test('holds the last-good active flow when a later fetch fails, re-gated',
         () async {
+      holdAssignmentsUnder('assignment-key-a');
       final bundledScreen = _reservedCommerceEventScreen('Subscribe');
       final hostedScreen = _reservedCommerceEventScreen('Subscribe now');
       final bindingReference = _bindingReference('b');
@@ -828,6 +870,152 @@ void main() {
 
       expect(payload, isA<FlowPaywallPayload>());
       expect((payload as FlowPaywallPayload).flow.document.flow, 'pro_upgrade');
+    });
+  });
+
+  group('the device store', () {
+    const baseUrl = 'https://surfaces.example.com';
+    final bundledVariant = ResolvedVariant(
+      bytes: Uint8List.fromList([1]),
+      paywallId: 'pro_upgrade',
+      surfaceVersion: 'bundled',
+    );
+
+    test('a stored delivery above the installed floor is skipped', () async {
+      final resolver = RestageVariantResolver(
+        apiKey: 'rs_pk_test',
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _sequenceServer([http.Response('unavailable', 503)]),
+        assetFallback: _StubResolver(returns: bundledVariant),
+      );
+      final body = _surfaceResponseJson(_blobEnvelope(
+        blob: Uint8List.fromList([9, 9]),
+        minClient: _supportedVersion + 1,
+      ));
+      final envelope = SurfaceDocumentCodec.decode(_blobEnvelope(
+        blob: Uint8List.fromList([9, 9]),
+        minClient: _supportedVersion + 1,
+      ));
+      await sharedSurfaceArtifactStore.write(
+        resolver.storeKeyFor('pro_upgrade'),
+        StoredSurface(
+          descriptorJson: Uint8List.fromList(utf8.encode(body)),
+          artifactBytes: envelope.payload.canonicalBytes,
+        ),
+      );
+
+      final resolved = await resolver.resolve('pro_upgrade');
+
+      expect(resolved.bytes, [1]);
+    });
+
+    test(
+        'a fetch that sent the key persists and retains its assignment, and '
+        'the next mount reuses it while that assignment is held', () async {
+      holdAssignmentsUnder('assignment-key-a');
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: 'rs_pk_test',
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _delivery.client((request) async {
+          requests.add(request);
+          return http.Response(
+            requests.length == 1
+                ? _surfaceResponseJson(
+                    _blobEnvelope(blob: Uint8List.fromList([4, 4])),
+                    assignment: canonicalAssignmentFixture(),
+                  )
+                : 'unavailable',
+            requests.length == 1 ? 200 : 503,
+          );
+        }),
+        assetFallback: _StubResolver(returns: bundledVariant),
+      );
+      final raced = racedResolverOf<ResolvedPaywallPayload>(resolver)!;
+      final key = resolver.storeKeyFor('pro_upgrade');
+
+      // The mount rendered its fallback before this lands; it still counts.
+      await raced.fresh(key, sendAssignmentKey: true);
+      final local = await raced.bestLocal(key);
+
+      expect(
+        (jsonDecode(requests.single.body) as Map)['assignmentKey'],
+        'assignment-key-a',
+      );
+      final held = local! as BlobPaywallPayload;
+      expect(held.variant.bytes, [4, 4]);
+      expect(
+        measurementExperimentAssignmentFor(held.variant),
+        canonicalAssignmentFixture(),
+      );
+    });
+
+    test('an assigned arm survives a keyless refresh', () async {
+      holdAssignmentsUnder('assignment-key-a');
+      var calls = 0;
+      final resolver = RestageVariantResolver(
+        apiKey: 'rs_pk_test',
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _delivery.client((request) async {
+          calls += 1;
+          return http.Response(
+            calls == 1
+                ? _surfaceResponseJson(
+                    _blobEnvelope(blob: Uint8List.fromList([4, 4])),
+                    assignment: canonicalAssignmentFixture(),
+                  )
+                : _surfaceResponseJson(
+                    _blobEnvelope(blob: Uint8List.fromList([5, 5])),
+                  ),
+            200,
+          );
+        }),
+        assetFallback: _StubResolver(returns: bundledVariant),
+      );
+      final raced = racedResolverOf<ResolvedPaywallPayload>(resolver)!;
+      final key = resolver.storeKeyFor('pro_upgrade');
+
+      await raced.fresh(key, sendAssignmentKey: true);
+      await raced.fresh(key, sendAssignmentKey: false);
+      final local = await raced.bestLocal(key) as BlobPaywallPayload?;
+
+      expect(local!.variant.bytes, [4, 4]);
+    });
+
+    test('a fetch whose key was not ready sends none and assigns nothing',
+        () async {
+      holdAssignmentsUnder('assignment-key-a');
+      SurfaceAssignmentKeyProvider.current = () => Completer<String?>().future;
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: 'rs_pk_test',
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _delivery.client((request) async {
+          requests.add(request);
+          return http.Response(
+            _surfaceResponseJson(
+              _blobEnvelope(blob: Uint8List.fromList([4, 4])),
+            ),
+            200,
+          );
+        }),
+        assetFallback: _StubResolver(returns: bundledVariant),
+      );
+      final raced = racedResolverOf<ResolvedPaywallPayload>(resolver)!;
+
+      await raced.fresh(
+        resolver.storeKeyFor('pro_upgrade'),
+        sendAssignmentKey: true,
+        keyDeadline: Future<void>.value(),
+      );
+
+      final body = jsonDecode(requests.single.body) as Map;
+      expect(body, isNot(contains('assignmentKey')));
+      expect(body, isNot(contains('assignmentCanonicalBase64')));
     });
   });
 }

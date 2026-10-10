@@ -152,6 +152,8 @@ final class SurfacePublicationAssembler {
       for (final artifact in entry.artifacts) {
         switch (artifact.role) {
           case SurfacePublicationArtifactRole.flowDocument:
+          case SurfacePublicationArtifactRole.iconFont:
+          case SurfacePublicationArtifactRole.localSeeds:
             break;
           case SurfacePublicationArtifactRole.screenBlob:
             final blob = bytesByPath[artifact.path]!;
@@ -180,6 +182,8 @@ final class SurfacePublicationAssembler {
             minClient: sidecar.manifest.builtInFloor,
             blob: blob,
             requiredLibraries: sidecar.manifest.requiredLibraries,
+            iconFonts: closure.iconFonts,
+            localSeeds: closure.localSeeds,
           );
         case SurfacePayloadKind.flow:
           final flowArtifact = _findArtifact(
@@ -211,6 +215,8 @@ final class SurfacePublicationAssembler {
             flowDocument: flowDocument,
             screenBlobs: screenBlobs,
             requiredLibraries: requiredLibraries,
+            iconFonts: closure.iconFonts,
+            localSeeds: closure.localSeeds,
           );
       }
 

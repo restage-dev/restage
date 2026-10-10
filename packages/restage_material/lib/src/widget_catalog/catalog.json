@@ -5538,6 +5538,22 @@
       "childrenSlot": "none",
       "properties": [
         {
+          "wireId": "p0491",
+          "name": "textInputAction",
+          "type": "enumValue",
+          "description": "{@template flutter.widgets.TextField.textInputAction} The type of action button to use for the keyboard.",
+          "enumType": "TextInputAction",
+          "constructorNullable": true,
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/services/text_input.dart",
+              "symbolName": "TextInputAction"
+            }
+          }
+        },
+        {
           "wireId": "p0177",
           "name": "obscureText",
           "type": "boolean",
@@ -5627,13 +5643,88 @@
           }
         },
         {
+          "wireId": "p0492",
+          "name": "hintText",
+          "type": "string",
+          "description": "Text shown inside the empty field.",
+          "synthetic": "inputDecorationText"
+        },
+        {
+          "wireId": "p0493",
+          "name": "labelText",
+          "type": "string",
+          "description": "Label shown above the field.",
+          "synthetic": "inputDecorationText"
+        },
+        {
+          "wireId": "p0494",
+          "name": "helperText",
+          "type": "string",
+          "description": "Supporting text shown below the field.",
+          "synthetic": "inputDecorationText"
+        },
+        {
+          "wireId": "p0495",
+          "name": "prefixIconCodepoint",
+          "type": "integer",
+          "description": "Codepoint of the icon shown before the text.",
+          "synthetic": "inputDecorationPrefixIcon"
+        },
+        {
+          "wireId": "p0496",
+          "name": "prefixIconFontFamily",
+          "type": "string",
+          "description": "Icon font family the prefix codepoint belongs to. Defaults to the Material icon font when absent.",
+          "synthetic": "inputDecorationPrefixIconFontFamily"
+        },
+        {
+          "wireId": "p0497",
+          "name": "prefixIconMatchTextDirection",
+          "type": "boolean",
+          "description": "Selects the mirroring variant of the prefix codepoint. Defaults to false.",
+          "synthetic": "inputDecorationPrefixIconMatchTextDirection"
+        },
+        {
+          "wireId": "p0498",
+          "name": "border",
+          "type": "string",
+          "description": "Field border: none, underline or outline. Defaults to the theme border when absent.",
+          "synthetic": "inputBorder",
+          "constraints": {
+            "enum": [
+              "none",
+              "underline",
+              "outline"
+            ]
+          }
+        },
+        {
+          "wireId": "p0499",
+          "name": "keyboardType",
+          "type": "string",
+          "description": "Keyboard to show: text, multiline, number, phone, emailAddress, url or name.",
+          "synthetic": "textInputType",
+          "constraints": {
+            "enum": [
+              "text",
+              "multiline",
+              "number",
+              "phone",
+              "emailAddress",
+              "url",
+              "name"
+            ]
+          }
+        },
+        {
           "wireId": "p0457",
           "name": "analyticsId",
           "type": "string",
           "description": "Optional identifier for this widget occurrence.",
           "synthetic": "analyticsId"
         }
-      ]
+      ],
+      "sinceVersion": 8
     },
     {
       "wireId": "w0039",

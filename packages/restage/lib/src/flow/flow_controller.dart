@@ -9,9 +9,13 @@ import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
 import '../authoring/event_dispatch_admission.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/render_deadline.dart';
+import '../delivery/surface_race.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import '../measurement/measurement_event_sanitizer.dart';
+import '../runtime/restage.dart';
 import '../runtime/surface_vocabulary.dart';
 import 'compiled_flow.dart';
 import 'flow_descriptors.dart';
@@ -208,6 +212,18 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// Current screen state id, if a screen is rendered.
   String? get currentScreenId => _currentFrame?.currentStateId;
 
+  /// The screen artifact the current state shows, if a screen is rendered.
+  @internal
+  String? get currentScreenArtifactId {
+    final frame = _currentFrame;
+    final state = frame?.resolved.document.states[frame.currentStateId];
+    return state is ScreenFlowState ? state.screen : null;
+  }
+
+  /// The resolved flow the current screen belongs to.
+  @internal
+  ResolvedFlow? get currentResolvedFlow => _currentFrame?.resolved;
+
   /// Whether the current screen can handle [eventId].
   @internal
   bool declaresScreenEvent(String eventId) {
@@ -356,9 +372,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       final active = activeResolver?.activeArmEnabled ?? false;
       ResolvedFlow resolved;
       try {
-        resolved = active
-            ? await activeResolver!.resolveActiveRoot(flow)
-            : await resolver.resolve(flow);
+        resolved = await _raceRoot(activeResolver, active: active);
       } on FlowUnavailableError {
         // Only a delivery failure falls back to the authored original; a
         // resolver defect must surface as a failure, not as an outage.
@@ -412,6 +426,89 @@ final class RestageFlowController<R> extends ChangeNotifier {
       _fail(e);
     } on Object catch (e) {
       _fail(_error('resolve_failed', 'Failed to resolve flow: $e.'));
+    }
+  }
+
+  RenderDeadline? _rootDeadline;
+
+  /// Called with fresh root content accepted after the mount settled on
+  /// other content; a mount that adopts it sends [report] once it paints.
+  @internal
+  void Function(ResolvedFlow root, LateRenderReport report)? onLateRoot;
+
+  /// Races the root's fresh content against local candidates until the render
+  /// deadline; the compiled flow is the floor when nothing local is ready.
+  Future<ResolvedFlow> _raceRoot(
+    ActiveArmFlowResolver? activeResolver, {
+    required bool active,
+  }) async {
+    final raced = active ? racedResolverOf<ResolvedFlow>(resolver) : null;
+    final key =
+        raced == null ? null : Restage.storeKeyFor(flow, resolver: resolver);
+    final deadline =
+        _rootDeadline = RenderDeadline.start(Restage.renderDeadline);
+    late final Future<ResolvedFlow?> freshFuture;
+    Future<ResolvedFlow?> fresh() => freshFuture = raced != null
+        ? raced.fresh(
+            key!,
+            sendAssignmentKey: true,
+            keyDeadline: deadline.reached,
+          )
+        : active
+            ? activeResolver!.resolveActiveRoot(flow)
+            : resolver.resolve(flow);
+    void report(ResolvedFlow? rendered) {
+      if (raced != null) reportRaceWinner(raced, key!, rendered);
+    }
+
+    var adoptsLateRoot = false;
+    final RaceOutcome<ResolvedFlow> outcome;
+    try {
+      outcome = await raceSurface<ResolvedFlow>(
+        deadline: deadline,
+        fresh: fresh,
+        bestLocal:
+            raced == null ? () async => null : () => raced.bestLocal(key!),
+        onLateFresh: (root) {
+          if (_isDisposed || adoptsLateRoot) return;
+          onLateRoot?.call(root, LateRenderReport(() => report(root)));
+        },
+      );
+    } finally {
+      deadline.cancel();
+    }
+    switch (outcome) {
+      case RaceFresh(:final value) || RaceLocal(:final value):
+        report(value);
+        return value;
+      case RaceNone(freshPending: true):
+        final compiled = flow.compiled;
+        if (compiled != null) {
+          report(null);
+          return compiled.resolve();
+        }
+        // Nothing to show yet: the root is whatever fresh settles on.
+        adoptsLateRoot = true;
+        final ResolvedFlow? late;
+        try {
+          late = await freshFuture;
+        } on Object {
+          report(null);
+          rethrow;
+        }
+        report(late);
+        if (late != null) return late;
+        throw _error(
+          'delivery_unavailable',
+          'No content is available for flow "${flow.id}".',
+        );
+      case RaceNone(:final freshError):
+        report(null);
+        if (freshError != null) throw freshError;
+        throw _error(
+          'delivery_unavailable',
+          'No content is available for flow "${flow.id}".',
+        );
     }
   }
 
@@ -557,7 +654,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     if (_activeSurveyTransaction != null || _frames.isEmpty) return null;
     final rootFrame = _frames.first;
     final document = rootFrame.resolved.document;
-    if (flow.surface != Surface.survey ||
+    if (document.deliveryMode != FlowDeliveryMode.typed ||
+        !_answerSurfaces.contains(flow.surface) ||
         document.schemaVersion != 2 ||
         document.surveyQuestionOrder.isEmpty) {
       return null;
@@ -889,6 +987,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    _rootDeadline?.cancel();
     RootAnalyticsArtifactRegistry.forget(this);
     _activeActionToken = null;
     _activeSurveyTransaction = null;
@@ -966,13 +1065,24 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _validateRootSurveyAnswers(document);
   }
 
+  static const Set<Surface> _answerSurfaces = <Surface>{
+    Surface.onboarding,
+    Surface.message,
+    Surface.survey,
+  };
+
   void _validateRootSurveyAnswers(FlowDocument document) {
     if (document.outbound.surveyAnswers.isEmpty) return;
-    if (flow.surface != Surface.survey ||
-        document.deliveryMode != FlowDeliveryMode.typed) {
+    if (document.deliveryMode != FlowDeliveryMode.typed) {
       throw _error(
         'survey_answers_unsupported',
-        'Survey answer declarations require a typed survey surface.',
+        'Answer declarations require a typed flow.',
+      );
+    }
+    if (!_answerSurfaces.contains(flow.surface)) {
+      throw _error(
+        'survey_answers_unsupported',
+        'Answer declarations require an onboarding, message or survey flow.',
       );
     }
     if (document.schemaVersion != 2 || document.surveyQuestionOrder.isEmpty) {

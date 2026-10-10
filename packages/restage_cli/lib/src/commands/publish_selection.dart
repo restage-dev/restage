@@ -231,12 +231,12 @@ Future<int> runPush({
     } on FormatException {
       stderr.writeln('Could not decode the publication response.');
       return stopWith(2);
-    } on MeasurementBundledProfileFinalizeException {
+    } on MeasurementBundledProfileFinalizeException catch (error) {
       // The backend committed this publication; only the local bundled
       // profile did not land, so the run stops without retrying the upload.
       stderr.writeln(
         'The $noun was pushed, but its Measurement bundle profile could '
-        'not be written.',
+        'not be written: ${error.reason}',
       );
       return stopWith(2);
     }

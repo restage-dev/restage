@@ -2,10 +2,42 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show kHostListItemPositionKey;
 import 'package:rfw/rfw.dart';
 
 /// The `DynamicContent` root key host-supplied render data is published under.
 const String kContextDataKey = 'context';
+
+/// The key each map element of a published context list carries with its
+/// 1-based position, so a loop body can name the element it renders.
+const String kContextItemIndexKey = kHostListItemPositionKey;
+
+/// [value] with every [kContextItemIndexKey] entry removed, so host code never
+/// sees the key the runtime adds.
+Object? withoutContextItemIndexes(Object? value) {
+  if (value is Map) {
+    if (!_carriesContextItemIndex(value)) return value;
+    return <Object?, Object?>{
+      for (final MapEntry(:key, :value) in value.entries)
+        if (key != kContextItemIndexKey) key: withoutContextItemIndexes(value),
+    };
+  }
+  if (value is List) {
+    if (!value.any(_carriesContextItemIndex)) return value;
+    return <Object?>[for (final item in value) withoutContextItemIndexes(item)];
+  }
+  return value;
+}
+
+bool _carriesContextItemIndex(Object? value) {
+  if (value is Map) {
+    return value.containsKey(kContextItemIndexKey) ||
+        value.values.any(_carriesContextItemIndex);
+  }
+  if (value is List) return value.any(_carriesContextItemIndex);
+  return false;
+}
 
 /// Maximum nested map or list depth below the context root.
 const int _maxContextNestingDepth = 32;
@@ -383,7 +415,14 @@ final class _ContextNormalizer {
         if (value is! Map && value is! List && !_retainNode(valuePath)) {
           return _failedContextCollection;
         }
-        normalized.add(value);
+        normalized.add(
+          value is Map<String, Object?>
+              ? Map<String, Object?>.unmodifiable(<String, Object?>{
+                  ...value,
+                  kContextItemIndexKey: '${normalized.length + 1}',
+                })
+              : value,
+        );
         index += 1;
       }
       final result = List<Object?>.unmodifiable(normalized);

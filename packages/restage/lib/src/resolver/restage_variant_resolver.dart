@@ -4,12 +4,9 @@ import 'dart:ui' show Locale;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
-import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
-        CanonicalSurfaceExperimentAssignmentV1,
-        SurfaceRoutingSelectionProvenanceV1,
         BlobRenderCapabilityGate,
         BlobRenderRejected,
         BlobSurfacePayload,
@@ -23,6 +20,9 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocument,
         Surface;
 
+import '../delivery/surface_sections_carrier.dart';
+import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_artifact_store.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_artifact_metadata.dart';
@@ -34,6 +34,7 @@ import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/library_runtime_registry.dart';
+import '../runtime/local_values.dart' show SurfaceSections;
 import '../runtime/paywall_error.dart';
 import 'asset_variant_resolver.dart';
 import 'asset_paywall_flow_preflight.dart';
@@ -44,37 +45,16 @@ import 'resolved_variant.dart';
 import 'surface_assignment_key_provider.dart';
 import 'surface_request_inputs.dart';
 import 'surface_resolution_report.dart';
-import 'report_surface_resolution.dart';
 import 'variant_resolver.dart';
 
-/// Resolves paywalls from Restage-hosted delivery.
+/// Resolves paywalls from hosted delivery, retained content and bundled assets.
+/// Mounts race [fresh] against [bestLocal]; rejected content is never rendered.
+/// [resolve], [resolvePayload] and [resolvePayloadForPresentation] try these
+/// sources in sequence without a deadline.
 ///
-/// On each [resolve] this fetches the currently-active published version from
-/// the delivery service, decodes it, asserts it is a single-screen blob,
-/// enforces the capability floor (the installed built-in catalog version + the
-/// required custom libraries), and returns the blob bytes plus the served
-/// version (for conversion attribution).
-///
-/// Delivery is fail-closed and tiered. A fresh fetch that fails (network /
-/// non-2xx) OR is rejected (not a blob / fails to decode / requires a higher
-/// client than supported) funnels into the same fallback ladder — a rejected
-/// blob is never rendered:
-///   1. fresh hosted fetch (the active version);
-///   2. the last good blob held in memory this session (hold-last-good);
-///   3. the dev's bundled `assets/paywalls/<id>.rfw` (app-bundle-trusted);
-///   4. a typed [RestagePaywallError] the `RestagePaywall` error builder renders.
-///
-/// The internal [resolvePayload] path additionally serves a hosted flow-shaped
-/// (Navigator-lowered) paywall through the active arm: it gates the served flow
-/// against the client's bundled flow contract (render gate + retained checks),
-/// holds the last gate-accepted flow (re-gated on every hit), and falls closed
-/// to the bundled flow. The public [resolve] SPI stays
-/// blob-only (a flow is not a [ResolvedVariant]); a flow reached through it
-/// simply falls through, exactly as before.
-///
-/// You normally never construct this directly — `Restage.configure` installs it
-/// as the default resolver, threading the configured `baseUrl`. A bundled-only
-/// app can supply an [AssetVariantResolver] instead.
+/// Hosted flows must satisfy the bundled flow contract. [resolve] returns blobs.
+/// `Restage.configure` installs this resolver; bundled-only apps can use
+/// [AssetVariantResolver].
 final class RestageVariantResolver
     implements
         VariantResolver,
@@ -101,7 +81,9 @@ final class RestageVariantResolver
                 baseUrl: baseUrl,
                 apiKey: apiKey,
                 httpClient: httpClient,
-              );
+              ) {
+    registerRacedResolver(this, _raced);
+  }
 
   /// Publishable Restage key used by hosted paywall delivery.
   final String apiKey;
@@ -111,16 +93,30 @@ final class RestageVariantResolver
 
   final RestageRpcClient? _client;
   final VariantResolver _assetFallback;
+  late final RacedSurfaceDelegate<ResolvedPaywallPayload> _raced =
+      RacedSurfaceDelegate<ResolvedPaywallPayload>(
+    bestLocal: bestLocal,
+    fresh: fresh,
+    leafOf: _leafOf,
+  );
+  final Map<SurfaceStoreKey, String> _capabilityGaps =
+      <SurfaceStoreKey, String>{};
 
-  /// In-memory hold-last-good cache keyed by paywall id. Holds ONLY payloads
-  /// that already passed their gate — a decoded blob past the blob capability
-  /// floor, or a gate-accepted active flow. Both are re-affirmed on every cache
-  /// hit (a custom library can be unregistered/downgraded, and an active flow is
-  /// re-gated against the current bundled contract), so a stale entry is never
-  /// served without re-passing its gate. Per-instance + within-session; the
-  /// bundled asset is the durable cross-restart offline floor.
-  final Map<String, _CachedPayload> _cache = {};
-  final Map<String, _PaywallExperimentHostedFlow> _experimentFlowCache = {};
+  /// Where accepted deliveries persist.
+  @internal
+  SurfaceArtifactStore get store => sharedSurfaceArtifactStore;
+
+  /// The store key for paywall [id]; paywalls carry no contract version.
+  @internal
+  SurfaceStoreKey storeKeyFor(String id) => SurfaceStoreKey(
+        scope: SurfaceStoreKey.scopeFor(
+          apiKey: apiKey,
+          environment: environment.name,
+        ),
+        surfaceType: Surface.paywall.wireName,
+        slug: id,
+        contractVersion: 0,
+      );
 
   @override
   Future<ResolvedVariant> resolve(
@@ -128,123 +124,29 @@ final class RestageVariantResolver
     String? placementId,
     Locale? locale,
   }) async {
-    while (true) {
-      try {
-        return await _resolveBlobOnce(
-          id,
-          placementId: placementId,
-          locale: locale,
-        );
-      } on StaleSurfaceAssignmentResolution {
-        // Public callers have no host commit boundary to perform the retry.
-      }
-    }
-  }
-
-  Future<ResolvedVariant> _resolveBlobOnce(
-    String id, {
-    String? placementId,
-    Locale? locale,
-  }) async {
-    // Tier 1 — fetch fresh (active arm). A fresh blob that fails to fetch OR is
-    // rejected (non-blob / decode-fail / minClient-above-floor) funnels into the
-    // SAME ladder below — a rejected blob NEVER renders. The public SPI is
-    // blob-only, so a hosted flow falls through here exactly as before.
-    final fresh = await _resolveFresh(id);
-    if (fresh is _FreshBlob) {
-      _requireCurrent(fresh.cacheEntry.assignmentLease);
-      _cache[id] = fresh.cacheEntry;
-      return reportSurfaceResolution<ResolvedVariant>(
-        Surface.paywall,
-        id,
-        fresh.cacheEntry.variant,
-        SurfaceResolutionSource.fresh,
-      );
-    }
-
-    // Tier 2 — hold-last-good (blob-only on the public path). Re-run the
-    // capability gate: a custom library may have been unregistered/downgraded
-    // since caching, so a stale cached blob is not served without re-affirming.
-    final cached = _cache[id];
-    if (cached is _CachedBlob &&
-        _cacheLeaseIsCurrent(id, cached) &&
-        _cacheStillRenderable(cached)) {
-      return reportSurfaceResolution<ResolvedVariant>(
-        Surface.paywall,
-        id,
-        _asCacheHit(cached.variant),
-        SurfaceResolutionSource.holdLastGood,
-        reason: _fallbackReasonOf(fresh),
-      );
-    }
-
-    // Tier 3 — the dev's bundled asset (app-bundle-trusted, durable floor).
-    try {
-      final variant = await _assetFallback.resolve(
-        id,
-        placementId: placementId,
-        locale: locale,
-      );
-      return reportSurfaceResolution<ResolvedVariant>(
-        Surface.paywall,
-        id,
-        variant,
-        SurfaceResolutionSource.bundled,
-        reason: _fallbackReasonOf(fresh),
-      );
-    } on RestagePaywallError {
-      // Tier 4 — nothing renderable anywhere. Surface the hosted-unavailable
-      // error (more informative than the bundled-asset-not-found): the
-      // RestagePaywall loading/error builder renders this throw. When the active
-      // version was rejected for a capability gap, name it.
-      throw _unavailable(id, _capabilityGapOf(fresh));
-    }
-  }
-
-  T _reportPayloadResolution<T extends ResolvedPaywallPayload>(
-    String surface,
-    T payload,
-    SurfaceResolutionSource source, {
-    SurfaceDeliveryReceiptReason reason = SurfaceDeliveryReceiptReason.none,
-  }) {
-    final leaf = switch (payload) {
-      BlobPaywallPayload(:final variant) => variant,
-      FlowPaywallPayload(:final flow) => flow,
-    };
-    reportSurfaceResolution(
-      Surface.paywall,
-      surface,
-      leaf,
-      source,
-      reason: reason,
+    final key = storeKeyFor(id);
+    final fresh = await _freshPlain(
+      key,
+      sendAssignmentKey: true,
+      keyDeadline: null,
+      blobOnly: true,
     );
-    return payload;
+    final winner = fresh ??
+        await _storedBlobOnly(key) ??
+        await _bundledBlob(id, placementId: placementId, locale: locale);
+    reportRacedSurface<ResolvedPaywallPayload>(_raced, key, winner);
+    if (winner is BlobPaywallPayload) return winner.variant;
+    throw _unavailable(id, _capabilityGaps[key]);
   }
 
-  // Internal flow-capable seam (the [FlowCapableVariantResolver] override) — not
-  // part of the public resolver API. The public SPI stays [resolve] (blob-only);
-  // this carries the blob-or-flow payload for the built-in resolvers and may
-  // change without a public-API break.
   @internal
   @override
   Future<ResolvedPaywallPayload> resolvePayload(
     String id, {
     String? placementId,
     Locale? locale,
-  }) async {
-    while (true) {
-      try {
-        return await _resolvePayloadOnce(
-          id,
-          placementId: placementId,
-          locale: locale,
-          deferFreshPublication: false,
-        );
-      } on StaleSurfaceAssignmentResolution {
-        // Ordinary callers have no host transaction to perform the retry.
-      }
-    }
-  }
+  }) =>
+      _resolveInOrder(id, placementId: placementId, locale: locale);
 
   @internal
   @override
@@ -252,219 +154,384 @@ final class RestageVariantResolver
     String id, {
     String? placementId,
     Locale? locale,
-  }) async {
-    final guard = currentPaywallPresentationGuard();
-    if (!guard()) throw const StaleSurfaceAssignmentResolution();
-    final fallback = _assetFallback;
-    if (_client != null && fallback is AssetVariantResolver) {
-      final preflight = await fallback.preflightFlowBaseline(id);
-      if (!guard()) throw const StaleSurfaceAssignmentResolution();
-      if (preflight is AssetPaywallFlowBaseline) {
-        final document = preflight.root.document;
-        final flow = OnboardingFlowRef<Object?>(
-          id: document.flow,
-          version: document.version,
-          minClient: document.minClient,
-          surface: Surface.paywall,
-          deliveryMode: document.deliveryMode,
-          decodeResult: _identityPaywallFlowResult,
-        );
-        final seedSource = FlowMountRuntimeSeedSource(
-          flow: flow,
-          actions: null,
-          installedSignalNames: const <String>{},
-        );
-        final presentation = _RestagePaywallExperimentPresentation(
-          owner: this,
-          paywallId: id,
-          flow: flow,
-          baseline: preflight,
-          captureSeed: seedSource.capture,
-          presentationGuard: guard,
-        );
-        try {
-          final payload = await presentation.resolvePayload();
-          if (payload != null) return payload;
-          presentation.disposePresentation();
-        } on Object {
-          presentation.disposePresentation();
-          rethrow;
-        }
-        if (!guard()) throw const StaleSurfaceAssignmentResolution();
-      }
-    }
-    if (!guard()) throw const StaleSurfaceAssignmentResolution();
-    return _resolvePayloadOnce(
-      id,
-      placementId: placementId,
-      locale: locale,
-      deferFreshPublication: true,
-    );
-  }
+  }) =>
+      _resolveInOrder(id, placementId: placementId, locale: locale);
 
-  Future<ResolvedPaywallPayload> _resolvePayloadOnce(
+  Future<ResolvedPaywallPayload> _resolveInOrder(
     String id, {
     String? placementId,
     Locale? locale,
-    required bool deferFreshPublication,
   }) async {
-    // Tier 1 — hosted fresh (blob).
-    final fresh = await _resolveFresh(id);
-    if (fresh is _FreshBlob) {
-      _requireCurrent(fresh.cacheEntry.assignmentLease);
-      if (!deferFreshPublication) {
-        _cache[id] = fresh.cacheEntry;
+    final key = storeKeyFor(id);
+    final winner = await fresh(key, sendAssignmentKey: true) ??
+        await _bestLocal(key, placementId: placementId, locale: locale);
+    reportRacedSurface<ResolvedPaywallPayload>(_raced, key, winner);
+    if (winner == null) throw _unavailable(id, _capabilityGaps[key]);
+    return winner;
+  }
+
+  /// Local candidates for [key]: the stored delivery re-gated, then bundled.
+  @internal
+  Future<ResolvedPaywallPayload?> bestLocal(SurfaceStoreKey key) =>
+      _bestLocal(key);
+
+  Future<ResolvedPaywallPayload?> _bestLocal(
+    SurfaceStoreKey key, {
+    String? placementId,
+    Locale? locale,
+  }) async {
+    final id = key.slug;
+    final guard = currentPaywallPresentationGuard();
+    final baseline = await _experimentBaseline(id);
+    if (!guard()) throw const StaleSurfaceAssignmentResolution();
+
+    final stored = await _readStored(key);
+    if (stored != null) {
+      final held = await _storedPayload(key, stored, baseline, guard);
+      if (held != null) {
+        return _label(held, SurfaceResolutionSource.holdLastGood);
       }
-      return _reportPayloadResolution(
-        id,
-        fresh.payload(
-          hostedPublication: deferFreshPublication
-              ? _provisionalPublication(id, fresh.cacheEntry)
-              : null,
+    }
+
+    if (baseline != null) {
+      return _label(
+        FlowPaywallPayload.experimentBaseline(
+          flow: baseline.root,
+          pinnedFlowResolver: baseline,
+          paywallId: id,
         ),
-        SurfaceResolutionSource.fresh,
-      );
-    }
-
-    // A flow — fresh OR held-last-good — is gated against the client's bundled
-    // flow contract. Load it ONCE: it is the render gate's `client` contract,
-    // the Tier-2 re-gate input, AND the Tier-3 flow fallback. With no bundled
-    // flow contract there is nothing to gate against, so an active flow can
-    // never be accepted — the ladder fails closed rather than serving it ungated.
-    final held = _cache[id];
-    final bundled = (fresh is _FreshFlow || held is _CachedFlow)
-        ? await _bundledFlowPayload(
-            id,
-            placementId: placementId,
-            locale: locale,
-          )
-        : null;
-
-    // Tier 1 (flow) — gate the fresh active document. A retained-check failure
-    // or a render-gate rejection funnels into the SAME ladder; a rejected active
-    // flow is NEVER rendered.
-    if (fresh is _FreshFlow && bundled != null) {
-      _requireCurrent(fresh.assignmentLease);
-      final arm = resolveFlowActiveArm(
-        activePayload: fresh.activePayload,
-        bundledDocument: bundled.flow.document,
-        paywallId: id,
-        activeVersion: fresh.version,
-        publicationBindingReference: fresh.publicationBindingReference,
-        canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
-        routingSelectionReceipt: fresh.routingSelectionReceipt,
-        routingSelectionProvenance: fresh.routingSelectionProvenance,
-      );
-      if (arm is FlowPaywallActiveAccepted) {
-        _requireCurrent(fresh.assignmentLease);
-        final cacheEntry = _CachedFlow(
-          activePayload: fresh.activePayload,
-          version: fresh.version,
-          publicationBindingReference: fresh.publicationBindingReference,
-          canonicalExperimentAssignment: fresh.canonicalExperimentAssignment,
-          routingSelectionReceipt: fresh.routingSelectionReceipt,
-          routingSelectionProvenance: fresh.routingSelectionProvenance,
-          assignmentLease: fresh.assignmentLease,
-        );
-        if (!deferFreshPublication) {
-          _cache[id] = cacheEntry;
-        }
-        return _reportPayloadResolution(
-          id,
-          stampFlowPayloadForDelivery(
-            arm.payload,
-            fresh.assignmentLease,
-            hostedPublication: deferFreshPublication
-                ? _provisionalPublication(id, cacheEntry)
-                : null,
-          ),
-          SurfaceResolutionSource.fresh,
-        );
-      }
-    }
-
-    // Tier 2 — hold-last-good (shape-aware): a cached blob re-floored, or a
-    // cached active flow re-gated against the CURRENT bundled contract + registry.
-    final regated = _revalidateCache(id, bundled);
-    if (regated != null) {
-      return _reportPayloadResolution(
-        id,
-        regated,
-        SurfaceResolutionSource.holdLastGood,
-        reason: _fallbackReasonOf(fresh),
-      );
-    }
-
-    // Tier 3 — the client's own bundled flow (already loaded), else the bundled
-    // asset fallback (a blob or bundled flow; custom host resolvers stay
-    // blob-only).
-    if (bundled != null) {
-      return _reportPayloadResolution(
-        id,
-        bundled,
         SurfaceResolutionSource.bundled,
-        reason: _fallbackReasonOf(fresh),
       );
     }
+    final fallback = _assetFallback;
     try {
-      final fallback = _assetFallback;
       if (fallback is FlowCapableVariantResolver) {
         final payload = await (fallback as FlowCapableVariantResolver)
             .resolvePayload(id, placementId: placementId, locale: locale);
-        return _reportPayloadResolution(
-          id,
+        return _label(
           withoutAssignmentLeaseForDelivery(payload),
           SurfaceResolutionSource.bundled,
-          reason: _fallbackReasonOf(fresh),
         );
       }
-      final variant = await fallback.resolve(
+    } on RestagePaywallError {
+      return null;
+    }
+    return _bundledBlob(id, placementId: placementId, locale: locale);
+  }
+
+  /// The hosted delivery for [key], gated and persisted on accept.
+  @internal
+  Future<ResolvedPaywallPayload?> fresh(
+    SurfaceStoreKey key, {
+    required bool sendAssignmentKey,
+    Future<void>? keyDeadline,
+  }) async {
+    _raced.freshStarted(key);
+    _capabilityGaps.remove(key);
+    if (_client == null) {
+      // No hosted tier: the bundled copy is the design, not a fallback.
+      _raced.freshRefused(key, SurfaceDeliveryReceiptReason.none);
+      return null;
+    }
+    final guard = currentPaywallPresentationGuard();
+    final baseline = await _experimentBaseline(key.slug);
+    if (!guard()) throw const StaleSurfaceAssignmentResolution();
+    if (baseline != null) {
+      final presentation = _RestagePaywallExperimentPresentation.forBaseline(
+        owner: this,
+        key: key,
+        baseline: baseline,
+        presentationGuard: guard,
+        sendAssignmentKey: sendAssignmentKey,
+        keyDeadline: keyDeadline,
+      );
+      final outcome = await presentation.fresh();
+      if (outcome.applicable) {
+        if (outcome.payload == null) presentation.disposePresentation();
+        return outcome.payload;
+      }
+      presentation.disposePresentation();
+    }
+    return _freshPlain(
+      key,
+      sendAssignmentKey: sendAssignmentKey,
+      keyDeadline: keyDeadline,
+      blobOnly: false,
+    );
+  }
+
+  /// The active hosted version, gated; persisted on accept.
+  Future<ResolvedPaywallPayload?> _freshPlain(
+    SurfaceStoreKey key, {
+    required bool sendAssignmentKey,
+    required Future<void>? keyDeadline,
+    required bool blobOnly,
+  }) async {
+    _raced.freshStarted(key);
+    if (_client == null) {
+      _raced.freshRefused(key, SurfaceDeliveryReceiptReason.none);
+      return null;
+    }
+    final id = key.slug;
+    final guard = currentPaywallPresentationGuard();
+    for (var attempt = 0; attempt < _maxIdentityAttempts; attempt += 1) {
+      try {
+        final fresh = await _resolveFresh(
+          id,
+          sendAssignmentKey: sendAssignmentKey,
+          keyDeadline: keyDeadline,
+        );
+        switch (fresh) {
+          case _FreshBlob():
+            _requireCurrent(fresh.assignmentLease);
+            await _persist(key, fresh.stored);
+            return _label(
+              fresh.payload(),
+              SurfaceResolutionSource.fresh,
+            );
+          case _FreshFlow():
+            if (blobOnly) {
+              _raced.freshRefused(
+                  key, SurfaceDeliveryReceiptReason.unsupported);
+              return null;
+            }
+            final bundled = await _bundledFlowPayload(id);
+            if (bundled == null) {
+              _raced.freshRefused(
+                  key, SurfaceDeliveryReceiptReason.unsupported);
+              return null;
+            }
+            _requireCurrent(fresh.assignmentLease);
+            final arm = _gateActiveFlow(
+                id, fresh.result, fresh.activePayload, fresh.version, bundled,
+                cacheHit: false);
+            if (arm == null) {
+              _raced.freshRefused(
+                  key, SurfaceDeliveryReceiptReason.unsupported);
+              return null;
+            }
+            _requireCurrent(fresh.assignmentLease);
+            await _persist(key, fresh.result.stored);
+            return _label(
+              stampFlowPayloadForDelivery(arm, fresh.assignmentLease),
+              SurfaceResolutionSource.fresh,
+            );
+          case _FreshRejected(:final reason, :final capabilityGap):
+            if (capabilityGap != null) _capabilityGaps[key] = capabilityGap;
+            _raced.freshRefused(key, reason);
+            return null;
+        }
+      } on StaleSurfaceAssignmentResolution {
+        if (!guard()) rethrow;
+      }
+    }
+    _raced.freshRefused(key, SurfaceDeliveryReceiptReason.offline);
+    return null;
+  }
+
+  static const int _maxIdentityAttempts = 3;
+
+  Future<void> _persist(SurfaceStoreKey key, StoredSurface? stored) =>
+      persistAcceptedDelivery(store, key, stored);
+
+  Future<SurfaceFetchResult?> _readStored(SurfaceStoreKey key) async {
+    try {
+      final stored = await store.read(key);
+      return stored == null ? null : await replayStoredSurface(stored);
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The frozen bundled flow baseline for experiment-capable presentation.
+  Future<AssetPaywallFlowBaseline?> _experimentBaseline(String id) async {
+    final fallback = _assetFallback;
+    if (_client == null || fallback is! AssetVariantResolver) return null;
+    final preflight = await fallback.preflightFlowBaseline(id);
+    return preflight is AssetPaywallFlowBaseline ? preflight : null;
+  }
+
+  /// A stored delivery re-gated exactly as a fresh one would be.
+  Future<ResolvedPaywallPayload?> _storedPayload(
+    SurfaceStoreKey key,
+    SurfaceFetchResult stored,
+    AssetPaywallFlowBaseline? baseline,
+    bool Function() guard,
+  ) async {
+    final id = key.slug;
+    final document = _assembled(stored);
+    if (document == null ||
+        document.surfaceType != Surface.paywall ||
+        document.surfaceSlug != id) {
+      return null;
+    }
+    final identity = await _storedIdentity(stored, id);
+    if (!identity.reusable) return null;
+    final localKey = identity.key;
+    final payload = document.payload;
+    if (payload is BlobSurfacePayload) {
+      return _storedBlob(id, stored, document, payload, identity.lease);
+    }
+    if (payload is! FlowSurfacePayload) return null;
+    if (baseline != null) {
+      final presentation = _RestagePaywallExperimentPresentation.forBaseline(
+        owner: this,
+        key: key,
+        baseline: baseline,
+        presentationGuard: guard,
+        sendAssignmentKey: true,
+        keyDeadline: null,
+      );
+      final held = await presentation.local(stored, localKey);
+      if (held == null) presentation.disposePresentation();
+      return held;
+    }
+    final bundled = await _bundledFlowPayload(id);
+    if (bundled == null) return null;
+    final arm = _gateActiveFlow(id, stored, payload, document.version, bundled,
+        cacheHit: true);
+    return arm == null
+        ? null
+        : stampFlowPayloadForDelivery(
+            arm,
+            identity.lease!,
+          );
+  }
+
+  Future<BlobPaywallPayload?> _storedBlobOnly(SurfaceStoreKey key) async {
+    final stored = await _readStored(key);
+    if (stored == null) return null;
+    final document = _assembled(stored);
+    if (document == null ||
+        document.surfaceType != Surface.paywall ||
+        document.surfaceSlug != key.slug) {
+      return null;
+    }
+    final payload = document.payload;
+    if (payload is! BlobSurfacePayload) return null;
+    final identity = await _storedIdentity(stored, key.slug);
+    if (!identity.reusable) return null;
+    final blob =
+        _storedBlob(key.slug, stored, document, payload, identity.lease);
+    return blob == null
+        ? null
+        : _label(blob, SurfaceResolutionSource.holdLastGood);
+  }
+
+  BlobPaywallPayload? _storedBlob(
+    String id,
+    SurfaceFetchResult stored,
+    SurfaceDocument document,
+    BlobSurfacePayload payload,
+    SurfaceAssignmentResolutionLease? lease,
+  ) {
+    final verdict = BlobRenderCapabilityGate.evaluate(
+      required: CapabilityManifest(
+        builtInFloor: document.minClient,
+        requiredLibraries: document.requiredLibraries,
+      ),
+      installed: currentInstalledCapability(),
+    );
+    if (verdict is BlobRenderRejected) return null;
+    return BlobPaywallPayload(
+      _hostedVariant(id, document, payload, stored, cacheHit: true),
+      assignmentLease: lease,
+    );
+  }
+
+  Future<
+      ({
+        bool reusable,
+        String? key,
+        SurfaceAssignmentResolutionLease? lease
+      })> _storedIdentity(
+    SurfaceFetchResult stored,
+    String id,
+  ) =>
+      storedDeliveryIdentity(
+        stored: stored.stored!,
+        assignment: stored.canonicalExperimentAssignment,
+        surface: Surface.paywall.wireName,
+        slug: id,
+      );
+
+  Future<BlobPaywallPayload?> _bundledBlob(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) async {
+    try {
+      final variant = await _assetFallback.resolve(
         id,
         placementId: placementId,
         locale: locale,
       );
-      return _reportPayloadResolution(
-        id,
+      return _label(
         BlobPaywallPayload(variant),
         SurfaceResolutionSource.bundled,
-        reason: _fallbackReasonOf(fresh),
       );
     } on RestagePaywallError {
-      // Tier 4 — nothing renderable anywhere. Keep the public hosted resolver's
-      // existing unavailable error shape; name the capability gap when the
-      // active version was rejected for one.
-      throw _unavailable(id, _capabilityGapOf(fresh));
+      return null;
     }
   }
 
-  HostedPayloadPublication _provisionalPublication(
+  FlowPaywallPayload? _gateActiveFlow(
     String id,
-    _CachedPayload cacheEntry,
-  ) =>
-      HostedPayloadPublication(
-        onCommit: () {
-          // Paint-time host validation already checked the same lease. Re-affirm
-          // here so a token can never publish after an identity boundary even if
-          // it is invoked independently or more than once.
-          if (!cacheEntry.assignmentLease.isCurrent) return;
-          _cache[id] = cacheEntry;
-        },
+    SurfaceFetchResult result,
+    FlowSurfacePayload activePayload,
+    int version,
+    FlowPaywallPayload bundled, {
+    required bool cacheHit,
+  }) {
+    final arm = resolveFlowActiveArm(
+      activePayload: activePayload,
+      bundledDocument: bundled.flow.document,
+      paywallId: id,
+      activeVersion: version,
+      publicationBindingReference: result.publicationBindingReference,
+      canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+      routingSelectionReceipt: result.routingSelectionReceipt,
+      routingSelectionProvenance: result.routingSelectionProvenance,
+      cacheHit: cacheHit,
+    );
+    return arm is FlowPaywallActiveAccepted ? arm.payload : null;
+  }
+
+  ResolvedVariant _hostedVariant(
+    String id,
+    SurfaceDocument document,
+    BlobSurfacePayload payload,
+    SurfaceFetchResult result, {
+    required bool cacheHit,
+  }) =>
+      attachMeasurementPublicationBindingReference(
+        attachSurfaceSections(
+          ResolvedVariant(
+            bytes: payload.blob,
+            paywallId: id,
+            surfaceVersion: document.version.toString(),
+            paywallPublishedVersion: document.version,
+            cacheHit: cacheHit,
+          ),
+          surfaceSectionsOf(payload),
+        ),
+        result.publicationBindingReference,
+        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+        routingSelectionReceipt: result.routingSelectionReceipt,
+        routingSelectionProvenance: result.routingSelectionProvenance,
       );
 
-  /// Fetches + validates the active hosted version. Returns the fresh outcome:
-  /// a renderable blob (with the manifest needed to re-gate a cache hit), a
-  /// flow-shaped payload pending the active-arm gate, or a rejection — all
-  /// funnel into the same fallback ladder; a rejected fetch never renders.
-  Future<_FreshOutcome> _resolveFresh(String id) async {
-    final client = _client;
-    if (client == null) {
-      // No hosted tier: the bundled copy is the design, not a fallback.
-      return const _FreshRejected(reason: SurfaceDeliveryReceiptReason.none);
-    }
+  /// Fetches + validates the active hosted version: a renderable blob, a
+  /// flow-shaped payload pending the active-arm gate, or a rejection.
+  Future<_FreshOutcome> _resolveFresh(
+    String id, {
+    required bool sendAssignmentKey,
+    required Future<void>? keyDeadline,
+  }) async {
+    final client = _client!;
 
     // The client contract (built-in catalog version + installed libraries) the
-    // server resolves eligibility against; its content hash is byte-identical
-    // to the server's, so a verdict is identity by construction.
+    // server resolves eligibility against.
     final installed = currentInstalledCapability();
     final (assignmentLease, result) = await DeliveryInputBudget.run(
       (budget) async {
@@ -472,6 +539,8 @@ final class RestageVariantResolver
           budget: budget,
           surface: Surface.paywall.wireName,
           slug: id,
+          sendAssignmentKey: sendAssignmentKey,
+          keyDeadline: keyDeadline,
         );
         _requireCurrent(inputs.lease);
         return (
@@ -480,6 +549,7 @@ final class RestageVariantResolver
             surfaceType: Surface.paywall.wireName,
             surfaceSlug: id,
             inputs: inputs,
+            sendAssignmentKey: sendAssignmentKey,
             // version omitted → the delivery service's active-version arm.
           ),
         );
@@ -490,9 +560,6 @@ final class RestageVariantResolver
       return const _FreshRejected(); // transport failure
     }
 
-    // Both artifact refusals land on the same rung they always have: a hosted
-    // surface that did not arrive and one that arrived unreadable are equally
-    // unrenderable, and both fall through to the ladder rather than throwing.
     final SurfaceDocument document;
     switch (result.artifact) {
       case SurfaceArtifactAssembled(document: final assembled):
@@ -505,11 +572,8 @@ final class RestageVariantResolver
             reason: SurfaceDeliveryReceiptReason.decodeFailed);
     }
 
-    // Defense-in-depth: the served document must be the paywall we asked for.
-    // A correct server returns the requested (type, slug) under tenant scoping,
-    // but a server bug / routing error / substituted response must fall through
-    // rather than render-or-cache the wrong surface. Mirrors the flow resolver's
-    // flow-id cross-check; rejects via the same ladder, never a throw.
+    // The served document must be the paywall asked for; anything else falls
+    // through rather than rendering the wrong surface.
     if (document.surfaceType != Surface.paywall || document.surfaceSlug != id) {
       debugPrint(
         '[restage] hosted paywall "$id" served a mismatched surface '
@@ -521,11 +585,6 @@ final class RestageVariantResolver
 
     final payload = document.payload;
     if (payload is BlobSurfacePayload) {
-      // Pre-render capability gate (the integrity checks — content hash + the
-      // header/payload manifest cross-check — already ran inside decode). A
-      // surface this build cannot faithfully render is rejected before render
-      // and falls through the ladder, never rendered, with a diagnostic naming
-      // the gap.
       final gateVerdict = BlobRenderCapabilityGate.evaluate(
         required: CapabilityManifest(
           builtInFloor: document.minClient,
@@ -540,42 +599,15 @@ final class RestageVariantResolver
           reason: SurfaceDeliveryReceiptReason.unsupported,
         );
       }
-
-      final variant = attachMeasurementPublicationBindingReference(
-        ResolvedVariant(
-          bytes: payload.blob,
-          paywallId: id,
-          surfaceVersion: document.version.toString(),
-          paywallPublishedVersion: document.version,
-        ),
-        result.publicationBindingReference,
-        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
-        routingSelectionReceipt: result.routingSelectionReceipt,
-        routingSelectionProvenance: result.routingSelectionProvenance,
-      );
       return _FreshBlob(
-        _CachedBlob(
-          variant: variant,
-          minClient: document.minClient,
-          requiredLibraries: document.requiredLibraries,
-          assignmentLease: assignmentLease,
-        ),
+        _hostedVariant(id, document, payload, result, cacheHit: false),
+        assignmentLease,
+        result.stored,
       );
     }
 
     if (payload is FlowSurfacePayload) {
-      // Flow-shaped (Navigator-lowered) paywall: hand the served active document
-      // to the flow active arm (gated in [resolvePayload] against the bundled
-      // contract). The served version and publication binding stay with the payload.
-      return _FreshFlow(
-        payload,
-        document.version,
-        result.publicationBindingReference,
-        result.canonicalExperimentAssignment,
-        result.routingSelectionReceipt,
-        result.routingSelectionProvenance,
-        assignmentLease,
-      );
+      return _FreshFlow(payload, document.version, result, assignmentLease);
     }
 
     debugPrint(
@@ -585,105 +617,23 @@ final class RestageVariantResolver
         reason: SurfaceDeliveryReceiptReason.serverError);
   }
 
-  /// Loads the client's bundled flow paywall (`assets/paywalls/<id>.flow.json`
-  /// + its screen blobs) via the asset fallback. Returns null when the fallback
-  /// is not flow-capable, has no bundled flow for this id (a blob or nothing),
-  /// or fails to load — the "no flow contract ⇒ fail closed" signal for the
-  /// active arm. The returned payload is ALSO the Tier-3 flow fallback, so it is
-  /// loaded once per resolve.
-  Future<FlowPaywallPayload?> _bundledFlowPayload(
-    String id, {
-    String? placementId,
-    Locale? locale,
-  }) async {
+  /// Loads the client's bundled flow paywall via the asset fallback, or null
+  /// when there is none: with no flow contract an active flow never renders.
+  Future<FlowPaywallPayload?> _bundledFlowPayload(String id) async {
     final fallback = _assetFallback;
     if (fallback is! FlowCapableVariantResolver) return null;
     try {
-      final payload = await (fallback as FlowCapableVariantResolver)
-          .resolvePayload(id, placementId: placementId, locale: locale);
+      final payload =
+          await (fallback as FlowCapableVariantResolver).resolvePayload(id);
       return payload is FlowPaywallPayload ? payload : null;
     } on RestagePaywallError {
       return null;
     }
   }
 
-  /// Re-affirms the hold-last-good cache entry against the current runtime state,
-  /// returning a renderable payload or null (→ the caller falls to Tier 3). A
-  /// cached blob is re-floored; a cached active flow is re-gated + re-checked
-  /// against the current [bundledFlow] contract (null when the bundled contract
-  /// is unavailable, so a cached active flow cannot be re-served without it).
-  ResolvedPaywallPayload? _revalidateCache(
-    String id,
-    FlowPaywallPayload? bundledFlow,
-  ) {
-    final cached = _cache[id];
-    if (cached != null && !_cacheLeaseIsCurrent(id, cached)) return null;
-    if (cached is _CachedBlob) {
-      return _cacheStillRenderable(cached)
-          ? BlobPaywallPayload(
-              _asCacheHit(cached.variant),
-              assignmentLease: cached.assignmentLease,
-            )
-          : null;
-    }
-    if (cached is _CachedFlow && bundledFlow != null) {
-      final arm = resolveFlowActiveArm(
-        activePayload: cached.activePayload,
-        bundledDocument: bundledFlow.flow.document,
-        paywallId: id,
-        activeVersion: cached.version,
-        publicationBindingReference: cached.publicationBindingReference,
-        canonicalExperimentAssignment: cached.canonicalExperimentAssignment,
-        routingSelectionReceipt: cached.routingSelectionReceipt,
-        routingSelectionProvenance: cached.routingSelectionProvenance,
-        cacheHit: true,
-      );
-      if (arm is FlowPaywallActiveAccepted) {
-        return stampFlowPayloadForDelivery(arm.payload, cached.assignmentLease);
-      }
-    }
-    return null;
-  }
-
-  /// Whether a cached blob still passes the capability floor. Re-checked on
-  /// every hold-last-good hit because the custom-library registry can change
-  /// after caching (a library unregistered/downgraded). The installed built-in
-  /// catalog version is a compile-time const and cannot drift, but is cheap to
-  /// re-affirm alongside.
-  bool _cacheStillRenderable(_CachedBlob cached) {
-    if (cached.minClient > RestageBuiltInCatalogCapabilities.currentVersion) {
-      return false;
-    }
-    for (final requirement in cached.requiredLibraries) {
-      if (!LibraryRuntimeRegistry.satisfies(requirement)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  bool _cacheLeaseIsCurrent(String id, _CachedPayload cached) {
-    if (cached.assignmentLease.isCurrent) return true;
-    if (identical(_cache[id], cached)) _cache.remove(id);
-    return false;
-  }
-
   static void _requireCurrent(SurfaceAssignmentResolutionLease lease) {
     if (!lease.isCurrent) throw const StaleSurfaceAssignmentResolution();
   }
-
-  // Re-emit [variant] as a cache hit and retain its exact, already-delivered
-  // Measurement provenance. This is the only safe copy path: public copyWith
-  // may change the payload identity and must not inherit a binding reference.
-  ResolvedVariant _asCacheHit(ResolvedVariant variant) =>
-      attachMeasurementPublicationBindingReference(
-        variant.copyWith(cacheHit: true),
-        measurementPublicationBindingReferenceFor(variant),
-        canonicalExperimentAssignment:
-            measurementExperimentAssignmentFor(variant),
-        routingSelectionReceipt: routingSelectionReceiptFor(variant),
-        routingSelectionProvenance: routingSelectionProvenanceFor(variant),
-      );
 
   RestagePaywallError _unavailable(
     String id, [
@@ -700,55 +650,122 @@ final class RestageVariantResolver
       );
 }
 
-String? _capabilityGapOf(_FreshOutcome fresh) =>
-    fresh is _FreshRejected ? fresh.capabilityGap : null;
+Object _leafOf(ResolvedPaywallPayload payload) => switch (payload) {
+      BlobPaywallPayload(:final variant) => variant,
+      FlowPaywallPayload(:final flow) => flow,
+    };
 
-/// Why a fresh copy was not served; a gated-out flow is unsupported.
-SurfaceDeliveryReceiptReason _fallbackReasonOf(_FreshOutcome fresh) =>
-    fresh is _FreshRejected
-        ? fresh.reason
-        : SurfaceDeliveryReceiptReason.unsupported;
+/// Labels where [payload]'s content came from, on the object it reports as.
+T _label<T extends ResolvedPaywallPayload>(
+  T payload,
+  SurfaceResolutionSource source,
+) {
+  labelSurfaceSource(_leafOf(payload), source);
+  return payload;
+}
 
+SurfaceDocument? _assembled(SurfaceFetchResult result) =>
+    switch (result.artifact) {
+      SurfaceArtifactAssembled(:final document) => document,
+      _ => null,
+    };
+
+typedef _PresentationFresh = ({FlowPaywallPayload? payload, bool applicable});
+
+/// One experiment-capable flow paywall presentation: its frozen baseline, the
+/// mount snapshot, and the hosted candidate chosen against it.
 final class _RestagePaywallExperimentPresentation
     implements
         FlowPaywallExperimentRetryAuthority,
         FlowResolver,
         FlowExperimentArtifactMetadataProvider {
-  _RestagePaywallExperimentPresentation({
+  _RestagePaywallExperimentPresentation._({
     required this.owner,
-    required this.paywallId,
+    required this.key,
     required this.flow,
     required this.baseline,
     required this.captureSeed,
     required this.presentationGuard,
+    required this.sendAssignmentKey,
+    required this.keyDeadline,
   });
 
+  factory _RestagePaywallExperimentPresentation.forBaseline({
+    required RestageVariantResolver owner,
+    required SurfaceStoreKey key,
+    required AssetPaywallFlowBaseline baseline,
+    required bool Function() presentationGuard,
+    required bool sendAssignmentKey,
+    required Future<void>? keyDeadline,
+  }) {
+    final document = baseline.root.document;
+    final flow = OnboardingFlowRef<Object?>(
+      id: document.flow,
+      version: document.version,
+      minClient: document.minClient,
+      surface: Surface.paywall,
+      deliveryMode: document.deliveryMode,
+      decodeResult: _identityPaywallFlowResult,
+    );
+    final seedSource = FlowMountRuntimeSeedSource(
+      flow: flow,
+      actions: null,
+      installedSignalNames: const <String>{},
+    );
+    return _RestagePaywallExperimentPresentation._(
+      owner: owner,
+      key: key,
+      flow: flow,
+      baseline: baseline,
+      captureSeed: seedSource.capture,
+      presentationGuard: presentationGuard,
+      sendAssignmentKey: sendAssignmentKey,
+      keyDeadline: keyDeadline,
+    );
+  }
+
   final RestageVariantResolver owner;
-  final String paywallId;
+  final SurfaceStoreKey key;
   final OnboardingFlowRef<Object?> flow;
   final AssetPaywallFlowBaseline baseline;
   final FlowMountSeedCapture captureSeed;
   final bool Function() presentationGuard;
+  final bool sendAssignmentKey;
+  final Future<void>? keyDeadline;
+
+  String get paywallId => key.slug;
 
   FlowMountContractSnapshot? _snapshot;
-  _PaywallExperimentHostedFlow? _provisional;
   bool _published = false;
   bool _disposed = false;
+  bool _localOnly = false;
   var _attempts = 0;
+  final List<(SurfaceStoreKey, StoredSurface)> _children =
+      <(SurfaceStoreKey, StoredSurface)>[];
 
-  Future<FlowPaywallPayload?> resolvePayload() async {
+  /// Fetches, gates and persists the hosted candidate. Not applicable when the
+  /// baseline cannot advertise an experiment; the caller then takes the plain
+  /// path.
+  Future<_PresentationFresh> fresh() async {
+    // Three hosted attempts per presentation, shared with first-paint retries.
     while (_attempts < 3) {
       _attempts += 1;
       if (_disposed || !presentationGuard()) {
         throw const StaleSurfaceAssignmentResolution();
       }
       _snapshot = null;
-      _provisional = null;
-
+      _children.clear();
       try {
+        SurfaceAssignmentResolutionLease? registrationLease;
         final snapshotOutcome = await FlowMountContractSnapshotBuilder(
           captureSeed: captureSeed,
-          resolveAssignmentKey: SurfaceAssignmentKeyProvider.resolve,
+          resolveAssignmentKey: () async {
+            registrationLease = await SurfaceAssignmentKeyProvider.captureLease(
+              resolveKey: sendAssignmentKey,
+              keyDeadline: keyDeadline,
+            );
+            return registrationLease!.assignmentKey;
+          },
           resolver: baseline,
         ).seal();
         if (_disposed || !presentationGuard()) {
@@ -758,114 +775,123 @@ final class _RestagePaywallExperimentPresentation
           if (snapshotOutcome.reason == FlowMountSnapshotRejection.seedDrift) {
             continue;
           }
-          return null;
+          return (payload: null, applicable: false);
         }
-
-        final snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
-        if (!_baselineCanAdvertise(snapshot)) return null;
+        var snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
+        if (!_baselineCanAdvertise(snapshot)) {
+          return (payload: null, applicable: false);
+        }
         _snapshot = snapshot;
 
-        final fresh = await _fetchActive(snapshot);
+        final fetched = await _fetchActive(snapshot, registrationLease!);
         if (_disposed || !presentationGuard()) {
           throw const StaleSurfaceAssignmentResolution();
         }
-        if (fresh != null) {
-          final prefetched = await FlowCandidatePrefetcher.prefetch(
-            snapshot: snapshot,
-            captureSeed: captureSeed,
-            candidateRoot: fresh.candidateRoot,
-            resolver: this,
-          );
-          if (_disposed || !presentationGuard()) {
-            throw const StaleSurfaceAssignmentResolution();
+        if (fetched == null) {
+          owner._raced.freshRefused(key, SurfaceDeliveryReceiptReason.offline);
+          return (payload: null, applicable: true);
+        }
+        snapshot = snapshot.withAssignmentKey(fetched.result.stored == null
+            ? registrationLease!.assignmentKey
+            : storedSurfaceAssignmentKey(fetched.result.stored!));
+        _snapshot = snapshot;
+        final candidate = _candidateFrom(fetched.result, fetched.decoded);
+        final prefetched = await FlowCandidatePrefetcher.prefetch(
+          snapshot: snapshot,
+          captureSeed: captureSeed,
+          candidateRoot: candidate,
+          resolver: this,
+        );
+        if (_disposed || !presentationGuard()) {
+          throw const StaleSurfaceAssignmentResolution();
+        }
+        if (prefetched is FlowCandidatePrefetchAccepted) {
+          await owner._persist(key, fetched.result.stored);
+          for (final (childKey, stored) in _children) {
+            await owner._persist(childKey, stored);
           }
-          if (prefetched is FlowCandidatePrefetchAccepted) {
-            final provisional = _PaywallExperimentHostedFlow(
-              snapshot: snapshot.withAssignmentKey(
-                SurfaceAssignmentKeyProvider.confirmedKey ??
-                    snapshot.assignmentKey,
-              ),
-              accepted: prefetched,
-              paywallPublishedVersion: fresh.paywallPublishedVersion,
-            );
-            _provisional = provisional;
-            return owner._reportPayloadResolution(
-              paywallId,
+          _children.clear();
+          return (
+            payload: _label(
               FlowPaywallPayload.experiment(
                 acceptedCandidate: prefetched,
                 paywallId: paywallId,
-                paywallPublishedVersion: fresh.paywallPublishedVersion,
+                paywallPublishedVersion: fetched.decoded.publishedVersion,
                 resolvedFromActiveArm: true,
                 experimentAuthority: this,
               ),
               SurfaceResolutionSource.fresh,
-            );
-          }
-          if (prefetched is FlowCandidatePrefetchRejected &&
-              prefetched.reason == FlowCandidatePrefetchRejection.seedDrift) {
-            throw const StaleSurfaceAssignmentResolution();
-          }
+            ),
+            applicable: true,
+          );
         }
-
-        final held = owner._experimentFlowCache[paywallId];
-        if (held != null) {
-          if (held.matches(snapshot) &&
-              revalidate(FlowMountRevalidationBoundary.fallback)) {
-            final accepted = held.accepted.asCacheHit();
-            return owner._reportPayloadResolution(
-              paywallId,
-              FlowPaywallPayload.experiment(
-                acceptedCandidate: accepted,
-                paywallId: paywallId,
-                paywallPublishedVersion: held.paywallPublishedVersion,
-                resolvedFromActiveArm: true,
-                experimentAuthority: this,
-              ),
-              SurfaceResolutionSource.holdLastGood,
-              reason: fresh == null
-                  ? SurfaceDeliveryReceiptReason.offline
-                  : SurfaceDeliveryReceiptReason.unsupported,
-            );
-          }
-          owner._experimentFlowCache.remove(paywallId);
+        if ((prefetched is FlowCandidatePrefetchRejected &&
+                prefetched.reason ==
+                    FlowCandidatePrefetchRejection.seedDrift) ||
+            !revalidate(FlowMountRevalidationBoundary.fallback)) {
+          continue;
         }
-
-        if (!revalidate(FlowMountRevalidationBoundary.fallback)) {
-          throw const StaleSurfaceAssignmentResolution();
-        }
-        return owner._reportPayloadResolution(
-          paywallId,
-          FlowPaywallPayload.experimentBaseline(
-            flow: snapshot.baselineRoot,
-            pinnedFlowResolver: snapshot.baselineResolver,
-            paywallId: paywallId,
-            experimentAuthority: this,
-          ),
-          SurfaceResolutionSource.bundled,
-          reason: fresh == null
-              ? SurfaceDeliveryReceiptReason.offline
-              : SurfaceDeliveryReceiptReason.unsupported,
-        );
+        owner._raced
+            .freshRefused(key, SurfaceDeliveryReceiptReason.unsupported);
+        return (payload: null, applicable: true);
       } on StaleSurfaceAssignmentResolution {
         if (_disposed || !presentationGuard()) rethrow;
       }
     }
+    owner._raced.freshRefused(key, SurfaceDeliveryReceiptReason.offline);
+    return (payload: null, applicable: true);
+  }
 
-    if (!presentationGuard()) throw const StaleSurfaceAssignmentResolution();
-    disposePresentation();
-    return owner._reportPayloadResolution(
-      paywallId,
-      FlowPaywallPayload.experimentBaseline(
-        flow: baseline.root,
-        pinnedFlowResolver: baseline,
-        paywallId: paywallId,
-      ),
-      SurfaceResolutionSource.bundled,
+  /// Re-derives a stored candidate against the current snapshot, reading its
+  /// sub-flows from the store only.
+  Future<FlowPaywallPayload?> local(
+    SurfaceFetchResult stored,
+    String? assignmentKey,
+  ) async {
+    _localOnly = true;
+    final snapshotOutcome = await FlowMountContractSnapshotBuilder(
+      captureSeed: captureSeed,
+      resolveAssignmentKey: () => assignmentKey,
+      resolver: baseline,
+    ).seal();
+    if (_disposed || snapshotOutcome is! FlowMountSnapshotSealed) return null;
+    final snapshot = snapshotOutcome.snapshot;
+    if (!_baselineCanAdvertise(snapshot)) return null;
+    _snapshot = snapshot;
+    final decoded = _decodeHostedFlow(
+      stored,
+      requestedFlow: flow,
+      exactVersion: false,
+    );
+    if (decoded == null) return null;
+    final prefetched = await FlowCandidatePrefetcher.prefetch(
+      snapshot: snapshot,
+      captureSeed: captureSeed,
+      candidateRoot: _candidateFrom(stored, decoded, cacheHit: true),
+      resolver: this,
+    );
+    if (_disposed || prefetched is! FlowCandidatePrefetchAccepted) return null;
+    return FlowPaywallPayload.experiment(
+      acceptedCandidate: prefetched.asCacheHit(),
+      paywallId: paywallId,
+      paywallPublishedVersion: decoded.publishedVersion,
+      resolvedFromActiveArm: true,
+      experimentAuthority: this,
     );
   }
 
   @override
-  Future<FlowPaywallPayload?> resolveNextPayload() => resolvePayload();
+  Future<FlowPaywallPayload?> resolveNextPayload() async {
+    _localOnly = false;
+    final outcome = await fresh();
+    if (!outcome.applicable) return null;
+    return outcome.payload ??
+        FlowPaywallPayload.experimentBaseline(
+          flow: baseline.root,
+          pinnedFlowResolver: baseline,
+          paywallId: paywallId,
+        );
+  }
 
   bool _baselineCanAdvertise(FlowMountContractSnapshot snapshot) {
     final verdict = FlowExperimentEligibilityEvaluator.evaluate(
@@ -883,61 +909,61 @@ final class _RestagePaywallExperimentPresentation
     return verdict.accepted;
   }
 
-  Future<_PaywallExperimentFreshFlow?> _fetchActive(
-    FlowMountContractSnapshot snapshot,
-  ) async {
+  ResolvedFlow _candidateFrom(
+    SurfaceFetchResult result,
+    _DecodedPaywallHostedFlow decoded, {
+    bool cacheHit = false,
+  }) =>
+      _own(
+        attachMeasurementPublicationBindingReference(
+          attachSurfaceSections(
+            ResolvedFlow(
+              document: decoded.document,
+              screenBlobs: decoded.screenBlobs,
+              contentHash: FlowContentHash.compute(
+                FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+              ),
+              cacheHit: cacheHit,
+            ),
+            decoded.sections,
+          ),
+          result.publicationBindingReference,
+          canonicalExperimentAssignment: result.canonicalExperimentAssignment,
+          routingSelectionReceipt: result.routingSelectionReceipt,
+          routingSelectionProvenance: result.routingSelectionProvenance,
+        ),
+        requiredLibraries: decoded.requiredLibraries,
+      );
+
+  Future<({SurfaceFetchResult result, _DecodedPaywallHostedFlow decoded})?>
+      _fetchActive(FlowMountContractSnapshot snapshot,
+          SurfaceAssignmentResolutionLease registrationLease) async {
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
-    final result = await _fetchSurface(
-      snapshot: snapshot,
-      boundary: FlowMountRevalidationBoundary.request,
-    );
+    final SurfaceFetchResult? result;
+    try {
+      result = await owner._client!.fetchSurface(
+        surfaceType: Surface.paywall.wireName,
+        surfaceSlug: paywallId,
+        assignmentKey: snapshot.assignmentKey,
+        sendAssignmentKey: sendAssignmentKey,
+        registrationLease: registrationLease,
+        keyDeadline: keyDeadline,
+        publicationGuard: () => _snapshotIsCurrent(
+          snapshot,
+          FlowMountRevalidationBoundary.request,
+        ),
+      );
+    } on SurfaceRequestPublicationRejected {
+      throw const StaleSurfaceAssignmentResolution();
+    }
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
     if (result == null) return null;
-
     final decoded = _decodeHostedFlow(
       result,
       requestedFlow: flow,
       exactVersion: false,
     );
-    if (decoded == null) return null;
-
-    final candidate = _own(
-      attachMeasurementPublicationBindingReference(
-        ResolvedFlow(
-          document: decoded.document,
-          screenBlobs: decoded.screenBlobs,
-          contentHash: FlowContentHash.compute(
-            FlowDocumentCodec.encodeCanonicalJson(decoded.document),
-          ),
-          cacheHit: false,
-        ),
-        result.publicationBindingReference,
-        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
-        routingSelectionReceipt: result.routingSelectionReceipt,
-        routingSelectionProvenance: result.routingSelectionProvenance,
-      ),
-      requiredLibraries: decoded.requiredLibraries,
-    );
-    return _PaywallExperimentFreshFlow(
-      candidateRoot: candidate,
-      paywallPublishedVersion: decoded.publishedVersion,
-    );
-  }
-
-  Future<SurfaceFetchResult?> _fetchSurface({
-    required FlowMountContractSnapshot snapshot,
-    required FlowMountRevalidationBoundary boundary,
-  }) async {
-    try {
-      return await owner._client!.fetchSurface(
-        surfaceType: Surface.paywall.wireName,
-        surfaceSlug: paywallId,
-        assignmentKey: snapshot.assignmentKey,
-        publicationGuard: () => _snapshotIsCurrent(snapshot, boundary),
-      );
-    } on SurfaceRequestPublicationRejected {
-      throw const StaleSurfaceAssignmentResolution();
-    }
+    return decoded == null ? null : (result: result, decoded: decoded);
   }
 
   @override
@@ -951,22 +977,36 @@ final class _RestagePaywallExperimentPresentation
         message: 'The paywall flow presentation no longer owns resolution.',
       );
     }
-    _requireCurrent(snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
+    final childKey = SurfaceStoreKey(
+      scope: key.scope,
+      surfaceType: Surface.paywall.wireName,
+      slug: requestedFlow.id,
+      contractVersion: requestedFlow.version,
+    );
     final SurfaceFetchResult? result;
-    try {
-      result = await owner._client!.fetchSurface(
-        surfaceType: Surface.paywall.wireName,
-        surfaceSlug: requestedFlow.id,
-        version: requestedFlow.version,
-        publicationGuard: () => _snapshotIsCurrent(
-          snapshot,
-          FlowMountRevalidationBoundary.candidatePrefetch,
-        ),
-      );
-    } on SurfaceRequestPublicationRejected {
-      throw const StaleSurfaceAssignmentResolution();
+    if (_localOnly) {
+      result = await owner._readStored(childKey);
+    } else {
+      _requireCurrent(
+          snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
+      try {
+        result = await owner._client!.fetchSurface(
+          surfaceType: Surface.paywall.wireName,
+          surfaceSlug: requestedFlow.id,
+          version: requestedFlow.version,
+          sendAssignmentKey: snapshot.assignmentKey != null,
+          keyDeadline: keyDeadline,
+          publicationGuard: () => _snapshotIsCurrent(
+            snapshot,
+            FlowMountRevalidationBoundary.candidatePrefetch,
+          ),
+        );
+      } on SurfaceRequestPublicationRejected {
+        throw const StaleSurfaceAssignmentResolution();
+      }
+      _requireCurrent(
+          snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
     }
-    _requireCurrent(snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
     if (result == null) {
       throw FlowUnavailableError(
         flowId: requestedFlow.id,
@@ -990,23 +1030,9 @@ final class _RestagePaywallExperimentPresentation
             '${requestedFlow.version} failed validation.',
       );
     }
-    return _own(
-      attachMeasurementPublicationBindingReference(
-        ResolvedFlow(
-          document: decoded.document,
-          screenBlobs: decoded.screenBlobs,
-          contentHash: FlowContentHash.compute(
-            FlowDocumentCodec.encodeCanonicalJson(decoded.document),
-          ),
-          cacheHit: false,
-        ),
-        result.publicationBindingReference,
-        canonicalExperimentAssignment: result.canonicalExperimentAssignment,
-        routingSelectionReceipt: result.routingSelectionReceipt,
-        routingSelectionProvenance: result.routingSelectionProvenance,
-      ),
-      requiredLibraries: decoded.requiredLibraries,
-    );
+    final stored = result.stored;
+    if (!_localOnly && stored != null) _children.add((childKey, stored));
+    return _candidateFrom(result, decoded, cacheHit: _localOnly);
   }
 
   _DecodedPaywallHostedFlow? _decodeHostedFlow<R>(
@@ -1014,17 +1040,9 @@ final class _RestagePaywallExperimentPresentation
     required OnboardingFlowRef<R> requestedFlow,
     required bool exactVersion,
   }) {
-    // Absent and unreadable already reached the same `null` here; the artifact
-    // that never arrived joins them on that rung.
-    final SurfaceDocument surface;
-    switch (result.artifact) {
-      case SurfaceArtifactAssembled(:final document):
-        surface = document;
-      case SurfaceArtifactUnavailable():
-      case SurfaceArtifactUndecodable():
-        return null;
-    }
-    if (surface.surfaceType != Surface.paywall ||
+    final surface = _assembled(result);
+    if (surface == null ||
+        surface.surfaceType != Surface.paywall ||
         surface.surfaceSlug != requestedFlow.id ||
         (exactVersion && surface.version != requestedFlow.version)) {
       return null;
@@ -1057,6 +1075,7 @@ final class _RestagePaywallExperimentPresentation
       screenBlobs: payload.screenBlobs,
       requiredLibraries: surface.requiredLibraries,
       publishedVersion: surface.version,
+      sections: surfaceSectionsOf(payload),
     );
   }
 
@@ -1086,30 +1105,21 @@ final class _RestagePaywallExperimentPresentation
         _snapshotIsCurrent(snapshot, boundary);
   }
 
+  // Accepted candidates persist when accepted, so render commitment only
+  // releases the host guard.
   @override
   void publishHostedLastGood() {
-    final provisional = _provisional;
-    if (!revalidate(FlowMountRevalidationBoundary.cachePublication)) {
-      _provisional = null;
-      return;
+    if (revalidate(FlowMountRevalidationBoundary.cachePublication)) {
+      _published = true;
     }
-    if (provisional != null) {
-      owner._experimentFlowCache[paywallId] = provisional;
-    }
-    _provisional = null;
-    _published = true;
   }
 
   @override
-  void abandonHostedLastGood() {
-    _provisional = null;
-  }
+  void abandonHostedLastGood() {}
 
   @override
   void disposePresentation() {
-    if (_disposed) return;
     _disposed = true;
-    abandonHostedLastGood();
   }
 
   bool _snapshotIsCurrent(
@@ -1134,89 +1144,53 @@ final class _RestagePaywallExperimentPresentation
   }
 }
 
-final class _PaywallExperimentFreshFlow {
-  const _PaywallExperimentFreshFlow({
-    required this.candidateRoot,
-    required this.paywallPublishedVersion,
-  });
-
-  final ResolvedFlow candidateRoot;
-  final int paywallPublishedVersion;
-}
-
 final class _DecodedPaywallHostedFlow {
   const _DecodedPaywallHostedFlow({
     required this.document,
     required this.screenBlobs,
     required this.requiredLibraries,
     required this.publishedVersion,
+    required this.sections,
   });
 
+  final SurfaceSections sections;
   final FlowDocument document;
   final Map<String, Uint8List> screenBlobs;
   final List<LibraryRequirement> requiredLibraries;
   final int publishedVersion;
 }
 
-final class _PaywallExperimentHostedFlow {
-  const _PaywallExperimentHostedFlow({
-    required this.snapshot,
-    required this.accepted,
-    required this.paywallPublishedVersion,
-  });
-
-  final FlowMountContractSnapshot snapshot;
-  final FlowCandidatePrefetchAccepted accepted;
-  final int paywallPublishedVersion;
-
-  bool matches(FlowMountContractSnapshot current) {
-    return snapshot.seed.sameIdentityAs(current.seed) &&
-        snapshot.assignmentKey == current.assignmentKey &&
-        snapshot.contentHash == current.contentHash;
-  }
-}
-
 Map<String, Object?> _identityPaywallFlowResult(Map<String, Object?> value) =>
     value;
 
-/// Outcome of a fresh hosted fetch: a renderable blob (+ its cache entry), a
-/// flow-shaped payload pending the active-arm gate, or a rejection.
+/// Outcome of a fresh hosted fetch: a renderable blob, a flow-shaped payload
+/// pending the active-arm gate, or a rejection.
 sealed class _FreshOutcome {
   const _FreshOutcome();
 }
 
 final class _FreshBlob extends _FreshOutcome {
-  const _FreshBlob(this.cacheEntry);
+  const _FreshBlob(this.variant, this.assignmentLease, this.stored);
 
-  final _CachedBlob cacheEntry;
+  final ResolvedVariant variant;
+  final SurfaceAssignmentResolutionLease assignmentLease;
+  final StoredSurface? stored;
 
-  /// Derived from [cacheEntry] so the returned payload and the cache entry can
-  /// never disagree (they carry the same variant).
-  BlobPaywallPayload payload({HostedPayloadPublication? hostedPublication}) =>
-      BlobPaywallPayload(
-        cacheEntry.variant,
-        assignmentLease: cacheEntry.assignmentLease,
-        hostedPublication: hostedPublication,
-      );
+  BlobPaywallPayload payload() =>
+      BlobPaywallPayload(variant, assignmentLease: assignmentLease);
 }
 
 final class _FreshFlow extends _FreshOutcome {
   const _FreshFlow(
     this.activePayload,
     this.version,
-    this.publicationBindingReference,
-    this.canonicalExperimentAssignment,
-    this.routingSelectionReceipt,
-    this.routingSelectionProvenance,
+    this.result,
     this.assignmentLease,
   );
 
   final FlowSurfacePayload activePayload;
   final int version;
-  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
-  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
-  final String? routingSelectionReceipt;
-  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
+  final SurfaceFetchResult result;
   final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
@@ -1229,56 +1203,8 @@ final class _FreshRejected extends _FreshOutcome {
   /// Why the fresh copy was not served.
   final SurfaceDeliveryReceiptReason reason;
 
-  /// Set only when the fresh fetch was rejected for a capability reason
-  /// (minClient above the installed catalog, or an unsatisfied library) — a
-  /// short phrase naming the gap, carried through the fallback ladder so the
-  /// exhausted-fallback error names it (rather than a generic "fetch failed").
+  /// A short phrase naming a capability gap, when that was the reason.
   final String? capabilityGap;
-}
-
-/// A hold-last-good cache entry. Sealed: a renderable blob (+ the capability
-/// manifest it passed) or a gate-accepted active flow (+ the metadata needed to
-/// re-gate it against the current bundled contract).
-sealed class _CachedPayload {
-  const _CachedPayload({required this.assignmentLease});
-
-  final SurfaceAssignmentResolutionLease assignmentLease;
-}
-
-final class _CachedBlob extends _CachedPayload {
-  const _CachedBlob({
-    required this.variant,
-    required this.minClient,
-    required this.requiredLibraries,
-    required super.assignmentLease,
-  });
-
-  final ResolvedVariant variant;
-  final int minClient;
-  final List<LibraryRequirement> requiredLibraries;
-}
-
-final class _CachedFlow extends _CachedPayload {
-  const _CachedFlow({
-    required this.activePayload,
-    required this.version,
-    required this.publicationBindingReference,
-    required this.canonicalExperimentAssignment,
-    required this.routingSelectionReceipt,
-    required this.routingSelectionProvenance,
-    required super.assignmentLease,
-  });
-
-  /// The served active flow payload, retained so a cache hit can re-run the
-  /// full active-arm gate (render gate + retained checks) against the CURRENT
-  /// bundled contract — a stale active flow that no longer renders safely is
-  /// never re-served.
-  final FlowSurfacePayload activePayload;
-  final int version;
-  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
-  final CanonicalSurfaceExperimentAssignmentV1? canonicalExperimentAssignment;
-  final String? routingSelectionReceipt;
-  final SurfaceRoutingSelectionProvenanceV1? routingSelectionProvenance;
 }
 
 /// Adds the exact assignment/publication transaction to a flow payload.

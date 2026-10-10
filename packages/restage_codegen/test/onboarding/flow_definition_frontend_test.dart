@@ -1643,6 +1643,74 @@ final actionFlow = FlowDefinition(
       );
     });
   });
+
+  group('measured answers', () {
+    Map<String, String> sources(String surface, {String delivery = ''}) => {
+          'lib/$surface/screens/question.dart': _screenSource(
+            'QuestionScreen',
+            "static const answer = SurfaceEvent<String>('answer');",
+          ),
+          'lib/$surface/flows/goal_flow.dart': """
+import 'package:restage/restage.dart';
+import '../screens/question.dart';
+
+const goal = FlowStateRef<String>(
+  'goal',
+  classification: FlowStateClassification.exportable,
+);
+
+@FlowGraph(surface: Surface.$surface$delivery)
+final goalFlow = FlowDefinition(
+  start: QuestionScreen,
+  state: [goal],
+  transitions: [
+    Transition.complete(QuestionScreen.answer, capture: goal),
+  ],
+  outbound: FlowOutboundPolicy(
+    terminalResult: {'goal': goal},
+    surveyAnswers: {'goal': goal},
+    measurementAnswers: {
+      'goal': FlowAnswerMeasurement.category(
+        outcomeKey: 'onboarding.goal', propertyName: 'goal',
+        categoryLabels: {'focus': 'Focus'},
+      ),
+    },
+  ),
+);
+""",
+        };
+
+    test('raise a typed onboarding flow to the feature client floor', () async {
+      final result = await _inspect(sources('onboarding'));
+
+      expect(result.issues, isEmpty, reason: result.issues.toString());
+      final flow = result.flows.single;
+      expect(flow.minClient, lessThan(kSurfaceFeatureClientFloor));
+      expect(flow.graph!.minClient, kSurfaceFeatureClientFloor);
+    });
+
+    test('leave a survey flow at its declared minimum client', () async {
+      final result = await _inspect(sources('survey'));
+
+      expect(result.issues, isEmpty, reason: result.issues.toString());
+      final flow = result.flows.single;
+      expect(flow.graph!.minClient, flow.minClient);
+    });
+
+    test('are refused on a general flow by name', () async {
+      final result = await _inspect(
+        sources(
+          'onboarding',
+          delivery: ', delivery: FlowDeliveryMode.general',
+        ),
+      );
+
+      expect(
+        result.issues.map((issue) => issue.message),
+        contains(kGeneralFlowMeasurementAnswersRefusal),
+      );
+    });
+  });
 }
 
 String _screenSource(String className, String event) => '''

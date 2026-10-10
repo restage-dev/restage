@@ -1,24 +1,27 @@
 part of '../lumen_cancel_flow.dart';
 
+// ignore_for_file: type=lint
+
 const lumenCancelRef = SurfaceFlowRef<
     LumenCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'lumen_cancel',
   version: 1,
-  minClient: 6,
+  minClient: 9,
   surface: Surface.survey,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeLumenCancelResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"lumen_cancel","flowState":{"reason":{"classification":"exportable","type":"string"}},"initial":"lumen_cancel_reason","minClient":6,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_reason":{"contentHash":"sha256:68d306c22d7d68b54e65d4097d3f4abbb7f594e392561f74f74cd15b1517fa07","minClient":6,"path":"measurement/102ed2ac499caf5b/lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:fab6de29217abe91996bef532f3db63200d55367a953529b299c51fd129eff26","minClient":6,"path":"measurement/102ed2ac499caf5b/lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
+        '{"flow":"lumen_cancel","flowState":{"note":{"classification":"exportable","type":"string"},"reason":{"classification":"exportable","type":"string"}},"initial":"lumen_cancel_reason","minClient":9,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"note":{"ref":{"state":"note"},"type":"string"},"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_note":{"contentHash":"sha256:88d64768cfab3b96b88c7dafdc83085888484e5487fb8940a253e5d90779e9e1","minClient":9,"path":"measurement/102ed2ac499caf5b/lumen_cancel_note.rfw","schemaVersion":1,"version":1},"lumen_cancel_reason":{"contentHash":"sha256:03f9470af6327caa36e0ed77acaaba28ad07161966a0dc2e68f0b055143666e1","minClient":9,"path":"measurement/102ed2ac499caf5b/lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:2c68bfbac0f65a0e9c05564cdfcd1fbc4ef697ef79a2729216dadef73d857221","minClient":9,"path":"measurement/102ed2ac499caf5b/lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_note":{"kind":"screen","on":{"send":{"set":{"note":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"lumen_cancel_thanks","type":"goto"}},"screen":"lumen_cancel_note"},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_note","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
     screens: {
+      'lumen_cancel_note': LumenCancelNoteScreen.new,
       'lumen_cancel_reason': LumenCancelReasonScreen.new,
       'lumen_cancel_thanks': LumenCancelThanksScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '1571ea7d31708f8d385f0f6c923c4927be496504685de68d621f7af80923adb0',
+      'fb2b2496d3b7f8c1e970bc02c54257bab9cd05411a3f98c52d8d6dba7de2edb4',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -38,6 +41,7 @@ const lumenCancelRef = SurfaceFlowRef<
       material: {
         'Icon': buildIcon,
         'Scaffold': buildScaffold,
+        'TextField': buildTextField,
       },
     ),
     icons: RestageIconTable.fromFamilies(families: {
@@ -55,19 +59,26 @@ const lumenCancelRef = SurfaceFlowRef<
 );
 
 LumenCancelResult _decodeLumenCancelResult(Map<String, Object?> result) {
-  if (result.length != 1 || !result.containsKey('reason')) {
+  if (result.length != 2 ||
+      !result.containsKey('note') ||
+      !result.containsKey('reason')) {
     throw const FormatException('Unexpected flow result keys.');
+  }
+  final note = result['note'];
+  if (note is! String) {
+    throw const FormatException('Expected result field note to be String.');
   }
   final reason = result['reason'];
   if (reason is! String) {
     throw const FormatException('Expected result field reason to be String.');
   }
-  return LumenCancelResult(reason: reason);
+  return LumenCancelResult(note: note, reason: reason);
 }
 
 final class LumenCancelResult {
-  const LumenCancelResult({required this.reason});
+  const LumenCancelResult({required this.note, required this.reason});
 
+  final String note;
   final String reason;
 }
 

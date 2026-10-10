@@ -4,6 +4,7 @@ import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show
+        kMeasurementPublicationItemArgumentKeyV1,
         kMeasurementPublicationReservedArgumentPrefixV1,
         kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/rfw_formats.dart';
@@ -111,11 +112,15 @@ Issue unsupportedCommerceDataIssue(String location) => Issue(
       location: location,
     );
 
-// The compiler emits the reserved tap event with its route argument alone.
-bool _carriesOnlyMeasurementRoute(EventHandler handler) =>
-    handler.eventArguments.length == 1 &&
-    handler.eventArguments.keys.single
-        .startsWith(kMeasurementPublicationReservedArgumentPrefixV1);
+// The compiler emits the reserved tap event with its route and, at most, an
+// item argument.
+bool _carriesOnlyMeasurementRoute(EventHandler handler) {
+  final keys = handler.eventArguments.keys
+      .where((key) => key != kMeasurementPublicationItemArgumentKeyV1)
+      .toList();
+  return keys.length == 1 &&
+      keys.single.startsWith(kMeasurementPublicationReservedArgumentPrefixV1);
+}
 
 /// Finds unsupported commerce forms in a parsed [library].
 List<Issue> validateCommerceAuthoring(

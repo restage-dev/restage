@@ -377,6 +377,7 @@ void main() {
             'levels': <Object?>[
               <String, Object?>{
                 'value': 'deep',
+                kContextItemIndexKey: '1',
               },
             ],
           },
@@ -791,6 +792,7 @@ void main() {
             'items': <Object?>[
               <String, Object?>{
                 'count': 1,
+                kContextItemIndexKey: '1',
               },
             ],
           },

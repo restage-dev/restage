@@ -3,8 +3,10 @@ import 'dart:typed_data';
 
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_sections_carrier.dart';
 import '../flow/flow_descriptors.dart';
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
+import '../runtime/local_values.dart' show SurfaceSections;
 import 'surface_screen_bundle_provider.dart';
 import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
@@ -50,26 +52,52 @@ final class AssetSurfaceScreenResolver implements BundledSurfaceScreenResolver {
       expected: provenance.capabilities,
     );
 
-    return attachMeasurementBundledGeneratedSourceCarrier(
-      ResolvedSurfaceScreen.bundled(
-        surface: provenance.surface,
-        slug: provenance.slug,
-        contractVersion: provenance.contractVersion,
-        sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
-        payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
-        capabilities: provenance.capabilities,
-        contractFingerprint: provenance.contractFingerprint,
-        eventContractHash: provenance.eventContractHash,
+    final sections = decodeLocalSeedSidecar(_optionalEntry(
+          bundle,
+          localSeedSidecarPath(locator.screenBlob.logicalPath),
+        )) ??
+        SurfaceSections.none;
+    final BlobSurfacePayload payload;
+    try {
+      payload = BlobSurfacePayload(
+        minClient: provenance.capabilities.builtInFloor,
         blob: blob,
-        contentHash: BlobSurfacePayload(
-          minClient: provenance.capabilities.builtInFloor,
+        requiredLibraries: provenance.capabilities.requiredLibraries,
+        iconFonts: sections.iconFonts,
+        localSeeds: sections.localSeeds,
+      );
+    } on ArgumentError {
+      throw const SurfaceScreenUnavailableError(
+        reason: SurfaceScreenUnavailableReason.invalidPayload,
+        message: 'The packaged screen local seeds are invalid.',
+      );
+    }
+    return attachMeasurementBundledGeneratedSourceCarrier(
+      attachSurfacePayload(
+        ResolvedSurfaceScreen.bundled(
+          surface: provenance.surface,
+          slug: provenance.slug,
+          contractVersion: provenance.contractVersion,
+          sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
+          payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
+          capabilities: provenance.capabilities,
+          contractFingerprint: provenance.contractFingerprint,
+          eventContractHash: provenance.eventContractHash,
           blob: blob,
-          requiredLibraries: provenance.capabilities.requiredLibraries,
-        ).contentHash,
-        bundledEntryHash: locator.screenBlob.sha256,
+          contentHash: payload.contentHash,
+          bundledEntryHash: locator.screenBlob.sha256,
+        ),
+        payload,
       ),
       measurementBundledGeneratedSourceCarrierFor(screen),
     );
+  }
+
+  Uint8List? _optionalEntry(RestageBundle bundle, String logicalPath) {
+    for (final entry in bundle.entries) {
+      if (entry.logicalPath == logicalPath) return entry.bytes;
+    }
+    return null;
   }
 
   void _requireDeclaredBy(

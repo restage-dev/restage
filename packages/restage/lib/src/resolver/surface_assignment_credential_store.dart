@@ -59,7 +59,12 @@ final class SurfaceAssignmentCredentialStore {
 
   String? get currentHandle {
     _observeIdentity();
-    return _state?.handle;
+    final state = _state;
+    return state != null &&
+            state.localExpiresAtMicros != null &&
+            _nowMicros() < state.localExpiresAtMicros!
+        ? state.handle
+        : null;
   }
 
   void _observeIdentity() {
@@ -154,6 +159,9 @@ final class SurfaceAssignmentCredentialStore {
       return null;
     }
   }
+
+  /// The held handle under the persisted local deadline. Never sends a request.
+  Future<String?> resolveLocal() async => (await capture())?.credentialHandle;
 
   /// Commits only a response for the tuple and generation that were sent.
   Future<bool> confirm({

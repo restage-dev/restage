@@ -238,6 +238,8 @@ Type _flutterTypeFor(String entryName) {
       return RestageRow;
     case 'SafeArea':
       return SafeArea;
+    case 'Semantics':
+      return Semantics;
     case 'SingleChildScrollView':
       return SingleChildScrollView;
     case 'SizedBox':

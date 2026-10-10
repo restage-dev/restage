@@ -116,7 +116,8 @@ final class MeasurementBundledTargetProfilePackager {
         _package(files: files, packageRoot: packageRoot, request: request),
   );
 
-  /// Exports one committed final entry without replacing older exact entries.
+  /// Exports one committed final entry, keeping each older entry whose
+  /// declared artifacts still match the bundles on disk.
   ///
   /// This is a local packaging operation over the response already committed
   /// by the single publication transaction. It performs no registration or
@@ -149,7 +150,6 @@ final class MeasurementBundledTargetProfilePackager {
     required _TargetProfileFiles files,
     required Directory packageRoot,
     required MeasurementBundledTargetProfilePackageRequest request,
-    Map<String, String> expectedExistingBundleHashes = const <String, String>{},
   }) async {
     await _recover(files);
     if (request.finalizationEntries.isEmpty) {
@@ -181,10 +181,6 @@ final class MeasurementBundledTargetProfilePackager {
       packageRoot: packageRoot,
       selectedBundleFiles: request.selectedBundleFiles,
     );
-    _validateExpectedBundleHashes(
-      expected: expectedExistingBundleHashes,
-      selectedBundles: selectedBundles,
-    );
     _validateSelectedBundleClosure(
       requiredArtifacts: requiredArtifacts,
       selectedBundles: selectedBundles,
@@ -204,10 +200,6 @@ final class MeasurementBundledTargetProfilePackager {
         final refreshedBundles = await _readSelectedBundles(
           packageRoot: packageRoot,
           selectedBundleFiles: request.selectedBundleFiles,
-        );
-        _validateExpectedBundleHashes(
-          expected: expectedExistingBundleHashes,
-          selectedBundles: refreshedBundles,
         );
         _validateSelectedBundleSnapshot(
           expected: selectedBundles,
@@ -232,7 +224,6 @@ final class MeasurementBundledTargetProfilePackager {
     final target = entry.binding.completeMeasurementManifest.target;
     final existingEntries = <MeasurementPublicationBundledRegistryEntryV1>[];
     final existingBundleFiles = <File>[];
-    final expectedExistingBundleHashes = <String, String>{};
 
     if (existingProfile != null) {
       final existingTarget = _decodeProfileTarget(existingProfile);
@@ -250,23 +241,77 @@ final class MeasurementBundledTargetProfilePackager {
       existingEntries.addAll(existingRegistry.entries);
       for (final bundle in existingProfile.bundles) {
         existingBundleFiles.add(_profileBundleFile(packageRoot, bundle));
-        expectedExistingBundleHashes[bundle.assetPath] = bundle.sha256;
       }
     }
 
     final mergedEntries = _mergeFinalizationEntries(existingEntries, entry);
+    final selected = await _readSelectedBundles(
+      packageRoot: packageRoot,
+      selectedBundleFiles: selectedBundleFiles,
+    );
+    final selectedPaths = {
+      for (final bundle in selected) bundle.profileBundle.assetPath,
+    };
+    // Older bundles still on disk that this publication did not rebuild.
+    final others = <(File, _SelectedBundle)>[];
+    for (final file in existingBundleFiles) {
+      final _SelectedBundle bundle;
+      try {
+        bundle = (await _readSelectedBundles(
+          packageRoot: packageRoot,
+          selectedBundleFiles: <File>[file],
+        )).single;
+      } on MeasurementBundledTargetProfilePackagingException {
+        continue;
+      }
+      if (!selectedPaths.contains(bundle.profileBundle.assetPath)) {
+        others.add((file, bundle));
+      }
+    }
+    // The bundles this publication selected win; an older bundle that now
+    // disagrees with them is left out.
+    final current = _deliveryArtifacts(selected);
+    final kept = [
+      for (final other in others)
+        if (_deliveryArtifacts([other.$2]).entries.every(
+          (artifact) => current[artifact.key]?.sameAs(artifact.value) ?? true,
+        ))
+          other,
+    ];
+    final onDisk = {
+      ..._deliveryArtifacts([for (final (_, bundle) in kept) bundle]),
+      ...current,
+    };
+    // An entry whose bytes the app no longer carries can never match.
+    final retained = [
+      for (final prior in mergedEntries)
+        if (identical(prior, entry) ||
+            _requiredArtifacts([prior]).values.every(
+              (artifact) => onDisk[artifact.path]?.matchedBy(artifact) ?? false,
+            ))
+          prior,
+    ];
+    final needed = [
+      for (final prior in retained) ..._requiredArtifacts([prior]).values,
+    ];
     final mergedBundleFiles = await _deduplicateBundleFiles(<File>[
-      ...existingBundleFiles,
+      for (final (file, bundle) in kept)
+        if (_deliveryArtifacts([bundle]).values.any(
+          (artifact) => needed.any(
+            (required) =>
+                required.path == artifact.path && artifact.matchedBy(required),
+          ),
+        ))
+          file,
       ...selectedBundleFiles,
     ]);
     return _package(
       files: files,
       packageRoot: packageRoot,
       request: MeasurementBundledTargetProfilePackageRequest(
-        finalizationEntries: mergedEntries,
+        finalizationEntries: retained,
         selectedBundleFiles: mergedBundleFiles,
       ),
-      expectedExistingBundleHashes: expectedExistingBundleHashes,
     );
   }
 
@@ -665,6 +710,15 @@ _RequiredDeliveryArtifact _requiredArtifactFromTuple(
   }
 }
 
+Map<String, _SelectedDeliveryArtifact> _deliveryArtifacts(
+  Iterable<_SelectedBundle> bundles,
+) => {
+  for (final bundle in bundles)
+    for (final entry in bundle.bundle.entries)
+      if (entry.role != RestageBundleEntryRole.rfwText)
+        entry.logicalPath: _SelectedDeliveryArtifact.fromEntry(entry),
+};
+
 void _validateSelectedBundleClosure({
   required Map<String, _RequiredDeliveryArtifact> requiredArtifacts,
   required Iterable<_SelectedBundle> selectedBundles,
@@ -714,24 +768,6 @@ void _validateSelectedBundleSnapshot({
     if (actualByPath[entry.key]?.sha256 != entry.value.sha256) {
       throw const MeasurementBundledTargetProfilePackagingException(
         'A selected bundle changed during target-profile packaging.',
-      );
-    }
-  }
-}
-
-void _validateExpectedBundleHashes({
-  required Map<String, String> expected,
-  required Iterable<_SelectedBundle> selectedBundles,
-}) {
-  if (expected.isEmpty) return;
-  final actual = <String, String>{
-    for (final bundle in selectedBundles)
-      bundle.profileBundle.assetPath: bundle.profileBundle.sha256,
-  };
-  for (final entry in expected.entries) {
-    if (actual[entry.key] != entry.value) {
-      throw const MeasurementBundledTargetProfilePackagingException(
-        'A previously packaged bundle no longer matches its target profile.',
       );
     }
   }
@@ -978,6 +1014,8 @@ final class _SelectedDeliveryArtifact {
   final RestageBundleEntryRole role;
   final int byteLength;
   final String sha256;
+
+  bool matchedBy(_RequiredDeliveryArtifact required) => required.matches(this);
 
   bool sameAs(_SelectedDeliveryArtifact other) =>
       path == other.path &&

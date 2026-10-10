@@ -17,6 +17,7 @@ import 'package:restage_shared/restage_shared.dart';
 
 import 'flow_test_support.dart';
 
+import '../support/held_assignment.dart';
 import '../support/canonical_assignment_fixture.dart';
 import '../support/hosted_artifact_delivery.dart';
 import '../support/supported_policy_revisions_body.dart';
@@ -186,6 +187,7 @@ void main() {
   });
 
   test('active fetch fails → hold-last-good (re-gated) when present', () async {
+    holdAssignmentsUnder('assignment-key-a');
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
     final bindingReference = _bindingReference('a');

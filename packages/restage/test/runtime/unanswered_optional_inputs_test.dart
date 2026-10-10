@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
-import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/resolver/delivery_input_budget.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/restage_rpc_client/bounded_http_client.dart';
@@ -41,42 +40,27 @@ void main() {
 
   for (final silent in _Silent.values) {
     testWidgets(
-        silent == _Silent.preferences
-            ? 'uses the bundled screen when preferences never answer'
-            : silent == _Silent.registrationConfirmation
-                ? 'renders hosted content without folded confirmation'
-                : 'renders the hosted screen when ${silent.name} never answers',
+        'renders the bundled screen at the render deadline when '
+        '${silent.name} never answers, and the hosted one on the next mount',
         (tester) async {
       final harness = _Harness(tester, silent: {silent});
 
       await harness.mount();
-      await tester.pump(DeliveryInputBudget.defaultTotal);
-      await harness.settle(
-        done: () => find
-            .text(silent == _Silent.preferences
-                ? 'Bundled screen'
-                : 'Hosted screen')
-            .evaluate()
-            .isNotEmpty,
-      );
-      final hostedCount = find.text('Hosted screen').evaluate().length;
-      final bundledCount = find.text('Bundled screen').evaluate().length;
-      final requests = List<Map<String, dynamic>>.of(harness.surfaceRequests);
-      await harness.unmount();
+      await tester.pump(Restage.renderDeadline);
+      await tester.pump();
+      expect(find.text('Bundled screen'), findsOneWidget);
 
-      if (silent == _Silent.preferences) {
-        expect(bundledCount, 1);
-        expect(hostedCount, 0);
-        expect(requests, isEmpty);
-      } else {
-        expect(hostedCount, 1);
-        expect(requests, hasLength(1));
-        if (silent == _Silent.registrationConfirmation) {
-          expect(requests.single['registrationNonce'], isA<String>());
-          expect(requests.single['registrationCreatedAtMicros'], isA<int>());
-          expect(requests.single, isNot(contains('assignmentKey')));
-        }
-      }
+      // The fetch keeps running after the deadline and stores what it gets.
+      await tester.pump(DeliveryInputBudget.defaultTotal);
+      await harness.settle(done: () => harness.surfaceRequests.isNotEmpty);
+      await harness.settle();
+      expect(harness.surfaceRequests, hasLength(1));
+
+      await harness.remount();
+      await tester.pump(Restage.renderDeadline);
+      await tester.pump();
+      expect(find.text('Hosted screen'), findsOneWidget);
+      await harness.unmount();
     });
   }
 
@@ -93,16 +77,11 @@ void main() {
     );
 
     await harness.mount();
-    await tester.pump(DeliveryInputBudget.defaultTotal);
-    await harness.settle(
-      done: () => find.text('Bundled screen').evaluate().isNotEmpty,
-    );
-    final bundledCount = find.text('Bundled screen').evaluate().length;
-    final requestCount = harness.surfaceRequests.length;
-    await harness.unmount();
+    await tester.pump(Restage.renderDeadline);
+    await tester.pump();
 
-    expect(bundledCount, 1);
-    expect(requestCount, 1);
+    expect(find.text('Bundled screen'), findsOneWidget);
+    await harness.unmount();
   });
 
   testWidgets('sends a durable registration tuple on the first surface serve',
@@ -128,24 +107,20 @@ void main() {
     expect(request, isNot(contains('assignmentKey')));
   });
 
-  testWidgets('renders when the measurement session never opens',
+  testWidgets('renders without waiting for the measurement session',
       (tester) async {
     final harness = _Harness(tester, silentBindingRead: true);
 
     await harness.mount();
-    await harness.settle(done: () => harness.bindingReads > 0);
-    final bindingReads = harness.bindingReads;
-    final hostedBeforeDeadline = find.text('Hosted screen').evaluate().length;
+    await harness.settle(
+      done: () =>
+          harness.bindingReads > 0 &&
+          find.text('Hosted screen').evaluate().isNotEmpty,
+    );
 
-    await tester.pump(MeasurementHostSessionController.openBudget);
-    await tester.pump();
-
-    final hostedAfterDeadline = find.text('Hosted screen').evaluate().length;
+    expect(harness.bindingReads, 1);
+    expect(find.text('Hosted screen'), findsOneWidget);
     await harness.unmount();
-
-    expect(bindingReads, 1);
-    expect(hostedBeforeDeadline, 0);
-    expect(hostedAfterDeadline, 1);
   });
 
   testWidgets('answered inputs are sent without waiting on the deadline',
@@ -169,26 +144,18 @@ void main() {
     expect(body['sdkBuiltInsCanonicalBase64'], isA<String>());
   });
 
-  testWidgets('an input answered before the deadline is still sent',
+  testWidgets('an input answered before the input bound is still sent',
       (tester) async {
     final harness = _Harness(tester, delayedPreferences: true);
 
     await harness.mount();
-    for (var i = 0; i < 19; i += 1) {
+    for (var i = 0; i < 19 && harness.surfaceRequests.isEmpty; i += 1) {
       await tester.pump(DeliveryInputBudget.defaultTotal ~/ 20);
       await harness.settle();
     }
-    await harness.settle(
-      done: () => find.text('Hosted screen').evaluate().isNotEmpty,
-    );
 
-    final hostedCount = find.text('Hosted screen').evaluate().length;
-    final requests = List<Map<String, dynamic>>.of(harness.surfaceRequests);
+    expect(harness.surfaceRequests.single['meteringKey'], isA<String>());
     await harness.unmount();
-
-    expect(hostedCount, 1);
-    expect(requests, hasLength(1));
-    expect(requests.single['meteringKey'], isA<String>());
   });
 
   testWidgets('a surface fetch completes when preferences never answer',
@@ -290,7 +257,6 @@ final class _Harness {
 
   final surfaceRequests = <Map<String, dynamic>>[];
   var bindingReads = 0;
-  var _configured = false;
   late final _fixture = stringScreenFixture();
   late final RestageRpcClient _client = _buildClient();
 
@@ -298,7 +264,6 @@ final class _Harness {
   Future<void> configureOnly() async {
     Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
     Restage.debugRestageRpcClient = _client;
-    _configured = true;
   }
 
   Future<void> mount() async {
@@ -325,11 +290,20 @@ final class _Harness {
       messenger.setMockMessageHandler(_deviceInfoChannel, null);
     });
 
+    await configureOnly();
+    await tester.pumpWidget(_screen());
+  }
+
+  /// Removes the screen, then mounts it again under the same configuration.
+  Future<void> remount() async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(_screen());
+  }
+
+  Widget _screen() {
     final fixture = _fixture;
     final client = _client;
-    if (!_configured) await configureOnly();
-
-    await tester.pumpWidget(MaterialApp(
+    return MaterialApp(
       home: RestageScreen<String>(
         screen: fixture.ref,
         resolver: RestageScreenResolver(
@@ -343,7 +317,7 @@ final class _Harness {
           builder: (_, error) => Text('fallback:${error.reason.name}'),
         ),
       ),
-    ));
+    );
   }
 
   RestageRpcClient _buildClient() {
@@ -364,7 +338,9 @@ final class _Harness {
                 ...SurfaceScreenDeliveryDescriptorV1Codec.encode(
                   fixture.delivery(hostedBlob: hostedBlob),
                 ),
-                if (!silent.contains(_Silent.registrationConfirmation)) ...{
+                if (!silent.contains(_Silent.registrationConfirmation) &&
+                    (jsonDecode(request.body) as Map<String, dynamic>)
+                        .containsKey('registrationNonce')) ...{
                   'credentialHandle': _credentialHandle,
                   'expiresAtMicros': DateTime.utc(2100).microsecondsSinceEpoch,
                   'serverNowMicros':

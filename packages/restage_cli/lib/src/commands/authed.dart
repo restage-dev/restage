@@ -397,7 +397,12 @@ Future<LifecycleContext?> _resolveTarget({
   final project = _option(argResults, 'project') ?? config?.project;
   final app = _option(argResults, 'app') ?? config?.app;
   if (project == null || app == null) {
-    stderr.writeln(noProjectContextSentence());
+    stderr.writeln(
+      missingProjectContextSentence(
+        hasConfig: config != null,
+        projectMissing: project == null,
+      ),
+    );
     return null;
   }
   final fromFlag = _option(argResults, 'env');

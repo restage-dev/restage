@@ -135,7 +135,11 @@ void main() {
     expect(transport.sent.single.payload['type'], 'ready');
     expect(
       transport.sent.single.payload['capabilities'],
-      const <String>[renderSnapshotCapability, renderMountCapability],
+      const <String>[
+        renderSnapshotCapability,
+        renderMountCapability,
+        renderRevealCapability,
+      ],
     );
 
     final blob = encodeLibraryBlob(

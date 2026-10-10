@@ -6,6 +6,7 @@ import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/io/interactive.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -85,6 +86,44 @@ void main() {
     });
 
     test(
+      'forced discovery replaces stale IDs and keeps local settings',
+      () async {
+        await _writePubspec(tempDir);
+        await seedCredential(store);
+        await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString(
+          'plane: sandbox\nrecordGit: true\nflutterRoot: ../flutter\n'
+          'organizationId: 99\nappId: 98\n'
+          'environmentTargetId: 97\nnamedEnvironmentId: 96\n',
+        );
+        var scopeReads = 0;
+        final exitCode =
+            await RestageCli(
+              stdout: stdout,
+              stderr: stderr,
+              credentialStore: store,
+              httpClient: _discoveryClient(onRead: () => scopeReads++),
+            ).run([
+              '--non-interactive',
+              'init',
+              '--directory',
+              tempDir.path,
+              '--no-starter',
+              '--no-add-deps',
+              '--force',
+            ]);
+        expect(exitCode, 0, reason: stderr.toString());
+        final config = (await loadRestageConfig(from: tempDir))!.config;
+        expect(scopeReads, 1);
+        expect(config.organizationId, 7);
+        expect(config.appId, 5);
+        expect(config.environmentTargetId, 11);
+        expect(config.namedEnvironmentId, 9);
+        expect(config.recordGit, isTrue);
+        expect(config.flutterRoot, '../flutter');
+      },
+    );
+
+    test(
       '--non-interactive with all flags writes the four artifacts',
       () async {
         await _writePubspec(tempDir);
@@ -146,6 +185,8 @@ void main() {
         expect(gitignoreContent, contains('restage.outputs.json'));
         expect(gitignoreContent, contains('restage.publication.json'));
         expect(gitignoreContent, contains('restage_a2ui_catalog.a2ui.json'));
+        expect(gitignoreContent, contains('!assets/restage/bundles/**'));
+        expect(stdout.toString(), contains('to ignore Restage build output.'));
         expect(gitignoreContent, isNot(contains('*.generated/')));
         expect(gitignoreContent, isNot(contains('generated/')));
       },
@@ -193,8 +234,173 @@ void main() {
           config.config.endpoint,
           'https://restage-backend-staging.example/',
         );
+        expect(
+          stdout.toString(),
+          contains(
+            'Set endpoint: https://restage-backend-staging.example/ '
+            '(from your stored sign-in).\n',
+          ),
+        );
       },
     );
+
+    test('init without a stored sign-in names no endpoint', () async {
+      await _writePubspec(tempDir);
+
+      final exitCode = await _runInit(stdout, stderr, store, tempDir);
+
+      expect(exitCode, 0, reason: stderr.toString());
+      expect(stdout.toString(), isNot(contains('Set endpoint')));
+    });
+
+    group('build.yaml', () {
+      setUp(() => _writePubspec(tempDir));
+
+      File buildYaml() => File(p.join(tempDir.path, 'build.yaml'));
+
+      test('is written, then kept on a second run', () async {
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(
+          buildYaml().readAsStringSync(),
+          contains('  - .restage/wire-ids.events.jsonl\n'),
+        );
+        expect(
+          stdout.toString(),
+          contains("Wrote build.yaml so builds track Restage's state files.\n"),
+        );
+
+        stdout.clear();
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(
+          stdout.toString(),
+          contains(
+            "Kept build.yaml; it already tracks Restage's state files.\n",
+          ),
+        );
+      });
+
+      test('gets the missing entries added', () async {
+        buildYaml().writeAsStringSync('targets:\n  \$default: {}\n');
+
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(
+          buildYaml().readAsStringSync(),
+          contains('  - .restage/measurement-state.json\n'),
+        );
+        expect(
+          stdout.toString(),
+          contains(
+            "Updated build.yaml so builds track Restage's state files.\n",
+          ),
+        );
+      });
+
+      test('that cannot be edited names the entries to add', () async {
+        buildYaml().writeAsStringSync('- not a map\n');
+
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(buildYaml().readAsStringSync(), '- not a map\n');
+        expect(
+          stdout.toString(),
+          contains(
+            'Could not update build.yaml safely. Add these entries to its '
+            'additional_public_assets list:\n'
+            '  - .restage/measurement-state.json\n'
+            '  - .restage/wire-ids.events.jsonl\n',
+          ),
+        );
+      });
+    });
+
+    group('an existing restage_config.yaml', () {
+      const existing =
+          'plane: sandbox\nrecordGit: true\nflutterRoot: ../flutter\n';
+      late File configFile;
+
+      setUp(() async {
+        await _writePubspec(tempDir);
+        configFile = File(p.join(tempDir.path, 'restage_config.yaml'))
+          ..writeAsStringSync(existing);
+      });
+
+      test('is kept without --force when non-interactive', () async {
+        final exitCode = await _runInit(stdout, stderr, store, tempDir);
+
+        expect(exitCode, 0, reason: stderr.toString());
+        expect(configFile.readAsStringSync(), existing);
+        expect(
+          stdout.toString(),
+          contains(
+            'Kept existing restage_config.yaml. Pass --force to update it.\n',
+          ),
+        );
+      });
+
+      test(
+        'is updated with --force, keeping settings init does not ask',
+        () async {
+          await seedCredential(store, endpoint: 'https://backend.example/');
+
+          final exitCode = await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: ['--force'],
+          );
+
+          expect(exitCode, 0, reason: stderr.toString());
+          final config = (await loadRestageConfig(from: tempDir))!.config;
+          expect(config.project, 'p');
+          expect(config.app, 'a');
+          expect(config.defaultEnvironment, 'dev');
+          expect(config.recordGit, isTrue);
+          expect(config.flutterRoot, '../flutter');
+          expect(config.endpoint, 'https://backend.example/');
+          expect(
+            stdout.toString(),
+            contains(
+              'Updated restage_config.yaml.\n'
+              'Set endpoint: https://backend.example/ (from your stored sign-in).\n',
+            ),
+          );
+        },
+      );
+
+      for (final answer in [true, false]) {
+        test(
+          'asks before updating when interactive (answer: $answer)',
+          () async {
+            final interactive = _ConfirmingInteractive(answer);
+
+            final exitCode = await RestageCli(
+              stdout: stdout,
+              stderr: stderr,
+              credentialStore: store,
+              interactiveFactory: (_) => interactive,
+            ).run(_initArgs(tempDir));
+
+            expect(exitCode, 0, reason: stderr.toString());
+            expect(interactive.questions, [
+              'restage_config.yaml already exists. Update it with these values?',
+            ]);
+            if (answer) {
+              expect(configFile.readAsStringSync(), contains('project: p'));
+              expect(
+                stdout.toString(),
+                contains('Updated restage_config.yaml.'),
+              );
+            } else {
+              expect(configFile.readAsStringSync(), existing);
+              expect(
+                stdout.toString(),
+                contains('Kept existing restage_config.yaml.\n'),
+              );
+            }
+          },
+        );
+      }
+    });
 
     test('--dry-run prints the planned changes without writing', () async {
       await _writePubspec(tempDir);
@@ -228,6 +434,7 @@ void main() {
         isFalse,
       );
       expect(File(p.join(tempDir.path, '.gitignore')).existsSync(), isFalse);
+      expect(File(p.join(tempDir.path, 'build.yaml')).existsSync(), isFalse);
       expect(
         File(
           p.join(tempDir.path, 'lib', 'paywalls', 'starter.dart'),
@@ -377,7 +584,7 @@ void main() {
         expect(updated, contains('restage_a2ui_catalog.a2ui.json'));
         expect(updated.replaceAll('\r\n', ''), isNot(contains('\n')));
         expect(updated, isNot(contains('*.generated/')));
-        expect(updated, isNot(contains('assets/restage/bundles')));
+        expect(updated, endsWith('\r\n!assets/restage/bundles/**\r\n'));
       },
     );
 
@@ -454,7 +661,10 @@ void main() {
   });
 }
 
-http.Client _discoveryClient() => mockHttpClient((request) {
+http.Client _discoveryClient({void Function()? onRead}) => mockHttpClient((
+  request,
+) {
+  onRead?.call();
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   expect(request.url.path, '/scope');
   expect(body['method'], 'read');
@@ -494,3 +704,64 @@ http.Client _discoveryClient() => mockHttpClient((request) {
     200,
   );
 }, withDefaultTargetDiscovery: false);
+
+List<String> _initArgs(Directory dir, [List<String> extra = const []]) => [
+  'init',
+  '--directory',
+  dir.path,
+  '--project',
+  'p',
+  '--app',
+  'a',
+  '--env',
+  'dev',
+  '--no-starter',
+  '--no-add-deps',
+  ...extra,
+];
+
+Future<int?> _runInit(
+  StringSink stdout,
+  StringSink stderr,
+  FileCredentialStore store,
+  Directory dir, {
+  List<String> extra = const [],
+}) => RestageCli(
+  stdout: stdout,
+  stderr: stderr,
+  credentialStore: store,
+).run(['--non-interactive', ..._initArgs(dir, extra)]);
+
+class _ConfirmingInteractive implements Interactive {
+  _ConfirmingInteractive(this.answer);
+
+  final bool answer;
+  final questions = <String>[];
+
+  @override
+  bool get isInteractive => true;
+
+  @override
+  Future<bool> confirm(String question, {bool defaultYes = false}) async {
+    questions.add(question);
+    return answer;
+  }
+
+  @override
+  Future<String> prompt(String question, {String? defaultValue}) async =>
+      fail('prompt should not be called');
+
+  @override
+  Future<T> select<T>(
+    String question,
+    List<({String label, T value})> options, {
+    T? defaultValue,
+  }) async => fail('select should not be called');
+
+  @override
+  Future<String> secret(String question) async =>
+      fail('secret should not be called');
+
+  @override
+  Spinner spinner(String message) => fail('spinner should not be called');
+}

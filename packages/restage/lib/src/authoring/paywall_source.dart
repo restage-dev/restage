@@ -1,5 +1,7 @@
 import 'package:meta/meta.dart';
 
+import '../flow/flow_descriptors.dart' show SurfaceEvent;
+
 /// Marks a Flutter widget class as a specialized paywall source.
 ///
 /// A paywall is independently published under [Surface.paywall] and may also
@@ -8,10 +10,14 @@ import 'package:meta/meta.dart';
 @immutable
 final class Paywall {
   /// Creates a paywall annotation.
-  const Paywall({this.id});
+  const Paywall({this.id, this.completesOn = const []});
 
   /// Optional stable source identity.
   final String? id;
+
+  /// Declared events whose taps end the paywall as completed rather than
+  /// dismissed.
+  final List<SurfaceEvent<Object?>> completesOn;
 }
 
 /// Legacy source annotation for a specialized paywall.

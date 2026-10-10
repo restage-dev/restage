@@ -482,7 +482,6 @@ void main() {
         body: RestagePaywall(
           id: 'p',
           resolver: resolver,
-          cacheLastRender: true,
           onEvent: events.add,
           errorBuilder: (_, __) => const Text('Refresh failed visibly'),
         ),
@@ -523,35 +522,6 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    events.clear();
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: RestagePaywall(
-          id: 'p',
-          resolver: resolver,
-          cacheLastRender: true,
-          onEvent: events.add,
-          errorBuilder: (_, __) => const Text('No cached last-good blob'),
-        ),
-      ),
-    ));
-    await tester.pump();
-    resolver.responses[2].completeError(const RestagePaywallError(
-      code: RestageErrorCodes.deliveryUnavailable,
-      message: 'fresh remount failed',
-    ));
-    await tester.pumpAndSettle();
-    final cachedObserved = (
-      old: find.text('Last good blob').evaluate().length,
-      error: find.text('No cached last-good blob').evaluate().length,
-      viewedVersions: events
-          .whereType<PaywallViewed>()
-          .map((event) => event.publishedVersion)
-          .toList(),
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-
     expect(
       (
         currentOld: currentObserved.old,
@@ -559,8 +529,6 @@ void main() {
         currentCompleted: currentObserved.completed,
         currentFailed: currentObserved.failed,
         currentEscaped: currentObserved.escaped,
-        cachedOld: cachedObserved.old,
-        cachedError: cachedObserved.error,
       ),
       (
         currentOld: 1,
@@ -568,12 +536,9 @@ void main() {
         currentCompleted: 0,
         currentFailed: 0,
         currentEscaped: null,
-        cachedOld: 1,
-        cachedError: 0,
       ),
     );
     expect(currentObserved.viewedVersions, isEmpty);
-    expect(cachedObserved.viewedVersions, orderedEquals(<int?>[1]));
   });
 
   testWidgets(
@@ -606,7 +571,6 @@ void main() {
       tester,
       RestagePaywall(
         id: 'p',
-        cacheLastRender: true,
         resolver: resolver,
         onEvent: events.add,
       ),
@@ -858,7 +822,6 @@ void main() {
       tester,
       RestagePaywall(
         id: 'p',
-        cacheLastRender: true,
         resolver: resolver,
         onEvent: events.add,
         errorBuilder: (_, __) => const Text('Throwing blob escaped'),

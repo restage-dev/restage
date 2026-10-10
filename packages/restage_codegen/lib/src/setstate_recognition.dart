@@ -213,3 +213,42 @@ String? _boolFlipField(Expression expr, Set<String> stateFieldNames) {
   if (expr is! PrefixExpression || expr.operator.lexeme != '!') return null;
   return _stateFieldName(expr.operand, stateFieldNames);
 }
+
+/// The field a value callback `(v) => setState(() => field = v)` writes, or
+/// null for any other callback.
+String? recogniseLocalValueWrite(Expression callback) {
+  var closure = callback;
+  while (closure is ParenthesizedExpression) {
+    closure = closure.expression;
+  }
+  if (closure is! FunctionExpression) return null;
+  final parameters = closure.parameters?.parameters ?? const [];
+  if (parameters.length != 1) return null;
+  final parameter = parameters.single.declaredFragment?.element;
+  final call = _extractSingleCall(closure.body);
+  if (parameter == null ||
+      call == null ||
+      call.methodName.name != 'setState' ||
+      call.target != null) {
+    return null;
+  }
+  final arguments = call.argumentList.arguments;
+  if (arguments.length != 1) return null;
+  final writer = arguments.single.argumentExpression;
+  if (writer is! FunctionExpression) return null;
+  final assignment = _extractSingleAssignment(writer.body);
+  final value = assignment?.rightHandSide;
+  if (assignment == null ||
+      assignment.operator.lexeme != '=' ||
+      value is! SimpleIdentifier ||
+      value.element != parameter) {
+    return null;
+  }
+  final target = assignment.leftHandSide;
+  return switch (target) {
+    SimpleIdentifier(:final name) => name,
+    PropertyAccess(target: ThisExpression(), :final propertyName) =>
+      propertyName.name,
+    _ => null,
+  };
+}

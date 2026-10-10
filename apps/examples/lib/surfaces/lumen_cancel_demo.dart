@@ -5,11 +5,8 @@ import 'package:restage/restage.dart';
 
 import 'lumen_cancel_flow.dart';
 
-/// Hosts the cancellation survey.
-///
-/// The host side of a survey surface. The flow declares no host actions, so
-/// the app supplies only the fail-closed fallback and the completion
-/// hand-off, which reports the answer the flow captured.
+/// Hosts the cancellation survey with a fallback and completion callback.
+/// Reports the captured answer and note; the flow needs no host actions.
 class LumenCancelDemo extends StatefulWidget {
   /// Creates the survey host.
   const LumenCancelDemo({super.key});
@@ -22,6 +19,7 @@ class _LumenCancelDemoState extends State<LumenCancelDemo> {
   RestageFlowController<LumenCancelResult>? _controller;
   FlowUnavailableError? _unavailableError;
   String? _answer;
+  String? _note;
   bool _completed = false;
 
   @override
@@ -42,6 +40,7 @@ class _LumenCancelDemoState extends State<LumenCancelDemo> {
         setState(() {
           _completed = true;
           _answer = result.reason;
+          _note = result.note;
         });
       },
       onUnavailable: (error) {
@@ -64,10 +63,12 @@ class _LumenCancelDemoState extends State<LumenCancelDemo> {
   Widget build(BuildContext context) {
     if (_completed) {
       final answer = _answer;
+      final note = _note;
+      final reason = answer == null || answer.isEmpty
+          ? 'Survey skipped'
+          : 'Thanks — you told us: $answer';
       return _DoneScreen(
-        message: answer == null || answer.isEmpty
-            ? 'Survey skipped'
-            : 'Thanks — you told us: $answer',
+        message: note == null || note.isEmpty ? reason : '$reason\nNote: $note',
       );
     }
     final error = _unavailableError;

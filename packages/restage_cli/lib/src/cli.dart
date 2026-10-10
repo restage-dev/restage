@@ -25,6 +25,7 @@ import 'package:restage_cli/src/commands/surface_command.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
 import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
@@ -181,6 +182,9 @@ class RestageCli {
         ..writeln(e.message)
         ..writeln()
         ..writeln(e.usage);
+      return 1;
+    } on RestageConfigFormatException catch (e) {
+      _stderr.writeln('Could not read restage_config.yaml: ${e.message}');
       return 1;
     }
   }

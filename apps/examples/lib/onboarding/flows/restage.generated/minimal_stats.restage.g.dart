@@ -1,5 +1,7 @@
 part of '../minimal_stats.dart';
 
+// ignore_for_file: type=lint
+
 const minimalStatsFlowRef = SurfaceFlowRef<
     MinimalStatsResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_stats',

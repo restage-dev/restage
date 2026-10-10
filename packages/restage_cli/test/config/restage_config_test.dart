@@ -122,14 +122,13 @@ app: my-app
       expect(config.withConfirmedAppIds(7, 5).environmentTargetId, 12);
     });
 
-    test('throws on missing required keys', () {
-      const src = '''
-project: my-project
-''';
-      expect(
-        () => RestageConfig.fromYaml(src),
-        throwsA(isA<RestageConfigFormatException>()),
-      );
+    test('leaves missing project and app unset', () {
+      final config = RestageConfig.fromYaml('plane: sandbox\n');
+
+      expect(config.project, isNull);
+      expect(config.app, isNull);
+      expect(config.toYaml(), isNot(contains('project:')));
+      expect(config.toYaml(), isNot(contains('app:')));
     });
 
     test('throws on a non-string value for a required key', () {
@@ -227,7 +226,7 @@ app: my-app
 
     test('propagates a format exception when the file is malformed', () async {
       final config = File(p.join(tempDir.path, 'restage_config.yaml'));
-      await config.writeAsString('project: p\n'); // missing required `app`
+      await config.writeAsString('project: p\napp: 7\n');
 
       await expectLater(
         loadRestageConfig(from: tempDir),

@@ -54,8 +54,34 @@ const firstRun = FlowDefinition(
   fixed value.
 - State is private to the flow. Only state marked `exportable` and listed in `outbound`
   leaves it. `terminalResult` becomes the generated result class (`FirstRunResult`,
-  with a `goal` field). `surveyAnswers` records survey answers.
+  with a `goal` field).
 - Every `Transition.complete` in a flow must end with the same result shape.
+
+## Answers
+
+Typed onboarding, message and survey flows can record answers. List the state in
+`surveyAnswers`, and declare in `measurementAnswers` how each answer is counted:
+
+```dart
+outbound: FlowOutboundPolicy(
+  terminalResult: {'goal': goal},
+  surveyAnswers: {'goal': goal},
+  measurementAnswers: {
+    'goal': FlowAnswerMeasurement.category(
+      outcomeKey: 'onboarding.goal',
+      propertyName: 'goal',
+      categoryLabels: {'focus': 'Focus better', 'sleep': 'Sleep better'},
+    ),
+  },
+),
+```
+
+- `category` takes a fixed set of values and their labels. `integer` and
+  `scaledDecimal` take bounded numbers.
+- Free text is never measured. Put it in `terminalResult` so only the app receives it.
+- Each answer also reaches `Restage.events` as a `SurveyQuestionResponded` event, on
+  any of these flows.
+- A general flow (`FlowDeliveryMode.general`) can't declare `measurementAnswers`.
 
 Mount:
 

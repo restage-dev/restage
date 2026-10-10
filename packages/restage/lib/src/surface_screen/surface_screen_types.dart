@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_sections_carrier.dart';
+import '../delivery/raced_surface_resolver.dart';
 import '../flow/flow_descriptors.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 
@@ -219,26 +221,32 @@ final class ResolvedSurfaceScreen {
     if (origin != SurfaceScreenOrigin.hosted) {
       throw StateError('Only hosted screens may be returned from cache.');
     }
-    return attachMeasurementPublicationBindingReference(
-      ResolvedSurfaceScreen.hosted(
-        surface: surface,
-        slug: slug,
-        contractVersion: contractVersion,
-        publishedRevision: publishedRevision!,
-        sourceKind: sourceKind,
-        payloadKind: payloadKind,
-        capabilities: capabilities,
-        contractFingerprint: contractFingerprint,
-        eventContractHash: eventContractHash,
-        blob: blob,
-        contentHash: contentHash,
-        cacheHit: true,
-      ),
-      measurementPublicationBindingReferenceFor(this),
-      canonicalExperimentAssignment: measurementExperimentAssignmentFor(this),
-      routingSelectionReceipt: routingSelectionReceiptFor(this),
-      routingSelectionProvenance: routingSelectionProvenanceFor(this),
-    );
+    return attachSurfaceAssignmentLease(
+        attachMeasurementPublicationBindingReference(
+          copySurfaceSections(
+            this,
+            ResolvedSurfaceScreen.hosted(
+              surface: surface,
+              slug: slug,
+              contractVersion: contractVersion,
+              publishedRevision: publishedRevision!,
+              sourceKind: sourceKind,
+              payloadKind: payloadKind,
+              capabilities: capabilities,
+              contractFingerprint: contractFingerprint,
+              eventContractHash: eventContractHash,
+              blob: blob,
+              contentHash: contentHash,
+              cacheHit: true,
+            ),
+          ),
+          measurementPublicationBindingReferenceFor(this),
+          canonicalExperimentAssignment:
+              measurementExperimentAssignmentFor(this),
+          routingSelectionReceipt: routingSelectionReceiptFor(this),
+          routingSelectionProvenance: routingSelectionProvenanceFor(this),
+        ),
+        surfaceAssignmentLeaseFor(this));
   }
 }
 

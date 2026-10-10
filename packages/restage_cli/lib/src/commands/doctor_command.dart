@@ -216,6 +216,16 @@ class DoctorCommand extends Command<int> {
       return;
     }
     if (loaded == null) return;
+    final project = loaded.config.project;
+    final app = loaded.config.app;
+    if (project == null || app == null) {
+      line(
+        'SKIP',
+        'Not checked against the server: restage_config.yaml names no '
+            'project and app.',
+      );
+      return;
+    }
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
     if (credential == null) {
@@ -232,10 +242,9 @@ class DoctorCommand extends Command<int> {
         httpClient: _httpClient,
         credential: credential,
       );
-      final live = await LibraryRequirementsApi(api).liveLibraryRequirements(
-        project: loaded.config.project,
-        app: loaded.config.app,
-      );
+      final live = await LibraryRequirementsApi(
+        api,
+      ).liveLibraryRequirements(project: project, app: app);
       final breaks = findLibraryBreaks(live: live, compatibleSince: since);
       if (breaks.isEmpty) {
         line('PASS', 'All versions in use render on this build.');

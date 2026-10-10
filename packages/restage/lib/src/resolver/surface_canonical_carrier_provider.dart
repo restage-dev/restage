@@ -43,10 +43,7 @@ abstract final class SurfaceCanonicalCarrierProvider {
       return;
     }
     final scope = (surface, slug, contractVersion, key);
-    final encoded = base64UrlEncode(utf8.encode(
-      CanonicalSurfaceExperimentAssignmentV1Codec.encodeCanonicalJson(
-          assignment),
-    )).replaceAll('=', '');
+    final encoded = _encode(assignment);
     _assignments[scope] = encoded;
     try {
       await SurfaceAssignmentPersistence.ready;
@@ -115,6 +112,32 @@ abstract final class SurfaceCanonicalCarrierProvider {
       return null;
     }
   }
+
+  /// Whether [assignment] is the one this build holds for the surface under
+  /// [assignmentKey].
+  @internal
+  static Future<bool> holds({
+    required String surface,
+    required String slug,
+    int? contractVersion,
+    required String assignmentKey,
+    required CanonicalSurfaceExperimentAssignmentV1 assignment,
+  }) async {
+    if (_storageScope == null) return false;
+    final held = await heldAssignment(
+      surface: surface,
+      slug: slug,
+      contractVersion: contractVersion,
+      assignmentKey: assignmentKey,
+    );
+    return held != null && held == _encode(assignment);
+  }
+
+  static String _encode(CanonicalSurfaceExperimentAssignmentV1 assignment) =>
+      base64UrlEncode(utf8.encode(
+        CanonicalSurfaceExperimentAssignmentV1Codec.encodeCanonicalJson(
+            assignment),
+      )).replaceAll('=', '');
 
   /// Releases held in-memory assignments after an authenticated credential rollover.
   static void clearHeldAssignments() => _assignments.clear();

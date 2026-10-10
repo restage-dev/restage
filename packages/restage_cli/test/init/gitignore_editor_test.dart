@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/init/gitignore_editor.dart';
 import 'package:test/test.dart';
 
@@ -8,7 +11,13 @@ void main() {
 
       expect(plan.isNoOp, isFalse);
       expect(plan.addedPatterns, restagePortableOutputIgnorePatterns);
-      expect(plan.source, contains('# Restage portable generated output.'));
+      expect(
+        plan.source,
+        contains(
+          '# Restage build output (bundled surfaces under '
+          'assets/restage/bundles/ stay tracked)',
+        ),
+      );
       for (final pattern in restagePortableOutputIgnorePatterns) {
         expect(plan.source, contains(pattern));
       }
@@ -25,7 +34,10 @@ void main() {
           'individual rules to track it.\n*.rsbundle\n';
       final plan = planPortableOutputIgnores(source);
       expect(plan.source.startsWith(source), isTrue);
-      expect(plan.addedPatterns, ['.restage/build/']);
+      expect(plan.addedPatterns, [
+        '.restage/build/',
+        '!assets/restage/bundles/**',
+      ]);
       expect(planPortableOutputIgnores(plan.source).isNoOp, isTrue);
     });
 
@@ -39,6 +51,7 @@ build/
 restage.outputs.json
 restage.publication.json
 restage_a2ui_catalog.a2ui.json
+!assets/restage/bundles/**
 ''';
 
       final plan = planPortableOutputIgnores(source);
@@ -91,7 +104,7 @@ restage_a2ui_catalog.a2ui.json
       expect(plan.source.startsWith(source), isTrue);
       expect(plan.source, isNot(contains('*.generated/')));
       expect(plan.source.replaceAll('\r\n', ''), isNot(contains('\n')));
-      expect(plan.source, contains('\r\n# Restage portable generated output.'));
+      expect(plan.source, contains('\r\n# Restage build output'));
     });
 
     test(
@@ -107,10 +120,50 @@ restage.publication.json
 
         final plan = planPortableOutputIgnores(source);
 
-        expect(plan.isNoOp, isTrue);
-        expect(plan.source, source);
+        expect(plan.addedPatterns, ['!assets/restage/bundles/**']);
         expect(plan.source, isNot(contains('restage_a2ui_catalog.a2ui.json')));
+        expect(planPortableOutputIgnores(plan.source).isNoOp, isTrue);
       },
     );
+
+    test('keeps a user rule that ignores bundled assets', () {
+      const source = 'assets/restage/bundles/**\n';
+
+      final plan = planPortableOutputIgnores(source);
+
+      expect(plan.addedPatterns, isNot(contains('!assets/restage/bundles/**')));
+    });
+
+    test('git tracks bundled assets and ignores build output', () async {
+      final dir = await Directory.systemTemp.createTemp('restage_ignore_');
+      addTearDown(() => dir.delete(recursive: true));
+      await Process.run('git', ['init', '-q'], workingDirectory: dir.path);
+      await File(
+        p.join(dir.path, '.gitignore'),
+      ).writeAsString(planPortableOutputIgnores('').source);
+
+      Future<bool> ignored(String path) async {
+        final file = File(p.join(dir.path, path));
+        await file.parent.create(recursive: true);
+        await file.writeAsString('x');
+        final result = await Process.run('git', [
+          'check-ignore',
+          '-q',
+          path,
+        ], workingDirectory: dir.path);
+        return result.exitCode == 0;
+      }
+
+      expect(
+        await ignored('assets/restage/bundles/lib/messages/a.rsbundle'),
+        isFalse,
+      );
+      expect(
+        await ignored('.restage/build/bundles/lib/messages/a.rsbundle'),
+        isTrue,
+      );
+      expect(await ignored('lib/messages/a.rsbundle'), isTrue);
+      expect(await ignored('restage.publication.json'), isTrue);
+    });
   });
 }

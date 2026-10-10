@@ -1,10 +1,12 @@
 part of '../stride_goals.dart';
 
+// ignore_for_file: type=lint
+
 const strideGoalsScreenRef = NeutralFlowScreenRef(
   id: 'stride_goals',
   artifactPath: 'stride_goals.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use strideGoalsScreenRef')

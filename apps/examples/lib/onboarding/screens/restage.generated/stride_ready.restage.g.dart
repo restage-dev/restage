@@ -1,10 +1,12 @@
 part of '../stride_ready.dart';
 
+// ignore_for_file: type=lint
+
 const strideReadyScreenRef = NeutralFlowScreenRef(
   id: 'stride_ready',
   artifactPath: 'stride_ready.rfw',
   version: 1,
-  minClient: 6,
+  minClient: 9,
 );
 
 @Deprecated('Use strideReadyScreenRef')

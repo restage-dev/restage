@@ -8,8 +8,11 @@ import 'package:restage_cli/src/publication/publication_assembler.dart';
 
 /// The backend publication committed, but its local bundled profile did not.
 final class MeasurementBundledProfileFinalizeException implements Exception {
-  /// Creates the closed local-finalization failure.
-  const MeasurementBundledProfileFinalizeException();
+  /// Creates the local-finalization failure with a safe [reason].
+  const MeasurementBundledProfileFinalizeException(this.reason);
+
+  /// Why the profile was not written.
+  final String reason;
 }
 
 /// What a publication wrote into the app for its bundled Measurement profile.
@@ -91,12 +94,14 @@ publishAssembledSurfacePublication({
             ),
         pubspecUpdated: updated,
       );
-    } on MeasurementBundledTargetProfilePackagingException {
-      throw const MeasurementBundledProfileFinalizeException();
-    } on MeasurementBundledTargetProfileAssetDeclarationException {
-      throw const MeasurementBundledProfileFinalizeException();
-    } on ArgumentError {
-      throw const MeasurementBundledProfileFinalizeException();
+    } on MeasurementBundledTargetProfilePackagingException catch (error) {
+      throw MeasurementBundledProfileFinalizeException(error.message);
+    } on MeasurementBundledTargetProfileAssetDeclarationException catch (
+      error
+    ) {
+      throw MeasurementBundledProfileFinalizeException(error.message);
+    } on ArgumentError catch (error) {
+      throw MeasurementBundledProfileFinalizeException('${error.message}');
     }
   }
   return (result: measurementResult.publicationResult, profile: profile);

@@ -83,6 +83,12 @@ void main() {
         await client.fetchSurface(
             surfaceType: 'message', surfaceSlug: 'welcome');
 
+        if (change == 'lease changed') {
+          // Replacing the authority during input gathering invalidates the
+          // entire request, including any captured assignment and tuple.
+          expect(bodies, isEmpty);
+          return;
+        }
         expect(bodies, hasLength(1));
         if (change == 'unchanged') {
           expect(bodies.single['analyticsAnonymousId'], identifier);
@@ -1028,7 +1034,8 @@ void main() {
           version: document.version,
           publishedAt: document.publishedAt,
           content: document.payload.canonicalBytes,
-          payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion + 1,
+          payloadFormatVersion:
+              kMaxSupportedSurfaceArtifactPayloadFormatVersion + 1,
         ),
       ];
       var next = 0;

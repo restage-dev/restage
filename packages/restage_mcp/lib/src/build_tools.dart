@@ -38,7 +38,8 @@ final _pushBuildTool = Tool(
       "compiled into the app. The build uses the app's own Flutter, whatever "
       'version it is: it is taken from flutterRoot, `flutterRoot` in '
       "restage_config.yaml, the project's FVM link or its .fvmrc or "
-      '.flutter-version pin, FLUTTER_ROOT, then PATH.',
+      '.flutter-version pin, the SDK its packages were resolved with, '
+      'FLUTTER_ROOT, then PATH.',
   inputSchema: Schema.object(
     properties: {
       ...localProjectProperties(),

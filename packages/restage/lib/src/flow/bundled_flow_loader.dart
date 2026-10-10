@@ -6,6 +6,9 @@ import 'package:flutter/services.dart' show AssetBundle;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/surface_sections_carrier.dart';
+import '../runtime/local_values.dart' show SurfaceSections;
+
 @internal
 typedef BundledFlowErrorFactory = Object Function(String reason, String message,
     [Object? cause]);
@@ -19,6 +22,7 @@ final class BundledFlowArtifacts {
     required this.screenBlobs,
     this.flowJsonPath = '',
     this.screenAssetPaths = const <String, String>{},
+    this.sections = SurfaceSections.none,
   });
 
   final Uint8List documentBytes;
@@ -35,6 +39,9 @@ final class BundledFlowArtifacts {
   /// paywall fallback) for internal provenance consumers. It is not a path
   /// inferred from a screen id.
   final Map<String, String> screenAssetPaths;
+
+  /// Local seeds packaged beside the flow document, when any.
+  final SurfaceSections sections;
 }
 
 @internal
@@ -138,6 +145,7 @@ Future<BundledFlowArtifacts> loadBundledFlowArtifacts({
     screenBlobs: screenBlobs,
     flowJsonPath: flowJsonPath,
     screenAssetPaths: Map<String, String>.unmodifiable(screenAssetPaths),
+    sections: await loadLocalSeedSidecar(bundle, flowJsonPath),
   );
 }
 
