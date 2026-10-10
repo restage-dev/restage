@@ -65,6 +65,24 @@ import '../widgets/restage_padding.dart';
 /// any custom library generated via `@RestageWidget` can call into a
 /// single canonical implementation.
 abstract final class RestageDecoders {
+  /// Decodes widget children, flattening lists emitted by collection elements.
+  ///
+  /// Empty nested lists contribute no children. Each widget keeps its original
+  /// source path so loop values and event arguments remain bound to that item.
+  static List<Widget> widgetList(DataSource source, List<Object> path) {
+    if (!source.isList(path)) return source.childList(path);
+    final children = <Widget>[];
+    for (var index = 0; index < source.length(path); index++) {
+      final childPath = <Object>[...path, index];
+      if (source.isList(childPath)) {
+        children.addAll(widgetList(source, childPath));
+      } else {
+        children.add(source.child(childPath));
+      }
+    }
+    return children;
+  }
+
   /// Decodes a typed value-change event through RFW's own handler machinery.
   ///
   /// The trigger preserves RFW event lists and argument merging, including an

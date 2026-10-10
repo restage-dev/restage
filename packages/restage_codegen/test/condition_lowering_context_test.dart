@@ -6,6 +6,7 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -212,4 +213,164 @@ void main() {
     expect(result.dsl, contains('...for presence1 in switch'));
     fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
   });
+
+  Future<TranslationResult> lowerLoop(String body) async {
+    final probe = await parseMethodExpressionFromSourceForTest(
+      '''
+      $_stubs
+      class P extends StatelessWidget {
+        const P({required this.labels, required this.isPro});
+        final List<String> labels;
+        final bool isPro;
+        Widget build(BuildContext context) => Column(children: [
+          Text(text: 'before'),
+          for (final label in labels) $body,
+          Text(text: 'after'),
+        ]);
+      }
+    ''',
+      className: 'P',
+    );
+    return translator.translate(
+      probe.expression,
+      rootParams: [_rootParam(probe, 'labels'), _rootParam(probe, 'isPro')],
+    );
+  }
+
+  test('a conditional loop body contributes a widget list per item', () async {
+    final result = await lowerLoop("if (label == 'annual') Text(text: label)");
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    expect(
+      result.dsl,
+      'Column(children: [Text(text: "before"), '
+      '...for label in data.context.labels: '
+      '[...for presence in switch label { "annual": [0], default: [] }: '
+      'Text(text: label)], Text(text: "after")])',
+    );
+    final library = fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+    final root = library.widgets.single.root as fmt.ConstructorCall;
+    final loop = (root.arguments['children']! as List<Object?>)[1]! as fmt.Loop;
+    final selector = (loop.output as List<Object?>).single! as fmt.Loop;
+    final label = selector.output as fmt.ConstructorCall;
+    expect((label.arguments['text']! as fmt.LoopReference).loop, 1);
+  });
+
+  test('a total conditional loop body keeps a single output per item',
+      () async {
+    final result = await lowerLoop(
+      "if (label == 'annual') Text(text: label) else Text(text: 'monthly')",
+    );
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    final library = fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+    final root = library.widgets.single.root as fmt.ConstructorCall;
+    final loop = (root.arguments['children']! as List<Object?>)[1]! as fmt.Loop;
+    expect(loop.output, isA<fmt.Switch>());
+    expect(result.dsl, isNot(contains('presence')));
+  });
+
+  for (final condition in [
+    "isPro && label == 'annual'",
+    "isPro || label == 'annual'",
+    "!(isPro && label == 'annual')",
+  ]) {
+    test('a composed loop condition emits each branch once: $condition',
+        () async {
+      final result = await lowerLoop(
+        "if ($condition) Text(text: 'yes') else Text(text: 'no')",
+      );
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      expect(
+        RegExp(r'Text\(text: "yes"\)').allMatches(result.dsl),
+        hasLength(1),
+      );
+      expect(
+        RegExp(r'Text\(text: "no"\)').allMatches(result.dsl),
+        hasLength(1),
+      );
+      fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+    });
+  }
+
+  test('a composed nested total condition emits each branch once', () async {
+    final result = await lowerLoop(
+      "if (isPro) if (isPro || label == 'annual') Text(text: 'yes') "
+      "else Text(text: 'no') else Text(text: 'other')",
+    );
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    for (final label in ['yes', 'no', 'other']) {
+      expect(
+        RegExp('Text\\(text: "$label"\\)').allMatches(result.dsl),
+        hasLength(1),
+      );
+    }
+    fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+  });
+
+  test('nested conditions and spreads preserve their branch order', () async {
+    final result = await lowerLoop(
+      "if (isPro) if (label == 'annual') ...[ "
+      "Text(text: label), Text(text: 'extra')] else Text(text: 'monthly')",
+    );
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    final library = fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+    final root = library.widgets.single.root as fmt.ConstructorCall;
+    final loop = (root.arguments['children']! as List<Object?>)[1]! as fmt.Loop;
+    final outputs = loop.output as List<Object?>;
+    expect(outputs, hasLength(3));
+    expect(
+      outputs.cast<fmt.Loop>().map(
+            (item) => (item.output as fmt.ConstructorCall).arguments['text'],
+          ),
+      [isA<fmt.LoopReference>(), 'extra', 'monthly'],
+    );
+  });
+
+  test('constant nested conditions select only the reachable branch', () async {
+    final result = await lowerLoop(
+      "if (isPro) if (false) Text(text: 'unreachable') else Text(text: label)",
+    );
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    expect(result.dsl, isNot(contains('unreachable')));
+    expect(result.dsl, contains('Text(text: label)'));
+    fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+  });
+
+  test('a constant false loop body preserves an empty widget group', () async {
+    final result = await lowerLoop("if (false) Text(text: 'unreachable')");
+    expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+    expect(result.dsl, contains('...for label in data.context.labels: []'));
+    expect(result.dsl, isNot(contains('unreachable')));
+    fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+  });
+
+  for (final body in [
+    "if (label == 'annual') label",
+    "if (isPro && label == 'annual') label else 'fallback'",
+  ]) {
+    test('a grouped data list refuses instead of nesting its values: $body',
+        () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+      $_stubs
+      class P extends StatelessWidget {
+        const P({required this.labels, required this.isPro});
+        final List<String> labels;
+        final bool isPro;
+        List<String> build(BuildContext context) => [
+          for (final label in labels) $body,
+        ];
+      }
+    ''',
+        className: 'P',
+      );
+      final result = translator.translate(
+        probe.expression,
+        rootParams: [_rootParam(probe, 'labels'), _rootParam(probe, 'isPro')],
+      );
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.unsupportedCollectionFlow,
+      ]);
+      expect(result.dsl, '[]');
+    });
+  }
 }

@@ -8,6 +8,7 @@ import 'package:restage_shared/restage_shared.dart'
         CapabilityManifest,
         LibraryRequirement,
         WidgetVocabulary,
+        kGroupedWidgetListClientFloor,
         kSurfaceFeatureClientFloor;
 import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
 // Only the parsed-model node types are needed here; `WidgetLibrary` is the
@@ -117,7 +118,9 @@ CapabilityDerivationResult deriveCapabilityManifest(
       customLibraries.add(entry.library);
     }
   }
-  if ((requiresSurfaceFeatureFloor || _usesSurfaceFeatures(surface)) &&
+  final featureFloor = _surfaceFeatureFloor(surface);
+  if (builtInFloor < featureFloor) builtInFloor = featureFloor;
+  if (requiresSurfaceFeatureFloor &&
       builtInFloor < kSurfaceFeatureClientFloor) {
     builtInFloor = kSurfaceFeatureClientFloor;
   }
@@ -167,26 +170,46 @@ CapabilityDerivationResult deriveCapabilityManifest(
   );
 }
 
-/// Whether [surface] ships a subset icon font (a literal icon), writes a
-/// screen-local value, or measures tapped items: each needs the feature floor.
-bool _usesSurfaceFeatures(RemoteWidgetLibrary surface) {
-  if (literalIconCodePoints(surface).isNotEmpty) return true;
-  bool visit(Object? node) => switch (node) {
-        EventHandler() => node.eventName == kLocalValueSetEventName ||
+int _surfaceFeatureFloor(RemoteWidgetLibrary surface) {
+  var floor = literalIconCodePoints(surface).isNotEmpty
+      ? kSurfaceFeatureClientFloor
+      : kBaselineCatalogVersion;
+  void require(int version) {
+    if (floor < version) floor = version;
+  }
+
+  void visit(Object? node) {
+    switch (node) {
+      case EventHandler():
+        if (node.eventName == kLocalValueSetEventName ||
             node.eventArguments
-                .containsKey(kMeasurementPublicationItemArgumentKeyV1) ||
-            visit(node.eventArguments),
-        ConstructorCall() => visit(node.arguments),
-        WidgetBuilderDeclaration() => visit(node.widget),
-        Loop() => visit(node.input) || visit(node.output),
-        Switch() => visit(node.input) || node.outputs.values.any(visit),
-        Map() => node.values.any(visit),
-        List() => node.any(visit),
-        _ => false,
-      };
-  return surface.widgets.any(
-    (widget) => visit(widget.initialState) || visit(widget.root),
-  );
+                .containsKey(kMeasurementPublicationItemArgumentKeyV1)) {
+          require(kSurfaceFeatureClientFloor);
+        }
+        visit(node.eventArguments);
+      case ConstructorCall():
+        visit(node.arguments);
+      case WidgetBuilderDeclaration():
+        visit(node.widget);
+      case Loop():
+        if (node.output is List) require(kGroupedWidgetListClientFloor);
+        visit(node.input);
+        visit(node.output);
+      case Switch():
+        visit(node.input);
+        node.outputs.values.forEach(visit);
+      case Map():
+        node.values.forEach(visit);
+      case List():
+        node.forEach(visit);
+    }
+  }
+
+  for (final widget in surface.widgets) {
+    visit(widget.initialState);
+    visit(widget.root);
+  }
+  return floor;
 }
 
 /// [referenced] deduplicated by qualified name and sorted by it, so the

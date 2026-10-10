@@ -217,6 +217,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<Column>(
     category: WidgetCategory.layout,
+    sinceVersion: 10,
     excludeParams: kFlexExcludes,
   ),
   BuiltinWidgetCuration<ConstrainedBox>(
@@ -545,6 +546,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<Row>(
     category: WidgetCategory.layout,
+    sinceVersion: 10,
     excludeParams: kFlexExcludes,
   ),
   BuiltinWidgetCuration<RotatedBox>(category: WidgetCategory.decoration),

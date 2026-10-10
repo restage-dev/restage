@@ -6,7 +6,7 @@ const notifyScreenRef = NeutralFlowScreenRef(
   id: 'notify',
   artifactPath: 'notify.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use notifyScreenRef')

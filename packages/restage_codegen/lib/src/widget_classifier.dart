@@ -1321,18 +1321,18 @@ class _Walk {
   }
 
   Future<bool> _classifyRuntimeIfBranch(
-    CollectionRuntimeIfBranch branch,
+    CollectionRuntimeBranch branch,
   ) async {
     switch (branch) {
-      case CollectionRuntimeIfNested(:final candidate):
+      case CollectionRuntimeConditional(:final candidate):
         return _classifyRuntimeIf(candidate);
-      case CollectionRuntimeIfLeaf(:final occurrence):
+      case CollectionRuntimeLeaf(:final occurrence):
         final verdict = await _verdictOf(() async {
           await _classifyCollectionOccurrence(occurrence);
           return true;
         });
         return !verdict.recorded;
-      case CollectionRuntimeIfGroup(:final members):
+      case CollectionRuntimeGroup(:final members):
         for (final member in members) {
           if (!await _classifyRuntimeIfBranch(member)) return false;
         }
@@ -2066,8 +2066,7 @@ final class _StaticallyAdmittedExpressionVisitor {
           final occurrences = switch (entry) {
             CollectionListElement(:final occurrence) => [occurrence],
             CollectionListRefusal(:final refusal) => [
-                if (refusal.runtimeLoop?.template case final template?)
-                  template,
+                ...?refusal.runtimeLoop?.template.leafOccurrences,
                 ...?refusal.runtimeIf?.leafOccurrences,
               ],
           };

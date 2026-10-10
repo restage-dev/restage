@@ -51,7 +51,7 @@ void main() {
       expect(document.flow, 'entry');
       expect(document.version, 1);
       expect(document.schemaVersion, 1);
-      expect(document.minClient, kBaselineCatalogVersion);
+      expect(document.minClient, kGroupedWidgetListClientFloor);
       expect(document.initial, 'paywall_entry');
       expect(document.actions, isEmpty);
       expect(document.flowState, isEmpty);
@@ -85,7 +85,7 @@ void main() {
             .having(
               (artifact) => artifact.minClient,
               'minClient',
-              kBaselineCatalogVersion,
+              kGroupedWidgetListClientFloor,
             )
             .having(
               (artifact) => artifact.contentHash,
@@ -441,7 +441,7 @@ class EntryPaywall extends StatelessWidget {
   const EntryPaywall({super.key});
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => Wrap(
     children: [
       ElevatedButton(
         onPressed: () => Navigator.push<void>(

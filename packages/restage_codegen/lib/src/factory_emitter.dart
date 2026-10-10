@@ -23,99 +23,21 @@ import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// Returns the Dart source for one top-level `LocalWidgetBuilder` closure
-/// that constructs [entry]'s underlying Flutter widget from a flat
-/// `DataSource`, or `null` if [entry] cannot be mechanically emitted
-/// against the current generator surface.
+/// Emits a `LocalWidgetBuilder` for [entry], or `null` if unsupported.
 ///
-/// Eligibility:
+/// Decodes scalar, widget, widget-list and event properties. Applies
+/// constructor defaults, decomposition recipes and synthetic property rules;
+/// positional arguments precede named arguments in catalog order.
 ///
-///   * Every scalar property type may appear
-///     (`color`/`length`/`edgeInsets`/`alignment`/`fontWeight`/
-///     `duration`/`curve`/`boolean`/`integer`/`real`/`string`).
-///   * Curated `ChildrenSlot.single` entries are allowed when they have a
-///     property named `'child'` of type `widget` — that property emits as
-///     `child: source.child(...)` (required) or
-///     `child: source.optionalChild(...)` (optional). This bullet governs only
-///     canonical curated single-child handling; non-canonical and custom
-///     exact `Widget` properties follow the policy-specific bullets below.
-///   * Curated `ChildrenSlot.list` entries are allowed when they have a
-///     property named `'children'` of type `widgetList`. That property emits
-///     as `children: source.childList(...)`.
-///   * Event properties with no callback signature are zero-argument void
-///     callbacks and emit through `source.voidHandler(...)`. Typed event
-///     properties declare their callback shape via
-///     `PropertyEntry.callbackSignature` (e.g. `'ValueChanged<bool>'`) and
-///     emit through
-///     `source.handler<T>(path, (trigger) => (T value) => trigger({...}))`.
-///     Both RFW decoders return nullable callbacks. When no constructor default
-///     or presence protocol applies, a non-nullable constructor input coalesces
-///     that result to a shape-correct no-op and a nullable input preserves
-///     `null`.
-///   * `synthetic: 'gateOnPressed'` on a boolean property gates the
-///     entry's `onPressed` event handler instead of being passed as
-///     a constructor argument: the generator emits a pre-amble
-///     decode of the bool, then wraps the `onPressed` slot as
-///     `onPressed: <bool> ? null : source.voidHandler(...)`. Requires
-///     the entry to declare an `onPressed` event property.
+/// Custom widget parameters preserve constructor nullability and downcasts.
+/// Curated widget slots use catalog requiredness. Required nullable custom
+/// widgets preserve explicit null. Callbacks use a no-op for non-nullable
+/// inputs when no default or presence protocol applies; nullable inputs
+/// preserve null.
 ///
-/// Eligible additions:
-///
-///   * `decomposes` recipes emit as `<slot>: <Call>(<inner>: <decode>, ...)`
-///     where `<slot>` is the named ctor arg the structured type slots
-///     into (`ButtonStyle` / `TextStyle` → `style`, `BoxDecoration`
-///     → `decoration`). The native recipe's receiver-aware construction
-///     metadata determines whether `<Call>` is a constructor or static factory.
-///     Properties consumed by a recipe are excluded from the direct named-args
-///     list.
-///   * `synthetic: 'iconData'` on an integer property builds the whole
-///     widget as `restageIcon(context, codePoint: value, fontFamily: family)`,
-///     which draws from the installed icon table or a font
-///     delivered with the surface; it must be paired with `positional: true`.
-///     `<family>` is the entry's `synthetic: 'iconFontFamily'` string
-///     property when it declares one, defaulting to `'MaterialIcons'`,
-///     and the Material literal when it declares none. An entry that
-///     also declares a `synthetic: 'iconMatchTextDirection'` boolean
-///     property adds `matchTextDirection: <value>` to the lookup,
-///     which selects the mirroring glyph of a code point naming two.
-///   * `synthetic: 'borderRadiusCircular'` on a real property wraps
-///     the decoded scalar as `BorderRadius.circular(<value>)` so the
-///     same flat slot drives both direct ctor args
-///     (`ClipRRect.borderRadius`) and recipe-hoisted inner args
-///     (`BoxDecoration.borderRadius`). When the property is optional
-///     and has no literal default, the emission coalesces the
-///     nullable decode to `0.0` so missing slots collapse to
-///     `BorderRadius.zero`.
-///   * `positional: true` properties emit as positional ctor args
-///     ahead of the named ones, in catalog declaration order. Used
-///     for Flutter widgets whose first ctor arg is positional
-///     (`Image.network(String src, ...)`, `Icon(IconData icon, ...)`,
-///     `Text(String data, ...)`).
-///   * `PropertyType.enumValue` properties carrying `enumType` emit
-///     as `RestageDecoders.enumByName<T>(T.values, source, path)`.
-///     A literal `defaultValue` string (e.g. `'start'`) renders as
-///     `T.<value>` for the `??` fallback so the emitted code
-///     satisfies non-nullable Flutter ctor parameters. The named
-///     enum type must be reachable from the per-library Flutter
-///     import the emitter adds.
-///   * Non-canonical `PropertyType.widget` properties (additional widget slots
-///     beyond the single canonical `'child'` slot — e.g. AppBar.title,
-///     Scaffold.body, IconButton.icon) preserve two intentionally distinct
-///     lowering policies. Curated built-ins select `child`/`optionalChild` and
-///     the corresponding cast from historical catalog requiredness, keeping
-///     their generated bytes stable. Custom factories select both from
-///     constructor nullability so an explicit null survives for a required
-///     nullable argument. When the property carries `widgetType`, codegen
-///     appends the matching nullable or non-null downcast so the value
-///     type-checks against a narrower Flutter ctor parameter.
-///   * Custom entries emit every exact `Widget` and `List<Widget>`
-///     constructor property. Property names, declaration order, positional
-///     binding, requiredness, nullability, constructor defaults, and widget
-///     downcasts remain constructor-derived; the curated built-in slot policy
-///     stays unchanged.
-///
-/// Pass [publicName] for a built-in catalog library: the function is emitted
-/// under its exported name and carries a dartdoc line.
+/// Icon synthetics use `restageIcon` with the declared font family and
+/// mirroring flag. Enum types must be reachable from the library import.
+/// [publicName] gives a built-in factory its exported name and dartdoc.
 String? emitFactoryFunction(
   WidgetEntry entry, {
   NativeCatalogIndex? nativeIndex,
@@ -485,8 +407,10 @@ String? emitFactoryFunction(
   final preambleLines = <String>[
     if (gatingDeclaration != null) gatingDeclaration,
     ...presencePlans.values.map((plan) => plan.declaration),
-    for (final slot in hoistedChildListSlots)
-      '  final $slot = source.childList(${_sourcePath(slot)});',
+    ...hoistedChildListSlots.map(
+      (slot) => '  final $slot = RestageDecoders.widgetList(source, '
+          '${_sourcePath(slot)});',
+    ),
   ];
   final preamble =
       preambleLines.isEmpty ? '' : '${preambleLines.join('\n')}\n\n';
@@ -2202,7 +2126,7 @@ bool _isEmittableProperty(
     case PropertyType.widgetList:
       // Every exact list property lowers: the canonical `children` slot is
       // dispatched through `_canonicalChildPropertyOf`, and any other named
-      // list reads its own `source.childList` path.
+      // list reads its own `RestageDecoders.widgetList` path.
       return true;
     case PropertyType.event:
     case PropertyType.dataReference:
@@ -2298,7 +2222,7 @@ String _decodeExpression(
   if (derivedPreflight != null) {
     return decoded;
   }
-  // RFW's childList read turns a missing slot into an empty list. Guard the
+  // The widget-list decoder turns a missing slot into an empty list. Guard the
   // nullable no-default constructor shape so omission/null remains null, while
   // an authored list (including an empty one) still uses the child decoder.
   if (prop.type == PropertyType.widgetList &&
@@ -2306,17 +2230,10 @@ String _decodeExpression(
       prop.constructorDefault == null) {
     return 'source.isList($directPath) ? $decoded : null';
   }
-  // Literal `defaultValue` takes precedence. Otherwise a `required`
-  // scalar without a default emits a throw so a malformed blob fails
-  // loudly (the SDK surfaces the throw as `PaywallLoadFailed`) rather
-  // than rendering a silently-zeroed widget the user can't tell is
-  // broken. The generic throw fallback below applies to nullable scalar and
-  // registered-structured decoders. Widget decoding follows its separate
-  // custom-vs-curated policy: a required constructor-nullable custom
-  // Widget argument is still present, but `optionalChild` lets its explicit
-  // null survive. `childList` itself returns a non-null list; the nullable
-  // no-default widget-list shape is guarded above. Event paths have their own
-  // nullability contract below.
+  // Literal defaults take precedence. Required scalar and structured decoders
+  // throw on missing values. Custom widget parameters follow constructor
+  // nullability; curated widget slots, widget lists and callbacks use their
+  // separate rules above and below.
   final defaultExpr =
       applyDefault ? _defaultExpressionFor(prop, aliases: aliases) : null;
   if (defaultExpr != null) {
@@ -4086,7 +4003,7 @@ String _decoderCallFor(
           ? '$base as ${prop.widgetType}?'
           : '$base as ${prop.widgetType}';
     case PropertyType.widgetList:
-      return 'source.childList($directPath)';
+      return 'RestageDecoders.widgetList(source, $directPath)';
     case PropertyType.enumValue:
       final t = _enumDartTypeName(prop);
       if (t == null) {

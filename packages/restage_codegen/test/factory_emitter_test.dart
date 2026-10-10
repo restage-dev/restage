@@ -469,7 +469,7 @@ void main() {
       expect(source, contains("child: source.child(const <Object>['child'])"));
     });
 
-    test('emits source.childList for a list child slot', () {
+    test('emits the widget-list decoder for a list child slot', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
         name: 'ListWrapper',
@@ -492,7 +492,10 @@ void main() {
       expect(source, contains('return ListWrapper('));
       expect(
         source,
-        contains("children: source.childList(const <Object>['children'])"),
+        contains(
+          'children: RestageDecoders.widgetList(source, '
+          "const <Object>['children'])",
+        ),
       );
     });
 
@@ -532,12 +535,16 @@ void main() {
         flat,
         contains(
           "actions: source.isList(const <Object>['actions']) "
-          "? source.childList(const <Object>['actions']) : null",
+          '? RestageDecoders.widgetList(source, '
+          "const <Object>['actions']) : null",
         ),
       );
       expect(
         flat,
-        contains("children: source.childList(const <Object>['children'])"),
+        contains(
+          'children: RestageDecoders.widgetList(source, '
+          "const <Object>['children'])",
+        ),
       );
     });
 
@@ -565,7 +572,10 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains("actions: source.childList(const <Object>['actions'])"),
+        contains(
+          'actions: RestageDecoders.widgetList(source, '
+          "const <Object>['actions'])",
+        ),
       );
       expect(source, isNot(contains('isList')));
     });

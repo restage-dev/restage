@@ -63,9 +63,7 @@ String _sessions(Map<String, Object?> document) {
 }
 
 String _finished(Map<String, Object?> document) {
-  final series =
-      figureAt(document, ['typedLifecycle']) ??
-      figureAt(document, ['lifecycle']);
+  final series = figureAt(document, ['typedLifecycle']);
   final counts = figureAt(series, ['windowCounts']);
   if (counts is! Map<String, Object?>) return kFigureUnavailable;
   if ((figureAt(series, ['publicationCount']) ?? 0) == 0) {

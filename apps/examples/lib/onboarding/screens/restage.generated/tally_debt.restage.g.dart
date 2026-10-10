@@ -6,7 +6,7 @@ const tallyDebtScreenRef = NeutralFlowScreenRef(
   id: 'tally_debt',
   artifactPath: 'tally_debt.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use tallyDebtScreenRef')

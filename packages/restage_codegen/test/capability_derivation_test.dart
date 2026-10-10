@@ -3,7 +3,14 @@ import 'dart:io';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/issue.dart' show IssueCode;
 import 'package:restage_shared/restage_shared.dart'
-    show LibraryRequirement, WidgetVocabulary, kSurfaceFeatureClientFloor;
+    show
+        BlobRenderCapabilityGate,
+        CapabilityManifest,
+        InstalledCapability,
+        LibraryRequirement,
+        WidgetVocabulary,
+        kGroupedWidgetListClientFloor,
+        kSurfaceFeatureClientFloor;
 import 'package:restage_shared/rfw_formats.dart' show parseLibraryFile;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -130,6 +137,54 @@ void main() {
         kSurfaceFeatureClientFloor,
       );
     });
+
+    test('a grouped loop raises the floor above older widget-list decoders',
+        () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Column(children: [
+            ...for item in data.items: [
+              ...for presence in switch item.visible {true: [0], false: []}:
+                Text(text: item.label),
+            ],
+          ]);
+        '''),
+        kGroupedWidgetListClientFloor,
+      );
+    });
+
+    test('an ordinary conditional element keeps its original floor', () {
+      expect(
+        floorOf('''
+          import restage.core;
+          widget Paywall = Column(children: [
+            ...for presence in switch data.visible {true: [0], false: []}:
+              Text(text: "visible"),
+          ]);
+        '''),
+        kBaselineCatalogVersion,
+      );
+    });
+
+    test('the grouped-list capability excludes an older installed decoder', () {
+      final required = CapabilityManifest(
+        builtInFloor: kGroupedWidgetListClientFloor,
+        requiredLibraries: const [],
+      );
+      for (final (version, accepted) in [(9, false), (10, true)]) {
+        expect(
+          BlobRenderCapabilityGate.evaluate(
+            required: required,
+            installed: InstalledCapability(
+              builtInCatalogVersion: version,
+              installedLibraries: const [],
+            ),
+          ).accepted,
+          accepted,
+        );
+      }
+    });
   });
 
   group('deriveCapabilityManifest — builtInFloor', () {
@@ -211,6 +266,20 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       expect(result.manifest!.builtInFloor, 5);
       expect(result.manifest!.builtInFloor, greaterThan(oldGlobalCeiling));
     });
+
+    for (final widget in ['Row', 'Column']) {
+      test('the committed $widget capability requires the new decoder', () {
+        final result = deriveCapabilityManifest(
+          parseLibraryFile('''
+            import restage.core;
+            widget Paywall = $widget(children: [Text(text: "visible")]);
+          '''),
+          _committedCatalog('restage_core'),
+        );
+        expect(result.issues, isEmpty);
+        expect(result.manifest!.builtInFloor, kGroupedWidgetListClientFloor);
+      });
+    }
 
     test('a surface referencing no catalog widgets floors at the baseline', () {
       // A library-local `widget` definition referenced by name is not a catalog
@@ -294,6 +363,26 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       );
 
   group('deriveCapabilityManifest — requiredLibraries (custom)', () {
+    test('a custom-only grouped list still requires the runtime decoder', () {
+      final result = deriveCapabilityManifest(
+        parseLibraryFile('''
+          import acme.widgets;
+          widget Paywall = AcmeButton(children: [
+            ...for item in data.items: [
+              ...for presence in switch item.visible {true: [0], false: []}:
+                AcmeButton(),
+            ],
+          ]);
+        '''),
+        mixedCatalog(customCapabilityVersion: 5),
+      );
+      expect(result.issues, isEmpty);
+      expect(result.manifest!.builtInFloor, kGroupedWidgetListClientFloor);
+      expect(result.manifest!.requiredLibraries, [
+        const LibraryRequirement(namespace: 'acme.widgets', minVersion: 5),
+      ]);
+    });
+
     test('a referenced custom library contributes its capabilityVersion', () {
       const dsl = '''
         import restage.core;

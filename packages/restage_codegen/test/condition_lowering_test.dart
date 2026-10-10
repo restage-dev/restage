@@ -285,6 +285,17 @@ void main() {
       );
     });
 
+    test('a composed total condition emits each branch once', () async {
+      final result = await lower(
+        'Column(children: '
+        "[if (!trialUsed && isPro) Text(text: 'b') else Text(text: 'c')])",
+      );
+      final dsl = parsed(result);
+      for (final text in ['b', 'c']) {
+        expect(RegExp('Text\\(text: "$text"\\)').allMatches(dsl), hasLength(1));
+      }
+    });
+
     test('a const-folded condition still unrolls statically', () async {
       final result = await lower(
         "Column(children: [if (true) Text(text: 'b'), if (false) "

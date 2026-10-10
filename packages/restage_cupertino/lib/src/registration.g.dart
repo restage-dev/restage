@@ -78,7 +78,7 @@ Widget buildCupertinoListSection(BuildContext context, DataSource source) {
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     children: source.isList(const <Object>['children'])
-        ? source.childList(const <Object>['children'])
+        ? RestageDecoders.widgetList(source, const <Object>['children'])
         : null,
   );
 }
@@ -93,7 +93,7 @@ Widget buildCupertinoListSectionInsetGrouped(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     children: source.isList(const <Object>['children'])
-        ? source.childList(const <Object>['children'])
+        ? RestageDecoders.widgetList(source, const <Object>['children'])
         : null,
   );
 }
@@ -274,7 +274,7 @@ Widget buildCupertinoPicker(BuildContext context, DataSource source) {
     onSelectedItemChanged: RestageDecoders.valueChanged<int>(
         source, const <Object>['onSelectedItemChanged']),
     looping: source.v<bool>(const <Object>['looping']) ?? false,
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 

@@ -95,14 +95,19 @@ void main() {
       nullableFlat,
       contains(
         "regions: source.isList(const <Object>['regions']) ? "
-        "source.childList(const <Object>['regions']) : null,",
+        "RestageDecoders.widgetList(source, const <Object>['regions']) : null,",
       ),
       reason: 'missing and explicit-null inputs must remain null, while both '
           'empty and non-empty authored lists must retain childList lowering',
     );
     expect(
       nullable,
-      isNot(contains("regions: source.childList(const <Object>['regions'])")),
+      isNot(
+        contains(
+          'regions: RestageDecoders.widgetList(source, '
+          "const <Object>['regions'])",
+        ),
+      ),
       reason: 'the direct childList read collapses missing/null to an empty '
           'list',
     );
@@ -199,7 +204,7 @@ void main() {
         reason: 'a positional custom child must never be re-emitted named',
       );
       expect(
-        RegExp(r'source\.childList\(').allMatches(factory),
+        RegExp(r'RestageDecoders\.widgetList\(').allMatches(factory),
         hasLength(1),
         reason: 'the exact custom list value must be emitted exactly once',
       );

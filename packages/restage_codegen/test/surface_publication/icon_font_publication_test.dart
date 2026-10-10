@@ -68,7 +68,8 @@ void main() {
     expect(readSfntCoveredCodePoints(fontBytes), {0xe25b, 0xf63a});
     expect(
       entry.publication.capabilities!.builtInFloor,
-      kSurfaceFeatureClientFloor,
+      10,
+      reason: 'The Row catalog entry requires version 10.',
     );
   });
 }

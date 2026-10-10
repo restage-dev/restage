@@ -921,8 +921,8 @@ final class CollectionRuntimeLoopCandidate {
   /// The identifier authored for the loop variable.
   final String identifier;
 
-  /// The resolved template and its structural occurrence.
-  final CollectionSemanticOccurrence template;
+  /// The resolved loop body and its structural occurrences.
+  final CollectionRuntimeBranch template;
 }
 
 /// One collection condition resolved for a downstream consumer to lower.
@@ -938,10 +938,10 @@ final class CollectionRuntimeIfCandidate {
   final Expression condition;
 
   /// The branch selected when the condition holds.
-  final CollectionRuntimeIfBranch thenBranch;
+  final CollectionRuntimeBranch thenBranch;
 
   /// The branch selected otherwise, when one is authored.
-  final CollectionRuntimeIfBranch? elseBranch;
+  final CollectionRuntimeBranch? elseBranch;
 
   /// Every element this condition can contribute, in authored order.
   Iterable<CollectionSemanticOccurrence> get leafOccurrences sync* {
@@ -951,19 +951,19 @@ final class CollectionRuntimeIfCandidate {
   }
 }
 
-/// One branch of a collection condition.
-sealed class CollectionRuntimeIfBranch {
+/// One resolved branch of a collection condition or loop template.
+sealed class CollectionRuntimeBranch {
   /// Creates a branch.
-  const CollectionRuntimeIfBranch();
+  const CollectionRuntimeBranch();
 
   /// Every element this branch can contribute.
   Iterable<CollectionSemanticOccurrence> get leafOccurrences;
 }
 
 /// A branch holding one resolved element.
-final class CollectionRuntimeIfLeaf extends CollectionRuntimeIfBranch {
+final class CollectionRuntimeLeaf extends CollectionRuntimeBranch {
   /// Creates a leaf branch.
-  const CollectionRuntimeIfLeaf(this.occurrence);
+  const CollectionRuntimeLeaf(this.occurrence);
 
   /// The element and its structural occurrence.
   final CollectionSemanticOccurrence occurrence;
@@ -973,9 +973,9 @@ final class CollectionRuntimeIfLeaf extends CollectionRuntimeIfBranch {
 }
 
 /// A branch holding a further condition.
-final class CollectionRuntimeIfNested extends CollectionRuntimeIfBranch {
+final class CollectionRuntimeConditional extends CollectionRuntimeBranch {
   /// Creates a nested branch.
-  const CollectionRuntimeIfNested(this.candidate);
+  const CollectionRuntimeConditional(this.candidate);
 
   /// The nested condition.
   final CollectionRuntimeIfCandidate candidate;
@@ -986,12 +986,12 @@ final class CollectionRuntimeIfNested extends CollectionRuntimeIfBranch {
 }
 
 /// A branch spreading a list literal, each element its own branch.
-final class CollectionRuntimeIfGroup extends CollectionRuntimeIfBranch {
+final class CollectionRuntimeGroup extends CollectionRuntimeBranch {
   /// Creates a spread branch.
-  const CollectionRuntimeIfGroup(this.members);
+  const CollectionRuntimeGroup(this.members);
 
   /// The spread elements in authored order.
-  final List<CollectionRuntimeIfBranch> members;
+  final List<CollectionRuntimeBranch> members;
 
   @override
   Iterable<CollectionSemanticOccurrence> get leafOccurrences =>
@@ -1431,21 +1431,14 @@ final class _CollectionUnroller {
         staticDetail: _kStaticForDetail,
         runtimeDetail: _kRuntimeForDetail,
       );
-      if (refusal.reason != CollectionUnrollRefusal.runtimeValue ||
-          element.body is! Expression) {
+      if (refusal.reason != CollectionUnrollRefusal.runtimeValue) {
         return refusal;
       }
-      final body = element.body as Expression;
-      final templateResolution = _semantics.resolve(body, bindings, _budget);
-      if (templateResolution.workLimitExceeded) {
-        return _budget.workRefusal(element);
-      }
-      final template = CollectionSemanticOccurrence(
-        authoredExpression: body,
-        terminalExpression: templateResolution.expression,
-        bindings: templateResolution.bindings,
-        sourceProvenance: templateResolution.sourceProvenance,
-        structuralPath: [
+      final template = _runtimeBranchAt(
+        element,
+        element.body,
+        bindings,
+        [
           ...structuralPath,
           CollectionStructuralOccurrenceStep(
             kind: CollectionStructuralOccurrenceKind.loopTemplate,
@@ -1453,17 +1446,9 @@ final class _CollectionUnroller {
             ordinal: 0,
           ),
         ],
+        ledgerCallbacks,
       );
-      if (ledgerCallbacks) {
-        final callbackRefusal = _session._admitCallbacks(
-          template,
-          _semantics,
-          _budget,
-          repeatedBy: null,
-          rootWorkAlreadyCharged: false,
-        );
-        if (callbackRefusal != null) return callbackRefusal;
-      }
+      if (template.refusal != null) return template.refusal;
       return CollectionUnrollRefused(
         reason: refusal.reason,
         detail: refusal.detail,
@@ -1472,7 +1457,7 @@ final class _CollectionUnroller {
           iterable: iterable,
           binding: loopVariable,
           identifier: parts.loopVariable.name.lexeme,
-          template: template,
+          template: template.branch!,
         ),
       );
     }
@@ -1606,7 +1591,7 @@ final class _CollectionUnroller {
     if (thenResult.refusal != null) {
       return (candidate: null, refusal: thenResult.refusal);
     }
-    CollectionRuntimeIfBranch? elseBranch;
+    CollectionRuntimeBranch? elseBranch;
     final elseElement = element.elseElement;
     if (elseElement != null) {
       final elseResult = _runtimeIfBranch(
@@ -1633,7 +1618,7 @@ final class _CollectionUnroller {
     );
   }
 
-  ({CollectionRuntimeIfBranch? branch, CollectionUnrollRefused? refusal})
+  ({CollectionRuntimeBranch? branch, CollectionUnrollRefused? refusal})
       _runtimeIfBranch(
     IfElement element,
     CollectionElement branch,
@@ -1651,7 +1636,7 @@ final class _CollectionUnroller {
         ordinal: ordinal,
       ),
     ];
-    return _runtimeIfBranchAt(
+    return _runtimeBranchAt(
       element,
       branch,
       bindings,
@@ -1660,9 +1645,9 @@ final class _CollectionUnroller {
     );
   }
 
-  ({CollectionRuntimeIfBranch? branch, CollectionUnrollRefused? refusal})
-      _runtimeIfBranchAt(
-    IfElement element,
+  ({CollectionRuntimeBranch? branch, CollectionUnrollRefused? refusal})
+      _runtimeBranchAt(
+    CollectionElement element,
     CollectionElement branch,
     Map<Element, Expression> bindings,
     List<CollectionStructuralOccurrenceStep> branchPath,
@@ -1680,9 +1665,9 @@ final class _CollectionUnroller {
       final list = resolution.expression;
       if (list is ListLiteral) {
         // Each spread element is guarded by the same condition.
-        final members = <CollectionRuntimeIfBranch>[];
+        final members = <CollectionRuntimeBranch>[];
         for (final (index, member) in list.elements.indexed) {
-          final result = _runtimeIfBranchAt(
+          final result = _runtimeBranchAt(
             element,
             member,
             resolution.bindings,
@@ -1699,7 +1684,7 @@ final class _CollectionUnroller {
           if (result.refusal != null) return result;
           members.add(result.branch!);
         }
-        return (branch: CollectionRuntimeIfGroup(members), refusal: null);
+        return (branch: CollectionRuntimeGroup(members), refusal: null);
       }
     }
     if (branch is IfElement && branch.caseClause == null) {
@@ -1711,14 +1696,27 @@ final class _CollectionUnroller {
       if (resolution.workLimitExceeded) {
         return (branch: null, refusal: _budget.workRefusal(branch));
       }
-      if (tryFoldConstant(resolution.expression) is bool) {
-        return (
-          branch: null,
-          refusal: _refuse(
-            CollectionUnrollRefusal.runtimeValue,
-            _kRuntimeIfBodyDetail,
-            branch,
-          ),
+      final constant = tryFoldConstant(resolution.expression);
+      if (constant is bool) {
+        final selected = constant ? branch.thenElement : branch.elseElement;
+        if (selected == null) {
+          return (branch: const CollectionRuntimeGroup([]), refusal: null);
+        }
+        return _runtimeBranchAt(
+          element,
+          selected,
+          bindings,
+          [
+            ...branchPath,
+            CollectionStructuralOccurrenceStep(
+              kind: constant
+                  ? CollectionStructuralOccurrenceKind.selectedThen
+                  : CollectionStructuralOccurrenceKind.selectedElse,
+              node: branch,
+              ordinal: constant ? 0 : 1,
+            ),
+          ],
+          ledgerCallbacks,
         );
       }
       final nested = _runtimeIfCandidate(
@@ -1732,7 +1730,7 @@ final class _CollectionUnroller {
         return (branch: null, refusal: nested.refusal);
       }
       return (
-        branch: CollectionRuntimeIfNested(nested.candidate!),
+        branch: CollectionRuntimeConditional(nested.candidate!),
         refusal: null
       );
     }
@@ -1769,7 +1767,7 @@ final class _CollectionUnroller {
         return (branch: null, refusal: callbackRefusal);
       }
     }
-    return (branch: CollectionRuntimeIfLeaf(occurrence), refusal: null);
+    return (branch: CollectionRuntimeLeaf(occurrence), refusal: null);
   }
 
   CollectionUnrollRefused? _expandSpreadElement(

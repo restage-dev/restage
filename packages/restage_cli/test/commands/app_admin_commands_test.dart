@@ -128,6 +128,83 @@ void main() {
     expect(jsonDecode(out.toString()), app);
   });
 
+  test('app-config platforms states every platform per environment', () async {
+    final now = DateTime.now().toUtc();
+    final hour = DateTime.utc(now.year, now.month, now.day, now.hour);
+    final platforms = {
+      'appId': 5,
+      'iosBundleId': 'com.acme.ios',
+      'environments': [
+        {'namedEnvironmentId': 1, 'slug': 'dev', 'displayName': 'Development'},
+        {'namedEnvironmentId': 2, 'slug': 'staging', 'displayName': 'Staging'},
+      ],
+      'cells': [
+        {
+          'namedEnvironmentId': 1,
+          'platform': 'ios',
+          'lastSeenAt': hour.toIso8601String(),
+          'appBuild': 418,
+          'appVersion': '2.4.0',
+          'sdkVersion': '2.1.0',
+          'recentPresentations': 100,
+          'recentFallbacks': 2,
+        },
+        {
+          'namedEnvironmentId': 2,
+          'platform': 'android',
+          'lastSeenAt': hour
+              .subtract(const Duration(hours: 3))
+              .toIso8601String(),
+          'appBuild': 95,
+          'recentPresentations': 100,
+          'recentFallbacks': 12,
+        },
+      ],
+    };
+    var code = await run([
+      'app-config',
+      'platforms',
+    ], (_) => http.Response(jsonEncode(platforms), 200));
+    expect(code, 0, reason: err.toString());
+    final read = calls.singleWhere((call) => call['method'] == 'readPlatforms');
+    expect(read['organizationId'], 7);
+    expect(read['projectSlug'], 'alpha');
+    expect(read['appSlug'], 'mobile');
+    expect(
+      out.toString(),
+      '2 of 6 seen\n'
+      '\n'
+      'iOS  com.acme.ios\n'
+      '  Development: This hour · 2.4.0 (418) · SDK 2.1.0\n'
+      '  Staging: Not seen\n'
+      '\n'
+      'Android\n'
+      '  Development: Not seen\n'
+      '  Staging: 3 hr ago · (95) · 12% fallbacks\n'
+      '\n'
+      'Web\n'
+      '  Development: Not seen\n'
+      '  Staging: Not seen\n',
+    );
+
+    out.clear();
+    code = await run([
+      'app-config',
+      'platforms',
+      '--json',
+    ], (_) => http.Response(jsonEncode(platforms), 200));
+    expect(code, 0, reason: err.toString());
+    final report = jsonDecode(out.toString()) as Map<String, dynamic>;
+    expect(report['seen'], 2);
+    expect(report['cells'], 6);
+    final android = (report['platforms'] as List)[1] as Map;
+    expect(android['platform'], 'android');
+    final staging = (android['environments'] as List)[1] as Map;
+    expect(staging['seen'], isTrue);
+    expect(staging['fallbackShare'], 0.12);
+    expect(staging['lastSeenHourUtc'], isNotNull);
+  });
+
   test('org rename and app rename send the new name, never a slug', () async {
     var code = await run([
       'org',

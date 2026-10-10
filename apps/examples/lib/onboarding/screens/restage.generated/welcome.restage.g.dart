@@ -6,7 +6,7 @@ const welcomeScreenRef = NeutralFlowScreenRef(
   id: 'welcome',
   artifactPath: 'welcome.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use welcomeScreenRef')

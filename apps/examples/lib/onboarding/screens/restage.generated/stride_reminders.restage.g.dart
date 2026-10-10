@@ -6,7 +6,7 @@ const strideRemindersScreenRef = NeutralFlowScreenRef(
   id: 'stride_reminders',
   artifactPath: 'stride_reminders.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use strideRemindersScreenRef')

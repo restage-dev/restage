@@ -290,7 +290,7 @@ Widget _buildAcmeBorder(BuildContext context, DataSource source) {
 
 Widget _buildAcmeStack(BuildContext context, DataSource source) {
   return s1.AcmeStack(
-    children: source.childList(const <Object>['children']),
+    children: RestageDecoders.widgetList(source, const <Object>['children']),
   );
 }
 

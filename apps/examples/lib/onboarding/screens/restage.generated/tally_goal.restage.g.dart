@@ -6,7 +6,7 @@ const tallyGoalScreenRef = NeutralFlowScreenRef(
   id: 'tally_goal',
   artifactPath: 'tally_goal.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use tallyGoalScreenRef')

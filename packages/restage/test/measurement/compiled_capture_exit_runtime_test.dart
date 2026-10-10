@@ -10,6 +10,7 @@ import 'package:restage/src/measurement/measurement_host_construction_owner.dart
 import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/measurement/measurement_worker_delivery.dart';
+import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -121,7 +122,7 @@ void main() {
             flow: const SurfaceFlowRef(
                 id: 'capture_exit',
                 version: 1,
-                minClient: 3,
+                minClient: RestageBuiltInCatalogCapabilities.currentVersion,
                 surface: Surface.survey,
                 decodeResult: _decode),
             resolver: StaticFlowResolver(resolved),

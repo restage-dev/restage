@@ -292,9 +292,9 @@ void main() {
       );
     }
     expect(
-      flat,
+      flat.replaceAll(' ', ''),
       contains(
-        'source.childList(restagePresenceChildren.valuePath)',
+        'RestageDecoders.widgetList(source,restagePresenceChildren.valuePath)',
       ),
     );
     expect(
