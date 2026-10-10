@@ -219,6 +219,10 @@ final class MeasurementHostConstructionAdmission {
 /// constructs a direct transport, or evaluates a current/latest publication.
 @internal
 final class MeasurementHostConstructionOwner {
+  /// Test-only fixed time for workers started from now on; holds their retries.
+  @visibleForTesting
+  static int? debugHeldWorkerClockMicros;
+
   /// Creates a governed host owner using the platform support path and worker.
   MeasurementHostConstructionOwner.production({
     required MeasurementHostConstructionProfileReadPort profileReadPort,
@@ -513,6 +517,7 @@ final class MeasurementHostConstructionOwner {
       maximumSessions: profile.maximumSessions,
       headers: profile.headers,
       debugTracing: profile.debugTracing,
+      debugHeldClockMicros: debugHeldWorkerClockMicros,
     );
     MeasurementWorkerOwnedDeliveryRuntime? runtime;
     try {

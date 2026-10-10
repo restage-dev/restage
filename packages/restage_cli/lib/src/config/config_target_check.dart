@@ -31,10 +31,7 @@ Future<ConfigTargetCheck> checkConfigTarget(
   }
   final organizations = await discovery.listOrganizations();
   if (organizations.isEmpty) {
-    return (
-      problems: const ['No organizations found for this account.'],
-      organization: null,
-    );
+    return (problems: const [noOrganizationSentence], organization: null);
   }
   final problems = <String>[];
   final configured = config.organization;
@@ -121,6 +118,11 @@ String configTargetConfirmed(RestageConfig config) {
       : 'project `${config.project}`, app `${config.app}` and environment '
             '`$environment` exist';
 }
+
+/// The sentence for an account in no organization yet, and where to create
+/// one.
+const noOrganizationSentence =
+    'No organization yet. Create one in the dashboard.';
 
 /// The sentence for an account in several organizations when nothing names
 /// one: which exist, and how to choose.

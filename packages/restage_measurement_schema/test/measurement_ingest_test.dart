@@ -9,6 +9,67 @@ import 'package:test/test.dart';
 import 'support/exact_publication_context_test_support.dart';
 
 void main() {
+  test('frozen mount and path handle survive exact frame and request encoding',
+      () {
+    final old = _validatedFrame();
+    final attribution = MountSelectionAttributionV1(
+        placementKey: PlacementKeyV1.named(slug: 'home'),
+        resolutionKind: MountResolutionKindV1.compiledFallback,
+        evidenceStrength: MountEvidenceStrengthV1.reportedLocal,
+        mountNonceDigest: CanonicalDigest('d' * 64));
+    final assignment = PresentationAssignmentCarrierV2(
+        owner: PresentationAssignmentOwnerV2.path,
+        outcomeLinkCarrier:
+            base64Url.encode(List.filled(32, 1)).replaceAll('=', ''));
+    MeasurementFactFrameV1 encode(
+            {MountSelectionAttributionV1? tuple,
+            PresentationAssignmentCarrierV2? carrier}) =>
+        MeasurementFactFrameV1.encode(
+            bounds: old.bounds,
+            captureSessionNonce: old.captureSessionNonce,
+            facts: old.facts,
+            isFinal: old.isFinal,
+            missingness: old.missingness,
+            publishedContext: old.publishedContext,
+            rootPresentation: old.rootPresentation,
+            sequence: old.sequence,
+            truncation: old.truncation,
+            attribution: tuple,
+            assignment: carrier,
+            frameElapsedMicros: carrier == null ? null : 1);
+    expect(encode().canonicalBytes, orderedEquals(old.canonicalBytes));
+    final frame = encode(tuple: attribution, carrier: assignment);
+    final request = MeasurementIngestRequestV1.fromFactFrame(frame,
+        routingSelectionReceipt: 'opaque-server-receipt');
+    final read =
+        MeasurementIngestRequestV1.fromBase64(request.canonicalRequestBase64);
+    expect(read.factFrame.attribution, attribution);
+    expect(read.factFrame.assignment, assignment);
+    expect(read.factFrame.canonicalBytes, orderedEquals(frame.canonicalBytes));
+    expect(read.routingSelectionReceipt, 'opaque-server-receipt');
+    expect(read.factFrameSha256, isNot(old.frameSha256));
+    expect(read.requestSha256,
+        isNot(MeasurementIngestRequestV1.fromFactFrame(old).requestSha256));
+    for (final key in ['attribution', 'assignment']) {
+      expect(
+          () => MeasurementFactFrameV1.fromCanonicalBytes(
+              CanonicalJsonCodec.encode(
+                  {...decodeCanonicalObject(frame.canonicalBytes), key: null})),
+          throwsA(isA<MeasurementIngestCodecException>()));
+    }
+    expect(
+        () => MeasurementFactFrameV1.fromCanonicalBytes(
+                CanonicalJsonCodec.encode({
+              ...decodeCanonicalObject(frame.canonicalBytes),
+              'experimentAssignment': {
+                'kind': 'measurementExperimentAssignment',
+                'schemaVersion': 1,
+                'outcomeLinkCarrier': assignment.outcomeLinkCarrier
+              }
+            })),
+        throwsA(isA<MeasurementIngestCodecException>()));
+  });
+
   group('MeasurementIngestRequestV1', () {
     test('existing request round-trips and rejects the diagnostic kind', () {
       final request =

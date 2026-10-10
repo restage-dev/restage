@@ -1,3 +1,5 @@
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -161,6 +163,9 @@ String unauthorizedSentence(
         'Check Billing in the dashboard.',
   UnauthorizedReason.paidPlanRequired =>
     'This needs a paid plan. Check Billing in the dashboard.',
+  UnauthorizedReason.customPlanRequired =>
+    'SSO comes with the Custom plan. Talk to us about Custom: '
+        'contact@restage.dev',
   UnauthorizedReason.notSignedIn => staleCredentialSentence(
     syntax ?? currentSelectorSyntax,
   ),
@@ -193,8 +198,7 @@ String targetSelectionSentence(
           'Pass ${syntax.plane}.',
     TargetSelectionRefusal.noTargetOnPlane =>
       'No target found for $named on that runtime plane.',
-    TargetSelectionRefusal.noOrganization =>
-      'No organizations found for this account.',
+    TargetSelectionRefusal.noOrganization => noOrganizationSentence,
     TargetSelectionRefusal.multipleOrganizations =>
       'This project is in more than one of your organizations'
           '${refused.organizationSlugs.isEmpty ? '' : ' (${refused.organizationSlugs.join(', ')})'}. '

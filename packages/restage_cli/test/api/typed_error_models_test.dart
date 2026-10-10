@@ -56,6 +56,26 @@ void main() {
       expect(unauthorized.reason, UnauthorizedReason.paidPlanRequired);
     });
 
+    test('a Custom-plan refusal names the route to Custom', () {
+      final body = jsonEncode({
+        'className': 'UnauthorizedException',
+        'data': {
+          '__className__': 'UnauthorizedException',
+          'resource': 'custom-plan:organization:1',
+          'reason': 'customPlanRequired',
+        },
+      });
+
+      final decoded = decodeGenericTypedException(body)! as UnauthorizedAccess;
+
+      expect(decoded.reason, UnauthorizedReason.customPlanRequired);
+      expect(
+        unauthorizedSentence(decoded.reason),
+        'SSO comes with the Custom plan. Talk to us about Custom: '
+        'contact@restage.dev',
+      );
+    });
+
     test('an UnauthorizedException without a reason is a missing role', () {
       final body = jsonEncode({
         'className': 'UnauthorizedException',

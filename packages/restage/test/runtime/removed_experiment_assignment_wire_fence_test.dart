@@ -47,6 +47,12 @@ void main() {
           _analyticsReservedKeysFence,
           file.path,
         );
+      } else if (file.path == _placementManagementPath(repository)) {
+        _assertRequiredFence(
+          source,
+          _managementExperimentReferenceFence,
+          file.path,
+        );
       }
 
       for (final forbidden in _retiredPublicIdentifiers) {
@@ -130,6 +136,59 @@ void main() {
     expect(_forbiddenMatches('experimentEpoch'), hasLength(1));
   });
 
+  test('management references do not reopen retired assignment declarations',
+      () {
+    const source = '''
+final class PlacementExperimentReferenceV1 extends _ManagementResult {
+  final String experimentId;
+}
+final String experimentId;
+''';
+    final matches = RegExp(r'\bexperimentId\b').allMatches(source).toList();
+    expect(matches, hasLength(2));
+    final path = _placementManagementPath(repository);
+    expect(
+      _isAllowedRefusalFenceOccurrence(
+          path, source, matches.first, 'experimentId', repository),
+      isTrue,
+    );
+    expect(
+      _isAllowedRefusalFenceOccurrence(
+          path, source, matches.last, 'experimentId', repository),
+      isFalse,
+    );
+    expect(
+      _isAllowedRefusalFenceOccurrence(_surfaceResponseParserPath(repository),
+          source, matches.first, 'experimentId', repository),
+      isFalse,
+    );
+    final legacy = source.replaceFirst(
+        'PlacementExperimentReferenceV1', 'SurfaceExperimentAssignment');
+    expect(
+      _isAllowedRefusalFenceOccurrence(
+          path,
+          legacy,
+          RegExp(r'\bexperimentId\b').firstMatch(legacy)!,
+          'experimentId',
+          repository),
+      isFalse,
+    );
+    for (final identifier in _retiredPublicIdentifiers
+        .where((identifier) => identifier != 'experimentId')) {
+      final injected = source.replaceFirst('experimentId', identifier);
+      expect(
+        _isAllowedRefusalFenceOccurrence(
+            path,
+            injected,
+            RegExp('\\b${RegExp.escape(identifier)}\\b').firstMatch(injected)!,
+            identifier,
+            repository),
+        isFalse,
+        reason: 'management references cannot contain $identifier',
+      );
+    }
+  });
+
   test('the guard rejects an injected retired identifier', () {
     final temporary = Directory.systemTemp.createTempSync(
       'restage-removed-experiment-assignment-wire-fence-',
@@ -192,6 +251,12 @@ final _canonicalAssignmentFieldsFence = RegExp(
   dotAll: true,
 );
 
+final _managementExperimentReferenceFence = RegExp(
+  r'''^final class PlacementExperimentReferenceV1 extends _ManagementResult \{.*?^\}\n''',
+  multiLine: true,
+  dotAll: true,
+);
+
 final _analyticsFieldFence = RegExp(
   r'''^const _unsupportedTopLevelFields = <String>\{\n.*?^\};\n''',
   multiLine: true,
@@ -209,6 +274,9 @@ String _surfaceResponseParserPath(Directory root) =>
 
 String _canonicalAssignmentPath(Directory root) =>
     '${root.path}/packages/restage_shared/lib/src/surface_contract/surface_publication_contract.dart';
+
+String _placementManagementPath(Directory root) =>
+    '${root.path}/packages/restage_shared/lib/src/placements/placement_management.dart';
 
 String _analyticsParserPath(Directory root) =>
     '${root.path}/packages/restage_shared/lib/src/legacy_analytics/analytics_event.dart';
@@ -232,6 +300,13 @@ bool _isAllowedRefusalFenceOccurrence(
   Directory repository,
 ) {
   final line = _lineContaining(source, match.start);
+  if (path == _placementManagementPath(repository)) {
+    if (identifier != 'experimentId') return false;
+    final region = _managementExperimentReferenceFence.firstMatch(source);
+    return region != null &&
+        match.start >= region.start &&
+        match.end <= region.end;
+  }
   if (path == _canonicalAssignmentPath(repository)) {
     if (identifier != 'experimentId') return false;
     for (final fence in <RegExp>[

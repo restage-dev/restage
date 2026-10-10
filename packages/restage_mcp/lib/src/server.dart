@@ -392,7 +392,14 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
           final result = await auth.exchangeDeviceCode(pending.deviceCode);
           switch (result.status) {
             case DeviceAuthorizationStatus.success:
-              await _persistCredential(pending.endpoint, result);
+              final credential = await _persistCredential(
+                pending.endpoint,
+                result,
+              );
+              final dashboard = await _dashboardWhenNoOrganization(
+                pending,
+                credential,
+              );
               final deviceCode = pending.deviceCode;
               _pendingLogin = null;
               var email = result.userInfo?.email;
@@ -404,12 +411,17 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
                   _emailAliasesSecret(email, deviceCode, result)) {
                 email = null;
               }
+              final signedIn = email == null
+                  ? 'Signed in.'
+                  : 'Signed in as $email.';
               return jsonResult(<String, Object?>{
                 'status': 'signed_in',
                 'email': email,
-                'message': email == null
-                    ? 'Signed in.'
-                    : 'Signed in as $email.',
+                'message': dashboard == null
+                    ? signedIn
+                    : '$signedIn $noOrganizationSentence'
+                          '${dashboard.isEmpty ? '' : '\n$dashboard'}',
+                'createOrganizationAt': ?dashboard,
               });
             case DeviceAuthorizationStatus.expired:
               _pendingLogin = null;
@@ -459,7 +471,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     }
   }
 
-  Future<void> _persistCredential(
+  Future<Credential> _persistCredential(
     Uri endpoint,
     DeviceAuthorizationResult result,
   ) async {
@@ -468,13 +480,35 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     if (keyId == null || key == null) {
       throw StateError('Backend reported success without a credential.');
     }
-    await _store.write(
-      Credential(
-        endpoint: endpoint.toString(),
-        kind: CredentialKind.authKey,
-        authToken: '$keyId:$key',
-      ),
+    final credential = Credential(
+      endpoint: endpoint.toString(),
+      kind: CredentialKind.authKey,
+      authToken: '$keyId:$key',
     );
+    await _store.write(credential);
+    return credential;
+  }
+
+  /// The dashboard to create an organization in, when the signed-in account
+  /// has none; null when it has one or the read fails.
+  Future<String?> _dashboardWhenNoOrganization(
+    _PendingLogin pending,
+    Credential credential,
+  ) async {
+    try {
+      final organizations = await _withRawApi(
+        pending.endpoint,
+        credential: credential,
+        body: (api) => DiscoveryApi(api).listOrganizations(),
+      );
+      if (organizations.isNotEmpty) return null;
+      final dashboard = Uri.tryParse(pending.verificationUri);
+      return dashboard != null && dashboard.hasAuthority
+          ? dashboard.origin
+          : '';
+    } on Object {
+      return null;
+    }
   }
 
   /// Whether [email] contains a secret a backend should never place there: the

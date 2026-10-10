@@ -12,7 +12,7 @@ const String kFlowExperimentContractKind = 'flow';
 
 /// Frozen wire version for a V1 flow-experiment client contract.
 const int kFlowExperimentClientContractVersionV1 = 1;
-const int _flowDocumentSchemaVersion = 1;
+const int _flowScreenArtifactSchemaVersion = 1;
 const int _maxFlowExperimentClosureDepth = 4;
 const String _flowExperimentHashDomain =
     'restage.flow-experiment-client-contract.v1\n';
@@ -118,11 +118,6 @@ final class FlowExperimentDocumentContract {
   }) {
     _checkIdentifier(flowId, r'$.flowId');
     _checkPositiveInt(version, r'$.version');
-    if (schemaVersion != _flowDocumentSchemaVersion) {
-      throw FormatException(
-        'Unsupported flow document schemaVersion $schemaVersion.',
-      );
-    }
     _checkPositiveInt(minClient, r'$.minClient');
 
     final canonicalLibraries = _canonicalRequiredLibraries(
@@ -179,6 +174,46 @@ final class FlowExperimentDocumentContract {
         _canonicalFlowDocumentBytes =
             Uint8List.fromList(canonicalFlowDocumentBytes);
 
+  /// Checks exact reachable documents without an installed client snapshot.
+  static void checkCompleteClosure({
+    required Surface surfaceType,
+    required FlowDeliveryMode deliveryMode,
+    required FlowExperimentDescriptor descriptor,
+    required List<FlowExperimentDocumentContract> documents,
+  }) {
+    _checkIdentifier(descriptor.id, r'$.descriptor.id');
+    _checkPositiveInt(descriptor.version, r'$.descriptor.version');
+    _checkPositiveInt(descriptor.minClient, r'$.descriptor.minClient');
+    _checkCompleteBaselineClosure(
+      surfaceType: surfaceType,
+      deliveryMode: deliveryMode,
+      descriptor: descriptor,
+      documents: _canonicalDocuments(documents),
+    );
+  }
+
+  /// Selects one exact reachable closure from available package documents.
+  ///
+  /// Uses the same identity, hash, mode, floor, cycle, and depth validation as
+  /// [checkCompleteClosure], while leaving unrelated publication roots out.
+  static List<FlowExperimentDocumentContract> selectCompleteClosure({
+    required Surface surfaceType,
+    required FlowDeliveryMode deliveryMode,
+    required FlowExperimentDescriptor descriptor,
+    required List<FlowExperimentDocumentContract> documents,
+  }) {
+    _checkIdentifier(descriptor.id, r'$.descriptor.id');
+    _checkPositiveInt(descriptor.version, r'$.descriptor.version');
+    _checkPositiveInt(descriptor.minClient, r'$.descriptor.minClient');
+    return _checkCompleteBaselineClosure(
+      surfaceType: surfaceType,
+      deliveryMode: deliveryMode,
+      descriptor: descriptor,
+      documents: _canonicalDocuments(documents),
+      allowUnrelated: true,
+    );
+  }
+
   /// Surface category of this closure node.
   final Surface surfaceType;
 
@@ -188,7 +223,10 @@ final class FlowExperimentDocumentContract {
   /// Exact flow version.
   final int version;
 
-  /// Supported flow schema version. V1 accepts exactly schema 1.
+  /// Document schema version validated by the FlowDocument codec.
+  ///
+  /// The codec currently accepts schemas 1 and 2 independently of this
+  /// wrapper's contract version.
   final int schemaVersion;
 
   /// Document capability floor.
@@ -767,11 +805,12 @@ List<LibraryRequirement> _canonicalRequiredLibraries(
   return List.unmodifiable(canonical);
 }
 
-void _checkCompleteBaselineClosure({
+List<FlowExperimentDocumentContract> _checkCompleteBaselineClosure({
   required Surface surfaceType,
   required FlowDeliveryMode deliveryMode,
   required FlowExperimentDescriptor descriptor,
   required List<FlowExperimentDocumentContract> documents,
+  bool allowUnrelated = false,
 }) {
   final byIdentity = {
     for (final document in documents) _documentIdentity(document): document,
@@ -805,11 +844,13 @@ void _checkCompleteBaselineClosure({
     path: <String>{},
     depth: 0,
   );
-  if (reached.length != documents.length) {
+  if (!allowUnrelated && reached.length != documents.length) {
     throw const FormatException(
       'Flow experiment baseline closure contains unreachable documents.',
     );
   }
+  return List.unmodifiable(documents
+      .where((document) => reached.contains(_documentIdentity(document))));
 }
 
 void _walkExactClosure({

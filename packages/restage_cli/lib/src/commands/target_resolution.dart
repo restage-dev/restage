@@ -188,7 +188,7 @@ ResolvedEnvironmentTargetContext _selectionInSnapshot(
   return ResolvedEnvironmentTargetContext(
     projectSlug: projectSlug,
     appSlug: appSlug,
-    organizationId: snapshot.organizationId,
+    organizationId: organization.organizationId,
     organizationSlug: organization.slug,
     appId: apps.single.appId!,
     target: candidates.single,

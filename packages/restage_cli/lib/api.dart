@@ -84,3 +84,4 @@ export 'src/libraries/library_contract_check.dart';
 export 'src/receipts/release_recorder.dart'
     show ReleaseRecorder, ReleaseRecorderException;
 export 'src/credentials/file_credential_store.dart';
+export 'src/config/config_target_check.dart' show noOrganizationSentence;

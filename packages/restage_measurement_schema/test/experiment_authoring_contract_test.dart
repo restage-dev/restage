@@ -62,6 +62,7 @@ void main() {
           correlationId: 'correlation-open-1',
           idempotencyKey: 'idempotency-open-1',
           payload: {
+            'root': _root(),
             'initialCandidate': _surfaceReference(
               'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
             ),
@@ -552,6 +553,7 @@ void main() {
               correlationId: 'correlation-family-boundary-1',
               idempotencyKey: 'idempotency-family-boundary-1',
               payload: {
+                'root': _root(),
                 'initialCandidate': _surfaceReference(
                   'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
                 ),
@@ -1398,8 +1400,7 @@ void main() {
 
       final unresolved = <Map<String, Object?>>[
         _draftChoices()..['arms'] = <Object?>[],
-        _draftChoices()
-          ..['rootSurfaceSelection'] = const {'kind': 'unselected'},
+        _draftChoices()..['rootSelection'] = const {'kind': 'unselected'},
         _draftChoices()
           ..['assignmentAudienceSelection'] = const {'kind': 'unselected'},
         _draftChoices()
@@ -2315,21 +2316,24 @@ void main() {
       expect(policy.source, isA<ExperimentCanonicalAuthorityDefaultSourceV1>());
       expect(policy.toJson(), policyDefault);
 
-      final surfaceDefault = {
-        'kind': 'serverDefault',
-        'resolvedExactRef': _surfaceReference(
-          'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-        ),
-        'source': sources[1],
-      };
-      final surface = ExperimentSurfaceSelectionV1.fromJson(
-        surfaceDefault,
-        path: 'surface',
-      );
+      // A root is always explicit; publication-candidate defaults never
+      // select it.
       expect(
-        surface.source,
-        isA<ExperimentPublicationCandidateDefaultSourceV1>(),
+        () => ExperimentRootSelectionV1.fromJson(
+          {
+            'kind': 'serverDefault',
+            'resolvedExactRef': _root(),
+            'source': sources[1],
+          },
+          path: 'root',
+        ),
+        throwsA(isA<CanonicalFormatException>()),
       );
+      final root = ExperimentRootSelectionV1.fromJson(
+        {'kind': 'exactRef', 'resolvedExactRef': _root()},
+        path: 'root',
+      );
+      expect(root.resolvedExactRef, DeliveryRootIdentityV1.fromJson(_root()));
 
       for (final invalid in <Map<String, Object?>>[
         Map<String, Object?>.from(policyDefault)..remove('source'),
@@ -2486,11 +2490,9 @@ void main() {
       expectRejected(pointChoices);
 
       final rootChoices = _draftChoices()
-        ..['rootSurfaceSelection'] = {
+        ..['rootSelection'] = {
           'kind': 'serverDefault',
-          'resolvedExactRef': _surfaceReference(
-            'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-          ),
+          'resolvedExactRef': _root(),
           'source': _publicationCandidateDefaultSource(
             _exactCandidate(
               'surface-revision.v1.7d3075e37f279dc1bfc10615efd7f342804f3c7140c1a412b3be04591e07fef1',
@@ -3118,18 +3120,17 @@ void main() {
         choices.primaryBindingSelection.kind,
         'exactRef',
       );
+      expect(choices.rootSelection.kind, 'exactRef');
       expect(
-        choices.rootSurfaceSelection.source,
-        isA<ExperimentPublicationCandidateDefaultSourceV1>(),
+        choices.rootSelection.resolvedExactRef,
+        DeliveryRootIdentityV1.fromJson(_root()),
       );
 
       for (final invalid in <Map<String, Object?>>[
         _draftChoices()
-          ..['rootSurfaceSelection'] = {
+          ..['rootSelection'] = {
             'kind': 'serverDefault',
-            'resolvedExactRef': _surfaceReference(
-              'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-            ),
+            'resolvedExactRef': _root(),
           },
         _draftChoices()
           ..['primaryBindingSelection'] = const {
@@ -3155,7 +3156,18 @@ void main() {
       }
 
       final mutation = _incompleteDraftMutationChoices(
-        rootSurfaceSelection: const {'kind': 'serverDefault'},
+        rootSelection: {'kind': 'exactRef', 'exactRef': _root()},
+      );
+      expect(
+        () => ExperimentAuthoringRequestV1.fromJson(
+          _request(
+            operation: 'replaceDraft',
+            correlationId: 'correlation-root-exact-1',
+            idempotencyKey: 'idempotency-root-exact-1',
+            payload: {..._draftBinding(), 'replacement': mutation},
+          ),
+        ),
+        returnsNormally,
       );
       expect(
         () => ExperimentAuthoringRequestV1.fromJson(
@@ -3163,10 +3175,15 @@ void main() {
             operation: 'replaceDraft',
             correlationId: 'correlation-root-default-1',
             idempotencyKey: 'idempotency-root-default-1',
-            payload: {..._draftBinding(), 'replacement': mutation},
+            payload: {
+              ..._draftBinding(),
+              'replacement': _incompleteDraftMutationChoices(
+                rootSelection: const {'kind': 'serverDefault'},
+              ),
+            },
           ),
         ),
-        returnsNormally,
+        throwsA(isA<CanonicalFormatException>()),
       );
       expect(
         () => ExperimentAuthoringRequestV1.fromJson(
@@ -3177,7 +3194,7 @@ void main() {
             payload: {
               ..._draftBinding(),
               'replacement': _incompleteDraftMutationChoices(
-                rootSurfaceSelection: {
+                rootSelection: {
                   'kind': 'serverDefault',
                   'source': _publicationCandidateDefaultSource(
                     _exactCandidate(
@@ -6745,6 +6762,16 @@ Map<String, Object?> _target() => const {
       'schemaVersion': 1,
     };
 
+const _targetCoordinateKeys = {
+  'appId',
+  'environmentTargetId',
+  'kind',
+  'namedEnvironmentId',
+  'organizationId',
+  'runtimePlane',
+  'schemaVersion',
+};
+
 Map<String, Object?> _otherTarget() => {
       ..._target(),
       'environmentTargetId': 32,
@@ -6759,6 +6786,15 @@ Map<String, Object?> _surfaceReference(
       'surfaceId': _mintedSurfaceId(surfaceName),
       'surfaceRevisionId': revisionId,
     };
+
+Map<String, Object?> _root() => DeliveryRootIdentityV1.surface(
+      PublishedSurfaceIdentityV1.fromJson({
+        'kind': 'publishedSurfaceIdentity',
+        'schemaVersion': 1,
+        'surfaceId': _mintedSurfaceId('surface.checkout'),
+        'target': _target(),
+      }),
+    ).toJson();
 
 Map<String, Object?> _exactCandidate(String revisionId) => {
       'kind': 'exactCandidate',
@@ -7226,17 +7262,7 @@ Map<String, Object?> _draftChoices() => {
         'kind': 'explicitValue',
         'value': 'installation',
       },
-      'rootSurfaceSelection': {
-        'kind': 'serverDefault',
-        'resolvedExactRef': _surfaceReference(
-          'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-        ),
-        'source': _publicationCandidateDefaultSource(
-          _exactCandidate(
-            'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-          ),
-        ),
-      },
+      'rootSelection': {'kind': 'exactRef', 'resolvedExactRef': _root()},
       'subjectSelection': const {'kind': 'subjectless'},
     };
 
@@ -7405,19 +7431,9 @@ Map<String, Object?> _resolvedPartialDraftChoices({bool zero = false}) => {
         'kind': 'explicitValue',
         'value': 'installation',
       },
-      'rootSurfaceSelection': zero
+      'rootSelection': zero
           ? const {'kind': 'unselected'}
-          : {
-              'kind': 'serverDefault',
-              'resolvedExactRef': _surfaceReference(
-                'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-              ),
-              'source': _publicationCandidateDefaultSource(
-                _exactCandidate(
-                  'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
-                ),
-              ),
-            },
+          : {'kind': 'exactRef', 'resolvedExactRef': _root()},
       'subjectSelection': const {'kind': 'subjectless'},
     };
 
@@ -7457,7 +7473,7 @@ Map<String, Object?> _incompleteDraftMutationChoices({
   Map<String, Object?>? assignmentAudienceSelection,
   Map<String, Object?>? assignmentEligibilitySelection,
   Map<String, Object?>? randomizedUnitSelection,
-  Map<String, Object?>? rootSurfaceSelection,
+  Map<String, Object?>? rootSelection,
   Map<String, Object?>? memberNoTreatmentSelection,
   Map<String, Object?>? primaryBindingSelection,
   Map<String, Object?>? candidateSelection,
@@ -7524,8 +7540,7 @@ Map<String, Object?> _incompleteDraftMutationChoices({
           primaryBindingSelection ?? const {'kind': 'unselected'},
       'randomizedUnitSelection':
           randomizedUnitSelection ?? const {'kind': 'serverDefault'},
-      'rootSurfaceSelection':
-          rootSurfaceSelection ?? const {'kind': 'unselected'},
+      'rootSelection': rootSelection ?? const {'kind': 'unselected'},
       'subjectSelection': subjectSelection ?? const {'kind': 'subjectless'},
     };
 
@@ -8307,7 +8322,22 @@ void _expectNoSensitiveKeys(
       fail('Public JSON contains a byte carrier at $path.${entry.key}');
     }
     if (request) {
-      expect(normalized, isNot(equals('target')), reason: '$path.${entry.key}');
+      // An explicit delivery root names its own public target coordinate.
+      if (entry.key == 'target' &&
+          (path == r'$.payload.root.surface' ||
+              path == r'$.payload.root.placement')) {
+        expect(
+          (entry.value! as Map<String, Object?>).keys.toSet(),
+          _targetCoordinateKeys,
+          reason: '$path.${entry.key}',
+        );
+      } else {
+        expect(
+          normalized,
+          isNot(equals('target')),
+          reason: '$path.${entry.key}',
+        );
+      }
       expect(
         normalized,
         isNot(contains('epoch')),

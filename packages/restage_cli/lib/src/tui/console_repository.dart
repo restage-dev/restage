@@ -11,6 +11,8 @@ import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -337,6 +339,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
     ProgrammaticScopeSnapshot scope,
     RestageConfig config,
   ) {
+    if (scope.organizations.isEmpty) {
+      throw const ConsoleLoadException(noOrganizationSentence);
+    }
     final candidates = scope.organizations
         .where(
           (organization) =>

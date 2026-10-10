@@ -3,6 +3,43 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' as catalog;
 import 'package:test/test.dart';
 
 void main() {
+  test('round trips typed resolution and inspects lowered local bodies', () {
+    final input = _inputFor(
+      localNames: const ['InlineBadge', 'Dead', 'Paywall'],
+    );
+    final decoded =
+        RfwCatalogOccurrenceResolutionInput.fromJson(input.toJson());
+    expect(decoded.toJson(), input.toJson());
+    final library = parseLibraryFile('''
+widget InlineBadge = BuiltInCard(
+  title: data.context.hidden,
+  onTap: event "hidden_event" {},
+  child: UnknownNative(),
+);
+widget Dead = BuiltInCard(title: data.context.unreachable,
+  onTap: event "unreachable_event" {});
+widget Paywall = InlineBadge();
+''');
+    final resolved = ResolvedRfwCatalogOccurrenceSet.resolve(
+      parsedLibrary: library,
+      input: decoded,
+    );
+    final handles = resolved.occurrences.map((value) => value.handle).toList();
+    final body = resolved.inspectFinalBody(library);
+    expect(body.constructorCalls.map((call) => call.name),
+        ['InlineBadge', 'BuiltInCard', 'UnknownNative']);
+    expect(body.events.map((event) => event.eventName), ['hidden_event']);
+    expect(body.dataReferences.map((reference) => reference.parts), [
+      ['context', 'hidden']
+    ]);
+    expect(resolved.occurrences.map((value) => value.handle), handles);
+    expect(
+        () => RfwCatalogOccurrenceResolutionInput.fromJson(
+              {...input.toJson(), 'unknown': true},
+            ),
+        throwsFormatException);
+  });
+
   test('resolves root calls and reachable ordinary local bodies', () {
     final set = _resolve(_source());
 

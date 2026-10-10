@@ -304,7 +304,7 @@ const emptyDraftChoices = <String, Object?>{
   'metricBindings': <Object?>[],
   'primaryBindingSelection': {'kind': 'unselected'},
   'randomizedUnitSelection': {'kind': 'serverDefault'},
-  'rootSurfaceSelection': {'kind': 'unselected'},
+  'rootSelection': {'kind': 'unselected'},
   'subjectSelection': {'kind': 'subjectless'},
 };
 

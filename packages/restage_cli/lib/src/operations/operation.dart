@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
@@ -183,7 +185,7 @@ class OperationTarget {
     if (organizations.length == 1) return organizations.single.organizationId;
     throw TargetSelectionException(
       organizations.isEmpty
-          ? 'No organizations found for this account.'
+          ? noOrganizationSentence
           : 'You belong to multiple organizations. Pass '
                 '${syntax.organization}.',
     );
@@ -219,6 +221,7 @@ class Operation {
     this.params = const [],
     this.resultKey,
     this.columns,
+    this.emptyNote,
     this.validate,
     this.render,
     this.toJson,
@@ -258,6 +261,9 @@ class Operation {
 
   /// Table columns for a list, or record lines for one row.
   final List<OperationColumn>? columns;
+
+  /// What the CLI says in place of an empty list.
+  final String? emptyNote;
 
   /// A cross-parameter check, worded with [name] for each parameter key.
   final String? Function(OperationArgs args, String Function(String key) name)?

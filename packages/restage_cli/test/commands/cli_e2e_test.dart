@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -88,6 +90,21 @@ void main() {
           'key': 'secret-key-xyz',
           'userInfo': <String, dynamic>{'id': 7, 'email': 'jane@example.com'},
         }),
+        // 4. the account's organizations, read with the new credential
+        (req, _) {
+          expect(
+            (jsonDecode(req.body) as Map<String, dynamic>)['method'],
+            'listMine',
+          );
+          return _jsonResponse(<Object?>[
+            <String, dynamic>{
+              'organizationId': 1,
+              'slug': 'acme',
+              'name': 'Acme',
+              'role': 'owner',
+            },
+          ]);
+        },
       ]);
 
       final cli = RestageCli(
@@ -112,6 +129,7 @@ void main() {
       expect(expires, inInclusiveRange(before + 600, before + 610));
       expect(stdout.toString(), contains(opened));
       expect(stdout.toString(), contains('Signed in as jane@example.com'));
+      expect(stdout.toString(), isNot(contains(noOrganizationSentence)));
 
       final stored = await store.read();
       expect(stored, isNotNull);
@@ -149,6 +167,47 @@ void main() {
       expect(exit, 1);
       expect(stderr.toString(), contains('expired'));
       expect(await store.read(), isNull);
+    });
+
+    test('signing in to an account with no organization says where to make '
+        'one', () async {
+      final client = _scriptedClient(<_ScriptStep>[
+        (_, _) => _jsonResponse(<String, dynamic>{
+          '__className__': 'DeviceAuthorizationStart',
+          'deviceCode': 'dc',
+          'userCode': 'XXXX-YYYY',
+          'verificationUri': 'https://dash.example.com/device',
+          'expiresInSeconds': 600,
+          'pollIntervalSeconds': 5,
+        }),
+        (_, _) => _jsonResponse(<String, dynamic>{
+          '__className__': 'DeviceAuthorizationResult',
+          'status': 'success',
+          'keyId': 42,
+          'key': 'secret-key-xyz',
+        }),
+        (_, _) => _jsonResponse(<Object?>[]),
+      ]);
+
+      final cli = RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: client,
+        sleep: (_) async {},
+        openBrowser: (_) async {},
+      );
+      final exit = await cli.run(const ['login']);
+
+      expect(exit, 0, reason: stderr.toString());
+      expect(
+        stdout.toString(),
+        endsWith(
+          'Signed in.\n$noOrganizationSentence\nhttps://dash.example.com\n',
+        ),
+      );
+      expect(await store.read(), isNotNull);
     });
 
     test('--no-open suppresses the browser launch', () async {

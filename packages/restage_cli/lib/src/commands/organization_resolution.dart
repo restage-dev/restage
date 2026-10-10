@@ -101,7 +101,7 @@ Future<int?> resolveRequiredOrganizationId({
   try {
     final organizations = await DiscoveryApi(api).listOrganizations();
     if (organizations.isEmpty) {
-      stderr.writeln('No organizations found for this account.');
+      stderr.writeln(noOrganizationSentence);
       return null;
     }
     if (organizations.length != 1) {

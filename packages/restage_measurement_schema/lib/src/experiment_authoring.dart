@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:restage_measurement_schema/src/canonical.dart';
 import 'package:restage_measurement_schema/src/identifiers.dart';
+import 'package:restage_measurement_schema/src/delivery_identity.dart';
 import 'package:restage_measurement_schema/src/manifest.dart'
     show kMaximumGeneratedPresentationReferenceCount;
 import 'package:restage_measurement_schema/src/target.dart';
@@ -2070,94 +2071,27 @@ final class ExperimentRandomizedUnitSelectionV1
   final ExperimentRandomizedUnitDefaultsV1? source;
 }
 
-/// A required exact-surface choice in a partial or resolved draft.
-sealed class ExperimentSurfaceSelectionV1 extends _ExperimentAuthoringValue {
-  ExperimentSurfaceSelectionV1._(
-    super.json,
-    this.kind,
-    this.resolvedExactRef,
-    this.source,
-  );
+/// An explicit surface or placement root in a partial or resolved draft.
+final class ExperimentRootSelectionV1 extends _ExperimentAuthoringValue {
+  ExperimentRootSelectionV1._(super.json, this.kind, this.resolvedExactRef);
 
-  factory ExperimentSurfaceSelectionV1.fromJson(
-    Map<String, Object?> json, {
-    required String path,
-  }) {
+  factory ExperimentRootSelectionV1.fromJson(Map<String, Object?> json,
+      {required String path}) {
     final kind = _readDiscriminator(json, path);
-    final reader = CanonicalObjectReader(
-      json,
-      allowedKeys: switch (kind) {
-        'unselected' => const {'kind'},
-        'serverDefault' => const {'kind', 'resolvedExactRef', 'source'},
-        _ => const {'kind', 'resolvedExactRef'},
-      },
-      requiredKeys: switch (kind) {
-        'unselected' => const {'kind'},
-        'serverDefault' => const {'kind', 'resolvedExactRef', 'source'},
-        _ => const {'kind', 'resolvedExactRef'},
-      },
-      path: path,
-    );
-    switch (kind) {
-      case 'unselected':
-        return ExperimentUnselectedSurfaceV1._(json);
-      case 'serverDefault':
-        final reference = ExperimentExactSurfaceReferenceV1.fromJson(
-          reader.object('resolvedExactRef'),
-          path: '$path.resolvedExactRef',
-        );
-        final source = ExperimentResolvedDefaultSourceV1.fromJson(
-          reader.object('source'),
-          path: '$path.source',
-        );
-        _requireResolvedDefaultSourceBinding(
-          resolvedExactRef: reference,
-          source: source,
-          path: path,
-        );
-        return ExperimentServerDefaultSurfaceV1._(
-          json,
-          reference,
-          source,
-        );
-      case 'exactRef':
-        return ExperimentExactSurfaceSelectionV1._(
-          json,
-          ExperimentExactSurfaceReferenceV1.fromJson(
-            reader.object('resolvedExactRef'),
-            path: '$path.resolvedExactRef',
-          ),
-        );
-      default:
-        throw CanonicalFormatException('$path.kind "$kind" is unsupported');
-    }
+    final keys = kind == 'unselected'
+        ? const {'kind'}
+        : const {'kind', 'resolvedExactRef'};
+    final reader = CanonicalObjectReader(json,
+        allowedKeys: keys, requiredKeys: keys, path: path);
+    if (kind == 'unselected')
+      return ExperimentRootSelectionV1._(json, kind, null);
+    if (kind != 'exactRef')
+      throw CanonicalFormatException('$path.kind "$kind" is unsupported');
+    return ExperimentRootSelectionV1._(json, kind,
+        DeliveryRootIdentityV1.fromJson(reader.object('resolvedExactRef')));
   }
-
   final String kind;
-  final ExperimentExactSurfaceReferenceV1? resolvedExactRef;
-  final ExperimentResolvedDefaultSourceV1? source;
-}
-
-final class ExperimentUnselectedSurfaceV1 extends ExperimentSurfaceSelectionV1 {
-  ExperimentUnselectedSurfaceV1._(Map<String, Object?> json)
-      : super._(json, 'unselected', null, null);
-}
-
-final class ExperimentServerDefaultSurfaceV1
-    extends ExperimentSurfaceSelectionV1 {
-  ExperimentServerDefaultSurfaceV1._(
-    Map<String, Object?> json,
-    ExperimentExactSurfaceReferenceV1 reference,
-    ExperimentResolvedDefaultSourceV1 source,
-  ) : super._(json, 'serverDefault', reference, source);
-}
-
-final class ExperimentExactSurfaceSelectionV1
-    extends ExperimentSurfaceSelectionV1 {
-  ExperimentExactSurfaceSelectionV1._(
-    Map<String, Object?> json,
-    ExperimentExactSurfaceReferenceV1 reference,
-  ) : super._(json, 'exactRef', reference, null);
+  final DeliveryRootIdentityV1? resolvedExactRef;
 }
 
 /// Subject selection for the independent experiment profile.
@@ -2429,14 +2363,53 @@ final class ExperimentPointSubtreeTreatmentOriginV1
   final List<ExperimentPointSubtreeTreatmentLocusV1> loci;
 }
 
+/// A selected exact version or an unsealed live surface request.
+sealed class ExperimentAuthoringCandidateV1 extends _ExperimentAuthoringValue {
+  ExperimentAuthoringCandidateV1._(super.json);
+  factory ExperimentAuthoringCandidateV1.fromJson(Map<String, Object?> json,
+          {required String path}) =>
+      switch (_readDiscriminator(json, path)) {
+        'exactCandidate' =>
+          ExperimentExactCandidateV1.fromJson(json, path: path),
+        'surfaceCandidate' =>
+          ExperimentSurfaceCandidateV1.fromJson(json, path: path),
+        final kind =>
+          throw CanonicalFormatException('$path.kind "$kind" is unsupported'),
+      };
+  String get label;
+}
+
+/// Whole-root surface request without an invented exact publication version.
+final class ExperimentSurfaceCandidateV1
+    extends ExperimentAuthoringCandidateV1 {
+  ExperimentSurfaceCandidateV1._(super.json,
+      {required this.label, required this.surfaceReference})
+      : super._();
+  factory ExperimentSurfaceCandidateV1.fromJson(Map<String, Object?> json,
+      {required String path}) {
+    final reader = CanonicalObjectReader(json,
+        allowedKeys: const {'kind', 'label', 'surfaceReference'},
+        requiredKeys: const {'kind', 'label', 'surfaceReference'},
+        path: path);
+    _requireKind(reader, 'surfaceCandidate');
+    return ExperimentSurfaceCandidateV1._(json,
+        label: _boundedString(reader.string('label'), '$path.label'),
+        surfaceReference: DeliverySurfaceReferenceV1.fromJson(
+            reader.object('surfaceReference')));
+  }
+  @override
+  final String label;
+  final DeliverySurfaceReferenceV1 surfaceReference;
+}
+
 /// Exact compatible candidate selected for an arm or holdout.
-final class ExperimentExactCandidateV1 extends _ExperimentAuthoringValue {
+final class ExperimentExactCandidateV1 extends ExperimentAuthoringCandidateV1 {
   ExperimentExactCandidateV1._(
     Map<String, Object?> json, {
     required this.label,
     required this.surfaceReference,
     required this.treatmentOrigin,
-  }) : super(json);
+  }) : super._(json);
 
   factory ExperimentExactCandidateV1.fromJson(
     Map<String, Object?> json, {
@@ -2524,7 +2497,7 @@ final class ExperimentDraftArmChoiceV1 extends _ExperimentAuthoringValue {
       ),
       label: _boundedString(reader.string('label'), '$path.label'),
       relativeWeight: relativeWeight,
-      candidate: ExperimentExactCandidateV1.fromJson(
+      candidate: ExperimentAuthoringCandidateV1.fromJson(
         reader.object('candidate'),
         path: '$path.candidate',
       ),
@@ -2534,7 +2507,7 @@ final class ExperimentDraftArmChoiceV1 extends _ExperimentAuthoringValue {
   final ExperimentStableArmIdV1 stableArmId;
   final String label;
   final int relativeWeight;
-  final ExperimentExactCandidateV1 candidate;
+  final ExperimentAuthoringCandidateV1 candidate;
 
   /// This arm in the draft-mutation vocabulary.
   Map<String, Object?> toMutationJson() => <String, Object?>{
@@ -2588,7 +2561,7 @@ final class ExperimentDraftMemberHoldoutChoiceV1
         AuthorityRevisionId.new,
       ),
       label: _boundedString(reader.string('label'), '$path.label'),
-      candidate: ExperimentExactCandidateV1.fromJson(
+      candidate: ExperimentAuthoringCandidateV1.fromJson(
         reader.object('candidate'),
         path: '$path.candidate',
       ),
@@ -2597,7 +2570,7 @@ final class ExperimentDraftMemberHoldoutChoiceV1
 
   final AuthorityRevisionId holdoutId;
   final String label;
-  final ExperimentExactCandidateV1 candidate;
+  final ExperimentAuthoringCandidateV1 candidate;
 
   /// This holdout in the draft-mutation vocabulary.
   Map<String, Object?> toMutationJson() => <String, Object?>{
@@ -2855,11 +2828,11 @@ final class ExperimentResolvedPartialDraftArmChoiceV1
       ),
       relativeWeight: relativeWeight,
       candidateSelection: ExperimentResolvedExactSelectionV1<
-          ExperimentExactCandidateV1>.fromJson(
+          ExperimentAuthoringCandidateV1>.fromJson(
         reader.object('candidateSelection'),
         path: '$path.candidateSelection',
         decodeResolvedExactRef: (value, itemPath) =>
-            ExperimentExactCandidateV1.fromJson(value, path: itemPath),
+            ExperimentAuthoringCandidateV1.fromJson(value, path: itemPath),
       ),
     );
   }
@@ -2867,7 +2840,7 @@ final class ExperimentResolvedPartialDraftArmChoiceV1
   final ExperimentStableArmIdV1 stableArmId;
   final String label;
   final int relativeWeight;
-  final ExperimentResolvedExactSelectionV1<ExperimentExactCandidateV1>
+  final ExperimentResolvedExactSelectionV1<ExperimentAuthoringCandidateV1>
       candidateSelection;
 
   /// This arm in the draft-mutation vocabulary.
@@ -2926,18 +2899,18 @@ final class ExperimentResolvedPartialDraftMemberHoldoutChoiceV1
         allowEmpty: true,
       ),
       candidateSelection: ExperimentResolvedExactSelectionV1<
-          ExperimentExactCandidateV1>.fromJson(
+          ExperimentAuthoringCandidateV1>.fromJson(
         reader.object('candidateSelection'),
         path: '$path.candidateSelection',
         decodeResolvedExactRef: (value, itemPath) =>
-            ExperimentExactCandidateV1.fromJson(value, path: itemPath),
+            ExperimentAuthoringCandidateV1.fromJson(value, path: itemPath),
       ),
     );
   }
 
   final AuthorityRevisionId holdoutId;
   final String label;
-  final ExperimentResolvedExactSelectionV1<ExperimentExactCandidateV1>
+  final ExperimentResolvedExactSelectionV1<ExperimentAuthoringCandidateV1>
       candidateSelection;
 
   /// This holdout in the draft-mutation vocabulary.
@@ -3231,8 +3204,8 @@ sealed class ExperimentDraftReadChoicesV1 extends _ExperimentAuthoringValue {
       'randomizedUnitSelection': _mutationSelectionJson(
         _mutationObject(json, 'randomizedUnitSelection'),
       ),
-      'rootSurfaceSelection': _mutationSelectionJson(
-        _mutationObject(json, 'rootSurfaceSelection'),
+      'rootSelection': _mutationSelectionJson(
+        _mutationObject(json, 'rootSelection'),
       ),
       'subjectSelection': _mutationSelectionJson(
         _mutationObject(json, 'subjectSelection'),
@@ -3350,7 +3323,7 @@ final class ExperimentResolvedPartialDraftChoicesV1
     required this.metricBindings,
     required this.primaryBindingSelection,
     required this.randomizedUnitSelection,
-    required this.rootSurfaceSelection,
+    required this.rootSelection,
     required this.subjectSelection,
   }) : super._(json);
 
@@ -3376,7 +3349,7 @@ final class ExperimentResolvedPartialDraftChoicesV1
         'metricBindings',
         'primaryBindingSelection',
         'randomizedUnitSelection',
-        'rootSurfaceSelection',
+        'rootSelection',
         'subjectSelection',
       },
       requiredKeys: const {
@@ -3395,7 +3368,7 @@ final class ExperimentResolvedPartialDraftChoicesV1
         'metricBindings',
         'primaryBindingSelection',
         'randomizedUnitSelection',
-        'rootSurfaceSelection',
+        'rootSelection',
         'subjectSelection',
       },
       path: path,
@@ -3495,11 +3468,11 @@ final class ExperimentResolvedPartialDraftChoicesV1
         ),
       ),
       memberNoTreatment: ExperimentResolvedExactSelectionV1<
-          ExperimentExactCandidateV1>.fromJson(
+          ExperimentAuthoringCandidateV1>.fromJson(
         reader.object('memberNoTreatment'),
         path: '$path.memberNoTreatment',
         decodeResolvedExactRef: (value, itemPath) =>
-            ExperimentExactCandidateV1.fromJson(value, path: itemPath),
+            ExperimentAuthoringCandidateV1.fromJson(value, path: itemPath),
       ),
       metricBindings: metricBindings,
       primaryBindingSelection: primaryBindingSelection,
@@ -3507,9 +3480,9 @@ final class ExperimentResolvedPartialDraftChoicesV1
         reader.object('randomizedUnitSelection'),
         path: '$path.randomizedUnitSelection',
       ),
-      rootSurfaceSelection: ExperimentSurfaceSelectionV1.fromJson(
-        reader.object('rootSurfaceSelection'),
-        path: '$path.rootSurfaceSelection',
+      rootSelection: ExperimentRootSelectionV1.fromJson(
+        reader.object('rootSelection'),
+        path: '$path.rootSelection',
       ),
       subjectSelection: ExperimentSubjectSelectionV1.fromJson(
         reader.object('subjectSelection'),
@@ -3531,13 +3504,13 @@ final class ExperimentResolvedPartialDraftChoicesV1
   final List<AuthorityRevisionId> layerHoldoutIds;
   final List<ExperimentResolvedPartialDraftMemberHoldoutChoiceV1>
       memberHoldouts;
-  final ExperimentResolvedExactSelectionV1<ExperimentExactCandidateV1>
+  final ExperimentResolvedExactSelectionV1<ExperimentAuthoringCandidateV1>
       memberNoTreatment;
   final List<ExperimentResolvedPartialDraftMetricBindingChoiceV1>
       metricBindings;
   final ExperimentPrimaryBindingSelectionV1 primaryBindingSelection;
   final ExperimentRandomizedUnitSelectionV1 randomizedUnitSelection;
-  final ExperimentSurfaceSelectionV1 rootSurfaceSelection;
+  final ExperimentRootSelectionV1 rootSelection;
   final ExperimentSubjectSelectionV1 subjectSelection;
 }
 
@@ -3559,7 +3532,7 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
     required this.metricBindings,
     required this.primaryBindingSelection,
     required this.randomizedUnitSelection,
-    required this.rootSurfaceSelection,
+    required this.rootSelection,
     required this.subjectSelection,
   }) : super._(json);
 
@@ -3591,7 +3564,7 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
         'metricBindings',
         'primaryBindingSelection',
         'randomizedUnitSelection',
-        'rootSurfaceSelection',
+        'rootSelection',
         'subjectSelection',
       },
       requiredKeys: const {
@@ -3610,7 +3583,7 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
         'metricBindings',
         'primaryBindingSelection',
         'randomizedUnitSelection',
-        'rootSurfaceSelection',
+        'rootSelection',
         'subjectSelection',
       },
       path: path,
@@ -3729,11 +3702,11 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
         ),
       ),
       memberNoTreatment: ExperimentResolvedExactSelectionV1<
-          ExperimentExactCandidateV1>.fromJson(
+          ExperimentAuthoringCandidateV1>.fromJson(
         reader.object('memberNoTreatment'),
         path: '$path.memberNoTreatment',
         decodeResolvedExactRef: (value, itemPath) =>
-            ExperimentExactCandidateV1.fromJson(value, path: itemPath),
+            ExperimentAuthoringCandidateV1.fromJson(value, path: itemPath),
       ),
       metricBindings: metricBindings,
       primaryBindingSelection: primaryBindingSelection,
@@ -3741,9 +3714,9 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
         reader.object('randomizedUnitSelection'),
         path: '$path.randomizedUnitSelection',
       ),
-      rootSurfaceSelection: ExperimentSurfaceSelectionV1.fromJson(
-        reader.object('rootSurfaceSelection'),
-        path: '$path.rootSurfaceSelection',
+      rootSelection: ExperimentRootSelectionV1.fromJson(
+        reader.object('rootSelection'),
+        path: '$path.rootSelection',
       ),
       subjectSelection: ExperimentSubjectSelectionV1.fromJson(
         reader.object('subjectSelection'),
@@ -3766,12 +3739,12 @@ final class ExperimentDraftChoicesV1 extends ExperimentDraftReadChoicesV1 {
   final String label;
   final List<AuthorityRevisionId> layerHoldoutIds;
   final List<ExperimentDraftMemberHoldoutChoiceV1> memberHoldouts;
-  final ExperimentResolvedExactSelectionV1<ExperimentExactCandidateV1>
+  final ExperimentResolvedExactSelectionV1<ExperimentAuthoringCandidateV1>
       memberNoTreatment;
   final List<ExperimentDraftMetricBindingChoiceV1> metricBindings;
   final ExperimentPrimaryBindingSelectionV1 primaryBindingSelection;
   final ExperimentRandomizedUnitSelectionV1 randomizedUnitSelection;
-  final ExperimentSurfaceSelectionV1 rootSurfaceSelection;
+  final ExperimentRootSelectionV1 rootSelection;
   final ExperimentSubjectSelectionV1 subjectSelection;
 }
 
@@ -3785,7 +3758,7 @@ void _requireCompleteDraftChoices(
       '$path.arms must contain 2..$_maximumArms entries',
     );
   }
-  if (choices.rootSurfaceSelection.resolvedExactRef == null ||
+  if (choices.rootSelection.resolvedExactRef == null ||
       choices.assignmentAudienceSelection.resolvedExactRef == null ||
       choices.assignmentEligibilitySelection.resolvedExactRef == null ||
       choices.memberNoTreatment.resolvedExactRef == null ||
@@ -7844,55 +7817,61 @@ final class ExperimentArmDetailV1 extends _ExperimentAuthoringValue {
     required this.label,
     required this.relativeWeight,
     required this.surfaceRevisionId,
+    required this.surfaceReference,
   }) : super(json);
 
   factory ExperimentArmDetailV1.fromJson(
     Map<String, Object?> json, {
     required String path,
   }) {
-    final reader = CanonicalObjectReader(
-      json,
-      allowedKeys: const {
-        'kind',
-        'label',
-        'relativeWeight',
-        'stableArmId',
-        'surfaceRevisionId',
-      },
-      requiredKeys: const {
-        'kind',
-        'label',
-        'relativeWeight',
-        'stableArmId',
-        'surfaceRevisionId',
-      },
-      path: path,
-    );
+    final version = json.containsKey('surfaceRevisionId');
+    final surface = json.containsKey('surfaceReference');
+    if (version == surface) {
+      throw CanonicalFormatException(
+          '$path requires exactly one exact version or live surface');
+    }
+    final reader = CanonicalObjectReader(json,
+        allowedKeys: {
+          'kind',
+          'label',
+          'relativeWeight',
+          'stableArmId',
+          if (version) 'surfaceRevisionId' else 'surfaceReference'
+        },
+        requiredKeys: {
+          'kind',
+          'label',
+          'relativeWeight',
+          'stableArmId',
+          if (version) 'surfaceRevisionId' else 'surfaceReference'
+        },
+        path: path);
     _requireKind(reader, 'experimentArmDetail');
-    return ExperimentArmDetailV1._(
-      json,
-      stableArmId: _identifier(
-        reader.string('stableArmId'),
-        '$path.stableArmId',
-        ExperimentStableArmIdV1.new,
-      ),
-      label: _boundedString(reader.string('label'), '$path.label'),
-      relativeWeight: _boundedRelativeWeight(
-        reader.integer('relativeWeight'),
-        '$path.relativeWeight',
-      ),
-      surfaceRevisionId: _identifier(
-        reader.string('surfaceRevisionId'),
-        '$path.surfaceRevisionId',
-        SurfaceRevisionId.new,
-      ),
-    );
+    return ExperimentArmDetailV1._(json,
+        stableArmId: _identifier(reader.string('stableArmId'),
+            '$path.stableArmId', ExperimentStableArmIdV1.new),
+        label: _boundedString(reader.string('label'), '$path.label'),
+        relativeWeight: _boundedRelativeWeight(
+            reader.integer('relativeWeight'), '$path.relativeWeight'),
+        surfaceRevisionId: version
+            ? _identifier(reader.string('surfaceRevisionId'),
+                '$path.surfaceRevisionId', SurfaceRevisionId.new)
+            : null,
+        surfaceReference: surface
+            ? DeliverySurfaceReferenceV1.fromJson(
+                reader.object('surfaceReference'))
+            : null);
   }
 
   final ExperimentStableArmIdV1 stableArmId;
   final String label;
   final int relativeWeight;
-  final SurfaceRevisionId surfaceRevisionId;
+
+  /// Exact immutable version, present only for version delivery.
+  final SurfaceRevisionId? surfaceRevisionId;
+
+  /// Actual selected surface and family, present only for live delivery.
+  final DeliverySurfaceReferenceV1? surfaceReference;
 }
 
 /// An accepted or draft-only experiment read.
@@ -8941,12 +8920,17 @@ void _validateRequestPayload(
     case ExperimentAuthoringOperationV1.openDraft:
       final reader = CanonicalObjectReader(
         payload,
-        allowedKeys: const {'initialCandidate'},
+        allowedKeys: const {'initialCandidate', 'root'},
         requiredKeys: const {},
         path: path,
       );
+      final root = reader.optionalObject('root');
+      if (root != null) DeliveryRootIdentityV1.fromJson(root);
       final initialCandidate = reader.optionalObject('initialCandidate');
       if (initialCandidate != null) {
+        if (root == null)
+          throw const CanonicalFormatException(
+              'An opening candidate requires its explicit root');
         ExperimentExactSurfaceReferenceV1.fromJson(
           initialCandidate,
           path: '$path.initialCandidate',
@@ -9423,7 +9407,7 @@ void _validateDraftMutationChoices(Map<String, Object?> json) {
       'metricBindings',
       'primaryBindingSelection',
       'randomizedUnitSelection',
-      'rootSurfaceSelection',
+      'rootSelection',
       'subjectSelection',
     },
     requiredKeys: const {
@@ -9442,7 +9426,7 @@ void _validateDraftMutationChoices(Map<String, Object?> json) {
       'metricBindings',
       'primaryBindingSelection',
       'randomizedUnitSelection',
-      'rootSurfaceSelection',
+      'rootSelection',
       'subjectSelection',
     },
     path: path,
@@ -9471,16 +9455,16 @@ void _validateDraftMutationChoices(Map<String, Object?> json) {
     '$path.randomizedUnitSelection',
   );
   _validateMutationSelection(
-    reader.object('rootSurfaceSelection'),
-    '$path.rootSurfaceSelection',
-    (value, itemPath) =>
-        ExperimentExactSurfaceReferenceV1.fromJson(value, path: itemPath),
+    reader.object('rootSelection'),
+    '$path.rootSelection',
+    (value, itemPath) => DeliveryRootIdentityV1.fromJson(value),
+    allowServerDefault: false,
   );
   _validateMutationSelection(
     reader.object('memberNoTreatment'),
     '$path.memberNoTreatment',
     (value, itemPath) =>
-        ExperimentExactCandidateV1.fromJson(value, path: itemPath),
+        ExperimentAuthoringCandidateV1.fromJson(value, path: itemPath),
   );
   _validateMutationSelection(
     reader.object('primaryBindingSelection'),
@@ -9539,7 +9523,7 @@ void _validateDraftMutationChoices(Map<String, Object?> json) {
       _validateMutationSelection(
         arm.object('candidateSelection'),
         '$itemPath.candidateSelection',
-        (value, candidatePath) => ExperimentExactCandidateV1.fromJson(
+        (value, candidatePath) => ExperimentAuthoringCandidateV1.fromJson(
           value,
           path: candidatePath,
         ),
@@ -9688,7 +9672,7 @@ void _validateDraftMutationChoices(Map<String, Object?> json) {
       _validateMutationSelection(
         holdout.object('candidateSelection'),
         '$itemPath.candidateSelection',
-        (candidate, candidatePath) => ExperimentExactCandidateV1.fromJson(
+        (candidate, candidatePath) => ExperimentAuthoringCandidateV1.fromJson(
           candidate,
           path: candidatePath,
         ),

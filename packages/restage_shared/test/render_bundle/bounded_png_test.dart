@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -252,7 +253,262 @@ void main() {
       );
     });
   });
+
+  group('placement screen-sample PNG validation', () {
+    test('retains the encoded and dimension limits with a larger decoded bound',
+        () {
+      expect(placementScreenSampleMaxBytes, 4 * 1024 * 1024);
+      expect(placementScreenSampleMaxDecodedBytes, 16 * 1024 * 1024);
+      expect(placementScreenSampleMaxDimension, 4096);
+      expect(renderBundleSnapshotMaxBytes, 4 * 1024 * 1024);
+      expect(renderBundleSnapshotMaxDecodedBytes, 2 * 1024 * 1024);
+      expect(renderBundleSnapshotMaxDimension, 4096);
+    });
+
+    test('accepts actual Flutter encoder bytes with exact immutable identity',
+        () {
+      final source = _flutterScreenSample();
+      final original = Uint8List.fromList(source);
+
+      final validated = validatePlacementScreenSamplePng(source);
+
+      expect(validated.bytes, orderedEquals(original));
+      expect(validated.byteLength, 98);
+      expect(
+        validated.contentHash,
+        'sha256:'
+        '0e3522ce70305eed445ac3d5f43b2e932a1c8991c8e443c52e8e4e48c35d05e8',
+      );
+      expect(validated.contentHash, CapabilitySidecar.hashBlob(original));
+      expect(validated.width, 3);
+      expect(validated.height, 2);
+      source[0] ^= 1;
+      expect(validated.bytes, orderedEquals(original));
+      expect(() => validated.bytes[0] = 0, throwsUnsupportedError);
+      expect(
+        () => validated.bytes.buffer.asUint8List()[0] = 0,
+        throwsUnsupportedError,
+      );
+      expect(() => validateRenderBundleSnapshotPng(original), returnsNormally);
+    });
+
+    for (final (type, payload) in <(String, List<int>)>[
+      ('tEXt', utf8.encode('sample\u0000hidden text')),
+      (
+        'zTXt',
+        <int>[
+          ...utf8.encode('sample\u0000'),
+          0,
+          ...const ZLibEncoder().encodeBytes(utf8.encode('hidden text')),
+        ],
+      ),
+      ('iTXt', utf8.encode('sample\u0000\u0000\u0000\u0000\u0000hidden text')),
+      ('eXIf', const <int>[73, 73, 42, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    ]) {
+      test('rejects valid-CRC $type metadata only for samples', () {
+        final source = _flutterScreenSample();
+        for (final beforeType in <String>['IDAT', 'IEND']) {
+          final withMetadata = _insertChunkBefore(
+            source,
+            beforeType: beforeType,
+            type: type,
+            payload: payload,
+          );
+
+          expect(
+            () => validateRenderBundleSnapshotPng(withMetadata),
+            returnsNormally,
+          );
+          expect(
+            () => validatePlacementScreenSamplePng(withMetadata),
+            throwsFormatException,
+          );
+        }
+      });
+    }
+
+    test('accepts color, palette, alpha and other ancillary chunks', () {
+      var source = _png(width: 1, height: 1, bitDepth: 8, colorType: 3);
+      for (final (type, payload) in <(String, List<int>)>[
+        ('sRGB', const <int>[0]),
+        ('gAMA', _uint32(45455)),
+        ('PLTE', const <int>[255, 0, 0]),
+        ('tRNS', const <int>[128]),
+        ('vpAg', const <int>[1, 2, 3]),
+      ]) {
+        source = _insertChunkBefore(
+          source,
+          beforeType: 'IDAT',
+          type: type,
+          payload: payload,
+        );
+      }
+
+      expect(() => validatePlacementScreenSamplePng(source), returnsNormally);
+      expect(() => validateRenderBundleSnapshotPng(source), returnsNormally);
+    });
+
+    test('inflates a valid image above the gallery decoded ceiling', () {
+      final source = _png(
+        width: 1024,
+        height: 1024,
+        bitDepth: 8,
+        colorType: 6,
+      );
+      const decodedBytes = (1024 * 4 + 1) * 1024;
+
+      expect(decodedBytes, greaterThan(renderBundleSnapshotMaxDecodedBytes));
+      expect(decodedBytes, lessThan(placementScreenSampleMaxDecodedBytes));
+      expect(source.length, lessThan(placementScreenSampleMaxBytes));
+      final validated = validatePlacementScreenSamplePng(source);
+      expect(validated.width, 1024);
+      expect(validated.height, 1024);
+      expect(
+        () => validateRenderBundleSnapshotPng(source),
+        throwsFormatException,
+      );
+    });
+
+    test('accepts decoded scanline work exactly at the sample ceiling', () {
+      final boundary = _png(
+        width: 4095,
+        height: 4096,
+        bitDepth: 8,
+        colorType: 0,
+      );
+
+      expect((4095 + 1) * 4096, placementScreenSampleMaxDecodedBytes);
+      final validated = validatePlacementScreenSamplePng(boundary);
+      expect(validated.width, 4095);
+      expect(validated.height, 4096);
+    });
+
+    test('rejects a compressed PNG above the sample decoded ceiling', () {
+      final bomb = _png(
+        width: 4096,
+        height: 4096,
+        bitDepth: 8,
+        colorType: 0,
+      );
+
+      expect(bomb.length, lessThan(placementScreenSampleMaxBytes));
+      expect(
+        (4096 + 1) * 4096,
+        greaterThan(placementScreenSampleMaxDecodedBytes),
+      );
+      expect(
+        () => validatePlacementScreenSamplePng(bomb),
+        throwsFormatException,
+      );
+    });
+
+    test('accepts exact encoded and dimension limits and rejects overruns', () {
+      final source = _flutterScreenSample();
+      final encodedBoundary = _insertChunkBefore(
+        source,
+        beforeType: 'IDAT',
+        type: 'vpAg',
+        payload: Uint8List(placementScreenSampleMaxBytes - source.length - 12),
+      );
+      expect(encodedBoundary.length, placementScreenSampleMaxBytes);
+      expect(
+        validatePlacementScreenSamplePng(encodedBoundary).byteLength,
+        placementScreenSampleMaxBytes,
+      );
+      expect(
+        () => validatePlacementScreenSamplePng(
+          Uint8List.fromList(<int>[...encodedBoundary, 0]),
+        ),
+        throwsFormatException,
+      );
+
+      for (final (width, height) in <(int, int)>[(4096, 1), (1, 4096)]) {
+        expect(
+          () => validatePlacementScreenSamplePng(
+            _png(width: width, height: height, bitDepth: 8, colorType: 0),
+          ),
+          returnsNormally,
+        );
+      }
+      for (final (width, height) in <(int, int)>[(4097, 1), (1, 4097)]) {
+        expect(
+          () => validatePlacementScreenSamplePng(
+            _png(width: width, height: height, bitDepth: 8, colorType: 0),
+          ),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('rejects chunk source overruns, CRC errors and trailing PNG data', () {
+      final source = _flutterScreenSample();
+      final chunkOverrun = Uint8List.fromList(source);
+      ByteData.sublistView(chunkOverrun).setUint32(33, 0xffffffff);
+      final badCrc = Uint8List.fromList(source)..[source.length - 1] ^= 1;
+      final trailingData = Uint8List.fromList(<int>[...source, 0]);
+
+      for (final malformed in <Uint8List>[
+        chunkOverrun,
+        badCrc,
+        trailingData,
+        Uint8List.fromList(source.sublist(0, source.length - 1)),
+      ]) {
+        expect(
+          () => validatePlacementScreenSamplePng(malformed),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('rejects exact scanline overruns and malformed DEFLATE envelopes', () {
+      final source = _png(width: 1, height: 1, bitDepth: 8, colorType: 6);
+      const scanline = <int>[0, 0, 0, 0, 0];
+      final fixed = _fixedZlib(scanline);
+      final rawEnd = fixed.length - 4;
+      final trailingRawByte = Uint8List.fromList(<int>[
+        ...fixed.sublist(0, rawEnd),
+        0,
+        ...fixed.sublist(rawEnd),
+      ]);
+      final incompleteBlock = Uint8List.fromList(<int>[
+        ...fixed.sublist(0, rawEnd - 1),
+        ...fixed.sublist(rawEnd),
+      ]);
+      final badAdler = Uint8List.fromList(fixed)..[fixed.length - 1] ^= 1;
+
+      for (final malformed in <List<int>>[
+        const <int>[1, 2, 3],
+        const ZLibEncoder().encodeBytes(Uint8List(64 * 1024)),
+        const ZLibEncoder().encodeBytes(const <int>[0, 0, 0, 0]),
+        const ZLibEncoder().encodeBytes(const <int>[5, 0, 0, 0, 0]),
+        trailingRawByte,
+        incompleteBlock,
+        badAdler,
+        _emptyDistanceDynamicZlib(scanline, useLengthCode: true),
+      ]) {
+        expect(
+          () =>
+              validatePlacementScreenSamplePng(_replaceIdat(source, malformed)),
+          throwsFormatException,
+        );
+      }
+      for (final valid in <List<int>>[
+        fixed,
+        _storedZlib(scanline),
+        _emptyDistanceDynamicZlib(scanline, useLengthCode: false),
+      ]) {
+        expect(
+          () => validatePlacementScreenSamplePng(_replaceIdat(source, valid)),
+          returnsNormally,
+        );
+      }
+    });
+  });
 }
+
+Uint8List _flutterScreenSample() =>
+    File('test/fixtures/placements/flutter_screen_sample.png')
+        .readAsBytesSync();
 
 Uint8List _png({
   required int width,
@@ -299,6 +555,30 @@ Uint8List _chunk(List<int> type, List<int> payload) {
     ...payload,
     ..._uint32(_crc32(crcInput)),
   ]);
+}
+
+Uint8List _insertChunkBefore(
+  Uint8List source, {
+  required String beforeType,
+  required String type,
+  required List<int> payload,
+}) {
+  final input = ByteData.sublistView(source);
+  var offset = 8;
+  while (offset < source.length) {
+    final length = input.getUint32(offset);
+    final typeOffset = offset + 4;
+    if (ascii.decode(source.sublist(typeOffset, typeOffset + 4)) ==
+        beforeType) {
+      return Uint8List.fromList(<int>[
+        ...source.sublist(0, offset),
+        ..._chunk(ascii.encode(type), payload),
+        ...source.sublist(offset),
+      ]);
+    }
+    offset += length + 12;
+  }
+  throw StateError('PNG fixture is missing the insertion chunk.');
 }
 
 Uint8List _replaceIdat(Uint8List source, List<int> replacement) {

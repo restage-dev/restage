@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/config/config_target_check.dart'
+    show noOrganizationSentence;
 import 'package:restage_cli/src/api/app_admin_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -28,7 +30,7 @@ void _requireSelectedOrganization(
   if (target.organizationId == null && snapshot.organizations.length != 1) {
     throw TargetSelectionException(
       snapshot.organizations.isEmpty
-          ? 'No organizations found for this account.'
+          ? noOrganizationSentence
           : 'You belong to multiple organizations. Pass '
                 '${target.syntax.organization}.',
     );
@@ -45,7 +47,9 @@ final List<Operation> sharedOperations = [
     mcpDescription:
         'List the organizations the signed-in account belongs to. Returns '
         "each organization's id, slug, name, and your role. Use an "
-        'organizationId to address its projects, apps, and environments.',
+        'organizationId to address its projects, apps, and environments. An '
+        'empty list means the account is not in an organization yet; the '
+        'user creates one in the dashboard.',
     scope: OperationScope.account,
     resultKey: 'organizations',
     columns: const [
@@ -54,6 +58,7 @@ final List<Operation> sharedOperations = [
       (header: 'NAME', key: 'name'),
       (header: 'ROLE', key: 'role'),
     ],
+    emptyNote: noOrganizationSentence,
     call: (target, _) async => [
       for (final organization in (await readProgrammaticScope(
         target.api,

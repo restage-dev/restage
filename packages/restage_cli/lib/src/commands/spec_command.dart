@@ -222,6 +222,10 @@ class SpecCommand extends Command<int> {
         out.writeln(jsonEncode(operation.json(value)));
       } else if (operation.render case final render?) {
         await render(out, value, args, target);
+      } else if (value is List &&
+          value.isEmpty &&
+          operation.emptyNote != null) {
+        out.writeln(operation.emptyNote);
       } else {
         writeOperationValue(out, value, operation.columns!);
       }

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/src/rfw_formats.dart' as fmt;
+import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const int _kMaximumRfwCatalogOccurrenceCount = 1024;
@@ -41,6 +42,34 @@ final class RfwCatalogConstructorProvenance {
   /// Exact catalog widget wire identity selected before RFW emission.
   final WireId catalogWidgetWireId;
 
+  /// Canonical source-selected constructor identity.
+  Map<String, Object?> toJson() => {
+        'constructorName': constructorName,
+        'catalogLibraryNamespace': catalogLibraryNamespace,
+        'catalogWidgetWireId': catalogWidgetWireId.value,
+      };
+
+  /// Decodes the same closed identity used by the compiler.
+  factory RfwCatalogConstructorProvenance.fromJson(Object? value) {
+    final json = SurfaceContractJson.requireObject(value, r'$.catalogOrigin');
+    SurfaceContractJson.exactKeys(
+        json,
+        const {
+          'constructorName',
+          'catalogLibraryNamespace',
+          'catalogWidgetWireId',
+        },
+        r'$.catalogOrigin');
+    return RfwCatalogConstructorProvenance(
+      constructorName: SurfaceContractJson.requiredString(
+          json, 'constructorName', r'$.catalogOrigin'),
+      catalogLibraryNamespace: SurfaceContractJson.requiredString(
+          json, 'catalogLibraryNamespace', r'$.catalogOrigin'),
+      catalogWidgetWireId: WireId(SurfaceContractJson.requiredString(
+          json, 'catalogWidgetWireId', r'$.catalogOrigin')),
+    );
+  }
+
   /// Whether [other] names the same exact emitted catalog constructor.
   bool matches(RfwCatalogConstructorProvenance other) =>
       constructorName == other.constructorName &&
@@ -74,6 +103,33 @@ final class RfwCatalogLocalSymbol {
         'A generated local catalog origin must match its local symbol name',
       );
     }
+  }
+
+  /// Canonical local-precedence evidence.
+  Map<String, Object?> toJson() => {
+        'name': name,
+        if (generatedCatalogOrigin != null)
+          'generatedCatalogOrigin': generatedCatalogOrigin!.toJson(),
+      };
+
+  /// Decodes a local declaration and its selected origin, if any.
+  factory RfwCatalogLocalSymbol.fromJson(Object? value) {
+    final json = SurfaceContractJson.requireObject(value, r'$.localSymbol');
+    SurfaceContractJson.exactKeys(
+        json,
+        {
+          'name',
+          if (json.containsKey('generatedCatalogOrigin'))
+            'generatedCatalogOrigin',
+        },
+        r'$.localSymbol');
+    return RfwCatalogLocalSymbol(
+      name: SurfaceContractJson.requiredString(json, 'name', r'$.localSymbol'),
+      generatedCatalogOrigin: json.containsKey('generatedCatalogOrigin')
+          ? RfwCatalogConstructorProvenance.fromJson(
+              json['generatedCatalogOrigin'])
+          : null,
+    );
   }
 
   /// Exact local declaration spelling.
@@ -164,6 +220,64 @@ final class RfwCatalogOccurrenceResolutionInput {
     }
     _constructorsByName = Map.unmodifiable(constructors);
     _symbolsByName = Map.unmodifiable(symbols);
+  }
+
+  /// Canonical typed compiler input, with stable declaration ordering.
+  Map<String, Object?> toJson() {
+    final roots = renderEntryNames.toList()..sort();
+    final constructors = catalogConstructors.toList()
+      ..sort((a, b) => a.constructorName.compareTo(b.constructorName));
+    final symbols = localSymbols.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return {
+      'artifactProvenance': artifactProvenance,
+      'sourceLibraryIdentity': sourceLibraryIdentity,
+      'sourceDeclarationIdentity': sourceDeclarationIdentity,
+      'renderEntryNames': roots,
+      'catalogConstructors': [
+        for (final origin in constructors) origin.toJson()
+      ],
+      'localSymbols': [for (final symbol in symbols) symbol.toJson()],
+    };
+  }
+
+  /// Decodes bounded typed compiler input through the same constructor checks.
+  factory RfwCatalogOccurrenceResolutionInput.fromJson(Object? value) {
+    final json =
+        SurfaceContractJson.requireObject(value, r'$.catalogResolution');
+    SurfaceContractJson.exactKeys(
+        json,
+        const {
+          'artifactProvenance',
+          'sourceLibraryIdentity',
+          'sourceDeclarationIdentity',
+          'renderEntryNames',
+          'catalogConstructors',
+          'localSymbols',
+        },
+        r'$.catalogResolution');
+    return RfwCatalogOccurrenceResolutionInput(
+      artifactProvenance: SurfaceContractJson.requiredString(
+          json, 'artifactProvenance', r'$.catalogResolution'),
+      sourceLibraryIdentity: SurfaceContractJson.requiredString(
+          json, 'sourceLibraryIdentity', r'$.catalogResolution'),
+      sourceDeclarationIdentity: SurfaceContractJson.requiredString(
+          json, 'sourceDeclarationIdentity', r'$.catalogResolution'),
+      renderEntryNames: SurfaceContractJson.requireList(
+              json['renderEntryNames'], r'$.catalogResolution.renderEntryNames')
+          .map((value) {
+        if (value is! String)
+          throw const FormatException('An RFW render root must be a string.');
+        return value;
+      }),
+      catalogConstructors: SurfaceContractJson.requireList(
+              json['catalogConstructors'],
+              r'$.catalogResolution.catalogConstructors')
+          .map(RfwCatalogConstructorProvenance.fromJson),
+      localSymbols: SurfaceContractJson.requireList(
+              json['localSymbols'], r'$.catalogResolution.localSymbols')
+          .map(RfwCatalogLocalSymbol.fromJson),
+    );
   }
 
   /// Source-form artifact provenance shared between compiler passes.
@@ -414,6 +528,30 @@ final class ResolvedRfwCatalogOccurrenceRebinding {
     }
     return binding;
   }
+}
+
+/// Complete reachable emitted body, including catalog-backed local bodies.
+///
+/// These values come from the occurrence owner's existing traversal; unknown
+/// calls remain visible so admission cannot silently skip them.
+@immutable
+final class RfwCatalogReachableBody {
+  RfwCatalogReachableBody._({
+    required Iterable<fmt.ConstructorCall> constructorCalls,
+    required Iterable<fmt.EventHandler> events,
+    required Iterable<fmt.DataReference> dataReferences,
+  })  : constructorCalls = List.unmodifiable(constructorCalls),
+        events = List.unmodifiable(events),
+        dataReferences = List.unmodifiable(dataReferences);
+
+  /// Every reachable local, catalog, host-installed, or unknown call.
+  final List<fmt.ConstructorCall> constructorCalls;
+
+  /// Every emitted event, including events inside lowered local bodies.
+  final List<fmt.EventHandler> events;
+
+  /// Every reachable read of the render data model.
+  final List<fmt.DataReference> dataReferences;
 }
 
 /// Frozen resolved catalog occurrences for one parsed RFW library.
@@ -828,6 +966,28 @@ final class ResolvedRfwCatalogOccurrenceSet {
   ) =>
       _occurrencesByHandle[handle];
 
+  /// Inspects all final reachable body values after preserving frozen topology.
+  RfwCatalogReachableBody inspectFinalBody(
+      fmt.RemoteWidgetLibrary finalLibrary) {
+    rebindFinalLibrary(finalLibrary);
+    final events = <fmt.EventHandler>[];
+    final references = <fmt.DataReference>[];
+    final calls = _reachableCalls(
+      finalLibrary,
+      input,
+      includeGeneratedLocalBodies: true,
+      onValue: (value) {
+        if (value is fmt.EventHandler) events.add(value);
+        if (value is fmt.DataReference) references.add(value);
+      },
+    );
+    return RfwCatalogReachableBody._(
+      constructorCalls: calls.values.map((call) => call.constructorCall),
+      events: events,
+      dataReferences: references,
+    );
+  }
+
   /// Rebinds this frozen set to [finalLibrary] without resolving eligibility.
   ResolvedRfwCatalogOccurrenceRebinding rebindFinalLibrary(
     fmt.RemoteWidgetLibrary finalLibrary,
@@ -907,8 +1067,10 @@ bool _sameImportClosure(
 
 Map<String, _ReachableRfwCall> _reachableCalls(
   fmt.RemoteWidgetLibrary library,
-  RfwCatalogOccurrenceResolutionInput input,
-) {
+  RfwCatalogOccurrenceResolutionInput input, {
+  bool includeGeneratedLocalBodies = false,
+  void Function(Object? value)? onValue,
+}) {
   final widgetsByName = <String, fmt.WidgetDeclaration>{
     for (final widget in library.widgets) widget.name: widget,
   };
@@ -930,6 +1092,7 @@ Map<String, _ReachableRfwCall> _reachableCalls(
     required String renderEntryName,
     required List<String> callPath,
   }) {
+    onValue?.call(value);
     switch (value) {
       case final fmt.ConstructorCall call:
         final location = _callLocation(renderEntryName, callPath);
@@ -951,7 +1114,9 @@ Map<String, _ReachableRfwCall> _reachableCalls(
           );
         }
         final localSymbol = input.localSymbolForName(call.name);
-        if (localSymbol != null && localSymbol.generatedCatalogOrigin == null) {
+        if (localSymbol != null &&
+            (includeGeneratedLocalBodies ||
+                localSymbol.generatedCatalogOrigin == null)) {
           reachableOrdinaryLocalNames.add(localSymbol.name);
         }
       case final fmt.EventHandler handler:
@@ -1030,6 +1195,10 @@ Map<String, _ReachableRfwCall> _reachableCalls(
 
   final roots = input.renderEntryNames.toList()..sort();
   for (final root in roots) {
+    if (includeGeneratedLocalBodies) {
+      visitValue(widgetsByName[root]!.initialState,
+          renderEntryName: root, callPath: const ['initial-state']);
+    }
     visitValue(
       widgetsByName[root]!.root,
       renderEntryName: root,
@@ -1051,6 +1220,11 @@ Map<String, _ReachableRfwCall> _reachableCalls(
       );
     }
     traversedOrdinaryLocalBodies.add(localName);
+    if (includeGeneratedLocalBodies) {
+      visitValue(declaration.initialState,
+          renderEntryName: _localDeclarationEntryName(localName),
+          callPath: ['local:$localName', 'initial-state']);
+    }
     visitValue(
       declaration.root,
       renderEntryName: _localDeclarationEntryName(localName),
