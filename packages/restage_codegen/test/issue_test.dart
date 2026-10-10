@@ -132,6 +132,21 @@ void main() {
       expect(records.map((record) => record.level), [Level.WARNING]);
     });
 
+    test('an app-factory notice logs as info, once', () {
+      final logger = Logger.detached('notice')..level = Level.ALL;
+      final records = <LogRecord>[];
+      logger.onRecord.listen(records.add);
+      const notice = Issue(
+        code: IssueCode.customWidgetAppFactoryUsed,
+        message: "Custom widget 'Panel' renders from your app's compiled code.",
+        location: 'package:acme/panel.dart#Panel',
+      );
+      final seen = <String>{};
+      logBuildNoticeOnce(logger, seen, notice);
+      logBuildNoticeOnce(logger, seen, notice);
+      expect(records.map((record) => record.level), [Level.INFO]);
+    });
+
     test('an unrendered-widget deferral is NOT a build notice', () {
       // The silent-drop guard: a deferred custom widget did not emit, so it
       // must keep blocking the paywall build even though it is informational.

@@ -19,25 +19,25 @@ final class MeasurementBundledTargetProfileAssetDeclarationException
       'MeasurementBundledTargetProfileAssetDeclarationException: $message';
 }
 
-/// Ensures Flutter packages the one fixed Measurement target-profile asset.
-///
-/// The target itself remains only inside the backend-finalized profile bytes.
-/// This writes no target value, configuration knob, or per-widget declaration:
-/// it adds the fixed asset key only when the bundled-runtime publication path
-/// has already produced that exact profile.
-Future<void> ensureMeasurementBundledTargetProfileAssetDeclaration({
+/// Whether the package's pubspec.yaml already ships the target profile.
+Future<bool> isMeasurementBundledTargetProfileAssetDeclared({
+  required Directory packageRoot,
+}) async {
+  final source = await _readPubspec(packageRoot);
+  try {
+    return _addFixedTargetProfileAsset(source) == source;
+  } on Object {
+    return false;
+  }
+}
+
+/// Adds the target-profile asset to the package's pubspec.yaml, keeping its
+/// comments and layout. Returns whether the file changed.
+Future<bool> ensureMeasurementBundledTargetProfileAssetDeclaration({
   required Directory packageRoot,
 }) async {
   final pubspec = File(p.join(packageRoot.path, 'pubspec.yaml'));
-  final String source;
-  try {
-    source = await pubspec.readAsString();
-  } on FileSystemException {
-    throw const MeasurementBundledTargetProfileAssetDeclarationException(
-      'The package pubspec.yaml could not be read for the Measurement target '
-      'profile asset.',
-    );
-  }
+  final source = await _readPubspec(packageRoot);
 
   final String updated;
   try {
@@ -48,7 +48,7 @@ Future<void> ensureMeasurementBundledTargetProfileAssetDeclaration({
       'profile asset.',
     );
   }
-  if (updated == source) return;
+  if (updated == source) return false;
 
   try {
     await pubspec.writeAsString(updated, flush: true);
@@ -56,6 +56,18 @@ Future<void> ensureMeasurementBundledTargetProfileAssetDeclaration({
     throw const MeasurementBundledTargetProfileAssetDeclarationException(
       'The package pubspec.yaml could not write the Measurement target '
       'profile asset declaration.',
+    );
+  }
+  return true;
+}
+
+Future<String> _readPubspec(Directory packageRoot) async {
+  try {
+    return await File(p.join(packageRoot.path, 'pubspec.yaml')).readAsString();
+  } on FileSystemException {
+    throw const MeasurementBundledTargetProfileAssetDeclarationException(
+      'The package pubspec.yaml could not be read for the Measurement target '
+      'profile asset.',
     );
   }
 }
@@ -92,8 +104,10 @@ String _addFixedTargetProfileAsset(String source) {
   if (values.whereType<String>().any(_declaresFixedTargetProfileAsset)) {
     return source;
   }
-  values.add(kMeasurementBundledTargetProfileAssetPath);
-  editor.update(<String>['flutter', 'assets'], values);
+  editor.appendToList(<String>[
+    'flutter',
+    'assets',
+  ], kMeasurementBundledTargetProfileAssetPath);
   return editor.toString();
 }
 

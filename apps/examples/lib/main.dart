@@ -4,7 +4,7 @@ import 'package:restage/restage.dart';
 import 'demo_event_feedback.dart';
 import 'example_viewer.dart';
 import 'main_draggable_sheet_demo.dart';
-import 'main_hosted_paywall_demo.dart';
+import 'main_hosted_surface_demo.dart';
 import 'main_modal_sheet_demo.dart';
 import 'onboarding/apex_drop_demo.dart';
 import 'onboarding/bare_surface_demo.dart';
@@ -34,12 +34,8 @@ void main() {
   // adds the rest of the app's vocabulary, so an over-the-air update may use
   // a widget no surface draws today — and so `RestagePaywall(id:)` renders.
   registerRestageWidgets();
-  // This example ships its demo paywalls as bundled `.rfw` assets, so it pins
-  // `AssetVariantResolver` as the default. If you omit `resolver:` and pass a
-  // `baseUrl`, `configure` installs `RestageVariantResolver` for Restage-hosted
-  // (over-the-air) delivery instead — see `main_hosted_paywall_demo.dart` for a
-  // hosted-delivery entrypoint. For a purely bundled app, pin
-  // `AssetVariantResolver` (here, or per `RestagePaywall`).
+  // Use bundled paywalls in this example. With a `baseUrl` and no explicit
+  // resolver, `configure` uses hosted delivery; see `main_hosted_surface_demo.dart`.
   Restage.configure(
     apiKey: 'rs_pk_example',
     resolver: const AssetVariantResolver(),

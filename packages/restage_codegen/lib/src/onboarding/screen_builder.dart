@@ -18,6 +18,7 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -259,7 +260,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
     catalog: catalog,
     helpers: helpers,
     astNodeFor: (fragment) =>
-        buildStep.resolver.astNodeFor(fragment, resolve: true),
+        resolvedNodeInLongForm(buildStep.resolver, fragment),
   );
   ExpressionTranslator translatorFor(
     MeasurementRouteEmissionPlan? measurementRoutePlan,
@@ -273,10 +274,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       );
   final compiled = <CompiledResolvedScreen>[];
   for (final source in ordered) {
-    final resolved =
-        await source.declaration.library.session.getResolvedLibraryByElement(
-      source.declaration.library,
-    );
+    final resolved = await resolveLibraryInLongForm(source.declaration.library);
     final lineInfo =
         resolved is ResolvedLibraryResult && resolved.units.isNotEmpty
             ? resolved.units.first.lineInfo
@@ -358,7 +356,13 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       issues.addAll(lowering.issues);
       if (lowering.issues.isNotEmpty) continue;
       final library = lowering.library;
-      final validationIssues = validateModelAgainstCatalog(library, catalog);
+      final validationIssues = validateModelAgainstCatalog(
+        library,
+        catalog,
+        rootLabels: {
+          onboardingScreenRootWidgetName: source.declaration.name ?? source.id,
+        },
+      );
       issues.addAll(validationIssues);
       if (validationIssues.isNotEmpty) continue;
       final derivation = deriveCapabilityManifest(library, catalog);
@@ -528,7 +532,7 @@ final class OnboardingScreenBuilder implements Builder {
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
-          buildStep.resolver.astNodeFor(fragment, resolve: true),
+          resolvedNodeInLongForm(buildStep.resolver, fragment),
     );
     final translator = ExpressionTranslator(
       catalog: catalog,
@@ -597,8 +601,11 @@ final class OnboardingScreenBuilder implements Builder {
         issues.addAll(lowering.issues);
         if (lowering.issues.isNotEmpty) continue;
         final rfwLibrary = lowering.library;
-        final validationIssues =
-            validateModelAgainstCatalog(rfwLibrary, catalog);
+        final validationIssues = validateModelAgainstCatalog(
+          rfwLibrary,
+          catalog,
+          rootLabels: {onboardingScreenRootWidgetName: src.className},
+        );
         issues.addAll(validationIssues);
         if (issues.isNotEmpty) continue;
 

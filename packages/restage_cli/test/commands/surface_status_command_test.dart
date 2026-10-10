@@ -144,6 +144,60 @@ void main() {
       expect(out.toString(), contains('blob'));
     });
 
+    test('prints the line an app writes to show the live version', () async {
+      final out = StringBuffer();
+      final runner = CommandRunner<int>('restage', '')
+        ..addCommand(
+          SurfaceStatusCommand(
+            stdout: out,
+            stderr: StringBuffer(),
+            interactive: const NonInteractive(),
+            fixedSurfaceType: SurfaceType.onboarding,
+            credentialStore: fakeStore,
+            httpClient: mockHttpClient(
+              (req) => http.Response(
+                jsonEncode({
+                  '__className__': 'SurfaceStatusResult',
+                  'surfaceType': 'onboarding',
+                  'surfaceSlug': 'lumen_onboarding',
+                  'environmentSlug': 'production',
+                  'liveVersion': 1,
+                  'locked': false,
+                  'deliveryShape': 'flow',
+                  'sourceKind': 'flowGraph',
+                  'versions': [
+                    {
+                      '__className__': 'SurfaceVersionResult',
+                      'version': 1,
+                      'publishedAt': '2026-09-01T10:00:00.000Z',
+                      'contentHash': 'abc123def456',
+                      'isActive': true,
+                      'mountName': 'LumenOnboardingFlowSurface',
+                    },
+                  ],
+                }),
+                200,
+              ),
+            ),
+          ),
+        );
+      final code = await runner.run([
+        'status',
+        'lumen_onboarding',
+        '--project',
+        'p',
+        '--app',
+        'a',
+        '--env',
+        'production',
+      ]);
+      expect(code, 0);
+      expect(
+        out.toString(),
+        contains('  in your app: LumenOnboardingFlowSurface(...)\n'),
+      );
+    });
+
     test('version rows appear in output with active marker', () async {
       final out = StringBuffer();
       final runner = CommandRunner<int>('restage', '')
@@ -262,30 +316,108 @@ void main() {
       expect(out.toString(), contains('live: v2'));
     });
 
-    test('missing --type in generic mode → exit 1 with --type hint', () async {
-      final err = StringBuffer();
-      final runner = CommandRunner<int>('restage', '')
-        ..addCommand(
-          SurfaceStatusCommand(
-            stdout: StringBuffer(),
-            stderr: err,
-            interactive: const NonInteractive(),
-            credentialStore: fakeStore,
-            httpClient: fakeStatusClient,
+    group('without --type outside the manifest', () {
+      Future<(int?, String, List<Map<String, dynamic>>)> run(
+        Map<String, List<String>> slugsByType,
+      ) async {
+        final bodies = <Map<String, dynamic>>[];
+        final client = mockHttpClient((request) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          bodies.add(body);
+          if (body['method'] == 'list') {
+            final type = body['surfaceType'] as String;
+            return http.Response(
+              jsonEncode([
+                for (final slug in slugsByType[type] ?? const <String>[])
+                  {
+                    '__className__': 'SurfaceSummary',
+                    'surfaceType': type,
+                    'slug': slug,
+                    'name': slug,
+                    'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
+                    'publishedVersionByEnvironment': <String, int?>{},
+                  },
+              ]),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              '__className__': 'SurfaceStatusResult',
+              'surfaceType': body['surfaceType'],
+              'surfaceSlug': 'pro',
+              'environmentSlug': 'production',
+              'liveVersion': 2,
+              'locked': false,
+              'deliveryShape': 'blob',
+              'versions': <Object>[],
+            }),
+            200,
+          );
+        });
+        final err = StringBuffer();
+        final runner = CommandRunner<int>('restage', '')
+          ..addCommand(
+            SurfaceStatusCommand(
+              stdout: StringBuffer(),
+              stderr: err,
+              interactive: const NonInteractive(),
+              credentialStore: fakeStore,
+              httpClient: client,
+            ),
+          );
+        final code = await runner.run([
+          'status',
+          'pro',
+          '-C',
+          tempDir.path,
+          '--project',
+          'p',
+          '--app',
+          'a',
+          '--env',
+          'production',
+        ]);
+        return (code, err.toString(), bodies);
+      }
+
+      test('looks the type up on the server by id', () async {
+        final (code, err, bodies) = await run({
+          'paywall': ['pro'],
+          'onboarding': ['welcome'],
+        });
+        expect(code, 0, reason: err);
+        final status = bodies.singleWhere(
+          (body) => body['method'] == 'surfaceStatus',
+        );
+        expect(status['surfaceType'], 'paywall');
+        expect(status['surfaceSlug'], 'pro');
+      });
+
+      test('names every type when the id is ambiguous', () async {
+        final (code, err, bodies) = await run({
+          'paywall': ['pro'],
+          'message': ['pro'],
+        });
+        expect(code, 1);
+        expect(
+          err,
+          contains(
+            'Surface "pro" exists as more than one type: message, paywall. '
+            'Pass --type <type> to choose one.',
           ),
         );
-      final code = await runner.run([
-        'status',
-        'pro',
-        '--project',
-        'p',
-        '--app',
-        'a',
-        '--env',
-        'production',
-      ]);
-      expect(code, 1);
-      expect(err.toString(), contains('--type'));
+        expect(
+          bodies.where((body) => body['method'] == 'surfaceStatus'),
+          isEmpty,
+        );
+      });
+
+      test('says so when no type has the id', () async {
+        final (code, err, _) = await run(const {});
+        expect(code, 1);
+        expect(err, contains('No surface "pro" exists in app "a".'));
+      });
     });
 
     test('missing positional id → exit 1', () async {

@@ -523,6 +523,7 @@ class SurfaceVersionResult {
     this.deliveryMode,
     this.publishedRevision,
     this.contractVersion,
+    this.mountName,
   });
 
   /// Monotonically increasing version number.
@@ -548,6 +549,9 @@ class SurfaceVersionResult {
   /// Contract family version, when this row carries family metadata.
   final int? contractVersion;
 
+  /// The generated widget an app mounts to show this version, when named.
+  final String? mountName;
+
   /// Decode from the backend's JSON-shaped wire payload.
   factory SurfaceVersionResult.fromJson(Map<String, dynamic> json) =>
       SurfaceVersionResult(
@@ -558,6 +562,7 @@ class SurfaceVersionResult {
         deliveryMode: json['deliveryMode'] as String?,
         publishedRevision: _asInt(json['publishedRevision'] ?? json['version']),
         contractVersion: _asInt(json['contractVersion']),
+        mountName: json['mountName'] as String?,
       );
 
   /// Encode for JSON-shaped consumer output (CLI `--json`, tool results).
@@ -569,6 +574,7 @@ class SurfaceVersionResult {
     if (deliveryMode != null) 'deliveryMode': deliveryMode,
     if (publishedRevision != null) 'publishedRevision': publishedRevision,
     if (contractVersion != null) 'contractVersion': contractVersion,
+    if (mountName != null) 'mountName': mountName,
   };
 }
 
@@ -802,6 +808,7 @@ class SurfaceFamilyMutationResult {
     required this.activeRevisionBefore,
     required this.activeRevisionAfter,
     required this.frozen,
+    this.mountName,
   });
 
   /// Surface type wire name.
@@ -833,6 +840,9 @@ class SurfaceFamilyMutationResult {
 
   /// Identity freeze state after the mutation.
   final bool frozen;
+
+  /// The generated widget an app mounts to show the revision, when named.
+  final String? mountName;
 
   /// Decode the non-null generated family-operation result.
   static SurfaceFamilyMutationResult fromJson(
@@ -872,6 +882,7 @@ class SurfaceFamilyMutationResult {
       activeRevisionBefore: activeRevisionBefore,
       activeRevisionAfter: activeRevisionAfter,
       frozen: identityFrozenAfter,
+      mountName: raw['mountName'] as String?,
     );
   }
 
@@ -924,6 +935,7 @@ class SurfaceFamilyMutationResult {
                   raw['identityFrozenAfter'] ??
                   false)
               as bool,
+      mountName: raw['mountName'] as String?,
     );
   }
 
@@ -939,7 +951,29 @@ class SurfaceFamilyMutationResult {
     'activeRevisionBefore': activeRevisionBefore,
     'activeRevisionAfter': activeRevisionAfter,
     'frozen': frozen,
+    if (mountName != null) 'mountName': mountName,
   };
+}
+
+/// Where an audit row stands in the organization's tamper-evident chain.
+@experimental
+enum AuditChain {
+  /// Recorded, and not yet appended to the chain.
+  pending,
+
+  /// Appended to the chain; no verification run has reached it yet.
+  chained,
+
+  /// Appended to the chain and covered by a clean verification run.
+  verified;
+
+  /// Decode the server's chain state and verification mark.
+  static AuditChain fromWire(String state, bool verified) =>
+      state == 'pendingChain'
+      ? AuditChain.pending
+      : verified
+      ? AuditChain.verified
+      : AuditChain.chained;
 }
 
 /// One rendered server-side audit event for a surface/governance timeline.
@@ -955,11 +989,11 @@ class SurfaceAuditLogEntry {
     required this.severity,
     required this.targetType,
     required this.targetId,
+    this.targetName,
     required this.occurredAt,
     required this.reason,
     required this.context,
-    required this.chainState,
-    required this.chainVerified,
+    required this.chain,
     required this.entryId,
   });
 
@@ -984,6 +1018,9 @@ class SurfaceAuditLogEntry {
   /// Target id, when present.
   final String? targetId;
 
+  /// The target's current name, when it has one and still exists.
+  final String? targetName;
+
   /// Event occurrence time.
   final DateTime occurredAt;
 
@@ -993,11 +1030,8 @@ class SurfaceAuditLogEntry {
   /// Action-specific immutable context recorded by the server.
   final Map<String, String> context;
 
-  /// `chained` or `pendingChain`.
-  final String chainState;
-
-  /// Whether a chained entry is at/below the verified high-water mark.
-  final bool chainVerified;
+  /// Where this row stands in the chain.
+  final AuditChain chain;
 
   /// Chain entry id for chained rows.
   final int? entryId;
@@ -1012,11 +1046,14 @@ class SurfaceAuditLogEntry {
       severity: json['severity']! as String,
       targetType: json['targetType'] as String?,
       targetId: json['targetId'] as String?,
+      targetName: json['targetName'] as String?,
       occurredAt: DateTime.parse(json['occurredAt']! as String),
       reason: json['reason'] as String?,
       context: _stringMap(json['context']),
-      chainState: json['chainState']! as String,
-      chainVerified: json['chainVerified']! as bool,
+      chain: AuditChain.fromWire(
+        json['chainState']! as String,
+        json['chainVerified']! as bool,
+      ),
       entryId: json['entryId'] as int?,
     );
   }
@@ -1030,11 +1067,11 @@ class SurfaceAuditLogEntry {
     'severity': severity,
     if (targetType != null) 'targetType': targetType,
     if (targetId != null) 'targetId': targetId,
+    if (targetName != null) 'targetName': targetName,
     'occurredAt': occurredAt.toUtc().toIso8601String(),
     if (reason != null) 'reason': reason,
     'context': context,
-    'chainState': chainState,
-    'chainVerified': chainVerified,
+    'chain': chain.name,
     if (entryId != null) 'entryId': entryId,
   };
 }
@@ -1053,8 +1090,7 @@ class SurfaceComplianceExportRow {
     required this.version,
     required this.actorEmail,
     required this.reason,
-    required this.chainState,
-    required this.chainVerified,
+    required this.chain,
     required this.entryId,
   });
 
@@ -1082,11 +1118,8 @@ class SurfaceComplianceExportRow {
   /// Audit reason.
   final String? reason;
 
-  /// `chained` or `pendingChain`.
-  final String chainState;
-
-  /// Whether the row is verified by the current chain high-water.
-  final bool chainVerified;
+  /// Where this row stands in the chain.
+  final AuditChain chain;
 
   /// Chain entry id for chained rows.
   final int? entryId;
@@ -1102,8 +1135,10 @@ class SurfaceComplianceExportRow {
       version: json['version'] as int?,
       actorEmail: json['actorEmail'] as String?,
       reason: json['reason'] as String?,
-      chainState: json['chainState']! as String,
-      chainVerified: json['chainVerified']! as bool,
+      chain: AuditChain.fromWire(
+        json['chainState']! as String,
+        json['chainVerified']! as bool,
+      ),
       entryId: json['entryId'] as int?,
     );
   }
@@ -1118,8 +1153,7 @@ class SurfaceComplianceExportRow {
     if (version != null) 'version': version,
     if (actorEmail != null) 'actorEmail': actorEmail,
     if (reason != null) 'reason': reason,
-    'chainState': chainState,
-    'chainVerified': chainVerified,
+    'chain': chain.name,
     if (entryId != null) 'entryId': entryId,
   };
 }

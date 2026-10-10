@@ -59,6 +59,13 @@ restage build list                 # what has been pushed
 restage surface push weekly_recap --build   # push the build first, then the surface
 ```
 
+A personal build shows only in your own dashboard preview, which is enough while you
+work. An environment's build is what everyone in the organization sees. The preview opens
+on the environment's build when it has every widget the surface uses, and on your
+personal build otherwise; the build menu above the preview switches between them.
+`surface push --build` pushes the environment's build. Moving an environment's build
+needs an admin account or an API key.
+
 Push a build again after adding or changing a custom widget.
 
 ## MCP server

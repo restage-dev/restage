@@ -5,10 +5,51 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/catalog_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/render_bundles/package_resolution.dart';
+
+/// What the uploaded catalog is for.
+const catalogPurpose =
+    "The widget catalog lists your app's own widgets in the dashboard "
+    "editor's palette and lets the editor draw placeholders for them. "
+    'Devices never read it, and dashboard previews draw the real widgets '
+    'from a build push.';
+
+/// The generated widget catalog under [projectRoot], or null when the code
+/// generator has not written one.
+File? findGeneratedWidgetCatalog(Directory projectRoot) {
+  final candidates = [
+    p.join(projectRoot.path, '.restage', 'build', 'widget_catalog'),
+    if (_packageName(projectRoot) case final package?)
+      p.join(
+        projectRoot.path,
+        '.dart_tool',
+        'build',
+        'generated',
+        package,
+        'lib',
+        'src',
+        'widget_catalog',
+      ),
+  ];
+  for (final directory in candidates) {
+    final file = File(p.join(directory, 'catalog.json'));
+    if (file.existsSync()) return file;
+  }
+  return null;
+}
+
+String? _packageName(Directory projectRoot) {
+  try {
+    return readProjectPackageName(projectRoot);
+  } on StateError {
+    return null;
+  }
+}
 
 /// Upload the generated widget catalog when one exists.
 class CatalogPushCommand extends Command<int> {
@@ -60,11 +101,14 @@ class CatalogPushCommand extends Command<int> {
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loaded = await loadRestageConfig(from: directory);
     final projectRoot = loaded?.source.parent ?? directory.absolute;
-    final catalogFile = File(
-      p.join(projectRoot.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
-    );
-    if (!catalogFile.existsSync()) {
-      _stdout.writeln('No widget catalog found; nothing to push.');
+    final catalogFile = findGeneratedWidgetCatalog(projectRoot);
+    if (catalogFile == null) {
+      _stdout.writeln(
+        'No generated widget catalog in ${projectRoot.path}; nothing to push. '
+        'Run `dart run build_runner build` first. An app that declares no '
+        'widgets of its own with @RestageWidget has no catalog to push. '
+        '$catalogPurpose',
+      );
       return 0;
     }
 
@@ -72,17 +116,14 @@ class CatalogPushCommand extends Command<int> {
         (argResults?['project'] as String?) ?? loaded?.config.project;
     final app = (argResults?['app'] as String?) ?? loaded?.config.app;
     if (project == null || app == null) {
-      _stderr.writeln(
-        'No project / app context. Run `restage init` or pass '
-        '--project <slug> --app <slug>.',
-      );
+      _stderr.writeln(noProjectContextSentence());
       return 1;
     }
 
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
     if (credential == null) {
-      _stderr.writeln('Not signed in. Run `restage login`.');
+      _stderr.writeln(notSignedInSentence());
       return 1;
     }
 
@@ -125,7 +166,10 @@ class CatalogPushCommand extends Command<int> {
         catalogJson: await catalogFile.readAsString(),
         organizationId: configuredOrganization.organizationId,
       );
-      _stdout.writeln('Uploaded widget catalog as version $version.');
+      _stdout.writeln(
+        'Uploaded widget catalog ${p.relative(catalogFile.path, from: projectRoot.path)} '
+        'as version $version. $catalogPurpose',
+      );
       return 0;
     } on RestageApiException catch (e) {
       return _handleApiException(e);

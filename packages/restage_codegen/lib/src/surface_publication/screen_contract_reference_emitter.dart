@@ -256,6 +256,11 @@ final class ResolvedStandaloneScreenContract {
   /// Non-blocking explanation when the generated mount is unavailable.
   final String? mountOmissionMessage;
 
+  /// The generated mount widget's name, or null when the mount is omitted.
+  String? get mountName => _mount == null
+      ? null
+      : generatedSurfaceName(screen.name!, fallback: 'SurfaceScreen');
+
   /// Exact top-level declarations emitted for this screen.
   Set<String> get generatedTopLevelSymbols => Set.unmodifiable(
         _generatedTopLevelSymbols(

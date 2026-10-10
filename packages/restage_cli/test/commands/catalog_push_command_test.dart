@@ -28,7 +28,13 @@ void main() {
 
   Future<void> seedCatalog(String catalogJson) async {
     final file = File(
-      p.join(tempDir.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
+      p.join(
+        tempDir.path,
+        '.restage',
+        'build',
+        'widget_catalog',
+        'catalog.json',
+      ),
     );
     await file.parent.create(recursive: true);
     await file.writeAsString(catalogJson);
@@ -71,6 +77,40 @@ void main() {
       expect(stderr.toString(), isEmpty);
     });
 
+    test('finds the catalog the code generator keeps in its cache', () async {
+      await seedCredential(store);
+      await seedRestageConfig(tempDir, 'demo', 'mobile');
+      await File(
+        p.join(tempDir.path, 'pubspec.yaml'),
+      ).writeAsString('name: demo_app\n');
+      final file = File(
+        p.join(
+          tempDir.path,
+          '.dart_tool',
+          'build',
+          'generated',
+          'demo_app',
+          'lib',
+          'src',
+          'widget_catalog',
+          'catalog.json',
+        ),
+      );
+      await file.parent.create(recursive: true);
+      await file.writeAsString('{"schemaVersion":1,"widgets":[]}');
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: scriptedHttpClient([(_) => http.Response('2', 200)]),
+      ).run(['catalog', 'push', '-C', tempDir.path]);
+
+      expect(exitCode, 0, reason: stderr.toString());
+      expect(stdout.toString(), contains('as version 2'));
+      expect(stdout.toString(), contains("dashboard editor's palette"));
+    });
+
     test(
       'missing catalog exits 0 with a friendly note and no push call',
       () async {
@@ -95,6 +135,8 @@ void main() {
         expect(exitCode, 0);
         expect(calls, 0);
         expect(stdout.toString().toLowerCase(), contains('nothing to push'));
+        expect(stdout.toString(), contains('dart run build_runner build'));
+        expect(stdout.toString(), contains('Devices never read it'));
         expect(stderr.toString(), isEmpty);
       },
     );

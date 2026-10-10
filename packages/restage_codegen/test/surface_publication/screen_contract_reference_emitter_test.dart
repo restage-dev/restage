@@ -800,6 +800,29 @@ abstract class ImportedDefaultNoticeBase extends StatelessWidget {
           absent: '= .zero;',
         ),
         (
+          name: 'core constructor shorthand',
+          source: _directDefaultSource(
+            expression: 'const .new(seconds: 1)',
+            type: 'Duration',
+          ),
+          additionalSources: const {},
+          expected: 'const Duration _defaultRouteNoticeMountDefault0 = '
+              'const Duration(seconds: 1);',
+          absent: '.new(',
+        ),
+        (
+          name: 'redirecting factory shorthand',
+          source: _directDefaultSource(
+            expression: 'const .xy(1, 0)',
+            type: 'AlignmentGeometry',
+          ),
+          additionalSources: const {},
+          expected:
+              'const AlignmentGeometry _defaultRouteNoticeMountDefault0 = '
+                  'const Alignment(1, 0);',
+          absent: '.xy(',
+        ),
+        (
           name: 'same library top level',
           source: _directDefaultSource(
             expression: 'localDefault + 1',
@@ -859,6 +882,26 @@ abstract class ImportedDefaultNoticeBase extends StatelessWidget {
           expected: 'const base.RouteTone '
               '_defaultRouteNoticeMountDefault0 = base.RouteTone.calm;',
           absent: '= RouteTone.calm;',
+        ),
+        (
+          name: 'dot shorthand through a visible alias',
+          source: _inheritedDefaultSource(
+            imports: "import 'default_route_base.dart' as base;",
+            baseType: 'base.DefaultRouteBase',
+          ),
+          additionalSources: {
+            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
+              expression: '.calm',
+              type: 'Tone',
+              declarations: '''
+enum _Tone { calm }
+typedef Tone = _Tone;
+''',
+            ),
+          },
+          expected: 'const base.Tone '
+              '_defaultRouteNoticeMountDefault0 = base.Tone.calm;',
+          absent: '= .calm;',
         ),
         (
           name: 'constructor',
@@ -1380,23 +1423,6 @@ final class _Token {
   final int value;
 }
 typedef Token = _Token;
-''',
-            ),
-          },
-        ),
-        (
-          name: 'private contextual dot shorthand owner',
-          source: _inheritedDefaultSource(
-            imports: "import 'default_route_base.dart' as base;",
-            baseType: 'base.DefaultRouteBase',
-          ),
-          additionalSources: {
-            'apps_examples|lib/default_route_base.dart': _defaultBaseSource(
-              expression: '.calm',
-              type: 'Tone',
-              declarations: '''
-enum _Tone { calm }
-typedef Tone = _Tone;
 ''',
             ),
           },

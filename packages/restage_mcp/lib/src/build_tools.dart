@@ -30,19 +30,32 @@ final _pushBuildTool = Tool(
   description:
       "Build the app's registered widgets and push the build as a render "
       'bundle, the same as `restage build push`. Moves an environment head '
-      'when environmentSlug is given (an admin or a push-scoped key), or '
-      "the signed-in user's own head. Runs the Flutter web build, so it "
-      'can take minutes. An unchanged build uploads nothing.',
+      'when environmentSlug is given (an admin or a push-scoped key), the '
+      "signed-in user's own head with personal, and otherwise the caller's "
+      "default: the user's own head, or a key's environment. Runs the Flutter web build, so it "
+      'can take minutes. An unchanged build uploads nothing. The build only '
+      'feeds dashboard previews; devices render surfaces with the widgets '
+      "compiled into the app. The build uses the app's own Flutter, whatever "
+      'version it is: it is taken from flutterRoot, `flutterRoot` in '
+      "restage_config.yaml, the project's FVM link or its .fvmrc or "
+      '.flutter-version pin, FLUTTER_ROOT, then PATH.',
   inputSchema: Schema.object(
     properties: {
       ...localProjectProperties(),
       'environmentSlug': Schema.string(
         description:
-            'The environment head to move. Omit to push to your own head.',
+            "The environment head to move. Omit for the caller's default "
+            'head.',
+      ),
+      'personal': Schema.bool(
+        description:
+            "Push to the signed-in user's own head, which only they can "
+            'move. Not with environmentSlug, and not with a key.',
       ),
       'recordGit': Schema.bool(
         description: 'Record the push as a release receipt in the repository.',
       ),
+      'flutterRoot': flutterRootProperty,
       'generate': Schema.bool(
         description:
             'Run the code generator first (default true). Pass false to build '
@@ -57,7 +70,11 @@ final _pushCatalogTool = Tool(
   name: 'restage_push_catalog',
   description:
       "Upload the app's generated widget catalog, the same as `restage "
-      'catalog push`. Reports when the project has no generated catalog.',
+      "catalog push`. The catalog lists the app's own @RestageWidget widgets "
+      "in the dashboard editor's palette. Devices never need it, and "
+      'dashboard previews draw app widgets from restage_push_build. Run the '
+      'code generator first; reports when the project has no generated '
+      'catalog.',
   inputSchema: Schema.object(
     properties: localProjectProperties(),
     required: ['projectDirectory'],
@@ -89,8 +106,10 @@ Future<CallToolResult> _pushBuild(ToolContext ctx, CallToolRequest request) {
         '--env',
         environment,
       ],
+      if (request.optBool('personal') ?? false) '--personal',
       if (request.optBool('recordGit') ?? false) '--record-git',
       if (request.optBool('generate') == false) '--no-generate',
+      ...cliFlutterRootArgs(request),
     ]);
   });
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:yaml/yaml.dart';
 
@@ -26,6 +27,8 @@ class RestageConfig {
     this.endpoint,
     this.plane,
     this.recordGit,
+    this.flutterRoot,
+    this.declareAssets,
   });
 
   /// Project slug the host repository belongs to.
@@ -52,6 +55,14 @@ class RestageConfig {
   /// Whether push and publish record a release receipt by default.
   final bool? recordGit;
 
+  /// The Flutter SDK directory builds use, relative to this file. Not
+  /// written by `restage init`: it names a path on one machine.
+  final String? flutterRoot;
+
+  /// Whether a push adds the files it writes into the app to
+  /// `flutter.assets` in pubspec.yaml.
+  final bool? declareAssets;
+
   /// Decode from a YAML string. Throws [RestageConfigFormatException] when
   /// required keys are missing or have the wrong shape.
   factory RestageConfig.fromYaml(String yamlSrc) {
@@ -74,6 +85,8 @@ class RestageConfig {
     final endpoint = _optionalString(map, 'endpoint');
     final plane = _optionalPlane(map);
     final recordGit = _optionalBool(map, 'recordGit');
+    final flutterRoot = _optionalString(map, 'flutterRoot');
+    final declareAssets = _optionalBool(map, 'declareAssets');
     return RestageConfig(
       project: project,
       app: app,
@@ -82,6 +95,8 @@ class RestageConfig {
       endpoint: endpoint,
       plane: plane,
       recordGit: recordGit,
+      flutterRoot: flutterRoot,
+      declareAssets: declareAssets,
     );
   }
 
@@ -106,6 +121,9 @@ class RestageConfig {
     }
     if (recordGit != null) {
       buffer.writeln('recordGit: $recordGit');
+    }
+    if (declareAssets != null) {
+      buffer.writeln('declareAssets: $declareAssets');
     }
     return buffer.toString();
   }
@@ -155,10 +173,16 @@ class EndpointMismatchException implements EndpointConfigurationException {
   final Uri credentialEndpoint;
 
   @override
-  String toString() =>
-      'restage_config.yaml expects $configEndpoint, but the stored '
-      'credential belongs to $credentialEndpoint. Run `restage login '
-      '--endpoint $configEndpoint` to sign in for this project.';
+  String toString() {
+    final login = '`restage login --endpoint $configEndpoint`';
+    return 'restage_config.yaml expects $configEndpoint, but the stored '
+        'credential belongs to $credentialEndpoint. '
+        '${switch (currentSelectorSyntax) {
+          SelectorSyntax.cli || SelectorSyntax.console => 'Run $login to sign in for this project.',
+          SelectorSyntax.mcp => 'Sign in for this project with $login in a '
+              'terminal; this server uses the same stored session.',
+        }}';
+  }
 }
 
 /// Resolve the backend endpoint to use for an API client.
@@ -291,8 +315,8 @@ EndpointFormatException _endpointFormatException(
       'absolute backend URL and run `restage login --endpoint <url>`.',
     ),
     _EndpointSource.credential => EndpointFormatException(
-      'The stored credential has an invalid endpoint. Run `restage login` '
-      'to refresh it.',
+      'The stored credential has an invalid endpoint. '
+      '${currentSelectorSyntax.signIn}',
     ),
   };
 }

@@ -979,6 +979,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     );
     if (!hasRegistration) return;
     final businessValue = _sanitizeAndRecordEvent(controller, value);
+    if (isMeasurementTapEventName(eventId)) return;
     controller.handleEvent(
       eventId,
       normalizeEventArgs(businessValue),

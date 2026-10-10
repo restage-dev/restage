@@ -9,10 +9,11 @@ void writeAuditLogJson(StringSink stdout, List<SurfaceAuditLogEntry> rows) {
 
 /// Render audit timeline rows as a tab-separated table.
 void writeAuditLogTable(StringSink stdout, List<SurfaceAuditLogEntry> rows) {
-  stdout.writeln('WHEN\tACTION\tACTOR\tOUTCOME\tCHAIN\tREASON');
+  stdout.writeln('WHEN\tACTION\tTARGET\tACTOR\tOUTCOME\tCHAIN\tREASON');
   for (final row in rows) {
     stdout.writeln(
-      '${_iso(row.occurredAt)}\t${row.action}\t${row.actorEmail ?? row.actorType}'
+      '${_iso(row.occurredAt)}\t${row.action}\t${auditTargetLabel(row)}'
+      '\t${row.actorEmail ?? row.actorType}'
       '\t${row.outcome}\t${auditChainLabel(row)}\t${row.reason ?? '-'}',
     );
   }
@@ -33,7 +34,7 @@ void writeComplianceExportCsv(
 ) {
   stdout.writeln(
     'occurredAt,action,surfaceType,surfaceSlug,environmentSlug,version,'
-    'actorEmail,reason,chainState,chainVerified,entryId',
+    'actorEmail,reason,chain,entryId',
   );
   for (final row in rows) {
     stdout.writeln(
@@ -46,8 +47,7 @@ void writeComplianceExportCsv(
         row.version?.toString(),
         row.actorEmail,
         row.reason,
-        row.chainState,
-        row.chainVerified.toString(),
+        row.chain.name,
         row.entryId?.toString(),
       ].map(_csvCell).join(','),
     );
@@ -82,10 +82,15 @@ void writeVerdictText(StringSink stdout, SurfaceChainVerdictResult verdict) {
 }
 
 /// User-facing chain label for timeline rows.
-String auditChainLabel(SurfaceAuditLogEntry row) {
-  if (row.chainState == 'pendingChain') return 'pending';
-  return row.chainVerified ? 'verified' : 'unverified';
-}
+String auditChainLabel(SurfaceAuditLogEntry row) => row.chain.name;
+
+/// What an audit row acted on: an experiment's current name, or its id once
+/// it is gone; otherwise a surface's slug or the target id.
+String auditTargetLabel(SurfaceAuditLogEntry row) =>
+    (row.targetType == 'experiment'
+        ? row.targetName ?? row.targetId
+        : row.context['surfaceSlug'] ?? row.targetId) ??
+    '-';
 
 String _csvCell(String? value) {
   final raw = value ?? '';

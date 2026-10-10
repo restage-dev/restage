@@ -255,7 +255,7 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                                   : const Color(0x405EDBD1),
                             ),
                             child: Text(
-                              'ENDS 2 JAN',
+                              'ENDS JAN 2',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,

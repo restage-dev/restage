@@ -102,6 +102,19 @@ class AppAdminApi {
     return null;
   }
 
+  /// Rename an app. Its slug stays.
+  Future<AdminRow> renameApp({
+    required String project,
+    required String app,
+    required String name,
+    int? organizationId,
+  }) => _row('app', 'renameApp', {
+    'projectSlug': project,
+    'appSlug': app,
+    'name': name,
+    'organizationId': ?organizationId,
+  });
+
   /// Update an app's platform configuration. A null field stays unchanged;
   /// an empty string clears it.
   Future<AdminRow> updateAppConfig({
@@ -148,6 +161,21 @@ class AppAdminApi {
       'projectSlug': project,
       'appSlug': app,
       'apiKeyId': apiKeyId,
+      'organizationId': ?organizationId,
+    });
+  }
+
+  /// Delete the app when nothing uses it. [name] must be the app's name.
+  Future<void> deleteApp({
+    required String project,
+    required String app,
+    required String name,
+    int? organizationId,
+  }) async {
+    await _api.call('app', 'deleteApp', {
+      'projectSlug': project,
+      'appSlug': app,
+      'confirmationName': name,
       'organizationId': ?organizationId,
     });
   }

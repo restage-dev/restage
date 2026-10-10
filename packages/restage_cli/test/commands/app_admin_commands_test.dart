@@ -94,6 +94,32 @@ void main() {
     expect(jsonDecode(out.toString()), app);
   });
 
+  test('org rename and app rename send the new name, never a slug', () async {
+    var code = await run([
+      'org',
+      'rename',
+      'Acme Labs',
+    ], (_) => http.Response('null', 200));
+    expect(code, 0, reason: err.toString());
+    final org = calls.singleWhere((call) => call['method'] == 'rename');
+    expect(org['organizationId'], 7);
+    expect(org['name'], 'Acme Labs');
+    expect(org.containsKey('slug'), isFalse);
+
+    code = await run(
+      ['app', 'rename', 'Lumen', '--json'],
+      (_) => http.Response(
+        jsonEncode({'id': 5, 'slug': 'mobile', 'name': 'Lumen'}),
+        200,
+      ),
+    );
+    expect(code, 0, reason: err.toString());
+    final app = calls.singleWhere((call) => call['method'] == 'renameApp');
+    expect(app['projectSlug'], 'alpha');
+    expect(app['appSlug'], 'mobile');
+    expect(app['name'], 'Lumen');
+  });
+
   test('app-config set with nothing to change is refused locally', () async {
     final code = await run(['app-config', 'set'], (_) {
       fail('no backend call expected');
@@ -230,6 +256,54 @@ void main() {
     expect(code, 1);
   });
 
+  test('keys resolve finds the target a key belongs to without sending '
+      'it', () async {
+    const key = 'rs_pk_sandbox_staging_6326f3aa99bb00cc';
+    final code = await run(['keys', 'resolve', key], (body) {
+      if (body['method'] != 'listKeys') return http.Response('[]', 200);
+      final staging = body['environmentSlug'] == 'staging';
+      return http.Response(
+        jsonEncode([
+          {
+            'id': staging ? 40 : 41,
+            'kind': 'publishable',
+            'keyPrefix': staging
+                ? 'rs_pk_sandbox_staging_6326f3...'
+                : 'rs_pk_sandbox_dev_0a0a0a...',
+          },
+        ]),
+        200,
+      );
+    });
+
+    expect(code, 0, reason: err.toString());
+    for (final call in calls) {
+      expect(jsonEncode(call), isNot(contains('aa99bb00cc')));
+    }
+    final listed = calls.where((call) => call['method'] == 'listKeys');
+    expect(listed.map((call) => call['runtimePlane']), everyElement('sandbox'));
+    expect(
+      out.toString(),
+      contains(
+        'restage\talpha\tmobile\tstaging\tsandbox\t12\t'
+        'rs_pk_sandbox_staging_6326f3...',
+      ),
+    );
+    expect(out.toString(), isNot(contains('rs_pk_sandbox_dev')));
+    expect(out.toString(), isNot(contains('aa99bb00cc')));
+
+    out.clear();
+    err.clear();
+    final missing = await run([
+      'keys',
+      'resolve',
+      'rs_pk_sandbox_prod_ffffff',
+    ], (_) => http.Response('[]', 200));
+    expect(missing, 1);
+    expect(err.toString(), contains('No active API key in restage matches'));
+    expect(err.toString(), isNot(contains('ffffff')));
+  });
+
   test('a role refusal reads with the shared sentence', () async {
     final code = await run(
       ['products', 'import', '--store', 'appStore'],
@@ -250,5 +324,83 @@ void main() {
       err.toString(),
       contains('Your role in this organization does not allow this.'),
     );
+  });
+
+  group('app delete', () {
+    http.Response typed(String className, Map<String, Object?> data) =>
+        http.Response(
+          jsonEncode({
+            'className': className,
+            'data': {'__className__': className, ...data},
+          }),
+          400,
+        );
+
+    test('deletes the app, naming it by its exact name', () async {
+      final code = await run([
+        'app',
+        'delete',
+        '--name',
+        'Welcome Tour',
+      ], (_) => http.Response('null', 200));
+
+      expect(code, 0, reason: err.toString());
+      final call = calls.singleWhere((c) => c['method'] == 'deleteApp');
+      expect(call['endpoint'] ?? 'app', 'app');
+      expect(call['projectSlug'], 'alpha');
+      expect(call['appSlug'], 'mobile');
+      expect(call['confirmationName'], 'Welcome Tour');
+      expect(out.toString(), 'Deleted app mobile.\n');
+    });
+
+    test('a delete without --name is refused before any call', () async {
+      final code = await run(['app', 'delete'], (_) => fail('no call'));
+
+      expect(code, 1);
+      expect(err.toString(), contains('--name'));
+    });
+
+    test('a refusal names what still uses the app, with counts', () async {
+      final code = await run(
+        ['app', 'delete', '--name', 'Welcome Tour'],
+        (_) => typed('AppDeleteRefusedException', {
+          'appName': 'Welcome Tour',
+          'projectName': 'Fitness',
+          'holds': [
+            {'kind': 'servingSurface', 'count': 2},
+            {'kind': 'activeApiKey', 'count': 1},
+            {'kind': 'runningExperiment', 'count': 3},
+            {'kind': 'deliveryRule', 'count': 1},
+            {'kind': 'lastAppInProject', 'count': 1},
+          ],
+        }),
+      );
+
+      expect(code, 1);
+      expect(
+        err.toString(),
+        'Welcome Tour is still in use\n'
+        '  2 surfaces serving\n'
+        '  1 active API key\n'
+        '  3 running experiments\n'
+        '  1 delivery rule\n'
+        '  The only app in Fitness\n',
+      );
+    });
+
+    test('a name that is not the app\'s reads with the app\'s name', () async {
+      final code = await run(
+        ['app', 'delete', '--name', 'Welcome'],
+        (_) => typed('AppDeleteNameMismatchException', {
+          'appName': 'Welcome Tour',
+        }),
+      );
+
+      expect(code, 1);
+      expect(
+        err.toString(),
+        "--name doesn't match the app's name, Welcome Tour.\n",
+      );
+    });
   });
 }

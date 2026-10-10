@@ -967,6 +967,19 @@ final class CollectionRuntimeIfNested extends CollectionRuntimeIfBranch {
       candidate.leafOccurrences;
 }
 
+/// A branch spreading a list literal, each element its own branch.
+final class CollectionRuntimeIfGroup extends CollectionRuntimeIfBranch {
+  /// Creates a spread branch.
+  const CollectionRuntimeIfGroup(this.members);
+
+  /// The spread elements in authored order.
+  final List<CollectionRuntimeIfBranch> members;
+
+  @override
+  Iterable<CollectionSemanticOccurrence> get leafOccurrences =>
+      members.expand((member) => member.leafOccurrences);
+}
+
 /// One refusal produced while traversing a list literal.
 final class CollectionListRefusal extends CollectionListTraversalEntry {
   /// Creates a refused list entry.
@@ -1192,9 +1205,10 @@ const String _kRuntimeIfDetail =
     '`!`, `&&`, and `||`. Use a condition that folds to a constant, or '
     'supply the choice through the host-data channel.';
 const String _kRuntimeIfBodyDetail =
-    'A collection-if whose condition is known only at run time must hold a '
-    'single element in each branch. Spread a list literal outside the '
-    'condition, or use a condition that folds to a constant.';
+    'A collection-if whose condition is known only at run time must hold an '
+    'element, a spread of a list literal, or another such collection-if in '
+    'each branch. Use a condition that folds to a constant for any other '
+    'element.';
 const String _kStaticForDetail =
     'A collection-for requires a list literal, but this iterable is a '
     'statically known non-list value.';
@@ -1621,6 +1635,57 @@ final class _CollectionUnroller {
         ordinal: ordinal,
       ),
     ];
+    return _runtimeIfBranchAt(
+      element,
+      branch,
+      bindings,
+      branchPath,
+      ledgerCallbacks,
+    );
+  }
+
+  ({CollectionRuntimeIfBranch? branch, CollectionUnrollRefused? refusal})
+      _runtimeIfBranchAt(
+    IfElement element,
+    CollectionElement branch,
+    Map<Element, Expression> bindings,
+    List<CollectionStructuralOccurrenceStep> branchPath,
+    bool ledgerCallbacks,
+  ) {
+    if (branch is SpreadElement && !branch.isNullAware) {
+      final resolution = _semantics.resolve(
+        branch.expression,
+        bindings,
+        _budget,
+      );
+      if (resolution.workLimitExceeded) {
+        return (branch: null, refusal: _budget.workRefusal(branch));
+      }
+      final list = resolution.expression;
+      if (list is ListLiteral) {
+        // Each spread element is guarded by the same condition.
+        final members = <CollectionRuntimeIfBranch>[];
+        for (final (index, member) in list.elements.indexed) {
+          final result = _runtimeIfBranchAt(
+            element,
+            member,
+            resolution.bindings,
+            [
+              ...branchPath,
+              CollectionStructuralOccurrenceStep(
+                kind: CollectionStructuralOccurrenceKind.listElement,
+                node: member,
+                ordinal: index,
+              ),
+            ],
+            ledgerCallbacks,
+          );
+          if (result.refusal != null) return result;
+          members.add(result.branch!);
+        }
+        return (branch: CollectionRuntimeIfGroup(members), refusal: null);
+      }
+    }
     if (branch is IfElement && branch.caseClause == null) {
       final resolution = _semantics.resolve(
         branch.expression,

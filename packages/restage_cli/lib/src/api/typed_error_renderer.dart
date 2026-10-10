@@ -35,7 +35,7 @@ TypedErrorOutcome renderApiError(
     return TypedErrorOutcome(1, staleCredentialSentence(syntax));
   }
   return TypedErrorOutcome(2, switch (syntax) {
-    SelectorSyntax.cli =>
+    SelectorSyntax.cli || SelectorSyntax.console =>
       'Could not contact the backend: HTTP ${e.statusCode} — ${e.body}',
     SelectorSyntax.mcp =>
       'The Restage backend returned an error (status ${e.statusCode}).',
@@ -87,12 +87,42 @@ String _genericSentence(GenericTypedException typed, SelectorSyntax syntax) =>
       SurfaceSlugRejected(:final slug, :final reason) =>
         'Refusing the id `$slug`. $reason',
       MeasurementReadRejected(:final detail) => 'The read was refused. $detail',
+      final AppDeleteRefused refused => appDeleteRefusedSentence(refused),
+      AppDeleteNameMismatch(:final appName) => switch (syntax) {
+        SelectorSyntax.mcp =>
+          "The name doesn't match the app's name, $appName.",
+        _ => "--name doesn't match the app's name, $appName.",
+      },
       UnauthorizedAccess(:final reason) => unauthorizedSentence(reason, syntax),
       final TargetSelectionRefused refused => targetSelectionSentence(
         refused,
         syntax,
       ),
     };
+
+/// The refusal of an app delete: its title, then one line per hold.
+String appDeleteRefusedSentence(AppDeleteRefused refused) => [
+  '${refused.appName} is still in use',
+  for (final (:kind, :count) in refused.holds)
+    '  ${appDeleteHoldLine(kind, count, projectName: refused.projectName)}',
+].join('\n');
+
+/// One hold of an app delete, such as "2 surfaces serving".
+String appDeleteHoldLine(
+  AppDeleteHoldKind kind,
+  int count, {
+  required String projectName,
+}) => switch (kind) {
+  AppDeleteHoldKind.servingSurface =>
+    count == 1 ? '1 surface serving' : '$count surfaces serving',
+  AppDeleteHoldKind.activeApiKey =>
+    count == 1 ? '1 active API key' : '$count active API keys',
+  AppDeleteHoldKind.runningExperiment =>
+    count == 1 ? '1 running experiment' : '$count running experiments',
+  AppDeleteHoldKind.deliveryRule =>
+    count == 1 ? '1 delivery rule' : '$count delivery rules',
+  AppDeleteHoldKind.lastAppInProject => 'The only app in $projectName',
+};
 
 /// Names why the server refused a signed-in caller.
 String unauthorizedSentence(

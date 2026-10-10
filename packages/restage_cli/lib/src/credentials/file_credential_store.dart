@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:path/path.dart' as p;
 
@@ -22,7 +23,7 @@ class MalformedCredentialFileException implements Exception {
   @override
   String toString() =>
       'MalformedCredentialFileException: credentials file is malformed at '
-      '$path. Run `restage login` again to replace it.';
+      '$path. ${currentSelectorSyntax.signIn}';
 }
 
 /// Returns the platform-default location of the credentials file.

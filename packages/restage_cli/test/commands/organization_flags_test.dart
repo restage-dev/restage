@@ -60,7 +60,13 @@ void main() {
 
   test('catalog push takes --organization', () async {
     final catalog = File(
-      p.join(tempDir.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
+      p.join(
+        tempDir.path,
+        '.restage',
+        'build',
+        'widget_catalog',
+        'catalog.json',
+      ),
     );
     await catalog.create(recursive: true);
     await catalog.writeAsString('{}');

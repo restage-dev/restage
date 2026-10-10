@@ -63,6 +63,65 @@ class SurfaceSlugRejected extends GenericTypedException {
   String toString() => 'SurfaceSlugRejected(slug: $slug, reason: $reason)';
 }
 
+/// What keeps an app from being deleted, and how many things hold it.
+@experimental
+enum AppDeleteHoldKind {
+  /// A surface serves in one of the app's environments.
+  servingSurface,
+
+  /// An API key of the app is active.
+  activeApiKey,
+
+  /// An experiment on the app is running or paused.
+  runningExperiment,
+
+  /// A delivery rule routes one of the app's surfaces.
+  deliveryRule,
+
+  /// The app is the only one in its project.
+  lastAppInProject;
+
+  /// Decode the wire name.
+  static AppDeleteHoldKind? fromWireName(Object? value) {
+    for (final kind in values) {
+      if (kind.name == value) return kind;
+    }
+    return null;
+  }
+}
+
+/// An app delete refused while something still uses the app. Maps from the
+/// backend's `AppDeleteRefusedException`.
+@experimental
+class AppDeleteRefused extends GenericTypedException {
+  /// Construct a refusal.
+  const AppDeleteRefused({
+    required this.appName,
+    required this.projectName,
+    required this.holds,
+  });
+
+  /// The app's name.
+  final String appName;
+
+  /// The app's project, named by the last-app hold.
+  final String projectName;
+
+  /// Each hold with its count, in the order the server named them.
+  final List<({AppDeleteHoldKind kind, int count})> holds;
+}
+
+/// An app delete whose confirmation named another app. Maps from the
+/// backend's `AppDeleteNameMismatchException`.
+@experimental
+class AppDeleteNameMismatch extends GenericTypedException {
+  /// Construct with the app's actual [appName].
+  const AppDeleteNameMismatch({required this.appName});
+
+  /// The app's name.
+  final String appName;
+}
+
 /// A measurement read named a window or selector it cannot answer.
 @experimental
 class MeasurementReadRejected extends GenericTypedException {
@@ -255,6 +314,21 @@ GenericTypedException? decodeGenericTypedException(String body) {
         slug: data['slug'] as String,
         reason: data['reason'] as String,
       );
+    case 'AppDeleteRefusedException':
+      return AppDeleteRefused(
+        appName: data['appName'] as String,
+        projectName: data['projectName'] as String,
+        holds: [
+          for (final hold in data['holds'] as List<dynamic>? ?? [])
+            if (AppDeleteHoldKind.fromWireName(
+                  (hold as Map<String, dynamic>)['kind'],
+                )
+                case final kind?)
+              (kind: kind, count: hold['count'] as int),
+        ],
+      );
+    case 'AppDeleteNameMismatchException':
+      return AppDeleteNameMismatch(appName: data['appName'] as String);
     case 'MeasurementReadRejectedException':
       return MeasurementReadRejected(
         reason: data['reason'] as String,

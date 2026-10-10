@@ -128,8 +128,14 @@ final class SurfacePublication {
     String? contractFingerprint,
     SurfaceScreenHostDataSchema? hostDataContract,
     String? hostDataContractHash,
+    String? mountName,
   }) {
     _requireIdentity(slug, 'publication.slug');
+    if (mountName != null && !_mountNamePattern.hasMatch(mountName)) {
+      throw const FormatException(
+        'publication.mountName must be a public Dart class name.',
+      );
+    }
     SurfaceContractJson.requireSha256(
       payloadContentHash,
       'publication.payloadContentHash',
@@ -266,6 +272,7 @@ final class SurfacePublication {
       contractFingerprint: contractFingerprint,
       hostDataContract: hostDataContract,
       hostDataContractHash: hostDataContractHash,
+      mountName: mountName,
     );
   }
 
@@ -283,6 +290,7 @@ final class SurfacePublication {
     required this.contractFingerprint,
     required this.hostDataContract,
     required this.hostDataContractHash,
+    required this.mountName,
   });
 
   final Surface surface;
@@ -304,6 +312,10 @@ final class SurfacePublication {
   /// Content hash of [hostDataContract], present exactly with it.
   final String? hostDataContractHash;
 
+  /// The generated widget an app mounts to show this surface, when one was
+  /// generated.
+  final String? mountName;
+
   Map<String, Object?> toJson() {
     if (sourceKind == SurfaceSourceKind.screen) {
       return <String, Object?>{
@@ -322,6 +334,7 @@ final class SurfacePublication {
           ),
         if (hostDataContractHash != null)
           'hostDataContractHash': hostDataContractHash,
+        if (mountName != null) 'mountName': mountName,
         'payloadContentHash': payloadContentHash,
         'payloadKind': payloadKind.wireName,
         'slug': slug,
@@ -332,6 +345,7 @@ final class SurfacePublication {
     }
     return <String, Object?>{
       if (deliveryMode != null) 'deliveryMode': deliveryMode!.wireName,
+      if (mountName != null) 'mountName': mountName,
       'payloadContentHash': payloadContentHash,
       'payloadKind': payloadKind.wireName,
       'slug': slug,
@@ -364,6 +378,7 @@ final class SurfacePublication {
         ..add('hostDataContract')
         ..add('hostDataContractHash');
     }
+    if (json.containsKey('mountName')) expected.add('mountName');
     SurfaceContractJson.exactKeys(json, expected, path);
     return SurfacePublication(
       surface: Surface.fromWireName(
@@ -421,6 +436,9 @@ final class SurfacePublication {
               'hostDataContractHash',
               path,
             )
+          : null,
+      mountName: json.containsKey('mountName')
+          ? SurfaceContractJson.requiredString(json, 'mountName', path)
           : null,
     );
   }
@@ -1742,12 +1760,15 @@ const Set<String> _publicationFields = <String>{
   'eventContractHash',
   'hostDataContract',
   'hostDataContractHash',
+  'mountName',
   'payloadContentHash',
   'payloadKind',
   'slug',
   'sourceKind',
   'surface',
 };
+
+final RegExp _mountNamePattern = RegExp(r'^[A-Z][A-Za-z0-9_$]{0,254}$');
 
 Set<String> _publicationRequiredFields({
   required SurfaceSourceKind sourceKind,

@@ -22,6 +22,7 @@ final class CustomWidgetParam {
     this.isVoidCallback = false,
     this.coalesceFallback,
     this.sourceField,
+    this.sourceParameter,
     this.type,
   });
 
@@ -61,6 +62,14 @@ final class CustomWidgetParam {
 
   /// Exact field read by the emitted definition body.
   final FieldElement? sourceField;
+
+  /// The constructor formal that binds [sourceField]; measurement names its
+  /// slot after this public name.
+  final FormalParameterElement? sourceParameter;
+
+  /// The name the definition body reads: the field's own name, which is
+  /// private for a private named parameter.
+  String get readName => sourceField?.name ?? name;
 }
 
 /// Position of a root parameter in its unnamed constructor.

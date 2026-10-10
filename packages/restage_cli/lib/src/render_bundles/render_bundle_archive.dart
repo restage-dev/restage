@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:restage_shared/rfw_formats.dart'
-    show kReservedPreviewConstructorName, kReservedPreviewLibraryName;
+    show hostInstalledRfwLibrary, kReservedPreviewConstructorName;
 
 /// Canonical capability manifest stored beside every render bundle.
 const renderBundleCapabilityManifestPath = 'restage_bundle_manifest.json';
@@ -171,8 +171,13 @@ Uint8List encodeRenderBundleArchive(
   return output.takeBytes();
 }
 
-/// Returns the exact compact capability-manifest bytes for generated catalog JSON.
-Uint8List createRenderBundleCapabilityManifest(String catalogJson) {
+/// Returns the exact compact capability-manifest bytes for generated catalog
+/// JSON, carrying the app's version name and build number when known.
+Uint8List createRenderBundleCapabilityManifest(
+  String catalogJson, {
+  String? appVersion,
+  int? appBuild,
+}) {
   const limits = RenderBundleArchiveLimits();
   if (utf8.encode(catalogJson).length > limits.maxCapabilityManifestBytes) {
     throw const RenderBundleArchiveException('catalog_too_large');
@@ -192,7 +197,11 @@ Uint8List createRenderBundleCapabilityManifest(String catalogJson) {
   }
   final catalog = _stringMap(decoded, 'catalog');
   final manifest = Uint8List.fromList(
-    utf8.encode('{"formatVersion":1,"catalog":${_canonicalJson(catalog)}}'),
+    utf8.encode(
+      '{"formatVersion":1,"catalog":${_canonicalJson(catalog)}'
+      '${appVersion == null ? '' : ',"appVersion":${jsonEncode(appVersion)}'}'
+      '${appBuild == null ? '' : ',"appBuild":$appBuild'}}',
+    ),
   );
   _validateCapabilityManifest(manifest, limits);
   return manifest;
@@ -278,9 +287,11 @@ void _validateCapabilityManifest(
     throw const RenderBundleArchiveException('capability_manifest_not_json');
   }
   if (decoded is! Map<Object?, Object?> ||
-      decoded.length != 2 ||
+      !_capabilityManifestKeys.containsAll(decoded.keys) ||
       decoded['formatVersion'] != 1 ||
-      decoded['catalog'] is! Map<Object?, Object?>) {
+      decoded['catalog'] is! Map<Object?, Object?> ||
+      !_validAppVersion(decoded['appVersion']) ||
+      !_validAppBuild(decoded['appBuild'])) {
     throw const RenderBundleArchiveException('capability_manifest_shape');
   }
   final catalog = _stringMap(
@@ -295,6 +306,20 @@ void _validateCapabilityManifest(
   }
   _validateCatalogIndexes(catalog);
 }
+
+const _capabilityManifestKeys = <Object?>{
+  'formatVersion',
+  'catalog',
+  'appVersion',
+  'appBuild',
+};
+
+bool _validAppVersion(Object? value) =>
+    value == null ||
+    (value is String && value.isNotEmpty && value.length <= 64);
+
+bool _validAppBuild(Object? value) =>
+    value == null || (value is int && value >= 0 && value <= 0x7fffffff);
 
 void _validateCapabilityCatalogGraph(
   Map<String, Object?> catalog,
@@ -374,7 +399,7 @@ void _preflightJsonNesting(String source, {required int maxDepth}) {
 
 void _validateCatalogIndexes(Map<String, Object?> catalog) {
   final libraries = _requiredMap(catalog, 'libraries');
-  if (libraries.containsKey(kReservedPreviewLibraryName)) {
+  if (libraries.keys.any((name) => hostInstalledRfwLibrary(name) != null)) {
     throw const RenderBundleArchiveException('catalog_reserved_library');
   }
   for (final entry in libraries.entries) {

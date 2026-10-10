@@ -74,6 +74,10 @@ final class MeasurementOccurrenceScope {
     return result;
   }
 
+  /// Adds the branch a widget-valued conditional selects.
+  MeasurementOccurrenceScope enterConditionalBranch({required bool then}) =>
+      _append(then ? 'cond:then' : 'cond:else');
+
   MeasurementOccurrenceScope _append(String segment) =>
       MeasurementOccurrenceScope._(
         sourceRootIdentity: sourceRootIdentity,
@@ -159,6 +163,10 @@ final class MeasurementWidgetOccurrence {
         sourceEventIdentity: SourceEventIdentity(
           _stableElementName(eventElement, 'event slot'),
         ),
+        widgetPathSegments: <String>[
+          ...scope.pathSegments,
+          'widget:$widgetIdentity',
+        ],
       );
 }
 
@@ -188,6 +196,16 @@ final class MeasurementWidgetListOccurrence {
         scope: scope.enterHelper(helper),
       );
 
+  /// Adds the branch a list-valued conditional selects.
+  MeasurementWidgetListOccurrence enterConditionalBranch({
+    required bool then,
+  }) =>
+      MeasurementWidgetListOccurrence._(
+        parent: parent,
+        slot: slot,
+        scope: scope.enterConditionalBranch(then: then),
+      );
+
   /// Selects one exact element occurrence.
   MeasurementOccurrenceScope element(
     int ordinal, {
@@ -207,7 +225,8 @@ final class MeasurementEventOccurrence {
     required this.sourceRootIdentity,
     required this.structuralOccurrenceKey,
     required this.sourceEventIdentity,
-  });
+    required List<String> widgetPathSegments,
+  }) : _widgetPathSegments = widgetPathSegments;
 
   /// Exact resolved source owning this event.
   final String sourceRootIdentity;
@@ -217,6 +236,18 @@ final class MeasurementEventOccurrence {
 
   /// Exact callback slot selected on the widget occurrence.
   final SourceEventIdentity sourceEventIdentity;
+
+  final List<String> _widgetPathSegments;
+
+  /// Scope of the modal sheet builder body this callback opens.
+  MeasurementOccurrenceScope sheetBuilder() => MeasurementOccurrenceScope._(
+        sourceRootIdentity: sourceRootIdentity,
+        pathSegments: <String>[
+          ..._widgetPathSegments,
+          'sheet:${sourceEventIdentity.value}:builder',
+        ],
+        parentStructuralOccurrenceKey: structuralOccurrenceKey,
+      );
 
   @override
   bool operator ==(Object other) =>

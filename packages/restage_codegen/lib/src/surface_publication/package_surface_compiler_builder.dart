@@ -12,6 +12,7 @@ import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -592,6 +593,9 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           generatedTopLevelSymbols: recompiled.flows.length == 1
               ? recompiled.flows.single.generatedTopLevelSymbols
               : const {},
+          measurementAnswers: recompiled.flows.length == 1
+              ? recompiled.flows.single.measurementAnswers
+              : const {},
         ),
       );
     }
@@ -657,6 +661,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     provisionalBundle.manifest,
     artifactBytes: provisionalBundle.manifestFiles,
     flows: flows,
+    precompiledFlows: precompiledFlows,
     roster: roster,
     discoveriesByDeclarationIdentity: discoveries,
     rfwCatalogOccurrenceSetsByArtifactPath:
@@ -1393,7 +1398,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
-          buildStep.resolver.astNodeFor(fragment, resolve: true),
+          resolvedNodeInLongForm(buildStep.resolver, fragment),
     );
     for (final screen in screens) {
       await addDiscovery(
@@ -1425,7 +1430,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
-          buildStep.resolver.astNodeFor(fragment, resolve: true),
+          resolvedNodeInLongForm(buildStep.resolver, fragment),
     );
     for (final entry in sources) {
       final declaration = entry.job.library.classes
@@ -1604,6 +1609,7 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   SurfacePublicationManifest manifest, {
   required Map<String, List<int>> artifactBytes,
   required List<NormalizedFlowSource> flows,
+  required List<CompiledFlowArtifact> precompiledFlows,
   required RestageSourceRoster roster,
   required Map<String, MeasurementSourceDiscoveryResult>
       discoveriesByDeclarationIdentity,
@@ -1677,15 +1683,21 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
       );
       continue;
     }
+    final flow = flows
+        .where((flow) =>
+            flow.id == entry.publication.slug &&
+            flow.surface.wireName == entry.publication.surface.wireName)
+        .singleOrNull;
     result.add(
       MeasurementPublicationPlanningInput(
         entry: entry,
-        measurementAnswers: flows
-                .where((flow) =>
-                    flow.id == entry.publication.slug &&
-                    flow.surface.wireName == entry.publication.surface.wireName)
-                .singleOrNull
-                ?.graph
+        // A class-authored flow's answers come from its compilation.
+        measurementAnswers: flow?.graph?.measurementAnswers ??
+            precompiledFlows
+                .where((compiled) =>
+                    flow != null &&
+                    compiled.declarationIdentity == flow.declarationIdentity)
+                .lastOrNull
                 ?.measurementAnswers ??
             const {},
         flowDocument: entry.publication.payloadKind == SurfacePayloadKind.flow
@@ -2046,6 +2058,7 @@ Future<void> _compileLegacyClassFlowDocuments(
           flowDocumentBytes: compiled.flowDocumentBytes,
           generatedPart: compiled.generatedPart,
           generatedTopLevelSymbols: compiled.generatedTopLevelSymbols,
+          measurementAnswers: compiled.measurementAnswers,
         ),
       );
     }
@@ -2253,6 +2266,7 @@ Future<void> _compileCanonicalClassFlowDocuments(
             flowDocumentBytes: compiled.flowDocumentBytes,
             generatedPart: compiled.generatedPart,
             generatedTopLevelSymbols: compiled.generatedTopLevelSymbols,
+            measurementAnswers: compiled.measurementAnswers,
           ),
         );
       }

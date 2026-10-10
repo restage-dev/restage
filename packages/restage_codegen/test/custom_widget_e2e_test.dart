@@ -1328,6 +1328,7 @@ Object x() => AcmeCard(child: Text("passed"));
         () async {
       await _expectNestedGradientChildRefusal(
         'LinearGradient(colors: kColors, stops: [0, Colors.teal])',
+        code: IssueCode.propertyValueTypeMismatch,
       );
     });
 
@@ -1335,6 +1336,7 @@ Object x() => AcmeCard(child: Text("passed"));
         () async {
       await _expectNestedGradientChildRefusal(
         'RadialGradient(colors: kColors, stops: [0, Colors.teal])',
+        code: IssueCode.propertyValueTypeMismatch,
       );
     });
 

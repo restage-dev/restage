@@ -135,78 +135,12 @@ void main() {
       );
       expect(
         probes['at313']!.syntacticCodes,
-        primaryConstructorsSupported ? isEmpty : isNotEmpty,
+        isEmpty,
       );
     });
 
-    test('below-floor guarded inputs fail loudly on the shipping analyzer',
-        () async {
-      if (primaryConstructorsSupported) {
-        markTestSkipped('only applies below analyzer 13.1.0');
-        return;
-      }
-
-      for (final MapEntry(key: scenario, value: shape)
-          in _primaryConstructorScenarios.entries) {
-        final pair = await _compilePrimaryConstructorPair(scenario);
-        _expectSuccessful(pair.classic, '$scenario classic authoring');
-        final classicOutputs = _productOutputs(pair.classic);
-        _expectConcretePrimaryConstructorOutput(scenario, classicOutputs);
-
-        expect(
-          pair.primary.succeeded,
-          isFalse,
-          reason:
-              '$scenario primary authoring must fail below the parser floor',
-        );
-        final malformedDiagnostics = (_logs[pair.primary] ?? '')
-            .split('\n')
-            .where((line) => line.contains('[malformedSourceInput]'))
-            .toList();
-        expect(
-          malformedDiagnostics,
-          isNotEmpty,
-          reason: '$scenario primary authoring must fail loudly',
-        );
-        expect(
-          malformedDiagnostics,
-          everyElement(
-            allOf(
-              contains('[malformedSourceInput] ${shape.primarySource}@'),
-              contains("'primary-constructors' language feature"),
-            ),
-          ),
-          reason: '$scenario must fail only for its primary constructor',
-        );
-
-        final primaryOutputs = _productOutputs(pair.primary);
-        expect(
-          primaryOutputs.keys.where((path) => path.endsWith(shape.product)),
-          isEmpty,
-          reason: '$scenario must not emit its product below the floor',
-        );
-        if (scenario == 'flow') {
-          final classicScreens = _retainedFlowScreens(classicOutputs);
-          final primaryScreens = _retainedFlowScreens(primaryOutputs);
-          expect(classicScreens.keys, orderedEquals(_retainedFlowScreenPaths));
-          expect(
-            primaryScreens,
-            classicScreens,
-            reason: 'flow primary authoring changed a retained screen product',
-          );
-        }
-      }
-    });
-
-    test('above-floor guarded inputs preserve product artifacts', () async {
-      if (!primaryConstructorsSupported) {
-        markTestSkipped(
-          'requires analyzer 13.1.0 primary-constructor support',
-        );
-        return;
-      }
-
-      for (final scenario in _primaryConstructorScenarios.keys) {
+    test('guarded inputs preserve product artifacts', () async {
+      for (final scenario in _primaryConstructorScenarios) {
         final pair = await _compilePrimaryConstructorPair(scenario);
         _expectPrimaryConstructorParity(scenario, pair);
       }
@@ -236,43 +170,116 @@ void main() {
       );
     });
   });
+
+  group('Dart language forms', () {
+    for (final MapEntry(key: scenario, value: syntax)
+        in _languageFormScenarios.entries) {
+      test('$scenario compiles like its long-form twin', () async {
+        final newSyntax =
+            _loadScenario('language_forms/$scenario/short').values.join('\n');
+        for (final pattern in syntax) {
+          expect(
+            newSyntax,
+            contains(pattern),
+            reason: '$scenario no longer uses the syntax it tests',
+          );
+        }
+        final long = await _compileScenario(
+          'language_forms/$scenario/long',
+          builders: _languageFormBuilders(),
+        );
+        final short = await _compileScenario(
+          'language_forms/$scenario/short',
+          builders: _languageFormBuilders(),
+        );
+        _expectSuccessful(long, '$scenario long form');
+        _expectSuccessful(short, '$scenario new syntax');
+        final longOutputs = _languageFormOutputs(long);
+        final shortOutputs = _languageFormOutputs(short);
+        expect(
+          longOutputs.keys.where((path) => path.endsWith('.rfwtxt')),
+          isNotEmpty,
+          reason: '$scenario emitted no surface',
+        );
+        final surfaces = [
+          for (final entry in shortOutputs.entries)
+            if (entry.key.endsWith('.rfwtxt')) _readableProduct(entry.value),
+        ].join('\n');
+        for (final widget in _languageFormInlined[scenario]!) {
+          expect(
+            surfaces,
+            contains(RegExp('^widget $widget\\b', multiLine: true)),
+            reason: '$scenario must inline $widget',
+          );
+        }
+        expect(shortOutputs, contains('lib/user_factories.g.dart'));
+        expect(shortOutputs.keys, orderedEquals(longOutputs.keys));
+        for (final path in longOutputs.keys) {
+          expect(
+            _readableProduct(shortOutputs[path]!),
+            _readableProduct(longOutputs[path]!),
+            reason: '$scenario drifted at $path',
+          );
+        }
+      });
+    }
+  });
 }
 
 const _catalogPath = 'lib/src/widget_catalog/catalog.json';
+// The widgets each scenario must inline, so parity covers their bodies.
+const _languageFormInlined = <String, List<String>>{
+  'shorthand_surface': ['PlanNote'],
+  'shorthand_flow': ['PlanNote'],
+  'private_named': ['AcmeTag', 'AcmeChip', 'AcmeBanner'],
+  'wildcard': ['AcmeNote'],
+};
+
+// Each scenario and the syntax its new-syntax side must use.
+final _languageFormScenarios = <String, List<Pattern>>{
+  'shorthand_surface': [
+    RegExp(r': \.[a-z]\w*[,)]'),
+    RegExp(r'const \.[a-z]\w*\('),
+    RegExp(r'\? \.[a-z]\w* : \.[a-z]'),
+    RegExp(r'= \.[a-z]\w*\(\);'),
+  ],
+  'shorthand_flow': [RegExp(r': (const )?\.[a-z]\w*')],
+  'private_named': ['required this._', 'required final String _'],
+  'wildcard': ['final _ = ', '(_) =>'],
+};
+
+// Text products compare as text so a drift reads as a diff.
+String _readableProduct(String encoded) {
+  final bytes = base64Decode(encoded);
+  try {
+    return utf8.decode(bytes);
+  } on FormatException {
+    return encoded;
+  }
+}
+
+Map<String, String> _languageFormOutputs(TestBuilderResult result) => {
+      ..._productOutputs(result),
+      ..._encodedOutputs(
+        result,
+        (path) => path == 'lib/user_factories.g.dart',
+      ),
+    };
+
+List<Builder> _languageFormBuilders() => [
+      userCatalogJsonBuilder(BuilderOptions.empty),
+      userCatalogBuilder(BuilderOptions.empty),
+      userFactoryBuilder(BuilderOptions.empty),
+      ..._defaultBuilders(),
+    ];
 const _measurementIndexPath =
     '.restage/build/metadata/restage.measurement.index.json';
-// Each scenario's primary-constructor source and the product it must not
-// emit when that source is refused.
-const _primaryConstructorScenarios =
-    <String, ({String primarySource, String product})>{
-  'annotated_widget': (
-    primarySource: 'lib/notice_card.dart',
-    product: _catalogPath,
-  ),
-  'flow': (
-    primarySource: 'lib/onboarding/flows/welcome_flow.dart',
-    product: '.flow.json',
-  ),
-  'structured_colocated': (
-    primarySource: 'lib/notice_card.dart',
-    product: _catalogPath,
-  ),
-  'structured_imported': (
-    primarySource: 'lib/badge.dart',
-    product: _catalogPath,
-  ),
-  'configuration': (
-    primarySource: 'lib/config/bootstrap.dart',
-    product: '/measurement_configuration.restage.g.dart',
-  ),
-};
-const _retainedFlowScreenPaths = <String>[
-  'assets/onboarding/screens/profile.capability.json',
-  'assets/onboarding/screens/profile.rfw',
-  'assets/onboarding/screens/profile.rfwtxt',
-  'assets/onboarding/screens/welcome.capability.json',
-  'assets/onboarding/screens/welcome.rfw',
-  'assets/onboarding/screens/welcome.rfwtxt',
+const _primaryConstructorScenarios = <String>[
+  'annotated_widget',
+  'flow',
+  'structured_colocated',
+  'structured_imported',
+  'configuration',
 ];
 
 typedef _PrimaryConstructorPair = ({
@@ -421,12 +428,6 @@ String _textProduct(Map<String, String> outputs, String path) {
   return utf8.decode(base64Decode(value));
 }
 
-Map<String, String> _retainedFlowScreens(Map<String, String> outputs) => {
-      for (final entry in outputs.entries)
-        if (entry.key.startsWith('assets/onboarding/screens/'))
-          entry.key: entry.value,
-    };
-
 const _internalCompilerArtifacts = <String>{
   'assets/restage/source-index.json',
   'assets/restage/output-roster.json',
@@ -511,24 +512,7 @@ Future<TestBuilderResult> _compileScenario(
   final readerWriter = await _readerWriterWith(sources);
   final logs = <LogRecord>[];
   final result = await testBuilders(
-    builders ??
-        [
-          restageCodegenBuilder(BuilderOptions.empty),
-          paywallFlowBuilder(BuilderOptions.empty),
-          onboardingScreenBuilder(BuilderOptions.empty),
-          onboardingFlowBuilder(BuilderOptions.empty),
-          messageScreenBuilder(BuilderOptions.empty),
-          messageFlowBuilder(BuilderOptions.empty),
-          surveyScreenBuilder(BuilderOptions.empty),
-          surveyFlowBuilder(BuilderOptions.empty),
-          // The one owner of per-library generated Dart. Without it the
-          // scenario emits no `.restage.g.dart` at all and every descriptor
-          // assertion below passes vacuously over an empty set.
-          // Produces the compiler handoff the generated-Dart builder reads;
-          // without it that builder silently emits nothing.
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-        ],
+    builders ?? _defaultBuilders(),
     sources,
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
@@ -543,6 +527,21 @@ Future<TestBuilderResult> _compileScenario(
   }
   return result;
 }
+
+List<Builder> _defaultBuilders() => [
+      restageCodegenBuilder(BuilderOptions.empty),
+      paywallFlowBuilder(BuilderOptions.empty),
+      onboardingScreenBuilder(BuilderOptions.empty),
+      onboardingFlowBuilder(BuilderOptions.empty),
+      messageScreenBuilder(BuilderOptions.empty),
+      messageFlowBuilder(BuilderOptions.empty),
+      surveyScreenBuilder(BuilderOptions.empty),
+      surveyFlowBuilder(BuilderOptions.empty),
+      // Supplies the compiler result needed to emit `.restage.g.dart`.
+      // Without it, descriptor assertions would pass over an empty set.
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
+    ];
 
 final _logs = <TestBuilderResult, String>{};
 

@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
@@ -64,9 +65,10 @@ class ResolvedEnvironmentTargetContext {
   final bool planeIsImplicit;
 }
 
-/// ` --plane <plane>` for a follow-up hint, or empty when [implicit].
-String planeFlag(RuntimePlane plane, {required bool implicit}) =>
-    implicit ? '' : ' --plane ${plane.wireName}';
+/// The plane argument a follow-up needs, or none when [implicit].
+List<FollowUpArg> planeArgs(RuntimePlane plane, {required bool implicit}) => [
+  if (!implicit) FollowUpArg('runtimePlane', plane.wireName, flag: 'plane'),
+];
 
 /// Resolve selectors to one exact target on the server.
 ///

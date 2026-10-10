@@ -126,6 +126,46 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
   return (publication: publication, recorded: recorded);
 }
 
+/// How to show a published [kind] of surface in an app. [mountName] is the
+/// generated widget the published version names, when it names one.
+@experimental
+String mountGuide(SurfaceSourceKind? kind, String slug, {String? mountName}) {
+  const configure =
+      "In the app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...) "
+      'once with the key of this environment';
+  const docs = 'https://docs.page/restage-dev/restage/delivery/hosted-delivery';
+  return switch (kind) {
+    SurfaceSourceKind.paywall =>
+      '$configure, then mount the generated <Name>Surface() of the paywall '
+          "class, or RestagePaywall(id: '$slug'). See $docs.",
+    _ when mountName != null =>
+      "In your app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: "
+          "...) once with this environment's key, then add $mountName(...) "
+          'where it should appear. New versions reach app builds made from '
+          'the same surface code. Guide: $docs',
+    _ =>
+      '$configure, then mount the generated <Name>Surface() of the class '
+          'that declares it. A screen or flow has no mount by id: it runs '
+          'only in app builds that compile its generated mount, and a '
+          'published version must match the contract that build carries. '
+          'See $docs.',
+  };
+}
+
+/// The line an app writes to show the surface [status] describes, or null
+/// when its live version names no generated widget.
+@experimental
+String? mountLine(SurfaceStatusResult status) {
+  if (status.sourceKind == SurfaceSourceKind.paywall.wireName) {
+    return "RestagePaywall(id: '${status.surfaceSlug}')";
+  }
+  final name = status.versions
+      .where((version) => version.isActive)
+      .firstOrNull
+      ?.mountName;
+  return name == null ? null : '$name(...)';
+}
+
 /// Record a publication as a release receipt, linking it to the source of
 /// [revision], and commit it.
 ///

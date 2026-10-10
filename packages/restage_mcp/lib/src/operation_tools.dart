@@ -26,7 +26,9 @@ Tool toolOf(Operation operation) {
       OperationScope.target => targetProperties(),
     },
     if (operation.surface) ...{
-      'surfaceType': surfaceTypeProperty,
+      'surfaceType': operation.readsSurface
+          ? surfaceReadTypeProperty
+          : surfaceTypeProperty,
       'surfaceSlug': surfaceSlugProperty,
     },
     for (final param in operation.params)
@@ -45,10 +47,15 @@ Tool toolOf(Operation operation) {
       properties: properties,
       required: [
         if (operation.surface && scope == OperationScope.target)
-          ...surfaceTargetRequired
+          ...(operation.readsSurface
+              ? surfaceReadRequired
+              : surfaceTargetRequired)
         else ...[
           ...scopeRequired,
-          if (operation.surface) ...['surfaceType', 'surfaceSlug'],
+          if (operation.surface) ...[
+            if (!operation.readsSurface) 'surfaceType',
+            'surfaceSlug',
+          ],
         ],
         for (final param in operation.params)
           if (param.required && !param.cliOnly) param.key,
@@ -93,7 +100,11 @@ Future<CallToolResult> _call(
   final invalid = operation.validate?.call(args, (key) => key);
   if (invalid != null) return mcpError(invalid);
 
-  final identity = operation.surface ? lifecycleIdentityOf(request) : null;
+  final identity = !operation.surface
+      ? null
+      : operation.readsSurface
+      ? await readIdentityOf(api, request)
+      : lifecycleIdentityOf(request);
   final ToolTarget? at = operation.scope == OperationScope.target
       ? targetSelector(request)
       : null;

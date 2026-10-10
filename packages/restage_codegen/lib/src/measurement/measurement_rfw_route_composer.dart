@@ -6,17 +6,16 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 
 /// SDK-local RFW namespace that owns the presentation bridge.
-const List<String> _measurementPresentationRfwLibraryPartsV1 = <String>[
-  'restage',
-  'measurement',
-];
+final List<String> _measurementPresentationRfwLibraryPartsV1 =
+    fmt.kMeasurementPresentationLibraryName.split('.');
 
 /// RFW constructor inserted around an event-owning widget occurrence.
-const String _measurementPresentedConstructorV1 = 'MeasurementPresented';
+const String _measurementPresentedConstructorV1 =
+    fmt.kMeasurementPresentedConstructorName;
 
 /// RFW constructor inserted around a source-event-owning widget occurrence.
 const String _measurementSourcePresentedConstructorV1 =
-    'MeasurementSourcePresented';
+    fmt.kMeasurementSourcePresentedConstructorName;
 
 /// Presentation wrapper argument containing exact final route carriers.
 const String _measurementPresentedCarriersArgumentV1 = 'carriers';
@@ -315,7 +314,7 @@ abstract final class MeasurementRfwRouteComposer {
     _rejectPresentationConstructorCollision(library);
     return fmt.RemoteWidgetLibrary(
       [
-        const fmt.Import(
+        fmt.Import(
           fmt.LibraryName(_measurementPresentationRfwLibraryPartsV1),
         ),
         ...library.imports,

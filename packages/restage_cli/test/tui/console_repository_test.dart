@@ -216,6 +216,44 @@ void main() {
     );
   });
 
+  test('names the real apps when the configured one does not exist', () async {
+    await seedCredential(store);
+    await seedRestageConfig(
+      tempDir,
+      'alpha',
+      'examples',
+      defaultEnvironment: 'staging',
+      organization: 'restage',
+      endpoint: 'http://localhost:8080/',
+    );
+
+    final repo = DefaultConsoleRepository(
+      credentialStore: store,
+      directory: tempDir,
+      httpClient: scriptedHttpClient([
+        _listOrganizations,
+        _listProjects,
+        _listApps,
+        _listOrganizations,
+        _listProjects,
+        _listApps,
+        _listEnvironments,
+      ], withDefaultTargetDiscovery: false),
+    );
+
+    await expectLater(
+      repo.load(),
+      throwsA(
+        isA<ConsoleLoadException>().having(
+          (e) => e.message,
+          'message',
+          'restage_config.yaml names app `examples`, which does not exist in '
+              'project `alpha` of `restage`. Apps there: `mobile`.',
+        ),
+      ),
+    );
+  });
+
   test('joins the old config default to the exact legacy target', () async {
     await seedCredential(store);
     await seedRestageConfig(

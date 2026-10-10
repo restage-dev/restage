@@ -216,6 +216,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
           onEvent: (name, args) {
             // Inert unless this is the owning controller's current screen.
             if (entryId != controller.currentScreenEntryId) return;
+            if (isMeasurementTapEventName(name)) return;
             final sanitized = MeasurementEventSanitizer.sanitize(args);
             controller.handleEvent(
               name,

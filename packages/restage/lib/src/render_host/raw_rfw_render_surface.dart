@@ -1,18 +1,27 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show
+        hostInstalledRfwLibrary,
+        kHostInstalledRfwLibraries,
+        kPreviewInstrumentationRfwLibrary;
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
 import '../runtime/builtin_icon_table.dart' show addBuiltInIconTable;
 import 'protocol.dart';
 import 'geometry_registry.dart';
 import 'marker_library.dart';
+import 'render_placeholder.dart';
 
 /// Raw RFW render core with built-ins and caller-supplied widget registrations.
 ///
 /// The widget libraries are installed into this surface's own runtime. Every
 /// built-in icon is added to the process-wide icon table, which never changes
 /// the meaning of an entry the embedding application already installed.
+///
+/// A widget the document calls but no library provides, or whose builder
+/// throws, draws a bounded placeholder from [placeholderBuilder].
 class RawRfwRenderSurface extends StatefulWidget {
   RawRfwRenderSurface({
     required this.epoch,
@@ -24,6 +33,7 @@ class RawRfwRenderSurface extends StatefulWidget {
     required this.onRemoteEvent,
     this.onRenderEvent,
     this.geometryRegistry,
+    this.placeholderBuilder,
     super.key,
   })  : blob = Uint8List.fromList(blob).asUnmodifiableView(),
         library = null,
@@ -42,6 +52,7 @@ class RawRfwRenderSurface extends StatefulWidget {
     required this.onRemoteEvent,
     this.onRenderEvent,
     this.geometryRegistry,
+    this.placeholderBuilder,
     super.key,
   })  :
         // This constructor narrows the nullable storage used by the blob path.
@@ -64,16 +75,23 @@ class RawRfwRenderSurface extends StatefulWidget {
   final ValueChanged<RenderEvent>? onRenderEvent;
   final GeometryRegistry? geometryRegistry;
 
+  /// Draws a widget this surface cannot build; null draws a muted box.
+  final RenderPlaceholderBuilder? placeholderBuilder;
+
   @override
   State<RawRfwRenderSurface> createState() => _RawRfwRenderSurfaceState();
 }
 
 class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
   static const LibraryName _documentLibrary = LibraryName(<String>['paywall']);
+  static const LibraryName _absentLibrary = LibraryName(
+    <String>['restage', 'preview', 'absent'],
+  );
 
   late Runtime _runtime;
   late DynamicContent _data;
   late Set<String> _dataKeys;
+  Map<String, Set<String>> _installedConstructors = const {};
   Object? _loadError;
   int _lifecycleRevision = 0;
 
@@ -136,7 +154,7 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
       // Clear first so removed registrations cannot leave stale builders.
       _replaceRuntimeLibraries(widget.library!, clearExisting: true);
     } else if (!identical(oldWidget.library, widget.library)) {
-      _runtime.update(_documentLibrary, widget.library!);
+      _installDocument(widget.library!);
     }
 
     final data = _renderData(widget);
@@ -160,21 +178,39 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     addBuiltInIconTable();
     // A preview renders arbitrary authored content, so this runtime carries the
     // whole built-in catalog rather than an app's narrowed vocabulary.
-    RestageWidgetLibraries.builtIn().installInto(
-      _runtime,
-      coreName: const LibraryName(<String>['restage', 'core']),
-      materialName: const LibraryName(<String>['restage', 'material']),
-      cupertinoName: const LibraryName(<String>['restage', 'cupertino']),
-    );
+    final builtIn = RestageWidgetLibraries.builtIn();
+    final installed = <String, Set<String>>{};
+    void install(String namespace, Map<String, LocalWidgetBuilder> builders) {
+      _runtime.update(
+        LibraryName(namespace.split('.')),
+        LocalWidgetLibrary(<String, LocalWidgetBuilder>{
+          for (final entry in builders.entries)
+            entry.key: guardRenderBuilder(
+              entry.key,
+              entry.value,
+              _drawPlaceholder,
+            ),
+        }),
+      );
+      installed[namespace] = builders.keys.toSet();
+    }
+
+    install('restage.core', builtIn.core);
+    install('restage.material', builtIn.material);
+    install('restage.cupertino', builtIn.cupertino);
     final geometryRegistry = widget.geometryRegistry;
     if (geometryRegistry != null) {
       _runtime.update(
-        const LibraryName(<String>['restage', 'editor']),
+        LibraryName(kPreviewInstrumentationRfwLibrary.namespace.split('.')),
         buildMarkerWidgetLibrary(geometryRegistry),
       );
     }
+    // Host libraries are never placeholders, installed or not.
+    for (final library in kHostInstalledRfwLibraries) {
+      installed[library.namespace] = library.constructors;
+    }
     for (final registration in widget.registrations) {
-      if (registration.library.namespace == kReservedPreviewLibraryName ||
+      if (hostInstalledRfwLibrary(registration.library.namespace) != null ||
           registration.widgets.any(
             (factory) => factory.name == kReservedPreviewConstructorName,
           )) {
@@ -184,16 +220,46 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
           null) {
         continue;
       }
-      _runtime.update(
-        LibraryName(registration.library.namespace.split('.')),
-        LocalWidgetLibrary(<String, LocalWidgetBuilder>{
-          for (final factory in registration.widgets)
-            factory.name: factory.builder,
-        }),
-      );
+      install(registration.library.namespace, <String, LocalWidgetBuilder>{
+        for (final factory in registration.widgets)
+          factory.name: factory.builder,
+      });
     }
     registerMeasurementRfwPresentationLibrary(_runtime);
-    _runtime.update(_documentLibrary, document);
+    _installedConstructors = installed;
+    _installDocument(document);
+  }
+
+  Widget _drawPlaceholder(
+          BuildContext context, RenderPlaceholder placeholder) =>
+      buildBoundedRenderPlaceholder(
+        context,
+        placeholder,
+        widget.placeholderBuilder,
+      );
+
+  /// Installs [document], importing placeholders for what nothing provides.
+  void _installDocument(RemoteWidgetLibrary document) {
+    final absent = absentConstructors(document, _installedConstructors);
+    if (absent.isEmpty) {
+      _runtime.update(_documentLibrary, document);
+      return;
+    }
+    _runtime.update(
+      _absentLibrary,
+      LocalWidgetLibrary(<String, LocalWidgetBuilder>{
+        for (final name in absent)
+          name: (context, source) =>
+              _drawPlaceholder(context, RenderPlaceholder(widgetName: name)),
+      }),
+    );
+    _runtime.update(
+      _documentLibrary,
+      RemoteWidgetLibrary(
+        <Import>[...document.imports, const Import(_absentLibrary)],
+        document.widgets,
+      ),
+    );
   }
 
   void _beginLifecycle() {

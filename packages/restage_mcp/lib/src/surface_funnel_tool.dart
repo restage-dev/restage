@@ -16,9 +16,10 @@ final readSurfaceFunnelTool = Tool(
       'version, the eligible presentations, views, completions, skips and '
       'dismissals, the authored steps with their transitions, and the typed '
       'drop-off bands. Counts are integers; every rate is a decimal beside '
-      'the exact numerator and denominator it came from. A group under the '
-      "reading's disclosure floor keeps its identity and states no numbers. "
-      "The figures are the service's own and are returned unchanged.",
+      'the exact numerator and denominator it came from. A count under the '
+      'disclosure floor of 5 is null and reads "<5". A version, step or band '
+      'held whole keeps its identity and states no counts. The figures are '
+      "the service's own and are returned unchanged.",
   inputSchema: Schema.object(
     properties: {
       ...exactTargetProperties(),
@@ -28,12 +29,13 @@ final readSurfaceFunnelTool = Tool(
       'windowStartMicros': Schema.int(
         description:
             'Start of the window, inclusive, in microseconds since '
-            'the epoch.',
+            'the epoch. The read starts at that UTC day; the reading '
+            'states the window it read.',
       ),
       'windowEndExclusiveMicros': Schema.int(
         description:
             'End of the window, exclusive, in microseconds since '
-            'the epoch.',
+            'the epoch. The read runs to the end of that UTC day.',
       ),
       'surfaceRevisionIds': Schema.list(
         description:

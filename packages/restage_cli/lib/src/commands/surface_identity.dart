@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
@@ -135,6 +137,138 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
   required SurfaceType? fixedSurfaceType,
   required String slug,
   required StringSink stderr,
+}) async => (await _resolveSelection(
+  argResults: argResults,
+  fixedSurfaceType: fixedSurfaceType,
+  slug: slug,
+  stderr: stderr,
+  serverResolvesType: false,
+))?.identity;
+
+/// Resolve a surface for a read. Like [resolveSurfaceLifecycleIdentity], but
+/// a surface outside the generated manifest named without a type is looked up
+/// on the server by id.
+@experimental
+Future<SurfaceReadSelection?> resolveSurfaceReadSelection({
+  required ArgResults? argResults,
+  required Surface? fixedSurfaceType,
+  required String slug,
+  required StringSink stderr,
+}) => _resolveSelection(
+  argResults: argResults,
+  fixedSurfaceType: fixedSurfaceType,
+  slug: slug,
+  stderr: stderr,
+  serverResolvesType: true,
+);
+
+/// A surface named for a read: its identity, or the id and family selectors
+/// whose type the server resolves.
+@experimental
+@immutable
+class SurfaceReadSelection {
+  const SurfaceReadSelection._({
+    required this.slug,
+    this.identity,
+    this.sourceKind,
+    this.contractVersion,
+  });
+
+  /// A selection that already names [identity].
+  SurfaceReadSelection.of(SurfaceLifecycleIdentity this.identity)
+    : slug = identity.slug,
+      sourceKind = null,
+      contractVersion = null;
+
+  /// Stable surface slug.
+  final String slug;
+
+  /// The identity, when the manifest or the caller named its type.
+  final SurfaceLifecycleIdentity? identity;
+
+  /// Explicit source kind, when the type is left to the server.
+  final SurfaceSourceKind? sourceKind;
+
+  /// Explicit contract version, when the type is left to the server.
+  final int? contractVersion;
+
+  /// The identity, looking the type up on the server when it is unknown.
+  Future<SurfaceLifecycleIdentity> resolve({
+    required RestageApi api,
+    required String project,
+    required String app,
+    int? organizationId,
+    int? appId,
+  }) async =>
+      identity ??
+      await lookUpLifecycleIdentity(
+        api: api,
+        project: project,
+        app: app,
+        slug: slug,
+        organizationId: organizationId,
+        appId: appId,
+        sourceKind: sourceKind,
+        contractVersion: contractVersion,
+      );
+}
+
+/// The lifecycle identity of [slug], with its type looked up on the server.
+///
+/// Throws [TargetSelectionException] when no type, or more than one, has it.
+@experimental
+Future<SurfaceLifecycleIdentity> lookUpLifecycleIdentity({
+  required RestageApi api,
+  required String project,
+  required String app,
+  required String slug,
+  int? organizationId,
+  int? appId,
+  SurfaceSourceKind? sourceKind,
+  int? contractVersion,
+  SelectorSyntax? syntax,
+}) async {
+  final surfaceApi = SurfaceApi(api);
+  final types = kLifecycleSurfaceTypes.toList(growable: false);
+  final lists = await Future.wait([
+    for (final type in types)
+      surfaceApi.list(
+        project: project,
+        app: app,
+        surfaceType: type,
+        organizationId: organizationId,
+        appId: appId,
+      ),
+  ]);
+  final matches = [
+    for (final (i, type) in types.indexed)
+      if (lists[i].any((summary) => summary.slug == slug)) type,
+  ];
+  final typeSelector = (syntax ?? currentSelectorSyntax).surfaceType;
+  if (matches.isEmpty) {
+    throw TargetSelectionException('No surface "$slug" exists in app "$app".');
+  }
+  if (matches.length > 1) {
+    throw TargetSelectionException(
+      'Surface "$slug" exists as more than one type: '
+      '${matches.map((type) => type.wireName).join(', ')}. '
+      'Pass $typeSelector to choose one.',
+    );
+  }
+  return explicitLifecycleIdentity(
+    type: matches.single,
+    slug: slug,
+    sourceKind: sourceKind,
+    contractVersion: contractVersion,
+  );
+}
+
+Future<SurfaceReadSelection?> _resolveSelection({
+  required ArgResults? argResults,
+  required Surface? fixedSurfaceType,
+  required String slug,
+  required StringSink stderr,
+  required bool serverResolvesType,
 }) async {
   final explicitType = _readSurfaceType(
     argResults: argResults,
@@ -217,12 +351,12 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
         if (!_validateExplicitVersion(identity, explicitVersion, stderr)) {
           return null;
         }
-        return identity;
+        return SurfaceReadSelection._(slug: slug, identity: identity);
       }
 
       // A current manifest is authoritative. Explicit identity is allowed
       // here only because the source may have been removed from the roster.
-      if (explicitType == null) {
+      if (explicitType == null && !serverResolvesType) {
         stderr.writeln(
           'Surface "$slug" is not present in the generated manifest. '
           'Pass --type and, for a standalone screen, --contract-version to '
@@ -234,6 +368,13 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
   }
 
   final type = explicitType;
+  if (type == null && serverResolvesType) {
+    return SurfaceReadSelection._(
+      slug: slug,
+      sourceKind: explicitSourceKind,
+      contractVersion: explicitVersion,
+    );
+  }
   if (type == null) {
     final valid = kLifecycleSurfaceTypes.map((t) => t.wireName).join(', ');
     stderr.writeln(
@@ -242,11 +383,14 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
     );
     return null;
   }
-  return _explicitIdentity(
-    type: type,
+  return SurfaceReadSelection._(
     slug: slug,
-    sourceKind: explicitSourceKind,
-    contractVersion: explicitVersion,
+    identity: _explicitIdentity(
+      type: type,
+      slug: slug,
+      sourceKind: explicitSourceKind,
+      contractVersion: explicitVersion,
+    ),
   );
 }
 

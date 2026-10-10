@@ -23,6 +23,7 @@ import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
 import 'package:restage_codegen/src/dsl_emission.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
+import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -64,6 +65,8 @@ import 'package:restage_shared/restage_shared.dart'
         kThemeContractPaths,
         kThemeContractTextThemeFieldKinds,
         kThemeContractTextThemeStyles;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
     show
@@ -131,9 +134,7 @@ const Set<String> _kAsymmetricBorderRadiusCtors = {
   'all',
 };
 
-/// Prefix of the per-corner sentinel produced by the BorderRadius recognition
-/// (see `StructuredValueEmitter`). The splice keys off this prefix.
-const String _kBorderRadiusCornerSentinel = '__rfw_border_radius_corners(';
+const String _kBorderRadiusCornerSentinel = kBorderRadiusCornerSentinel;
 
 /// The `synthetic` strategy of the codepoint property an icon slot carries.
 const String _kIconDataSynthetic = 'iconData';
@@ -591,6 +592,9 @@ final class ExpressionTranslator {
   // artifact without failing the build.
   bool _currentTranslationSuppressed = false;
 
+  // The measured callback slot whose value is being translated.
+  MeasurementEventOccurrence? _measuredEventOccurrence;
+
   // The font family the icon at the codepoint slot being translated belongs
   // to, when it is not the Material default. Set by `_resolveIconCodepoint`
   // and taken by the enclosing constructor emission.
@@ -1019,7 +1023,7 @@ final class ExpressionTranslator {
     final saved = _walk;
     final stateFields = blueprint.state;
     _walk = _walk.copyWith(
-      argNames: blueprint.params.map((p) => p.name).toSet(),
+      argNames: {for (final p in blueprint.params) p.readName: p.name},
       params: {for (final p in blueprint.params) p.name: p},
       // Custom-widget definitions cannot read root host data.
       rootParams: const {},
@@ -1193,6 +1197,7 @@ final class ExpressionTranslator {
         switch (trigger) {
           case ModalSheetRecognised(:final sheet):
             if (identical(sheet.call, modalSheet.sheet.call)) {
+              modalSheet.triggerOccurrence ??= _measuredEventOccurrence;
               return 'set state.${modalSheet.flagName} = true';
             }
           case ModalSheetResultDropped(:final reason):
@@ -1368,13 +1373,13 @@ final class ExpressionTranslator {
         if (stateFields != null && stateFields.containsKey(expr.name)) {
           return 'state${_rfwPathPart(expr.name)}';
         }
-        if (_walk.argNames.contains(expr.name)) {
+        if (_walk.argNames[expr.name] case final argName?) {
           // A constructor-parameter reference inside a custom-widget definition
           // body — lowered to the RFW `args.` namespace. In a stateful walk,
           // the State's `build()` reaches constructor params via `widget.X`
           // instead, but `_walk.argNames` is still populated so another
           // stateless-only path stays consistent.
-          return 'args${_rfwPathPart(expr.name)}';
+          return 'args${_rfwPathPart(argName)}';
         }
         // Root constructor parameters use the host-data namespace.
         final rootParam = _rootParamRead(expr);
@@ -1448,7 +1453,7 @@ final class ExpressionTranslator {
         _constIdentifierUnresolvedIssue(
           expr,
           IssueCode.unrecognizedMethodCall,
-          capabilityGapSubject: 'expression:${expr.runtimeType}',
+          capabilityGapSubject: 'expression:${_nodeKind(expr)}',
         ),
       );
       return '';
@@ -1456,8 +1461,8 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
-        capabilityGapSubject: 'expression:${expr.runtimeType}',
-        message: 'Unsupported expression: ${expr.runtimeType} `$expr`. '
+        capabilityGapSubject: 'expression:${_nodeKind(expr)}',
+        message: 'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
             'See the supported expression subset.',
         location: _locationOf(expr),
       ),
@@ -1532,7 +1537,7 @@ final class ExpressionTranslator {
     if (isConstDeclarationReference(expr)) return false;
     return _walk.eventHandlers.containsKey(expr.name) ||
         (_walk.stateFields?.containsKey(expr.name) ?? false) ||
-        _walk.argNames.contains(expr.name);
+        _walk.argNames.containsKey(expr.name);
   }
 
   /// Creates the diagnostic for an application-defined reserved namespace.
@@ -1884,7 +1889,7 @@ final class ExpressionTranslator {
       Issue(
         code: IssueCode.unsupportedInterpolation,
         message: 'Only recognized String helpers or String State fields may '
-            'appear inside string interpolation. Found: ${inner.runtimeType} '
+            'appear inside string interpolation. Found: ${_nodeKind(inner)} '
             '${inner.toSource()}.',
         location: _locationOf(inner),
       ),
@@ -2068,6 +2073,20 @@ final class ExpressionTranslator {
           ordinal: ordinal,
           itemType: itemType,
         );
+      case CollectionRuntimeIfGroup(:final members):
+        for (final member in members) {
+          if (_emitGuardedBranch(
+            member,
+            guard,
+            elements,
+            issues,
+            ordinal: ordinal,
+            itemType: itemType,
+          )) {
+            return true;
+          }
+        }
+        return false;
       case CollectionRuntimeIfLeaf():
         final dsl = _emitRuntimeIfBranch(
           branch,
@@ -2121,6 +2140,8 @@ final class ExpressionTranslator {
 
   bool _branchIsTotal(CollectionRuntimeIfBranch branch) => switch (branch) {
         CollectionRuntimeIfLeaf() => true,
+        // A spread yields its own element count, so it is guarded per element.
+        CollectionRuntimeIfGroup() => false,
         CollectionRuntimeIfNested(:final candidate) =>
           _runtimeIfIsTotal(candidate),
       };
@@ -2152,6 +2173,8 @@ final class ExpressionTranslator {
         );
         if (dsl.isEmpty || issues.length != before) return null;
         return dsl;
+      case CollectionRuntimeIfGroup():
+        throw StateError('A spread branch is emitted as guarded elements');
     }
   }
 
@@ -2543,7 +2566,7 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          capabilityGapSubject: 'expression:${expr.runtimeType}',
+          capabilityGapSubject: 'expression:${_nodeKind(expr)}',
           message: 'Record literal cannot be encoded: $reason.',
           location: _locationOf(expr),
         ),
@@ -2635,10 +2658,10 @@ final class ExpressionTranslator {
     // constructor parameter. Stateless walks never see `widget.` (their
     // build() reads constructor params as bare identifiers), so the branch
     // is gated on the stateful-walk marker.
-    if (prefix == 'widget' &&
-        _walk.stateFields != null &&
-        _walk.argNames.contains(identifier)) {
-      return 'args${_rfwPathPart(identifier)}';
+    if (prefix == 'widget' && _walk.stateFields != null) {
+      if (_walk.argNames[identifier] case final argName?) {
+        return 'args${_rfwPathPart(argName)}';
+      }
     }
     // Stateful roots read constructor parameters through `widget`.
     final rootParam = _rootParamRead(expr);
@@ -2667,6 +2690,14 @@ final class ExpressionTranslator {
         ),
       );
       return '';
+    }
+
+    // Radii have no wire form of their own outside the sites that read them.
+    final frameworkConst = _frameworkConstValue(expr);
+    if (frameworkConst != null &&
+        frameworkConst.kind != FrameworkConstKind.radius &&
+        frameworkConst.kind != FrameworkConstKind.borderRadius) {
+      return frameworkConst.dsl;
     }
 
     if (prefix == 'Colors') {
@@ -2752,9 +2783,6 @@ final class ExpressionTranslator {
     // it needs an explicit element-gated lowering after the general unresolved
     // non-enum fall-through was closed. A custom `Alignment` look-alike and
     // an unresolved prefix both continue to the diagnosed path below.
-    if (prefix == 'Alignment' && _isFrameworkValueType(expr.prefix.element)) {
-      return '"$identifier"';
-    }
 
     // A `FontWeight.<member>` reference. A resolved CUSTOM class named
     // `FontWeight` must NOT lower to a framework weight name — its `.w600`
@@ -3052,6 +3080,19 @@ final class ExpressionTranslator {
   /// to defer (the recognised set is the resolved-real-Flutter case only).
   bool _prefixResolvesToFlutter(SimpleIdentifier prefix) =>
       libraryIsFlutter(prefix.element);
+
+  /// The wire value of a framework static const [expr] names, gated by the
+  /// framework-library predicate so a look-alike never substitutes.
+  FrameworkConstValue? _frameworkConstValue(Expression expr) {
+    final element = switch (expr) {
+      PrefixedIdentifier(:final identifier) => identifier.element,
+      PropertyAccess(:final propertyName) => propertyName.element,
+      _ => null,
+    };
+    if (!_isFrameworkValueType(element)) return null;
+    final value = frameworkStaticConst(expr);
+    return value == null ? null : encodeFrameworkConst(value);
+  }
 
   /// True when [element] is unresolved (`null` — a synthetic-test input) OR
   /// resolves to a framework value-type library (`dart:` / `package:flutter/`).
@@ -5230,7 +5271,12 @@ final class ExpressionTranslator {
       case ModalSheetBuilderRecognised(:final body):
         final before = issues.length;
         final saved = _walk;
-        _walk = _walk.copyWith(modalSheetCloseFlag: context.flagName);
+        _walk = _walk.copyWith(
+          modalSheetCloseFlag: context.flagName,
+          measurementScope: context.triggerOccurrence?.sheetBuilder(),
+          measurementWidget: null,
+          measurementWidgetList: null,
+        );
         try {
           final child = _translate(body, issues);
           if (child.isEmpty && issues.length > before) return null;
@@ -7289,7 +7335,7 @@ final class ExpressionTranslator {
       // stateless case keeps the null marker so neither lowering fires.
       final stateFields = blueprint.state;
       _walk = _walk.copyWith(
-        argNames: blueprint.params.map((p) => p.name).toSet(),
+        argNames: {for (final p in blueprint.params) p.readName: p.name},
         params: {for (final p in blueprint.params) p.name: p},
         // Custom-widget definitions cannot read root host data.
         rootParams: const {},
@@ -7629,6 +7675,35 @@ final class ExpressionTranslator {
     PropertyEntry? property,
   }) {
     final stripped = _stripParens(expr);
+    final eventOccurrence =
+        switch ((_walk.measurementWidget, param.sourceParameter)) {
+      (final widget?, final parameter?) => widget.event(parameter),
+      _ => null,
+    };
+    final savedEventOccurrence = _measuredEventOccurrence;
+    if (eventOccurrence != null) _measuredEventOccurrence = eventOccurrence;
+    try {
+      return _translateMeasuredParamValue(
+        param,
+        stripped,
+        expr,
+        eventOccurrence,
+        issues,
+        property: property,
+      );
+    } finally {
+      _measuredEventOccurrence = savedEventOccurrence;
+    }
+  }
+
+  String _translateMeasuredParamValue(
+    CustomWidgetParam param,
+    Expression stripped,
+    Expression expr,
+    MeasurementEventOccurrence? eventOccurrence,
+    List<Issue> issues, {
+    PropertyEntry? property,
+  }) {
     late final String translated;
     if (property != null) {
       translated = _translateSlotValue(
@@ -7663,27 +7738,56 @@ final class ExpressionTranslator {
       param,
       translated,
     );
-    final eventOccurrence =
-        switch ((_walk.measurementWidget, param.sourceField)) {
-      (final widget?, final field?) => widget.event(field),
-      _ => null,
-    };
     final marker = eventOccurrence == null
         ? null
         : measurementRouteEmissionPlan?.markerFor(eventOccurrence);
     if (marker == null) return value;
-    if (value.isEmpty || !value.trimLeft().startsWith('event ')) {
+    if (value.isEmpty) {
       issues.add(
         Issue(
           code: IssueCode.invalidEventConfiguration,
           message: 'The measured inlined custom-widget callback did not '
-              'lower to one RFW event handler.',
+              'lower to an RFW event handler.',
           location: _locationOf(expr),
         ),
       );
       return '';
     }
-    return _attachMeasurementRouteMarker(value, marker, expr, issues);
+    return _measuredEventHandler(value, marker, expr, issues);
+  }
+
+  /// Attaches [marker] to a lowered event, or pairs a state update with the
+  /// measure-only tap event that carries it.
+  String _measuredEventHandler(
+    String value,
+    String marker,
+    Expression expression,
+    List<Issue> issues,
+  ) {
+    final handler = value.trimLeft();
+    if (handler.startsWith('event ')) {
+      return _attachMeasurementRouteMarker(value, marker, expression, issues);
+    }
+    if (!handler.startsWith('set ')) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidEventConfiguration,
+          message: 'The measured callback did not lower to an RFW event or '
+              'state update, so its private Measurement route cannot be '
+              'emitted.',
+          location: _locationOf(expression),
+        ),
+      );
+      return '';
+    }
+    final tap = _attachMeasurementRouteMarker(
+      'event ${_stringLiteral(kMeasurementPublicationTapEventNameV1)} {}',
+      marker,
+      expression,
+      issues,
+    );
+    if (tap.isEmpty) return '';
+    return '[$value, $tap]';
   }
 
   String _attachMeasurementRouteMarker(
@@ -7927,8 +8031,10 @@ final class ExpressionTranslator {
   String _conditionalSwitch(
     ConditionalExpression expr,
     List<Issue> issues,
-    String Function(Expression) branch,
+    String Function(Expression) translateBranch,
   ) {
+    String branch(Expression value) =>
+        _inConditionalBranch(expr, value, () => translateBranch(value));
     final brightnessSwitch = _tryBrightnessSwitch(expr, issues, branch);
     if (brightnessSwitch != null) return brightnessSwitch;
     final intSwitch = _tryIntStateEqualitySwitch(expr, issues, branch);
@@ -7955,6 +8061,48 @@ final class ExpressionTranslator {
     refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
     if (refused) return '';
     return 'switch $cond { true: $thenDsl, false: $elseDsl }';
+  }
+
+  /// Translates [branch] with the measurement scope qualified by its path from
+  /// [root] through the enclosing conditionals, as source discovery keys it.
+  String _inConditionalBranch(
+    ConditionalExpression root,
+    Expression branch,
+    String Function() translate,
+  ) {
+    final scope = _walk.measurementScope;
+    final list = _walk.measurementWidgetList;
+    if (scope == null && list == null) return translate();
+    final path = <bool>[];
+    AstNode? child = branch;
+    while (child != null && !identical(child, root)) {
+      final parent = child.parent;
+      if (parent is ConditionalExpression) {
+        if (identical(parent.thenExpression, child)) {
+          path.add(true);
+        } else if (identical(parent.elseExpression, child)) {
+          path.add(false);
+        }
+      }
+      child = parent;
+    }
+    if (child == null) return translate();
+    var qualifiedScope = scope;
+    var qualifiedList = list;
+    for (final then in path.reversed) {
+      qualifiedScope = qualifiedScope?.enterConditionalBranch(then: then);
+      qualifiedList = qualifiedList?.enterConditionalBranch(then: then);
+    }
+    final saved = _walk;
+    _walk = _walk.copyWith(
+      measurementScope: qualifiedScope,
+      measurementWidgetList: qualifiedList,
+    );
+    try {
+      return translate();
+    } finally {
+      _walk = saved;
+    }
   }
 
   bool _diagnosedEmpty(String value, List<Issue> issues, int beforeIssues) =>
@@ -8369,14 +8517,11 @@ final class ExpressionTranslator {
   /// The constructor-parameter name [expr] reads inside the custom-widget
   /// definition being translated, as a bare identifier or `widget.<name>`.
   String? _argName(Expression expr) {
-    if (expr is SimpleIdentifier && _walk.argNames.contains(expr.name)) {
-      return expr.name;
-    }
+    if (expr is SimpleIdentifier) return _walk.argNames[expr.name];
     if (expr is PrefixedIdentifier &&
         expr.prefix.name == 'widget' &&
-        _walk.stateFields != null &&
-        _walk.argNames.contains(expr.identifier.name)) {
-      return expr.identifier.name;
+        _walk.stateFields != null) {
+      return _walk.argNames[expr.identifier.name];
     }
     return null;
   }
@@ -8819,6 +8964,8 @@ final class ExpressionTranslator {
         );
       }
     }
+    final savedEventOccurrence = _measuredEventOccurrence;
+    if (eventOccurrence != null) _measuredEventOccurrence = eventOccurrence;
     final String value;
     try {
       value = _translateSlotValueCore(
@@ -8830,6 +8977,7 @@ final class ExpressionTranslator {
       );
     } finally {
       _walk = saved;
+      _measuredEventOccurrence = savedEventOccurrence;
     }
     if (issues
         .skip(beforeValidation)
@@ -8850,19 +8998,8 @@ final class ExpressionTranslator {
       }
       return value;
     }
-    if (marker != null && !value.trimLeft().startsWith('event ')) {
-      issues.add(
-        Issue(
-          code: IssueCode.invalidEventConfiguration,
-          message: 'The measured callback did not lower to one RFW event '
-              'handler, so its private Measurement route cannot be emitted.',
-          location: _locationOf(expr),
-        ),
-      );
-      return '';
-    }
     if (marker == null) return value;
-    return _attachMeasurementRouteMarker(value, marker, expr, issues);
+    return _measuredEventHandler(value, marker, expr, issues);
   }
 
   String _translateSlotValueCore(
@@ -8904,6 +9041,22 @@ final class ExpressionTranslator {
     if (type == PropertyType.boolean) {
       final condition = _booleanSlotCondition(resolved, issues);
       if (condition != null) return condition;
+    }
+    final frameworkConst = _frameworkConstValue(resolved);
+    if (frameworkConst != null && type != PropertyType.unknown) {
+      if (frameworkConst.fits(type)) {
+        return frameworkConst.dsl;
+      }
+      issues.add(
+        Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: "'${resolved.toSource()}' is "
+              '${frameworkConst.kind.label} and cannot be assigned to a '
+              "'${type.name}' property type at this site.",
+          location: _locationOf(resolved),
+        ),
+      );
+      return '';
     }
     // Preserve the authored TextDecoration member before const-object expansion
     // reaches the private constructor behind the static constant.
@@ -9406,12 +9559,14 @@ final class ExpressionTranslator {
     if (expr is! BinaryExpression || expr.operator.lexeme != '??') return null;
     final left = expr.leftOperand;
     final read = left is ParenthesizedExpression ? left.expression : left;
-    String? name;
-    if (read is SimpleIdentifier) {
-      name = read.name;
-    } else if (read is PrefixedIdentifier && read.prefix.name == 'widget') {
-      name = read.identifier.name;
-    }
+    final readName = switch (read) {
+      SimpleIdentifier(:final name) => name,
+      PrefixedIdentifier(:final prefix, :final identifier)
+          when prefix.name == 'widget' =>
+        identifier.name,
+      _ => null,
+    };
+    final name = _walk.argNames[readName];
     if (name == null) return null;
     if (_walk.params[name]?.coalesceFallback == null) return null;
     return (name: name, read: read, fallback: expr.rightOperand);
@@ -9665,20 +9820,15 @@ final class ExpressionTranslator {
     final isCleanSentinel =
         value.startsWith(_kBorderRadiusCornerSentinel) && value.endsWith(')');
     if (!isCleanSentinel) {
-      // The sentinel is a private marker that must NEVER reach the blob. A value that CONTAINS it but isn't a
-      // clean top-level sentinel means the asymmetric BorderRadius was wrapped
-      // in another expression the splice can't fan out — e.g. a conditional on
-      // a direct slot (`cond ? BorderRadius.only(..) : circular(..)`) lowers to
-      // a `switch {.. <sentinel> ..}`. Defer the whole value loudly rather than
-      // leak the sentinel; never a partial or wrong emit.
+      // Structured values rewrite their sentinels into corner maps, so one
+      // left here sits inside a condition, which per-corner slots can't split.
       if (value.contains(_kBorderRadiusCornerSentinel)) {
         issues.add(
           Issue(
             code: IssueCode.unrecognizedMethodCall,
-            message: 'An asymmetric BorderRadius cannot be combined with a '
-                'conditional (or other expression) at this slot — it must be a '
-                'direct BorderRadius.only/.vertical/.horizontal. Move the '
-                'condition inside each corner radius value instead.',
+            message: "A BorderRadius with different corners can't be chosen "
+                'by a condition here. Put the condition inside each '
+                "corner's radius instead.",
             location: loc,
           ),
         );
@@ -10027,13 +10177,13 @@ final class ExpressionTranslator {
         final destProp =
             index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
         if (destProp == null) continue;
-        // Precise funnel: an asymmetric / `.all` `BorderRadius` hoisted through
-        // the uniform `borderRadius` field cannot pass the frozen circular-only
-        // construct-variant transform. Route those specific ctors through the
-        // shared recognition + per-corner splice BEFORE the transform rejects
-        // them; `.circular` still flows the existing transform byte-stably.
+        // Route asymmetric, `.all` and framework-constant BorderRadius values through
+        // per-corner recognition before the circular-only transform rejects them.
+        // Keep `.circular` on the existing transform to preserve its output bytes.
         if (destProp.synthetic == _kBorderRadiusCircularSynthetic &&
-            _isAsymmetricBorderRadiusCtor(sourceExpr)) {
+            (_isAsymmetricBorderRadiusCtor(sourceExpr) ||
+                _frameworkConstValue(_stripParens(sourceExpr))?.kind ==
+                    FrameworkConstKind.borderRadius)) {
           final before = issues.length;
           final translated = _translate(sourceExpr, issues);
           final hadError =
@@ -10335,9 +10485,13 @@ final class ExpressionTranslator {
       issues.add(
         Issue(
           code: IssueCode.unrecognizedMethodCall,
-          message: 'Native decomposition for ${destination.name} expected '
-              "a '${structured.name}' value constructed through the catalog "
-              'variant ${invocation.variantRef.wireId.value}.',
+          message: invocation.memberName == null
+              ? 'Native decomposition for ${destination.name} expected '
+                  "a '${structured.name}' value constructed through the "
+                  'catalog variant ${invocation.variantRef.wireId.value}.'
+              : "'${destination.name}' expects a '${structured.name}' value "
+                  'written as '
+                  '${structured.name}.${invocation.memberName}(...).',
           location: _locationOf(sourceExpr),
         ),
       );
@@ -10765,10 +10919,13 @@ final class _NativeInvocationMatch {
 }
 
 final class _ModalSheetEmitContext {
-  const _ModalSheetEmitContext({required this.sheet, required this.flagName});
+  _ModalSheetEmitContext({required this.sheet, required this.flagName});
 
   final RecognisedModalSheet sheet;
   final String flagName;
+
+  /// The measured callback that opens the sheet, once translated.
+  MeasurementEventOccurrence? triggerOccurrence;
 }
 
 final class _NavigationEmitContext {
@@ -11396,14 +11553,10 @@ final class _WalkContext {
         measurementWidget = null,
         measurementWidgetList = null;
 
-  /// The constructor-parameter names of the custom-widget definition body
-  /// currently being translated — empty while translating the root paywall.
-  /// A bare identifier in this set lowers to an `args.` reference; a
-  /// `widget.<X>` PrefixedIdentifier lowers to `args.X` when X is in this set
-  /// AND the definition is stateful (i.e. `stateFields` is non-null) — a
-  /// stateless widget's `build()` resolves constructor params as bare
-  /// identifiers, never via `widget.`.
-  final Set<String> argNames;
+  /// Constructor parameters keyed by fields read in a custom-widget body.
+  /// Empty for root paywalls. Bare names lower to `args`; `widget.X` also lowers
+  /// when X is present and [stateFields] marks a stateful definition.
+  final Map<String, String> argNames;
 
   /// The State fields of the stateful custom-widget definition body currently
   /// being translated — null while translating a stateless definition body or
@@ -11491,7 +11644,7 @@ final class _WalkContext {
   /// current value (shared by reference). The four nullable fields use the
   /// [_kWalkUnset] sentinel so a caller can set them to null.
   _WalkContext copyWith({
-    Set<String>? argNames,
+    Map<String, String>? argNames,
     Object? stateFields = _kWalkUnset,
     Map<String, RecognisedSetState>? eventHandlers,
     bool? rootStateContext,
@@ -11608,3 +11761,7 @@ final class _ConditionLowering {
 
   String call(String whenTrue, String whenFalse) => _build(whenTrue, whenFalse);
 }
+
+/// The public analyzer interface name of [node], for diagnostics.
+String _nodeKind(AstNode node) =>
+    '${node.runtimeType}'.replaceFirst(RegExp(r'Impl$'), '');

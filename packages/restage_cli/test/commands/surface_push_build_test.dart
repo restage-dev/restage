@@ -140,7 +140,7 @@ void main() {
     expect(out.toString(), contains('Pushed pro_upgrade'));
   });
 
-  test('a build that fails stops the push before any surface goes', () async {
+  test('a build that fails does not stop the surfaces', () async {
     final methods = <String>[];
     final code = await push(
       ['pro_upgrade', '--build'],
@@ -149,10 +149,28 @@ void main() {
     );
 
     expect(code, 1);
-    expect(methods, isNot(contains('publishPublication')));
+    expect(methods, contains('publishPublication'));
+    expect(methods, isNot(contains('coverage')));
+    expect(out.toString(), contains('Pushed pro_upgrade'));
     expect(
       err.toString(),
-      contains('The build push failed, so nothing else was pushed.'),
+      contains('The surfaces were pushed, but the build of mobile was not.'),
+    );
+    expect(err.toString(), contains('`restage build push --env staging`'));
+  });
+
+  test('--flutter-root reaches the build step', () async {
+    final seen = <List<String>>[];
+    final code = await push(
+      ['pro_upgrade', '--build', '--flutter-root', '/opt/flutter'],
+      client: backend(registered: const {'acme.widgets': 2}),
+      buildCommand: () => _FakeBuildCommand(seen, exitCode: 0),
+    );
+
+    expect(code, 0, reason: err.toString());
+    expect(
+      seen.single,
+      containsAllInOrder(<String>['--flutter-root', '/opt/flutter']),
     );
   });
 }
@@ -179,6 +197,7 @@ final class _FakeBuildPushCommand extends Command<int> {
       ..addOption('organization')
       ..addOption('env')
       ..addOption('directory', abbr: 'C')
+      ..addOption('flutter-root')
       ..addFlag('record-git', negatable: false);
   }
 

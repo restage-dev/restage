@@ -22,49 +22,29 @@ const Set<String> _kCanonicalFontWeightNames = {
   'w900',
 };
 
-/// Walks a parsed RFW [library] and verifies every [ConstructorCall] references
-/// a widget present in [catalog], and every property name used is declared on
-/// that widget.
+/// Validates constructor names and properties in [library] against [catalog].
 ///
-/// A [ConstructorCall] naming a **library-local** `widget` definition (a
-/// `widget X = …` declared in this same [library] — e.g. an inlined custom
-/// widget) resolves within the library: its name and its arguments — which
-/// bind the definition's `args.`, not catalog properties — are not checked
-/// against the catalog. The definition's body is still validated, walked as
-/// its own library widget.
+/// Local widget definitions resolve within the library; their bodies are
+/// validated separately. Nested calls are checked recursively, with one
+/// issue per failing call. Unqualified names use the first catalog match.
 ///
-/// Issues collected describe the first failure for each constructor call;
-/// nested calls inside arguments are walked recursively. The check is name-
-/// based — the parsed RFW model only carries unqualified widget names — so
-/// shadowed names across libraries match against the priority-ordered first
-/// hit, mirroring the translator's lookup at construction time.
-///
-/// **Scope of the scalar-value type check.** The property-value type check
-/// (`_checkArgValueType` → `_scalarValueMismatch`) reaches **top-level scalar
-/// slots only** — a literal scalar (`String` / `num` / `bool`) bound directly
-/// to a widget property slot is checked against that slot's declared
-/// [PropertyType]. It does **not** descend into the fields of a structured map
-/// literal: a scalar nested inside a map bound to a structured slot (e.g. a
-/// `{left: "x"}`-style field value) is not type-checked against the structured
-/// recipe's per-field types here. That structured-field-scalar correctness is
-/// **closed by emitter-arm discipline, not by this validator** — the
-/// translator lowers each structured slot through a typed emitter arm that
-/// only ever writes a well-typed field value, so a wrong-typed structured
-/// field cannot be authored through the normal lowering path. The residual a
-/// validator-side field check would catch — a non-finite or otherwise
-/// out-of-shape scalar reaching a structured field through some other path —
-/// is closed at the emit layer (the non-finite / bare-name emit guard, owned
-/// elsewhere). See the map-handling branch in `_walkNode` for the exact reason
-/// a validator-side structured-field check is not wired in today and what a
-/// future one would require.
+/// Checks top-level scalar values. Structured-map fields are validated by
+/// the typed emitters. [rootLabels] uses authored class names in diagnostics.
 List<Issue> validateModelAgainstCatalog(
   RemoteWidgetLibrary library,
-  Catalog catalog,
-) {
-  final issues = validateCommerceAuthoring(library);
+  Catalog catalog, {
+  Map<String, String> rootLabels = const {},
+}) {
+  final issues = validateCommerceAuthoring(library, rootLabels: rootLabels);
   final localNames = {for (final widget in library.widgets) widget.name};
   for (final widget in library.widgets) {
-    _walkNode(widget.root, catalog, localNames, issues, widget.name);
+    _walkNode(
+      widget.root,
+      catalog,
+      localNames,
+      issues,
+      rootLabels[widget.name] ?? widget.name,
+    );
   }
   return issues;
 }

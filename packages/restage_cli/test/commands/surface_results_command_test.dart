@@ -316,13 +316,13 @@ void main() {
       final out = result.out;
       expect(out, contains('Funnel for $_surfaceId, 1 version(s), floor 5:'));
       expect(out, contains('v3 $_revisionId [available]'));
-      expect(out, contains('views 5000 of 5000'));
+      expect(out, contains('views 5,000 of 5,000'));
       expect(out, contains('completions 525'));
       expect(out, contains('conversion 0.105000000 (525/5000)'));
-      expect(out, contains('step intro: views 4900 of 5000, onward 4100'));
+      expect(out, contains('step intro: views 4,900 of 5,000, onward 4,100'));
       expect(out, contains('-> plan'));
-      expect(out, contains('step plan: no figures (belowDisclosureFloor)'));
-      expect(out, contains('Intro: reach 4900 of 5000'));
+      expect(out, contains('step plan: views <5'));
+      expect(out, contains('Intro: reach 4,900 of 5,000'));
       expect(out, contains('drop-off 0.163265306 (800/4900)'));
     });
 

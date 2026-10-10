@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Shapes accept a radius per corner as well as one radius for all corners.
+
 ## 2.0.0
 
 - Add `RestageDecoders.preferredSize` / `optionalPreferredSize`, which adapt a

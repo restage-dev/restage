@@ -1,5 +1,7 @@
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
+import 'package:restage_cli/src/config/config_target_check.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 
 /// Resolve which organization the command should operate in.
@@ -22,15 +24,14 @@ Future<OrganizationSummary?> resolveActiveOrganization({
       if (organization.slug == preferredSlug) return organization;
     }
     stderr.writeln(
-      'No organization found for --organization <slug>: $preferredSlug.',
+      'No organization found for ${currentSelectorSyntax.organization}: '
+      '$preferredSlug.',
     );
     return null;
   }
   if (organizations.length == 1) return organizations.single;
   if (!interactive.isInteractive) {
-    stderr.writeln(
-      'You belong to multiple organizations. Pass --organization <slug>.',
-    );
+    stderr.writeln(ambiguousOrganizationSentence(organizations));
     return null;
   }
   return interactive.select<OrganizationSummary>('Which organization?', [

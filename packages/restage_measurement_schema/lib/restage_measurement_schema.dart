@@ -29,3 +29,4 @@ export 'src/ordered_capture.dart';
 
 export 'src/declared_answers.dart';
 export 'src/delivery_diagnostics.dart';
+export 'src/disclosed_counts.dart';

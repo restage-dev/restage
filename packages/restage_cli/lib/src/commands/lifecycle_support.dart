@@ -73,9 +73,6 @@ class LifecycleContext {
   /// Whether a follow-up command reaches this target without `--plane`.
   final bool planeIsImplicit;
 
-  /// ` --plane <plane>` for a follow-up hint, or empty.
-  String get planeHint => planeFlag(runtimePlane, implicit: planeIsImplicit);
-
   /// This target as a resolved selector.
   ResolvedEnvironmentTargetContext get resolved =>
       ResolvedEnvironmentTargetContext(

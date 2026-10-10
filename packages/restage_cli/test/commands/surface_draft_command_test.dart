@@ -80,6 +80,74 @@ void main() {
     );
   });
 
+  test(
+    'draft push says when the user\'s own build covers the surface',
+    () async {
+      final code = await run(
+        ['surface', 'draft', 'push', 'welcome', '--type', 'onboarding'],
+        (body) => switch (body['method']) {
+          'coverage' => http.Response(
+            jsonEncode({
+              'requiredLibraries': [
+                {'namespace': 'acme.widgets', 'minVersion': 1},
+              ],
+              'headVersion': null,
+              'registeredLibraries': <Object?>[],
+            }),
+            200,
+          ),
+          'whoami' => http.Response(jsonEncode({'id': 9}), 200),
+          'listHeads' => http.Response(
+            jsonEncode({
+              'appId': 5,
+              'environmentHeads': <Object?>[],
+              'personalHeads': [
+                {
+                  'head': 'user/ada',
+                  'ownerDisplayName': 'Ada',
+                  'ownerUserInfoId': 9,
+                  'updatedAt': DateTime.utc(2030).toIso8601String(),
+                  'version': {
+                    'renderBundleId': 41,
+                    'appId': 5,
+                    'version': 1,
+                    'contentHash': 'sha256:${'0' * 64}',
+                    'engineSetId': '1' * 64,
+                    'capabilityManifestJson': jsonEncode({
+                      'formatVersion': 1,
+                      'catalog': {
+                        'libraries': {
+                          'acme.widgets': {'capabilityVersion': 1},
+                        },
+                        'widgets': <Object?>[],
+                      },
+                    }),
+                    'byteLength': 1024,
+                    'sourceDirty': false,
+                    'uploadedAt': DateTime.utc(2030).toIso8601String(),
+                  },
+                },
+              ],
+            }),
+            200,
+          ),
+          _ => http.Response('4', 200),
+        },
+      );
+
+      expect(code, 0, reason: err.toString());
+      expect(
+        out.toString(),
+        contains(
+          'This surface uses widgets from your app (acme.widgets). The '
+          'dashboard has no build of mobile for staging yet. Your own build '
+          'covers them, so they show in your dashboard preview; `restage build '
+          'push --env staging` updates what everyone sees.',
+        ),
+      );
+    },
+  );
+
   test('draft pull writes the draft bytes to --out', () async {
     final bytes = Uint8List.fromList([1, 2, 3]);
     final file = p.join(tempDir.path, 'welcome.draft');
@@ -118,6 +186,51 @@ void main() {
     expect(code, 0, reason: err.toString());
     expect(calls.last['method'], 'listSurfaceHistory');
     expect(out.toString(), startsWith('WHEN\tACTION'));
+  });
+
+  http.Response listedAsMessage(Map<String, dynamic> body, http.Response or) {
+    if (body['method'] != 'list') return or;
+    return http.Response(
+      jsonEncode([
+        if (body['surfaceType'] == 'message')
+          {
+            '__className__': 'SurfaceSummary',
+            'surfaceType': 'message',
+            'slug': 'welcome',
+            'name': 'Welcome',
+            'draftUpdatedAt': '2026-05-01T12:34:56.000Z',
+            'publishedVersionByEnvironment': <String, int?>{},
+          },
+      ]),
+      200,
+    );
+  }
+
+  test('surface audit without --type looks the type up by id', () async {
+    final code = await run([
+      'surface',
+      'audit',
+      'welcome',
+    ], (body) => listedAsMessage(body, http.Response('[]', 200)));
+
+    expect(code, 0, reason: err.toString());
+    expect(calls.last['method'], 'listSurfaceHistory');
+    expect(calls.last['surfaceType'], 'message');
+  });
+
+  test('draft pull without --type looks the type up by id', () async {
+    final code = await run(
+      ['surface', 'draft', 'pull', 'welcome'],
+      (body) => listedAsMessage(
+        body,
+        http.Response(jsonEncode("decode('AQID', 'base64')"), 200),
+      ),
+      withEnvironment: false,
+    );
+
+    expect(code, 0, reason: err.toString());
+    expect(calls.last['method'], 'load');
+    expect(calls.last['surfaceType'], 'message');
   });
 
   test('a missing surface reads with the shared sentence', () async {

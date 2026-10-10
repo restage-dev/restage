@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      restage_codegen:restage_source_roster:
+        options:
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options:
+          bundled_runtime: true
+      restage_codegen:generated_dart:
+        options:
+          bundled_runtime: true
+      restage_codegen:outputs:
+        options:
+          bundled_runtime: true

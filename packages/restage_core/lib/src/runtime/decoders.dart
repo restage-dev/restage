@@ -1,4 +1,4 @@
-import 'dart:ui' show Color, FontFeature, FontVariation, Offset, Size;
+import 'dart:ui' show Color, FontFeature, FontVariation, Offset, Radius, Size;
 
 import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart'
@@ -576,10 +576,22 @@ abstract final class RestageDecoders {
     }
   }
 
+  /// A uniform radius, or a `{topLeft, topRight, bottomLeft, bottomRight}`
+  /// map whose missing corners are square.
   static BorderRadiusGeometry _borderRadius(
     DataSource source,
     List<Object> path,
   ) {
+    if (source.isMap(path)) {
+      Radius corner(String name) =>
+          Radius.circular(_number(source, [...path, name]) ?? 0.0);
+      return BorderRadius.only(
+        topLeft: corner('topLeft'),
+        topRight: corner('topRight'),
+        bottomLeft: corner('bottomLeft'),
+        bottomRight: corner('bottomRight'),
+      );
+    }
     final radius = _number(source, path);
     return radius == null ? BorderRadius.zero : BorderRadius.circular(radius);
   }

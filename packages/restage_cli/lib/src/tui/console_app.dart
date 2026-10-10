@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/commands/audit_rendering.dart';
+import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 
@@ -644,8 +646,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           confirmedProduction: confirmed,
         );
       case _PromptKind.rollback || _PromptKind.operationConfirm:
-        break;
+        return;
     }
+    // Notes and next steps print below the result.
+    if (mounted) setState(() => _showingOutput = true);
   }
 
   bool get _needsLiveConfirmation =>
@@ -669,13 +673,13 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   Future<void> _pushSelected() async {
     await component.controller.pushSelected();
     if (!mounted) return;
-    setState(() {});
+    setState(() => _showingOutput = true);
   }
 
   Future<void> _pushBuild() async {
     await component.controller.pushBuild();
     if (!mounted) return;
-    setState(() {});
+    setState(() => _showingOutput = true);
   }
 
   Future<void> _selectSurface(int index) async {
@@ -1097,11 +1101,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           ),
         ),
         for (final line in output.lines)
-          Text(
-            line,
-            maxLines: 1,
-            style: const TextStyle(color: _ConsoleTheme.text),
-          ),
+          Text(line, style: const TextStyle(color: _ConsoleTheme.text)),
       ],
     );
   }
@@ -1150,11 +1150,12 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
               _auditEntryLabel(entry),
               maxLines: 1,
               style: TextStyle(
-                color: entry.chainVerified
+                color: entry.chain == AuditChain.verified
                     ? _ConsoleTheme.focus
-                    : _ConsoleTheme.warning,
+                    : _ConsoleTheme.muted,
               ),
             ),
+            _auditTargetLine(entry),
             if (entry.actorEmail != null)
               Text(
                 entry.actorEmail!,
@@ -1197,19 +1198,15 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         'exit ${entry.exitCode}  ${entry.message}';
   }
 
-  String _auditEntryLabel(SurfaceAuditLogEntry entry) {
-    final surface =
-        entry.context['surfaceSlug'] ??
-        entry.targetId ??
-        entry.targetType ??
-        '-';
-    final chain = entry.chainState == 'pendingChain'
-        ? 'pending'
-        : entry.chainVerified
-        ? 'verified'
-        : 'unverified';
-    return '${entry.action} $surface $chain';
-  }
+  String _auditEntryLabel(SurfaceAuditLogEntry entry) =>
+      '${entry.action} ${entry.chain.name}';
+
+  /// What the event acted on, on its own line so a narrow panel keeps it.
+  Component _auditTargetLine(SurfaceAuditLogEntry entry) => Text(
+    auditTargetLabel(entry),
+    maxLines: 1,
+    style: const TextStyle(color: _ConsoleTheme.text),
+  );
 
   Component _searchBand(ConsoleState state) {
     return SizedBox(
@@ -1676,11 +1673,12 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             _auditEntryLabel(latestAudit),
             maxLines: 1,
             style: TextStyle(
-              color: latestAudit.chainVerified
+              color: latestAudit.chain == AuditChain.verified
                   ? _ConsoleTheme.focus
-                  : _ConsoleTheme.warning,
+                  : _ConsoleTheme.muted,
             ),
           ),
+          _auditTargetLine(latestAudit),
           if (latestAudit.actorEmail != null)
             Text(
               latestAudit.actorEmail!,
@@ -1782,6 +1780,13 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
                 : _ConsoleTheme.focus,
           ),
         ),
+        if (status != null)
+          if (mountLine(status) case final line?)
+            Text(
+              'In your app $line',
+              maxLines: 1,
+              style: const TextStyle(color: _ConsoleTheme.text),
+            ),
         ..._rollbackSupportLines(status),
         ..._versionHistoryLines(status),
         Text(

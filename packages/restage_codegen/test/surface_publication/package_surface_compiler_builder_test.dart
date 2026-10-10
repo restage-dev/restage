@@ -6,7 +6,9 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:logging/logging.dart';
+import 'package:pub_semver/pub_semver.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/restage_codegen.dart' show formatGeneratedDart;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -190,7 +192,7 @@ const launch = FlowDefinition(
               'lib/features/restage.generated/announcement.restage.g.dart']!,
         ),
       ),
-      contains('SurfaceScreenRef< FeatureAnnouncementEvent>'),
+      matches(RegExp(r'SurfaceScreenRef<\s*FeatureAnnouncementEvent\s*>')),
     );
     expect(
       utf8.decode(
@@ -1343,10 +1345,17 @@ const secondJourney = FlowDefinition(
     });
     final output =
         File('${fixture.path}/restage.generated/native_flow.restage.g.dart');
+    // The fixture lives in a package on the short format style, so compare
+    // content and ignore layout.
     if (Platform.environment['UPDATE_COMPILED_SURFACE_FIXTURE'] == '1') {
-      output.writeAsStringSync(generated);
+      output.writeAsStringSync(
+        formatGeneratedDart(generated, languageVersion: Version(3, 5, 0)),
+      );
     }
-    expect(generated, output.readAsStringSync());
+    String packed(String source) => source
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll(RegExp(r',(?=[)\]}])'), '');
+    expect(packed(generated), packed(output.readAsStringSync()));
     expect(generated, contains('class NativeWelcomeFlowSurface'));
     expect(generated, contains('NativeWelcome.new'));
     expect(generated, contains('NativeOffer.new'));
@@ -1385,7 +1394,10 @@ final class UpgradeOffer extends StatelessWidget {
     );
     expect(generated, contains('class UpgradeOfferSurface'));
     expect(generated, contains("id: 'upgrade_offer'"));
-    expect(generated, contains('fallbackBuilder: (context) => UpgradeOffer('));
+    expect(
+      generated,
+      matches(RegExp(r'fallbackBuilder: \(context\) =>\s*UpgradeOffer\(')),
+    );
     await _expectAnalyzesClean({
       'apps_examples|lib/offer.dart': source,
       'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,

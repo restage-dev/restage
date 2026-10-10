@@ -469,7 +469,8 @@ void _translatorGroups() {
       const cases = <({String expr, String? dsl, IssueCode? code})>[
         (expr: 'Colors.red', dsl: '0xFFF44336', code: null),
         (expr: 'Icons.add', dsl: '57415', code: null),
-        (expr: 'Alignment.center', dsl: '"center"', code: null),
+        (expr: 'Alignment.center', dsl: '{x: 0.0, y: 0.0}', code: null),
+        (expr: 'Duration.zero', dsl: '0', code: null),
         (expr: 'FontWeight.bold', dsl: '"w700"', code: null),
         (expr: 'EdgeInsets.zero', dsl: '[0.0, 0.0, 0.0, 0.0]', code: null),
         (
@@ -747,7 +748,7 @@ void _translatorGroups() {
       final r = await _result(
         translator,
         "import 'package:flutter/material.dart'; "
-        'Object x() => Duration.zero;',
+        'Object x() => Radius.zero;',
       );
       expect(r.dsl, isEmpty);
       expect(
@@ -813,21 +814,17 @@ void _translatorGroups() {
       );
     });
 
-    test('an unresolvable alignment const refuses instead of defaulting',
-        () async {
-      // A typedef alias keeps the const in another library, so nothing can be
-      // folded — the refusal must not read as a centred alignment.
+    test('an aliased framework alignment const folds to its value', () async {
       final r = await _result(translator, '''
         $_flutterImport
         typedef Anchor = Alignment;
         Object x() => LinearGradient(
           colors: [Colors.red, Colors.red],
-          begin: Anchor.center,
+          begin: Anchor.topRight,
         );
       ''');
-      expect(r.issues, isNotEmpty);
-      expect(r.issues.first.location, isNotEmpty);
-      expect(r.dsl, isNot(contains('{x: 0.0, y: 0.0}')));
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('begin: {x: 1.0, y: -1.0}'));
     });
 
     test('a framework const outside the Alignment set keeps usable advice',
@@ -1044,7 +1041,7 @@ void _translatorGroups() {
           stops: [0, Colors.teal],
         );
       ''');
-      _expectDoubleListRefusal(r, code: IssueCode.unresolvedIdentifier);
+      _expectDoubleListRefusal(r, code: IssueCode.propertyValueTypeMismatch);
     });
 
     test('the recipe path refuses a diagnosed list element', () async {
@@ -1055,7 +1052,7 @@ void _translatorGroups() {
           stops: [0, Colors.teal],
         );
       ''');
-      _expectDoubleListRefusal(r, code: IssueCode.unresolvedIdentifier);
+      _expectDoubleListRefusal(r, code: IssueCode.propertyValueTypeMismatch);
     });
 
     test('the structured path refuses a const conditional list', () async {
@@ -1764,10 +1761,8 @@ class AcmeAnchor extends StatelessWidget {
       expect(translated.issues.single.location, isNotEmpty);
     });
 
-    test('an aliased framework Alignment const remains unclassifiable',
-        () async {
-      // The translator lowers on the prefix, which an alias hides, so
-      // classification must refuse rather than promise a lowering.
+    test('an aliased framework Alignment const is composable', () async {
+      // The translator folds the constant by value, so an alias still lowers.
       final classification = await classifyFixture(
         {
           'lib/alignment_widget.dart': '''
@@ -1807,7 +1802,7 @@ class AcmeAnchor extends StatelessWidget {
           ),
         ]),
       );
-      expect(classification, isA<UnclassifiableWidget>());
+      expect(classification, isA<ComposableWidget>());
     });
 
     test('an application-defined Alignment const remains unclassifiable',

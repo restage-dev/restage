@@ -1201,8 +1201,7 @@ void main() {
       }
     });
 
-    test('rejects Flutter State method tear-offs as non-carrier callbacks',
-        () async {
+    test('a Flutter State method tear-off is a routed tap', () async {
       final fixture = await _resolveFixture(_stateMethodSource());
       final sourceClass = fixture.classNamed('Welcome');
       final rootExpression =
@@ -1219,13 +1218,21 @@ void main() {
 
       expect(
         discovery.disposition,
-        MeasurementSourceDiscoveryDisposition.rejected,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: discovery.rejectionReason,
       );
-      expect(discovery.nodes, isEmpty);
-      expect(discovery.events, isEmpty);
+      // The state update carries its route on the measure-only tap event.
+      const source = 'package:apps_examples/onboarding/screens/probe.dart'
+          '#Welcome';
+      const gesture =
+          'package:flutter/src/widgets/gesture_detector.dart#GestureDetector';
       expect(
-        discovery.rejectionReason,
-        contains('Flutter State method tear-off'),
+        discovery.events.single.node.structuralOccurrenceKey,
+        '$source|widget:$gesture',
+      );
+      expect(
+        discovery.events.single.resolvedEvent.sourceEventIdentity.value,
+        'onTap',
       );
     });
 

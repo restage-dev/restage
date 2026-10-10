@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/commands/publication_upload.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
@@ -31,6 +32,12 @@ void addPushAllOption(ArgParser parser, {required String noun}) =>
 /// keeping the rule one a developer can predict without consulting anything.
 bool _isDartSourceArgument(String argument) => argument.endsWith('.dart');
 
+/// Pushes surfaces from a local project.
+const surfacePushFollowUp = FollowUp('surface push', 'restage_push_surface');
+
+/// Pushes paywalls from a local project.
+const paywallPushFollowUp = FollowUp('paywall push', 'restage_push_surface');
+
 /// Selects generated publications by canonical ID or `.dart` source path.
 /// A path includes attributed publications, such as a flow containing a screen.
 ///
@@ -46,14 +53,28 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
   SurfaceSourceKind? pathSourceKind,
   required Interactive interactive,
   required StringSink stderr,
-  required String commandLine,
+  required FollowUp push,
 }) async {
+  final syntax = currentSelectorSyntax;
+  final allFlag = syntax == SelectorSyntax.mcp ? 'all' : '--all';
+  FollowUp pushOf(String selector, {Surface? type, bool all = false}) =>
+      FollowUp(push.cli, push.tool, [
+        FollowUpArg('surface', selector),
+        if (type != null)
+          FollowUpArg(
+            'surfaceType',
+            type.wireName,
+            flag: 'type',
+            cliOnly: true,
+          ),
+        if (all) const FollowUpArg('all', null, flag: 'all'),
+      ]);
   if (!_isDartSourceArgument(argument)) {
     if (all) {
       stderr.writeln(
-        '--all pushes every surface a .dart file produced. "$argument" is '
-        'a surface id, which already names exactly one. Drop --all, or pass '
-        'the file the surface is declared in.',
+        '$allFlag pushes every surface a .dart file produced. "$argument" is '
+        'a surface id, which already names exactly one. Drop $allFlag, or '
+        'pass the file the surface is declared in.',
       );
       return null;
     }
@@ -87,13 +108,15 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
       // repeats here needs --type to name one surface. Printing a command
       // that would itself fail as ambiguous is worse than printing nothing.
       final needsType = countBySlug[entry.publication.slug]! > 1;
-      stderr.writeln(
-        '  $commandLine ${entry.publication.slug}'
-        '${needsType ? ' --type ${entry.publication.surface.wireName}' : ''}'
-        '   # ${entry.publication.surface.wireName}',
+      final command = syntax.command(
+        pushOf(
+          entry.publication.slug,
+          type: needsType ? entry.publication.surface : null,
+        ),
       );
+      stderr.writeln('  $command   # ${entry.publication.surface.wireName}');
     }
-    stderr.writeln('  $commandLine $argument --all');
+    stderr.writeln('  ${syntax.command(pushOf(argument, all: true))}');
     return null;
   }
 
@@ -118,6 +141,28 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
   return choice == pushAll
       ? matches
       : <SurfacePublicationManifestEntry>[matches[choice]];
+}
+
+/// Lists what a push wrote into the app for its Measurement profile.
+void reportMeasurementProfileWrite(
+  MeasurementProfileWrite profile,
+  StringSink stdout,
+) {
+  const path = kMeasurementBundledTargetProfileAssetPath;
+  stdout.writeln("Wrote $path, the app's measurement profile.");
+  if (profile.pubspecUpdated) {
+    stdout.writeln('Added $path to flutter.assets in pubspec.yaml.');
+  } else if (!profile.declared) {
+    final optIn = currentSelectorSyntax == SelectorSyntax.mcp
+        ? 'declareAssets: true'
+        : '--declare-assets';
+    stdout.writeln(
+      'pubspec.yaml does not list $path under flutter.assets, so the app '
+      'will not ship it and bundled measurement stays off. Add it there, '
+      'push with $optIn, or set `declareAssets: true` in restage_config.yaml '
+      'to have it added.',
+    );
+  }
 }
 
 /// Pushes [assembled] in order, stopping at the first failure.
@@ -145,10 +190,11 @@ Future<int> runPush({
     SurfacePublicationUploadResult result,
   )?
   onPushed,
+  bool declareAssets = false,
 }) async {
   final uploader = SurfacePublicationApi(api);
   // Pushed surfaces whose stored revision is not the live one.
-  final pending = <String>[];
+  final pending = <AssembledSurfacePublication>[];
   for (var index = 0; index < assembled.length; index += 1) {
     final publication = assembled[index];
     int stopWith(int code) {
@@ -157,7 +203,7 @@ Future<int> runPush({
     }
 
     try {
-      final result = await publishAssembledSurfacePublication(
+      final (:result, :profile) = await publishAssembledSurfacePublication(
         api: uploader,
         assembled: publication,
         packageRoot: packageRoot,
@@ -167,12 +213,14 @@ Future<int> runPush({
         environmentTargetId: target.target.environmentTargetId,
         runtimePlane: target.target.runtimePlane,
         organizationId: target.organizationId,
+        declareAssets: declareAssets,
       );
       stdout.writeln(
         '${describe(publication)} to $environment; ${result.stateDescription}',
       );
+      if (profile != null) reportMeasurementProfileWrite(profile, stdout);
       if (result.activeRevision != result.storedRevision) {
-        pending.add(publication.entry.publication.slug);
+        pending.add(publication);
       }
       await onPushed?.call(publication, result);
     } on RestageApiException catch (error) {
@@ -197,20 +245,32 @@ Future<int> runPush({
     stdout.writeln('Pushed ${assembled.length} ${noun}s to $environment.');
   }
   if (pending.isEmpty) return 0;
-  const publish = 'restage surface publish';
-  final plane = planeFlag(
-    target.target.runtimePlane,
-    implicit: target.planeIsImplicit,
+  final syntax = currentSelectorSyntax;
+  String publish(String slug, Surface? type) => syntax.command(
+    FollowUp('surface publish', 'restage_publish_surface', [
+      FollowUpArg('surfaceSlug', slug),
+      if (type != null)
+        FollowUpArg('surfaceType', type.wireName, flag: 'type', mcpOnly: true),
+      FollowUpArg('environmentSlug', environment, flag: 'env', mcpOnly: true),
+      ...planeArgs(
+        target.target.runtimePlane,
+        implicit: target.planeIsImplicit,
+      ),
+    ]),
   );
   if (assembled.length == 1) {
+    final publication = pending.single.entry.publication;
     stdout.writeln(
-      'Not live yet. Run `$publish ${pending.single}$plane` '
-      'to publish it.',
+      'Not live yet. ${syntax.run} '
+      '${publish(publication.slug, publication.surface)} to publish it.',
     );
   } else {
+    final slugs = [
+      for (final publication in pending) publication.entry.publication.slug,
+    ];
     stdout.writeln(
-      'Not live yet: ${pending.join(', ')}. Run `$publish <id>'
-      '$plane` to publish one.',
+      'Not live yet: ${slugs.join(', ')}. ${syntax.run} '
+      '${publish('<id>', null)} to publish one.',
     );
   }
   return 0;

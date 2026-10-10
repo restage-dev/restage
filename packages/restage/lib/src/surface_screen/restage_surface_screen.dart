@@ -331,6 +331,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   void _handleEvent(_ScreenStage stage, String name, Object? value) {
     if (!identical(_stage, stage)) return;
+    if (isMeasurementTapEventName(name)) {
+      stage.sanitizeAndRecordEvent(value);
+      return;
+    }
     try {
       final decoded =
           _decodeScreenEvent(name, value, stage.sanitizeAndRecordEvent);

@@ -10,6 +10,8 @@ import '../authoring/event_dispatcher.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration, RestageFlowEventHandlerAssociation;
 import '../authoring/paywall_event_dispatch.dart';
+import '../measurement/measurement_event_sanitizer.dart'
+    show isMeasurementTapEventName;
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
@@ -535,6 +537,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     }
     final normalized =
         normalizeEventArgs(sanitizeAndRecordHostFlowEvent(controller, args));
+    if (isMeasurementTapEventName(name)) return;
     if (widget.onScreenEvent?.call(name, normalized) ?? false) return;
     controller.handleEvent(name, normalized);
   }

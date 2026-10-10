@@ -12,6 +12,8 @@ import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/installed_catalog_scope.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -90,7 +92,10 @@ final class UserFactoryBuilder implements Builder {
 
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/user_factories.g.dart'),
-      source,
+      formatGeneratedDart(
+        source,
+        languageVersion: await packageLanguageVersion(buildStep),
+      ),
     );
 
     // Every build shows the summary, so a developer reads what a delivered
@@ -148,7 +153,7 @@ Future<AppVocabularyDerivation> derivePackageAppVocabulary(
       // A `part` reaches the walk through the library that owns it.
       continue;
     }
-    final result = await library.session.getResolvedLibraryByElement(library);
+    final result = await resolveLibraryInLongForm(library);
     if (result is ResolvedLibraryResult) resolved.add(result);
   }
   return deriveAppVocabulary(resolved, catalog);

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:restage_codegen/src/user_catalog_emitter.dart';
@@ -56,7 +57,10 @@ final class UserCatalogBuilder implements Builder {
 
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/user_catalog.g.dart'),
-      emitUserCatalogDart(allocation.catalog),
+      formatGeneratedDart(
+        emitUserCatalogDart(allocation.catalog),
+        languageVersion: await packageLanguageVersion(buildStep),
+      ),
     );
 
     if (allocation.newEvents.isNotEmpty || logContents != null) {

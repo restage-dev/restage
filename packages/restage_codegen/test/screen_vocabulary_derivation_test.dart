@@ -22,7 +22,7 @@ void main() {
         'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
       ),
     );
-    final packed = part.replaceAll(RegExp(r'\s+'), '');
+    final packed = _packed(part);
 
     expect(packed, contains('vocabulary:constSurfaceVocabulary('));
     expect(packed, contains("'Column':buildColumn"));
@@ -42,34 +42,44 @@ void main() {
     expect(build.result.succeeded, isTrue, reason: build.logs);
     expect(build.logs, isNot(contains('IconCodePointCollision')));
 
-    String packedPart(String screen) => build.result.readerWriter.testing
-        .readString(
-          AssetId(
-            'apps_examples',
-            'lib/onboarding/screens/restage.generated/$screen.restage.g.dart',
+    String packedPart(String screen) => _packed(
+          build.result.readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              'lib/onboarding/screens/restage.generated/$screen.restage.g.dart',
+            ),
           ),
-        )
-        .replaceAll(RegExp(r'\s+'), '');
+        );
 
     // The mirroring glyph fills the mirrored map, leaving families empty; the
     // ordinary one fills families and leaves the mirrored map off.
     expect(
       packedPart('welcome'),
       contains(
-        "RestageIconTable.fromFamilies(families:{},mirrored:{'MaterialIcons':"
-        "{0xe67e:IconData(0xe67e,fontFamily:'MaterialIcons',"
-        'matchTextDirection:true),},})',
+        _packed(
+          "RestageIconTable.fromFamilies(families:{},mirrored:{'MaterialIcons':"
+          "{0xe67e:IconData(0xe67e,fontFamily:'MaterialIcons',"
+          'matchTextDirection:true),},})',
+        ),
       ),
     );
     expect(
       packedPart('details'),
       contains(
-        "RestageIconTable.fromFamilies(families:{'MaterialIcons':"
-        "{0xe67e:IconData(0xe67e,fontFamily:'MaterialIcons'),},})",
+        _packed(
+          "RestageIconTable.fromFamilies(families:{'MaterialIcons':"
+          "{0xe67e:IconData(0xe67e,fontFamily:'MaterialIcons'),},})",
+        ),
       ),
     );
   });
 }
+
+/// [source] without whitespace or trailing commas, so either format style
+/// compares equal.
+String _packed(String source) => source
+    .replaceAll(RegExp(r'\s+'), '')
+    .replaceAll(RegExp(r',(?=[)\]}])'), '');
 
 Future<({TestBuilderResult result, String logs})> _build(
   Map<String, String> sources,

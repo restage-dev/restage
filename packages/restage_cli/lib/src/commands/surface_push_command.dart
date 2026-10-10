@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/render_bundle_coverage.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
@@ -53,7 +54,22 @@ class SurfacePushCommand extends Command<int> {
         negatable: false,
         help:
             'Push the app\'s build to the same environment first, so the '
-            'dashboard can display the widgets these surfaces use.',
+            'dashboard can display the widgets these surfaces use. A failed '
+            'build does not stop the push.',
+      )
+      ..addOption(
+        'flutter-root',
+        help:
+            'Flutter SDK directory the --build step builds with (overrides '
+            '`flutterRoot` in restage_config.yaml).',
+      )
+      ..addFlag(
+        'declare-assets',
+        negatable: false,
+        help:
+            'Add the files this push writes into the app to flutter.assets '
+            'in pubspec.yaml, keeping its comments. `declareAssets: true` in '
+            'restage_config.yaml does the same.',
       )
       ..addOption(
         'organization',
@@ -152,10 +168,7 @@ class SurfacePushCommand extends Command<int> {
         (argResults?['project'] as String?) ?? loadedConfig?.config.project;
     final app = (argResults?['app'] as String?) ?? loadedConfig?.config.app;
     if (project == null || app == null) {
-      _stderr.writeln(
-        'No project / app context. Run `restage init` or pass '
-        '--project <slug> --app <slug>.',
-      );
+      _stderr.writeln(noProjectContextSentence());
       return 1;
     }
 
@@ -198,7 +211,7 @@ class SurfacePushCommand extends Command<int> {
         type: type,
         interactive: _interactive,
         stderr: _stderr,
-        commandLine: 'restage surface push',
+        push: surfacePushFollowUp,
       );
       if (entries == null) return 1;
       // Everything is assembled before any network work, so a broken
@@ -237,7 +250,7 @@ class SurfacePushCommand extends Command<int> {
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
     if (credential == null) {
-      _stderr.writeln('Not signed in. Run `restage login`.');
+      _stderr.writeln(notSignedInSentence());
       return 1;
     }
 
@@ -258,8 +271,9 @@ class SurfacePushCommand extends Command<int> {
     );
     if (environment == null) return 1;
 
+    var buildCode = 0;
     if (argResults?['build'] as bool? ?? false) {
-      final built = await pushBuildFirst(
+      buildCode = await pushBuildFirst(
         buildCommand:
             _buildCommand ??
             () => BuildCommand(
@@ -278,11 +292,11 @@ class SurfacePushCommand extends Command<int> {
         recordGit: _recordGit(loadedConfig?.config),
         stdout: _stdout,
         stderr: _stderr,
+        flutterRoot: argResults?['flutter-root'] as String?,
       );
-      if (built != 0) return built;
     }
 
-    return _runPipeline(
+    final code = await _runPipeline(
       credential: credential,
       apiEndpoint: apiEndpoint,
       packageRoot: projectRoot,
@@ -295,10 +309,22 @@ class SurfacePushCommand extends Command<int> {
       runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
       configuredPlane: loadedConfig?.config.plane,
       assembled: assembled,
+      buildFailed: buildCode != 0,
+      declareAssets:
+          (argResults?['declare-assets'] as bool? ?? false) ||
+          (loadedConfig?.config.declareAssets ?? false),
       recorder: recorder,
       recordedSource: recordedSource,
       generationFingerprint: generationFingerprint,
     );
+    if (buildCode == 0) return code;
+    reportBuildNotPushed(
+      app: app,
+      environment: environment,
+      surfacesPushed: code == 0,
+      stderr: _stderr,
+    );
+    return code == 0 ? buildCode : code;
   }
 
   /// Whether this invocation records a release receipt.
@@ -333,6 +359,8 @@ class SurfacePushCommand extends Command<int> {
     required RuntimePlane? runtimePlane,
     required RuntimePlane? configuredPlane,
     required List<AssembledSurfacePublication> assembled,
+    required bool buildFailed,
+    required bool declareAssets,
     required ReleaseRecorder? recorder,
     required ReceiptSource? recordedSource,
     required String generationFingerprint,
@@ -387,6 +415,7 @@ class SurfacePushCommand extends Command<int> {
         onApiException: _handleApiException,
         stdout: _stdout,
         stderr: _stderr,
+        declareAssets: declareAssets,
         onPushed: recorder == null
             ? null
             : (publication, result) async {
@@ -420,7 +449,8 @@ class SurfacePushCommand extends Command<int> {
                 if (!written) recordFailed = true;
               },
       );
-      if (pushCode == 0) {
+      // A failed build is reported on its own, after the push.
+      if (pushCode == 0 && !buildFailed) {
         await reportRenderBundleCoverage(
           api: api,
           assembled: assembled,
@@ -514,10 +544,7 @@ class SurfacePushCommand extends Command<int> {
     if (_interactive.isInteractive) {
       return _interactive.prompt('Environment slug?');
     }
-    _stderr.writeln(
-      'Required: --env <slug>. Set `defaultEnvironment` in '
-      'restage_config.yaml or pass --env on the command line.',
-    );
+    _stderr.writeln(environmentRequiredSentence());
     return null;
   }
 }

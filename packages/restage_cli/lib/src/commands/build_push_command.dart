@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -18,6 +19,7 @@ import 'package:restage_cli/src/receipts/render_bundle_receipt.dart';
 import 'package:restage_cli/src/receipts/source_boundary.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
 import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -68,6 +70,7 @@ final class BuildPushCommand extends Command<int> {
     RenderBundlePushReceipt? recordReceipt,
     Uri? defaultEndpoint,
     Map<String, String>? environment,
+    FlutterToolchainResolver? flutterToolchain,
   }) : _stdout = stdout,
        _stderr = stderr,
        _credentialStore = credentialStore,
@@ -78,7 +81,8 @@ final class BuildPushCommand extends Command<int> {
        _openRecorder = openRecorder ?? ReleaseRecorder.open,
        _recordReceipt = recordReceipt ?? recordRenderBundlePush,
        _defaultEndpoint = defaultEndpoint,
-       _environment = environment {
+       _environment = environment,
+       _flutterToolchain = flutterToolchain ?? resolveBuildFlutterToolchain {
     argParser
       ..addOption(
         'project',
@@ -112,6 +116,13 @@ final class BuildPushCommand extends Command<int> {
         defaultsTo: '.',
         help: 'Directory to start the restage_config.yaml search from.',
       )
+      ..addOption(
+        'flutter-root',
+        help:
+            'Flutter SDK directory to build with (overrides `flutterRoot` in '
+            'restage_config.yaml). By default the build uses the Flutter the '
+            'app uses.',
+      )
       ..addFlag(
         'generate',
         defaultsTo: true,
@@ -132,6 +143,7 @@ final class BuildPushCommand extends Command<int> {
   final RenderBundlePushReceipt _recordReceipt;
   final Uri? _defaultEndpoint;
   final Map<String, String>? _environment;
+  final FlutterToolchainResolver _flutterToolchain;
 
   @override
   String get name => 'push';
@@ -178,10 +190,7 @@ final class BuildPushCommand extends Command<int> {
       credential = await store.read();
     }
     if (credential == null) {
-      _stderr.writeln(
-        'Not signed in. Run `restage login`, or set $_apiKeyVariable to push '
-        'with a key.',
-      );
+      _stderr.writeln(_notSignedIn());
       return 1;
     }
     final Uri apiEndpoint;
@@ -255,15 +264,13 @@ final class BuildPushCommand extends Command<int> {
         app = keyTarget.appSlug;
       }
       if (project == null || project.isEmpty || app == null || app.isEmpty) {
-        _stderr.writeln(
-          'No project / app context. Run `restage init` or pass '
-          '--project <slug> --app <slug>.',
-        );
+        _stderr.writeln(noProjectContextSentence());
         return 1;
       }
       return await _push(
         api: api,
         config: loaded?.config,
+        configDirectory: loaded?.source.parent,
         projectRoot: projectRoot,
         project: project,
         app: app,
@@ -278,6 +285,7 @@ final class BuildPushCommand extends Command<int> {
   Future<int> _push({
     required RestageApi api,
     required RestageConfig? config,
+    required Directory? configDirectory,
     required Directory projectRoot,
     required String project,
     required String app,
@@ -313,11 +321,28 @@ final class BuildPushCommand extends Command<int> {
       return 1;
     }
 
+    final FlutterToolchain flutter;
+    try {
+      flutter = await _flutterToolchain(
+        projectRoot: projectRoot,
+        flagRoot: _flagFlutterRoot(),
+        configRoot: _configFlutterRoot(config, configDirectory),
+      );
+    } on FlutterToolchainException catch (error) {
+      _stderr.writeln('Could not build the render bundle. ${error.message}');
+      return 1;
+    }
+    _stdout.writeln(
+      'Building with Flutter ${flutter.version} at ${flutter.root} '
+      '(${flutter.source}).',
+    );
+
     final GeneratedWidgetCatalog catalog;
     try {
       catalog = await _catalog(
         projectRoot: projectRoot,
         generate: argResults?['generate'] as bool? ?? true,
+        flutterExecutable: flutter.executable,
       );
     } on GeneratedCatalogException catch (error) {
       _stderr.writeln(_catalogFailureMessage(error));
@@ -337,6 +362,7 @@ final class BuildPushCommand extends Command<int> {
         catalogJson: catalog.json,
         parentOrigin: origins.dashboardOrigin,
         controlOrigin: origins.bundleOrigin,
+        flutterExecutable: flutter.executable,
       );
     } on RenderBundleBuildException catch (error) {
       return _reportBuildFailure(error);
@@ -396,12 +422,10 @@ final class BuildPushCommand extends Command<int> {
         source: source,
         organizationId: organizationId,
       );
-      final moved = outcome.appFilesSent + outcome.engineFilesSent == 0
+      final moved = outcome.appFilesSent == 0
           ? 'Every file was already stored'
           : 'Moved ${outcome.appFilesSent} of '
-                '${outcome.appFilesSent + outcome.appFilesHeld} app files'
-                '${outcome.engineFilesSent == 0 ? '' : ' and seeded '
-                          '${outcome.engineFilesSent} engine files'}';
+                '${outcome.appFilesSent + outcome.appFilesHeld} app files';
       _stdout.writeln(
         'Pushed $app ${outcome.headReference} version ${outcome.version}. '
         '$moved. ${describeBundleSource(source)}',
@@ -422,7 +446,7 @@ final class BuildPushCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
         environment: head.environmentSlug,
-        toolchain: requiredRenderBundleFlutterVersion,
+        toolchain: artifact.flutterVersion,
       );
       // The bundle is pushed either way; only the receipt is in question.
       return written ? 0 : 2;
@@ -438,6 +462,24 @@ final class BuildPushCommand extends Command<int> {
     } finally {
       if (_httpClient == null) renderBundles?.close();
     }
+  }
+
+  String? _flagFlutterRoot() {
+    final root = (argResults?['flutter-root'] as String?)?.trim();
+    return root == null || root.isEmpty ? null : p.absolute(root);
+  }
+
+  /// The configured SDK directory, relative to the config file that names it.
+  static String? _configFlutterRoot(
+    RestageConfig? config,
+    Directory? configDirectory,
+  ) {
+    final root = config?.flutterRoot?.trim();
+    if (root == null || root.isEmpty) return null;
+    if (root.startsWith('~') || p.isAbsolute(root) || configDirectory == null) {
+      return root;
+    }
+    return p.normalize(p.join(configDirectory.absolute.path, root));
   }
 
   /// The origins the server says a build trusts.
@@ -471,8 +513,16 @@ final class BuildPushCommand extends Command<int> {
 
 const _noBuilds = 'This server does not accept builds.';
 
+String _notSignedIn() =>
+    '${notSignedInSentence()} To push with a key, set $_apiKeyVariable.';
+
+/// How to let the push run the code generator, worded for the caller.
+String _letPushGenerate() => currentSelectorSyntax == SelectorSyntax.mcp
+    ? 'leave generate unset and let the push run it'
+    : 'drop --no-generate and let the push run it';
+
 /// Turns a build failure into the sentence a reader can act on. Its detail
-/// is the generated build project, or the engine file, it is about.
+/// is the generated build project it is about.
 String? _buildFailureMessage(RenderBundleBuildException error) {
   final project = error.detail;
   return switch (error.reason) {
@@ -481,8 +531,7 @@ String? _buildFailureMessage(RenderBundleBuildException error) {
           'app. Run the push from the app\'s directory.',
     'factories_missing' =>
       'Could not build the render bundle: lib/user_factories.g.dart is '
-          'missing. Run `dart run build_runner build`, or drop --no-generate '
-          'and let the push run it.',
+          'missing. Run `dart run build_runner build`, or ${_letPushGenerate()}.',
     'output_root' =>
       'Could not build the render bundle: the output_root in build.yaml is '
           'not a package-relative path. Fix it and push again.',
@@ -499,13 +548,10 @@ String? _buildFailureMessage(RenderBundleBuildException error) {
     'catalog_contract' =>
       'Could not build the render bundle: the widget catalog could not be '
           'read.',
-    'flutter_not_found' => 'Could not find the Flutter toolchain on PATH.',
+    'flutter_not_found' => 'Could not find a Flutter SDK. ${flutterRootFix()}',
     'flutter_version_unavailable' =>
       'Could not build the render bundle: `flutter --version` did not '
           'answer.',
-    'flutter_version_mismatch' =>
-      'Could not build the render bundle: builds need Flutter '
-          '$requiredRenderBundleFlutterVersion.',
     'flutter_build_failed' =>
       'Could not build the render bundle: `flutter build web` failed. Run '
           '`flutter build web --wasm` in '
@@ -516,14 +562,9 @@ String? _buildFailureMessage(RenderBundleBuildException error) {
     'non_deterministic_output' =>
       'Could not build the render bundle: two builds of the same source '
           'differed.',
-    'engine_toolchain' when project != null =>
-      'Could not build the render bundle: the engine file $project was built '
-          'on another toolchain than the pinned set for this Flutter '
-          'version. Build on the version the pin names.',
-    'engine_incomplete' when project != null =>
-      'Could not build the render bundle: the pinned engine set names '
-          '$project and this build did not produce it. Build on the version '
-          'the pin names.',
+    'engine_missing' =>
+      'Could not build the render bundle: `flutter build web` wrote no '
+          'engine files. ${flutterRootFix()}',
     _ => null,
   };
 }
@@ -533,11 +574,11 @@ String _catalogFailureMessage(GeneratedCatalogException error) =>
     switch (error.reason) {
       'catalog_missing' =>
         'No generated widget catalog. Run `dart run build_runner build`, or '
-            'drop --no-generate and let the push run it.',
+            '${_letPushGenerate()}.',
       'generate_failed' =>
         'Could not generate the widget catalog. Run '
             '`dart run build_runner build` to see why.',
-      'toolchain' => 'Could not find the Flutter toolchain on PATH.',
+      'toolchain' => 'Could not find a Flutter SDK. ${flutterRootFix()}',
       _ => 'Could not read the generated widget catalog.',
     };
 
@@ -627,9 +668,7 @@ String _holderName(String kind) => switch (kind) {
 /// Turns one short refusal into the sentence it stands for.
 String? _rejectionMessage(String reason, {required bool withKey}) =>
     switch (reason) {
-      'no_session' =>
-        'Not signed in. Run `restage login`, or set $_apiKeyVariable to push '
-            'with a key.',
+      'no_session' => _notSignedIn(),
       'not_a_secret_key' =>
         '$_apiKeyVariable holds a publishable key. A push needs a secret key '
             'minted with the bundle-push scope.',
@@ -637,14 +676,13 @@ String? _rejectionMessage(String reason, {required bool withKey}) =>
         'This key was not minted with the bundle-push scope, so it cannot '
             'push. Mint a new key with that scope.',
       'environment_not_found' =>
-        'This key is bound to one environment and --env names another. Drop '
-            '--env, or use the key for the environment it belongs to.',
+        'This key is bound to one environment and '
+            '${currentSelectorSyntax.environment} names another. Leave it out, '
+            'or use the key for the environment it belongs to.',
       'scope_mismatch' =>
         'This key belongs to another organization, project or app than the '
             'one being pushed. Check the configuration this push ran with.',
-      'personal_not_allowed' =>
-        'A key moves the head of the environment it is bound to, so it has '
-            'no personal head to push to.',
+      'personal_not_allowed' => keyHasNoPersonalHeadSentence(),
       'environment_head_not_permitted' =>
         'Moving an environment head takes an administrator or a key. Push to '
             'your own head, or ask an administrator.',
@@ -653,6 +691,11 @@ String? _rejectionMessage(String reason, {required bool withKey}) =>
             'so this one was refused. Try again; if it keeps happening the '
             'service is degraded.',
       'builds_unavailable' => _noBuilds,
+      'engine_not_released' =>
+        'Could not upload the render bundle: this build\'s Flutter engine is '
+            'not one Flutter published, so the dashboard cannot load it. '
+            'Build with a released Flutter SDK; a custom or local engine is '
+            'not supported for previews.',
       'upload_unavailable' =>
         'The upload service did not answer, so nothing was stored. Try '
             'again; if it keeps happening the service is degraded.',

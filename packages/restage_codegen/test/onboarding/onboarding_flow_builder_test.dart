@@ -14,7 +14,7 @@ import '../helpers.dart';
 /// The generated flow-reference declaration, matched across the line wrap
 /// Measurement introduces by lengthening the constructor.
 final _constFirstRunFlowRef =
-    RegExp(r'const firstRunFlowRef = SurfaceFlowRef<\s*FirstRunResult>');
+    RegExp(r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>');
 
 void main() {
   group('OnboardingFlowBuilder', () {

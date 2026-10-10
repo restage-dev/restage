@@ -2247,6 +2247,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // the swap-safety gate. Deliberately broad, so a live swap never lands
     // under an engaged user. Theme and system changes use dependencies instead.
     _userInteracted = true;
+    if (isMeasurementTapEventName(name)) return;
     final argsMap = businessArgs is Map<String, Object?>
         ? businessArgs
         : (businessArgs is Map

@@ -82,7 +82,7 @@ final class MeasurementSourceDiscoveryInput {
   /// its private descendants are not discovered.
   final Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints;
 
-  /// Static collection refusals produced with the supplied blueprints.
+  /// Why a custom widget did not inline, when a collection element refused.
   final Map<String, String> inlinedCustomWidgetCollectionRefusals;
 }
 
@@ -373,10 +373,11 @@ final class _MeasurementSourceDiscovery {
   final Set<String> _eventKeys = {};
   final CollectionSemanticTraversalSession _collectionSession =
       CollectionSemanticTraversalSession();
+  late final _WidgetVisitContext _rootContext;
 
   MeasurementSourceDiscoveryResult discover() {
     final provenance = _sourceProvenance();
-    final rootContext = _WidgetVisitContext.root(
+    final rootContext = _rootContext = _WidgetVisitContext.root(
       provenance,
       input.rootExpression,
       input.rootLocalBindings,
@@ -463,6 +464,31 @@ final class _MeasurementSourceDiscovery {
   ) {
     final resolved = _resolvedWidgetSource(source, context);
     final expression = resolved.expression;
+    if (expression is ConditionalExpression) {
+      // Each branch is its own static occurrence; only the rendered one
+      // reports at run time.
+      final eventsBefore = _events.length;
+      for (final (then, branch) in [
+        (true, expression.thenExpression),
+        (false, expression.elseExpression),
+      ]) {
+        if (_withoutParentheses(branch) is NullLiteral) continue;
+        _visitWidgetExpression(
+          branch,
+          resolved.context.enterConditionalBranch(then: then),
+        );
+      }
+      if (_events.length != eventsBefore &&
+          _combinesConditions(expression.condition, resolved.context)) {
+        // An `&&` or `||` condition lowers by repeating a branch, which would
+        // emit one callback's route twice.
+        throw ArgumentError(
+          'A callback under a conditional combined with && or || is emitted '
+          'more than once, so it cannot carry one route',
+        );
+      }
+      return;
+    }
     if (expression is! InstanceCreationExpression) {
       throw ArgumentError(
         'A measurement widget occurrence must be a statically resolved '
@@ -583,6 +609,28 @@ final class _MeasurementSourceDiscovery {
       throw ArgumentError(budget.workRefusal(resolved.expression).detail);
     }
     final expression = _withoutParentheses(resolution.expression);
+    if (expression is ConditionalExpression) {
+      final eventsBefore = _events.length;
+      for (final (then, branch) in [
+        (true, expression.thenExpression),
+        (false, expression.elseExpression),
+      ]) {
+        _visitWidgetList(
+          branch,
+          context: resolved.context.enterConditionalBranch(then: then),
+          parent: parent,
+          slot: slot,
+        );
+      }
+      if (_events.length != eventsBefore &&
+          _combinesConditions(expression.condition, resolved.context)) {
+        throw ArgumentError(
+          'A callback under a conditional combined with && or || is emitted '
+          'more than once, so it cannot carry one route',
+        );
+      }
+      return;
+    }
     if (expression is! ListLiteral) {
       throw ArgumentError(
         'A measurement widget list must be a static literal list',
@@ -698,12 +746,14 @@ final class _MeasurementSourceDiscovery {
     }
     final blueprint = input.inlinedCustomWidgetBlueprints[customIdentity];
     if (blueprint == null) {
-      final collectionRefusal =
-          input.inlinedCustomWidgetCollectionRefusals[customIdentity];
-      if (collectionRefusal != null) {
-        throw ArgumentError(collectionRefusal);
-      }
-      _requireRegisteredOpaqueCustomWidget(expression, customClass);
+      // A widget that does not inline, whatever its body holds, renders from
+      // the app's compiled factory and is one opaque occurrence.
+      _requireRegisteredOpaqueCustomWidget(
+        expression,
+        customClass,
+        notInlinedBecause:
+            input.inlinedCustomWidgetCollectionRefusals[customIdentity],
+      );
       final node = _recordNode(
         context: context,
         widgetClass: customClass,
@@ -795,12 +845,6 @@ final class _MeasurementSourceDiscovery {
         'function value',
       );
     }
-    if (_isFlutterStateMethodTearOff(sourceExpression)) {
-      throw ArgumentError(
-        'A Flutter State method tear-off lowers to an RFW state update rather '
-        'than one host event handler',
-      );
-    }
     final resolvedEvent = MeasurementResolvedFlutterEvent.fromResolvedElements(
       widgetClass: widgetClass,
       eventElement: parameter,
@@ -855,14 +899,19 @@ final class _MeasurementSourceDiscovery {
     required Expression sourceExpression,
     required MeasurementEventOccurrence emissionOccurrence,
   }) {
-    if (recogniseModalSheetTrigger(sourceExpression)
-        is! ModalSheetNotRecognised) {
-      // The callback becomes a declarative sheet rather than one event
-      // handler, so no route can ride on it. Reject the whole surface.
-      throw ArgumentError(
-        'the modal-sheet lowering carries this callback into a declarative '
-        'sheet rather than one event handler',
-      );
+    final trigger = recogniseModalSheetTrigger(sourceExpression);
+    switch (trigger) {
+      case ModalSheetRecognised(:final sheet):
+        // The tap that opens the sheet is routed; the sheet body is lowered
+        // from the root and measured under the tap's sheet scope.
+        _visitWidgetExpression(
+          _modalSheetBuilderBody(sheet),
+          _rootContext.withOccurrenceScope(emissionOccurrence.sheetBuilder()),
+        );
+      case ModalSheetResultDropped(:final reason):
+        throw ArgumentError(reason);
+      case ModalSheetNotRecognised():
+        break;
     }
     final event = MeasurementDiscoveredEvent._(
       node: node,
@@ -876,6 +925,52 @@ final class _MeasurementSourceDiscovery {
       );
     }
     _events.add(event);
+  }
+
+  bool _combinesConditions(Expression condition, _WidgetVisitContext context) {
+    var current = _withoutParentheses(condition);
+    final seen = <Element>{};
+    while (true) {
+      final element = _referencedElement(current);
+      final bound = context.expressionBindings[element]?.expression;
+      if (bound == null || element == null || !seen.add(element)) break;
+      current = _withoutParentheses(bound);
+    }
+    return switch (current) {
+      PrefixExpression(:final operator, :final operand)
+          when operator.lexeme == '!' =>
+        _combinesConditions(operand, context),
+      BinaryExpression(:final operator) =>
+        operator.lexeme == '&&' || operator.lexeme == '||',
+      _ => false,
+    };
+  }
+
+  Expression _modalSheetBuilderBody(RecognisedModalSheet sheet) {
+    final dispositions = kModalSheetArgumentDispositions[sheet.function];
+    Expression? builder;
+    Expression? pageBuilder;
+    for (final argument in sheet.call.argumentList.arguments) {
+      if (argument is! NamedArgument) continue;
+      switch (dispositions?[argument.name.lexeme]) {
+        case ModalSheetArgumentDisposition.builder:
+          builder ??= argument.argumentExpression;
+        case ModalSheetArgumentDisposition.pageBuilder:
+          pageBuilder ??= argument.argumentExpression;
+        default:
+          break;
+      }
+    }
+    final outcome = recogniseStaticModalSheetBuilder(
+      builder ??
+          pageBuilder ??
+          (throw ArgumentError('A modal sheet requires a static builder')),
+    );
+    return switch (outcome) {
+      ModalSheetBuilderRecognised(:final body) => body,
+      ModalSheetBuilderUnsupported(:final reason) =>
+        throw ArgumentError(reason),
+    };
   }
 
   WidgetEntry _catalogEntryFor(
@@ -902,8 +997,9 @@ final class _MeasurementSourceDiscovery {
 
   void _requireRegisteredOpaqueCustomWidget(
     InstanceCreationExpression expression,
-    InterfaceElement customClass,
-  ) {
+    InterfaceElement customClass, {
+    String? notInlinedBecause,
+  }) {
     final customIdentity = _classIdentity(customClass);
     final constructorName = expression.constructorName.name?.name;
     final suffix = constructorName == null || constructorName.isEmpty
@@ -917,8 +1013,9 @@ final class _MeasurementSourceDiscovery {
         WidgetLibrary.builtInByNamespace(matches.single.library.namespace) !=
             null) {
       throw ArgumentError(
-        'A non-inlined custom widget must resolve to one exact registered '
-        'catalog entry for $flutterType',
+        notInlinedBecause ??
+            'A non-inlined custom widget must resolve to one exact registered '
+                'catalog entry for $flutterType',
       );
     }
   }
@@ -1019,7 +1116,7 @@ final class _MeasurementSourceDiscovery {
         }
         final binding = _MeasurementExpressionBinding(
           expression: value,
-          eventOccurrence: occurrence.event(field),
+          eventOccurrence: occurrence.event(parameter),
         );
         final previous = bindings[field];
         if (previous != null && !identical(previous.expression, value)) {
@@ -1194,6 +1291,19 @@ final class _WidgetVisitContext {
         ],
       );
 
+  _WidgetVisitContext enterConditionalBranch({required bool then}) =>
+      withOccurrenceScope(occurrenceScope.enterConditionalBranch(then: then));
+
+  _WidgetVisitContext withOccurrenceScope(MeasurementOccurrenceScope scope) =>
+      _WidgetVisitContext._(
+        sourceProvenance: sourceProvenance,
+        occurrenceScope: scope,
+        inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
+        expressionBindings: expressionBindings,
+        helperDefinitions: helperDefinitions,
+        inlinedHelperIdentities: inlinedHelperIdentities,
+      );
+
   _WidgetVisitContext withCollectionOccurrence(
     CollectionSemanticOccurrence occurrence,
   ) =>
@@ -1285,18 +1395,6 @@ Element? _referencedElement(Expression expression) {
     element = element.variable;
   }
   return element;
-}
-
-bool _isFlutterStateMethodTearOff(Expression expression) {
-  final element = _referencedElement(_withoutParentheses(expression));
-  if (element is! MethodElement) return false;
-  final owner = element.enclosingElement;
-  return owner is InterfaceElement &&
-      _extendsResolvedType(
-        owner,
-        typeName: 'State',
-        libraryOrigin: _kFlutterOrigin,
-      );
 }
 
 String _helperIdentity(ExecutableElement executable) =>

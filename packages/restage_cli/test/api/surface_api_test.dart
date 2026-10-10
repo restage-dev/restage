@@ -841,7 +841,7 @@ void main() {
       expect(fake.lastMethod, 'exportComplianceAudit');
       expect(fake.lastArgs, {'organizationId': 7});
       expect(rows.single.action, 'surfaceKilled');
-      expect(rows.single.chainVerified, isFalse);
+      expect(rows.single.chain, isNot(AuditChain.verified));
     });
 
     test('surfaceChainVerdict decodes verdict projection', () async {

@@ -195,6 +195,7 @@ class PriceTag extends StatelessWidget {
         'apps_examples|assets/paywalls/screens/paywall_streak.capability.json':
             anything,
       },
+      verbose: true,
       onLog: (record) => logs.add(record.message),
     );
     final notices = logs
@@ -391,6 +392,7 @@ class BWeekOffer extends StatelessWidget {
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       flattenOutput: true,
+      verbose: true,
       onLog: (record) => logs.add(record.message),
     );
 

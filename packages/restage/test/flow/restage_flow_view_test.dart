@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_controller.dart'
     show createHostMeasurementFlowController;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show
+        kMeasurementPublicationRouteArgumentKeyV1,
+        kMeasurementPublicationTapEventNameV1;
+import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 import 'package:rfw/rfw.dart' show DynamicContent, RemoteWidget;
 
 import 'flow_test_support.dart';
@@ -340,6 +346,72 @@ void main() {
 
     expect(order, ['measurement', 'interceptor', 'transition']);
     expect(find.text('Profile'), findsOneWidget);
+  });
+
+  testWidgets(
+      'records the measure-only tap and keeps it from the interceptor and flow',
+      (tester) async {
+    const carrier =
+        'mrv1.ZWRnZS5jaGVja291dC1yb290.AAECAwQFBgcICQoLDA0ODxAREhMUFRYX';
+    final recorded = <Object?>[];
+    final intercepted = <String>[];
+    final hostEvents = <RestageEvent>[];
+    final welcome = Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+      import restage.core;
+      widget OnboardingScreen { picked: false } = GestureDetector(
+        onTap: [
+          set state.picked = true,
+          event "$kMeasurementPublicationTapEventNameV1" {
+            $kMeasurementPublicationRouteArgumentKeyV1: "$carrier"
+          },
+        ],
+        child: Text(text: switch state.picked {
+          true: "Picked",
+          false: "Pick",
+        }),
+      );
+    ''')));
+    final controller = createHostMeasurementFlowController<FirstRunResult>(
+      flow: firstRunFlowRef,
+      resolver: StaticFlowResolver(
+        resolvedFlow(screenBlobs: {'welcome': welcome}),
+      ),
+      actions: null,
+      onEvent: hostEvents.add,
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+      onRootResolved: (_) async {},
+      sanitizeAndRecordEvent: (rawValue) {
+        recorded.add(rawValue);
+        return rawValue;
+      },
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageFlowView<FirstRunResult>(
+        controller: controller,
+        onScreenEvent: (name, arguments) {
+          intercepted.add(name);
+          return false;
+        },
+      ),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+    hostEvents.clear();
+
+    await tester.tap(find.text('Pick'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Picked'), findsOneWidget);
+    expect(recorded, <Object?>[
+      <String, Object?>{kMeasurementPublicationRouteArgumentKeyV1: carrier},
+    ]);
+    expect(intercepted, isEmpty);
+    expect(hostEvents, isEmpty);
+    expect(controller.currentScreenId, 'welcome');
   });
 
   testWidgets('a controller swap commits both controllers', (tester) async {

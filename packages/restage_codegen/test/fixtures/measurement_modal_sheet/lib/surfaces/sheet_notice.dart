@@ -15,9 +15,17 @@ final class SheetNotice extends StatelessWidget {
               context: context,
               showDragHandle: true,
               isDismissible: true,
-              builder: (_) => const Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('Choose your plan'),
+              builder: (_) => Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    const Text('Choose your plan'),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
               ),
             ),
             child: const Text('Open'),

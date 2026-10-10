@@ -7,6 +7,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 
@@ -78,7 +79,7 @@ Future<MeasurementConfigurationResult> resolveMeasurementConfiguration(
     }
     if (!inspectedLibraries.add(library.identifier)) continue;
 
-    final resolved = await library.session.getResolvedLibraryByElement(library);
+    final resolved = await resolveLibraryInLongForm(library);
     if (resolved is! ResolvedLibraryResult || resolved.units.isEmpty) {
       issues.add(
         Issue(

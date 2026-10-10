@@ -186,4 +186,58 @@ void main() {
       expect(text, isNot(contains('package:restage')));
     },
   );
+  test('resolve_api_key matches key prefixes locally and returns the '
+      'target', () async {
+    const key = 'rs_pk_live_prod_abcdef0123456789';
+    final bodies = <String>[];
+    final client = MockClient((request) async {
+      bodies.add(request.body);
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final Object result = switch (body['method']) {
+        'listMine' => [
+          {'organizationId': 3, 'slug': 'acme', 'name': 'Acme'},
+        ],
+        'listProjects' => [
+          {'slug': 'default', 'name': 'Default'},
+        ],
+        'listApps' => [
+          {'id': 9, 'slug': 'default', 'name': 'Default'},
+        ],
+        'listEnvironmentTargets' => [
+          {
+            'environmentTargetId': 21,
+            'namedEnvironmentId': 31,
+            'environmentSlug': 'prod',
+            'runtimePlane': 'live',
+          },
+        ],
+        'listKeys' => [
+          {
+            'id': 5,
+            'kind': 'publishable',
+            'keyPrefix': 'rs_pk_live_prod_abcdef...',
+          },
+        ],
+        final method => throw StateError('unexpected $method'),
+      };
+      return http.Response(jsonEncode(result), 200);
+    });
+    final connection = await connectServer(store: store, httpClient: client);
+
+    final result = await connection.callTool(
+      CallToolRequest(name: 'restage_resolve_api_key', arguments: {'key': key}),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(bodies.where((body) => body.contains('0123456789')), isEmpty);
+    final match = (result.structuredContent!['matches']! as List).single as Map;
+    expect(match['organizationId'], 3);
+    expect(match['projectSlug'], 'default');
+    expect(match['appSlug'], 'default');
+    expect(match['environmentSlug'], 'prod');
+    expect(match['runtimePlane'], 'live');
+    expect(match['environmentTargetId'], 21);
+    expect(match['keyPrefix'], 'rs_pk_live_prod_abcdef...');
+    expect(jsonEncode(result.structuredContent), isNot(contains('0123456789')));
+  });
 }

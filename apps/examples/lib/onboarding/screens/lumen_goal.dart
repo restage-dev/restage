@@ -3,15 +3,23 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/lumen_goal.restage.g.dart';
 
-/// Onboarding — what the practice is for.
-///
-/// The pattern the rest of the questions follow: a back chip and progress dots
-/// over a heading, then glass choice cards, then the pinned call to action.
-/// Every card fires the same [next] event, so the answer tailors the practice
-/// without forking the graph.
+/// Onboarding question with a back chip, progress dots and glass choice cards.
+/// Each card fires an answer event; the call to action continues unanswered.
 @Screen()
 class LumenGoalScreen extends StatelessWidget {
-  /// Advances to the reminder step.
+  /// Answers "Sleep better".
+  static const sleep = SurfaceEvent<void>('sleep');
+
+  /// Answers "Less stress".
+  static const stress = SurfaceEvent<void>('stress');
+
+  /// Answers "Deeper focus".
+  static const focus = SurfaceEvent<void>('focus');
+
+  /// Answers "Just curious".
+  static const curious = SurfaceEvent<void>('curious');
+
+  /// Goes on without an answer.
   static const next = SurfaceEvent<void>('next');
 
   /// Steps back. The flow runtime pops its own history for this
@@ -206,7 +214,7 @@ class LumenGoalScreen extends StatelessWidget {
                               // The first choice carries the selected treatment, so the
                               // pattern is visible at rest.
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: surfaceEvent(sleep),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -282,7 +290,7 @@ class LumenGoalScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: surfaceEvent(stress),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -346,7 +354,7 @@ class LumenGoalScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: surfaceEvent(focus),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -410,7 +418,7 @@ class LumenGoalScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: surfaceEvent(curious),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(

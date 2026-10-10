@@ -6,6 +6,7 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
@@ -20,8 +21,7 @@ Future<void> warnAboutUnbundledSurfaceMounts(BuildStep buildStep) async {
         asset,
         allowSyntaxErrors: true,
       );
-      final resolved =
-          await library.session.getResolvedLibraryByElement(library);
+      final resolved = await resolveLibraryInLongForm(library);
       if (resolved is! ResolvedLibraryResult) continue;
       for (final unit in resolved.units) {
         if (unit.path.endsWith('.g.dart')) continue;

@@ -12,10 +12,10 @@ final class GetStartedScreenContinueEventEvent extends GetStartedScreenEvent {
 
 final _getStartedScreenEvents =
     SurfaceScreenEventContract<GetStartedScreenEvent>.generated(
-  hash:
-      'sha256:528895db4d56cf54e7293e34be342265bdf0d414f70213361a21084810bdf593',
-  decodeValidated: _decodeValidatedGetStartedScreenEvent,
-);
+      hash:
+          'sha256:528895db4d56cf54e7293e34be342265bdf0d414f70213361a21084810bdf593',
+      decodeValidated: _decodeValidatedGetStartedScreenEvent,
+    );
 
 final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
   surface: Surface.onboarding,
@@ -54,24 +54,21 @@ final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
   ),
   vocabulary: const SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
-      core: {
-        'Center': buildCenter,
-        'Text': buildText,
-      },
-      material: {
-        'ElevatedButton': buildElevatedButton,
-      },
+      core: {'Center': buildCenter, 'Text': buildText},
+      material: {'ElevatedButton': buildElevatedButton},
     ),
   ),
 );
 
-final getStartedScreenRef = SurfaceScreenRef<
-    GetStartedScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
-  provenance: _getStartedScreenProvenance,
-  eventContract: _getStartedScreenEvents,
-  measurementPublicationDraftDigest:
-      '1e31372e4267dbd073fdcaacbbb907c8a1a158892c9a7c053f435fd21dc1a7ae',
-);
+final getStartedScreenRef =
+    SurfaceScreenRef<
+      GetStartedScreenEvent
+    >.generatedWithMeasurementPublicationDraftDigest(
+      provenance: _getStartedScreenProvenance,
+      eventContract: _getStartedScreenEvents,
+      measurementPublicationDraftDigest:
+          '1e31372e4267dbd073fdcaacbbb907c8a1a158892c9a7c053f435fd21dc1a7ae',
+    );
 
 GetStartedScreenEvent _decodeValidatedGetStartedScreenEvent(
   String name,
@@ -118,15 +115,15 @@ final class GetStartedScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-  })  : _restageArgument1 = title,
-        _restageArgument2 = enabled,
-        _restageArgument3 = tone,
-        _restageArgument4 = data,
-        _restageArgument5 = context,
-        _restageArgument6 = itemContext,
-        _restageArgument7 = restageA2uiStatus,
-        _restageArgument8 = description,
-        _restageArgument9 = usage;
+  }) : _restageArgument1 = title,
+       _restageArgument2 = enabled,
+       _restageArgument3 = tone,
+       _restageArgument4 = data,
+       _restageArgument5 = context,
+       _restageArgument6 = itemContext,
+       _restageArgument7 = restageA2uiStatus,
+       _restageArgument8 = description,
+       _restageArgument9 = usage;
 
   final String _restageArgument1;
 

@@ -1442,25 +1442,32 @@ import 'package:restage/restage.dart';
 part 'restage.generated/parent_entry.restage.g.dart';
 
 @Screen(id: 'parent_entry')
-final class ParentEntry extends StatelessWidget {
+final class ParentEntry extends StatefulWidget {
   const ParentEntry({super.key});
 
   static const advance = SurfaceEvent<void>('advance');
 
   @override
+  State<ParentEntry> createState() => _ParentEntryState();
+}
+
+class _ParentEntryState extends State<ParentEntry> {
+  bool annual = true;
+  bool trial = false;
+
+  @override
   Widget build(BuildContext context) => Column(
         children: [
           FilledButton(
-            onPressed: surfaceEvent(advance),
+            onPressed: surfaceEvent(ParentEntry.advance),
             child: const Text('Continue'),
           ),
-          FilledButton(
-            onPressed: () => showModalBottomSheet<void>(
-              context: context,
-              builder: (_) => const Text('Details'),
-            ),
-            child: const Text('Details'),
-          ),
+          annual && trial
+              ? OutlinedButton(
+                  onPressed: surfaceEvent(ParentEntry.advance),
+                  child: const Text('Start trial'),
+                )
+              : const Text('Details'),
         ],
       );
 }
@@ -1879,6 +1886,87 @@ final answerFlow = FlowDefinition(start: AnswerScreen, state: [reason], transiti
     expect(answerRoute.orderedCaptureV1!.declaredAnswerV1!.categoryLabels,
         {'cost': 'Too expensive', 'other': 'Other'});
     expect(answerRoute.carrier, isNotEmpty);
+  });
+
+  test('a builder-authored flow declares the same answer routes', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/answer_screen.restage.g.dart';
+@Screen(id: 'answer_screen', surface: Surface.survey)
+final class AnswerScreen extends StatelessWidget {
+  const AnswerScreen({super.key});
+  static const answer = SurfaceEvent<String>('answer');
+  @override
+  Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(answer, 'cost'), child: const Text('Cost'));
+}
+''';
+    const definitionFlow = '''
+import 'package:restage/restage.dart';
+import '../screens/answer_screen.dart';
+part 'restage.generated/answer_flow.restage.g.dart';
+const reason = FlowStateRef<String>('reason', classification: FlowStateClassification.exportable);
+@FlowGraph(id: 'answer_flow', surface: Surface.survey)
+final answerFlow = FlowDefinition(start: AnswerScreen, state: [reason], transitions: [Transition.complete(AnswerScreen.answer, capture: reason)], outbound: FlowOutboundPolicy(surveyAnswers: {'reason': reason}, measurementAnswers: {'reason': FlowAnswerMeasurement.category(outcomeKey: 'survey.reason', propertyName: 'reason', categoryLabels: {'cost': 'Too expensive', 'other': 'Other'})}));
+''';
+    const builderFlow = '''
+import 'package:restage/restage.dart';
+import '../screens/answer_screen.dart';
+part 'restage.generated/answer_flow.restage.g.dart';
+@FlowGraph(id: 'answer_flow', surface: Surface.survey)
+final class AnswerFlow extends RestageFlow {
+  const AnswerFlow();
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+    return flow(
+      initial: answerScreenRef,
+      flowState: const {'reason': FlowStateDeclaration(type: FlowDataType.string, classification: FlowStateClassification.exportable)},
+      outbound: const FlowOutboundDeclarations(surveyAnswers: FlowOutboundPayloadDeclaration(fields: {'reason': FlowOutboundField(type: FlowDataType.string, ref: StateFlowOutboundRef(key: 'reason'))})),
+      measurementAnswers: const {'reason': FlowAnswerMeasurement.category(outcomeKey: 'survey.reason', propertyName: 'reason', categoryLabels: {'cost': 'Too expensive', 'other': 'Other'})},
+      states: [
+        screen(answerScreenRef).on(AnswerScreen.answer).capture('reason').goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''';
+    Future<MeasurementDeclaredAnswerV1> declared(String flow) async {
+      final sources = <String, String>{
+        'apps_examples|lib/survey/screens/answer_screen.dart': screen,
+        'apps_examples|lib/survey/flows/answer_flow.dart': flow
+      };
+      final readerWriter =
+          await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
+      for (final builder in [
+        onboardingScreenBuilder(BuilderOptions.empty),
+        onboardingFlowBuilder(BuilderOptions.empty),
+        const PackageSurfaceCompilerBuilder(_policyOptions)
+      ]) {
+        final result = await testBuilder(builder, sources,
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            flattenOutput: true);
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      }
+      final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+          readerWriter.testing.readBytes(
+              AssetId('apps_examples', kRestageMeasurementCompilerOutputPath)));
+      final publication = output.publications.singleWhere((publication) =>
+          publication.selector.sourceKind == SurfaceSourceKind.flowGraph);
+      return publication.routePlan.routes
+          .singleWhere(
+              (route) => route.orderedCaptureV1?.declaredAnswerV1 != null)
+          .orderedCaptureV1!
+          .declaredAnswerV1!;
+    }
+
+    final fromDefinition = await declared(definitionFlow);
+    final fromBuilder = await declared(builderFlow);
+    expect(fromBuilder, fromDefinition);
+    expect(fromBuilder.categoryLabels,
+        {'cost': 'Too expensive', 'other': 'Other'});
   });
 
   test(

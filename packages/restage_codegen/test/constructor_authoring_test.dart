@@ -1596,7 +1596,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   category: WidgetCategory.input,
 )
 class PrivateProbe {
-  const PrivateProbe({required this._secret});
+  const PrivateProbe(this._secret);
   final String _secret;
 }
 

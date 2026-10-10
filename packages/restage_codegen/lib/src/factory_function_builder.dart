@@ -64,7 +64,10 @@ final class FactoryFunctionBuilder implements Builder {
 
     await buildStep.writeAsString(
       AssetId(input.package, _outputAsset),
-      source,
+      formatGeneratedDart(
+        source,
+        languageVersion: await packageLanguageVersion(buildStep),
+      ),
     );
   }
 }

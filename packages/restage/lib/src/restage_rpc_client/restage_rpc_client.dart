@@ -644,6 +644,16 @@ class RestageRpcClient {
 
   int _heldArtifactBytes = 0;
 
+  /// Accepted binding reads, held for this client's origin and key only.
+  final Map<MeasurementPublicationBindingReferenceV1,
+          MeasurementPublicationBindingReadRpcAccepted>
+      _acceptedBindings = <MeasurementPublicationBindingReferenceV1,
+          MeasurementPublicationBindingReadRpcAccepted>{};
+
+  /// Drops every held binding read.
+  @internal
+  void forgetPublicationBindings() => _acceptedBindings.clear();
+
   /// Sends one canonical Measurement request through the SDK HTTP session.
   ///
   /// This call deliberately retains the named HTTP distinctions needed by the
@@ -897,6 +907,8 @@ class RestageRpcClient {
       readMeasurementPublicationBindingExact(
     MeasurementPublicationBindingReferenceV1 reference,
   ) async {
+    final held = _acceptedBindings[reference];
+    if (held != null) return held;
     final carrier =
         base64Url.encode(reference.canonicalBytes).replaceAll('=', '');
     final uri = Uri.parse('$_baseUrl/sdk/v1/measurement-publication-binding');
@@ -921,10 +933,14 @@ class RestageRpcClient {
 
     switch (response.statusCode) {
       case 200:
-        return _parseMeasurementPublicationBindingReadAcceptedResponse(
+        final read = _parseMeasurementPublicationBindingReadAcceptedResponse(
           response.body,
           reference: reference,
         );
+        if (read is MeasurementPublicationBindingReadRpcAccepted) {
+          _acceptedBindings[reference] = read;
+        }
+        return read;
       case 400:
       case 409:
       case 413:

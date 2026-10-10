@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show kMeasurementPresentationRfwLibrary;
 import 'package:rfw/rfw.dart';
 
 import 'measurement_capture_edge.dart';
@@ -8,14 +10,9 @@ import 'measurement_worker.dart' show kMeasurementWorkerMaximumRouteCount;
 
 /// SDK-local RFW namespace for the private Measurement presentation wrapper.
 @internal
-const LibraryName kMeasurementRfwPresentationLibrary = LibraryName(<String>[
-  'restage',
-  'measurement',
-]);
-
-const String _measurementPresentedConstructor = 'MeasurementPresented';
-const String _measurementSourcePresentedConstructor =
-    'MeasurementSourcePresented';
+final LibraryName kMeasurementRfwPresentationLibrary = LibraryName(
+  kMeasurementPresentationRfwLibrary.namespace.split('.'),
+);
 const String _pointTokensArgument = 'pointTokens';
 const String _carriersArgument = 'carriers';
 const String _childArgument = 'child';
@@ -66,71 +63,127 @@ final class MeasurementRfwPresentationScope extends InheritedWidget {
 }
 
 /// Supplies one compact-token capture edge to an RFW presentation subtree.
+///
+/// It also installs the surface's root paint boundary, so every presentation
+/// probe beneath it has an enclosing boundary to report through.
 @internal
-final class MeasurementRfwPresentationCaptureScope extends InheritedWidget {
+final class MeasurementRfwPresentationCaptureScope extends StatelessWidget {
   /// Creates the internal scope for one already-prebound capture edge.
   const MeasurementRfwPresentationCaptureScope({
     super.key,
     required this.edge,
-    required super.child,
+    required this.child,
   });
 
   /// Exact edge selected before this subtree can paint.
   final MeasurementCaptureEdge edge;
 
-  /// Finds the nearest prebound capture edge for [context].
-  static MeasurementCaptureEdge? maybeOf(BuildContext context) =>
-      maybeScopeOf(context)?.edge;
+  /// The surface subtree.
+  final Widget child;
 
-  /// Finds the nearest prebound capture scope for [context].
-  static MeasurementRfwPresentationCaptureScope? maybeScopeOf(
-    BuildContext context,
-  ) =>
-      context.dependOnInheritedWidgetOfExactType<
-          MeasurementRfwPresentationCaptureScope>();
+  /// Finds the nearest prebound capture edge for [context].
+  static MeasurementCaptureEdge? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_MeasurementRfwEdgeInherited>()
+      ?.edge;
 
   @override
-  bool updateShouldNotify(MeasurementRfwPresentationCaptureScope oldWidget) =>
+  Widget build(BuildContext context) => _MeasurementRfwEdgeInherited(
+        edge: edge,
+        child: _MeasurementRfwPresentationRootBoundary(child: child),
+      );
+}
+
+final class _MeasurementRfwEdgeInherited extends InheritedWidget {
+  const _MeasurementRfwEdgeInherited({
+    required this.edge,
+    required super.child,
+  });
+
+  final MeasurementCaptureEdge edge;
+
+  @override
+  bool updateShouldNotify(_MeasurementRfwEdgeInherited oldWidget) =>
       !identical(edge, oldWidget.edge);
 }
 
-/// Supplies the only pre-mount route binder to an RFW presentation subtree.
-///
-/// It is deliberately a separate widget type from
-/// [MeasurementRfwPresentationCaptureScope], making the invalid
-/// edge-and-binder constructor shape impossible in product builds.
+/// Installs the pre-mount route binder and root paint boundary.
+/// Kept separate from [MeasurementRfwPresentationCaptureScope] to prevent
+/// invalid edge-and-binder construction.
 @internal
-final class MeasurementRfwPresentationBinderScope extends InheritedWidget {
+final class MeasurementRfwPresentationBinderScope extends StatelessWidget {
   /// Creates one pre-mount compact-token binder scope.
   const MeasurementRfwPresentationBinderScope({
     super.key,
     required this.binder,
-    required super.child,
+    required this.child,
   });
 
   /// Exact binder for compiler-delivered token/carrier pairs.
   final MeasurementRfwPresentationCaptureBinder binder;
+
+  /// The surface subtree.
+  final Widget child;
 
   /// Finds the nearest pre-mount binder for [context].
   static MeasurementRfwPresentationCaptureBinder? maybeOf(
     BuildContext context,
   ) =>
       context
-          .dependOnInheritedWidgetOfExactType<
-              MeasurementRfwPresentationBinderScope>()
+          .dependOnInheritedWidgetOfExactType<_MeasurementRfwBinderInherited>()
           ?.binder;
 
   @override
-  bool updateShouldNotify(MeasurementRfwPresentationBinderScope oldWidget) =>
+  Widget build(BuildContext context) => _MeasurementRfwBinderInherited(
+        binder: binder,
+        child: _MeasurementRfwPresentationRootBoundary(child: child),
+      );
+}
+
+final class _MeasurementRfwBinderInherited extends InheritedWidget {
+  const _MeasurementRfwBinderInherited({
+    required this.binder,
+    required super.child,
+  });
+
+  final MeasurementRfwPresentationCaptureBinder binder;
+
+  @override
+  bool updateShouldNotify(_MeasurementRfwBinderInherited oldWidget) =>
       !identical(binder, oldWidget.binder);
+}
+
+final class _MeasurementRfwPresentationRootBoundary extends StatefulWidget {
+  const _MeasurementRfwPresentationRootBoundary({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_MeasurementRfwPresentationRootBoundary> createState() =>
+      _MeasurementRfwPresentationRootBoundaryState();
+}
+
+final class _MeasurementRfwPresentationRootBoundaryState
+    extends State<_MeasurementRfwPresentationRootBoundary> {
+  final _registry = _PaintObserverRegistry();
+
+  @override
+  Widget build(BuildContext context) => _MeasurementRfwPresentationPaintScope(
+        registry: _registry,
+        child: _MeasurementRfwPresentationPaintBoundary(
+          registry: _registry,
+          shouldObservePaint: () => _registry.hasPendingObserver,
+          onSuccessfulPaint: _registry.reportSuccessfulPaint,
+          child: widget.child,
+        ),
+      );
 }
 
 /// Builds the SDK-local RFW library that owns [MeasurementPresented].
 @internal
 LocalWidgetLibrary buildMeasurementRfwPresentationLocalWidgetLibrary() =>
     LocalWidgetLibrary(<String, LocalWidgetBuilder>{
-      _measurementPresentedConstructor: _buildBoundMeasurementPresented,
-      _measurementSourcePresentedConstructor: _buildBoundMeasurementPresented,
+      for (final constructor in kMeasurementPresentationRfwLibrary.constructors)
+        constructor: _buildBoundMeasurementPresented,
     });
 
 /// Installs the SDK-owned presentation library after app-defined libraries,
@@ -167,7 +220,7 @@ Widget _buildBoundMeasurementPresented(
     );
   }
   if (edge == null) return child;
-  return MeasurementRfwPresentationCaptureScope(
+  return _MeasurementRfwEdgeInherited(
     edge: edge,
     child: _MeasurementRfwPresentationProbe(
       pointTokens: pointTokens,
@@ -216,9 +269,18 @@ final class _MeasurementRfwPresentationProbe extends StatefulWidget {
 final class _MeasurementRfwPresentationProbeState
     extends State<_MeasurementRfwPresentationProbe> {
   late final List<String> _pointTokens = widget.pointTokens;
+  late final _PaintObserver _observer = _PaintObserver(
+    shouldObservePaint: _shouldObservePaint,
+    onSuccessfulPaint: _reportAfterSuccessfulPaint,
+  );
   MeasurementCaptureEdge? _edge;
   var _scopeResolved = false;
   var _attempted = false;
+
+  /// Owned when this probe may sit between its child and the parent render
+  /// object; `null` when the probe reports through an enclosing boundary.
+  _PaintObserverRegistry? _ownRegistry;
+  _PaintObserverRegistry? _enclosingRegistry;
 
   @override
   void didChangeDependencies() {
@@ -227,21 +289,44 @@ final class _MeasurementRfwPresentationProbeState
     if (!_scopeResolved) {
       _scopeResolved = true;
       _edge = edge;
-      return;
-    }
-    if (!identical(_edge, edge)) {
+      if (_slotAcceptsBoundary(context)) {
+        _ownRegistry = _PaintObserverRegistry();
+      }
+    } else if (!identical(_edge, edge)) {
       _edge = null;
       _attempted = true;
+    }
+    if (_ownRegistry == null) {
+      final enclosing = _MeasurementRfwPresentationPaintScope.maybeOf(context);
+      if (!identical(enclosing, _enclosingRegistry)) {
+        _enclosingRegistry?.remove(_observer);
+        _enclosingRegistry = enclosing?..add(_observer);
+      }
     }
   }
 
   @override
+  void dispose() {
+    _enclosingRegistry?.remove(_observer);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (_edge == null) return widget.child;
-    return _MeasurementRfwPresentationPaintBoundary(
-      shouldObservePaint: _shouldObservePaint,
-      onSuccessfulPaint: _reportAfterSuccessfulPaint,
-      child: widget.child,
+    final registry = _ownRegistry;
+    if (registry == null) return widget.child;
+    return _MeasurementRfwPresentationPaintScope(
+      registry: registry,
+      child: _MeasurementRfwPresentationPaintBoundary(
+        registry: registry,
+        shouldObservePaint: () =>
+            _shouldObservePaint() || registry.hasPendingObserver,
+        onSuccessfulPaint: () {
+          _reportAfterSuccessfulPaint();
+          registry.reportSuccessfulPaint();
+        },
+        child: widget.child,
+      ),
     );
   }
 
@@ -263,20 +348,90 @@ final class _MeasurementRfwPresentationProbeState
   }
 }
 
+/// Whether a render object may be inserted at [context] without taking the
+/// slot a parent-data widget (Expanded, Positioned, ...) needs.
+bool _slotAcceptsBoundary(BuildContext context) {
+  var accepts = false;
+  context.visitAncestorElements((ancestor) {
+    if (ancestor.widget is ParentDataWidget) {
+      accepts = true;
+      return false;
+    }
+    if (ancestor is RenderObjectElement) {
+      accepts = ancestor.renderObject is RenderObjectWithChildMixin;
+      return false;
+    }
+    return true;
+  });
+  return accepts;
+}
+
+final class _PaintObserver {
+  const _PaintObserver({
+    required this.shouldObservePaint,
+    required this.onSuccessfulPaint,
+  });
+
+  final bool Function() shouldObservePaint;
+  final VoidCallback onSuccessfulPaint;
+}
+
+/// Probes that cannot own a boundary report through the nearest one.
+final class _PaintObserverRegistry {
+  final Set<_PaintObserver> _observers = <_PaintObserver>{};
+  RenderObject? _boundary;
+
+  bool get hasPendingObserver =>
+      _observers.any((observer) => observer.shouldObservePaint());
+
+  void add(_PaintObserver observer) {
+    if (_observers.add(observer)) _boundary?.markNeedsPaint();
+  }
+
+  void remove(_PaintObserver observer) => _observers.remove(observer);
+
+  void reportSuccessfulPaint() {
+    for (final observer in List.of(_observers)) {
+      if (observer.shouldObservePaint()) observer.onSuccessfulPaint();
+    }
+  }
+}
+
+final class _MeasurementRfwPresentationPaintScope extends InheritedWidget {
+  const _MeasurementRfwPresentationPaintScope({
+    required this.registry,
+    required super.child,
+  });
+
+  final _PaintObserverRegistry registry;
+
+  static _PaintObserverRegistry? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<
+          _MeasurementRfwPresentationPaintScope>()
+      ?.registry;
+
+  @override
+  bool updateShouldNotify(_MeasurementRfwPresentationPaintScope oldWidget) =>
+      !identical(registry, oldWidget.registry);
+}
+
 final class _MeasurementRfwPresentationPaintBoundary
     extends SingleChildRenderObjectWidget {
   const _MeasurementRfwPresentationPaintBoundary({
+    required this.registry,
     required this.shouldObservePaint,
     required this.onSuccessfulPaint,
     required super.child,
   });
 
+  final _PaintObserverRegistry registry;
   final bool Function() shouldObservePaint;
   final VoidCallback onSuccessfulPaint;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
       _RenderMeasurementRfwPresentationPaintBoundary(
+        registry,
         onSuccessfulPaint,
         shouldObservePaint,
       );
@@ -295,16 +450,30 @@ final class _MeasurementRfwPresentationPaintBoundary
 final class _RenderMeasurementRfwPresentationPaintBoundary
     extends RenderProxyBox {
   _RenderMeasurementRfwPresentationPaintBoundary(
+    this._registry,
     this._onSuccessfulPaint,
     this._shouldObservePaint,
   );
 
+  final _PaintObserverRegistry _registry;
   VoidCallback _onSuccessfulPaint;
   bool Function() _shouldObservePaint;
 
   set onSuccessfulPaint(VoidCallback value) => _onSuccessfulPaint = value;
 
   set shouldObservePaint(bool Function() value) => _shouldObservePaint = value;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _registry._boundary = this;
+  }
+
+  @override
+  void detach() {
+    if (identical(_registry._boundary, this)) _registry._boundary = null;
+    super.detach();
+  }
 
   @override
   void paint(PaintingContext context, Offset offset) {

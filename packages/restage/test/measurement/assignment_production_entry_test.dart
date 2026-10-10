@@ -151,9 +151,9 @@ void main() {
 
     configure();
     await Restage.defaultSurfaceScreenResolver.resolve(fixture.ref);
-    expect(registrationRequests[1]['registrationNonce'],
-        registrationRequests[0]['registrationNonce']);
-    expect(registrationRequests[1]['credentialHandle'], 'credential.screen.1');
+    // A handle confirmed within the day is reused without presenting it again.
+    expect(registrationRequests, hasLength(1));
+    expect(surfaceRequests[2]['assignmentKey'], 'credential.screen.1');
     expect(surfaceRequests[2]['assignmentCanonicalBase64'], isNotNull);
     expect(
         jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(

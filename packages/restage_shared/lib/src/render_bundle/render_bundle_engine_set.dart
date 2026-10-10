@@ -9,13 +9,25 @@ import 'package:meta/meta.dart';
 /// remainder of the path is its [RenderBundleEngineFile.path].
 const renderBundleEnginePathPrefix = 'canvaskit/';
 
-const _canonicalHeader = 'restage.render-bundle-engine-set.v1';
+const _canonicalHeader = 'restage.render-bundle-engine-set.v2';
 
 final _pathPattern = RegExp(
   r'^[a-z0-9][a-z0-9_.-]*(?:/[a-z0-9][a-z0-9_.-]*)*$',
 );
 final _hashPattern = RegExp(r'^sha256:[0-9a-f]{64}$');
-final _flutterVersionPattern = RegExp(r'^\d+\.\d+\.\d+$');
+final _engineRevisionPattern = RegExp(r'^[0-9a-f]{40}$');
+final _flutterVersionPattern = RegExp(
+  r'^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$',
+);
+
+/// Most files one engine set may list.
+const renderBundleEngineSetMaxFiles = 64;
+
+/// Largest engine file a set may list, about twice the largest real one.
+const int renderBundleEngineFileMaxBytes = 16 * 1024 * 1024;
+
+/// Largest total a set's files may add up to, about twice a real set.
+const int renderBundleEngineSetMaxBytes = 64 * 1024 * 1024;
 
 /// One file the Flutter loader fetches from a bundle's engine base.
 @immutable
@@ -32,8 +44,12 @@ final class RenderBundleEngineFile {
     if (!_hashPattern.hasMatch(contentHash)) {
       throw FormatException('Invalid engine file content hash.', contentHash);
     }
-    if (byteLength <= 0) {
-      throw FormatException('Engine file length must be positive.', path);
+    if (byteLength <= 0 || byteLength > renderBundleEngineFileMaxBytes) {
+      throw FormatException(
+        'Engine file length must be between 1 and '
+        '$renderBundleEngineFileMaxBytes bytes.',
+        path,
+      );
     }
   }
 
@@ -60,22 +76,29 @@ final class RenderBundleEngineFile {
   String toString() => '$path $contentHash $byteLength';
 }
 
-/// The engine files every bundle built on one Flutter version loads.
+/// The engine files a bundle loads, as one Flutter SDK produced them.
 ///
-/// Sets are pinned per Flutter version and never change once published, so a
-/// bundle built on an older version still resolves the engine it was built
-/// against.
+/// A set is identified by the hash of its canonical form, so the same SDK
+/// yields the same set for every app and organization.
 final class RenderBundleEngineSet {
-  /// Creates one pinned set from files sorted by path.
+  /// Creates one set from files sorted by path.
   RenderBundleEngineSet({
     required this.flutterVersion,
+    required this.engineRevision,
     required List<RenderBundleEngineFile> files,
   }) : files = List<RenderBundleEngineFile>.unmodifiable(files) {
     if (!_flutterVersionPattern.hasMatch(flutterVersion)) {
       throw FormatException('Invalid Flutter version.', flutterVersion);
     }
-    if (this.files.isEmpty) {
-      throw const FormatException('An engine set holds at least one file.');
+    if (!_engineRevisionPattern.hasMatch(engineRevision)) {
+      throw FormatException('Invalid engine revision.', engineRevision);
+    }
+    if (this.files.isEmpty ||
+        this.files.length > renderBundleEngineSetMaxFiles) {
+      throw const FormatException(
+        'An engine set holds between one and '
+        '$renderBundleEngineSetMaxFiles files.',
+      );
     }
     for (var index = 1; index < this.files.length; index++) {
       if (this.files[index - 1].path.compareTo(this.files[index].path) >= 0) {
@@ -85,10 +108,76 @@ final class RenderBundleEngineSet {
         );
       }
     }
+    if (byteLength > renderBundleEngineSetMaxBytes) {
+      throw const FormatException(
+        'An engine set holds at most $renderBundleEngineSetMaxBytes bytes.',
+      );
+    }
   }
+
+  /// Reads the set whose [canonicalForm] is exactly [text].
+  ///
+  /// Anything that does not serialize back to the same text is refused, so a
+  /// parsed set always hashes to the identifier its text does.
+  factory RenderBundleEngineSet.parse(String text) {
+    final lines = text.split('\n');
+    if (lines.length < 5 ||
+        lines.first != _canonicalHeader ||
+        !lines[1].startsWith('flutter ') ||
+        !lines[2].startsWith('engine ') ||
+        lines.last.isNotEmpty) {
+      throw const FormatException('Not an engine set.');
+    }
+    final files = <RenderBundleEngineFile>[];
+    for (final line in lines.sublist(3, lines.length - 1)) {
+      final fields = line.split(' ');
+      final length = fields.length == 3 ? int.tryParse(fields[2]) : null;
+      if (length == null) throw FormatException('Bad engine file line.', line);
+      files.add(
+        RenderBundleEngineFile(
+          path: fields[0],
+          contentHash: fields[1],
+          byteLength: length,
+        ),
+      );
+    }
+    final set = RenderBundleEngineSet(
+      flutterVersion: lines[1].substring('flutter '.length),
+      engineRevision: lines[2].substring('engine '.length),
+      files: files,
+    );
+    if (set.canonicalForm != text) {
+      throw const FormatException('Engine set text is not canonical.');
+    }
+    return set;
+  }
+
+  /// Derives the set from the engine files one build produced.
+  ///
+  /// [files] is keyed by path relative to the engine directory.
+  factory RenderBundleEngineSet.fromFiles({
+    required String flutterVersion,
+    required String engineRevision,
+    required Map<String, List<int>> files,
+  }) =>
+      RenderBundleEngineSet(
+        flutterVersion: flutterVersion,
+        engineRevision: engineRevision,
+        files: [
+          for (final path in files.keys.toList()..sort())
+            RenderBundleEngineFile(
+              path: path,
+              contentHash: 'sha256:${crypto.sha256.convert(files[path]!)}',
+              byteLength: files[path]!.length,
+            ),
+        ],
+      );
 
   /// The Flutter version this set was derived from.
   final String flutterVersion;
+
+  /// The Flutter engine revision whose release published these files.
+  final String engineRevision;
 
   /// Every file in the set, sorted by path.
   final List<RenderBundleEngineFile> files;
@@ -101,6 +190,7 @@ final class RenderBundleEngineSet {
   late final String canonicalForm = (StringBuffer()
         ..writeln(_canonicalHeader)
         ..writeln('flutter $flutterVersion')
+        ..writeln('engine $engineRevision')
         ..writeAll(
           files.map(
             (file) => '${file.path} ${file.contentHash} '
@@ -129,108 +219,3 @@ final class RenderBundleEngineSet {
   bool holds({required String path, required String contentHash}) =>
       _byPath[path]?.contentHash == contentHash;
 }
-
-/// Every pinned engine set, oldest Flutter version first.
-final List<RenderBundleEngineSet> renderBundleEngineSets =
-    List<RenderBundleEngineSet>.unmodifiable(<RenderBundleEngineSet>[
-  _flutter3470,
-  // Append a newer pinned set above this line.
-]);
-
-/// The set the current pinned Flutter version builds against.
-RenderBundleEngineSet get newestRenderBundleEngineSet =>
-    renderBundleEngineSets.last;
-
-/// The set derived from [flutterVersion], or `null` when none is pinned.
-RenderBundleEngineSet? renderBundleEngineSetForFlutterVersion(
-  String flutterVersion,
-) {
-  for (final set in renderBundleEngineSets) {
-    if (set.flutterVersion == flutterVersion) return set;
-  }
-  return null;
-}
-
-/// The set identified by [id], or `null` when no pinned set matches.
-RenderBundleEngineSet? renderBundleEngineSetById(String id) {
-  for (final set in renderBundleEngineSets) {
-    if (set.id == id) return set;
-  }
-  return null;
-}
-
-/// One entry, taking the digest without its algorithm prefix.
-RenderBundleEngineFile _file(String path, String digest, int byteLength) =>
-    RenderBundleEngineFile(
-      path: path,
-      contentHash: 'sha256:$digest',
-      byteLength: byteLength,
-    );
-
-/// Produced by `tool/derive_render_bundle_engine_set.dart` from an installed
-/// Flutter SDK; the accompanying test checks it back against that SDK.
-final _flutter3470 = RenderBundleEngineSet(
-  flutterVersion: '3.47.0',
-  files: <RenderBundleEngineFile>[
-    _file(
-      'canvaskit.js',
-      'bb559f6080c7d312ac2a912b4abec9f68ff3d3022d4a603c7796b9b31460642b',
-      86987,
-    ),
-    _file(
-      'canvaskit.wasm',
-      '2898c0795cf4a694e86ee3445c7414c2503fbcb46967154762f50ebde988da04',
-      7284349,
-    ),
-    _file(
-      'chromium/canvaskit.js',
-      '6018b12bd8ed37e6952eee72d59c1cf7ad707ccdb74a0a45190010f77edd9068',
-      86226,
-    ),
-    _file(
-      'chromium/canvaskit.wasm',
-      'ba4024133403777f41c709b9e76e9f4bdb76c73d33adba8645527a59d815d824',
-      5428553,
-    ),
-    _file(
-      'skwasm.js',
-      '71d7d3e34bf71b52bdba3b588b103bba8148ba28de5754083e01b3398e7a6e1c',
-      63537,
-    ),
-    _file(
-      'skwasm.wasm',
-      'a957befea55cf597eeebcf3286f1b88f463f3ad8bfc13e55aa8f5d34cd2ade4d',
-      3593521,
-    ),
-    _file(
-      'skwasm_heavy.js',
-      'cec554b46ddcf4c0e63d799e0556d546f42d2c3f69316fb4f67ed776f6104558',
-      63650,
-    ),
-    _file(
-      'skwasm_heavy.wasm',
-      '781a14fc7e9cd387ee6df4a056f62af7e940c60cc42ce04571cc2e810042c588',
-      5216023,
-    ),
-    _file(
-      'webparagraph/canvaskit.js',
-      '3110e3e4d9b7b5657d336f253aaca8acca5777cde9319fb69ac302d6ff5a8b23',
-      76114,
-    ),
-    _file(
-      'webparagraph/canvaskit.wasm',
-      '7a61c4ad71781875a80bbfc5ee6e49686dd190d629e0fe986d3ecc05ada58856',
-      3729073,
-    ),
-    _file(
-      'wimp.js',
-      '8fd8a47480c6eb0a374d159912d0b3fb15661b41f5c113ecdd39c2f01f2bee46',
-      59127,
-    ),
-    _file(
-      'wimp.wasm',
-      '7474f6074c42c4be503c9059c9b5058e468a68a8917ac6c3607f0da4922f7e5a',
-      3581483,
-    ),
-  ],
-);

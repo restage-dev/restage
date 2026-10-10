@@ -811,7 +811,14 @@ Future<_TargetProfileFiles> _profileFiles(Directory packageRoot) async {
     stage: File('${live.path}.stage'),
     backup: File('${live.path}.backup'),
     journal: File('${live.path}.transaction'),
-    lock: File(p.join(root, '.restage', 'measurement-target-profile.v1.lock')),
+    lock: File(
+      p.join(
+        root,
+        '.dart_tool',
+        'restage',
+        'measurement-target-profile.v1.lock',
+      ),
+    ),
   );
 }
 

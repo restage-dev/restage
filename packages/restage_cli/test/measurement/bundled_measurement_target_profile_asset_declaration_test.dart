@@ -69,4 +69,52 @@ flutter:
 
     expect(await pubspec.readAsString(), source);
   });
+
+  test('keeps the comments and entries of an existing asset list', () async {
+    final pubspec = File(p.join(tempDir.path, 'pubspec.yaml'));
+    const source = '''
+name: fixture
+flutter:
+  assets:
+    # Demo blobs.
+    - assets/paywalls/
+    # Generated bundles.
+    - assets/restage/bundles/lib/paywalls/
+''';
+    await pubspec.writeAsString(source);
+
+    final changed = await ensureMeasurementBundledTargetProfileAssetDeclaration(
+      packageRoot: tempDir,
+    );
+
+    final updated = await pubspec.readAsString();
+    expect(changed, isTrue);
+    expect(updated, startsWith(source));
+    expect(
+      updated.substring(source.length).trim(),
+      '- $kMeasurementBundledTargetProfileAssetPath',
+    );
+  });
+
+  test('reports whether the profile is declared without editing', () async {
+    final pubspec = File(p.join(tempDir.path, 'pubspec.yaml'));
+    const source = 'name: fixture\nflutter:\n  assets:\n    - a/\n';
+    await pubspec.writeAsString(source);
+
+    expect(
+      await isMeasurementBundledTargetProfileAssetDeclared(
+        packageRoot: tempDir,
+      ),
+      isFalse,
+    );
+    await ensureMeasurementBundledTargetProfileAssetDeclaration(
+      packageRoot: tempDir,
+    );
+    expect(
+      await isMeasurementBundledTargetProfileAssetDeclared(
+        packageRoot: tempDir,
+      ),
+      isTrue,
+    );
+  });
 }

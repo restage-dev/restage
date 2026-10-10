@@ -99,9 +99,10 @@ own with `flutter run -t`:
   to dismiss.
 - **Draggable sheet** (`lib/main_draggable_sheet_demo.dart`): a sheet that
   snaps between peek, middle, and full height.
-- **Hosted delivery** (`lib/main_hosted_paywall_demo.dart`): a paywall fetched
+- **Hosted delivery** (`lib/main_hosted_surface_demo.dart`): a paywall fetched
   over the air (from an in-app fake server here), with the fallback used when
-  the fetch fails.
+  the fetch fails. See [Render a published surface](#render-a-published-surface)
+  to point it at your own backend.
 
 The other `lib/main_*.dart` files are standalone demos that are not in the
 gallery. Run any of them with `flutter run -t lib/<file>.dart`.
@@ -130,6 +131,14 @@ a fresh clone.
 Flutter does not hot-reload bundled assets. After a rebuild, hot-restart the
 app (press `R` in `flutter run`).
 
+Before pushing, point the example at your own project. `restage init` lists
+the projects and apps in your organization and writes `restage_config.yaml`
+(ignored by git here, since it names your project):
+
+```sh
+restage init --no-starter --no-add-deps
+```
+
 Push a surface to Restage Cloud, then publish it:
 
 ```sh
@@ -138,6 +147,23 @@ restage surface publish minimal_onboarding
 ```
 
 A push uploads a new version. A publish makes a pushed version live.
+
+### Render a published surface
+
+`lib/main_hosted_surface_demo.dart` renders any published paywall by slug,
+using your publishable key:
+
+```sh
+flutter run -t lib/main_hosted_surface_demo.dart \
+  --dart-define=RESTAGE_BASE_URL=https://your-backend.example \
+  --dart-define=RESTAGE_API_KEY=rs_pk_... \
+  --dart-define=RESTAGE_SURFACE=pulse_paywall \
+  --dart-define=RESTAGE_SURFACE_TYPE=paywall
+```
+
+Onboarding, message, survey and general surfaces render through the generated
+`<Stem>Surface` mount compiled into the app, such as `FirstRunFlowSurface` in
+`lib/onboarding/flows/restage.generated/first_run.restage.g.dart`.
 
 ## Interactive state
 

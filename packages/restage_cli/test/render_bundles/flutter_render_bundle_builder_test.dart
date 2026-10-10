@@ -10,6 +10,10 @@ import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
+/// A Flutter version no build list names ahead of time.
+const _flutterVersion = '3.99.0-0.1.pre';
+const _engineRevision = 'af7e796e161ae0bb1ff0758c71a7105418bd9ded';
+
 Future<String> _identityCatalogResolver(
   Directory projectRoot,
   String catalogJson,
@@ -28,12 +32,12 @@ _flutter.loader.load({
   },
 });
 ''';
-  // A build produces every file its pinned set names, so the fake build here
-  // produces a small set of its own and writes exactly those bytes.
+  // The fake build writes a small engine of its own; the set is derived from it.
   final engineJs = Uint8List.fromList(utf8.encode('canvaskit loader'));
   final engineWasm = Uint8List.fromList(utf8.encode('canvaskit runtime'));
   final engineSet = RenderBundleEngineSet(
-    flutterVersion: '3.47.0',
+    flutterVersion: _flutterVersion,
+    engineRevision: _engineRevision,
     files: <RenderBundleEngineFile>[
       RenderBundleEngineFile(
         path: 'canvaskit.js',
@@ -122,7 +126,13 @@ _flutter.loader.load({
       String? workingDirectory,
     }) async {
       if (arguments case ['--version', '--machine']) {
-        return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
+        return ProcessResult(
+          1,
+          0,
+          '{"frameworkVersion":"$_flutterVersion",'
+              '"engineRevision":"$_engineRevision"}',
+          '',
+        );
       }
       if (arguments case ['pub', 'get']) {
         return ProcessResult(4, pubFails ? 1 : 0, '', '');
@@ -194,7 +204,6 @@ _flutter.loader.load({
         fontSha256: sha256.convert(font.readAsBytesSync()).toString(),
         licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
       ),
-      engineSet: engineSet,
       projectWriter: projectWriter,
     );
 
@@ -258,7 +267,13 @@ _flutter.loader.load({
       }) async {
         calls.add((executable: executable, arguments: List.of(arguments)));
         if (arguments case ['--version', '--machine']) {
-          return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
+          return ProcessResult(
+            1,
+            0,
+            '{"frameworkVersion":"$_flutterVersion",'
+                '"engineRevision":"$_engineRevision"}',
+            '',
+          );
         }
         if (arguments case ['pub', 'get']) {
           expect(workingDirectory, generated.path);
@@ -323,7 +338,6 @@ _flutter.loader.load({
           fontSha256: sha256.convert(font.readAsBytesSync()).toString(),
           licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
         ),
-        engineSet: engineSet,
         projectWriter: projectWriter,
       );
       final artifact = await builder.build(
@@ -379,7 +393,18 @@ _flutter.loader.load({
       );
       expect(writes, hasLength(1));
       expect(writes.single.projectRoot.path, project.path);
-      expect(writes.single.flutterVersion, requiredRenderBundleFlutterVersion);
+      expect(writes.single.flutterVersion, _flutterVersion);
+      // The engine set comes from what this SDK's build wrote.
+      expect(artifact.engineSetId, engineSet.id);
+      expect(artifact.flutterVersion, _flutterVersion);
+      expect(artifact.engineSet.files.map((file) => file.path), <String>[
+        'canvaskit.js',
+        'canvaskit.wasm',
+      ]);
+      expect(
+        utf8.decode(artifact.appFiles['flutter_bootstrap.js']!),
+        contains('/render-bundles/v1/engine/${engineSet.id}/'),
+      );
       expect(
         calls.where((call) => call.arguments.join(' ') == 'pub get'),
         hasLength(1),
@@ -511,7 +536,12 @@ _flutter.loader.load({
         String executable,
         List<String> arguments, {
         String? workingDirectory,
-      }) async => ProcessResult(1, 0, '{"frameworkVersion":"3.44.4"}', '');
+      }) async => ProcessResult(
+        1,
+        0,
+        '{"frameworkVersion":"3.44.4","engineRevision":"$_engineRevision"}',
+        '',
+      );
       final builder = FlutterRenderBundleBuilder(
         processRunner: runner,
         tempDirectoryCreator: (_) async => scratch,
@@ -579,7 +609,13 @@ _flutter.loader.load({
         String? workingDirectory,
       }) async {
         if (arguments case ['--version', '--machine']) {
-          return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
+          return ProcessResult(
+            1,
+            0,
+            '{"frameworkVersion":"$_flutterVersion",'
+                '"engineRevision":"$_engineRevision"}',
+            '',
+          );
         }
         if (executable.endsWith('chmod')) return ProcessResult(3, 0, '', '');
         return ProcessResult(4, arguments.first == failing ? 1 : 0, '', '');
@@ -596,7 +632,6 @@ _flutter.loader.load({
           fontSha256: sha256.convert(font.readAsBytesSync()).toString(),
           licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
         ),
-        engineSet: engineSet,
         projectWriter: projectWriter,
       );
 

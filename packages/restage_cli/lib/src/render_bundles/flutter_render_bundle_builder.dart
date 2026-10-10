@@ -11,8 +11,6 @@ import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_project.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// The Flutter version a render bundle is built with.
-const requiredRenderBundleFlutterVersion = '3.47.0';
 const _robotoFontSha256 =
     '79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95';
 const _robotoLicenseSha256 =
@@ -87,23 +85,21 @@ Uri renderBundleEngineBase({
   required String engineSetId,
 }) => controlOrigin.resolve('/render-bundles/v1/engine/$engineSetId/');
 
-/// One built bundle, split into what the app owns and what the engine set
-/// already serves.
+/// One built bundle: the app's own files and the engine set it loads.
 final class RenderBundleArtifact {
-  const RenderBundleArtifact({
-    required this.appFiles,
-    required this.engineFiles,
-    required this.engineSetId,
-  });
+  const RenderBundleArtifact({required this.appFiles, required this.engineSet});
 
   /// The app's own files, by bundle-relative path.
   final Map<String, Uint8List> appFiles;
 
-  /// The engine files this build produced, by engine-base-relative path.
-  final Map<String, Uint8List> engineFiles;
+  /// The engine set the build's Flutter SDK produced.
+  final RenderBundleEngineSet engineSet;
 
-  /// The pinned set the engine files belong to.
-  final String engineSetId;
+  /// The identifier the engine files serve under.
+  String get engineSetId => engineSet.id;
+
+  /// The Flutter version the bundle was built with.
+  String get flutterVersion => engineSet.flutterVersion;
 }
 
 /// Injectable producer contract used by `restage build push`.
@@ -113,6 +109,7 @@ abstract interface class RenderBundleArtifactBuilder {
     required String catalogJson,
     required Uri parentOrigin,
     required Uri controlOrigin,
+    String? flutterExecutable,
   });
 }
 
@@ -124,7 +121,6 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     RenderBundleCatalogResolver? catalogResolver,
     String? flutterExecutable,
     RenderBundleFontAuthority? fontAuthority,
-    RenderBundleEngineSet? engineSet,
     RenderBundleProjectWriter? projectWriter,
   }) : _processRunner = processRunner ?? runRenderBundleProcess,
        _tempDirectoryCreator =
@@ -133,7 +129,6 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
            catalogResolver ?? createRenderBundleCapabilityCatalogUnion,
        _flutterExecutableOverride = flutterExecutable,
        _fontAuthorityOverride = fontAuthority,
-       _engineSetOverride = engineSet,
        _projectWriter = projectWriter ?? writeRenderBundleProject;
 
   final RenderBundleProcessRunner _processRunner;
@@ -141,7 +136,6 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
   final RenderBundleCatalogResolver _catalogResolver;
   final String? _flutterExecutableOverride;
   final RenderBundleFontAuthority? _fontAuthorityOverride;
-  final RenderBundleEngineSet? _engineSetOverride;
   final RenderBundleProjectWriter _projectWriter;
 
   @override
@@ -150,15 +144,19 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     required String catalogJson,
     required Uri parentOrigin,
     required Uri controlOrigin,
+    String? flutterExecutable,
   }) async {
     // Resolve the exact built-in + custom capability union, then recursively
     // audit it before any private temp directory or dart-define file exists.
     final String capabilityCatalogJson;
     final Uint8List capabilityManifest;
+    final appVersion = readProjectAppVersion(projectRoot);
     try {
       capabilityCatalogJson = await _catalogResolver(projectRoot, catalogJson);
       capabilityManifest = createRenderBundleCapabilityManifest(
         capabilityCatalogJson,
+        appVersion: appVersion.name,
+        appBuild: appVersion.build,
       );
     } on Object {
       throw const RenderBundleBuildException('catalog_contract');
@@ -166,9 +164,11 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     final scratch = await _tempDirectoryCreator('restage_render_bundle_');
     try {
       await _tightenPermissions(scratch.path, directory: true);
-      final flutterExecutable =
-          _flutterExecutableOverride ?? findFlutterExecutable();
-      final flutterRoot = File(flutterExecutable).parent.parent;
+      final flutter =
+          flutterExecutable ??
+          _flutterExecutableOverride ??
+          findFlutterExecutable();
+      final flutterRoot = File(flutter).parent.parent;
       final fontAuthority =
           _fontAuthorityOverride ??
           RenderBundleFontAuthority.flutterSdk(flutterRoot);
@@ -183,25 +183,18 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         expectedHash: fontAuthority.licenseSha256,
         reason: 'font_license_authority',
       );
-      await _verifyFlutterVersion(flutterExecutable);
-
-      final engineSet =
-          _engineSetOverride ??
-          renderBundleEngineSetForFlutterVersion(
-            requiredRenderBundleFlutterVersion,
-          );
-      if (engineSet == null) {
-        throw const RenderBundleBuildException('engine_set_missing');
-      }
+      final (:flutterVersion, :engineRevision) = await _readFlutterVersion(
+        flutter,
+      );
       final project = await _projectWriter(
         projectRoot: projectRoot,
-        flutterVersion: requiredRenderBundleFlutterVersion,
+        flutterVersion: flutterVersion,
         fontBytes: fontBytes,
         licenseBytes: licenseBytes,
       );
       final projectPath = p.relative(project.path, from: projectRoot.path);
       if (!isRenderBundleProjectResolved(project, flutterRoot: flutterRoot)) {
-        final resolved = await _processRunner(flutterExecutable, <String>[
+        final resolved = await _processRunner(flutter, <String>[
           'pub',
           'get',
         ], workingDirectory: project.path);
@@ -229,7 +222,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           flush: true,
         );
         await _tightenPermissions(defineFile.path, directory: false);
-        final result = await _processRunner(flutterExecutable, <String>[
+        final result = await _processRunner(flutter, <String>[
           'build',
           'web',
           '--release',
@@ -251,6 +244,11 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
             detail: projectPath,
           );
         }
+        final engineSet = deriveRenderBundleEngineSet(
+          await _collectEngineFiles(output),
+          flutterVersion: flutterVersion,
+          engineRevision: engineRevision,
+        );
         await _prepareOutput(
           output,
           capabilityManifest: capabilityManifest,
@@ -285,7 +283,19 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     }
   }
 
-  Future<void> _verifyFlutterVersion(String executable) async {
+  /// The files the build wrote under the engine directory, by bundle path.
+  Future<Map<String, Uint8List>> _collectEngineFiles(Directory output) async {
+    final engine = Directory(p.join(output.path, renderBundleEnginePathPrefix));
+    if (!engine.existsSync()) return const <String, Uint8List>{};
+    return {
+      for (final entry in (await collectRenderBundleDirectory(engine)).entries)
+        '$renderBundleEnginePathPrefix${entry.key}': entry.value,
+    };
+  }
+
+  Future<({String flutterVersion, String engineRevision})> _readFlutterVersion(
+    String executable,
+  ) async {
     final result = await _processRunner(executable, <String>[
       '--version',
       '--machine',
@@ -295,14 +305,20 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     }
     final Object? document;
     try {
-      document = jsonDecode(result.stdout as String);
+      final output = result.stdout as String;
+      document = jsonDecode(output.substring(output.indexOf('{')));
     } on Object {
       throw const RenderBundleBuildException('flutter_version_unavailable');
     }
     if (document is! Map<String, dynamic> ||
-        document['frameworkVersion'] != requiredRenderBundleFlutterVersion) {
-      throw const RenderBundleBuildException('flutter_version_mismatch');
+        document['frameworkVersion'] is! String ||
+        document['engineRevision'] is! String) {
+      throw const RenderBundleBuildException('flutter_version_unavailable');
     }
+    return (
+      flutterVersion: document['frameworkVersion'] as String,
+      engineRevision: document['engineRevision'] as String,
+    );
   }
 
   Future<void> _prepareOutput(
@@ -589,12 +605,39 @@ Future<Uint8List> _readVerified(
   return bytes;
 }
 
+/// The engine set a build output holds, as the SDK at [flutterVersion] made it.
+///
+/// The set is every file under the engine directory except its symbol maps.
+RenderBundleEngineSet deriveRenderBundleEngineSet(
+  Map<String, Uint8List> files, {
+  required String flutterVersion,
+  required String engineRevision,
+}) {
+  final engineFiles = <String, Uint8List>{
+    for (final entry in files.entries)
+      if (entry.key.startsWith(renderBundleEnginePathPrefix) &&
+          !entry.key.endsWith('.symbols'))
+        entry.key.substring(renderBundleEnginePathPrefix.length): entry.value,
+  };
+  if (engineFiles.isEmpty) {
+    throw const RenderBundleBuildException('engine_missing');
+  }
+  try {
+    return RenderBundleEngineSet.fromFiles(
+      flutterVersion: flutterVersion,
+      engineRevision: engineRevision,
+      files: engineFiles,
+    );
+  } on FormatException {
+    throw const RenderBundleBuildException('engine_shape');
+  }
+}
+
 /// Takes the engine out of the app's files and checks it against the set.
 ///
-/// The engine serves from its own origin, so the pinned files leave the
-/// bundle; the symbol maps beside them are dropped, and anything else found
-/// there was built on another toolchain. The set is exact in both directions:
-/// a pinned file this build never produced is the same mismatch.
+/// The engine serves from its own origin, so its files leave the bundle and
+/// the symbol maps beside them are dropped. The set is exact in both
+/// directions.
 RenderBundleArtifact splitRenderBundleEngineFiles(
   Map<String, Uint8List> files,
   RenderBundleEngineSet engineSet,
@@ -619,17 +662,12 @@ RenderBundleArtifact splitRenderBundleEngineFiles(
       throw RenderBundleBuildException('engine_incomplete', detail: file.path);
     }
   }
-  return RenderBundleArtifact(
-    appFiles: appFiles,
-    engineFiles: engineFiles,
-    engineSetId: engineSet.id,
-  );
+  return RenderBundleArtifact(appFiles: appFiles, engineSet: engineSet);
 }
 
 bool _sameArtifact(RenderBundleArtifact left, RenderBundleArtifact right) =>
     left.engineSetId == right.engineSetId &&
-    _sameFiles(left.appFiles, right.appFiles) &&
-    _sameFiles(left.engineFiles, right.engineFiles);
+    _sameFiles(left.appFiles, right.appFiles);
 
 bool _sameFiles(Map<String, Uint8List> left, Map<String, Uint8List> right) {
   if (left.length != right.length) return false;

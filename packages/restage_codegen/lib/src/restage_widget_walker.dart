@@ -8,6 +8,7 @@ import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart';
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
@@ -147,7 +148,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     // silently dropped. Surface genuine syntactic errors so a malformed
     // custom-widget source fails the build rather than emitting a degraded
     // entry.
-    final resolved = await library.session.getResolvedLibraryByElement(library);
+    final resolved = await resolveLibraryInLongForm(library);
     if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
       issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
     }
@@ -204,7 +205,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       assetId,
       allowSyntaxErrors: true,
     );
-    final resolved = await library.session.getResolvedLibraryByElement(library);
+    final resolved = await resolveLibraryInLongForm(library);
     if (resolved is ResolvedLibraryResult) {
       issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
     }

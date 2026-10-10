@@ -40,10 +40,14 @@ String? publishCapabilityWarning(CapabilityManifest manifest) {
 
   final requirements = <String>[
     if (needsAboveBaseline)
-      'built-in catalog content version ${manifest.builtInFloor}',
+      'the built-in widget catalog at content version '
+          '${manifest.builtInFloor} or later',
     for (final requirement in manifest.requiredLibraries)
-      'custom library "${requirement.namespace}" >= v${requirement.minVersion}',
+      'the app widget library "${requirement.namespace}" at version '
+          '${requirement.minVersion} or later',
   ];
-  return 'Note: this publication requires ${requirements.join(' and ')}. '
-      'Clients without those capabilities will use their configured fallback.';
+  return 'Note for devices: this publication renders only in app builds '
+      'that register ${requirements.join(' and ')}. Installs of older app '
+      'builds show their configured fallback. This is about device delivery; '
+      'dashboard previews depend on a build push instead.';
 }

@@ -14,6 +14,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
+import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -29,6 +30,8 @@ import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show MeasurementDeclaredAnswerV1;
 import 'package:restage_shared/restage_shared.dart';
 
 const String _kSdkLibraryOrigin = 'package:restage';
@@ -291,10 +294,12 @@ final class CompiledClassFlow {
     required List<int> flowDocumentBytes,
     required this.generatedPart,
     required Iterable<String> generatedTopLevelSymbols,
+    Map<String, MeasurementDeclaredAnswerV1> measurementAnswers = const {},
   })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
         generatedTopLevelSymbols = Set.unmodifiable(
           generatedTopLevelSymbols,
-        );
+        ),
+        measurementAnswers = Map.unmodifiable(measurementAnswers);
 
   final ClassElement declaration;
   final String id;
@@ -303,6 +308,9 @@ final class CompiledClassFlow {
   final Uint8List flowDocumentBytes;
   final String generatedPart;
   final Set<String> generatedTopLevelSymbols;
+
+  /// The survey answers the flow declares for measurement, by question id.
+  final Map<String, MeasurementDeclaredAnswerV1> measurementAnswers;
 
   String get declarationIdentity =>
       '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
@@ -472,9 +480,7 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
 }) async {
   final issues = <Issue>[];
   final sourceText = await buildStep.readAsString(assetId);
-  final resolvedForSyntax = await library.session.getResolvedLibraryByElement(
-    library,
-  );
+  final resolvedForSyntax = await resolveLibraryInLongForm(library);
   if (resolvedForSyntax is ResolvedLibraryResult &&
       resolvedForSyntax.units.isNotEmpty) {
     issues.addAll(
@@ -598,6 +604,7 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
         flowDocumentBytes: FlowDocumentCodec.encodeCanonicalJson(
           lowered.document,
         ),
+        measurementAnswers: lowered.measurementAnswers,
         generatedPart: formatGeneratedDart(
           _emitFlowDescriptor(
             stem,
@@ -620,6 +627,7 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
                       FlowDocumentCodec.decodeJson(utf8.decode(entry.value)),
             },
           ),
+          languageVersion: libraryLanguageVersion(flow.element.library),
         ),
         generatedTopLevelSymbols: _flowGeneratedTopLevelSymbols(
           flow,
@@ -790,7 +798,7 @@ Future<MethodDeclaration?> _resolvedBuildFlow(
     );
     return null;
   }
-  final resolved = await library.session.getResolvedLibraryByElement(library);
+  final resolved = await resolveLibraryInLongForm(library);
   if (resolved is! ResolvedLibraryResult) {
     issues.add(
       Issue(
@@ -970,6 +978,22 @@ Future<_LoweredFlow?> _lowerFlow(
       ? const FlowOutboundDeclarations()
       : _outboundDeclarations(outboundExpr, issues, assetId);
   if (flowState == null || outbound == null) return null;
+  final Map<String, MeasurementDeclaredAnswerV1> measurementAnswers;
+  try {
+    measurementAnswers = parseFlowMeasurementAnswers(
+      _namedArg(flowCall, 'measurementAnswers'),
+      outbound.surveyAnswers,
+    );
+  } on Object catch (error) {
+    issues.add(
+      Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message: 'Invalid declared measurement answer: $error',
+        location: '${assetId.path}#${flow.className}.buildFlow',
+      ),
+    );
+    return null;
+  }
 
   if (flow.delivery == FlowDeliveryMode.general) {
     issues.addAll(
@@ -1199,6 +1223,7 @@ Future<_LoweredFlow?> _lowerFlow(
     document: document,
     actionContracts: actionContracts,
     subFlowReferenceNames: subFlowReferenceNames.toList()..sort(),
+    measurementAnswers: measurementAnswers,
   );
 }
 
@@ -5343,10 +5368,14 @@ final class _LoweredFlow {
     required this.document,
     required this.actionContracts,
     this.subFlowReferenceNames = const [],
+    this.measurementAnswers = const {},
   });
 
   final FlowDocument document;
   final Map<String, FlowActionContract> actionContracts;
+
+  /// The survey answers the flow declares for measurement, by question id.
+  final Map<String, MeasurementDeclaredAnswerV1> measurementAnswers;
 
   /// Sorted, deduplicated Dart sources naming the references of the child
   /// flows this flow enters.

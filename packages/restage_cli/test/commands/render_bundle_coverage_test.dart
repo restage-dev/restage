@@ -15,6 +15,7 @@ void main() {
     required Map<String, int> required,
     RenderBundleHeadDiscovery? head,
     int surfaces = 1,
+    bool ownBuildCovers = false,
   }) => renderBundleCoverageSentence(
     required: required,
     headVersion: head?.version,
@@ -22,6 +23,7 @@ void main() {
     surfaceCount: surfaces,
     app: 'mobile',
     environment: 'staging',
+    ownBuildCovers: ownBuildCovers,
   );
 
   test('a surface built from the catalog alone says nothing', () {
@@ -43,8 +45,11 @@ void main() {
     expect(
       sentence(required: const {'acme.widgets': 1}),
       'This surface uses widgets from your app (acme.widgets). The dashboard '
-      'has no build of mobile for staging yet, so it cannot display them; '
-      'run `restage build push --env staging`.',
+      'has no build of mobile for staging yet. Run `restage build push` to '
+      'see them in your own dashboard preview; `restage build push --env '
+      'staging` updates what everyone sees. '
+      'This affects dashboard previews only: devices draw these widgets from '
+      'the app installed on them.',
     );
   });
 
@@ -57,7 +62,10 @@ void main() {
       ),
       'These surfaces use widgets from your app (acme.charts, acme.widgets), '
       "and the dashboard's build of mobile for staging (version 12) does not "
-      'include acme.charts; run `restage build push --env staging`.',
+      'include acme.charts. Run `restage build push` to see them in your own '
+      'dashboard preview; `restage build push --env staging` updates what '
+      'everyone sees. This affects dashboard previews only: devices draw '
+      'these widgets from the app installed on them.',
     );
   });
 
@@ -69,7 +77,35 @@ void main() {
       ),
       'This surface uses widgets from your app (acme.widgets), and the '
       "dashboard's build of mobile for staging (version 12) is older than "
-      'they need; run `restage build push --env staging`.',
+      'they need. Run `restage build push` to see them in your own dashboard '
+      'preview; `restage build push --env staging` updates what everyone '
+      'sees. This affects dashboard previews only: devices draw these '
+      'widgets from the app installed on them.',
+    );
+  });
+
+  test('when the user\'s own build covers them the push says so', () {
+    expect(
+      sentence(
+        required: const {'acme.widgets': 1},
+        head: head(const {}),
+        ownBuildCovers: true,
+      ),
+      'This surface uses widgets from your app (acme.widgets), and the '
+      "dashboard's build of mobile for staging (version 12) does not include "
+      'acme.widgets. Your own build covers them, so they show in your '
+      'dashboard preview; `restage build push --env staging` updates what '
+      'everyone sees. This affects dashboard previews only: devices draw '
+      'these widgets from the app installed on them.',
+    );
+    expect(
+      sentence(required: const {'acme.widgets': 1}, ownBuildCovers: true),
+      'This surface uses widgets from your app (acme.widgets). The dashboard '
+      'has no build of mobile for staging yet. Your own build covers them, so '
+      'they show in your dashboard preview; `restage build push --env '
+      'staging` updates what everyone sees. '
+      'This affects dashboard previews only: devices draw these widgets from '
+      'the app installed on them.',
     );
   });
 }

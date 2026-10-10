@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+`sampleHostContext` builds sample host data from a screen's declared inputs.
+
 New library `package:restage_shared/catalog.dart`, the catalog names generated code
 needs.
 

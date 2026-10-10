@@ -16,6 +16,7 @@ import 'package:restage_cli/src/commands/live_guard.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
+import 'package:restage_cli/src/output/held_count.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 typedef _RoutingContext = CommandIo;
@@ -54,6 +55,7 @@ class SurfaceRoutingCommand extends Command<int> {
     addSubcommand(_AudienceUsageCommand(context));
     addSubcommand(_ReadCommand(context));
     addSubcommand(_ReadDeliveryDiagnosticsCommand(context));
+    addSubcommand(_ReadDeliveryFlowCommand(context));
     addSubcommand(_ReadRevisionCommand(context));
     addSubcommand(_PreviewCommand(context));
     addSubcommand(_PublishCommand(context));
@@ -622,6 +624,102 @@ class _ReadDeliveryDiagnosticsCommand extends _RoutingSubcommand {
   }
 }
 
+class _ReadDeliveryFlowCommand extends _RoutingSubcommand {
+  _ReadDeliveryFlowCommand(super.context);
+
+  @override
+  String get name => 'delivery-flow';
+
+  @override
+  String get description =>
+      'Show who saw which version of a surface over whole UTC days: each '
+      'rule\'s views by version, each experiment\'s, then everyone else.';
+
+  @override
+  void addOptions(ArgParser parser) => parser
+    ..addOption(
+      'start-date',
+      help: 'First UTC date included, as YYYY-MM-DD (required).',
+    )
+    ..addOption(
+      'end-date-exclusive',
+      help:
+          'First UTC date excluded, as YYYY-MM-DD (required). The window may '
+          'span at most the retained Measurement period.',
+    );
+
+  @override
+  Future<int> invoke(SurfaceRoutingApi api, _RoutingTarget target) async {
+    final startDate = requireOption('start-date');
+    final endDateExclusive = requireOption('end-date-exclusive');
+    if (startDate == null || endDateExclusive == null) return 1;
+
+    final _DeliveryDiagnosticsWindow window;
+    try {
+      window = _DeliveryDiagnosticsWindow.fromUtcDates(
+        startDate: startDate,
+        endDateExclusive: endDateExclusive,
+      );
+    } on FormatException catch (error) {
+      writeError('Invalid UTC date window: ${error.message}');
+      return 1;
+    }
+
+    final flow = await api.readDeliveryFlow(
+      projectSlug: target.projectSlug,
+      appSlug: target.appSlug,
+      surfaceType: target.requiredSurfaceType,
+      surfaceSlug: target.requiredSurfaceSlug,
+      environmentId: target.environmentId,
+      organizationId: target.organizationId,
+      windowStartDayUtc: window.startDayUtc,
+      windowEndDayExclusiveUtc: window.endDayExclusiveUtc,
+      contractVersion: target.contractVersion,
+    );
+    return report(flow.toJson(), _renderDeliveryFlow(flow));
+  }
+}
+
+List<String> _renderDeliveryFlow(DeliveryFlowRead flow) {
+  final cells = flow.shownCells;
+  return [
+    'UTC window: ${_formatUtcDay(flow.windowStartDayUtc)} through '
+        '${_formatUtcDay(flow.windowEndDayExclusiveUtc)} (end exclusive).',
+    if (flow.cells.isEmpty)
+      'No views in this period.'
+    else ...[
+      for (final cell in cells)
+        '${_flowSource(cell)}, v${cell.version}: '
+            '${countText(cell.views, approx: cell.approxViews)}',
+      _flowTotal(flow),
+    ],
+  ];
+}
+
+String _flowTotal(DeliveryFlowRead flow) {
+  final head =
+      '${countText(flow.totalViews, approx: flow.approxTotalViews)} views';
+  final notRecorded = flow.notRecordedViews;
+  final approxNotRecorded = flow.approxNotRecordedViews;
+  final anyNotRecorded =
+      flow.cells.any((cell) => cell.source == 'notRecorded') &&
+      (notRecorded == null || notRecorded > 0);
+  return anyNotRecorded
+      ? '$head, ${countText(notRecorded, approx: approxNotRecorded)} not recorded'
+      : head;
+}
+
+String _flowSource(DeliveryFlowCell cell) => switch (cell.source) {
+  'rule' => 'Rule ${cell.routeId}',
+  'experiment' => switch (cell.experimentLabel) {
+    final label? => 'Experiment $label',
+    null => 'Unnamed experiment',
+  },
+  'earlierExperiments' => 'Earlier experiments',
+  'everyoneElse' => 'Everyone else',
+  _ => 'Not recorded',
+};
+
 List<String> _renderDeliveryDiagnostics(
   MeasurementDeliveryDiagnosticsV1 diagnostics,
 ) => [
@@ -652,7 +750,7 @@ List<String> _renderDiagnosticsSection({
       section.reasons.isEmpty)
     '  No observed reasons are present in this disclosed population.',
   for (final reason in section.reasons)
-    '  ${reason.reason}: ${reason.observedCount?.toString() ?? "held"}',
+    '  ${reason.reason}: ${countText(reason.observedCount)}',
 ];
 
 String _coverageText(MeasurementDeliveryDiagnosticsCoverageV1 coverage) =>

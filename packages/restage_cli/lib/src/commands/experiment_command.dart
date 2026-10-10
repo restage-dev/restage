@@ -995,7 +995,7 @@ String _rosterLines(ExperimentRosterEntry entry) {
   }
   if (results.availability.kind !=
       ExperimentResultsAvailabilityKindV1.available) {
-    return '$identity: no result (${results.availability.kind.wireName})';
+    return '$identity: no result (${_noResult(results.availability.kind)})';
   }
   return [
     '$identity (${results.lifecycleState.wireName}):',
@@ -1133,7 +1133,7 @@ class _ResultsCommand extends _ExperimentSubcommand {
     final view = accepted.response as ExperimentResultsViewV1;
     if (view.availability.kind !=
         ExperimentResultsAvailabilityKindV1.available) {
-      return 'No result: ${view.availability.kind.wireName}.';
+      return 'No result: ${_noResult(view.availability.kind)}.';
     }
     return [
       'Results for ${view.experimentId.value} (${view.lifecycleState.wireName}):',
@@ -1143,6 +1143,14 @@ class _ResultsCommand extends _ExperimentSubcommand {
     ].join('\n');
   }
 }
+
+/// Why a result states nothing: the held-for-privacy words, or the kind.
+String _noResult(ExperimentResultsAvailabilityKindV1 kind) => switch (kind) {
+  ExperimentResultsAvailabilityKindV1.privacyRestricted =>
+    'not enough data yet; hidden for privacy: fewer than '
+        '$measurementDisclosureFloor in a variant',
+  _ => kind.wireName,
+};
 
 /// One arm's rate, effect and interval, in the digits the result carries.
 ///

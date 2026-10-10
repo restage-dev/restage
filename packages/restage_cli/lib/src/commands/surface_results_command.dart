@@ -9,6 +9,7 @@ import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
+import 'package:restage_cli/src/output/held_count.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     hide RuntimePlane;
@@ -50,13 +51,13 @@ class SurfaceResultsCommand extends Command<int> {
         help:
             'Start of the window, inclusive, as an ISO-8601 instant. '
             'Defaults to $kSurfaceResultsDefaultWindowDays days before '
-            '--until.',
+            '--until. The read starts at that UTC day.',
       )
       ..addOption(
         'until',
         help:
             'End of the window, exclusive, as an ISO-8601 instant. '
-            'Defaults to now.',
+            'Defaults to now. The read runs to the end of that UTC day.',
       )
       ..addMultiOption(
         'version',
@@ -179,6 +180,8 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
         '${view.surfaceType == null ? '' : ' (${view.surfaceType})'}, '
         '${view.versions.length} version(s), '
         'floor ${view.disclosureFloor}:',
+    '  read ${_utcDay(view.windowStartMicros)} through '
+        '${_utcDay(view.windowEndExclusiveMicros - 1)} UTC',
   ];
   for (final version in view.versions) {
     lines.add(
@@ -187,7 +190,7 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
     );
     final counts = version.counts;
     if (counts == null) {
-      lines.add('    no figures (${version.disclosure.wireName})');
+      lines.add('    views $heldCountText');
       continue;
     }
     lines.add(_countsLine(counts));
@@ -197,31 +200,25 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
           ? ''
           : ' -> ${step.transitionTargets.join(', ')}';
       if (stepCounts == null) {
-        lines.add(
-          '    step ${step.stateId}: no figures '
-          '(${step.disclosure.wireName})$onward',
-        );
+        lines.add('    step ${step.stateId}: views $heldCountText$onward');
         continue;
       }
       lines.add(
-        '    step ${step.stateId}: views ${stepCounts.views} of '
-        '${stepCounts.eligibleRoots}, onward ${stepCounts.reachedAnotherStep}'
-        '$onward',
+        '    step ${step.stateId}: views ${countText(stepCounts.views)} of '
+        '${countText(stepCounts.eligibleRoots)}, onward '
+        '${countText(stepCounts.reachedAnotherStep)}$onward',
       );
     }
     for (final band in version.bands) {
       final bandCounts = band.counts;
       if (bandCounts == null) {
-        lines.add(
-          '    ${band.point.label}: no figures '
-          '(${band.disclosure.wireName})',
-        );
+        lines.add('    ${band.point.label}: reach $heldCountText');
         continue;
       }
       final dropOff = bandCounts.dropOffRate;
       lines.add(
-        '    ${band.point.label}: reach ${bandCounts.reach} of '
-        '${bandCounts.eligibleRoots}'
+        '    ${band.point.label}: reach ${countText(bandCounts.reach)} of '
+        '${countText(bandCounts.eligibleRoots)}'
         '${dropOff == null ? '' : ', drop-off ${dropOff.decimal} '
                   '(${dropOff.numerator}/${dropOff.denominator})'}',
       );
@@ -232,9 +229,17 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
 
 String _countsLine(SurfaceFunnelCountsV1 counts) {
   final conversion = counts.conversionRate;
-  return '    views ${counts.views} of ${counts.eligibleRoots}, '
-      'completions ${counts.completions}, '
-      'skips ${counts.skips}, dismissals ${counts.dismissals}'
+  return '    views ${countText(counts.views)} of '
+      '${countText(counts.eligibleRoots)}, '
+      'completions ${countText(counts.completions)}, '
+      'skips ${countText(counts.skips)}, '
+      'dismissals ${countText(counts.dismissals)}'
       '${conversion == null ? '' : ', conversion ${conversion.decimal} '
                 '(${conversion.numerator}/${conversion.denominator})'}';
 }
+
+/// The UTC calendar day [micros] falls on, as YYYY-MM-DD.
+String _utcDay(int micros) => DateTime.fromMicrosecondsSinceEpoch(
+  micros,
+  isUtc: true,
+).toIso8601String().substring(0, 10);

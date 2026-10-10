@@ -182,7 +182,8 @@ SurfaceFunnelRateV1? _rateOrNone({
 /// These count presentations, never people and never sessions spanning more
 /// than one surface. A presentation still awaiting its terminal report is
 /// carried in [pendingRoots], so [views] and [completions] remain lower bounds
-/// while any pending presentation exists.
+/// while any pending presentation exists. A count the disclosure rules hold is
+/// absent, and so is every rate it would feed.
 final class SurfaceFunnelCountsV1 extends CanonicalValue
     implements ImmutableCanonicalDocument {
   SurfaceFunnelCountsV1._({
@@ -204,13 +205,13 @@ final class SurfaceFunnelCountsV1 extends CanonicalValue
   factory SurfaceFunnelCountsV1.of({
     required int eligibleRoots,
     required int views,
-    required int completions,
-    required int skips,
-    required int dismissals,
-    required int reachedAnotherStep,
-    required int completeRoots,
-    required int pendingRoots,
-    required int unavailableRoots,
+    required int? completions,
+    required int? skips,
+    required int? dismissals,
+    required int? reachedAnotherStep,
+    required int? completeRoots,
+    required int? pendingRoots,
+    required int? unavailableRoots,
     required String path,
   }) {
     final counts = [
@@ -222,10 +223,12 @@ final class SurfaceFunnelCountsV1 extends CanonicalValue
       completeRoots,
       pendingRoots,
       unavailableRoots,
-    ];
+    ].nonNulls;
+    final coverage = [completeRoots, pendingRoots, unavailableRoots];
     if (eligibleRoots < 0 ||
         counts.any((value) => value < 0 || value > eligibleRoots) ||
-        completeRoots + pendingRoots + unavailableRoots != eligibleRoots) {
+        (coverage.every((value) => value != null) &&
+            coverage.nonNulls.fold<int>(0, (a, b) => a + b) != eligibleRoots)) {
       throw CanonicalFormatException('$path are inconsistent');
     }
     return SurfaceFunnelCountsV1._(
@@ -243,16 +246,20 @@ final class SurfaceFunnelCountsV1 extends CanonicalValue
         denominator: eligibleRoots,
         path: '$path.viewRate',
       ),
-      completionRate: _rateOrNone(
-        numerator: completions,
-        denominator: views,
-        path: '$path.completionRate',
-      ),
-      conversionRate: _rateOrNone(
-        numerator: completions,
-        denominator: eligibleRoots,
-        path: '$path.conversionRate',
-      ),
+      completionRate: completions == null
+          ? null
+          : _rateOrNone(
+              numerator: completions,
+              denominator: views,
+              path: '$path.completionRate',
+            ),
+      conversionRate: completions == null
+          ? null
+          : _rateOrNone(
+              numerator: completions,
+              denominator: eligibleRoots,
+              path: '$path.conversionRate',
+            ),
     );
   }
 
@@ -277,29 +284,19 @@ final class SurfaceFunnelCountsV1 extends CanonicalValue
         'views',
         'viewRate',
       },
-      requiredKeys: const {
-        'completeRoots',
-        'completions',
-        'dismissals',
-        'eligibleRoots',
-        'pendingRoots',
-        'reachedAnotherStep',
-        'skips',
-        'unavailableRoots',
-        'views',
-      },
+      requiredKeys: const {'eligibleRoots', 'views'},
       path: path,
     );
     final recomputed = SurfaceFunnelCountsV1.of(
       eligibleRoots: reader.integer('eligibleRoots'),
       views: reader.integer('views'),
-      completions: reader.integer('completions'),
-      skips: reader.integer('skips'),
-      dismissals: reader.integer('dismissals'),
-      reachedAnotherStep: reader.integer('reachedAnotherStep'),
-      completeRoots: reader.integer('completeRoots'),
-      pendingRoots: reader.integer('pendingRoots'),
-      unavailableRoots: reader.integer('unavailableRoots'),
+      completions: reader.optionalInteger('completions'),
+      skips: reader.optionalInteger('skips'),
+      dismissals: reader.optionalInteger('dismissals'),
+      reachedAnotherStep: reader.optionalInteger('reachedAnotherStep'),
+      completeRoots: reader.optionalInteger('completeRoots'),
+      pendingRoots: reader.optionalInteger('pendingRoots'),
+      unavailableRoots: reader.optionalInteger('unavailableRoots'),
       path: path,
     );
     _requireStatedRate(reader, 'viewRate', recomputed.viewRate, path);
@@ -324,48 +321,50 @@ final class SurfaceFunnelCountsV1 extends CanonicalValue
   /// Eligible presentations that were painted.
   final int views;
 
-  /// Presentations that reached the authored end.
-  final int completions;
+  /// Presentations that reached the authored end; absent when held.
+  final int? completions;
 
-  /// Presentations the viewer skipped past.
-  final int skips;
+  /// Presentations the viewer skipped past; absent when held.
+  final int? skips;
 
-  /// Presentations the viewer dismissed.
-  final int dismissals;
+  /// Presentations the viewer dismissed; absent when held.
+  final int? dismissals;
 
-  /// Presentations that went on to another authored step.
-  final int reachedAnotherStep;
+  /// Presentations that went on to another authored step; absent when held.
+  final int? reachedAnotherStep;
 
   /// Eligible presentations whose terminal report has arrived.
-  final int completeRoots;
+  final int? completeRoots;
 
   /// Eligible presentations still awaiting a terminal report.
-  final int pendingRoots;
+  final int? pendingRoots;
 
   /// Eligible presentations whose terminal report will not arrive.
-  final int unavailableRoots;
+  final int? unavailableRoots;
 
   /// [views] over [eligibleRoots], absent when nothing was eligible.
   final SurfaceFunnelRateV1? viewRate;
 
-  /// [completions] over [views], absent when nothing was viewed.
+  /// [completions] over [views], absent when nothing was viewed or held.
   final SurfaceFunnelRateV1? completionRate;
 
-  /// [completions] over [eligibleRoots], absent when nothing was eligible.
+  /// [completions] over [eligibleRoots], absent when nothing was eligible or
+  /// held.
   final SurfaceFunnelRateV1? conversionRate;
 
   @override
   Map<String, Object?> toJson() => {
-        'completeRoots': completeRoots,
+        if (completeRoots != null) 'completeRoots': completeRoots,
         if (completionRate != null) 'completionRate': completionRate!.toJson(),
-        'completions': completions,
+        if (completions != null) 'completions': completions,
         if (conversionRate != null) 'conversionRate': conversionRate!.toJson(),
-        'dismissals': dismissals,
+        if (dismissals != null) 'dismissals': dismissals,
         'eligibleRoots': eligibleRoots,
-        'pendingRoots': pendingRoots,
-        'reachedAnotherStep': reachedAnotherStep,
-        'skips': skips,
-        'unavailableRoots': unavailableRoots,
+        if (pendingRoots != null) 'pendingRoots': pendingRoots,
+        if (reachedAnotherStep != null)
+          'reachedAnotherStep': reachedAnotherStep,
+        if (skips != null) 'skips': skips,
+        if (unavailableRoots != null) 'unavailableRoots': unavailableRoots,
         if (viewRate != null) 'viewRate': viewRate!.toJson(),
         'views': views,
       };
@@ -397,21 +396,21 @@ final class SurfaceFunnelBandCountsV1 extends CanonicalValue
     required int eligibleRoots,
     required int reach,
     required int occurrences,
-    required int completeRoots,
-    required int pendingRoots,
-    required int unavailableRoots,
+    required int? completeRoots,
+    required int? pendingRoots,
+    required int? unavailableRoots,
     required String path,
     int? continued,
   }) {
+    final coverage = [completeRoots, pendingRoots, unavailableRoots];
     if (eligibleRoots < 0 ||
         reach < 0 ||
         reach > eligibleRoots ||
         occurrences < reach ||
         (continued != null && (continued < 0 || continued > reach)) ||
-        completeRoots < 0 ||
-        pendingRoots < 0 ||
-        unavailableRoots < 0 ||
-        completeRoots + pendingRoots + unavailableRoots != eligibleRoots) {
+        coverage.nonNulls.any((value) => value < 0) ||
+        (coverage.every((value) => value != null) &&
+            coverage.nonNulls.fold<int>(0, (a, b) => a + b) != eligibleRoots)) {
       throw CanonicalFormatException('$path are inconsistent');
     }
     return SurfaceFunnelBandCountsV1._(
@@ -463,14 +462,7 @@ final class SurfaceFunnelBandCountsV1 extends CanonicalValue
         'reachRate',
         'unavailableRoots',
       },
-      requiredKeys: const {
-        'completeRoots',
-        'eligibleRoots',
-        'occurrences',
-        'pendingRoots',
-        'reach',
-        'unavailableRoots',
-      },
+      requiredKeys: const {'eligibleRoots', 'occurrences', 'reach'},
       path: path,
     );
     final recomputed = SurfaceFunnelBandCountsV1.of(
@@ -478,9 +470,9 @@ final class SurfaceFunnelBandCountsV1 extends CanonicalValue
       reach: reader.integer('reach'),
       occurrences: reader.integer('occurrences'),
       continued: reader.optionalInteger('continued'),
-      completeRoots: reader.integer('completeRoots'),
-      pendingRoots: reader.integer('pendingRoots'),
-      unavailableRoots: reader.integer('unavailableRoots'),
+      completeRoots: reader.optionalInteger('completeRoots'),
+      pendingRoots: reader.optionalInteger('pendingRoots'),
+      unavailableRoots: reader.optionalInteger('unavailableRoots'),
       path: path,
     );
     _requireStatedRate(reader, 'reachRate', recomputed.reachRate, path);
@@ -507,13 +499,13 @@ final class SurfaceFunnelBandCountsV1 extends CanonicalValue
   final int? continued;
 
   /// Eligible presentations whose terminal report has arrived.
-  final int completeRoots;
+  final int? completeRoots;
 
   /// Eligible presentations still awaiting a terminal report.
-  final int pendingRoots;
+  final int? pendingRoots;
 
   /// Eligible presentations whose terminal report will not arrive.
-  final int unavailableRoots;
+  final int? unavailableRoots;
 
   /// [reach] over [eligibleRoots], absent when nothing was eligible.
   final SurfaceFunnelRateV1? reachRate;
@@ -526,17 +518,17 @@ final class SurfaceFunnelBandCountsV1 extends CanonicalValue
 
   @override
   Map<String, Object?> toJson() => {
-        'completeRoots': completeRoots,
+        if (completeRoots != null) 'completeRoots': completeRoots,
         if (continuationRate != null)
           'continuationRate': continuationRate!.toJson(),
         if (continued != null) 'continued': continued,
         if (dropOffRate != null) 'dropOffRate': dropOffRate!.toJson(),
         'eligibleRoots': eligibleRoots,
         'occurrences': occurrences,
-        'pendingRoots': pendingRoots,
+        if (pendingRoots != null) 'pendingRoots': pendingRoots,
         'reach': reach,
         if (reachRate != null) 'reachRate': reachRate!.toJson(),
-        'unavailableRoots': unavailableRoots,
+        if (unavailableRoots != null) 'unavailableRoots': unavailableRoots,
       };
 }
 
@@ -800,12 +792,13 @@ final class SurfaceFunnelVersionV1 extends CanonicalValue
         (disclosure != SurfaceFunnelDisclosureV1.disclosed)) {
       throw CanonicalFormatException('$path disagrees with its disclosure');
     }
-    if ((counts == null) != (unattributedDismissals == null)) {
-      throw CanonicalFormatException('$path holds back part of its counts');
+    if (counts == null && unattributedDismissals != null) {
+      throw CanonicalFormatException('$path states part of held counts');
     }
-    if (counts != null &&
-        (unattributedDismissals! < 0 ||
-            unattributedDismissals > counts.dismissals)) {
+    if (unattributedDismissals != null &&
+        (unattributedDismissals < 0 ||
+            (counts!.dismissals != null &&
+                unattributedDismissals > counts.dismissals!))) {
       throw CanonicalFormatException('$path attributes more than it dismissed');
     }
     if (steps.length > kSurfaceFunnelMaximumSteps ||

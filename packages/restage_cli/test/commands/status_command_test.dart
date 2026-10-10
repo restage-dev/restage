@@ -76,6 +76,98 @@ endpoint: https://api.example.com/
     expect(out, contains('hosted access: sandbox'));
     expect(out, contains('production allowed: no'));
     expect(out, isNot(contains('workspace provenance: customer')));
+    expect(
+      out,
+      contains(
+        'config: project `alpha`, app `mobile` and environment `staging` exist',
+      ),
+    );
+    expect(out, isNot(contains('config problem')));
+  });
+
+  test('names a configured project that does not exist, and the real '
+      'ones', () async {
+    await seedCredential(store, endpoint: 'https://api.example.com/');
+    await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString('''
+project: examples
+app: examples
+organization: acme
+endpoint: https://api.example.com/
+''');
+
+    final exitCode = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _statusClient(
+        organizations: const <Map<String, dynamic>>[
+          {'organizationId': 7, 'slug': 'acme', 'name': 'Acme'},
+          {'organizationId': 8, 'slug': 'sample', 'name': 'Sample'},
+        ],
+        workspaces: const <Map<String, dynamic>>[],
+        projects: const {
+          7: ['default'],
+        },
+      ),
+    ).run(['status', '-C', tempDir.path]);
+
+    expect(exitCode, 0);
+    expect(
+      stdout.toString(),
+      contains(
+        'config problem: restage_config.yaml names project `examples`, '
+        'which does not exist in `acme`. Projects: `default`.',
+      ),
+    );
+  });
+
+  test('names a configured app that does not exist, and the real '
+      'ones', () async {
+    await seedCredential(store, endpoint: 'https://api.example.com/');
+    await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString('''
+project: alpha
+app: examples
+defaultEnvironment: prod
+endpoint: https://api.example.com/
+''');
+
+    final exitCode = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _statusClient(
+        organizations: const <Map<String, dynamic>>[
+          {'organizationId': 7, 'slug': 'acme', 'name': 'Acme'},
+          {'organizationId': 8, 'slug': 'sample', 'name': 'Sample'},
+        ],
+        workspaces: const <Map<String, dynamic>>[],
+        projects: const {
+          7: ['alpha'],
+          8: ['other'],
+        },
+        apps: const ['default'],
+        environments: const ['staging', 'dev'],
+      ),
+    ).run(['status', '-C', tempDir.path]);
+
+    expect(exitCode, 0);
+    final out = stdout.toString();
+    expect(
+      out,
+      contains(
+        'config problem: restage_config.yaml names app `examples`, which '
+        'does not exist in project `alpha` of `acme`. Apps there: `default`.',
+      ),
+    );
+    expect(
+      out,
+      contains(
+        'config problem: restage_config.yaml names environment `prod`, '
+        'which does not exist in project `alpha`. Environments there: '
+        '`dev`, `staging`.',
+      ),
+    );
+    expect(out, isNot(contains('You belong to')));
   });
 
   test(
@@ -148,7 +240,9 @@ endpoint: https://api.example.com/
       expect(
         stdout.toString(),
         contains(
-          'workspace: ambiguous (set organization in restage_config.yaml)',
+          'config problem: You belong to 2 organizations: default (id 7), '
+          'sample (id 8). Set `organization: <slug>` in restage_config.yaml, '
+          'or pass --organization <slug> on each call.',
         ),
       );
       expect(stdout.toString(), isNot(contains('workspace provenance:')));
@@ -226,7 +320,16 @@ endpoint: https://[bad
 http.Client _statusClient({
   List<Map<String, dynamic>> organizations = const <Map<String, dynamic>>[],
   required List<Map<String, dynamic>> workspaces,
+  Map<int, List<String>> projects = const {
+    7: ['alpha'],
+    8: ['alpha'],
+  },
+  List<String> apps = const ['mobile'],
+  List<String> environments = const ['staging'],
 }) {
+  List<Map<String, dynamic>> named(List<String> slugs) => [
+    for (final slug in slugs) {'slug': slug, 'name': slug},
+  ];
   return mockHttpClient((request) {
     final body = jsonDecode(request.body) as Map<String, dynamic>;
     return switch (body['method']) {
@@ -236,6 +339,12 @@ http.Client _statusClient({
       ),
       'listMine' => http.Response(jsonEncode(organizations), 200),
       'listWorkspaceExperiences' => http.Response(jsonEncode(workspaces), 200),
+      'listProjects' => http.Response(
+        jsonEncode(named(projects[body['organizationId']] ?? const [])),
+        200,
+      ),
+      'listApps' => http.Response(jsonEncode(named(apps)), 200),
+      'listEnvironments' => http.Response(jsonEncode(named(environments)), 200),
       final method => throw StateError('Unexpected method: $method'),
     };
   }, withDefaultTargetDiscovery: false);

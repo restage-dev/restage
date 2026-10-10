@@ -362,9 +362,45 @@ void main() {
       expect(entry.action, 'surfacePublished');
       expect(entry.actorEmail, 'owner@example.com');
       expect(entry.context['surfaceSlug'], 'pro');
-      expect(entry.chainVerified, isTrue);
+      expect(entry.chain, AuditChain.verified);
+      expect(entry.toJson()['chain'], 'verified');
       expect(entry.entryId, 99);
       expect(entry.toJson()['reason'], 'demo publish');
+    });
+
+    test('an experiment row carries its experiment name', () {
+      final entry = SurfaceAuditLogEntry.fromJson({
+        '__className__': 'SurfaceAuditLogEntryView',
+        'action': 'experimentStarted',
+        'actorType': 'human',
+        'outcome': 'success',
+        'severity': 'info',
+        'targetType': 'experiment',
+        'targetId': 'experiment.one',
+        'targetName': 'Annual plan framing',
+        'occurredAt': '2026-06-29T18:17:51.000Z',
+        'context': {'experimentId': 'experiment.one'},
+        'chainState': 'pendingChain',
+        'chainVerified': false,
+      });
+
+      expect(entry.targetName, 'Annual plan framing');
+      expect(entry.toJson()['targetName'], 'Annual plan framing');
+      expect(
+        SurfaceAuditLogEntry.fromJson({
+          ...entry.toJson(),
+          'targetName': null,
+          'chainState': 'pendingChain',
+          'chainVerified': false,
+        }).toJson(),
+        isNot(contains('targetName')),
+      );
+    });
+
+    test('a chained row no verification run has reached reads as chained', () {
+      expect(AuditChain.fromWire('chained', false), AuditChain.chained);
+      expect(AuditChain.fromWire('chained', true), AuditChain.verified);
+      expect(AuditChain.fromWire('pendingChain', false), AuditChain.pending);
     });
 
     test('SurfaceComplianceExportRow.fromJson decodes a flat export row', () {
@@ -386,8 +422,8 @@ void main() {
       expect(row.action, 'surfaceKilled');
       expect(row.environmentSlug, 'production');
       expect(row.version, 2);
-      expect(row.chainState, 'pendingChain');
-      expect(row.chainVerified, isFalse);
+      expect(row.chain, AuditChain.pending);
+      expect(row.toJson()['chain'], 'pending');
       expect(row.toJson()['surfaceSlug'], 'pro');
     });
 
