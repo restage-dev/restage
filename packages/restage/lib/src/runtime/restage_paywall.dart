@@ -31,6 +31,7 @@ import '../flow/restage_flow_view.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import 'local_values.dart';
 import '../measurement/measurement_host_session.dart';
+import '../measurement/restage_measurement.dart' show attachPurchaseExposure;
 import '../measurement/placement_mount_attribution.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart'
@@ -572,6 +573,21 @@ class _RestagePaywallState extends State<RestagePaywall> {
     RestageEvent event, {
     RootAnalyticsContextSource? attribution,
   }) {
+    if (event is PaywallCustomEvent) {
+      final flow = _flowController;
+      final stage = _blobPresentation;
+      MeasurementHostSessionController? session;
+      if (flow != null) {
+        if (_flowTransaction?.isPaintAcknowledged ?? false) {
+          session = _flowMeasurementSessions[flow];
+        }
+      } else if (stage != null && stage.transaction.isPaintAcknowledged) {
+        session = stage.measurementSession;
+      }
+      if (session != null) {
+        attachPurchaseExposure(event, prepare: session.preparePurchaseExposure);
+      }
+    }
     final source =
         attribution ?? _activeAnalyticsPresentation ?? _anonymousAnalyticsOwner;
     void dispatch() {

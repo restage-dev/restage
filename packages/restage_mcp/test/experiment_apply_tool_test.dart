@@ -561,52 +561,144 @@ void main() {
       );
     });
 
-    test('refuses a resolved serverDefault before any transport', () async {
+    test(
+      'edits a draft result before computing replacement retry identity',
+      () async {
+        final requests = <Uint8List>[];
+        final server = await connect(
+          requests: requests,
+          reply: (method, sent) => _draftAccepted(method, sent.correlationId),
+        );
+        final read = await server.connection.callTool(
+          CallToolRequest(
+            name: 'restage_experiment_apply',
+            arguments: arguments(
+              operation: 'readDraft',
+              payload: _draftBinding,
+            ),
+          ),
+        );
+        final edited =
+            read.structuredContent!['result']! as Map<String, Object?>;
+        final draft = edited['response']! as Map<String, Object?>;
+        (draft['choices']! as Map<String, Object?>)['label'] =
+            'Updated checkout';
+        for (final envelope in [
+          edited,
+          {
+            ...edited,
+            'operation': 'resolveDraft',
+            'correlationId': 'another-read',
+          },
+        ]) {
+          final saved = await server.connection.callTool(
+            CallToolRequest(
+              name: 'restage_experiment_apply',
+              arguments: arguments(
+                operation: 'replaceDraft',
+                payload: envelope,
+                idempotencyKey: 'save-key',
+              ),
+            ),
+          );
+          expect(saved.isError, isNot(true));
+        }
+        expect(server.methods, ['readDraft', 'replaceDraft', 'replaceDraft']);
+        final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
+          requests[1],
+        );
+        expect(
+          sent.payload,
+          containsPair('draftRevisionId', draft['draftRevisionId']),
+        );
+        expect(
+          sent.payload['replacement'],
+          containsPair('label', 'Updated checkout'),
+        );
+        expect(requests[2], orderedEquals(requests[1]));
+      },
+    );
+
+    test('replacement accepts only a draft result envelope', () async {
       final server = await connect();
+      final read =
+          jsonDecode(utf8.decode(_draftAccepted('readDraft', 'read')))
+              as Map<String, Object?>;
+      for (final input in [
+        {..._draftBinding, 'replacement': _emptyDraftChoices},
+        read['response']! as Map<String, Object?>,
+        jsonDecode(utf8.decode(_deliveryOptionsAccepted('read')))
+            as Map<String, Object?>,
+      ]) {
+        final result = await server.connection.callTool(
+          CallToolRequest(
+            name: 'restage_experiment_apply',
+            arguments: arguments(
+              operation: 'replaceDraft',
+              payload: input,
+              idempotencyKey: 'save-key',
+            ),
+          ),
+        );
+        expect(result.isError, isTrue);
+        expect(
+          _errorText(result),
+          'The replacement must be the accepted result of a draft operation.',
+        );
+        expect(server.methods, isEmpty);
+      }
+    });
+
+    test('replacement names an invalid choice in an edited draft', () async {
+      final server = await connect();
+      final input =
+          jsonDecode(utf8.decode(_draftAccepted('readDraft', 'read')))
+              as Map<String, Object?>;
+      final draft = input['response']! as Map<String, Object?>;
+      (draft['choices']! as Map<String, Object?>)['label'] = 42;
 
       final result = await server.connection.callTool(
         CallToolRequest(
           name: 'restage_experiment_apply',
           arguments: arguments(
             operation: 'replaceDraft',
-            idempotencyKey: 'retry-key',
-            payload: {
-              ..._draftBinding,
-              'replacement': {
-                ..._emptyDraftChoices,
-                'randomizedUnitSelection': const {
-                  'kind': 'serverDefault',
-                  'resolvedValue': 'installation',
-                  'source': {
-                    'kind': 'experimentRandomizedUnitDefaults',
-                    'randomizedUnitKind': 'installation',
-                  },
-                },
-              },
-            },
+            payload: input,
+            idempotencyKey: 'save-key',
           ),
         ),
       );
 
       expect(result.isError, isTrue);
+      expect(
+        _errorText(result),
+        'experimentResolvedPartialDraftChoices.label must be a string',
+      );
       expect(server.methods, isEmpty);
     });
 
-    test('accepts the bare serverDefault sentinel', () async {
+    test('replacement refuses a draft for another target', () async {
       final server = await connect();
-
-      await server.connection.callTool(
+      final input =
+          jsonDecode(utf8.decode(_draftAccepted('readDraft', 'read')))
+              as Map<String, Object?>;
+      final draft = input['response']! as Map<String, Object?>;
+      (draft['target']! as Map<String, Object?>)['environmentTargetId'] = 41;
+      final result = await server.connection.callTool(
         CallToolRequest(
           name: 'restage_experiment_apply',
           arguments: arguments(
             operation: 'replaceDraft',
-            idempotencyKey: 'retry-key',
-            payload: {..._draftBinding, 'replacement': _emptyDraftChoices},
+            payload: input,
+            idempotencyKey: 'save-key',
           ),
         ),
       );
-
-      expect(server.methods, ['replaceDraft']);
+      expect(result.isError, isTrue);
+      expect(
+        _errorText(result),
+        'The replacement draft does not match the selected target.',
+      );
+      expect(server.methods, isEmpty);
     });
 
     test('refuses an unknown key inside the payload', () async {
@@ -898,10 +990,9 @@ Map<String, Object?> _payloadFor(ExperimentAuthoringOperationV1 operation) =>
       ExperimentAuthoringOperationV1.resolveDraft => {
         'draftId': _draftBinding['draftId'],
       },
-      ExperimentAuthoringOperationV1.replaceDraft => {
-        ..._draftBinding,
-        'replacement': _emptyDraftChoices,
-      },
+      ExperimentAuthoringOperationV1.replaceDraft =>
+        jsonDecode(utf8.decode(_draftAccepted('readDraft', 'read')))
+            as Map<String, Object?>,
       ExperimentAuthoringOperationV1.copyDraftToTarget => {
         'sourceDraft': _draftBinding,
         'sourceTarget': const {
@@ -992,6 +1083,42 @@ Map<String, Object?> _audienceRef(String revisionId) => {
   'revisionId': revisionId,
   'semanticHash': 'b' * 64,
 };
+
+Uint8List _draftAccepted(String operation, String correlationId) =>
+    ExperimentAuthoringAcceptedV1.fromJson({
+      'correlationId': correlationId,
+      'kind': 'accepted',
+      'operation': operation,
+      'response': {
+        ..._draftBinding,
+        'choices': {
+          ..._emptyDraftChoices,
+          'randomizedUnitSelection': {
+            'kind': 'serverDefault',
+            'resolvedValue': 'installation',
+            'source': const ExperimentRandomizedUnitDefaultsV1().toJson(),
+          },
+        },
+        'completeness': {
+          'kind': 'incomplete',
+          'missingFieldPaths': ['analysisSelection'],
+        },
+        'conflicts': <Object?>[],
+        'experimentId': 'experiment.checkout',
+        'kind': 'experimentDraftView',
+        'revisionOrdinal': 3,
+        'schemaVersion': kMeasurementSchemaVersion,
+        'semanticDigest': 'a' * 64,
+        'target': TargetCoordinate(
+          organizationId: OrganizationId(11),
+          appId: ApplicationId(23),
+          environmentTargetId: EnvironmentTargetId(31),
+          namedEnvironmentId: NamedEnvironmentId(37),
+          runtimePlane: RuntimePlane.live,
+        ).toJson(),
+      },
+      'schemaVersion': kMeasurementSchemaVersion,
+    }).canonicalBytes;
 
 Uint8List _deliveryOptionsAccepted(
   String correlationId, {

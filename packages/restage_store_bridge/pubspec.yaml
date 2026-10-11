@@ -1,0 +1,31 @@
+name: restage_store_bridge
+description: Native store purchases and app-owned purchase callbacks for Restage paywalls.
+version: 0.1.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.41.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  in_app_purchase: ^3.3.0
+  in_app_purchase_android: ^0.5.3
+  in_app_purchase_platform_interface: ^1.4.1
+  in_app_purchase_storekit: ^0.4.12
+  restage:
+    path: ../restage
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  plugin_platform_interface: ^2.1.8
+  flutter_test:
+    sdk: flutter
+  http: ^1.2.0
+  shared_preferences: ^2.5.0

@@ -20,6 +20,9 @@ workspace:
   - packages/restage_material
   - packages/restage_cupertino
   - packages/restage_revenuecat
+  - packages/restage_revenuecat/example
+  - packages/restage_store_bridge
+  - packages/restage_store_bridge/example
   - packages/restage_a2ui
   - packages/restage_a2ui/example
   - packages/restage_widgetbook_example

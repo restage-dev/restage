@@ -1,21 +1,7 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
-- Removed the unpublished billing adapter API.
-
-The entries below describe the removed, unpublished API.
-
-## 0.2.0 (historical)
-
-- `RevenueCatBillingGateway.purchase` now buys the offer-bearing RevenueCat
-  **package** — it resolves the product to its package via `Purchases.getOfferings`
-  (current offering first, then any offering) and purchases that package, so
-  RevenueCat applies the configured offer / free trial / intro price / base-plan
-  at its SDK runtime. A product in no offering falls back to the raw
-  store-product purchase (unchanged behavior, no offer to apply).
-
-## 0.1.0 (historical)
-
-- Initial release: `RevenueCatBillingGateway` — a Restage `BillingGateway` that
-  delegates Buy / Restore to the host app's existing RevenueCat configuration.
+- Added `revenueCatOfferingData` for localized package and offer data.
+- Added `revenueCatEventHandler` for package purchases, restores and exposure-bound conversion reports.
+- Purchase handling uses the app’s RevenueCat configuration and preserves its entitlement checks.

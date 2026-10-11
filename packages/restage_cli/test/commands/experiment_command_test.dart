@@ -56,7 +56,7 @@ const _selectors = <String, List<String>>{
   'delete-draft': _draftBinding,
   'read-draft': _draftBinding,
   'resolve-draft': ['--draft-id=draft'],
-  'save': _draftBinding,
+  'save': [],
   'copy': [
     '--source-draft-id=draft',
     '--source-draft-revision-id=draft.v1',
@@ -230,10 +230,10 @@ void main() {
     project.deleteSync(recursive: true);
   });
 
-  /// Writes the complete draft choices `save` replaces a draft with.
+  /// Writes the accepted draft result that save edits.
   String replacementPath() {
     final file = File('${project.path}/replacement.json')
-      ..writeAsStringSync(jsonEncode(emptyDraftChoices));
+      ..writeAsBytesSync(acceptedFor('readDraft'));
     return file.path;
   }
 
@@ -1235,35 +1235,166 @@ void main() {
 
   group('a request the operator wrote wrongly', () {
     test('names the field and never blames the service', () async {
-      final bad = File('${project.path}/bad-replacement.json')
-        ..writeAsStringSync(
-          jsonEncode({
-            ...emptyDraftChoices,
-            'randomizedUnitSelection': const {
-              'kind': 'serverDefault',
-              'resolvedValue': 'installation',
-              'source': {
-                'kind': 'experimentRandomizedUnitDefaults',
-                'randomizedUnitKind': 'installation',
-              },
+      final result = await run(const ['resolve-draft', '--draft-id=Draft']);
+
+      expect(result.code, 1);
+      expect(result.err, contains('draftId'));
+      expect(result.err, isNot(contains('The service returned')));
+      expect(result.methods, isEmpty);
+    });
+  });
+
+  group('saving draft results', () {
+    String writeReplacement(Object? document) {
+      final file = File('${project.path}/replacement.json')
+        ..writeAsStringSync(jsonEncode(document));
+      return file.path;
+    }
+
+    for (final complete in [true, false]) {
+      test(
+        'saves edited ${complete ? 'complete' : 'partial'} CLI read output',
+        () async {
+          final read = await run(
+            const ['read-draft', ..._draftBinding, '--json'],
+            reply: (method, sent) => acceptedFor(
+              method,
+              correlationId: sent.correlationId,
+              completeDraft: complete,
+            ),
+          );
+          expect(read.code, 0, reason: read.err);
+          final edited = jsonDecode(read.out) as Map<String, Object?>;
+          final draft = edited['response']! as Map<String, Object?>;
+          (draft['choices']! as Map<String, Object?>)['label'] =
+              'Updated checkout';
+          Map<String, Object?>? payload;
+          final saved = await run(
+            ['save', '--replacement=${writeReplacement(edited)}'],
+            reply: (method, sent) {
+              payload = sent.payload;
+              return acceptedFor(
+                method,
+                correlationId: sent.correlationId,
+                completeDraft: complete,
+              );
             },
-          }),
+          );
+          expect(saved.code, 0, reason: saved.err);
+          expect(saved.methods, ['replaceDraft']);
+          expect(payload, containsPair('draftId', draft['draftId']));
+          expect(
+            payload,
+            containsPair('draftRevisionId', draft['draftRevisionId']),
+          );
+          expect(payload, containsPair('expectedCas', draft['expectedCas']));
+          expect(
+            payload!['replacement'],
+            containsPair('label', 'Updated checkout'),
+          );
+        },
+      );
+    }
+
+    test('accepts the result of every draft command', () async {
+      for (final operation in [
+        'openDraft',
+        'readDraft',
+        'resolveDraft',
+        'replaceDraft',
+        'copyDraftToTarget',
+      ]) {
+        final document = jsonDecode(utf8.decode(acceptedFor(operation)));
+        final result = await run(
+          ['save', '--replacement=${writeReplacement(document)}'],
+          reply: (method, sent) =>
+              acceptedFor(method, correlationId: sent.correlationId),
         );
+        expect(result.code, 0, reason: '$operation: ${result.err}');
+        expect(result.methods, ['replaceDraft']);
+      }
+      final help = await run(const ['save', '--help']);
+      expect(help.out, isNot(contains('--draft-id')));
+      expect(
+        help.out,
+        contains('Path to the --json output of a draft command'),
+      );
+    });
+
+    test('wrong inputs get one actionable message before send', () async {
+      final read =
+          jsonDecode(utf8.decode(acceptedFor('readDraft')))
+              as Map<String, Object?>;
+      final draft = read['response']! as Map<String, Object?>;
+      for (final input in [
+        emptyDraftChoices,
+        draft,
+        draft['choices'],
+        jsonDecode(
+          utf8.decode(
+            refusalFor(
+              'readDraft',
+              ExperimentAuthoringRefusalCodeV1.staleDraft,
+            ),
+          ),
+        ),
+        jsonDecode(utf8.decode(acceptedFor('listExperiments'))),
+      ]) {
+        final result = await run([
+          'save',
+          '--replacement=${writeReplacement(input)}',
+        ]);
+        expect(result.code, 1);
+        expect(
+          result.err,
+          'The replacement file must be the --json output of a draft command.\n',
+        );
+        expect(result.methods, isEmpty);
+      }
+    });
+
+    test('names a misspelled choice in an edited draft before send', () async {
+      final document =
+          jsonDecode(utf8.decode(acceptedFor('readDraft')))
+              as Map<String, Object?>;
+      final draft = document['response']! as Map<String, Object?>;
+      (draft['choices']! as Map<String, Object?>)['lable'] = 'Updated checkout';
 
       final result = await run([
         'save',
-        ..._draftBinding,
-        '--replacement=${bad.path}',
+        '--replacement=${writeReplacement(document)}',
       ]);
 
+      expect(result.code, 1);
       expect(
-        result.code,
-        1,
-        reason: 'code one marks an operator-fixable error',
+        result.err,
+        'experimentDraftChoices contains unknown keys: lable\n',
       );
-      expect(result.err, contains('randomizedUnitSelection'));
-      expect(result.err, isNot(contains('The service returned')));
-      expect(result.methods, isEmpty, reason: 'nothing may reach the wire');
+      expect(result.methods, isEmpty);
+    });
+
+    test('reports invalid JSON before send', () async {
+      final file = File('${project.path}/replacement.json')
+        ..writeAsStringSync('{');
+
+      final result = await run(['save', '--replacement=${file.path}']);
+
+      expect(result.code, 1);
+      expect(result.err, 'The replacement file is not valid JSON.\n');
+      expect(result.methods, isEmpty);
+    });
+
+    test('refuses a draft from another target before send', () async {
+      final document = jsonDecode(
+        utf8.decode(acceptedFor('readDraft', target: fixtureOtherTarget)),
+      );
+      final result = await run([
+        'save',
+        '--replacement=${writeReplacement(document)}',
+      ]);
+      expect(result.code, 1);
+      expect(result.err, contains('does not match the selected target'));
+      expect(result.methods, isEmpty);
     });
   });
 

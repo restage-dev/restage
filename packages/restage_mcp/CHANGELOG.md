@@ -11,12 +11,10 @@ default because their hosted endpoints are not yet available. Set
 `RESTAGE_EXPERIMENTAL=1` on the server process to register them. Their interfaces
 may change without deprecation.
 
-`restage_experiment_apply` asks what you mean, not how to spell it: the
-operation is a closed choice of the fifteen experiment operations and the
-payload is that operation's own document. It takes no base64 and rejects an
-unknown property, so a malformed request is refused before it reaches the
-network. A refusal from the service comes back as a refusal with its code, not
-as a tool error — being told an operation is not permitted is an answer.
+`restage_experiment_apply` accepts one of fifteen experiment operations with
+its typed document. `replaceDraft` takes an accepted draft result with edited
+`response.choices`. The tool rejects base64 payloads and unknown properties
+before sending a request. Service refusals return their refusal codes.
 
 Every tool matches a `restage` CLI command, and a census test keeps the two
 in step. A target-scoped call names the runtime plane when its environment

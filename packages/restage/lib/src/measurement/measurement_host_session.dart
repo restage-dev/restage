@@ -436,6 +436,7 @@ final class MeasurementHostSessionController
   MeasurementHostSessionController._pending({required bool workerOwned})
       : _debugState = MeasurementHostSessionDebugState.pending,
         _pendingRoute = MeasurementPendingPresentationRoute(),
+        _pendingReady = Completer<void>(),
         _pendingWorkerOwned = workerOwned;
 
   MeasurementHostSessionController._workerOwned({
@@ -636,6 +637,8 @@ final class MeasurementHostSessionController
       }
 
       final constructionOwner = authority._constructionOwner;
+      final captureNonce = mountAttribution?.mountInstanceNonce ??
+          _encodeNonce(authority.takeNonceBytes());
       if (constructionOwner != null) {
         SurfaceDeliveryObservations? observations;
         try {
@@ -661,9 +664,7 @@ final class MeasurementHostSessionController
           routingSelectionReceipt: routingSelectionReceipt,
           attribution: mountAttribution?.attribution,
           assignment: mountAttribution?.assignment,
-          captureSessionNonceSource: () =>
-              mountAttribution?.mountInstanceNonce ??
-              _encodeNonce(authority.takeNonceBytes()),
+          captureSessionNonceSource: () => captureNonce,
         );
         if (constructionSession == null) {
           return MeasurementHostSessionController._disabled();
@@ -677,6 +678,11 @@ final class MeasurementHostSessionController
             observer: constructionSession.presentationAttemptObserver,
             onUncommittedAbort: constructionSession.abortBeforeSuccessfulPaint,
           ),
+        );
+        controller._purchaseExposure = (
+          captureSessionNonce: captureNonce,
+          publicationBindingReference:
+              resolvedMount.publicationContextRef.bindingReference,
         );
         if (!controller._startLifecycleObservation(
           authority._lifecycleRegistrar,
@@ -695,10 +701,7 @@ final class MeasurementHostSessionController
               kMaximumMeasurementInteractionCounterCount,
           maximumMissingnessEntries: kMaximumMeasurementMissingnessEntryCount,
         ),
-        captureSessionNonce: MeasurementCaptureSessionNonce(
-          mountAttribution?.mountInstanceNonce ??
-              _encodeNonce(authority.takeNonceBytes()),
-        ),
+        captureSessionNonce: MeasurementCaptureSessionNonce(captureNonce),
         publicationContextRef: resolvedMount.publicationContextRef,
         experimentAssignment: experimentAssignment,
         attribution: mountAttribution?.attribution,
@@ -715,6 +718,11 @@ final class MeasurementHostSessionController
         routeTable: routeTable,
         transport: authority.transport,
         routingSelectionReceipt: routingSelectionReceipt,
+      );
+      controller._purchaseExposure = (
+        captureSessionNonce: captureNonce,
+        publicationBindingReference:
+            resolvedMount.publicationContextRef.bindingReference,
       );
       if (!controller._startLifecycleObservation(
         authority._lifecycleRegistrar,
@@ -734,6 +742,7 @@ final class MeasurementHostSessionController
   MeasurementPendingPresentationRoute? _pendingRoute;
   bool _pendingWorkerOwned = false;
   Timer? _pendingBound;
+  Completer<void>? _pendingReady;
   List<void Function(MeasurementHostSessionController opened)>?
       _pendingEntries =
       <void Function(MeasurementHostSessionController opened)>[];
@@ -755,6 +764,10 @@ final class MeasurementHostSessionController
   final Set<Future<void>> _pendingLifecycleCheckpoints = <Future<void>>{};
   bool _backgroundCheckpointIssued = false;
   Future<MeasurementIngestTransportOutcome?>? _teardownFuture;
+  ({
+    String captureSessionNonce,
+    MeasurementPublicationBindingReferenceV1 publicationBindingReference
+  })? _purchaseExposure;
 
   /// Exposes lifecycle state only to focused internal tests.
   @visibleForTesting
@@ -822,6 +835,7 @@ final class MeasurementHostSessionController
       _pendingTeardown = null;
       teardown.complete(opened.teardown());
     }
+    _pendingReady?.complete();
   }
 
   void _dropPending() {
@@ -833,6 +847,7 @@ final class MeasurementHostSessionController
     _pendingBinder.resolve(null);
     _pendingTeardown?.complete(null);
     _pendingTeardown = null;
+    _pendingReady?.complete();
   }
 
   bool _startLifecycleObservation(
@@ -1136,6 +1151,24 @@ final class MeasurementHostSessionController
     } on Object {
       return;
     }
+  }
+
+  /// Orders an outcome report after this presentation's pending delivery.
+  Future<void> flushForOutcome() async {
+    await _pendingReady?.future;
+    final opened = _opened;
+    if (opened != null) return opened.flushForOutcome();
+    await (_teardownFuture ?? checkpoint());
+  }
+
+  /// Delivers this exact presentation before exposing its outcome coordinates.
+  Future<
+      ({
+        String captureSessionNonce,
+        MeasurementPublicationBindingReferenceV1 publicationBindingReference
+      })?> preparePurchaseExposure() async {
+    await flushForOutcome();
+    return _opened?._purchaseExposure ?? _purchaseExposure;
   }
 
   /// Emits and submits one nonterminal cumulative frame when active.

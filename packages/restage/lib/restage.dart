@@ -150,7 +150,7 @@ export 'src/measurement/bundled_measurement_publication_binding_read_port.dart'
     show BundledMeasurementPublicationBindingReadPort;
 export 'src/measurement/bundled_measurement_target_profile_loader.dart'
     hide enforceBundledMeasurementAssetByteLimitBeforeCopy;
-export 'src/measurement/restage_measurement.dart';
+export 'src/measurement/restage_measurement.dart' show RestageMeasurement;
 export 'src/measurement/restage_privacy.dart';
 export 'src/measurement/measurement_rfw_presentation.dart'
     show registerMeasurementRfwPresentationLibrary;

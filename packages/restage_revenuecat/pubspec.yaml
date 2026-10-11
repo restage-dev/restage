@@ -1,6 +1,7 @@
 name: restage_revenuecat
 description: >-
-  An unpublished Restage package with no public integration API.
+  RevenueCat offerings and purchases for Restage paywalls, using your app's
+  existing RevenueCat configuration.
 version: 0.2.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
@@ -13,8 +14,20 @@ publish_to: none
 
 environment:
   sdk: ^3.5.0
+  flutter: ">=3.41.0"
 
 resolution: workspace
 
+dependencies:
+  purchases_flutter: ^10.10.0
+  restage:
+    path: ../restage
+
 dev_dependencies:
+  flutter:
+    sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  http: ^1.2.0
+  shared_preferences: ^2.5.0

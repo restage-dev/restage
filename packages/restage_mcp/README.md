@@ -288,13 +288,14 @@ yet.
 | `restage_rebuild_serving_records` | Create any serving records an experiment target is missing, and report what is still missing. |
 | `restage_apply_canonical_mutation` | Apply one pre-encoded (base64) measurement or experiment request. For tooling that already produces these requests. |
 
-`restage_experiment_apply` takes an `operation`, chosen from a fixed list the
-tool's schema declares, and a `payload`, which is that operation's own
-document. Unknown properties are rejected before any request is sent. To let
-the service choose a value, pass the `serverDefault` placeholder, and don't
-pass a value with it. Pass `idempotencyKey` for an operation that changes
-state. A refusal from the service comes back with its code, not as a tool
-error.
+`restage_experiment_apply` takes an `operation` chosen from a fixed list and
+a `payload`. For `replaceDraft`, pass the accepted result envelope from any
+draft operation as `payload`, after editing `response.choices`. Keep the
+returned target, draft identity, revision, and compare-and-set token intact.
+The tool uses that binding to save the draft at the selected target. For
+other operations, `payload` is the operation's own document. Unknown
+properties are rejected before a request is sent. Pass `idempotencyKey` for
+an operation that changes state. A service refusal returns its code.
 
 Results come back as decimals together with the counts they were computed
 from, unrounded.

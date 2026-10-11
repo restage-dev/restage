@@ -53,6 +53,20 @@ final class WelcomeScreen extends StatelessWidget {
 
 ```sh
 dart run build_runner build
+```
+
+The build generates `WelcomeSurface`. Mount it in your app and handle its events:
+
+```dart
+WelcomeSurface(
+  onEvent: (event) => Navigator.of(context).pushNamed('/home'),
+)
+```
+
+The mount installs the widgets it needs and uses your original widget as a
+fallback. To deliver updates through your configured server:
+
+```sh
 restage surface push welcome
 restage surface publish welcome
 ```
@@ -107,12 +121,14 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
   automatically for each version, with no tracking calls to add. With Restage
   Cloud, A/B tests show which version moves your main metric.
 - **It fails safe.** The build stops with an error when it cannot compile
-  something. A surface never reaches a client that is too old to render it. If
-  a fetch fails, the SDK renders your bundled copy.
-- **It leaves the purchase to your app.** A paywall fires an event that
-  carries the plan the user chose. Your app handles that event in `onEvent`
-  and runs the purchase through the store library it already uses. The SDK
-  does not talk to the app stores.
+  something. The SDK checks compatibility before rendering an update. If an
+  update takes too long, the mount shows a saved version, a bundled copy, or
+  your original widget while the fetch continues.
+- **Your app controls purchases.** Handle paywall events with your existing
+  purchase library, connect RevenueCat with
+  [`restage_revenuecat`](packages/restage_revenuecat), or use
+  [`restage_store_bridge`](packages/restage_store_bridge) with Flutter’s
+  `in_app_purchase` plugin and your own purchase verification.
 - **It does not lock you in.** Serve the artifacts from your own backend or
   CDN. The SDK works without Restage Cloud.
 
@@ -163,7 +179,9 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
-| [`restage_revenuecat`](packages/restage_revenuecat) | Placeholder for a RevenueCat adapter. No public API yet, and not on pub.dev | BSD-3 |
+| [`restage_revenuecat`](packages/restage_revenuecat) | RevenueCat offerings, purchases, restores, and purchase conversion reports. Available from source | BSD-3 |
+| [`restage_store_bridge`](packages/restage_store_bridge) | Native store purchases and restores with app-owned verification. Available from source | BSD-3 |
+| [`restage_preview_host`](packages/restage_preview_host) | Flutter render host for preview tools. Available from source | BSD-3 |
 | [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for genui A2UI payloads | BSD-3 |
 | [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
 | [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |
