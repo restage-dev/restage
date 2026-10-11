@@ -338,8 +338,7 @@ always available. Run `restage experiment --help` for the full list.
 ```sh
 restage experiment discover
 restage experiment create
-restage experiment save --draft-id <id> --draft-revision-id <rev> \
-  --expected-cas <token> --replacement choices.json
+restage experiment save --replacement draft.json
 restage experiment validate --draft-id <id> --draft-revision-id <rev> \
   --expected-cas <token>
 restage experiment review --draft-id <id> --draft-revision-id <rev> \
@@ -350,6 +349,19 @@ restage experiment activate --draft-id <id> --draft-revision-id <rev> \
 restage experiment read --experiment-id <id>
 restage experiment pause --experiment-id <id> --expected-lifecycle-ordinal <n>
 ```
+
+To edit a draft, save the `--json` output of any draft command to a file,
+edit `response.choices`, then pass that file to `save` for the same target:
+
+```sh
+restage experiment resolve-draft --draft-id <id> --json > draft.json
+# Edit response.choices.label or other choices in draft.json.
+restage experiment save --replacement draft.json --json > saved-draft.json
+```
+
+Keep the response envelope, target, draft identity, revision, and compare-and-set
+token intact. Use the returned file for further edits. If the revision is stale,
+run `resolve-draft` again before saving.
 
 `--json` prints the service's response unchanged. A write that changes live
 state needs `--yes` or an interactive confirmation. Writes send an idempotency

@@ -1,0 +1,37 @@
+name: restage_store_bridge_example
+description: Native store and app-owned purchase handling in Restage paywalls.
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+  flutter: ">=3.41.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  in_app_purchase: ^3.3.0
+  restage:
+    path: ../../restage
+  restage_store_bridge:
+    path: ../
+
+dev_dependencies:
+  http: ^1.6.0
+  package_info_plus: ^9.0.1
+  restage_measurement_schema:
+    path: ../../restage_measurement_schema
+  restage_shared:
+    path: ../../restage_shared
+  build_runner: ">=2.4.0 <3.0.0"
+  restage_codegen:
+    path: ../../restage_codegen
+  in_app_purchase_platform_interface: ^1.4.1
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  shared_preferences: ^2.5.0
+
+flutter:
+  uses-material-design: true

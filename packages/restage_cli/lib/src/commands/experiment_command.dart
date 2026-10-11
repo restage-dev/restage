@@ -621,7 +621,7 @@ class _ResolveDraftCommand extends _ExperimentSubcommand {
       'Resolved draft.';
 }
 
-/// Replaces a draft's complete choices.
+/// Saves the edited result of a draft command.
 class _SaveCommand extends _ExperimentSubcommand {
   _SaveCommand(super.context);
 
@@ -629,26 +629,22 @@ class _SaveCommand extends _ExperimentSubcommand {
   String get name => 'save';
 
   @override
-  String get description => "Replace a draft's complete choices.";
+  String get description => 'Save the edited --json output of a draft command.';
 
   @override
   ExperimentAuthoringOperationV1? get operation =>
       ExperimentAuthoringOperationV1.replaceDraft;
 
   @override
-  void addOptions(ArgParser parser) {
-    addDraftBindingOptions(parser);
-    parser.addOption(
-      'replacement',
-      help: 'Path to the complete draft choices as JSON (required).',
-    );
-  }
+  void addOptions(ArgParser parser) => parser.addOption(
+    'replacement',
+    help: 'Path to the --json output of a draft command (required).',
+  );
 
   @override
   Map<String, Object?>? buildPayload(TargetCoordinate target) {
-    final binding = requireDraftBinding();
     final path = requireOption('replacement');
-    if (binding == null || path == null) return null;
+    if (path == null) return null;
     final Object? decoded;
     try {
       decoded = jsonDecode(File(path).readAsStringSync());
@@ -659,12 +655,29 @@ class _SaveCommand extends _ExperimentSubcommand {
       _stderr.writeln('The replacement file is not valid JSON.');
       return null;
     }
-    if (decoded is! Map<String, Object?>) {
-      _stderr.writeln('The replacement file must contain a JSON object.');
+    final ({TargetCoordinate target, Map<String, Object?> payload})?
+    replacement;
+    try {
+      replacement = experimentDraftReplacement(decoded);
+    } on CanonicalFormatException catch (error) {
+      _stderr.writeln(error.message);
       return null;
     }
-    return {...binding, 'replacement': decoded};
+    if (replacement == null) {
+      _stderr.writeln(_replacementInputError);
+      return null;
+    }
+    if (replacement.target != target) {
+      _stderr.writeln(
+        'The replacement draft does not match the selected target.',
+      );
+      return null;
+    }
+    return replacement.payload;
   }
+
+  static const _replacementInputError =
+      'The replacement file must be the --json output of a draft command.';
 
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>

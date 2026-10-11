@@ -1,0 +1,10 @@
+additional_public_assets:
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+
+targets:
+  $default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          catalog: derived

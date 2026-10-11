@@ -691,6 +691,29 @@ class RestageRpcClient {
     }
   }
 
+  /// Reports one app-confirmed purchase against its original exposure.
+  @internal
+  Future<bool> reportPurchase(Map<String, Object> report,
+      {required SurfaceRequestPublicationGuard publicationGuard}) async {
+    try {
+      if (!publicationGuard()) return false;
+      final response = await _client.post(
+        Uri.parse('$_baseUrl/sdk/v1/measurement/purchases'),
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(report),
+      );
+      return publicationGuard() &&
+          response.statusCode == 200 &&
+          (jsonDecode(response.body) as Map<String, dynamic>)['accepted'] ==
+              true;
+    } on Object {
+      return false;
+    }
+  }
+
   /// Verified content this session can advertise as held.
   @internal
   Map<ArtifactIdentityV1, List<int>> get heldPlacementArtifacts =>

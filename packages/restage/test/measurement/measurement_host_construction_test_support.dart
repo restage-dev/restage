@@ -238,6 +238,7 @@ final class DeterministicMeasurementDeliveryWorker
   var checkpointCalls = 0;
   var finalizationCalls = 0;
   var discardCalls = 0;
+  Future<void>? deliveryBarrier;
 
   /// Outcome of each discard, in order: an uncommitted session reports
   /// `discarded`, a finalized one releasing its retained coordinates reports
@@ -358,7 +359,7 @@ final class DeterministicMeasurementDeliveryWorker
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> _checkpoint(
     _DeterministicDeliverySession session, {
     required bool isFinal,
-  }) {
+  }) async {
     if (!_available || !session._active) {
       return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
         const MeasurementWorkerOwnedDeliveryCheckpointResult(
@@ -379,6 +380,7 @@ final class DeterministicMeasurementDeliveryWorker
       _sessions.remove(session.sessionId);
       _finalizedDiagnosticSessions[session.sessionId] = session;
     }
+    await deliveryBarrier;
     return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
       MeasurementWorkerOwnedDeliveryCheckpointResult(
         outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.delivered,

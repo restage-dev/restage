@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage/restage.dart';
 
 /// Answers the application support directory channel for this test file.
 /// Call once at the top of `main` so the SDK's background privacy purge does
@@ -25,6 +26,7 @@ void useSupportDirectoryChannel() {
   });
 
   tearDownAll(() async {
+    await Restage.debugResetAndWait();
     binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
     await directory.delete(recursive: true);
   });

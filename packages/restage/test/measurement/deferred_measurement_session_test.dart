@@ -142,6 +142,52 @@ void main() {
     await attempt.release(tester);
     await tester.runAsync(() => session.teardown());
   });
+
+  testWidgets('outcome flush waits for opening and the first frame delivery',
+      (tester) async {
+    final attempt = _DeferredAttempt();
+    addTearDown(attempt.close);
+    final session = attempt.openDeferred();
+    await tester.pumpWidget(_host(session));
+    await tester.pump();
+    var flushed = false;
+    final flush = session.flushForOutcome().then((_) => flushed = true);
+    await tester.pump();
+    expect(flushed, isFalse);
+    final delivery = Completer<void>();
+    attempt.harness.worker.deliveryBarrier = delivery.future;
+    await attempt.release(tester);
+    expect(attempt.harness.worker.checkpointCalls, 1);
+    expect(flushed, isFalse);
+    delivery.complete();
+    await tester.runAsync(() => flush);
+    expect(flushed, isTrue);
+    await tester.runAsync(() => session.teardown());
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('outcome flush waits for an unmounted presentation delivery',
+      (tester) async {
+    final attempt = _DeferredAttempt();
+    addTearDown(attempt.close);
+    final session = attempt.openDeferred();
+    await tester.pumpWidget(_host(session));
+    await tester.pump();
+    await attempt.release(tester);
+    final delivery = Completer<void>();
+    attempt.harness.worker.deliveryBarrier = delivery.future;
+    final teardown = session.teardown();
+    await tester.pumpWidget(const SizedBox.shrink());
+    var flushed = false;
+    final flush = session.flushForOutcome().then((_) => flushed = true);
+    await tester.pump();
+    expect(flushed, isFalse);
+    expect(attempt.harness.worker.finalizationCalls, 1);
+    delivery.complete();
+    await tester.runAsync(() => Future.wait([teardown, flush]));
+    expect(flushed, isTrue);
+    expect(attempt.harness.worker.checkpointCalls, 1);
+  });
 }
 
 const _rootLineage = 'lineage.bundled-left';

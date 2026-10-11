@@ -285,6 +285,34 @@ const kLiveExperimentOperations = {
   ExperimentAuthoringOperationV1.concludeExperiment,
 };
 
+/// Converts an accepted draft result into a replacement and its bound target.
+///
+/// Returns null for another result kind. Invalid draft results throw a
+/// [CanonicalFormatException] identifying the malformed field.
+@experimental
+({TargetCoordinate target, Map<String, Object?> payload})?
+experimentDraftReplacement(Object? envelope) {
+  if (envelope is! Map<String, Object?> || envelope['kind'] != 'accepted') {
+    return null;
+  }
+  final response = envelope['response'];
+  if (response is! Map<String, Object?> ||
+      response['kind'] != 'experimentDraftView') {
+    return null;
+  }
+  final accepted = ExperimentAuthoringAcceptedV1.fromJson(envelope);
+  final draft = accepted.response as ExperimentDraftViewV1;
+  return (
+    target: draft.target,
+    payload: {
+      'draftId': draft.draftId.value,
+      'draftRevisionId': draft.draftRevisionId.value,
+      'expectedCas': draft.expectedCas,
+      'replacement': draft.choices.toMutationChoicesJson(),
+    },
+  );
+}
+
 /// Builds one strict request document for a read operation.
 @experimental
 ExperimentAuthoringRequestV1 experimentRequest({

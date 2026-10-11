@@ -201,6 +201,7 @@ abstract final class Restage {
   static SurfaceScreenResolver _defaultSurfaceScreenResolver =
       const AssetSurfaceScreenResolver();
   static int _configurationGeneration = 0;
+  static int _eventAttributionGeneration = 0;
   static bool _measurementEnabled = true;
   static Duration _renderDeadline = RenderDeadline.defaultDuration;
   static MeasurementHostConstructionOwner? _measurementHostOwner;
@@ -972,6 +973,7 @@ abstract final class Restage {
   /// request erasure.
   /// Inert until [configure] supplies a `baseUrl`.
   static void reset() {
+    _eventAttributionGeneration += 1;
     unawaited(clearSurfaceArtifactStores());
     _measurementHostOwner?.resetSdkRuntimeSession();
     _rpcClient?.forgetPublicationBindings();
@@ -1033,17 +1035,26 @@ abstract final class Restage {
   static void fireEvent(RestageEvent event) {
     final controller = _events;
     if (controller != null && controller.hasListener) {
-      final generation = _configurationGeneration;
-      final identity = _analyticsIdentity;
-      final identityGeneration = identity?.generation;
-      final attribution = MountAttributionEventContext.bound?.capture(
-          authorityCheck: () =>
-              generation == _configurationGeneration &&
-              (identity == null ||
-                  (identical(_analyticsIdentity, identity) &&
-                      identity.generation == identityGeneration)));
-      controller.add(_RestageEventDispatch(event, attribution));
+      controller.add(_RestageEventDispatch(
+          event,
+          MountAttributionEventContext.bound
+              ?.capture(authorityCheck: captureEventAuthority())));
     }
+  }
+
+  /// Retains the current configuration and identity authority across awaits.
+  @internal
+  static bool Function() captureEventAuthority() {
+    final generation = _configurationGeneration;
+    final eventGeneration = _eventAttributionGeneration;
+    final identity = _analyticsIdentity;
+    final identityGeneration = identity?.generation;
+    return () =>
+        generation == _configurationGeneration &&
+        eventGeneration == _eventAttributionGeneration &&
+        (identity == null ||
+            (identical(_analyticsIdentity, identity) &&
+                identity.generation == identityGeneration));
   }
 
   static void _noteSurfaceDeliveryArtifactFailed({

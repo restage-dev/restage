@@ -1,0 +1,36 @@
+name: restage_revenuecat_example
+description: RevenueCat offerings in a Restage paywall.
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.41.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  purchases_flutter: ^10.10.0
+  restage:
+    path: ../../restage
+  restage_revenuecat:
+    path: ../
+
+dev_dependencies:
+  build_runner: ">=2.4.0 <3.0.0"
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  http: ^1.2.0
+  package_info_plus: ^9.0.1
+  restage_shared:
+    path: ../../restage_shared
+  restage_measurement_schema:
+    path: ../../restage_measurement_schema
+  restage_codegen:
+    path: ../../restage_codegen
+  shared_preferences: ^2.5.0
+
+flutter:
+  uses-material-design: true

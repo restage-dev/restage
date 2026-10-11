@@ -62,6 +62,7 @@ Uint8List acceptedFor(
   String operationWireName, {
   String? correlationId,
   TargetCoordinate? target,
+  bool completeDraft = true,
 }) => ExperimentAuthoringResultV1.fromJson({
   'correlationId': correlationId ?? fixtureCorrelationId(operationWireName),
   'kind': 'accepted',
@@ -69,6 +70,7 @@ Uint8List acceptedFor(
   'response': _acceptedResponse(
     _operationFor(operationWireName),
     target ?? fixtureTarget,
+    completeDraft: completeDraft,
   ),
   'schemaVersion': kMeasurementSchemaVersion,
 }).canonicalBytes;
@@ -182,24 +184,6 @@ Uint8List deliveryOptionsAccepted(
   'schemaVersion': kMeasurementSchemaVersion,
 }).canonicalBytes;
 
-/// A `replaceDraft` request document with a caller-chosen unit selection.
-Map<String, Object?> replaceDraftRequestJson({
-  required Map<String, Object?> randomizedUnitSelection,
-}) => {
-  'correlationId': fixtureCorrelationId('replaceDraft'),
-  'idempotencyKey': 'idempotency-replaceDraft',
-  'kind': 'experimentAuthoringRequest',
-  'operation': 'replaceDraft',
-  'payload': {
-    ...fixtureDraftBinding,
-    'replacement': {
-      ...emptyDraftChoices,
-      'randomizedUnitSelection': randomizedUnitSelection,
-    },
-  },
-  'schemaVersion': kMeasurementSchemaVersion,
-};
-
 /// Encodes [bytes] the way the RPC layer carries a binary payload.
 String byteDataWire(List<int> bytes) =>
     "decode('${base64Encode(bytes)}', 'base64')";
@@ -287,7 +271,7 @@ Map<String, Object?> _requestPayload(
   },
 };
 
-/// A complete, entirely unselected set of draft choices.
+/// Unselected draft mutation choices for strict API requests.
 const emptyDraftChoices = <String, Object?>{
   'analysisSelection': {'kind': 'unselected'},
   'arms': <Object?>[],
@@ -459,8 +443,9 @@ Map<String, Object?> _draftSummary(
 
 Map<String, Object?> _acceptedResponse(
   ExperimentAuthoringOperationV1 operation,
-  TargetCoordinate target,
-) => switch (operation) {
+  TargetCoordinate target, {
+  bool completeDraft = true,
+}) => switch (operation) {
   ExperimentAuthoringOperationV1.discoverTargetsAndCapabilities =>
     _discoveryResponse(
       target: target,
@@ -473,7 +458,153 @@ Map<String, Object?> _acceptedResponse(
     experimentIds: const [],
     nextPageCursor: null,
   ),
+  ExperimentAuthoringOperationV1.openDraft ||
+  ExperimentAuthoringOperationV1.readDraft ||
+  ExperimentAuthoringOperationV1.resolveDraft ||
+  ExperimentAuthoringOperationV1.replaceDraft ||
+  ExperimentAuthoringOperationV1.copyDraftToTarget => _draftResponse(
+    target,
+    complete: completeDraft,
+  ),
   _ => throw UnimplementedError(
     'No accepted fixture for ${operation.wireName}',
   ),
 };
+
+Map<String, Object?> _resolved(Object value) => {
+  'kind': 'exactRef',
+  'resolvedExactRef': value,
+};
+
+Map<String, Object?> _draftResponse(
+  TargetCoordinate target, {
+  required bool complete,
+}) => {
+  ...fixtureDraftBinding,
+  'choices': {
+    ...emptyDraftChoices,
+    'analysisSelection': {'kind': complete ? 'measureOnly' : 'unselected'},
+    'arms': [
+      for (final arm in ['control', 'variant'])
+        {
+          if (complete) 'candidate': _draftCandidate(arm),
+          if (!complete) 'candidateSelection': _resolved(_draftCandidate(arm)),
+          'kind': 'experimentDraftArmChoice',
+          'label': arm,
+          'relativeWeight': 1,
+          'stableArmId': 'arm.$arm',
+        },
+    ],
+    'assignmentAudienceSelection': _resolved(_draftPolicy('audience')),
+    'assignmentEligibilitySelection': complete
+        ? _resolved(_draftPolicy('eligibility'))
+        : {'kind': 'unselected'},
+    'description': 'Compare checkout surfaces.',
+    'label': 'Checkout completion',
+    'memberNoTreatment': _resolved(_draftCandidate('control')),
+    'metricBindings': [
+      {
+        'armProjectionSets': [
+          for (final arm in ['control', 'variant']) _draftProjectionSet(arm),
+        ],
+        'kind': 'experimentDraftMetricBindingChoice',
+        'label': 'Completed checkout',
+        'metricBindingId': 'binding.checkout',
+        'metricDefinitionChoice': _resolved({
+          'direction': 'higherIsBetter',
+          'metricDefinitionId': 'metric.checkout',
+          'metricDefinitionRevisionId': 'metric.checkout.v1',
+          'metricDefinitionSemanticDigest': 'a' * 64,
+        }),
+      },
+    ],
+    'primaryBindingSelection': _resolved({
+      'metricBindingId': 'binding.checkout',
+    }),
+    'randomizedUnitSelection': {
+      'kind': 'serverDefault',
+      'resolvedValue': 'installation',
+      'source': const ExperimentRandomizedUnitDefaultsV1().toJson(),
+    },
+    'rootSelection': _resolved(
+      DeliveryRootIdentityV1.surface(
+        PublishedSurfaceIdentityV1(
+          target: target,
+          surfaceId: SurfaceId(fixtureMintedSurfaceId('checkout')),
+        ),
+      ).toJson(),
+    ),
+  },
+  'completeness': {
+    'kind': complete ? 'complete' : 'incomplete',
+    if (!complete)
+      'missingFieldPaths': [
+        'analysisSelection',
+        'assignmentEligibilitySelection',
+      ],
+  },
+  'conflicts': <Object?>[],
+  'experimentId': 'experiment.checkout',
+  'kind': 'experimentDraftView',
+  'revisionOrdinal': 3,
+  'schemaVersion': kMeasurementSchemaVersion,
+  'semanticDigest': 'b' * 64,
+  'target': target.toJson(),
+};
+
+Map<String, Object?> _draftPolicy(String id) => {
+  'policyId': id,
+  'revisionId': '$id.v1',
+  'semanticDigest': 'a' * 64,
+};
+
+Map<String, Object?> _draftCandidate(String arm) => {
+  'kind': 'exactCandidate',
+  'label': arm,
+  'surfaceReference': {
+    'kind': 'exactSurfaceReference',
+    'surfaceId': fixtureMintedSurfaceId('checkout'),
+    'surfaceRevisionId': fixtureMintedSurfaceRevisionId(arm),
+  },
+  'treatmentOrigin': {
+    'kind': 'wholeSurface',
+    'locusIds': ['locus.checkout'],
+  },
+};
+
+Map<String, Object?> _draftProjectionSet(String arm) {
+  final digests = {'canonicalDigest': 'a' * 64, 'semanticDigest': 'a' * 64};
+  final members = [
+    {
+      'kind': 'experimentInstalledProjectionSetMember',
+      'projectionReference': {
+        ...digests,
+        'projectionRevisionId': 'projection.$arm.v1',
+      },
+      'slotId': 'slot.checkout',
+    },
+  ];
+  return {
+    'installedProjectionSetChoice': _resolved({
+      'compatibilityProofReference': {
+        ...digests,
+        'compatibilityProofRevisionId': 'proof.$arm.v1',
+      },
+      'kind': 'experimentInstalledProjectionSetCapability',
+      'label': arm,
+      'members': members,
+      'metricBindingReference': {
+        ...digests,
+        'metricBindingId': 'installed-binding.$arm',
+        'metricBindingRevisionId': 'installed-binding.$arm.v1',
+      },
+      'projectionSetReference': {
+        ...digests,
+        'projectionSetId': 'projection-set.$arm',
+      },
+    }),
+    'kind': 'experimentDraftArmProjectionSetChoice',
+    'resolvedMembers': members,
+    'stableArmId': 'arm.$arm',
+  };
+}

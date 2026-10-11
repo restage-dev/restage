@@ -1,0 +1,42 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/revenuecat_upgrade.restage.g.dart';
+
+final class PaywallPackage {
+  const PaywallPackage({required this.identifier, required this.priceString});
+
+  final String identifier;
+  final String priceString;
+}
+
+@Paywall()
+class RevenueCatPaywall extends StatelessWidget {
+  const RevenueCatPaywall({required this.packages, super.key});
+
+  final List<PaywallPackage> packages;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Featured annual plan'),
+            const SizedBox(height: 16),
+            for (final package in packages)
+              if (package.identifier == 'annual_59')
+                FilledButton(
+                  onPressed: paywallEvent('revenuecat.purchase',
+                      args: {'packageIdentifier': package.identifier}),
+                  child: Text(package.priceString),
+                ),
+            TextButton(
+              onPressed: paywallEvent('revenuecat.restore'),
+              child: const Text('Restore purchases'),
+            ),
+          ],
+        ),
+      );
+}

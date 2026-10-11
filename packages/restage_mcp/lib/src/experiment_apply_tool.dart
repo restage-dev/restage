@@ -17,20 +17,19 @@ final List<String> _operations = [
     operation.wireName,
 ];
 
-/// The one semantic experiment operation exposed through MCP.
-///
-/// The operation is a closed choice and the payload is the exact semantic
-/// document that operation accepts. There is no canonical byte envelope: a
-/// caller states what it means, never how the request is spelled.
+/// Applies one experiment operation through MCP.
+/// `replaceDraft` takes an accepted draft result with edited `response.choices`;
+/// other operations take their exact semantic document.
 final experimentApplyTool = Tool(
   name: 'restage_experiment_apply',
   description:
       'Apply one semantic experiment operation at an exact target. The '
       'operation is a closed choice and the payload is that operation\'s own '
-      'semantic document. `readDeliveryOptions` returns the experiment\'s '
-      'sealed audience revision and every arm\'s exact delivery publication '
-      'for '
-      'a route handover. Reads and writes both go through this operation; the '
+      'semantic document. For `replaceDraft`, pass the accepted result of any '
+      'draft operation as `payload`. `readDeliveryOptions` returns the '
+      'experiment\'s sealed audience revision and every arm\'s exact delivery '
+      'publication for a route handover. Reads and writes both go through '
+      'this operation; the '
       'result reports whether the route accepted or refused it.',
   inputSchema: Schema.object(
     properties: {
@@ -40,9 +39,9 @@ final experimentApplyTool = Tool(
       ),
       'payload': Schema.object(
         description:
-            'The exact semantic payload this operation accepts. A '
-            'serverDefault choice is the bare sentinel: a resolved value, '
-            'reference, or source is refused before transport.',
+            'For replaceDraft, the accepted result envelope returned by a '
+            'draft operation, with edited response.choices. For other '
+            'operations, the exact semantic payload.',
       ),
       'idempotencyKey': Schema.string(
         description:
@@ -58,9 +57,8 @@ final experimentApplyTool = Tool(
 
 /// Applies one semantic experiment operation through the shared API.
 ///
-/// The public schema decodes the request, so an unknown property or a resolved
-/// `serverDefault` is refused here rather than at the route. Authority stays
-/// the route's: a refusal is reported as it arrives and never widened.
+/// Draft results are converted before request validation and retry hashing.
+/// Service refusals retain their original authority and code.
 Future<CallToolResult> handleExperimentApply(
   ToolContext ctx,
   CallToolRequest request,
@@ -70,7 +68,26 @@ Future<CallToolResult> handleExperimentApply(
     return Future.value(mcpError('The declared operation is unsupported.'));
   }
 
-  final payload = request.arguments?['payload'];
+  final input = request.arguments?['payload'];
+  final ({measurement.TargetCoordinate target, Map<String, Object?> payload})?
+  replacement;
+  try {
+    replacement =
+        operation == measurement.ExperimentAuthoringOperationV1.replaceDraft
+        ? experimentDraftReplacement(input)
+        : null;
+  } on measurement.CanonicalFormatException catch (error) {
+    return Future.value(mcpError(error.message));
+  }
+  if (operation == measurement.ExperimentAuthoringOperationV1.replaceDraft &&
+      replacement == null) {
+    return Future.value(
+      mcpError(
+        'The replacement must be the accepted result of a draft operation.',
+      ),
+    );
+  }
+  final payload = replacement?.payload ?? input;
   if (payload is! Map<String, Object?>) {
     return Future.value(mcpError(_payloadError));
   }
@@ -125,6 +142,11 @@ Future<CallToolResult> handleExperimentApply(
   return ctx.authed('applying the experiment operation', (api) async {
     final target = await exactTargetCoordinate(api, request);
     if (target == null) return mcpError(exactTargetError);
+    if (replacement != null && replacement.target != target) {
+      return mcpError(
+        'The replacement draft does not match the selected target.',
+      );
+    }
     final semanticRequest = opening == null
         ? checked
         : semanticRequestFor({

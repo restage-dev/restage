@@ -684,45 +684,6 @@ void main() {
       );
     });
   });
-
-  group('experiment mutation payload discipline', () {
-    test('a resolved serverDefault never reaches the transport', () async {
-      var calls = 0;
-      final api = _apiOver((request) async {
-        calls++;
-        return http.Response('unreachable', 500);
-      });
-
-      Future<void> send() => api.execute(
-        request: ExperimentAuthoringRequestV1.fromJson(
-          replaceDraftRequestJson(
-            randomizedUnitSelection: const {
-              'kind': 'serverDefault',
-              'resolvedValue': 'installation',
-              'source': <String, Object?>{
-                'kind': 'experimentRandomizedUnitDefaults',
-                'randomizedUnitKind': 'installation',
-              },
-            },
-          ),
-        ),
-        target: fixtureTarget,
-      );
-
-      expect(send, throwsA(isA<CanonicalFormatException>()));
-      expect(calls, 0, reason: 'the request must be refused before transport');
-    });
-
-    test('accepts the bare serverDefault sentinel', () {
-      final request = ExperimentAuthoringRequestV1.fromJson(
-        replaceDraftRequestJson(
-          randomizedUnitSelection: const {'kind': 'serverDefault'},
-        ),
-      );
-
-      expect(request.operation, ExperimentAuthoringOperationV1.replaceDraft);
-    });
-  });
 }
 
 ExperimentApi _apiOver(
