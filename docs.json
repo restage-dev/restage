@@ -1,0 +1,86 @@
+{
+  "name": "Restage",
+  "description": "Server-driven UI for Flutter, built from the widgets and actions already in your app.",
+  "sidebar": [
+    {
+      "group": "Get started",
+      "pages": [
+        { "title": "What is Restage?", "href": "/" },
+        { "title": "Quickstart", "href": "/quickstart" },
+        { "title": "Starters", "href": "/starters" },
+        { "title": "FAQ", "href": "/faq" }
+      ]
+    },
+    {
+      "group": "Author",
+      "pages": [
+        { "title": "Write a surface", "href": "/authoring/write-a-surface" },
+        { "title": "Host data", "href": "/authoring/host-data" },
+        { "title": "Authoring constraints", "href": "/authoring/constraints" },
+        { "title": "Custom widgets", "href": "/authoring/custom-widgets" },
+        { "title": "Design-system packages", "href": "/authoring/design-system-packages" },
+        { "title": "Custom widget target matrix", "href": "/authoring/custom-widget-target-matrix" },
+        { "title": "Interactive surfaces", "href": "/authoring/interactive-surfaces" },
+        { "title": "Theming", "href": "/authoring/theming" },
+        { "title": "The widget catalog", "href": "/authoring/widget-catalog" }
+      ]
+    },
+    {
+      "group": "Flows",
+      "pages": [
+        { "title": "Flows overview", "href": "/flows/overview" },
+        { "title": "Branching", "href": "/flows/branching" },
+        { "title": "Host actions", "href": "/flows/host-actions" },
+        { "title": "Navigation", "href": "/flows/navigation-and-chrome" }
+      ]
+    },
+    {
+      "group": "Paywalls",
+      "pages": [
+        { "title": "Paywalls overview", "href": "/paywalls/overview" },
+        { "title": "Products and purchases", "href": "/paywalls/products-and-purchases" },
+        { "title": "Entitlements", "href": "/paywalls/entitlements" },
+        { "title": "RevenueCat", "href": "/paywalls/revenuecat" },
+        { "title": "Native stores", "href": "/paywalls/native-stores" }
+      ]
+    },
+    {
+      "group": "Deliver",
+      "pages": [
+        { "title": "Bundled assets", "href": "/delivery/bundled-assets" },
+        { "title": "App size", "href": "/delivery/app-size" },
+        { "title": "Hosted delivery", "href": "/delivery/hosted-delivery" },
+        { "title": "Live refresh", "href": "/delivery/live-refresh" },
+        { "title": "Placements", "href": "/delivery/placements" },
+        { "title": "Audience routing", "href": "/delivery/audience-routing" },
+        { "title": "Experiments", "href": "/delivery/experiments" },
+        { "title": "Controlled delivery", "href": "/controlled-delivery" }
+      ]
+    },
+    {
+      "group": "Tooling",
+      "pages": [
+        { "title": "CLI and TUI", "href": "/tools/cli" },
+        { "title": "MCP server", "href": "/tools/mcp-server" },
+        { "title": "Coding agents", "href": "/tools/coding-agents" },
+        { "title": "A2UI and generative UI", "href": "/tools/a2ui" }
+      ]
+    },
+    {
+      "group": "Release notes",
+      "pages": [
+        { "title": "Restage 2.0", "href": "/release-notes/restage-2-0" }
+      ]
+    },
+    {
+      "group": "Trust",
+      "pages": [
+        { "title": "Why Restage", "href": "/why-restage" },
+        { "title": "App Store compliance", "href": "/app-store-compliance" },
+        { "title": "How it works", "href": "/concepts/how-it-works" },
+        { "title": "Telemetry and data", "href": "/trust/telemetry" },
+        { "title": "Licensing", "href": "/trust/licensing" }
+      ]
+    }
+  ]
+}

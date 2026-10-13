@@ -1,0 +1,383 @@
+---
+title: Write a surface
+description: Turn a Flutter widget you already wrote into a surface with one annotation, and optionally generate A2UI and Widgetbook output from the same class.
+---
+
+A surface starts as a Flutter widget you already wrote. Add one annotation that says
+what it is, run your normal build, and it becomes a surface you can publish: an
+onboarding flow, a message, a survey, a paywall, or any screen.
+
+## Recommended authoring and mounting APIs
+
+Use `@Screen`, `@Paywall`, and `@FlowGraph` in new code. For a flow, start with a
+`FlowDefinition`; use the `RestageFlow` class form when you need its graph builder.
+Mount authored surfaces with the generated `<ClassName>Surface` widget. It supplies
+the typed inputs, widget registration, placement name, and compiled fallback.
+
+Every generated mount gets a placement automatically; you don't need to name one or
+use a special constructor. Use `Restage.presentPlacement` when opening the mount as a
+route. See [Placements](/delivery/placements), including explicit placement APIs
+for integrations that need them.
+
+Direct `RestageScreen`, `RestagePaywall`, and `RestageFlowGraph` mounts are supported
+lower-level APIs for supplying references or ids and fallback setup yourself. They are not
+deprecated. [Hosted delivery](/delivery/hosted-delivery#fallbacks-by-mount-api) lists
+what each requires. Deprecated aliases are listed under [Older names](#older-names).
+
+## Adopt an existing widget
+
+Start with the smallest useful part of your UI. Keep its layout, theme, supported
+local state, and helper widgets. Your app can keep its router, state owners and
+services while a child becomes a surface; a widget that already compiles needs no
+extra split.
+
+For an existing `WelcomeBanner` in `lib/welcome_banner.dart`, the source change can
+be this small:
+
+```diff
+ import 'package:flutter/material.dart';
++import 'package:restage/restage.dart';
++
++part 'restage.generated/welcome_banner.restage.g.dart';
+
++@Screen(id: 'welcome_banner', surface: Surface.message)
+ final class WelcomeBanner extends StatelessWidget {
+```
+
+Keep its constructor and `build()` method. After `dart run build_runner build`,
+replace the app's mount:
+
+```diff
+-WelcomeBanner(name: user.name)
++WelcomeBannerSurface(name: user.name)
+```
+
+The generated mount passes supported constructor values as
+[host data](/authoring/host-data) and uses your original widget as its fallback.
+Leave `bundled_runtime` off; the fallback needs no surface assets or publication.
+Fix any build diagnostics before mounting: fallback does not make unsupported
+source compilable.
+
+Keep app work in its existing owner and connect it through surface events. Keep
+supported [local state](/authoring/interactive-surfaces) in the widget. Put only
+behavior that cannot compile, such as a controller or platform view, behind a
+focused [custom widget](/authoring/custom-widgets). Check both the compiled
+fallback and delivered content with the same inputs and interactions.
+
+## Plain Flutter composition
+
+Write it with Flutter widgets, your theme, and your own components. You don't wrap
+built-in widgets or annotate them. This `build` method comes from the public example
+package, where it is compiled and tested:
+
+```dart
+@override
+Widget build(BuildContext context) {
+  return Center(
+    child: ElevatedButton(
+      key: const ValueKey('get-started-action'),
+      onPressed: surfaceEvent(continueEvent, 'preview'),
+      child: const Text('Get started'),
+    ),
+  );
+}
+```
+
+The build compiles the `build()` tree, state reads, and events. If it finds code it
+can't compile, the build stops with an error. It never produces a partial surface.
+
+## Choose the annotation and category
+
+| What Restage should own | Annotation |
+| --- | --- |
+| One independently delivered screen or part of a screen | `@Screen(surface: Surface.<category>)` |
+| A step whose containing flow owns navigation | `@Screen()` with no category |
+| A journey whose sequence and transitions Restage owns | `@FlowGraph(surface: Surface.<category>)` |
+| An offer using paywall lifecycle and purchase-event handlers | `@Paywall()` |
+| A reusable app component composed inside surfaces | `@RestageWidget()` with a [library export](/authoring/custom-widgets) |
+
+The categories are `onboarding`, `message`, `survey`, `paywall`, and `general`. Use
+`general` for a screen or flow that fits none of the others. A screen with a category
+can only be used in a flow of the same category. A `@Paywall()` can be a step in any
+flow. `Surface` is the enum of categories; there is no `@Surface` annotation.
+
+Use a flow when Restage should own the journey; existing app routes can continue
+to present individual surfaces. Before rewriting navigation between existing
+paywalls, check the [automatic Navigator conversion](/paywalls/overview#multi-screen-paywalls).
+`@Paywall()` supplies the paywall lifecycle and the events that purchase adapters
+listen for; purchases still run in your app. A plain
+`@Screen(surface: Surface.paywall)` uses ordinary screen events instead.
+
+The build finds these annotations anywhere in your package. Folders don't set a
+category or an id. If you leave out the id, the build uses the file name; give an
+explicit id if the file might move. Keep the
+`part 'restage.generated/<file>.restage.g.dart';` line in the file, so the build has
+somewhere to write the generated Dart. A file gets one generated part whether it
+declares a screen, a flow, or both, and the generated files sit in a
+`restage.generated/` folder next to it.
+
+Flows are written in Dart too, usually as a `FlowDefinition`. Its start screen,
+transitions, and events are Dart types and constants, so there are no string names to
+get wrong. For graphs that don't fit in a const object, there is a class form,
+`RestageFlow`. See [Flows overview](/flows/overview).
+
+## One source, three targets
+
+This complete example comes from the
+[Widgetbook example source](https://github.com/restage-dev/restage/blob/main/packages/restage_widgetbook_example/lib/onboarding/screens/get_started_screen.dart).
+A test checks this snippet against the compiled source:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/a2ui.dart' as a2ui;
+import 'package:restage/restage.dart';
+import 'package:restage/widgetbook.dart' as wb;
+
+part 'restage.generated/get_started_screen.restage.g.dart';
+
+/// An onboarding screen with a Get started action.
+///
+/// One authored class feeds RFW, A2UI, and Widgetbook in the normal build.
+@a2ui.Config.usage('Use for the final action in a native onboarding flow.')
+@Screen(id: 'get_started_screen', surface: Surface.onboarding)
+final class GetStartedScreen extends StatelessWidget {
+  /// Creates the screen.
+  const GetStartedScreen({
+    super.key,
+    required this.title,
+    this.enabled = true,
+    this.tone = GetStartedScreenTone.calm,
+    this.data = 'Example data',
+    this.context = 'Example context',
+    this.itemContext = 'Example item context',
+    this.restageA2uiStatus = GetStartedScreenTone.calm,
+    this.description = 'Example description',
+    this.usage = 'Example usage',
+  });
+
+  /// Event fired by the Get started action.
+  static const continueEvent = SurfaceEvent<String>('continue');
+
+  /// The screen title.
+  final String title;
+
+  /// Whether the action is enabled.
+  @wb.Config.values([false])
+  final bool enabled;
+
+  /// The screen's tone. Widgetbook previews each value.
+  @wb.Config.allValues()
+  final GetStartedScreenTone tone;
+
+  /// A field named `data`, kept under its exact Dart name.
+  final String data;
+
+  /// A field named `context`, kept under its exact Dart name.
+  final String context;
+
+  /// A field named `itemContext`, kept under its exact Dart name.
+  final String itemContext;
+
+  /// An enum field whose name starts like generated code; it keeps its name.
+  final GetStartedScreenTone restageA2uiStatus;
+
+  /// A property named `description`, kept apart from Widgetbook's own field.
+  final String description;
+
+  /// A property named `usage`, kept apart from Widgetbook's own field.
+  final String usage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ElevatedButton(
+        key: const ValueKey('get-started-action'),
+        onPressed: surfaceEvent(continueEvent, 'preview'),
+        child: const Text('Get started'),
+      ),
+    );
+  }
+}
+
+/// The tone of a [GetStartedScreen].
+enum GetStartedScreenTone { calm, urgent }
+```
+
+The one class feeds two different views:
+
+- RFW, the format Restage delivers, compiles the `build()` tree and its events, and
+  nothing else. A constructor field that the tree doesn't read is not part of the
+  delivered surface, and reading a field of an unsupported type in the tree stops the
+  build.
+- A2UI and Widgetbook use the unnamed constructor. They build the real
+  `GetStartedScreen` class with `title`, `enabled`, `tone`, and the other properties
+  above, and don't look inside its widget tree. Your property names are kept as they
+  are: generated code doesn't clash with fields named `data`, `context`, or
+  `itemContext`, and Widgetbook's own settings don't replace properties named
+  `description` or `usage`.
+
+`a2ui.Config.usage` is a hint for the model that builds A2UI output.
+`wb.Config.values([false])` and `wb.Config.allValues()` on a field choose the preview
+states. RFW needs no annotation of its own: events come from `SurfaceEvent`
+declarations, and a custom widget's callbacks come from its constructor.
+
+## Turn on A2UI and Widgetbook
+
+RFW output is on by default. To also generate A2UI and Widgetbook output, turn them on
+in the package's `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_a2ui_catalog:
+        enabled: true
+      restage_codegen:widgetbook_stories:
+        enabled: true
+```
+
+These emitter options do not require RFW bundling. Leave `bundled_runtime` at its
+default, `false`; no generated surface assets need to be added to the app.
+
+Then run the usual build:
+
+```sh
+dart run build_runner build
+```
+
+One build generates every enabled target. Then connect the output to
+[GenUI](/tools/a2ui#connect-genui-and-check-incoming-payloads) or your
+[Widgetbook workbench](/authoring/custom-widgets#6-run-the-consumers).
+
+## What the build writes
+
+For `lib/onboarding/screens/get_started_screen.dart`, one build writes:
+
+- the screen reference and the generated `GetStartedScreenSurface` widget, in
+  `lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart`;
+- the delivered surface (RFW text, RFW binary, and the capability manifest) in one
+  `get_started_screen.rsbundle` file under `.restage/build/bundles/lib/onboarding/screens/`,
+  or under `assets/restage/bundles/` in your Flutter assets when you
+  [bundle surfaces with the app](/delivery/bundled-assets);
+- the publication manifest, `.restage/build/metadata/restage.publication.json`, which
+  `restage surface push` reads;
+- with A2UI on, the screen's entry in `lib/generated/restage_a2ui_catalog.g.dart` and
+  `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`; and
+- with Widgetbook on,
+  `lib/onboarding/screens/restage.generated/get_started_screen.stories.dart`,
+  Widgetbook's matching `.stories.g.dart`, and the screen's entry in
+  `lib/components.g.dart`.
+
+The generated screen reference, `getStartedScreenRef`, carries the category, id,
+contract version, capabilities, and typed events. In A2UI the screen is one component
+named after its id. In Widgetbook the real class appears under `Screens`, and the
+generated story setup handles its events, so you don't write a custom Widgetbook host.
+
+## Typed mounts
+
+For every `@Screen(surface: ...)` the build also generates a widget named
+`<ClassName>Surface`, in the same generated file. A `@Screen()` with no category is a
+flow step and gets none. Its constructor matches yours, so the call site reads like
+the widget itself, with no string id:
+
+```dart
+GetStartedScreenSurface(
+  title: 'Welcome',
+  onEvent: (event) {
+    if (event is GetStartedScreenContinueEventEvent) next(event.value);
+  },
+)
+```
+
+Each event gets a generated class named after the screen class and the event field.
+Here the field is `continueEvent`, so the class is
+`GetStartedScreenContinueEventEvent`.
+
+The generated widget does three things. It passes the constructor arguments that are
+[host data](/authoring/host-data) to the surface in `context:`. It shows the delivered
+surface through `RestageScreen<E>`. And it keeps your own widget, built with the same
+arguments, as the fallback: if delivery, rendering, or an event fails, the user sees
+the compiled-in screen.
+
+Besides your own parameters, it takes `onEvent`, `resolver`, `onUnavailable` (to be
+told when the screen is unavailable), `loadingBuilder`, and an optional `unavailable`
+policy. Omit `unavailable` to keep the compiled-in fallback. Pass
+`SurfaceScreenUnavailablePolicy.hide()` to hide an unavailable card or banner:
+
+```dart
+GetStartedScreenSurface(
+  title: 'Welcome',
+  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
+)
+```
+
+You can also provide a different fallback while keeping the generated host data:
+
+```dart
+GetStartedScreenSurface(
+  title: 'Welcome',
+  unavailable: SurfaceScreenUnavailablePolicy.fallback(
+    builder: (_, error) => Text('Screen unavailable: ${error.reason.name}'),
+  ),
+)
+```
+
+Flows have a generated `<FlowName>Surface` mount too; see
+[Mount the flow](/flows/overview#mount-the-flow). `RestageScreen` and
+`RestageFlowGraph<R>` remain available when you need to supply references and
+fallback policies yourself.
+
+A `@Paywall()` class gets a generated `<ClassName>Surface` too. It shows the paywall
+through `RestagePaywall`, keeps your widget as the fallback, and takes `onEvent`,
+`resolver`, `errorBuilder`, and `loadingBuilder`.
+
+The build skips the generated widget, and tells you why, when its name would clash
+with one of your own declarations or when it can't tell where a constructor argument
+comes from.
+
+The RFW files are data that the SDK renders. The generated A2UI and Widgetbook files
+are Dart code for your app and your workbench, so treat them like any other generated
+source.
+
+## What A2UI and Widgetbook output covers
+
+A2UI and Widgetbook output covers your own screens and widgets only. It doesn't:
+
+- add Flutter, Material, Cupertino, or Restage built-in widgets to the A2UI catalog;
+- break a screen's widget tree into separate A2UI components;
+- cover `@FlowGraph` or `@Paywall`; or
+- check that targets you deploy separately came from the same build.
+
+Each target reports what it can't handle at the source line. No target drops an event
+or a field so that another target can pass.
+
+## Watch mode
+
+Under `build_runner watch`, edits inside an annotated class, such as constructor
+defaults, doc comments, and Widgetbook values, regenerate the A2UI and Widgetbook
+output right away. Adding, removing, or renaming an annotated class changes which
+files the build writes, so restart the watcher after that. A full build rescans the
+package and removes output it no longer needs.
+
+## Errors
+
+The build supports a broad but limited set of Flutter code, and it stops with an error
+on anything outside it, before anything ships.
+[Authoring constraints](/authoring/constraints) lists the rules for the delivered
+surface. [Custom widgets](/authoring/custom-widgets) and the
+[target matrix](/authoring/custom-widget-target-matrix) cover what each target accepts
+from a constructor.
+
+## Older names
+
+`@ScreenSource`, `@PaywallSource`, and `@FlowSource` are deprecated and still work. New
+code should use `@Screen`, `@Paywall`, and `@FlowGraph(surface: ...)`.
+`RestageOnboarding` still hosts onboarding flows; new code should use the generated
+`<FlowName>Surface`. `RestageFlowGraph<R>` is the supported lower-level flow host.
+
+Restage 2.0 renamed the host widgets to match the annotations: `RestageScreen<E>` was
+`RestageSurfaceScreen<E>`, `RestageFlowGraph<R>` was `RestageSurfaceFlow<R>`, and
+`RestageSurfaceScreenResolver` is now `RestageScreenResolver`. The old names still work as deprecated
+aliases in the current source. The build generates one reference per
+annotated screen or flow class, named after the class with `Ref` added (for example
+`welcomeScreenRef`).

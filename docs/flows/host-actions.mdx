@@ -1,0 +1,145 @@
+---
+title: Host actions
+description: Let a flow ask your app to do something, such as request a permission, and continue on the typed result.
+---
+
+A host action is something your app does on a flow's behalf: request a permission,
+redeem an offer, read a value. The flow declares the action and its types. Your app
+supplies the code that runs it. A published flow can call only the actions your
+installed app provides, so it can use your app's behavior but never add new behavior.
+
+## Declare the action
+
+Declare the action as a `FlowActionRef<I, O>`, where `I` is the argument type and `O`
+is the result type. Save the flow in `lib/flows/permission_flow.dart`:
+
+```dart
+import 'package:restage/restage.dart';
+
+import '../screens/permission.dart';
+import '../screens/ready.dart';
+
+part 'restage.generated/permission_flow.restage.g.dart';
+
+const requestNotifications = FlowActionRef<void, bool>(
+  'requestNotifications',
+);
+
+@FlowGraph(surface: Surface.onboarding)
+final permissionFlow = FlowDefinition(
+  start: PermissionScreen,
+  transitions: [
+    Transition(
+      PermissionScreen.enable,
+      action: requestNotifications.continueWhen(
+        (granted) => granted,
+      ),
+      to: ReadyScreen,
+    ),
+    Transition.complete(ReadyScreen.finish),
+  ],
+);
+```
+
+When the user taps the button, the flow runs the action and moves to `ReadyScreen`
+only if `continueWhen` accepts the result. Here that means the user granted the
+permission.
+
+Save the first screen in `lib/screens/permission.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/permission.restage.g.dart';
+
+@Screen()
+final class PermissionScreen extends StatelessWidget {
+  const PermissionScreen({super.key});
+
+  static const enable = SurfaceEvent<void>('enable');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(enable),
+        child: const Text('Allow notifications'),
+      );
+}
+```
+
+Add the final screen in `lib/screens/ready.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/ready.restage.g.dart';
+
+@Screen()
+final class ReadyScreen extends StatelessWidget {
+  const ReadyScreen({super.key});
+
+  static const finish = SurfaceEvent<void>('finish');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(finish),
+        child: const Text('Finish'),
+      );
+}
+```
+
+## Supply the handler
+
+Run `dart run build_runner build`. The build generates `PermissionFlowActions`, which
+has one typed parameter per action. You write the handler and pass it to the generated `PermissionFlowSurface`.
+Import the flow file at the call site:
+
+```dart
+Widget permissionFlowEntry(
+  BuildContext context, {
+  required Future<bool> Function() requestNotificationPermission,
+}) => PermissionFlowSurface(
+  actions: PermissionFlowActions(
+    requestNotifications: (_, actionContext) => requestNotificationPermission(),
+  ),
+  onComplete: (result) {
+    Navigator.of(context).pushReplacementNamed('/home');
+  },
+);
+```
+
+Pass your app's platform permission function to `requestNotificationPermission`
+and define the `/home` route. The function returns whether permission was granted.
+
+The handler receives the typed argument and a `FlowActionContext`, which carries an
+operation id and retry details (`isRetry`, `attemptNumber`). It can await platform work
+and returns a typed result. The flow can use that result only in the ways the graph
+declares, such as a `continueWhen` check or a decision.
+
+You don't write the action's schema. The generated class records the action's id,
+version, argument and result types, and minimum client version, and converts values to
+and from your Dart types.
+
+## When an action doesn't match
+
+The action's declaration ships in your app. Adding an action, or changing its argument or
+result types, takes an app release. If a published flow asks for an action your app
+doesn't provide, or with types that don't match, your app won't run that version. It
+uses a compatible version it already has, or the generated mount's compiled flow. Direct
+mounts use their configured bundle and `FlowUnavailablePolicy`. It never runs part of a graph.
+
+## Push and publish
+
+Push the flow by its id, then publish it:
+
+```sh
+dart run build_runner build
+restage surface push permission_flow
+restage surface publish permission_flow
+```
+
+You can also name the `.dart` file instead of the id.
+
+See [Branching](/flows/branching) to route on state, and
+[Bundled assets](/delivery/bundled-assets) to ship the flow inside your app.

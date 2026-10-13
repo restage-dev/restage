@@ -1,0 +1,140 @@
+---
+title: Custom widget target matrix
+description: What RFW, A2UI, and Widgetbook each accept from your custom widgets.
+---
+
+One `@RestageWidget` can produce three separate outputs: an RFW catalog entry for your
+widget, an A2UI catalog entry, and a Widgetbook story. Turning one on doesn't turn on
+the others, and support in one doesn't mean support in another. Your package's
+`build.yaml` picks the targets. A widget or an optional input that needs different
+handling can leave specific targets in Dart, without moving to another package.
+
+In the tables below, **Supported** says whether the target accepts that kind of input,
+and **How it works** says what the generated code does with it. Every supported row is
+covered by tests that compile and run the generated code. Everything else stops the
+build with its own error, with one exception: an optional input a target can't handle
+is left out when leaving it out gives the same result as its default.
+
+All three targets read the same facts from the constructor: the order of the inputs,
+named or positional, required or optional, nullable or not, defaults, types, and
+callback signatures.
+
+## RFW catalog
+
+| Constructor input or value | Supported | How it works |
+|---|---|---|
+| Public inputs of the unnamed constructor: named or positional `this.` parameters, supported `super.` parameters, generic types, and a plain parameter assigned unchanged to one public final field | Yes | The generated code calls your constructor the way ordinary Dart would |
+| Required and optional inputs, nullable inputs, an explicit `null`, non-null defaults on nullable inputs, and an input left out | Yes | A missing input stays different from one set to `null` |
+| `bool`, `int`, `double`, `String`, `Color`, `EdgeInsets`, `Alignment`, `Offset`, `FontWeight`, `Duration`, `Curve`, and enums | Yes, matched by the resolved Dart type | Built-in RFW decoders, with the imports generated for you |
+| `Widget` and `List<Widget>` inputs under any name, including several on one class | Yes, with no slot annotation or reserved name | Each child or list of children is read from its own property |
+| Your data classes, nested data classes, supported lists, maps with string keys, and named records | Yes, where RFW has a decoder for every value inside | The value is rebuilt through your constructors, in order |
+| `void` callbacks with no argument, or one required positional argument of a supported type | Yes; the Dart property name is the event name | The event fires with no value, or with its one value |
+| Defaults that are `null`, a scalar, an enum, a public constant, a const constructor call, a collection, a record, or a data class | Yes, when every value inside is supported and public | The generated code repeats your default exactly, or leaves the argument out when that gives the same result |
+| An optional input RFW can't decode | Left out only when that gives the same result; otherwise an error | Left-out inputs are listed in the generated code; required inputs stop the build at their source line |
+| `@ignore`, or `@Ignore(...)` on an optional input | Left out of every target, or only the `EmitTarget` values you list | The other targets still check the input |
+
+Only RFW accepts map and record properties directly. A2UI and Widgetbook don't.
+
+## A2UI catalog
+
+| Constructor input or value | Supported | How it works |
+|---|---|---|
+| The same constructor rules as RFW | Yes, when A2UI can represent every input as data, a child, an event, or a structured value | The generated `CatalogItem` calls your constructor with the values it receives |
+| `bool`, `int`, `double`, `String`, `Color`, `FontWeight`, `Duration`, enums, and `List<String>`, `List<int>`, `List<double>`, `List<num>`, or `List<bool>` | Yes; a color is a string, and a duration or font weight is a number | Generated JSON Schema, and code that rebuilds the value |
+| `EdgeInsets`, `Alignment`, `Offset`, and `Curve` as direct inputs | No | Left out when optional and leaving them out gives the same result; a required one stops the build |
+| `Widget` and `List<Widget>` inputs under any name, including several on one class | Yes, as references to other component ids, with no slot annotation or reserved name | Each child or list of children is looked up by id; a missing required child reports an error |
+| Your data classes with supported fields: scalars, enums, objects, lists, maps, and records | Yes | Schema definitions and the code that rebuilds the value are generated together |
+| `void` callbacks with no argument, or one required positional argument of a supported type | Yes; the Dart property name is the callback name | Callbacks fire normally. When exactly one input matches the callback's value, the callback writes it back; when more than one could, set `a2ui.Config.writeBackValue` |
+| Constructor defaults | Yes, when every value inside is supported | The generated code repeats your default, or leaves the argument out when ordinary Dart applies the same default |
+| Optional inputs A2UI can't handle, and `@ignore` | Same rule as RFW; `@Ignore(...)` affects A2UI only when you list it | The generated catalog lists what was left out, in `$RestageExclusions` |
+
+The A2UI builder writes `lib/generated/restage_a2ui_catalog.g.dart` and
+`.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`. Every custom widget and screen
+takes one required `props` object: A2UI's `id` and `component` stay at the top level,
+and every constructor input goes inside `props`. A property of your own named `id` or
+`component` is fine and keeps its name.
+
+## Widgetbook story
+
+| Constructor input or value | Supported | How it works |
+|---|---|---|
+| The same constructor rules as RFW | Yes, when Widgetbook has a control for every input | The story calls your constructor as ordinary Dart, with the imports it needs |
+| `bool`, `int`, `double`, `String`, `Color`, `EdgeInsets`, `Alignment`, `Offset`, `FontWeight`, `Duration`, `Curve`, and enums | Yes, matched by the resolved Dart type | Widgetbook controls and Dart values |
+| `Widget` and `List<Widget>` inputs under any name, including several on one class | Yes, with no slot annotation or reserved name | Placeholder controls fill every child property |
+| Your data classes with scalar, enum, object, and `List<String>` fields | Yes | Nested controls build the data object before the widget |
+| Map and record properties, and data class fields of other kinds | No | The build stops at the source line, or leaves out an optional input when that gives the same result |
+| `void` callbacks with no argument, or one required positional argument of a supported type | Yes, under any name | The story passes a callback with the same signature that does nothing |
+| Constructor defaults | Yes, when the property and every value inside are supported | The story repeats your default exactly, with its imports |
+| Optional inputs Widgetbook can't handle, and `@ignore` | Same rule as RFW; `@Ignore(...)` affects Widgetbook only when you list it | The story source lists what was left out, in `restageExclusions` |
+
+Widgetbook output is opt-in and doesn't need A2UI. Restage writes ordinary
+`*.stories.dart` source; Widgetbook's own generator, app, and deployment do the rest.
+
+## Leaving a target out
+
+Every `@RestageWidget` joins every target your package turns on, unless its own
+settings say otherwise:
+
+```dart
+@RestageWidget()
+@a2ui.Config.enabled(false)
+@wb.Config(enabled: false)
+class RfwOnlyCard extends StatelessWidget {
+  // ...
+}
+```
+
+`Config(enabled: false)` and `Config.enabled(false)` do the same thing for `rfw`,
+`a2ui`, and `wb`. Use this for the odd widget; your package's `build.yaml` is still
+the normal place to choose targets.
+
+`@ignore` and `@Ignore()` leave one optional input out of every target, when leaving it
+out is safe. Pass a const list or set to leave it out of only some targets:
+
+```dart
+const StatusCard({
+  @Ignore({EmitTarget.a2ui, EmitTarget.widgetbook})
+  this.debugLabel = '',
+});
+```
+
+An empty list is an error. A required input, an input an `assert` requires, or an
+optional positional input with later positional inputs after it still stops the build, but only in the
+targets you list. The other targets keep the input and check it as usual. Leaving a
+target out doesn't make a required input optional.
+
+## @Screen in A2UI and Widgetbook
+
+A `@Screen` keeps its delivered surface and can also appear in the A2UI and Widgetbook
+output. It can be a flow step (`@Screen()`) or published on its own
+(`@Screen(surface: Surface.<category>)`). All three outputs are checked together, and
+invalid source stops the build before any output is written. The targets stay
+separate:
+
+| Target | What the screen becomes | Limits |
+|---|---|---|
+| RFW | The delivered surface: the `build()` tree, state reads, `SurfaceEvent` calls, and the screen reference | Constructor fields are part of the surface only when the `build()` tree reads them |
+| A2UI | One component, named by the screen id, that builds the real screen from its constructor inputs and forwards its events | No breakdown of the widget tree, no built-in Flutter, Material, or Cupertino entries, and no second catalog |
+| Widgetbook | One story under `Screens/<screen-id>`, with typed controls and generated event handling | No hand-written `Config.appBuilder`, custom host, or scenario file |
+
+Turning on A2UI or Widgetbook doesn't change the delivered surface: its RFW files and
+the screen reference are byte-for-byte the same with or without them.
+
+This covers your own `@Screen` classes only. `@FlowGraph` and `@Paywall` don't appear
+in A2UI or Widgetbook. Per-widget `Config.enabled` applies to `@RestageWidget` and has
+no effect on a screen. Each target reports its own errors: turning on A2UI doesn't make
+a Widgetbook setting an A2UI requirement, or the other way around.
+
+### Watch mode
+
+`dart run build_runner build` scans everything. Under watch, edits to an annotated
+widget or screen regenerate its output right away, but adding, removing, or renaming
+an annotated class changes which files the build writes, so restart
+`dart run build_runner watch` after that. The next full build removes story files and
+registrations that are no longer needed. A class with a target turned off keeps a
+small placeholder story file, so you can turn the target back on without adding a
+file.
+
+The annotation sets a screen's id; when omitted, it defaults to the file name. The
+generated reference and publication manifest record that identity. Folders organize
+source and output but don't set the category.

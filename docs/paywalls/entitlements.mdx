@@ -1,0 +1,48 @@
+---
+title: Entitlements
+description: Keep entitlement checks and purchase verification in your app’s billing integration.
+---
+
+An entitlement is a feature gate, such as `pro`, that a purchase unlocks and your app
+checks. Several products (monthly, annual) can grant the same entitlement.
+
+## Where entitlements live
+
+Keep entitlement checks in your store library, billing service, or own server. Gate
+features on that source, and pass whatever a surface needs to show, such as whether
+the user already has Pro, as [host data](/authoring/host-data).
+
+A surface can't unlock anything by itself. It sends events, and your app decides what
+they mean.
+
+## Restore
+
+Give the paywall a restore button that sends an event:
+
+```dart
+TextButton(
+  onPressed: paywallEvent('restore_purchases'),
+  child: const Text('Restore purchases'),
+)
+```
+
+Handle `restore_purchases` in `onEvent` and call your store library's restore. Restore
+is how a user who reinstalls the app or switches devices gets a subscription back, so
+offer it wherever the stores expect it.
+
+The names `restore` and `restage.restore` are reserved, and the build stops with an
+error if a surface uses them.
+
+## Adapter callbacks
+
+The [RevenueCat adapter](/paywalls/revenuecat) returns customer information through
+`onCustomerInfo`; apply your RevenueCat entitlement checks there. Its restore
+button uses `revenuecat.restore`.
+
+The [native store bridge](/paywalls/native-stores) uses your app's `verifyPurchase`
+and `deliverPurchase` callbacks. Record each delivery by its verified transaction id,
+so a purchase the store sends again can't grant consumable content twice. Its restore button uses
+`in_app_purchase.restore`. A restore request does not return a complete entitlement
+snapshot; your billing service remains the source of access decisions.
+
+See [Products and purchases](/paywalls/products-and-purchases) for purchase handling.

@@ -224,6 +224,13 @@ Routing decides which published version each request receives.
 | `restage_archive_surface` / `restage_restore_surface` | Archive a surface across environments, or restore it to the list for publication. |
 | `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build would stop rendering, based on its recorded library versions. |
 
+**Documentation**
+
+| Tool | What it does |
+| --- | --- |
+| `restage_docs_search` | Search the Restage docs. Returns ranked sections with their URLs and a snippet. |
+| `restage_docs_read` | Read a docs page, or one section with `#anchor`, as Markdown. |
+
 **Placements and delivery plans**
 
 | Tool | What it does |

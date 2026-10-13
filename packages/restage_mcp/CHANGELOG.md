@@ -5,6 +5,9 @@
 Initial release: an MCP server over stdio that wraps the Restage backend,
 reusing the CLI's authenticated session.
 
+`restage_docs_search` and `restage_docs_read` search and read the Restage
+documentation; they need no sign-in.
+
 `restage_experiment_apply`, `restage_apply_canonical_mutation` and
 `restage_activate_experiment` are **experimental** and are not listed by
 default because their hosted endpoints are not yet available. Set

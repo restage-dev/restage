@@ -1,0 +1,194 @@
+---
+title: Branching
+description: Store an answer in flow state and send the user to the matching screen.
+---
+
+A flow branches in three steps. A screen event stores a value in flow state, a
+`Decision` reads that state, and its branches, tried in order, pick the next screen.
+The example on this page is a short survey with two paths.
+
+## Give each answer an event
+
+Each answer gets its own `SurfaceEvent`. A typed event can carry a value, which you
+pass as the second argument to `surfaceEvent`:
+
+```dart
+@Screen()
+final class QuestionScreen extends StatelessWidget {
+  const QuestionScreen({super.key});
+
+  static const answer = SurfaceEvent<String>('answer');
+  static const skip = SurfaceEvent<void>('skip');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          FilledButton(
+            onPressed: surfaceEvent(answer, 'guided'),
+            child: const Text('Guide me'),
+          ),
+          FilledButton(
+            onPressed: surfaceEvent(skip),
+            child: const Text('Skip'),
+          ),
+        ],
+      );
+}
+```
+
+## Declare the state
+
+Declare each piece of state once. A `FlowStateRef<String>` names the key, and you reuse
+the same reference everywhere the flow reads or writes it:
+
+```dart
+const answer = FlowStateRef<String>('answer');
+```
+
+State is private to the flow unless you say otherwise. To include it in the flow's
+result or survey answers, mark it `FlowStateClassification.exportable`, as the full
+example below does.
+
+If your app should supply a starting value, use a `SeedableFlowStateRef`:
+
+```dart
+const returningUser = SeedableFlowStateRef<bool>(
+  'returningUser',
+  defaultValue: false,
+);
+```
+
+The build generates a typed seed class for the flow, for example
+`SetupSurveySeed(returningUser: true)`, which you pass to the generated `SetupSurveySurface` as `initialState:`.
+The direct `RestageFlowGraph` API accepts the same seed.
+
+## Define the decision
+
+A `Decision` is a step a transition can lead to. Its branches are tried in order, and
+`otherwise` is required:
+
+```dart
+final route = Decision(
+  'route',
+  branches: [
+    Branch(
+      when: answer.equals('guided'),
+      to: GuidedScreen,
+    ),
+    Branch(
+      when: returningUser.equals(true),
+      to: GuidedScreen,
+    ),
+  ],
+  otherwise: ExploreScreen,
+);
+```
+
+Every state reference has `equals`, `notEquals`, `oneOf`, `isSet`, `isUnset`, and
+`equalsState` (compare two pieces of state). Integer state also has `greaterThan`,
+`atLeast`, `lessThan`, and `atMost`.
+
+## Put it together
+
+Here is the whole flow in one file:
+
+```dart
+import 'package:restage/restage.dart';
+
+import '../screens/explore.dart';
+import '../screens/guided.dart';
+import '../screens/question.dart';
+
+part 'restage.generated/setup_survey.restage.g.dart';
+
+const answer = FlowStateRef<String>(
+  'answer',
+  classification: FlowStateClassification.exportable,
+);
+
+const returningUser = SeedableFlowStateRef<bool>(
+  'returningUser',
+  defaultValue: false,
+);
+
+final route = Decision(
+  'route',
+  branches: [
+    Branch(when: answer.equals('guided'), to: GuidedScreen),
+    Branch(when: returningUser.equals(true), to: GuidedScreen),
+  ],
+  otherwise: ExploreScreen,
+);
+
+@FlowGraph(surface: Surface.survey)
+final setupSurvey = FlowDefinition(
+  start: QuestionScreen,
+  state: [answer, returningUser],
+  transitions: [
+    Transition(
+      QuestionScreen.answer,
+      capture: answer,
+      to: route,
+    ),
+    Transition(
+      QuestionScreen.skip,
+      writes: [answer.set('skipped')],
+      to: route,
+    ),
+    Transition.complete(GuidedScreen.finish),
+    Transition.complete(ExploreScreen.finish),
+  ],
+  outbound: FlowOutboundPolicy(
+    terminalResult: {'answer': answer},
+    surveyAnswers: {'answer': answer},
+  ),
+);
+```
+
+`capture: answer` stores the event's value, and `answer.set('skipped')` writes a fixed
+value. `outbound` lists exactly which state leaves the flow: here the answer goes into
+the flow's result and its survey answers. Nothing else does.
+
+Every `Transition.complete` in a flow ends at the same finish, with one id and one
+result; the build stops with an error if two of them differ. To tell your app which
+path the user took, keep it in state and list it in `terminalResult`, as this example
+does with `answer`.
+
+## Loops and forward references
+
+Dart allows references to later top-level declarations. For a graph with cycles,
+a `NodeRef` avoids constructing mutually dependent node objects. List the referenced
+node in `nodes` so the build can resolve it:
+
+```dart
+const attempts = FlowStateRef<int>('attempts', defaultValue: 0);
+const retryRef = NodeRef('retry');
+
+final retryDecision = Decision(
+  'retry',
+  branches: [
+    Branch(when: attempts.lessThan(3), to: RetryScreen),
+  ],
+  otherwise: FailureScreen,
+);
+
+@FlowGraph(surface: Surface.onboarding)
+final retryFlow = FlowDefinition(
+  start: StartScreen,
+  state: [attempts],
+  transitions: [
+    Transition(StartScreen.next, to: retryRef),
+    Transition(RetryScreen.failed, to: retryRef),
+    Transition.complete(RetryScreen.succeeded),
+    Transition.complete(FailureScreen.finish),
+  ],
+  nodes: [retryDecision],
+);
+```
+
+Use a screen type or `Decision` directly when no symbolic reference is needed.
+
+Back navigation skips decisions, because only screens the user saw are kept in the
+history. See [Navigation](/flows/navigation-and-chrome). To branch on the result of
+something your app does, such as a permission request, see
+[Host actions](/flows/host-actions).

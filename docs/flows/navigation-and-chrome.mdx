@@ -1,0 +1,164 @@
+---
+title: Navigation
+description: Add back, close, and skip controls to a flow, and choose what system back does on the first screen.
+---
+
+A flow draws no navigation controls of its own. The SDK moves between screens and
+keeps the history; you place the back, close, and skip controls. The
+[flow navigation guide](https://github.com/restage-dev/restage/blob/main/packages/restage/doc/flow_navigation_and_customization.md)
+has runnable examples, including onboarding flows that end in a paywall.
+
+## An app bar gives you back
+
+Put an `AppBar` (Material) or a `CupertinoNavigationBar` (Cupertino) in a screen. While
+there is a screen behind the current one, the bar shows the platform back control, and
+it looks and behaves the way it does anywhere else in Flutter.
+
+```dart
+@Screen()
+final class GoalScreen extends StatelessWidget {
+  const GoalScreen({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('What brings you here?'),
+      ),
+      body: Center(
+        child: FilledButton(
+          onPressed: surfaceEvent(next),
+          child: const Text('Continue'),
+        ),
+      ),
+    );
+  }
+}
+```
+
+Put the bar in the scaffold's `appBar` slot, so it sits above the body and clears the
+status bar. A custom `toolbarHeight` is respected, and `AppBar.bottom` takes a `TabBar`
+or a `PreferredSize` widget.
+
+Each flow screen is a route on the flow's own `Navigator`, so both bars show a back
+control whenever there is a screen to go back to, with `automaticallyImplyLeading` left
+at its default. `AppBar` and `CupertinoNavigationBar` are catalog widgets, so the bar
+is published with the rest of the screen.
+
+The back control, `Navigator.maybePop`, and the Android system back gesture each go
+back one screen. The iOS edge swipe and Android predictive back preview the previous
+screen and then go back to it. While the flow has a screen to go back to, the flow
+handles the gesture; the route around the flow handles it only after that.
+
+Screens animate with your app's `pageTransitionsTheme`, like any other route, and a
+`Hero` flies between them.
+
+A screen without an app bar shows no back control. The first screen of a flow has no
+screen behind it, so its app bar shows a control only when the route around the flow
+can close, and that control leaves the flow. The first screen of a subflow shows none:
+back never leaves a subflow for its parent.
+
+## Draw your own control
+
+`RestageFlowController` has what a control needs. `canBack` and `canSkip` say whether
+the action is available, and `back()` and `skip()` perform it. The controller is a
+`Listenable`, so read it inside a `ListenableBuilder`:
+
+```dart
+ListenableBuilder(
+  listenable: controller,
+  builder: (context, _) => Row(
+    children: [
+      if (controller.canBack)
+        IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: controller.back,
+        ),
+      const Spacer(),
+      if (controller.canSkip)
+        TextButton(
+          onPressed: controller.skip,
+          child: const Text('Skip'),
+        ),
+    ],
+  ),
+)
+```
+
+To own the controller, mount the flow with `RestageFlowView` and build your controls
+around it. A bar that should stay on screen across steps belongs outside the view, in
+a `Stack` or `Column` you own. A control inside the view belongs to one screen and
+leaves with it.
+
+A control inside a screen fires an event like any other. An event named `back` goes
+back one screen with no transition to write:
+
+```dart
+static const back = SurfaceEvent<void>('back');
+```
+
+Skip has no platform control, so you always draw it. Inside a screen, put a
+`TextButton` in `AppBar.actions` or a `CupertinoButton` in
+`CupertinoNavigationBar.trailing` that fires `SurfaceEvent<void>('skip')`. It behaves
+the same as `controller.skip()`. If the screen has a transition for `skip`, the flow
+takes it. Otherwise, if the flow declares `skip` as a custom event, your app receives
+it, usually to close the flow. When neither exists, `canSkip` is false, so you never
+show a skip control that does nothing.
+
+There is no built-in "step N of M". A flow can branch, so the total number of steps
+isn't known in general. Build a progress indicator from the flow you wrote.
+
+## Close the flow from your app
+
+`Navigator.maybePop` on the route that holds the flow goes back one flow screen while
+there is one, which is what an app bar's back control relies on. A close button that
+should leave the flow from any screen calls `pop` instead:
+
+```dart
+void dismissFlow(BuildContext context) => Navigator.of(context).pop();
+```
+
+Call it with a `BuildContext` from outside the flow view, so `Navigator.of` finds your
+route. Inside the view it finds the flow's own navigator.
+
+When the flow completes you don't need any of this. The flow has finished by the time
+`onComplete` runs, so `Navigator.maybePop` inside that callback closes the route.
+
+## How back works
+
+Back follows screen history, the way a `Navigator` does:
+
+- **Each screen visit is recorded.** Back returns to the previous screen with its
+  state kept. `canBack` tells you whether there is one.
+- **Decisions and host actions are skipped.** They run between screens and aren't
+  recorded, so back never runs a transition again or repeats a host action.
+- **Subflows are a boundary.** Back inside a subflow never reaches the parent flow. A
+  completed flow doesn't navigate.
+- **Back only goes back.** The back control, `back()`, and system back run none of
+  your flow's transitions or actions.
+
+## System back on the first screen
+
+While there is history, system back goes back one screen. When there is nothing left
+to go back to (the first screen, or the first screen of a subflow), `SystemBackPolicy`
+decides what happens. Pass it as `systemBack:` on the flow:
+
+- `SystemBackPolicy.popHost` (the default): the route around the flow handles system
+  back. A pushed flow route closes; a flow at the root of the app sends the app to the
+  background.
+- `SystemBackPolicy.block()`: system back does nothing on the first screen. Use it
+  for a flow the user must finish.
+- `SystemBackPolicy.complete()`: system back skips out of the flow through its `skip`
+  event. The flow needs a `skip` transition or custom event for this to work.
+- `SystemBackPolicy.onExhausted(callback)`: runs your own callback, for example to
+  show a confirmation dialog.
+
+The policy applies only when there is nothing left to go back to. Before that, system
+back always goes back one screen.
+
+Controls you place are ordinary Flutter around the flow. They don't change what a
+published flow can do.

@@ -1,0 +1,207 @@
+---
+title: App size
+description: What Restage adds to a release build, and how to carry only the widgets your app uses.
+---
+
+A published surface renders with widgets compiled into your app, so the widgets your
+app carries decide both what a surface can use and what it adds to your app's size.
+By default `Restage.configure()` installs the whole built-in catalog and both icon
+fonts, so a surface you publish later can use any catalog widget. If app size matters
+more, you can carry only the widgets your own code draws.
+
+## What it costs
+
+The added size depends on which widgets, fonts, and native plugins your app already
+includes, so measure it in your own app: build it with and without Restage, using the
+same release settings and dependency versions.
+[Measure your own app](#measure-your-own-app) has the steps.
+
+Be clear about which number you compare. Raw APK growth, app bundle (AAB) size,
+download size for a given device, and installed size are different quantities, and a
+download estimate depends on the device you pick.
+
+## Choose what your app carries
+
+**The whole catalog.** This is the default with `Restage.configure()`. The generated
+`registerRestageWidgets()` also installs the whole catalog unless you opt down. A
+surface you publish later can use any catalog widget, including ones your app has
+never drawn. Keep this unless app size is a real constraint.
+
+**Drop Material or Cupertino.** Set the options on `Restage.configure`. Both default to
+`true`; this example drops Cupertino:
+
+```dart
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Restage.configure(
+    includeMaterial: true,
+    includeCupertino: false,
+    registerWidgets: kRestageWidgetRegistration,
+    // Your existing delivery settings.
+  );
+  runApp(const MyApp());
+}
+```
+
+`kRestageWidgetRegistration` comes from the generated `user_factories.g.dart`.
+Rebuild before you use it. It applies the same choices and adds your app's own widgets.
+Without code generation, leave out `registerWidgets`.
+
+Dropping Material or Cupertino keeps any widget and icon your own code or your
+surfaces need. For
+example, Cupertino icons can still render through the Material icon widget. Fonts and
+other package assets are separate: see [Release builds](#release-builds).
+
+Use constant values and rebuild the app when you change them. A value chosen at
+runtime can keep both libraries in the binary. A library that a separate call already
+registered stays registered even if you later pass `false`.
+
+**Only what your code draws.** To carry only the widgets your code uses, set
+`catalog: derived` in `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          catalog: derived
+```
+
+Then call the generated registration before `Restage.configureWithInstalledCatalog`:
+
+```dart
+registerRestageWidgets();
+Restage.configureWithInstalledCatalog(/* your existing configuration */);
+```
+
+`configureWithInstalledCatalog` doesn't reference the whole catalog, so release builds
+can drop the widgets and icons you don't use. Plain `Restage.configure()` with its
+defaults still references the whole catalog. You can instead pass a freshly generated
+derived `kRestageWidgetRegistration` to `Restage.configure` as `registerWidgets`; it
+keeps the derived set.
+
+The build reads every library under `lib/`, adds each catalog widget your app draws
+anywhere, and adds the widgets your surfaces use. A widget you already use can be
+changed over the air with nothing to declare. The scan has two limits: it reads only
+your own source, so it can't see inside your dependencies, and it finds an icon only where your code uses
+a constant `IconData`.
+
+**A reserve screen.** Once you opt down, you can make a widget available to future
+surfaces before your app draws it. Draw it once in a `@Screen` you never mount. The
+build sees it and keeps the widget in your release:
+
+```dart
+@Screen(id: 'reserve')
+class Reserve extends StatelessWidget {
+  const Reserve({super.key});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          const Chip(label: Text('reserve')),
+          Slider(value: 0, onChanged: (_) {}),
+        ],
+      );
+}
+```
+
+Use a reserve screen for building blocks: controls, cards, layout. A widget that is a
+feature in its own right belongs in a screen your reviewed app shows, or in your notes
+for App Review, before a published surface uses it.
+[App Store compliance](/app-store-compliance#hidden-and-dormant-features) explains why.
+
+## What the build reports
+
+Every build reports which widgets and icons it installs and how to change that. A
+derived build also names the `configureWithInstalledCatalog` call it needs.
+
+With `--verbose`, a derived build lists rough size estimates for widget groups it left
+out. Widgets in a group share framework code, so a group appears only when none of its
+widgets is in your set. Treat the figures as hints for what to measure in your own
+app. With the whole catalog nothing is left out, so the list is empty.
+
+## The registration call
+
+The build generates `registerRestageWidgets()`, which installs the app-wide set: the
+whole catalog by default, or, when you opt down, the widgets from the source scan,
+reserve screens, and your surfaces. For a derived build:
+
+```dart
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  registerRestageWidgets();
+  Restage.configureWithInstalledCatalog(/* your existing configuration */);
+  runApp(const MyApp());
+}
+```
+
+Generated screen, flow, and paywall mounts render without it, because each one
+installs the widgets and icons it draws when it mounts. The registration call covers
+widgets beyond the surfaces you mount. In a derived build, a paywall mounted by id,
+`RestagePaywall(id: 'pro')`, needs it, because there is no generated mount to install
+its widgets. With the default configuration, every built-in widget and icon is already
+installed.
+
+For manual registration, `InstalledWidgetLibraries.install(...)` replaces the installed
+widgets and `add(...)` adds to them. A preview or authoring tool that renders content it
+can't know ahead of time should keep the whole catalog.
+
+## Release builds
+
+Build with Flutter's normal icon tree shaking. Passing `--no-tree-shake-icons` keeps the
+full icon fonts even when your derived set uses a few icons.
+
+The default keeps both icon fonts with every glyph. A derived set can ship smaller
+fonts, because its icon table uses constants Flutter can find when it trims fonts. The
+Cupertino font is still bundled while its package is a dependency, even if you use none
+of its icons; removing it means removing that dependency. Compare sizes with the same
+minification, resource shrinking, and obfuscation settings.
+
+## Plugins and native code
+
+Restage depends on four Flutter plugins with native code: `path_provider`,
+`shared_preferences`, `package_info_plus`, and `device_info_plus`. If your app already
+uses them, it shares their native code with the SDK. Record the resolved versions when
+you compare builds.
+
+Nothing Restage delivers is executable code. See
+[App Store compliance](/app-store-compliance) for what that means for review.
+
+## When a surface uses a widget you don't have
+
+With the whole catalog this can't happen for built-in widgets. After you opt down, a
+surface that uses a widget outside your set doesn't render that widget. A generated
+mount falls back to the surface compiled into the app, so the user sees the screen that
+shipped with the release. A paywall mounted by id shows its `errorBuilder`, or nothing
+if you didn't set one.
+
+Once you opt down, adding a widget takes an app release. The widgets in today's build
+set what you can change over the air today.
+
+## Measure your own app
+
+Compare a build of your app without Restage to one with Restage and the catalog setup
+you plan to ship. Run these Android builds in each version, and keep each version's
+output before you build the next:
+
+```sh
+flutter build apk --release --target-platform=android-arm64 \
+  --obfuscate --split-debug-info=build/size-symbols
+flutter build appbundle --release --target-platform=android-arm64 \
+  --obfuscate --split-debug-info=build/size-symbols
+```
+
+Keep the Flutter and Android toolchains, build flavor, signing, minification, and
+resource shrinking the same. Keep both `pubspec.lock` files, and check that shared
+dependencies resolve to the same versions.
+
+For raw APK growth, compare `build/app/outputs/flutter-apk/app-release.apk` from the
+two builds. For download size, use
+[bundletool](https://developer.android.com/tools/bundletool) to build APK sets from the
+AABs and run `get-size total` with the same device specification: architecture,
+Android API level, locale, and screen density. Compare each metric with its own
+baseline. The AAB and raw APK sizes aren't what a device downloads.
+
+See [Flutter's app-size guide](https://docs.flutter.dev/perf/app-size) for size
+breakdowns and platform-specific steps.

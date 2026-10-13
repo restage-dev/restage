@@ -1,0 +1,65 @@
+---
+title: Interactive surfaces
+description: Keep selection state inside a surface, report the user's choice in an event, and use widgets with built-in gestures and animation.
+---
+
+A surface can respond to taps on its own. A survey can highlight the answer the user
+picked, an onboarding screen can switch between options, and a paywall can move the
+selection between plans. None of this needs code in your app.
+
+## Selection state lives in the widget
+
+Write the surface as a `StatefulWidget` and keep the selection in its `State` as a
+plain field: a `bool` for a choice between two options, an `int` for a longer row.
+
+```dart
+bool annualSelected = true;
+
+void selectAnnual() => setState(() => annualSelected = true);
+void selectMonthly() => setState(() => annualSelected = false);
+```
+
+Each option calls one of these methods from `onTap`, and `build` reads the field to
+decide what looks selected. The build turns those reads into state inside the
+delivered surface, so the tap and the new selection happen there. Your app doesn't
+track the choice. Keep to that shape: a simple field such as a `bool` or
+`int`, changed by one assignment inside `setState`.
+
+## Report the choice in an event
+
+When the user confirms, send the choice to your app in an event. A screen fires a
+`SurfaceEvent` with `surfaceEvent`, as in [Write a surface](/authoring/write-a-surface).
+A paywall can read the field to pick the value it reports:
+
+```dart
+GestureDetector(
+  onTap: paywallEvent(
+    'continue',
+    args: {'plan': annualSelected ? 'annual' : 'monthly'},
+  ),
+  child: /* the button */,
+)
+```
+
+Your app receives the event in the mount's `onEvent` and acts on it. For a paywall,
+that is where your app starts the purchase with the store library it already uses. A
+surface can't start a purchase or a restore itself; the build stops with an error if
+it tries.
+
+The price shown on each option is text in the surface, or a value your app passes in
+as [host data](/authoring/host-data). Make sure the price the user sees and the plan
+the event reports belong together. [Products and purchases](/paywalls/products-and-purchases)
+shows the app side of a paywall purchase.
+
+## Gestures and animation
+
+Gesture and animation code lives in widgets compiled into your app: a sheet you drag to
+dismiss, a pager you swipe, a detent that snaps. A surface sets their properties and
+receives their events when the gesture ends.
+
+The Material library includes `RestageModalSheet`, `RestageDraggableSheet`,
+`RestagePager`, `RestageDropdown`, `RestageRadioGroup`, `RestageSegmentedButton`, and
+`RestageToggleButtons`. You use them like any other widget. For behavior they don't
+cover, put it in a [custom widget](/authoring/custom-widgets) of your own.
+
+The [Widget catalog](/authoring/widget-catalog) lists these widgets.

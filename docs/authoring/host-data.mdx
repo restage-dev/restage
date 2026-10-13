@@ -1,0 +1,159 @@
+---
+title: Host data
+description: Pass values your app already has into a surface, read them in the widget, and let the surface update only what changed.
+---
+
+A surface can show data your app already has: the user's name, a list of their habits,
+how many tasks are left. The app passes those values to the surface through
+the generated mount's typed constructor arguments, and the
+surface rebuilds only the parts that read a value when it changes. Host data stays on
+the device.
+
+## Declare the data as constructor parameters
+
+Write the screen the way you'd write any widget that takes data. The constructor
+parameters of a `@Screen` or `@Paywall` class are its host data:
+
+```dart
+final class Habit {
+  const Habit({required this.id, required this.name});
+  final String id;
+  final String name;
+}
+
+@Screen(id: 'habit_list', surface: Surface.general)
+final class HabitList extends StatelessWidget {
+  const HabitList({required this.habits, super.key});
+
+  final List<Habit> habits;
+
+  static const toggleDay = SurfaceEvent<Map<String, Object?>>('toggle_day');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final habit in habits)
+            ListTile(
+              title: Text(habit.name),
+              onTap: surfaceEvent(toggleDay, {'id': habit.id}),
+            ),
+        ],
+      );
+}
+```
+
+A read of a parameter (`habits`, or `widget.habits` in a `State`) becomes a read of
+`data.context.habits` in the delivered surface. A `for` over a list parameter stays a
+loop, so the device decides the number of rows from the data, and `habit.name` inside
+the loop reads that row's field. String interpolation over a `String`
+parameter (`'Hi $name'`) works too; format numbers into a `String` in your app first.
+
+A collection `if` can filter the widgets inside that loop:
+
+```dart
+Column(
+  children: [
+    for (final habit in habits)
+      if (habit.id == 'daily_walk') Text(habit.name),
+  ],
+)
+```
+
+The list contains only matching children, in the original order. You can add
+`else`, nest conditions, or spread a list literal in a branch. Conditions accept
+booleans, equality against literals, and combinations with `!`, `&&`, and `||`.
+Filtered loops need an app built with a catalog that supports them (catalog
+capability 10). After upgrading, run `dart run build_runner build` and release the
+app before you publish filtered lists, including lists passed to custom widgets.
+
+**What a parameter can be.** A string, integer, finite double, or boolean; a `List` or
+a `Map<String, …>` of those; any of them nullable; or a plain data class like `Habit`
+above: public final fields of those types, an unnamed constructor, and no behavior. The
+build uses the same field list to encode the value and to read fields such as
+`habit.name`, so the two always match.
+
+**What the build rejects.** Reading a parameter whose type is outside that list stops
+the build with an error that names the type. Only reads are checked, so the class can
+declare a parameter of another type (an analytics tag, a callback for the app) as long
+as `build` doesn't read it. A member of a scalar parameter (`title.length`) is
+rejected, because the app never supplies a value by that name. An index inside a loop
+(`habit.days[2]`) is rejected too.
+
+## Mount it with the generated widget
+
+For every `@Screen(surface: ...)` the build generates a widget named
+`<ClassName>Surface` whose constructor matches yours. You pass the same arguments you'd
+pass to the widget itself:
+
+```dart
+HabitListSurface(
+  habits: habits,
+  onEvent: (event) {
+    if (event is HabitListToggleDayEvent) toggle(event.value['id']);
+  },
+)
+```
+
+The generated widget puts the host-data arguments into `context:`, shows the delivered
+surface, and keeps your compiled-in `HabitList(habits: habits)` as the fallback. If
+delivery, rendering, or an event fails, the user sees your widget with the same data.
+
+Override the fallback with an `unavailable` policy; see
+[Write a surface](/authoring/write-a-surface#typed-mounts).
+
+A `@Paywall` class gets a generated widget too. See
+[Write a surface](/authoring/write-a-surface#typed-mounts) for the options it takes.
+
+## Lower-level context maps
+
+Direct runtime mounts take an optional `context:` map. Use it when you need to
+supply the data map yourself instead of using a generated mount's typed inputs:
+
+```dart
+RestageScreen(
+  screen: accountSummaryScreenRef,
+  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
+  context: <String, Object?>{
+    'profile': <String, Object?>{
+      'displayName': profile.displayName,
+      'tasksRemaining': remainingTasks.length,
+    },
+  },
+)
+```
+
+`RestagePaywall`, `RestageFlowGraph`, `RestageFlowView`, and `RestageScreenView` take
+the same parameter. The surface reads the values under `data.context.*`, so the
+account summary screen above reads `profile.displayName`.
+
+If your code manages a `DynamicContent` itself, `populateContextData(target, context)`
+writes the values into it. It always writes, without comparing to the previous values.
+
+## How updates work
+
+- **Values are checked and copied when you pass them.** Strings, integers, finite
+  doubles, booleans, lists, and maps with string keys are accepted, up to 32 levels of
+  nesting below the root, 10,000 values in total including the root, and 100,000 map
+  entries or list elements checked per update. Null map values are left out. Null list
+  elements are removed and the list closes up.
+- **Anything else is an error.** A `DateTime`, a closure, another object, a non-finite
+  double, or a cycle throws in debug. In release it is reported through
+  `FlutterError` and left out, and the rest of the values still apply.
+- **Equal values do nothing.** Passing a map with the same content doesn't update the
+  surface. Passing `null` removes all the host data.
+- **A single value change rebuilds what read it.** The widget that reads that value
+  rebuilds, with its children. Widgets next to it that read other values don't.
+- **A list change rebuilds the list and its rows, by position.** When a row is
+  inserted or the list is reordered, state kept in a row stays at its position while
+  your row ids move. Keep one number type per value: values are compared with Dart
+  `==`, so an `int` that later becomes a `double` at the same place can be missed.
+
+## What host data is not
+
+It's input for rendering. Restage keeps it on the device: analytics removes
+`data.context.*` values from every event, and it isn't used for targeting.
+[Telemetry and data](/trust/telemetry) has the details. Which version of a surface a
+user gets is decided separately, on the server.
+
+It also can't add behavior. Host data changes what a surface shows. What a surface can
+do still comes from the widgets and actions compiled into your app.

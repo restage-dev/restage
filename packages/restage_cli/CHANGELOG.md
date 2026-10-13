@@ -4,6 +4,9 @@
 
 Initial release of the `restage` command-line interface.
 
+`restage docs search` finds sections of the Restage documentation with their
+URLs; `restage docs read` prints a page, or one section, as Markdown.
+
 `restage experiment`, `restage mutation` and `restage experiment-activation`
 are **experimental** and are hidden from `--help` by default. They call
 endpoints the hosted service does not serve yet, so running one without opting

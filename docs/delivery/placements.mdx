@@ -1,0 +1,175 @@
+---
+title: Placements
+description: Mount your authored surface normally; its implicit placement lets delivery choose compatible content.
+---
+
+A placement is a named spot in your app where a surface appears, together with what
+that spot can render. Every generated surface mount declares one automatically.
+Mount the widget normally; you do not need to create a placement id or use a special
+constructor. A delivery plan can then choose compatible content for that spot.
+
+## Start with a generated mount
+
+Use the ordinary generated mount for authored content. It supplies typed inputs,
+events, widget registration and a compiled fallback, and declares its placement
+automatically.
+
+Save this surface as `lib/announcement.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/announcement.restage.g.dart';
+
+@Screen(surface: Surface.message)
+class Announcement extends StatelessWidget {
+  const Announcement({required this.title, super.key});
+
+  final String title;
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Text(title),
+          TextButton(
+            onPressed: surfaceEvent(dismiss),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+}
+```
+
+Run `dart run build_runner build`, then import `announcement.dart` where you mount
+it. Inside an existing screen:
+
+```dart
+AnnouncementSurface(
+  title: 'Your workspace is ready',
+  onEvent: (event) {
+    if (event is AnnouncementDismissEvent) hideAnnouncement();
+  },
+)
+```
+
+`hideAnnouncement` is your app's callback that removes the inline widget. The
+authored announcement is the placement's default content. A delivery plan can
+choose other content compatible with that mount. Configure
+[hosted delivery](/delivery/hosted-delivery) to receive those decisions.
+
+Generated screen, paywall and flow mounts all declare a placement this way. The
+generator names it after the surface, so there is no second name to keep in sync
+with the authored widget.
+
+## Present a placement as a route
+
+Use `Restage.presentPlacement` when the placement should open as a new page. Call
+this from app code with a context below your `Navigator`:
+
+```dart
+Future<void> showAnnouncement(BuildContext context) => Restage.presentPlacement(
+      context,
+      builder: (_, presentation) => AnnouncementSurface(
+        title: 'Your workspace is ready',
+        onEvent: (event) {
+          if (event is AnnouncementDismissEvent) presentation.close();
+        },
+      ),
+    );
+```
+
+Return the placement mount from the builder. The SDK opens an ordinary route and
+records that the placement is shown as a route instead of inline.
+`presentation.close()` closes only that presentation's route. The returned future
+completes when the route closes. An inline mount remains part of your existing
+screen; its event handler controls whether it stays there.
+
+## Generated flow placements
+
+For the flow in [Flows](/flows/overview), use:
+
+```dart
+WelcomeFlowSurface(
+  onComplete: (result) {
+    Navigator.of(context).pushReplacementNamed('/home');
+  },
+)
+```
+
+The generated mount supplies the flow's declarations and decodes its result. Pass its
+`actions`, `initialState`, or screen builders when the authored flow needs them.
+The placement cannot add widget implementations or action handlers to the app.
+
+## Explicit placement naming
+
+Explicit naming is optional. For an integration that needs a separately named
+placement, generated mounts also expose `.atPlacement('name', ...)` with the same
+constructor inputs and fallback. It only changes the placement name the mount uses.
+Delivery, discovery and presentation work without it.
+
+## Lower-level placement mounts
+
+Use `RestagePlacement` when your app describes the placement and its fallback
+itself. Register the widgets the host can render before mounting it:
+
+```dart
+RestagePlacement(
+  id: 'home_announcement',
+  fallback: (_) => const Text('Welcome back'),
+  onEvent: (event) => debugPrint('$event'),
+)
+```
+
+This direct mount requires a `fallback`. Pass `contract:` when the host provides
+specific data or handles declared events. `RestagePlacement.forSurface` addresses
+a surface's default placement; it also takes `surfaceType` and `surfaceId`.
+
+`RestagePlacement.flow` hosts a named flow and requires a `SurfaceHostContractV1`
+and fallback. Supply actions, initial state and installed signals when needed.
+`surfaceType` defaults to `Surface.onboarding`; only that category is delivered.
+`onComplete` receives a `Map<String, Object?>`. `flowForSurface` addresses a flow's
+default placement. Prefer the generated flow mount when its typed inputs and result
+fit.
+
+## Inspect and change delivery
+
+Placement rules choose a surface; that surface's rules choose its version.
+See [audience routing](/delivery/audience-routing) for rule priority, percentage
+rollouts and scheduled changes.
+
+Use the [CLI](/tools/cli#placements-and-delivery-plans) or
+[MCP tools](/tools/mcp-server) to inspect placements and prepare a plan:
+
+1. Read the placement and current plan for the exact app, environment and plane.
+2. Check content compatibility with `delivery plan fit` and preview decisions with
+   `delivery plan simulate`.
+3. Review the complete proposed plan with `delivery plan review`.
+4. Publish that reviewed change with `delivery plan publish`.
+
+A review covers one target and revision only. `delivery plan undo` prepares a rollback for review. Run each command with
+`--help` for the request format and required arguments.
+
+Inspect the review's refusals and [experiment impact](/delivery/experiments#change-delivery-during-an-experiment)
+before publishing. To accept warnings you have approved, `delivery plan publish`
+takes `--acknowledgement` with a `DeliveryMeasurementImpactAcknowledgementV1` JSON
+file; the MCP publish request carries the same acknowledgment. Pass a UUIDv4 as
+`--operation-id`, and reuse it with the same reviewed inputs when you retry.
+Confirming a live change is a separate step, and an out-of-date review must be
+redone.
+
+`delivery map` compares routing with observed renders by app build. `where` finds
+where a surface version is being served. When nothing has been observed, the render
+count is unknown.
+
+## Share a screen sample
+
+The optional `package:restage/placement_authoring.dart` entrypoint exposes
+`capturePlacementScreenSample` and `PlacementScreenSample` for authoring tools your
+app includes. Capture is explicit. Reading placements never captures a screen.
+
+The sample workflow imports a supplied capture and PNG, reviews it, uploads it,
+then binds it to a placement. Use `delivery sample` or the matching MCP tools.
+Only capture and share screens intended for authoring; a screenshot can include
+whatever your app is displaying.

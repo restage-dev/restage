@@ -80,3 +80,14 @@ The references hold the full workflows.
   schemas for what a version supports.
 - Never expose secret keys or access tokens in commands, payloads, logs or chat.
   Supply automation credentials through the environment.
+
+## Documentation
+
+The full docs are at https://docs.restage.dev. For an agent:
+
+- https://docs.restage.dev/llms.txt lists every page with a one-line summary
+  and its Markdown URL.
+- Every page is also served as Markdown at its URL plus `.md`, such as
+  https://docs.restage.dev/delivery/hosted-delivery.md.
+- `restage docs search <query>` and `restage docs read <path>`, or the MCP tools
+  `restage_docs_search` and `restage_docs_read`, search and read the same pages.

@@ -1,0 +1,105 @@
+---
+title: App Store compliance
+description: How published surfaces relate to Apple App Review and Google Play policies.
+---
+
+This page explains what a published Restage surface can and can't change, and how that
+relates to the store rules that usually come up. It isn't legal advice, and it doesn't
+guarantee approval. You remain responsible for your app and how it uses remote content.
+
+## What a published surface contains
+
+A Restage surface uses the [Remote Flutter Widgets](https://pub.dev/packages/rfw) format.
+What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
+your app. A published version composes and configures them. New behavior still ships as
+an app release.
+
+An update can change copy, layout, style values, flow routing, conditions and loops over
+data your app supplies, and which registered event or action a control uses. Widget
+implementations, gesture handlers, network clients, and native operations all come from
+your app build.
+
+## Apple App Review
+
+[Apple's App Review Guideline 2.5.2](https://developer.apple.com/app-store/review/guidelines/#software-requirements)
+addresses downloading, installing, or executing code that introduces or changes
+application features or functionality. A Restage surface carries no code. It uses widgets
+and typed actions compiled into the app.
+
+[Guideline 4.7](https://developer.apple.com/app-store/review/guidelines/#mini-apps-mini-games-streaming-games-chatbots-plug-ins-and-game-emulators)
+covers apps that offer certain forms of software not embedded in the binary, including
+HTML5 mini apps and mini games. In Restage, native platform access lives in your own
+widgets and registered host actions. Check whether your app's use of remote content falls
+under any part of that guideline.
+
+## Hidden and dormant features
+
+[Guideline 2.3.1](https://developer.apple.com/app-store/review/guidelines/#accurate-metadata)
+asks that an app contain no hidden, dormant, or undocumented features, that its
+functionality be clear to users and to App Review, and that new features be described
+with specificity in the Notes for Review and be accessible for review. This is the
+guideline most likely to come up for an app that changes screens over the air, whichever
+tool delivers them.
+
+Two properties of Restage help here. The surface you wrote is compiled into the build, so
+a reviewer reaches it like any other screen. A published update arranges widgets and
+actions already in that reviewed build, and new behavior ships as an app release.
+
+The rest is yours to do:
+
+- **Declare it.** Name Restage in the Notes for Review, list the screens it delivers,
+  and say what a delivered update can change. A starting point:
+
+  ```text
+  This app uses Restage (restage.dev) to deliver layout and copy updates to these
+  screens: <screens>. Each screen is compiled into this build and reachable at <path>
+  with the demo account below. A delivered update is data rendered by widgets and
+  actions already in this binary. Code, features, products and native capabilities ship
+  in an app update. Reviewers and users receive the same version.
+  ```
+
+- **Keep every surface reachable.** Give the reviewer a route to each delivered screen:
+  a demo account, no sign-up wall in front of it, no targeting rule that excludes the
+  reviewer's device or region.
+- **Stay inside what was reviewed.** Copy, layout, ordering, styling and the choice among
+  products and actions the reviewed build already offers are updates. A delivered surface
+  that introduces a feature, a product or a claim the reviewed build did not have is a new
+  feature under this guideline, and it belongs in a release with its own review notes.
+- **Serve App Review what your users get.** Audience routing and experiments choose among
+  published versions for your users. Using them to show a reviewer something different
+  from what users receive is the conduct the second paragraph of this guideline describes,
+  and it can end a developer account.
+- **Treat reserved widgets as building blocks.** Carrying catalog widgets your app has not
+  drawn yet, or a [reserve screen](/delivery/app-size), is ordinary: buttons, sliders,
+  cards and layout are parts, and every design system ships parts it does not use on
+  every screen. A widget that is itself a feature, such as a chat panel, a camera capture
+  or a checkout, should be visible in the reviewed build or described in the notes before
+  any delivered surface uses it.
+
+## Google Play
+
+[Google Play's device and network abuse policy](https://support.google.com/googleplay/android-developer/answer/16559646)
+restricts applications that download executable code outside Google Play, such as dex,
+JAR, and native library files. The Restage SDK reads surface data and renders it with
+widgets compiled into the app.
+
+## Interaction stays in your app
+
+Interactive catalog widgets can contain gesture, animation, or navigation logic. That
+code ships with the app. The surface sets the widget's properties and receives its
+events.
+
+Host actions follow the same rule. Your app registers a named, versioned action with
+typed arguments and results, and a flow can call it. The handler is Dart code compiled
+into the app, so adding or changing one needs an app release.
+
+## Compatibility and fallback
+
+The compiler refuses source it can't express. On the device, the SDK refuses a published
+version that doesn't match the widgets, custom widgets, or flow declarations in the
+installed app. The app then shows the last version it accepted, the bundled copy, or its
+fallback, and never a partial render.
+
+These checks lower the chance of a broken update. They don't replace your own content
+review or your reading of store policy. [Controlled delivery](/controlled-delivery)
+describes rollback, freeze, and the audit log.

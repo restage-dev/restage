@@ -120,3 +120,4 @@ export 'src/receipts/release_recorder.dart'
     show ReleaseRecorder, ReleaseRecorderException;
 export 'src/credentials/file_credential_store.dart';
 export 'src/config/config_target_check.dart' show noOrganizationSentence;
+export 'src/docs/docs_search.dart';

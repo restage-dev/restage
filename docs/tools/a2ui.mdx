@@ -1,0 +1,238 @@
+---
+title: A2UI
+description: Generate a genui A2UI catalog from your own Flutter widgets and check payloads before they render.
+---
+
+`restage_codegen` can turn your `@RestageWidget` widgets and `@Screen`
+screens into an A2UI catalog for Google's [`genui`](https://pub.dev/packages/genui)
+renderer. A generative-UI model can then build screens from your widgets. The catalog
+describes your own widget classes only. Flutter, Material, Cupertino, and Restage
+built-in widgets aren't copied into it.
+
+The order is: write annotated Flutter widgets, generate the catalog, then connect
+it to GenUI in your app. This works before any Restage upload or publication;
+`restage build push` is only for dashboard previews. Restage doesn't fetch, host,
+or stream A2UI payloads. Your app or your model session does that.
+
+## Add the dependencies
+
+```yaml
+dependencies:
+  genui: ^0.10.1
+  a2ui_core: ^0.1.0
+  json_schema_builder: ^0.1.3
+  restage_a2ui: ^0.2.0
+  rfw_catalog_schema: ^2.0.0
+
+dev_dependencies:
+  build_runner: ">=2.4.0 <3.0.0"
+  restage_codegen: ^2.0.0
+```
+
+`genui` renders the payloads. The generated catalog imports `restage_a2ui`, which also
+provides the check before render described below. The code generator runs at build time
+and doesn't ship in your app.
+
+## Turn on the A2UI builder
+
+The A2UI builder is off by default, because its generated Dart imports `genui`. Add a
+`build.yaml` to the package that declares your widgets:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_a2ui_catalog:
+        enabled: true
+```
+
+These emitter options do not require RFW bundling. Leave `bundled_runtime` at its
+default, `false`; no generated surface assets need to be added to the app.
+
+Keep the other Restage builders on if the app also delivers Restage surfaces. For an
+A2UI-only package you can turn them off, as the
+[`restage_a2ui` example](https://github.com/restage-dev/restage/tree/main/packages/restage_a2ui/example)
+does.
+
+Each widget library in the catalog needs a `@RestageLibrary(capabilityVersion:)`
+declaration. Raise the version when you add a widget or change how one renders. See
+[Custom widgets](/authoring/custom-widgets#3-declare-exact-library-ownership) for the
+barrel file.
+
+## Describe components for the model
+
+Add a description to every catalog component and public input, including screen
+inputs. Dartdoc supplies the schema description the model reads;
+`@RestageProperty(description: ...)` is an alternative for inputs. `@a2ui.Config.usage('…')` tells the model when to
+pick the widget, and becomes its line in the catalog's system prompt. Without it, the
+description is used. `@a2ui.Config.writeBackValue('propertyName')` says which value a
+callback writes back when that isn't clear. A value property paired with a
+`ValueChanged` callback of the same type becomes a two-way binding.
+
+[Custom widgets](/authoring/custom-widgets#4-add-useful-target-specific-configuration)
+and [Write a surface](/authoring/write-a-surface#one-source-three-targets) show full
+examples that compile in the public example package.
+
+A standalone `@Screen(surface: ...)` becomes one component named after its id. The
+generated builder constructs your real screen and passes its `SurfaceEvent` calls
+through. The screen's widget tree isn't split into A2UI components. A bare
+`@Screen()` used inside a flow can also become a component.
+`@FlowGraph` and `@Paywall` aren't part of the A2UI catalog.
+
+The generator finds these declarations anywhere in the package, whatever the directory.
+
+Properties can use nested data classes, lists of objects, string-keyed maps, named
+records, enums, and scalar lists. The generator describes them in the schema and
+rebuilds the Dart values in the generated builder. Sealed-class unions aren't supported
+yet. A required unsupported property stops the build; an optional one can be left
+out only when leaving it out gives the same result as its default.
+
+## The payload shape
+
+Every generated component uses the same A2UI shape. The `id` and `component` fields sit
+on the outer object, and every constructor input goes under the required `props`
+object:
+
+```json
+{
+  "id": "showcase",
+  "component": "CatalogShowcase",
+  "props": {
+    "title": "Catalog proof",
+    "status": "ready",
+    "hero": "hero-component-id",
+    "details": ["detail-a-id", "detail-b-id"],
+    "footer": "footer-component-id",
+    "data": {"note": "Generated once", "count": 2}
+  }
+}
+```
+
+A `Widget` or `List<Widget>` input takes a component id, or a list of ids, under the
+input's own name. A component can have several such inputs. Any input name works,
+including `id`, `component`, or `props`: an input named `props` appears as
+`props.props`.
+
+## Generate the catalog
+
+Run:
+
+```sh
+dart run build_runner build
+```
+
+The build writes two files:
+
+- `lib/generated/restage_a2ui_catalog.g.dart` has `buildRestageCatalog()`, which returns
+  the genui `Catalog`, and `restageA2uiCapability`, which records what that catalog
+  provides.
+- `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json` is a standard A2UI catalog
+  document with each component's schema. Give it to whatever produces payloads, such as
+  your model prompt or your server.
+
+Keep the generated `restageA2uiCatalogId` with that exact catalog. The payload
+producer must use it in `createSurface` messages. To combine
+`buildRestageCatalogItems()` with another catalog, give the combined catalog a new
+id of your own and give that catalog to the producer.
+
+## Connect GenUI and check incoming payloads
+
+This session owns the GenUI controller and checks incoming messages against the
+same catalog. It accepts one decoded message, a list of messages, or a cached
+payload in Restage's version wrapper (the sidecar). Check the sidecar before
+unwrapping its `a2ui` field.
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart' show A2uiMessage;
+import 'package:flutter/widgets.dart';
+import 'package:genui/genui.dart' as genui;
+import 'package:restage_a2ui/restage_a2ui.dart';
+
+import 'generated/restage_a2ui_catalog.g.dart';
+
+class A2uiSession {
+  final catalog = buildRestageCatalog();
+  late final controller = genui.SurfaceController(catalogs: [catalog]);
+  late final check = RestageA2uiPreRenderCheck(
+    catalog: catalog,
+    installed: restageA2uiCapability.installedCapability,
+  );
+
+  void receive(Object? incoming) {
+    if (check.check(incoming) case A2uiRejected(:final diagnostic)) {
+      throw FormatException(diagnostic);
+    }
+    final payload = RestageA2uiSidecar.isRestageSidecar(incoming)
+        ? RestageA2uiSidecar.fromJson(
+            Map<String, Object?>.from(incoming! as Map),
+          ).a2ui
+        : incoming;
+    final messages = [
+      for (final raw in payload is List ? payload : [payload])
+        if (raw is Map<String, Object?>)
+          A2uiMessage.fromJson(raw)
+        else
+          throw const FormatException('Expected an A2UI message object'),
+    ];
+    for (final message in messages) {
+      controller.handleMessage(message);
+    }
+  }
+
+  Widget buildSurface(String surfaceId) =>
+      genui.Surface(surfaceContext: controller.contextFor(surfaceId));
+
+  void dispose() => controller.dispose();
+}
+```
+
+Create one session in the owning widget's `initState` or your conversation owner,
+feed decoded messages to `receive`, and mount `buildSurface(surfaceId)`. Dispose
+the session with its owner. Catch rejected or malformed input at the message
+boundary and keep a native fallback available; also handle GenUI rendering errors.
+The check confirms that each component exists and that the payload's recorded
+capabilities fit the app. It doesn't check every component field.
+
+For example, after generating the [BareCatalogCard](/authoring/custom-widgets#2-add-the-annotation)
+catalog, these messages render that native widget:
+
+```dart
+final session = A2uiSession();
+session.receive([
+  {
+    'version': 'v0.9',
+    'updateComponents': {
+      'surfaceId': 'example',
+      'components': [
+        {
+          'id': 'root',
+          'component': 'BareCatalogCard',
+          'props': {'label': 'Hello from GenUI'},
+        },
+      ],
+    },
+  },
+  {
+    'version': 'v0.9',
+    'createSurface': {
+      'surfaceId': 'example',
+      'catalogId': restageA2uiCatalogId,
+    },
+  },
+]);
+final surface = session.buildSurface('example');
+```
+
+Mount `surface` in the app's widget tree and dispose `session` when its owner
+ends. GenUI 0.10.1 uses `v0.9` message envelopes; the generated catalog's
+schema metadata uses `0.9.1`. Those are different fields.
+
+For a model conversation, `genui.PromptBuilder.chat(catalog: session.catalog)`
+includes the generated descriptions and usage guidance. GenUI's `Conversation`
+connects the controller to a transport such as `A2uiTransportAdapter`. Your app
+supplies the model connection and handles the actions the surface sends out. A catalog alone does
+not start a model session or register that catalog with a remote server.
+
+`restage_a2ui` is pre-1.0 and follows the `genui` API as it changes. Its
+[pub.dev page](https://pub.dev/packages/restage_a2ui) explains the version wrapper for
+cached payloads and has more examples.

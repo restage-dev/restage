@@ -1,0 +1,138 @@
+---
+title: Native stores
+description: Connect a Restage paywall to Flutter's in_app_purchase plugin while your app owns verification and entitlements.
+---
+
+`restage_store_bridge` connects paywall buttons to Flutter's `in_app_purchase`
+plugin. It handles store updates and transaction completion. Your app verifies
+transactions and delivers entitlements or consumable content.
+
+The package is available from source and is not yet on pub.dev. The
+[runnable example](https://github.com/restage-dev/restage/tree/main/packages/restage_store_bridge/example)
+includes an authored paywall, its generated mount, loading and error states, and
+an alternative integration for an existing purchase service.
+
+## Adapter helpers
+
+| API | Use |
+| --- | --- |
+| `InAppPurchaseScope` | Own one controller above navigation, including disposal and Android startup/resume recovery. |
+| `InAppPurchaseController` | Process native purchase updates through your verification and delivery callbacks. |
+| `inAppPurchaseEventHandler` | Connect paywall purchase and restore events to that controller. |
+| `inAppPurchaseCustomEventHandler` | Connect an existing app-owned purchase service instead. |
+| `inAppPurchaseOfferingData` | Build display context for a direct `RestagePaywall` mount. |
+
+Prefer the scope when this bridge owns the purchase stream. If your app already
+owns that stream, use the [custom service path](#purchase-attribution) rather than
+starting a second controller. `StorePaywallSurface` is generated from your authored
+widget; the adapter exports no prebuilt paywall.
+
+## Keep one controller above navigation
+
+Configure [hosted delivery](/delivery/hosted-delivery), then wrap your app with
+`InAppPurchaseScope`. The following adapts the example; `billing` and `reportError`
+are your app's verification, delivery, and error handlers:
+
+```dart
+import 'package:flutter/widgets.dart';
+import 'package:restage_store_bridge/restage_store_bridge.dart';
+
+// Inside main(), after Flutter initialization and Restage configuration:
+runApp(
+  InAppPurchaseScope(
+    create: () => InAppPurchaseController(
+      verifyPurchase: billing.verifyPurchase,
+      deliverPurchase: billing.deliverPurchase,
+      consumableProductIds: const {'coins'},
+      onError: reportError,
+    ),
+    child: const MyApp(),
+  ),
+);
+```
+
+The scope creates the controller once, refreshes Android purchases at startup and
+resume, and disposes it when removed. Keep it above `MaterialApp` and navigation
+so dismissing a paywall does not interrupt transaction processing. Apple restore
+remains user-initiated.
+
+## Supply products and mount the paywall
+
+Query the store catalog with `InAppPurchase.instance.queryProductDetails`. Handle
+its errors and missing products before showing purchase controls. Build an immutable
+`Map<String, ProductDetails>` whose keys identify the offers your paywall displays.
+On Google Play, select the intended base plan and offer, and retain those exact
+`ProductDetails` objects.
+
+Use the same map for display and purchase dispatch. With the example's generated
+`StorePaywallSurface`, mount from a descendant of the scope:
+
+```dart
+StorePaywallSurface(
+  packages: [
+    for (final entry in packages.entries)
+      PaywallPackage(
+        identifier: entry.key,
+        priceString: entry.value.price,
+        billingTerms: billingTerms[entry.key]!,
+      ),
+  ],
+  onEvent: inAppPurchaseEventHandler(
+    packages: packages,
+    controller: InAppPurchaseScope.of(context),
+    onError: reportError,
+  ),
+)
+```
+
+`PaywallPackage` and `StorePaywallSurface` come from the
+[authored example](https://github.com/restage-dev/restage/blob/main/packages/restage_store_bridge/example/lib/store_upgrade.dart).
+`billingTerms` is your app's accurate localized trial, billing-period and renewal
+copy for each offer. A catalog price can describe an introductory or free phase;
+it is not proof of the amount paid or of eligibility.
+
+The authored widget sends `in_app_purchase.purchase` with a `packageIdentifier`
+argument matching the map key. Restore sends `in_app_purchase.restore`. Unknown or
+malformed keys produce an error. Generated mounts serialize the typed display
+values and retain the original widget as a fallback.
+
+For a direct `RestagePaywall` mount, `inAppPurchaseOfferingData` supplies identifiers,
+localized prices and currencies as host data. It does not supply billing terms.
+Direct mounts also need widget registration and a fallback.
+
+## Verify, deliver, then finish
+
+`verifyPurchase` returns `Future<bool>` for a `PurchaseDetails` update. Use your
+trusted purchase validation service. A false result is neither delivered nor
+finished. `deliverPurchase` returns `Future<void>` and must record each delivery by
+its verified transaction id, so a purchase the store sends again can't grant content
+twice.
+
+The controller verifies, delivers, then completes or consumes the transaction.
+Errors reach `onError`. `retryPendingPurchases()` retries the failed stage without
+repeating a stage already completed in memory. After restart, recovery depends on
+store redelivery, Android owned-purchase refresh, and your app's persisted delivery
+record. There is no persistent retry queue in the bridge.
+
+List supported consumable product IDs, including those that can arrive through
+recovery. The default controller supports single-product Google transactions;
+other transaction shapes need your own purchase service.
+
+## Purchase attribution
+
+The default controller does not automatically report paywall conversions. A native
+purchase dispatch does not identify the transaction that will arrive later, and
+the shared stream also includes restored, recovered and external purchases.
+Matching a product id or the timing isn't enough.
+
+If your existing purchase service can reliably tie a new transaction to the
+checkout that started it, use `inAppPurchaseCustomEventHandler`. Its purchase callback
+returns that checkout's verified and delivered `PurchaseDetails`, or null when
+there is no confirmed new purchase. The handler reports the confirmed purchase
+using the original paywall event. Your service finishes the native transaction,
+drops duplicates, and links each purchase to its checkout. Restore does not report
+a conversion.
+
+See the [custom service example](https://github.com/restage-dev/restage/blob/main/packages/restage_store_bridge/example/lib/custom.dart)
+and [purchase reporting](/paywalls/products-and-purchases#measure-completed-purchases).
+For an app that uses RevenueCat, use the [RevenueCat adapter](/paywalls/revenuecat).

@@ -1,0 +1,132 @@
+---
+title: Restage 2.0
+description: What changed in Restage 2.0, what breaks coming from 1.x, and how to migrate.
+---
+
+Restage 2.0 is a coordinated release of `restage`, `restage_shared`, `restage_codegen`,
+`restage_core`, `restage_material`, `restage_cupertino`, `rfw_catalog_schema`, and
+`rfw_catalog_compiler`, and the first release of `restage_measurement_schema`. This page
+covers what breaks coming from 1.x and how to migrate. Each package's CHANGELOG has the
+full detail.
+
+Published surfaces are unaffected. The `.rfw` format, the event-contract hash, and each
+surface's identity depend on the annotation `id` and the event schema, never on Dart
+class names. Generated Dart changes; published surfaces don't.
+
+## Renamed mounts, one reference per class
+
+The mount widgets now match the annotations that feed them, and each annotated screen
+and flow class generates exactly one reference:
+
+| Before | Now |
+|---|---|
+| `RestageSurfaceScreen<E>` | `RestageScreen<E>` |
+| `RestageSurfaceFlow<R>` | `RestageFlowGraph<R>` |
+| `RestageSurfaceScreenResolver` | `RestageScreenResolver` |
+| `RestageSurfaceEventDispatcher` | `RestageEventDispatcher` |
+| `WelcomeScreenDescriptor.ref` | `welcomeScreenRef` |
+| `FirstRunFlowDescriptor.ref` | `firstRunFlowRef` |
+
+For screens and flows, the build generates `<className>Ref`, plus
+`<ClassName><Event>Event` for each event the class declares. `@Paywall` widgets are
+mounted by id. The old names keep working as `@Deprecated` aliases through 2.x and are
+removed in 3.0, with one exception: a `@Screen(surface: ...)` class no longer generates
+its old `<ClassName>Descriptor`, because a screen with a category is published on its own
+and never needed the in-flow reference it held. The flow base class `RestageFlow` keeps
+its name.
+
+## Flows no longer draw back or skip controls
+
+`RestageFlowGraph`, `RestageFlowView`, and `RestageOnboarding` lose `enableSkip`,
+`chromeTheme`, `persistentChrome`, `backBuilder`, `skipBuilder`, `chromeBuilder`, and
+`persistentChromeBuilder`, and the `FlowChrome*` types are gone. There are no aliases.
+
+Each flow screen is now a route on the flow's own `Navigator`. A screen that wants a back
+button carries an `AppBar` or `CupertinoNavigationBar`, which shows the platform back
+button on its own. The back button, `Navigator.maybePop`, and Android system back each go
+back one screen. Screens use your app's page transitions, and the iOS back swipe and
+Android predictive back work as they do elsewhere in the app. For a control you draw
+yourself, use `controller.canBack`, `controller.back()`, `controller.canSkip`, and
+`controller.skip()`.
+
+## App-wide recording calls removed
+
+`Restage.identify`, `Restage.track`, `Restage.beginSurfaceSession`,
+`Restage.endSurfaceSession`, and `Restage.sdkVersion` are removed, with no alias. Explicit
+measurement calls live on `Restage.measurement`, and privacy requests on
+`Restage.privacy`. In 2.0 both return a `temporarilyUnavailable` result until measurement
+is available for your app, so calling them early is safe.
+
+`Restage.reset()` and `Restage.configure(analyticsEnabled:)` stay. The description of
+`reset()` is corrected: it gives the install a new on-device id and draws experiment
+assignment again from then on. It sends nothing, erases nothing already uploaded, and is
+not a deletion request. Its behavior didn't change. See
+[Telemetry and data](/trust/telemetry).
+
+Hosted delivery also no longer exposes experiment assignment details: `FlowAssignment`,
+the `assignment` fields on resolved flows and screens, and the experiment fields on
+`ResolvedVariant` and `PaywallViewed` are removed.
+
+## Commerce starts over
+
+The billing gateways, products, native purchase helpers, and commerce events from 1.x are
+removed, and `Restage.configure` no longer takes `products` or `billingGateway`. There are
+no aliases.
+
+`Restage.commerce`, with types from `package:restage/commerce.dart`, is a typed purchase
+API that does nothing until your app provides an implementation. A surface can never
+start a purchase or a restore on its own. A paywall fires an event, such as the plan the
+user chose, and your app runs the purchase through the store library it already uses.
+The purchaser-state types are renamed from `CommerceCustomerState*` to
+`CommercePurchaserState*`.
+
+## Constructor-first custom widgets
+
+Your widget's unnamed public constructor now defines its catalog inputs. The generator
+reads which inputs exist, their order, which are required, their nullability, their
+defaults, and the supported callback shape from the constructor, and takes descriptions
+from Dartdoc. To migrate:
+
+1. Give each `@RestageLibrary` barrel a typed `WidgetLibrary` declaration that exports
+   exactly the widgets it owns.
+2. Reduce annotations to `@RestageWidget()` where the class name, library, and
+   constructor already say everything. Keep `@RestageProperty` only for metadata Dart
+   can't express.
+3. Remove `WidgetEventName`, `fires`, and `firesAs`. A callback property's Dart name is
+   now its event name in the catalog; the surface still chooses the event name your app
+   receives.
+4. Remove `childrenSlot:`. Every `Widget` and `List<Widget>` constructor input is a child
+   property under its own name, and one class can have several.
+5. For A2UI, move every constructor property under the now-required `props` object in
+   payloads and test data (`{id, component, title}` becomes
+   `{id, component, props: {title}}`), change asset paths from
+   `lib/restage_a2ui_catalog.*` to `lib/generated/restage_a2ui_catalog.*`, and
+   regenerate before accepting new payloads.
+6. Regenerate and review the exclusions report. Fix a required input the generator
+   can't support with a default or a wrapper; use `@ignore` only for an optional input
+   when leaving it out changes nothing.
+
+See [Custom widgets](/authoring/custom-widgets) for how custom widgets work now and the
+[target matrix](/authoring/custom-widget-target-matrix) for what each target accepts.
+
+## Also breaking
+
+- The closed list of event names is removed. Callback constructor properties use their
+  exact Dart names as event names.
+- Typed survey flows write flow documents at schema version 2, which records the order
+  of the survey's questions.
+
+## Also in 2.0
+
+- Onboarding, message, and survey surfaces take part in experiments the same way
+  paywalls do.
+- Every mount accepts a `context:` map, so a surface can show
+  [data your app already has](/authoring/host-data). A change to one value rebuilds only
+  the parts that read it.
+- A generated `<ClassName>Surface` mount shows the widget you wrote when a published
+  version can't be delivered or rendered.
+- Surfaces can read more of the app's theme and device: the text theme, brightness,
+  locale, screen size and orientation, and safe-area and view padding.
+- The code generator only analyzes files that mention a Restage annotation, so a package
+  that declares nothing pays no analysis cost. On large codebases the build is much
+  faster.

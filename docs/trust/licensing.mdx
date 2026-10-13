@@ -1,0 +1,51 @@
+---
+title: Licensing
+description: Licenses for the SDK, catalogs, tools, build-time toolchain, and Restage Cloud.
+---
+
+Restage uses one license for what runs in your app and your tools, another for the
+build-time toolchain, and keeps the hosted service proprietary. Each package includes
+its own `LICENSE` file, and that file is what applies. This page is a summary.
+
+## BSD-3-Clause
+
+Everything that runs in your app, and the tools you run against Restage, are
+BSD-3-Clause:
+
+- the SDK, [`restage`](https://pub.dev/packages/restage);
+- the widget catalogs, [`restage_core`](https://pub.dev/packages/restage_core),
+  [`restage_material`](https://pub.dev/packages/restage_material), and
+  [`restage_cupertino`](https://pub.dev/packages/restage_cupertino);
+- the shared formats and schemas, [`restage_shared`](https://pub.dev/packages/restage_shared),
+  [`rfw_catalog_schema`](https://pub.dev/packages/rfw_catalog_schema), and
+  [`restage_measurement_schema`](https://pub.dev/packages/restage_measurement_schema);
+- the A2UI check, [`restage_a2ui`](https://pub.dev/packages/restage_a2ui);
+- the `restage` CLI and its TUI, the MCP server, `restage_revenuecat`, `restage_store_bridge`, and the examples.
+
+The CLI, MCP server, `restage_revenuecat`, and `restage_store_bridge` aren't on pub.dev yet. Their source is
+in the [public repository](https://github.com/restage-dev/restage).
+
+BSD-3-Clause allows use, modification, redistribution, and commercial use, as long as
+you keep the license's copyright notice and disclaimer. Flutter uses the same license.
+
+## FSL-1.1-ALv2
+
+The build-time toolchain, [`restage_codegen`](https://pub.dev/packages/restage_codegen)
+and [`rfw_catalog_compiler`](https://pub.dev/packages/rfw_catalog_compiler), uses the
+Functional Source License, version 1.1, with Apache 2.0 as the future license.
+
+These packages run when you build. They don't ship in your app. The source is available.
+Using them to build your apps is free, including commercial apps and use inside your own
+company. The license restricts only competing commercial use, as its text defines it.
+Each release converts to Apache-2.0 two years after it ships.
+
+## Restage Cloud
+
+Restage Cloud, the hosted delivery service, dashboard, and backend, is
+proprietary. You don't need it to author surfaces or render their compiled-widget
+fallbacks. Bundled artifacts also work offline. You can
+also serve the generated artifacts from your own server or CDN through the SDK's
+resolver interface.
+
+The license of a published package release stays with that release. This page doesn't
+promise anything about packages that haven't been released.

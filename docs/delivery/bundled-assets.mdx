@@ -1,0 +1,217 @@
+---
+title: Bundled assets
+description: Ship the surfaces the build generates inside your app, so they render offline with no server.
+---
+
+You can ship the surfaces the build generates as assets inside your app. They render
+offline, with no account, server, or network. Everything on this page works before you
+set up hosted delivery. If you add hosted delivery later, the same bundled assets
+become the fallback.
+
+Generated mounts, such as `FeatureAnnouncementSurface()`, can also fall back to the
+widget you wrote, with no assets at all. Screens, paywalls, and flows all have them. See
+[fallbacks by mount API](/delivery/hosted-delivery#fallbacks-by-mount-api) for what
+each mount needs.
+
+## Turn on bundling
+
+Bundling is off by default. Ordinary examples use generated mounts and their
+compiled-widget fallbacks. Enable bundling only when you want to ship the RFW
+artifacts as Flutter assets.
+
+Create a `build.yaml` next to `pubspec.yaml` and apply the same option to each
+surface builder:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:restage_source_roster:
+        options: &surface_artifacts
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options: *surface_artifacts
+      restage_codegen:generated_dart:
+        options: *surface_artifacts
+      restage_codegen:outputs:
+        options: *surface_artifacts
+```
+
+Run the build in the package that holds your surfaces:
+
+```sh
+dart run build_runner build
+```
+
+The build writes:
+
+- typed references for each surface, such as `featureAnnouncementRef` and
+  `welcomeFlowRef`;
+- a publication manifest at `.restage/build/metadata/restage.publication.json`, which
+  lists each surface and its files;
+- one `.rsbundle` file per surface under `assets/restage/bundles/`. It holds
+  everything the surface needs to render, including the screens of a flow.
+
+The bundle paths follow the layout of your `lib/` folder, for example:
+
+```text
+assets/restage/bundles/lib/onboarding/flows/welcome_flow.rsbundle
+assets/restage/bundles/lib/onboarding/screens/feature_announcement.rsbundle
+assets/restage/bundles/lib/paywalls/pro_upgrade.rsbundle
+```
+
+The folder only decides where the file goes. A surface's category and id come from its
+annotation.
+
+The build warns when bundling is off and a
+`RestagePaywall`, `RestageScreen`, `RestageFlowGraph`, or `RestageOnboarding` mount has
+neither your original widget nor a fallback of its own. The warning names the file and
+line. Generated mounts don't trigger it.
+
+## Declare the assets
+
+Flutter ships only the asset folders `pubspec.yaml` lists, and it doesn't include
+subfolders, so list each bundle folder your app uses:
+
+```yaml
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/restage/bundles/lib/onboarding/flows/
+    - assets/restage/bundles/lib/onboarding/screens/
+    - assets/restage/bundles/lib/paywalls/
+```
+
+If a bundle is missing, the surface reports itself unavailable. It never shows a
+different surface in its place.
+
+## Choose a mount
+
+Prefer the generated `<ClassName>Surface` widget for an authored surface. It loads
+a bundled artifact when available, installs its widgets and retains the original
+Flutter widget as a fallback. The [Quickstart](/quickstart) shows this setup.
+
+The examples below use direct mounts to show explicit asset resolvers, generated
+references and unavailable policies. Use them when your app needs that control.
+
+## Register widgets for direct mounts
+
+The direct mounts below need the generated widget registration at app startup:
+
+```dart
+import 'package:flutter/widgets.dart';
+
+import 'user_factories.g.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  registerRestageWidgets();
+  runApp(const MyApp());
+}
+```
+
+`MyApp` is your app's root widget. Generated `<ClassName>Surface` mounts install
+their own widgets and retain your original Flutter widget as a fallback.
+
+## Mount a standalone screen
+
+A screen published on its own declares its category:
+
+```dart
+@Screen(surface: Surface.general)
+final class FeatureAnnouncement extends StatelessWidget {
+  const FeatureAnnouncement({super.key});
+
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(dismiss),
+        child: const Text('Dismiss'),
+      );
+}
+```
+
+Mount it with `RestageScreen`. This works for every standalone screen, whatever its
+category:
+
+```dart
+RestageScreen<FeatureAnnouncementEvent>(
+  screen: featureAnnouncementRef,
+  unavailable: SurfaceScreenUnavailablePolicy.fallback(
+    builder: (context, error) => const Text('Announcement unavailable'),
+  ),
+  onEvent: (event) {
+    if (event is FeatureAnnouncementDismissEvent) {
+      Navigator.of(context).maybePop();
+    }
+  },
+)
+```
+
+`RestageScreen` loads the bundled screen and delivers its events as the typed classes
+the build generated. If the bundle is missing or doesn't match the generated screen,
+the `unavailable` policy decides what shows: your fallback widget, or nothing with
+`SurfaceScreenUnavailablePolicy.hide()`.
+
+## Mount a bundled flow
+
+Mount every `@FlowGraph`, whatever its category, with `RestageFlowGraph` and an
+`AssetFlowResolver`:
+
+```dart
+RestageFlowGraph<WelcomeFlowResult>(
+  flow: welcomeFlowRef,
+  resolver: const AssetFlowResolver(),
+  unavailable: FlowUnavailablePolicy.fallback(
+    builder: (context, error) => Text(error.message),
+  ),
+  onComplete: (result) {
+    Navigator.of(context).pushReplacementNamed('/home');
+  },
+)
+```
+
+The resolver loads the flow and each of its screens from the bundle. If any part is
+missing or doesn't match the generated reference, the whole flow goes to its
+`FlowUnavailablePolicy`. A flow never runs with screens missing.
+
+## Mount a bundled paywall
+
+Mount a `@Paywall()` with `RestagePaywall`, whether it stands alone or is also used
+inside a flow:
+
+```dart
+RestagePaywall(
+  id: 'pro_upgrade',
+  resolver: const AssetVariantResolver(),
+)
+```
+
+This works for a one-screen paywall and for a paywall that moves between several
+screens. Include the paywall's bundle in your assets.
+
+## Push and publish
+
+Commit the generated sources and bundles with your app. To publish a surface through
+hosted delivery, push a version by its id, then publish it:
+
+```sh
+restage surface push <id>
+restage surface publish <id>
+```
+
+A push uploads a version and changes nothing that is running. You can also name the
+`.dart` file instead of the id. The CLI reads the manifest the build wrote, so it
+always pushes what the build produced.
+
+## Release builds and reloads
+
+Release builds need no special flags: the build records which widgets and icons your
+surfaces use, so Flutter's icon tree-shaking works as usual. Don't pass
+`--no-tree-shake-icons`; it puts the whole icon font back into the app. See
+[App size](/delivery/app-size) for how to choose which widgets your app carries.
+
+After you rebuild a bundle, hot-restart the app. Hot reload doesn't replace assets the
+app has already loaded. To update a surface that is on screen after you publish, use
+hosted [live refresh](/delivery/live-refresh).

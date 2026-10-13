@@ -1,0 +1,103 @@
+---
+title: FAQ
+description: Answers about publishing, offline use, hosting, surface types, data, licensing, and cost.
+---
+
+## What can a published update change?
+
+What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
+your app. A published version composes and configures them: copy, layout, styling, flow
+routing, and which of your registered events and actions a control uses. New behavior
+still ships as an app release. The [App Store compliance](/app-store-compliance) page
+covers the boundary.
+
+## Does local development need an account?
+
+No. Authoring, code generation and generated mounts with compiled-widget fallbacks
+work offline without surface assets. You
+need a backend only to publish versions to installed apps, measure them, or run
+experiments.
+
+## Where do custom drawing and app actions live?
+
+Custom painting, gestures, and animation live in your own widgets, registered with
+`@RestageWidget`. Network calls and other app operations can be exposed to flows as
+typed host actions. Both ship in an app release; a surface then configures the widgets
+and calls the actions. [Authoring constraints](/authoring/constraints) lists what the
+compiler supports.
+
+## Can a surface show data my app already has?
+
+Yes. Declare it as constructor parameters on the screen, or pass a `context:` map to any
+mount, and the surface reads it under `data.context.*`. A list parameter becomes a real
+loop, so the row count comes from the data. The values stay on the device.
+[Host data](/authoring/host-data) covers what's accepted and how updates rebuild.
+
+## Can I serve surfaces myself?
+
+Yes. Generated artifacts are files you can bundle with the app or serve from your own
+backend or CDN, and the SDK works without Restage Cloud. Point `baseUrl` in
+`Restage.configure` at your server. Restage Cloud adds publishing, rollback,
+measurement, and experiments on top.
+
+## What happens when a fetch fails?
+
+The app keeps showing a version it already accepted when it can, and otherwise falls
+back to the bundled copy or compiled original. Generated screen and paywall mounts
+retain your widget; generated flow mounts retain the authored flow. Lower-level
+mounts use the fallback policy your app supplies. A malformed or incompatible version is rejected before it renders.
+
+## Which widget mounts each kind of surface?
+
+- A single screen mounts through its generated `<ClassName>Surface` widget, or through
+  `RestageScreen<E>` with its generated reference.
+- A flow mounts through its generated `<FlowName>Surface` widget. Use
+  `RestageFlowGraph<R>` when supplying the reference and fallback yourself. A
+  general flow can return a `Map<String, Object?>`.
+- A paywall mounts through its generated `<ClassName>Surface` widget with a compiled
+  fallback, or directly through `RestagePaywall` with your own fallback setup.
+Every generated mount has an implicit [placement](/delivery/placements). Use its
+ordinary constructor. `.atPlacement('name', ...)` optionally overrides the name;
+`RestagePlacement` is the lower-level API for manual setup.
+
+Messages and surveys run on the same flow runtime as onboarding and need no separate
+widget.
+
+## Which surface categories are supported?
+
+`Surface` is an enum with five values: `onboarding`, `message`, `survey`, `paywall`, and
+`general`. `Surface.general` is for anything that doesn't fit the other four, whether a
+single screen or a whole flow. There are no free-form category strings.
+
+## Can a paywall appear inside another flow?
+
+Yes. An onboarding, message, survey, or general flow can move to a `@Paywall()` screen
+and finish on one of its events. Adding a paywall step doesn't change the flow's
+category.
+
+## Where does a surface's id come from?
+
+From the annotation. If you omit the id, the generator uses the file name. Give an
+explicit id when it needs to survive a file move. The folder, the output path, and the
+CLI's `--type` flag don't affect it.
+
+## What data does Restage collect?
+
+With no backend configured, none: generated mounts use their compiled fallbacks
+(or optional bundled content) and call no server.
+Once the app is connected, the SDK measures each published version by default. Views,
+taps, and completions are captured automatically, with no tracking calls to add. Pass
+`measurementEnabled: false` to `Restage.configure` to switch measurement off.
+[Telemetry and data](/trust/telemetry) lists what is sent and every control.
+
+## What is open source?
+
+The SDK, catalogs, schemas, CLI, MCP server, A2UI check, and examples are BSD-3-Clause.
+The two build-time compiler packages use FSL-1.1-ALv2. Restage Cloud is proprietary.
+[Licensing](/trust/licensing) has the complete package split.
+
+## What does it cost?
+
+The SDK and the build-time packages are free to use under their licenses. Restage Cloud
+has a free plan and paid plans. See
+[restage.dev/pricing](https://restage.dev/pricing) for current plans.
