@@ -9,6 +9,38 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
 import 'package:test/test.dart';
 
 void main() {
+  test('an injected authority still requires the low-level opt-in', () async {
+    var calls = 0;
+    final stdout = StringBuffer();
+    final stderr = StringBuffer();
+    final cli = RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      experimentActivationApi: ExperimentActivationApi(
+        transport: (bytes) async {
+          calls += 1;
+          return bytes;
+        },
+      ),
+      hasTerminal: () => false,
+      environment: const {'RESTAGE_EXPERIMENTAL': 'false'},
+    );
+
+    expect(await cli.run(const ['--help']), 0);
+    expect(stdout.toString(), contains('experiment'));
+    expect(stdout.toString(), isNot(contains('experiment-activation')));
+    expect(
+      await cli.run(const [
+        'experiment-activation',
+        '--request=unused.json',
+        '--response=unused-result.json',
+      ]),
+      1,
+    );
+    expect(stderr.toString(), contains('RESTAGE_EXPERIMENTAL=1'));
+    expect(calls, 0);
+  });
+
   test(
     'rejects an empty command file before invoking its authority transport',
     () async {

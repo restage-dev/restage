@@ -73,7 +73,6 @@ class CatalogPushCommand extends Command<int> {
         'organization',
         help: 'Organization slug (overrides restage_config.yaml).',
       )
-      ..addOption('organization-id', hide: true)
       ..addOption(
         'directory',
         abbr: 'C',
@@ -82,6 +81,7 @@ class CatalogPushCommand extends Command<int> {
             'Directory to start the restage_config.yaml search from. '
             'Defaults to the current working directory.',
       );
+    addOrganizationIdOption(argParser);
   }
 
   final StringSink _stdout;

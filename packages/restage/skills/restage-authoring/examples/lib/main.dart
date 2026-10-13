@@ -29,6 +29,8 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       body: ListView(
         children: [
+          // The default placement needs no name. Until delivered content is
+          // available, the mount renders WeeklyRecap itself.
           WeeklyRecapSurface(
             name: 'Sam',
             streakDays: 12,

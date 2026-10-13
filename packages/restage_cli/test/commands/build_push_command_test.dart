@@ -103,6 +103,55 @@ void main() {
     expect(stderr.toString(), isEmpty);
   });
 
+  for (final organization in [null, 'acme', 'other-org']) {
+    test(
+      'organization selectors agree before a build upload: $organization',
+      () async {
+        await seedRestageConfig(
+          root,
+          'demo',
+          'mobile',
+          organization: 'configured-org',
+        );
+        final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+        final calls = <String>[];
+        final exit =
+            await RestageCli(
+              stdout: stdout,
+              stderr: stderr,
+              credentialStore: store,
+              httpClient: _pushClient(
+                builder.archive,
+                organizationId: 7,
+                onRpcBody: (body) => calls.add(body['method'] as String),
+              ),
+              renderBundleBuilder: builder,
+              renderBundleFlutterToolchain: _fakeFlutter,
+              renderBundleCatalog: catalogStep.call,
+              renderBundleSource: sourceStep.call,
+              environment: const {},
+            ).run([
+              'build',
+              'push',
+              '-C',
+              root.path,
+              '--organization-id=7',
+              if (organization != null) '--organization=$organization',
+              '--env=staging',
+            ]);
+
+        if (organization == 'other-org') {
+          expect(exit, 1);
+          expect(calls, isEmpty);
+          expect(stderr.toString(), contains('Could not resolve organization'));
+        } else {
+          expect(exit, 0, reason: stderr.toString());
+          expect(calls, ['prepare', 'commit']);
+        }
+      },
+    );
+  }
+
   test('the resolved Flutter reaches the generator and the build', () async {
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
     String? seenFlagRoot;

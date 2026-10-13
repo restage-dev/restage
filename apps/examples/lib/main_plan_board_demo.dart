@@ -6,32 +6,8 @@ import 'package:restage_example/user_factories.g.dart';
 
 import 'onboarding/flows/plan_board_showcase.dart';
 
-/// On-device demo for the `plan_board_showcase` screen — two **map properties
-/// rendered natively from the delivered blob**.
-///
-/// The screen (`lib/onboarding/screens/plan_board_showcase.dart`) authors a
-/// `PlanBoard` in ordinary Flutter, with one string-keyed map of plans and one
-/// enum-keyed map of highlights. The build-time codegen encodes each map into
-/// `assets/onboarding/screens/plan_board_showcase.rfw` as an ordered list of
-/// `key`/`value` entry objects. This entrypoint renders that bundled blob
-/// through the SDK — the generated factory reconstructs both maps, keyed and in
-/// the authored order, and paints the board as real Flutter widgets. Run it on
-/// a real device to confirm the native render fidelity a web smoke cannot see
-/// (status bar, theming, real pixels):
-///
-///   flutter run -t lib/main_plan_board_demo.dart
-///
-/// This closes the chain end to end for map-shaped properties:
-/// source → encode → wire → decode → pixels.
-///
-/// **Do not copy this file's hosting code.** It drives the flow controller and
-/// the screen view directly, which is incidental to what is being demonstrated
-/// here, not an example of how to host a flow. Map reconstruction does not
-/// depend on the host at all — the generated factory is the decoder — so the
-/// low-level route proves the same thing while skipping what a real app gets
-/// from the wrapper. For the idiomatic host, see
-/// `lib/onboarding/minimal_notice_demo.dart`, which renders a structurally
-/// identical single-screen flow through `RestageFlowGraph`.
+/// Renders bundled RFW to exercise map decoding in a custom widget factory.
+/// For ordinary flow hosting, see MinimalNoticeFlowSurface in minimal_notice_demo.dart.
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Register the example's custom widgets (incl. PlanBoard) so the delivered

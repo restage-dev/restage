@@ -24,6 +24,7 @@ import 'package:restage_cli/src/commands/programmatic_mutation_command.dart';
 import 'package:restage_cli/src/commands/spec_command.dart';
 import 'package:restage_cli/src/commands/status_command.dart';
 import 'package:restage_cli/src/commands/surface_command.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
 import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -92,7 +93,11 @@ class RestageCli {
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
     SelectorSyntax selectorSyntax = SelectorSyntax.cli,
+    CommandTargetDefaults? targetDefaults,
+    void Function(Map<String, String> selectors)? onTargetSelectors,
   }) : _stdout = stdout ?? StringBuffer(),
+       _targetDefaults = targetDefaults,
+       _onTargetSelectors = onTargetSelectors,
        _selectorSyntax = selectorSyntax,
        _stderr = stderr ?? StringBuffer(),
        _credentialStore = credentialStore,
@@ -132,6 +137,8 @@ class RestageCli {
   final StringSink _stdout;
   final StringSink _stderr;
   final SelectorSyntax _selectorSyntax;
+  final CommandTargetDefaults? _targetDefaults;
+  final void Function(Map<String, String> selectors)? _onTargetSelectors;
   final FileCredentialStore? _credentialStore;
   final Uri _defaultEndpoint;
   final http.Client? _httpClient;
@@ -172,7 +179,7 @@ class RestageCli {
         );
       }
       final result = await runZoned(
-        () => runner.run(args),
+        () => runner.run(_inheritTarget(runner, args)),
         zoneValues: selectorSyntaxZoneValues(_selectorSyntax),
         zoneSpecification: ZoneSpecification(
           print: (_, _, _, line) => _stdout.writeln(line),
@@ -189,6 +196,25 @@ class RestageCli {
       _stderr.writeln('Could not read restage_config.yaml: ${e.message}');
       return 1;
     }
+  }
+
+  List<String> _inheritTarget(CommandRunner<int> runner, List<String> args) {
+    final defaults = _targetDefaults;
+    if (defaults == null) return args;
+    var results = runner.parse(args);
+    var parser = runner.argParser;
+    while (results.command != null) {
+      results = results.command!;
+      parser = parser.commands[results.name]!;
+    }
+    final selectors = defaults.selectorsFor(parser, results);
+    if (selectors.isEmpty) return args;
+    _onTargetSelectors?.call(selectors);
+    final inherited = [
+      for (final entry in selectors.entries)
+        if (!results.wasParsed(entry.key)) '--${entry.key}=${entry.value}',
+    ];
+    return _insertOptions(args, inherited);
   }
 
   /// The command tree [run] dispatches through, prompting via [interactive].
@@ -330,7 +356,6 @@ class RestageCli {
           interactive: interactive,
           credentialStore: _credentialStore,
           httpClient: _httpClient,
-          environment: _environment,
         ),
       )
       ..addCommand(
@@ -467,7 +492,13 @@ class RestageCli {
     if (own || !(parser?.options.containsKey('directory') ?? false)) {
       return args;
     }
-    return [...args, '--directory', directory];
+    return _insertOptions(args, ['--directory', directory]);
+  }
+
+  static List<String> _insertOptions(List<String> args, List<String> options) {
+    final separator = args.indexOf('--');
+    final insertion = separator < 0 ? args.length : separator;
+    return [...args.take(insertion), ...options, ...args.skip(insertion)];
   }
 
   /// Parse the runner-level globals from [args].

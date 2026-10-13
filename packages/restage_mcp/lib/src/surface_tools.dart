@@ -28,7 +28,9 @@ final _measurementReviewProperties = <String, Schema>{
   ),
   'reviewedDigest': Schema.string(
     description:
-        'The exact aggregate digest whose complete measurement warning set the user reviewed.',
+        'The exact aggregate digest whose complete measurement warning set '
+        'the user reviewed and authorized. General live confirmation does '
+        'not acknowledge these warnings.',
   ),
   'operationId': Schema.string(
     description:
@@ -222,12 +224,11 @@ final _publishSurfaceTool = Tool(
 final _rollbackPreflightTool = Tool(
   name: 'restage_rollback_preflight',
   description:
-      'Read-only preview of how rolling a surface back to a version is '
-      'expected to affect live clients: a classification (compatible / '
-      'contractChange / noActiveBaseline) plus any blocking contract '
-      'changes. Never mutates anything, and the rollback itself is never '
-      'gated on it. Call it before restage_rollback_surface to see the '
-      'expected cohort impact. Requires an admin role.',
+      'Compare a rollback with the current active version: compatible, '
+      'contractChange or noActiveBaseline, plus blocking contract changes. '
+      'Read-only and does not gate rollback or prove compatibility with '
+      'every installed app. Review measurement impact separately with '
+      'restage_rollback_surface reviewOnly. Requires an admin role.',
   inputSchema: Schema.object(
     properties: {
       ...surfaceTargetProperties(family: true),
@@ -245,7 +246,7 @@ final _rollbackSurfaceTool = Tool(
       'Roll a surface back to a previous published version by re-pointing '
       'its active-version pointer. Requires an admin role and a reason for '
       'the audit trail. Call restage_rollback_preflight first to see the '
-      'expected cohort impact. Set freeze to also lock the surface against '
+      'expected compatibility impact. Set freeze to also lock the surface against '
       'future publishes after the re-point.',
   inputSchema: Schema.object(
     properties: {
@@ -268,8 +269,9 @@ final _rollbackSurfaceTool = Tool(
 final _killSurfaceTool = Tool(
   name: 'restage_kill_surface',
   description:
-      'Deactivate a surface in an environment, so the SDK falls back to its '
-      'bundled asset, the same as `restage surface kill`. Requires an admin '
+      'Stop new hosted delivery of a surface in an environment, the same '
+      'as `restage surface kill`. Devices may use eligible retained content '
+      'or their configured fallback. Requires an admin '
       'role and a reason for the audit trail. Set frozen to also lock it '
       'against future publishes.',
   inputSchema: Schema.object(
@@ -745,6 +747,7 @@ CallToolResult _measurementReviewResult(
   final result = jsonResult({
     'measurementReview': review.toJson(),
     'reviewDigest': review.digest.hex,
+    'consequence': ?deliveryMeasurementMutationConsequence(review),
   });
   return CallToolResult(
     content: result.content,

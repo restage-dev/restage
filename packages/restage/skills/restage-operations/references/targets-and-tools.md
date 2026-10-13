@@ -17,7 +17,8 @@ If sign-in is needed, `restage login` opens a browser approval flow. Let the
 user complete it; do not request their credentials. For automation, supply a
 secret key through `RESTAGE_API_KEY`.
 
-The config selects organization, project, app, default environment and plane.
+The config selects organization, project, app, default environment and runtime
+plane. The plane is `sandbox` or `live`.
 CLI flags override it. A reproducible read can state each selector:
 
 ```sh
@@ -58,9 +59,8 @@ target id between apps or planes.
 
 ## TUI
 
-Open `restage console`. Its overview shows sessions, completions and revenue for
-the target loaded from `restage_config.yaml`. Selecting another environment does
-not refresh these figures; use an explicit analytics read for that target.
+Open `restage console`. The overview shows sessions, completions and revenue for
+the selected target. Changing the environment refreshes these figures.
 
 Press `/` and enter the full command, including `restage`:
 
@@ -69,9 +69,9 @@ restage analytics health --json
 restage analytics explore --dimension platform --json
 ```
 
-Commands use `restage_config.yaml` defaults; they do not inherit the console's
-selected environment. Pass explicit `--organization`, `--project`, `--app`,
-`--env` and `--plane` selectors where supported to target another context. Sign-in runs in an external
+Commands inherit the selected organization, project, app, environment and
+plane for selectors they support. Explicit flags override individual selectors;
+inspect the displayed target when overriding. Sign-in runs in an external
 terminal. The command prompt is non-interactive, so an operation that needs an
 interactive confirmation must use the TUI's action or an external terminal.
 
@@ -81,9 +81,12 @@ coverage does not mean every interface has the same interaction controls.
 
 ## Authorization and confirmations
 
-Check existing user authorization before asking again. A request to inspect
-analytics does not authorize publication; an explicit request to publish a
-particular reviewed revision need not be re-approved without a scope change.
+Publish only with explicit user authorization for the target and action.
+Preparing or uploading a change does not authorize publication. Ask again when
+the proposed action or newly discovered impact falls outside that
+authorization. A request to inspect analytics does not authorize publication.
+An explicit request to publish a particular reviewed revision covers that
+publication; do not ask again unless the target, action or impact changes.
 
 Live changes have tool-level confirmation controls. The CLI accepts `--yes`
 for most live mutations; live `surface kill` and `surface rollback` require

@@ -164,7 +164,6 @@ class ConsoleSnapshot {
     required this.environments,
     required this.surfaces,
     this.builds = const [],
-    this.overview,
   });
 
   final ConsoleContext context;
@@ -175,9 +174,6 @@ class ConsoleSnapshot {
 
   /// The heads the selected app's build holds.
   final List<ConsoleBuildHead> builds;
-
-  /// The overview figures, or null when they could not be read.
-  final OverviewFigures? overview;
 }
 
 class ConsoleState {
@@ -196,6 +192,8 @@ class ConsoleState {
     this.surfaces = const [],
     this.builds = const [],
     this.overview,
+    this.overviewLoading = false,
+    this.overviewError,
     this.status,
     this.auditLog = const [],
     this.auditVerdict,
@@ -220,6 +218,8 @@ class ConsoleState {
       surfaces = const [],
       builds = const [],
       overview = null,
+      overviewLoading = false,
+      overviewError = null,
       status = null,
       auditLog = const [],
       auditVerdict = null,
@@ -237,6 +237,8 @@ class ConsoleState {
   final List<ConsoleSurface> surfaces;
   final List<ConsoleBuildHead> builds;
   final OverviewFigures? overview;
+  final bool overviewLoading;
+  final String? overviewError;
   final ConsolePanel focusedPanel;
   final int projectIndex;
   final int appIndex;
@@ -284,12 +286,17 @@ class ConsoleState {
     List<ConsoleSurface>? surfaces,
     List<ConsoleBuildHead>? builds,
     OverviewFigures? overview,
+    bool clearOverview = false,
+    bool? overviewLoading,
+    String? overviewError,
+    bool clearOverviewError = false,
     ConsolePanel? focusedPanel,
     int? projectIndex,
     int? appIndex,
     int? environmentIndex,
     int? surfaceIndex,
     SurfaceStatusResult? status,
+    bool clearStatus = false,
     List<SurfaceAuditLogEntry>? auditLog,
     SurfaceChainVerdictResult? auditVerdict,
     String? auditError,
@@ -306,13 +313,17 @@ class ConsoleState {
     environments: environments ?? this.environments,
     surfaces: surfaces ?? this.surfaces,
     builds: builds ?? this.builds,
-    overview: overview ?? this.overview,
+    overview: clearOverview ? null : overview ?? this.overview,
+    overviewLoading: overviewLoading ?? this.overviewLoading,
+    overviewError: clearOverviewError
+        ? null
+        : overviewError ?? this.overviewError,
     focusedPanel: focusedPanel ?? this.focusedPanel,
     projectIndex: projectIndex ?? this.projectIndex,
     appIndex: appIndex ?? this.appIndex,
     environmentIndex: environmentIndex ?? this.environmentIndex,
     surfaceIndex: surfaceIndex ?? this.surfaceIndex,
-    status: status ?? this.status,
+    status: clearStatus ? null : status ?? this.status,
     auditLog: auditLog ?? this.auditLog,
     auditVerdict: auditVerdict ?? this.auditVerdict,
     auditError: clearAuditError ? null : auditError ?? this.auditError,
@@ -334,6 +345,7 @@ class ConsoleCommandOutput {
 
   /// Everything the command printed, stdout first.
   List<String> get lines => [
+    if (result.targetDescription != null) 'Target: ${result.targetDescription}',
     ...result.stdout.trimRight().split('\n'),
     if (result.stderr.trim().isNotEmpty)
       ...result.stderr.trimRight().split('\n'),
@@ -354,11 +366,13 @@ class ConsoleOperationResult {
     required this.exitCode,
     required this.stdout,
     required this.stderr,
+    this.targetDescription,
   });
 
   final int exitCode;
   final String stdout;
   final String stderr;
+  final String? targetDescription;
 
   bool get succeeded => exitCode == 0;
 }
@@ -418,7 +432,10 @@ abstract interface class ConsoleOperationExecutor {
   });
 
   /// Runs any `restage` command with [arguments], in the console's project.
-  Future<ConsoleOperationResult> runCommand(List<String> arguments);
+  Future<ConsoleOperationResult> runCommand(
+    List<String> arguments, {
+    ConsoleContext? context,
+  });
 
   /// Pushes the app's build to the context's environment head.
   Future<ConsoleOperationResult> pushBuild({required ConsoleContext context});

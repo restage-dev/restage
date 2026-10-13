@@ -16,7 +16,9 @@ check that rejects a payload with a missing component or a too-old catalog,
 with a clear message, instead of letting genui throw mid-render.
 
 It does not fetch, host, or stream A2UI; your app or your model session does
-that.
+that. Generate the catalog before connecting it to GenUI. Neither local GenUI
+rendering nor Widgetbook previews need RFW bundling or `restage build push`; that
+command builds dashboard previews.
 
 ## Generate an A2UI catalog from your widgets
 
@@ -29,6 +31,7 @@ your app.
 ```yaml
 dependencies:
   genui: ^0.10.1                # the renderer
+  a2ui_core: ^0.1.0            # incoming A2UI messages
   json_schema_builder: ^0.1.3   # used by the generated data schemas
   restage_a2ui: ^0.2.0          # imported by the generated catalog; the pre-render check
   rfw_catalog_schema: ^2.0.0    # the widget and data-field annotations
@@ -90,7 +93,7 @@ class RatingPicker extends StatelessWidget {
 A property typed as your own data class gets a nested schema automatically. See
 [Rich data](#rich-data).
 
-To set placement or identity yourself, pass them on the annotation:
+To set catalog grouping or library identity yourself, pass them on the annotation:
 `@RestageWidget(library: WidgetLibrary.custom('acme.widgets'), category:
 WidgetCategory.input)`. Use `name:` when the component name must differ from
 the class name.
@@ -148,60 +151,76 @@ every constructor input under one required `props` object:
 A `Widget` or `List<Widget>` input takes a component ID or a list of IDs, under
 whatever name the constructor gives it.
 
-**7. Render with genui:**
+**7. Connect GenUI.** Create a controller with the generated catalog, feed it
+A2UI messages, and mount the requested surface:
 
 ```dart
-import 'package:genui/genui.dart';
+import 'package:a2ui_core/a2ui_core.dart' show A2uiMessage;
+import 'package:flutter/widgets.dart';
+import 'package:genui/genui.dart' as genui;
 
 import 'generated/restage_a2ui_catalog.g.dart';
 
-final catalog = buildRestageCatalog();
-// Hand `catalog` to your genui surface; it renders your widgets from an A2UI payload.
+class A2uiSession {
+  final catalog = buildRestageCatalog();
+  late final controller = genui.SurfaceController(catalogs: [catalog]);
+
+  void receiveMessage(Map<String, Object?> message) {
+    controller.handleMessage(A2uiMessage.fromJson(message));
+  }
+
+  Widget buildSurface(String surfaceId) =>
+      genui.Surface(surfaceContext: controller.contextFor(surfaceId));
+
+  void dispose() => controller.dispose();
+}
 ```
 
-**8. Check payloads before render (recommended).** If you render payloads you
-did not write, such as model-generated or cached ones, run the check in the
-[Quickstart](#quickstart) first.
+Own one session in a widget or conversation, and call `dispose()` when that
+owner ends. The producer must use `restageA2uiCatalogId` in `createSurface`
+messages. GenUI 0.10.1 accepts `v0.9` message envelopes; the generated catalog's
+`0.9.1` schema metadata is a separate field. Your app supplies the model
+connection and handles outward actions.
 
-A worked version of these steps lives in [`example/`](example/): the annotated
-widgets, the library barrel, the `build.yaml`, the generated catalog, and tests
-that render it through genui. Run `dart run build_runner build` to regenerate,
-then `flutter test`.
+`genui.PromptBuilder.chat(catalog: session.catalog)` includes the generated
+usage guidance. If you combine `buildRestageCatalogItems()` with other items,
+assign the combined contract its own catalog ID and give it to the producer.
+
+**8. Check external or cached payloads before rendering.** Use the same catalog
+for the check and controller. The [complete A2UI guide](https://docs.restage.dev/tools/a2ui)
+shows message envelopes, checking, and rendering together. The worked
+[`example/`](example/) also includes rendering and interaction tests.
 
 ## Quickstart
 
-Build the check once and reuse it for every payload:
+Given an `A2uiSession session`, create one check and reuse it for incoming
+messages. A cached Restage sidecar must be checked before unwrapping:
 
 ```dart
-import 'dart:convert';
-
-import 'package:flutter/widgets.dart';
-import 'package:genui/genui.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 
-import 'generated/restage_a2ui_catalog.g.dart';
-
 final check = RestageA2uiPreRenderCheck(
-  catalog: buildRestageCatalog(),
+  catalog: session.catalog,
   installed: restageA2uiCapability.installedCapability,
 );
 
-Widget? renderCached(String cachedJson) {
-  final cached = jsonDecode(cachedJson) as Map<String, Object?>;
-  switch (check.check(cached)) {
-    case A2uiRenderable():
-      // If you cached the sidecar (recommended), unwrap it first.
-      final payload = RestageA2uiSidecar.isRestageSidecar(cached)
-          ? RestageA2uiSidecar.fromJson(cached).a2ui
-          : cached;
-      return renderWithGenui(payload); // your genui render call
-    case A2uiRejected(:final diagnostic, :final gap):
-      // Don't render. Fall back to a built-in screen and log why.
-      debugPrint('A2UI rejected: $diagnostic${gap == null ? '' : ' ($gap)'}');
-      return null;
+void receiveChecked(Object? incoming) {
+  if (check.check(incoming) case A2uiRejected(:final diagnostic)) {
+    throw FormatException(diagnostic);
+  }
+  final payload = RestageA2uiSidecar.isRestageSidecar(incoming)
+      ? RestageA2uiSidecar.fromJson(
+          Map<String, Object?>.from(incoming! as Map),
+        ).a2ui
+      : incoming;
+  for (final raw in payload is List ? payload : [payload]) {
+    session.receiveMessage(Map<String, Object?>.from(raw as Map));
   }
 }
 ```
+
+Feed decoded JSON to `receiveChecked`. Handle rejection and parsing errors at
+the message boundary, keeping a native fallback available.
 
 The check returns `A2uiRejected` for:
 
@@ -230,13 +249,14 @@ payload:
 }
 ```
 
-Cache the wrapper and run the check on it before rendering `a2ui`. An
-incompatible change to a component gives it a new name, so checking that the
-name exists and the version is high enough is enough. Without the stamp, a
-component that kept its name but changed shape would get through.
+Cache the wrapper and run the check before rendering `a2ui`. The check compares
+the required libraries with the installed catalog's versions and declared
+compatibility floors. The generated catalog JSON describes available
+capabilities; it is not a payload's required-capability sidecar.
 
-If you only have raw A2UI payloads, the check still confirms that every
-component exists, and it rejects any stamped payload it can't verify.
+For raw A2UI payloads, the check confirms component names exist but cannot verify
+library-version compatibility. A stamped payload is rejected if its requirements
+cannot be verified.
 
 ## Guiding the model with `description` and `usage`
 
@@ -295,8 +315,9 @@ class PriceTag extends StatelessWidget {
 ```
 
 If a required value is missing from the payload, the widget does not render a
-made-up value. Sealed-class unions are not supported yet; a property of that
-type is left out with a build message.
+made-up value. Sealed-class unions are not supported yet. A required unsupported
+input stops generation; an optional input can be omitted only when its
+constructor default is preserved.
 
 Values bound from data (`{path}`, `{call}`) are not checked against your
 constraints, so your widget still validates them.

@@ -36,6 +36,7 @@ void main() {
   test('reports the resolved target it addressed', () async {
     late Map<String, Object?> sentArguments;
     final connection = await connectServer(
+      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       store: store,
       httpClient: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, Object?>;
@@ -78,6 +79,7 @@ void main() {
   test('refuses a live mutation without confirmLive', () async {
     var mutated = false;
     final connection = await connectServer(
+      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       store: store,
       httpClient: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, Object?>;
@@ -114,6 +116,7 @@ void main() {
   test('refuses when the declared target resolves to no exact row', () async {
     var reachedRoute = false;
     final connection = await connectServer(
+      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       store: store,
       httpClient: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, Object?>;

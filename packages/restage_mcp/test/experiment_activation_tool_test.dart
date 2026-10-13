@@ -26,6 +26,7 @@ void main() {
       );
       addTearDown(() => directory.delete(recursive: true));
       final connection = await connectServer(
+        environment: const {'RESTAGE_EXPERIMENTAL': '1'},
         store: FileCredentialStore('${directory.path}/credentials'),
         httpClient: MockClient((_) async => http.Response('[]', 200)),
         experimentActivationApi: ExperimentActivationApi(
@@ -45,6 +46,7 @@ void main() {
     final directory = await Directory.systemTemp.createTemp('activation-mcp-');
     addTearDown(() => directory.delete(recursive: true));
     final connection = await connectServer(
+      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       store: FileCredentialStore('${directory.path}/credentials'),
       httpClient: MockClient((_) async => http.Response('[]', 200)),
     );

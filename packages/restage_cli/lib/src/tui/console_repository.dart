@@ -44,22 +44,26 @@ class DefaultConsoleRepository implements ConsoleRepository {
   final Directory? _directory;
 
   SurfaceApi? _surfaceApi;
+  RestageApi? _api;
   ConsoleContext? _context;
   int? _organizationId;
+  int _loadGeneration = 0;
   Map<String, SurfaceLifecycleIdentity> _manifestIdentities = const {};
 
   @override
   Future<ConsoleSnapshot> load() async {
+    final generation = ++_loadGeneration;
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await _readCredential(store);
     final loaded = await _loadConfig();
-    _manifestIdentities = await _loadManifestIdentities(loaded.source.parent);
+    final manifestIdentities = await _loadManifestIdentities(
+      loaded.source.parent,
+    );
     final config = loaded.config;
     _requireProjectAndApp(config);
     final environment = _requireEnvironment(config);
     final endpoint = _resolveEndpoint(config, credential);
     final api = _buildApi(endpoint, credential);
-    _surfaceApi = SurfaceApi(api);
 
     var scope = await readProgrammaticScope(
       api,
@@ -88,7 +92,6 @@ class DefaultConsoleRepository implements ConsoleRepository {
       );
     }
     final organization = _resolveOrganization(scope, config);
-    _organizationId = organization.organizationId;
 
     final projects = _loadProjects(scope, config);
     final apps = _loadApps(scope, config);
@@ -109,10 +112,11 @@ class DefaultConsoleRepository implements ConsoleRepository {
       environmentTargetId: selectedEnvironment.environmentTargetId,
       namedEnvironmentId: selectedEnvironment.namedEnvironmentId,
     );
-    if (confirmed.toYaml() != config.toYaml()) {
+    if (generation == _loadGeneration &&
+        confirmed.toYaml() != config.toYaml()) {
       await writeRestageConfig(loaded.source, confirmed);
     }
-    _context = ConsoleContext(
+    final context = ConsoleContext(
       organizationSlug: organization.slug,
       project: config.project!,
       appId: selectedApp.appId,
@@ -122,30 +126,40 @@ class DefaultConsoleRepository implements ConsoleRepository {
       environment: selectedEnvironment.slug,
       runtimePlane: selectedEnvironment.runtimePlane,
     );
-    final surfaces = _loadSurfaces(scope, selectedApp);
+    final surfaces = _loadSurfaces(scope, selectedApp, manifestIdentities);
     final builds = await _loadBuilds(
       api,
       config: config,
       organization: organization,
     );
+    if (generation == _loadGeneration) {
+      _api = api;
+      _surfaceApi = SurfaceApi(api);
+      _organizationId = organization.organizationId;
+      _context = context;
+      _manifestIdentities = manifestIdentities;
+    }
 
     return ConsoleSnapshot(
-      context: _context!,
+      context: context,
       projects: projects,
       apps: apps,
       environments: environmentSelection.targets,
       surfaces: surfaces,
       builds: builds,
-      overview: await _loadOverview(api, appCount: apps.length),
     );
   }
 
-  /// The overview figures for the last 30 days, or null when unread.
-  Future<OverviewFigures?> _loadOverview(
-    RestageApi api, {
+  @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
     required int appCount,
   }) async {
-    final context = _context!;
+    final api = _api;
+    final organizationId = _organizationId;
+    if (api == null || organizationId == null) {
+      throw const ConsoleLoadException('Console is not loaded.');
+    }
     final read = pageReads.first;
     final window = resolvePageWindow(
       read,
@@ -156,7 +170,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
     try {
       final request = PageRequest(
         target: TargetCoordinate(
-          organizationId: OrganizationId(_organizationId!),
+          organizationId: OrganizationId(organizationId),
           appId: ApplicationId(context.appId),
           environmentTargetId: EnvironmentTargetId(context.environmentTargetId),
           namedEnvironmentId: NamedEnvironmentId(context.namedEnvironmentId),
@@ -171,21 +185,25 @@ class DefaultConsoleRepository implements ConsoleRepository {
       final reply = await MeasurementPageApi(api).read(read, request);
       final figures = overviewFiguresOf(reply);
       if (appCount < 2) return figures;
-      try {
-        final perApp = await MeasurementPageApi(
-          api,
-        ).read(read.allApps!, request);
-        return OverviewFigures(
-          sessions: figures.sessions,
-          finished: figures.finished,
-          revenue: figures.revenue,
-          appLines: overviewAppLinesOf(perApp),
-        );
-      } on Exception {
-        return figures;
-      }
-    } on Exception {
-      return null;
+      final perApp = await MeasurementPageApi(api).read(read.allApps!, request);
+      return OverviewFigures(
+        sessions: figures.sessions,
+        finished: figures.finished,
+        revenue: figures.revenue,
+        appLines: overviewAppLinesOf(perApp),
+      );
+    } on RestageApiException catch (e) {
+      throw _apiException(e);
+    } on SocketException catch (e) {
+      throw ConsoleLoadException('Could not contact the backend: $e');
+    } on http.ClientException catch (e) {
+      throw ConsoleLoadException('Could not contact the backend: $e');
+    } on MeasurementPageMismatchException catch (e) {
+      throw ConsoleLoadException(e.toString());
+    } on FormatException {
+      throw const ConsoleLoadException(
+        'The service returned an invalid reading.',
+      );
     }
   }
 
@@ -492,11 +510,12 @@ class DefaultConsoleRepository implements ConsoleRepository {
   List<ConsoleSurface> _loadSurfaces(
     ProgrammaticScopeSnapshot scope,
     ConsoleAppTarget app,
+    Map<String, SurfaceLifecycleIdentity> manifestIdentities,
   ) {
     final surfaces = <ConsoleSurface>[];
     for (final summary in scope.surfaces(appId: app.appId)) {
       final identity =
-          _manifestIdentities[_identityKey(summary.surfaceType, summary.slug)];
+          manifestIdentities[_identityKey(summary.surfaceType, summary.slug)];
       surfaces.add(
         ConsoleSurface(
           surfaceType: summary.surfaceType,

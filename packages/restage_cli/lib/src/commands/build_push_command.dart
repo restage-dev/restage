@@ -93,7 +93,6 @@ final class BuildPushCommand extends Command<int> {
         'organization',
         help: 'Organization slug (overrides restage_config.yaml).',
       )
-      ..addOption('organization-id', hide: true)
       ..addOption(
         'env',
         help:
@@ -130,6 +129,7 @@ final class BuildPushCommand extends Command<int> {
             'Run the code generator first. Pass --no-generate to build against '
             'the catalog a previous run produced.',
       );
+    addOrganizationIdOption(argParser);
   }
 
   final StringSink _stdout;
@@ -300,11 +300,10 @@ final class BuildPushCommand extends Command<int> {
     final origins = await _readOrigins(api);
     if (origins == null) return 1;
 
-    final flagOrganization = (argResults?['organization'] as String?)?.trim();
-    final organizationSlug =
-        flagOrganization == null || flagOrganization.isEmpty
-        ? config?.organization
-        : flagOrganization;
+    final organizationSlug = resolveOrganizationSlug(
+      argResults,
+      config,
+    )?.trim();
     final recordGit = argResults?['record-git'] as bool? ?? false;
     ReleaseRecorder? recorder;
     if (recordGit) {

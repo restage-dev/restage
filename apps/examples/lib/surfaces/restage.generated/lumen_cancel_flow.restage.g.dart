@@ -12,7 +12,7 @@ const lumenCancelRef = SurfaceFlowRef<
   decodeResult: _decodeLumenCancelResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"lumen_cancel","flowState":{"note":{"classification":"exportable","type":"string"},"reason":{"classification":"exportable","type":"string"}},"initial":"lumen_cancel_reason","minClient":10,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"note":{"ref":{"state":"note"},"type":"string"},"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_note":{"contentHash":"sha256:88d64768cfab3b96b88c7dafdc83085888484e5487fb8940a253e5d90779e9e1","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_note.rfw","schemaVersion":1,"version":1},"lumen_cancel_reason":{"contentHash":"sha256:03f9470af6327caa36e0ed77acaaba28ad07161966a0dc2e68f0b055143666e1","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:2c68bfbac0f65a0e9c05564cdfcd1fbc4ef697ef79a2729216dadef73d857221","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_note":{"kind":"screen","on":{"send":{"set":{"note":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"lumen_cancel_thanks","type":"goto"}},"screen":"lumen_cancel_note"},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_note","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
+        '{"flow":"lumen_cancel","flowState":{"note":{"classification":"exportable","default":"","type":"string"},"reason":{"classification":"exportable","default":"","type":"string"}},"initial":"lumen_cancel_reason","minClient":10,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"note":{"ref":{"state":"note"},"type":"string"},"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_note":{"contentHash":"sha256:88d64768cfab3b96b88c7dafdc83085888484e5487fb8940a253e5d90779e9e1","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_note.rfw","schemaVersion":1,"version":1},"lumen_cancel_reason":{"contentHash":"sha256:03f9470af6327caa36e0ed77acaaba28ad07161966a0dc2e68f0b055143666e1","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:2c68bfbac0f65a0e9c05564cdfcd1fbc4ef697ef79a2729216dadef73d857221","minClient":10,"path":"measurement/102ed2ac499caf5b/lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_note":{"kind":"screen","on":{"send":{"set":{"note":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"lumen_cancel_thanks","type":"goto"}},"screen":"lumen_cancel_note"},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_note","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
     screens: {
       'lumen_cancel_note': LumenCancelNoteScreen.new,
       'lumen_cancel_reason': LumenCancelReasonScreen.new,
@@ -21,7 +21,7 @@ const lumenCancelRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '50b09020baec0b49878fadc2923bedbf84552b1be2c41b3a07298dceb55f93de',
+      '1ae9e666bd64810a05cd1518edc1ccb4365b704673e5d2d5366c01c2f1ff4eff',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -131,6 +131,9 @@ final lumenCancelPlacementDefinition =
 
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class LumenCancelSurface extends RestageFlowGraph<LumenCancelResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const LumenCancelSurface({
     super.key,
     String? placement,
@@ -149,6 +152,9 @@ final class LumenCancelSurface extends RestageFlowGraph<LumenCancelResult> {
   })  : _restagePlacementName = placement,
         super(flow: lumenCancelRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenCancelSurface] for the default placement; no name is needed.
   const LumenCancelSurface.atPlacement(
     String restagePlacementId, {
     super.key,

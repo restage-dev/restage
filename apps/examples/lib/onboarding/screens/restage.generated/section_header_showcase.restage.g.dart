@@ -6,7 +6,7 @@ const sectionHeaderShowcaseScreenRef = NeutralFlowScreenRef(
   id: 'section_header_showcase',
   artifactPath: 'section_header_showcase.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use sectionHeaderShowcaseScreenRef')

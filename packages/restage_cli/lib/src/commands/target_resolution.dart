@@ -14,6 +14,65 @@ import 'package:restage_cli/src/io/interactive.dart';
 /// Runtime-plane values accepted by command-line selectors.
 const runtimePlaneWireNames = <String>['sandbox', 'live'];
 
+/// Target selectors inherited by commands run from a selected context.
+class CommandTargetDefaults {
+  /// Construct the selected context's defaults.
+  const CommandTargetDefaults({
+    required this.project,
+    required this.app,
+    required this.environment,
+    required this.runtimePlane,
+    this.organization,
+  });
+
+  /// Selected organization slug.
+  final String? organization;
+
+  /// Selected project slug.
+  final String project;
+
+  /// Selected app slug.
+  final String app;
+
+  /// Selected environment slug.
+  final String environment;
+
+  /// Selected runtime plane.
+  final RuntimePlane runtimePlane;
+
+  /// Effective selectors supported by [parser], preserving explicit flags.
+  Map<String, String> selectorsFor(ArgParser parser, ArgResults results) {
+    final defaults = {
+      'organization': ?organization,
+      'project': project,
+      'app': app,
+      'env': environment,
+      'plane': runtimePlane.wireName,
+    };
+    final explicitOrganizationId =
+        parser.options.containsKey('organization-id') &&
+        results.wasParsed('organization-id');
+    final personal =
+        parser.options.containsKey('personal') && results['personal'] == true;
+    final selectors = <String, String>{};
+    for (final entry in defaults.entries) {
+      final option = entry.key;
+      if (!parser.options.containsKey(option)) continue;
+      if (results.wasParsed(option)) {
+        selectors[option] = results[option] as String;
+        continue;
+      }
+      if (option == 'organization' && explicitOrganizationId) continue;
+      if (option == 'env' && personal) continue;
+      selectors[option] = entry.value;
+    }
+    if (explicitOrganizationId) {
+      selectors['organization-id'] = results['organization-id'] as String;
+    }
+    return selectors;
+  }
+}
+
 /// Add the optional runtime-plane selector shared by target-aware commands.
 void addRuntimePlaneOption(ArgParser parser) {
   parser.addOption(

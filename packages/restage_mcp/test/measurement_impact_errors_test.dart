@@ -33,6 +33,7 @@ void main() {
         'measurementReview': review.toJson(),
         'reviewDigest': review.digest.hex,
         'acknowledgementRequired': true,
+        'consequence': deliveryMeasurementMutationConsequence(review),
       });
       final text = (result.content.single as TextContent).text;
       expect(jsonDecode(text), result.structuredContent);

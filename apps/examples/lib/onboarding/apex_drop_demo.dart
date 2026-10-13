@@ -5,18 +5,8 @@ import 'package:restage/restage.dart';
 
 import 'flows/apex_drop.dart';
 
-/// Hosts the single-screen in-app message engagement surface.
-///
-/// The host side of a message is tiny: render the flow and act on its two
-/// outcomes. Unlike the onboarding host (which shows a fallback surface), a
-/// message uses `FlowUnavailablePolicy.hide`, which governs *rendering* — an
-/// unavailable message draws nothing rather than a fallback surface. The
-/// separate `onFlowUnavailable` callback then governs *routing*: it pops the
-/// route so the user isn't left on that otherwise-blank surface.
-///
-/// `onComplete` (the CTA acted) opens the shop; the `dismiss` custom event (the
-/// ×) closes the message. There is no separate "message" API — a message is a
-/// flow that happens to have a single screen.
+/// Hosts an in-app message with its generated surface mount.
+/// Completion opens the shop; dismissal or an unavailable flow closes the route.
 class ApexDropDemo extends StatefulWidget {
   /// Creates the message host.
   const ApexDropDemo({super.key});
@@ -62,8 +52,7 @@ class _ApexDropDemoState extends State<ApexDropDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return const _ShopScreen();
-    return RestageFlowGraph<ApexDropResult>(
-      flow: apexDropFlowRef,
+    return ApexDropFlowSurface(
       onComplete: (result) => _act(),
       onFlowUnavailable: (error) => _close(),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF0A0A0A)),

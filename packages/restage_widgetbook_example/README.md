@@ -74,9 +74,12 @@ The A2UI catalog covers your own widgets only. Flutter, Material, Cupertino,
 and Restage built-ins are not in it, and a screen appears as one component
 rather than as its widget tree.
 
-## Build the workbench
+## Run the consumers
 
-The workbench app is in `apps/widgetbook_example`:
+Generate this package first, then run the consuming app. The workbench in
+[`apps/widgetbook_example`](../../apps/widgetbook_example) imports this
+package's generated `components` and passes them to
+`runWidgetbook(Config(components: components, ...))`:
 
 ```sh
 cd ../../apps/widgetbook_example
@@ -86,11 +89,17 @@ flutter build web --no-tree-shake-icons
 The flag is needed because the workbench includes the RFW runtime, which
 builds icons from runtime values.
 
-## Push to Restage Cloud
+For GenUI, use the generated `buildRestageCatalog()` with a `SurfaceController`
+and render a `Surface` from its context. The [A2UI guide](https://docs.restage.dev/tools/a2ui)
+shows message handling and controller disposal. A2UI and Widgetbook instantiate
+the native widgets; the RFW parity tests exercise delivered rendering separately.
 
-Before pushing, point the example at your own project. `restage init` lists
-the projects and apps in your organization and writes `restage_config.yaml`
-(ignored by git here, since it names your project):
+Both consumers work without a Restage account, upload, or publication.
+`restage build push` is a separate [dashboard preview workflow](../restage_cli/README.md#builds-pre-release).
+
+To try `restage build push`, point the example at your own project first.
+`restage init` lists the projects and apps in your organization and writes
+`restage_config.yaml` (ignored by git here, since it names your project):
 
 ```sh
 restage init --no-starter --no-add-deps

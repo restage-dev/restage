@@ -190,6 +190,7 @@ Future<int> pushBuildFirst({
   required StringSink stdout,
   required StringSink stderr,
   String? flutterRoot,
+  int? organizationId,
 }) async {
   stdout.writeln('Pushing the build of $app to $environment first.');
   final runner = CommandRunner<int>('restage', '')..addCommand(buildCommand());
@@ -203,6 +204,7 @@ Future<int> pushBuildFirst({
       '--app',
       app,
       if (organization != null) ...<String>['--organization', organization],
+      if (organizationId != null) '--organization-id=$organizationId',
       '--env',
       environment,
       '-C',

@@ -6,13 +6,13 @@ const cravePermissionFlowRef = SurfaceFlowRef<
     CravePermissionResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'crave_permission',
   version: 1,
-  minClient: 9,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeCravePermissionFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"requestLocation":{"actionName":"requestLocation","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"granted":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"}},"flow":"crave_permission","flowState":{"locationEnabled":{"classification":"exportable","type":"bool"}},"initial":"crave_location","minClient":9,"outbound":{"customEvents":{"skip":{"fields":{}}},"terminalResult":{"fields":{"locationEnabled":{"ref":{"state":"locationEnabled"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"crave_location":{"contentHash":"sha256:6ca7c39ccbe316f9ba4422c6e662be499c2c6853c6f6a8dab7855425bcc03874","minClient":9,"path":"crave_location.rfw","schemaVersion":1,"version":1},"crave_ready":{"contentHash":"sha256:a5a5c5e4aeecac58a4c079e987fca48ee4386e5acb4b91dc2b1bb3464178e726","minClient":9,"path":"crave_ready.rfw","schemaVersion":1,"version":1}},"states":{"crave_location":{"kind":"screen","on":{"allow":{"action":"requestLocation","resultPredicate":{"field":"granted","kind":"objectBoolFieldEquals","value":true},"target":"crave_ready","type":"action"}},"screen":"crave_location"},"crave_ready":{"kind":"screen","on":{"start":{"target":"done","type":"goto"}},"screen":"crave_ready"},"done":{"kind":"end","result":{"locationEnabled":true}}},"version":1}',
+        '{"actions":{"requestLocation":{"actionName":"requestLocation","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"granted":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"}},"flow":"crave_permission","flowState":{"locationEnabled":{"classification":"exportable","type":"bool"}},"initial":"crave_location","minClient":10,"outbound":{"customEvents":{"skip":{"fields":{}}},"terminalResult":{"fields":{"locationEnabled":{"ref":{"state":"locationEnabled"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"crave_location":{"contentHash":"sha256:6ca7c39ccbe316f9ba4422c6e662be499c2c6853c6f6a8dab7855425bcc03874","minClient":10,"path":"crave_location.rfw","schemaVersion":1,"version":1},"crave_ready":{"contentHash":"sha256:a5a5c5e4aeecac58a4c079e987fca48ee4386e5acb4b91dc2b1bb3464178e726","minClient":10,"path":"crave_ready.rfw","schemaVersion":1,"version":1}},"states":{"crave_location":{"kind":"screen","on":{"allow":{"action":"requestLocation","resultPredicate":{"field":"granted","kind":"objectBoolFieldEquals","value":true},"target":"crave_ready","type":"action"}},"screen":"crave_location"},"crave_ready":{"kind":"screen","on":{"start":{"target":"done","type":"goto"}},"screen":"crave_ready"},"done":{"kind":"end","result":{"locationEnabled":true}}},"version":1}',
     screens: {
       'crave_location': CraveLocationScreen.new,
       'crave_ready': CraveReadyScreen.new,
@@ -20,7 +20,7 @@ const cravePermissionFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '5b9d44c73de7506438762e9df50076ae27a98e1f3f31841c2b0d38bea2604bb7',
+      '1f3a36b88eb1e7c8599503359d7f97dba751b798479f82dd82752c24200756ff',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -181,6 +181,9 @@ final cravePermissionFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class CravePermissionFlowSurface
     extends RestageFlowGraph<CravePermissionResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const CravePermissionFlowSurface({
     super.key,
     String? placement,
@@ -199,6 +202,9 @@ final class CravePermissionFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: cravePermissionFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [CravePermissionFlowSurface] for the default placement; no name is needed.
   const CravePermissionFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

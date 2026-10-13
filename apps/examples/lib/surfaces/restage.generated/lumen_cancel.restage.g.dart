@@ -144,6 +144,9 @@ final lumenCancelNoteScreenPlacementDefinition =
     () => _lumenCancelNoteScreenPlacementDefinitionValue;
 
 final class LumenCancelNoteScreenSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const LumenCancelNoteScreenSurface({
     super.key,
     String? placement,
@@ -151,8 +154,12 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenCancelNoteScreenSurface] for the default placement; no name is needed.
   const LumenCancelNoteScreenSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -160,6 +167,7 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -172,6 +180,8 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<LumenCancelNoteScreenEvent>(
@@ -180,9 +190,10 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
         definition: lumenCancelNoteScreenPlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => LumenCancelNoteScreen(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => LumenCancelNoteScreen(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,
@@ -346,6 +357,9 @@ final lumenCancelReasonScreenPlacementDefinition =
     () => _lumenCancelReasonScreenPlacementDefinitionValue;
 
 final class LumenCancelReasonScreenSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const LumenCancelReasonScreenSurface({
     super.key,
     String? placement,
@@ -353,8 +367,12 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenCancelReasonScreenSurface] for the default placement; no name is needed.
   const LumenCancelReasonScreenSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -362,6 +380,7 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -374,6 +393,8 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<LumenCancelReasonScreenEvent>(
@@ -382,9 +403,10 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
         definition: lumenCancelReasonScreenPlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => LumenCancelReasonScreen(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => LumenCancelReasonScreen(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,
@@ -526,6 +548,9 @@ final lumenCancelThanksScreenPlacementDefinition =
     () => _lumenCancelThanksScreenPlacementDefinitionValue;
 
 final class LumenCancelThanksScreenSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const LumenCancelThanksScreenSurface({
     super.key,
     String? placement,
@@ -533,8 +558,12 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenCancelThanksScreenSurface] for the default placement; no name is needed.
   const LumenCancelThanksScreenSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -542,6 +571,7 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -554,6 +584,8 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<LumenCancelThanksScreenEvent>(
@@ -562,9 +594,10 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
         definition: lumenCancelThanksScreenPlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => LumenCancelThanksScreen(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => LumenCancelThanksScreen(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,

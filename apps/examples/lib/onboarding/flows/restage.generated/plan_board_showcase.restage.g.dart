@@ -6,20 +6,20 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
     PlanBoardShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'plan_board_showcase',
   version: 1,
-  minClient: 9,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":9,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:1e28ee3181174cacc5fd0d5c4cf9067e98d2e5795facce0b4672f50ea23386d9","minClient":9,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
+        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:1e28ee3181174cacc5fd0d5c4cf9067e98d2e5795facce0b4672f50ea23386d9","minClient":10,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
     screens: {
       'plan_board_showcase': PlanBoardShowcaseScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'a4306d93dd051222d5c8aafed66cfb2cbe05b410df7779df9e224e44bbb4092c',
+      '81c79b9908feb801ca535abd1b435a49ccb93bab2a76b3f344bb853690ef0ccc',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -117,6 +117,9 @@ final planBoardShowcaseFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class PlanBoardShowcaseFlowSurface
     extends RestageFlowGraph<PlanBoardShowcaseResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const PlanBoardShowcaseFlowSurface({
     super.key,
     String? placement,
@@ -135,6 +138,9 @@ final class PlanBoardShowcaseFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: planBoardShowcaseFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [PlanBoardShowcaseFlowSurface] for the default placement; no name is needed.
   const PlanBoardShowcaseFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

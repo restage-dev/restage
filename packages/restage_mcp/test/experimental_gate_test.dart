@@ -9,14 +9,10 @@ import 'package:test/test.dart';
 
 import '_support/harness.dart';
 
-/// The experimental tools call routes production does not serve yet. An MCP
-/// client's only inventory of what it may call is the tool list, so a default
-/// server must not list them.
 void main() {
   const experimentalToolNames = <String>[
     'restage_apply_canonical_mutation',
     'restage_activate_experiment',
-    'restage_rebuild_serving_records',
   ];
 
   late Directory tempDir;
@@ -44,22 +40,28 @@ void main() {
     return {for (final tool in tools.tools) tool.name};
   }
 
-  test('a default server lists no experimental tool', () async {
-    final names = await toolNames(environment: const {});
+  test(
+    'a default server exposes experiments and keeps low-level tools gated',
+    () async {
+      final names = await toolNames(environment: const {});
 
-    for (final name in experimentalToolNames) {
+      for (final name in experimentalToolNames) {
+        expect(
+          names,
+          isNot(contains(name)),
+          reason: '$name requires the low-level tool opt-in.',
+        );
+      }
       expect(
         names,
-        isNot(contains(name)),
-        reason:
-            '$name calls a route production does not serve yet, so a '
-            'default server must not advertise it.',
+        containsAll([
+          'restage_list_surfaces',
+          'restage_experiment_apply',
+          'restage_rebuild_serving_records',
+        ]),
       );
-    }
-    // Control: the ordinary tools are listed, so the assertions above are
-    // reading a real tool list rather than an empty one.
-    expect(names, contains('restage_list_surfaces'));
-  });
+    },
+  );
 
   test('opting in lists every experimental tool', () async {
     final names = await toolNames(

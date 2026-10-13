@@ -5,27 +5,8 @@ import 'package:restage/restage.dart';
 
 import 'flows/crave_permission.dart';
 
-/// Hosts the location permission-priming engagement surface.
-///
-/// The host side of a permission prime is small: supply the `requestLocation`
-/// host action, act on the two outcomes, and fail closed. It does what a real
-/// app does:
-///
-/// 1. **Supplies the host action.** A real app shows the OS location dialog and
-///    returns the user's answer; this demo returns a fixed [grantLocation]
-///    decision so both branches are exercisable. The flow advances to the
-///    confirmation **only on a granted result** — the gate is the one
-///    conditional the flow runtime offers.
-/// 2. **Owns the "Not now" outcome.** The primer's "Not now" fires a `skip`
-///    custom event the flow does not handle; the host listens for it and carries
-///    the user into the app without the grant.
-/// 3. **Fails closed.** An unavailable flow shows a plain surface, never a
-///    broken or partial one.
-///
-/// Like the other examples it ships its flow as a bundled asset (no backend). A
-/// production app delivers it over the air by injecting a `ServerFlowResolver`
-/// once at startup — the host action, navigation, and fail-closed wiring are
-/// identical either way.
+/// Hosts the location primer with a simulated permission action.
+/// A grant advances the flow; the skip event opens the example app.
 class CravePermissionDemo extends StatefulWidget {
   /// Creates the permission host.
   ///
@@ -81,8 +62,7 @@ class _CravePermissionDemoState extends State<CravePermissionDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return const _EnteredAppScreen();
-    return RestageFlowGraph<CravePermissionResult>(
-      flow: cravePermissionFlowRef,
+    return CravePermissionFlowSurface(
       actions: _actions,
       onComplete: (result) => _enterApp(),
       loadingBuilder: (context) => const ColoredBox(color: Colors.white),

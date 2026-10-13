@@ -157,7 +157,6 @@ class RoutingReviewHarness {
       stderr: stderr,
       credentialStore: store,
       httpClient: client(),
-      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
     ).run(arguments(command, flags, live: live));
   }
 

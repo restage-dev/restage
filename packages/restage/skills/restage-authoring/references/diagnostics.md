@@ -35,8 +35,10 @@ files use the same explicit id.
 Your own widget class is used in a surface. Add `@RestageWidget()` to it and export
 it from the widget library file. See [custom-widgets.md](custom-widgets.md). The
 annotation lets Restage inline supported composition or register a native factory.
-For an unsupported helper call, first check that it is an own method or same-library
-function whose body and arguments can be inlined.
+For an unsupported helper call, check its body and arguments against the
+[supported helper patterns](surfaces-and-events.md#composition-and-helpers).
+Own methods and same-package top-level or static helpers can inline, including
+helpers imported from another file.
 
 ## missingCatalogDescription
 
@@ -72,13 +74,17 @@ in place of `TextInputType.numberWithOptions(...)`.
 An expression or callback falls outside the compiler's supported subset. Keep API
 calls, platform work and app navigation in the mount's event handler:
 
+<!-- skill-check: members -->
 ```dart
 static const back = SurfaceEvent<void>('back');
-// build():
-TextButton(onPressed: surfaceEvent(back), child: const Text('Back'))
-// app:
-MySurface(onEvent: (event) => Navigator.of(context).pop())
+
+@override
+Widget build(BuildContext context) =>
+    TextButton(onPressed: surfaceEvent(back), child: const Text('Back'));
 ```
+
+The app handles it at the mount:
+`MySurface(onEvent: (event) => Navigator.of(context).pop())`.
 
 Supported paywall Navigator calls can lower to flow transitions. They are constrained to
 recognized routes and callbacks, without observing a pushed route's result; see
@@ -92,10 +98,15 @@ The same code appears for an unsupported tap closure that changes state:
 
 Use a named method with one assignment and pass it by reference:
 
+<!-- skill-check: example ../examples/lib/surveys/mood_check.dart -->
 ```dart
 void pickGood() => setState(() => good = true);
-// build():
-ListTile(title: const Text('Good'), onTap: pickGood)
+// ...
+ListTile(
+  title: const Text('Good'),
+  // ...
+  onTap: pickGood,
+),
 ```
 
 It also appears for a value callback that does more than store the value:

@@ -83,6 +83,9 @@ String _rate(Object? finished, Object? eligible) {
 
 num? _amount(Object? figure, {required bool revenue}) {
   final value = figureAt(figure, [revenue ? 'grossUsdMicros' : 'value']);
+  if (revenue && value == 0 && figureAt(figure, ['unconverted']) == true) {
+    return null;
+  }
   return value is int ? value : null;
 }
 
@@ -97,6 +100,7 @@ String _figure(Object? figure, {required bool revenue}) {
     if (figure['earning'] != true) return kFigureUnavailable;
     final gross = figure['grossUsdMicros'];
     if (gross is! int) return 'Hidden for privacy';
+    if (gross == 0 && figure['unconverted'] == true) return kFigureUnavailable;
     final cents = (gross + 5000) ~/ 10000;
     final whole = '\$${groupedCount((cents + 50) ~/ 100)}';
     if (figure['approximate'] == true) return '≈$whole';

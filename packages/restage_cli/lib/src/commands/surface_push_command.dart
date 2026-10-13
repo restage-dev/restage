@@ -304,9 +304,8 @@ class SurfacePushCommand extends Command<int> {
             ),
         project: project,
         app: app,
-        organization:
-            (argResults?['organization'] as String?) ??
-            loadedConfig?.config.organization,
+        organization: resolveOrganizationSlug(argResults, loadedConfig?.config),
+        organizationId: organizationIdOption(argResults),
         environment: environment,
         directory: directory,
         recordGit: _recordGit(loadedConfig?.config),
@@ -323,9 +322,10 @@ class SurfacePushCommand extends Command<int> {
       project: project,
       app: app,
       environment: environment,
-      preferredOrganizationSlug:
-          (argResults?['organization'] as String?) ??
-          loadedConfig?.config.organization,
+      preferredOrganizationSlug: resolveOrganizationSlug(
+        argResults,
+        loadedConfig?.config,
+      ),
       runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
       configuredPlane: loadedConfig?.config.plane,
       config: loadedConfig?.config,
@@ -422,6 +422,10 @@ class SurfacePushCommand extends Command<int> {
               config?.project == project &&
                   config?.app == app &&
                   config?.defaultEnvironment == environment &&
+                  config?.organization == preferredOrganizationSlug &&
+                  (organizationIdOption(argResults) == null ||
+                      config?.organizationId ==
+                          organizationIdOption(argResults)) &&
                   !(argResults?.wasParsed('plane') ?? false)
               ? config?.environmentTargetId
               : null,

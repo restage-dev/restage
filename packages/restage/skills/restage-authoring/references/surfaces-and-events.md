@@ -2,6 +2,7 @@
 
 ## A standalone screen
 
+<!-- skill-check: example ../examples/lib/messages/weekly_recap.dart -->
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -17,7 +18,10 @@ const kHighlights = ['Longest session', 'Most active day', 'New habits'];
 final class WeeklyRecap extends StatelessWidget {
   const WeeklyRecap({super.key, required this.name, required this.streakDays});
 
+  /// Display name for the recap greeting.
   final String name;
+
+  /// Consecutive days of activity shown in the badge.
   final int streakDays;
 
   static const dismiss = SurfaceEvent<void>('dismiss');
@@ -56,6 +60,7 @@ final class WeeklyRecap extends StatelessWidget {
 The build generates `WeeklyRecapSurface`, a sealed `WeeklyRecapEvent` with one class per
 event (`WeeklyRecapDismissEvent`, `WeeklyRecapOpenStatsEvent`), and `weeklyRecapRef`:
 
+<!-- skill-check: expression -->
 ```dart
 WeeklyRecapSurface(
   name: user.firstName,
@@ -87,10 +92,12 @@ UpperCamelCase, then `Event`.
   The generated paywall mount delivers them as `PaywallCustomEvent` with `eventName`
   and `args`. A paywall used as a flow step declares `SurfaceEvent`s for its
   transitions, like any screen.
-- A paywall can end as completed rather than dismissed. List the events whose taps
-  complete it: `@Paywall(completesOn: [ProUpgradePaywall.startTrial])`, with
-  `static const startTrial = SurfaceEvent<void>('start_trial');`. Every other way out
-  is recorded as a dismissal. Naming an event that no tap fires stops the build.
+- `@Paywall(completesOn: [ProUpgradePaywall.startTrial])` marks that tap as a
+  completed interaction for measurement. Declare the event with
+  `static const startTrial = SurfaceEvent<void>('start_trial');`. The host still
+  performs purchases and navigation; this does not close a route or advance a
+  flow. Other exits are recorded as dismissals. Naming an event that no tap fires
+  stops the build.
 - The dashboard and MCP name each tap from a `Semantics(label: ...)` around it, or
   else from its text, its tooltip, then its icon. Wrap a tap in
   `Semantics(label: 'Choose plan')` to name it yourself.
@@ -116,7 +123,9 @@ same parameters. Supported types are `String`, `int`, finite `double`, `bool`, `
 final fields of those types and a const constructor. List elements must have a
 concrete non-nullable type; map keys must be non-nullable `String`. Reading a
 parameter of another type (`DateTime`, a callback, a controller) in `build()` stops
-the build. Declaring one without reading it is fine.
+the build. Declaring one without reading it is fine. A parameter read by the
+compiled tree cannot have a non-null default; make it required and supply the
+default at the host call site.
 
 Host render data stays on the device. It is separate from audience-routing inputs,
 and is not copied into measurement events. Pass only the values the surface needs;
@@ -128,8 +137,12 @@ Keep `build()` to one returned expression, optionally preceded by initialized
 `final` or `const` locals, one per statement. Each local must contribute to the
 returned tree. Theme reads such as `Theme.of(context).colorScheme` remain live.
 
-Same-library top-level functions and own helper methods can return widgets or values:
+Keep supported helpers where they are. The compiler can inline the widget's own
+helper methods and top-level or static helpers from other files in the same
+package, including prefixed imports. Normal Dart visibility still applies. For
+example, an existing helper can stay:
 
+<!-- skill-check: members -->
 ```dart
 Widget _item(String label) =>
     ListTile(leading: const Icon(Icons.check), title: Text(label));
@@ -141,8 +154,10 @@ Widget build(BuildContext context) => Column(
 ```
 
 Their bodies follow the same single-return rule. Pass every helper parameter,
-including optional parameters, explicitly. Recursive helpers and arbitrary method
-calls cannot compile. Reusable widget classes need `@RestageWidget()`; supported
+including optional parameters, explicitly. Recursive helpers, arbitrary instance
+method calls and unsupported helper bodies cannot compile. Helpers from a
+dependency package can also inline when that package supplies custom widgets in
+the installed catalog. Reusable widget classes need `@RestageWidget()`; supported
 composition is inlined, while a native factory is used when required. See
 [surface-design.md](surface-design.md) before choosing that boundary.
 
@@ -153,6 +168,7 @@ decisions. Conditions can use supported host-data or screen-state reads; they do
 not all have to be constants. For example, inside a surface with `bool isPro` and
 `String plan` constructor fields:
 
+<!-- skill-check: expression -->
 ```dart
 Column(
   children: [
@@ -184,23 +200,30 @@ work belong in app code or a focused native widget.
 
 A value callback can store its incoming value directly:
 
+<!-- skill-check: example ../examples/lib/surveys/mood_check.dart -->
 ```dart
 String note = '';
-
-// Inside build():
-TextField(onChanged: (value) => setState(() => note = value))
+// ...
+TextField(
+  // ...
+  onChanged: (value) => setState(() => note = value),
+),
 ```
 
 Do transformations such as `trim()` in the app when it receives the result. A
 named method can perform one supported state assignment and be passed by reference:
 
+<!-- skill-check: example ../examples/lib/surveys/mood_check.dart -->
 ```dart
 bool good = true;
-
+// ...
 void pickGood() => setState(() => good = true);
-
-// Inside build():
-ListTile(title: const Text('Good'), onTap: pickGood)
+// ...
+ListTile(
+  title: const Text('Good'),
+  // ...
+  onTap: pickGood,
+),
 ```
 
 If a field is also written by a value callback, a named handler can only reset it

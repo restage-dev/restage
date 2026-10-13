@@ -178,6 +178,8 @@ void main() {
       expect(output, contains('Second target experiment'));
       expect(output, contains('Second target metric'));
       expect(output, contains('metricSourceUnavailable'));
+      expect(output, contains('stops fresh experimental delivery'));
+      expect(output, contains('saved results are unchanged'));
       expect(output, contains(review.digest.hex));
       final document = jsonDecode(output.substring(output.indexOf('\n') + 1));
       expect(document, review.toJson());
@@ -232,6 +234,11 @@ void main() {
         throwsFormatException,
       );
       final clear = aggregate(warned: false);
+      expect(deliveryMeasurementMutationConsequence(clear), isNull);
+      expect(
+        formatDeliveryMeasurementMutationReview(clear),
+        isNot(contains('stops fresh experimental delivery')),
+      );
       final proceed = reviewedDeliveryMeasurementProceed(
         review: clear,
         operationId: operationId,
@@ -247,4 +254,16 @@ void main() {
       );
     },
   );
+
+  test('other mutations do not acquire a surface-kill consequence', () {
+    final impact = DeliveryMeasurementImpactReviewV1.fromJson(
+      warningImpact(placementScope()).toJson()..['operation'] = 'surfaceFreeze',
+    );
+    final review = DeliveryMeasurementMutationReviewV1(
+      operation: 'surfaceFreeze',
+      reviews: [impact],
+      dependencyDigest: CanonicalDigest('b' * 64),
+    );
+    expect(deliveryMeasurementMutationConsequence(review), isNull);
+  });
 }

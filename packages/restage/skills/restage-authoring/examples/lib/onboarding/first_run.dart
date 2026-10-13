@@ -11,10 +11,16 @@ const goal = FlowStateRef<String>(
   classification: FlowStateClassification.exportable,
 );
 
+/// Set by the app when it mounts the flow.
+const returningUser = SeedableFlowStateRef<bool>(
+  'returningUser',
+  defaultValue: false,
+);
+
 @FlowGraph(id: 'first_run', surface: Surface.onboarding)
 const firstRun = FlowDefinition(
   start: WelcomeStep,
-  state: [goal],
+  state: [goal, returningUser],
   transitions: [
     Transition(WelcomeStep.next, to: GoalStep),
     Transition(GoalStep.pick, capture: goal, to: ReadyStep),

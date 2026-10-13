@@ -83,7 +83,12 @@ void main() {
 
       expect(exitCode, isNot(0));
       expect(stderr.toString(), contains('experimental'));
-      expect(stderr.toString(), contains('not served by production yet'));
+      expect(stderr.toString(), contains('interface may change'));
+      expect(stderr.toString(), isNot(contains('not served by production')));
+      expect(
+        stderr.toString(),
+        isNot(contains('endpoint that does not exist')),
+      );
       expect(stderr.toString(), contains(experimentalOptInVariable));
     });
   });

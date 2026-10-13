@@ -6,7 +6,6 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/experiment_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
-import 'package:restage_cli/src/commands/experimental_gate.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
@@ -26,8 +25,7 @@ class ExperimentCommand extends Command<int> {
     required Interactive interactive,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
-    Map<String, String>? environment,
-  }) : _environment = environment {
+  }) {
     final context = (
       stdout: stdout,
       stderr: stderr,
@@ -73,17 +71,12 @@ class ExperimentCommand extends Command<int> {
     }
   }
 
-  final Map<String, String>? _environment;
-
   @override
   String get name => 'experiment';
 
   @override
   String get description =>
       'Author, review, activate, and read experiments at one target.';
-
-  /// Whether this host has opted in to the experimental commands.
-  bool get enabled => experimentalCommandsEnabled(_environment);
 }
 
 /// Everything a subcommand needs to reach the operator and the service.
@@ -164,19 +157,7 @@ abstract class _ExperimentSubcommand extends Command<int> {
   String renderDrained(Object? value) => 'Accepted.';
 
   @override
-  bool get hidden {
-    final owner = parent;
-    return owner is ExperimentCommand && !owner.enabled;
-  }
-
-  @override
   Future<int> run() async {
-    final owner = parent;
-    if (owner is ExperimentCommand && !owner.enabled) {
-      _stderr.writeln(experimentalCommandRefusal('experiment $name'));
-      return 1;
-    }
-
     final asJson = argResults?['json'] as bool? ?? false;
     return runAuthed(
       CommandIo(

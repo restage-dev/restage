@@ -8,6 +8,7 @@ registered factory runs the widget in the installed app. See
 
 ## Annotate the widget
 
+<!-- skill-check: example ../examples/lib/widgets/streak_badge.dart -->
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -57,9 +58,11 @@ class StreakBadge extends StatelessWidget {
 
 Every custom widget must be exported by exactly one library file:
 
+<!-- skill-check: example ../examples/lib/app_widgets.dart -->
 ```dart
 import 'package:restage/restage.dart';
 
+export 'widgets/recap_heading.dart';
 export 'widgets/streak_badge.dart';
 
 /// The app's custom widget library.
@@ -85,6 +88,7 @@ A widget with no library, or exported by two, stops the build and names the file
 
 Import the library file and use the widget like any other:
 
+<!-- skill-check: expression -->
 ```dart
 StreakBadge(days: streakDays)
 ```
@@ -113,29 +117,15 @@ changes increase `capabilityVersion`; a breaking contract change also advances
 version diagnostic and never lower the compatibility floor. These library
 capabilities describe installed widget support, not the package's semver policy.
 
-Before the dashboard can show a surface that uses custom widgets, push a build of the
-app. `restage build push` makes a personal build that only your own preview uses;
-`restage build push --env <env>` updates the build everyone sees. Inspect the selected target before updating its build. Pushing a build is separate
-from publishing a surface revision.
+Before the dashboard can preview new or changed custom widgets, upload a preview
+build. Follow [Dashboard preview builds](setup-and-delivery.md#dashboard-preview-builds)
+to choose a personal or shared target and verify it. This is separate from
+publishing a surface revision or releasing new app code.
 
 ## Optional A2UI and Widgetbook output
 
-The same classes can also produce an A2UI catalog and Widgetbook stories. Enable
-either emitter independently in `build.yaml`:
-
-```yaml
-targets:
-  $default:
-    builders:
-      restage_codegen:user_a2ui_catalog:
-        enabled: true
-      restage_codegen:widgetbook_stories:
-        enabled: true
-```
-
-Import `package:restage/a2ui.dart` and `package:restage/widgetbook.dart` with prefixes
-for their options, such as `@a2ui.Config.usage('...')` and `@wb.Config.allValues()`.
-
-Leave `bundled_runtime` at its default, `false`; neither emitter requires RFW
-surface assets. A2UI catalogs and Widgetbook stories instantiate the Dart widgets,
-so they do not prove that the corresponding RFW composition renders correctly.
+The same source can feed Restage delivery, Flutter GenUI and Widgetbook. Enable
+either optional emitter independently; one build generates its catalog or stories
+before the consuming app runs. Neither needs bundled RFW assets or a published
+surface. Read [emitters.md](emitters.md) for the build order, dependencies and
+the code that connects each generated output to its runtime.

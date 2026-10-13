@@ -6,7 +6,7 @@ const craveReadyScreenRef = NeutralFlowScreenRef(
   id: 'crave_ready',
   artifactPath: 'crave_ready.rfw',
   version: 1,
-  minClient: 9,
+  minClient: 10,
 );
 
 @Deprecated('Use craveReadyScreenRef')

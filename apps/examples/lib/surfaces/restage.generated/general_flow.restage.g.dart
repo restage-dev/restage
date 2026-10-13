@@ -90,6 +90,9 @@ final generalJourneyPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class GeneralJourneySurface
     extends RestageFlowGraph<GeneralJourneyResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const GeneralJourneySurface({
     super.key,
     String? placement,
@@ -108,6 +111,9 @@ final class GeneralJourneySurface
   })  : _restagePlacementName = placement,
         super(flow: generalJourneyRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [GeneralJourneySurface] for the default placement; no name is needed.
   const GeneralJourneySurface.atPlacement(
     String restagePlacementId, {
     super.key,

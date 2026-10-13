@@ -31,9 +31,10 @@ Explore dimensions are `arm`, `publishedVersion`, `sdkVersion`, `country`,
 
 ## Keep windows comparable
 
-Most reads default to the previous 30 days. **Experiment results without a
-window cover the whole run.** Specify `--from` and `--until` when comparisons
-need the same period:
+Most reads default to the previous 30 days. Experiment results default to the
+accepted run. Their date filters narrow descriptive traffic breakdowns; the
+statistical result remains tied to the retained experiment epoch and design.
+Specify `--from` and `--until` for comparable descriptive periods:
 
 ```sh
 restage analytics overview --from 2026-10-01T00:00:00Z \
@@ -81,9 +82,10 @@ tool requires both bounds even though the CLI offers defaults.
   figures labeled as returned.
 - Delivery resolutions and rendered paints measure different events. A policy's
   configured percentage does not establish its observed rendering share.
-- Experiment results with insufficient disclosed users, successes or failures
-  can be held as a whole. Do not declare a winner from a partial summary.
+- Experiment result families report availability separately. A withheld
+  statistical result can coexist with available descriptive figures. Preserve
+  each family's status and use the decision reported by the service.
 
-Analytics and experiment-result reads do not require `RESTAGE_EXPERIMENTAL`.
-An available command is not proof that a particular target has usable data;
-report the service's refusal or unavailable state as returned.
+Use [Experiments](experiments.md) for experiment design and decision semantics.
+Report the service's refusal or unavailable state when the selected target has
+no usable data.

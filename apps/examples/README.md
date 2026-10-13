@@ -7,10 +7,11 @@ Copy one, preview it, publish it, and change it without shipping an app update.
 Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 Each screen is a normal Flutter widget built from your own widgets and design
-system, marked with `@Screen` or `@Paywall`. Multi-screen flows add a short Dart
-flow definition. At build time Restage compiles each surface to a small
-artifact that the SDK renders as real Flutter widgets. That artifact is also
-what you publish to Restage Cloud.
+system, marked with `@Screen` or `@Paywall`. Multi-screen journeys can use a Dart
+flow definition; supported `Navigator.push` calls between paywalls also compile
+into flows. At build time Restage generates a `*Surface` mount and a delivery
+artifact. Mount the generated widget in your app and publish the artifact to
+Restage Cloud.
 
 Run the gallery:
 
@@ -42,9 +43,18 @@ is, and the build records each surface's ID and artifacts.
 
 ### Onboarding, messages, and surveys
 
-Flows use `@FlowGraph(surface: ...)`. The build generates a typed flow
-reference, and your app shows it with `RestageFlowGraph`, or drives it
-directly with `RestageFlowController`. The gallery has:
+Flows use `@FlowGraph(surface: ...)`. Mount the generated widget, such as
+`MinimalOnboardingFlowSurface`, and supply completion callbacks and host actions.
+Each generated mount is a placement by default. Use `.atPlacement(...)` when
+you want to give it another placement name. Generated mounts support hosted
+updates and fall back to compiled Flutter widgets, so app integrations can
+leave bundling off.
+
+`RestageFlowGraph`, `RestageFlowController`, and `RestageScreenView` remain
+available for custom hosting and resolver diagnostics. The standalone map and
+record decoder demos use these lower-level APIs to inspect bundled RFW.
+
+The gallery has:
 
 - **Meditation onboarding** (`lib/onboarding/flows/lumen_onboarding.dart`):
   welcome, two questions, a step that asks your app to turn on reminders,
@@ -128,9 +138,9 @@ The gallery enables bundling to compare source widgets with RFW artifact
 rendering. Ordinary app integrations should leave bundling off and use generated
 `*Surface(...)` mounts, whose compiled-widget fallbacks work offline.
 
-The generated Dart part holds the typed reference. The `.rsbundle` holds the
-exact bytes the SDK renders. The bundles are committed so the gallery runs from
-a fresh clone.
+The generated Dart part holds the surface mount and typed reference. The
+`.rsbundle` holds the delivery artifacts used by this gallery. The bundles are
+committed so the gallery runs from a fresh clone.
 
 The subset icon fonts in the bundles come from the Flutter SDK that ran the
 build, so a Flutter upgrade changes their bytes. Rebuild the example after

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/cli.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
@@ -156,8 +157,10 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }
 
   @override
-  Future<ConsoleOperationResult> runCommand(List<String> arguments) =>
-      _run(arguments);
+  Future<ConsoleOperationResult> runCommand(
+    List<String> arguments, {
+    ConsoleContext? context,
+  }) => _run(arguments, context: context);
 
   @override
   Future<ConsoleOperationResult> pushBuild({required ConsoleContext context}) {
@@ -220,6 +223,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   Future<ConsoleOperationResult> _run(
     List<String> args, {
     Interactive interactive = const NonInteractive(),
+    ConsoleContext? context,
   }) async {
     final stdout = StringBuffer();
     final stderr = StringBuffer();
@@ -228,6 +232,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
       if (directory != null) ...['--directory', directory.path],
       ...args,
     ];
+    String? targetDescription;
     final exitCode = await RestageCli(
       stdout: stdout,
       stderr: stderr,
@@ -236,11 +241,26 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
       hasTerminal: () => false,
       interactiveFactory: (_) => interactive,
       selectorSyntax: SelectorSyntax.console,
+      targetDefaults: context == null
+          ? null
+          : CommandTargetDefaults(
+              organization: context.organizationSlug,
+              project: context.project,
+              app: context.app,
+              environment: context.environment,
+              runtimePlane: context.runtimePlane,
+            ),
+      onTargetSelectors: (selectors) {
+        targetDescription = selectors.entries
+            .map((entry) => '--${entry.key}=${entry.value}')
+            .join(' ');
+      },
     ).run(commandArgs);
     return ConsoleOperationResult(
       exitCode: exitCode,
       stdout: stdout.toString(),
       stderr: stderr.toString(),
+      targetDescription: targetDescription,
     );
   }
 }

@@ -6,6 +6,32 @@ holds no widgets or stories of its own; everything comes from that package.
 
 Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
+## How it connects
+
+The example package's annotated Flutter source feeds Restage's story emitter.
+Widgetbook's generator processes those stories in the same `build_runner` run.
+This app depends on that package and `widgetbook: 4.0.0-beta.14`, then starts the
+workbench with the generated components:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage_widgetbook_example/components.g.dart';
+import 'package:widgetbook/widgetbook.dart';
+
+void main() {
+  runWidgetbook(
+    Config(
+      components: components,
+      lightTheme: ThemeData.light(useMaterial3: true),
+      darkTheme: ThemeData.dark(useMaterial3: true),
+    ),
+  );
+}
+```
+
+No Restage upload, publication, `restage build push`, or bundled surface assets
+are needed. Dashboard preview builds are a separate workflow.
+
 ## Run it
 
 Generate the stories first, from the example package:

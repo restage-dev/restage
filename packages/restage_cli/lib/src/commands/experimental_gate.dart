@@ -19,11 +19,8 @@ bool experimentalCommandsEnabled([Map<String, String>? environment]) {
 
 /// The refusal shown when an experimental command runs without the opt-in.
 ///
-/// It names the reason rather than pretending the command is unknown: the
-/// command exists and works, but the endpoint it calls is not served yet, so a
-/// user who reaches it deserves to know that rather than to debug a failure.
+/// The opt-in acknowledges an unstable interface.
 String experimentalCommandRefusal(String commandName) =>
-    '`$commandName` is experimental and is not served by production yet.\n'
-    'Set $experimentalOptInVariable=1 to run it anyway. Expect calls to fail '
-    'against an endpoint that does not exist, and expect its interface to '
-    'change without a deprecation.';
+    '`$commandName` uses an experimental interface.\n'
+    'Set $experimentalOptInVariable=1 to enable it. Its interface may change '
+    'without a deprecation.';

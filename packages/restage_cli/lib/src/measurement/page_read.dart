@@ -571,8 +571,8 @@ final List<PageRead> pageReads = [
         'build still painting a version no rule sends, or a destination '
         'requests reached and nothing painted. A count the service never '
         'measured reads unknown, never 0; a held count reads held. It also '
-        'states each spot\'s schedule, where a rule carries its name when '
-        'it has one, and fit by build, views by country, '
+        'states each placement\'s schedule, where a rule carries its name '
+        'when it has one, and fit by build, views by country, '
         'the release history with upcoming changes first, and surfaces no '
         'build has placed. Set allEnvironments to read every environment of '
         'the app. The reply carries both the placement and the surface '
@@ -626,7 +626,7 @@ final List<PageRead> pageReads = [
     cliPath: 'where',
     mcpName: 'restage_where',
     method: 'readDeliveryMapPage',
-    summary: 'Every spot one surface serves.',
+    summary: 'Every placement one surface serves.',
     mcpDescription:
         'Read where one surface, or one of its versions, is live across '
         'every environment of the app: each placement it serves, the rules '

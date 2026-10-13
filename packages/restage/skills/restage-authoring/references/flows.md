@@ -22,6 +22,7 @@ only the result fields the app needs.
 
 ## Steps
 
+<!-- skill-check: example ../examples/lib/onboarding/goal_step.dart -->
 ```dart
 @Screen()
 final class GoalStep extends StatelessWidget {
@@ -31,6 +32,7 @@ final class GoalStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           FilledButton(
             onPressed: surfaceEvent(pick, 'focus'),
@@ -47,23 +49,25 @@ final class GoalStep extends StatelessWidget {
 
 ## State, capture and result
 
+<!-- skill-check: example ../examples/lib/onboarding/first_run.dart -->
 ```dart
 const goal = FlowStateRef<String>(
   'goal',
   classification: FlowStateClassification.exportable,
 );
-
+// ...
 @FlowGraph(id: 'first_run', surface: Surface.onboarding)
 const firstRun = FlowDefinition(
   start: WelcomeStep,
-  state: [goal],
+  state: [goal, returningUser],
   transitions: [
     Transition(WelcomeStep.next, to: GoalStep),
     Transition(GoalStep.pick, capture: goal, to: ReadyStep),
     Transition.complete(ReadyStep.finish),
   ],
-  outbound: FlowOutboundPolicy(terminalResult: {'goal': goal}),
-);
+  outbound: FlowOutboundPolicy(
+    terminalResult: {'goal': goal},
+    // ...
 ```
 
 - `capture: goal` stores the event's value. `writes: [goal.set('skipped')]` stores a
@@ -80,6 +84,7 @@ const firstRun = FlowDefinition(
 Typed onboarding, message and survey flows can record answers. List the state in
 `surveyAnswers`, and declare in `measurementAnswers` how each answer is counted:
 
+<!-- skill-check: example ../examples/lib/onboarding/first_run.dart -->
 ```dart
 outbound: FlowOutboundPolicy(
   terminalResult: {'goal': goal},
@@ -103,6 +108,7 @@ outbound: FlowOutboundPolicy(
 
 Mount:
 
+<!-- skill-check: expression -->
 ```dart
 FirstRunSurface(
   onComplete: (result) => saveGoal(result.goal),
@@ -113,6 +119,7 @@ FirstRunSurface(
 
 A transition can lead to a `Decision`, whose branches are tried in order:
 
+<!-- skill-check: declarations -->
 ```dart
 final route = Decision(
   'route',
@@ -130,6 +137,7 @@ use `NodeRef('id')` in the transition and list the step in `nodes:`.
 
 ## Starting values from the app
 
+<!-- skill-check: example ../examples/lib/onboarding/first_run.dart -->
 ```dart
 const returningUser = SeedableFlowStateRef<bool>(
   'returningUser',
@@ -137,10 +145,11 @@ const returningUser = SeedableFlowStateRef<bool>(
 );
 ```
 
-Add `returningUser` to the flow's `state` list alongside `goal`. A decision can
+List `returningUser` in the flow's `state` beside `goal`. A decision can
 branch on `returningUser.equals(true)`. The generated `FirstRunSeed` exposes only
 the seedable keys:
 
+<!-- skill-check: expression -->
 ```dart
 FirstRunSurface(
   initialState: const FirstRunSeed(returningUser: true),
@@ -163,6 +172,7 @@ For a step declared with `@Screen(id: 'profile')` and
 `const ProfileStep(this.name, {super.key})`, the `typedJourney` flow generates
 `profileScreenBuilder`:
 
+<!-- skill-check: declarations -->
 ```dart
 Widget journeyFor(String name) => TypedJourneySurface(
   context: {'name': name},
@@ -187,6 +197,7 @@ A host action is app code the flow can call, such as a permission request. In
 declares a void `enable` event and `ReadyScreen` declares a void `finish` event.
 Their buttons pass `surfaceEvent(...)` directly as callbacks.
 
+<!-- skill-check: file lib/flows/permission_flow.dart -->
 ```dart
 import 'package:restage/restage.dart';
 
@@ -213,6 +224,7 @@ final permissionFlow = FlowDefinition(
 
 The app supplies its platform handler through the generated actions class:
 
+<!-- skill-check: declarations -->
 ```dart
 Widget permissionEntry({
   required Future<bool> Function() requestNotificationPermission,
@@ -239,6 +251,7 @@ Use `Subflow` to run a reusable graph, with explicit input and completion target
 For example, `profileFlow` declares `profileName` in its state and `accountSetup`
 declares `accountName`:
 
+<!-- skill-check: declarations -->
 ```dart
 final done = Completion('done');
 final profileStep = Subflow(
@@ -257,8 +270,11 @@ child cannot run. Keep child contracts compatible with the installed parent.
 
 ## Paywalls in flows
 
-A `@Paywall()` can be a step in a flow of any category. It keeps `Surface.paywall` and
-declares `SurfaceEvent`s for its transitions.
+A `@Paywall()` can be a step in a flow of any category. Its standalone publication
+remains a paywall; the containing graph owns its transitions and flow events.
+Declare `SurfaceEvent`s for transitions. Supplied purchase-adapter handlers accept
+standalone paywall events, not flow events. Use a host action when the graph must
+await purchase or service work; see [host-integration.md](host-integration.md).
 
 ## What a published version can change
 
@@ -266,6 +282,7 @@ By default a flow is typed. A published version can change what each step shows,
 adding a step or rerouting a transition needs an app release. To change the graph over
 the air, declare:
 
+<!-- skill-check: skip shows the annotation line only -->
 ```dart
 @FlowGraph(surface: Surface.onboarding, delivery: FlowDeliveryMode.general)
 ```
@@ -306,12 +323,18 @@ Don't put secrets or private business rules in them.
 
 ## Existing paywall navigation
 
-Prefer `FlowDefinition` for explicit branching, actions and results. Restage also
-recognizes bounded navigation between `@Paywall` widgets: a single synchronous
+Keep existing navigation that fits the supported forms. Restage automatically
+compiles navigation between `@Paywall` widgets into a flow; mount the generated
+entry paywall without writing a `@FlowGraph` declaration. Use `FlowDefinition`
+when you need explicit branching, host actions or results beyond this subset.
+
+Supported callbacks contain a single synchronous
 `Navigator.push(context, MaterialPageRoute(builder: ...))` or
 `Navigator.of(context).push(...)` from `onPressed`/`onTap`, with an annotated paywall
-destination. `CupertinoPageRoute` is also supported; `Navigator.pop(context)` in a
-pushed paywall becomes a flow back action. The entry paywall needs a dismissal path.
+destination constructed without arguments through its unnamed constructor.
+`CupertinoPageRoute` is also supported; `Navigator.pop(context)` in a pushed
+paywall becomes a flow back action. Pushes are limited to one level: a pushed
+paywall cannot push another. The entry paywall needs a dismissal path.
 
 Awaiting or reading a route result, returning a value with `pop`, root-navigator
 overrides and arbitrary navigation callbacks are outside that lowering. Keep app
