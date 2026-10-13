@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
+import 'package:glob/glob.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -369,25 +370,48 @@ Future<Map<String, List<String>>> resolveEnumMembers(
   return members;
 }
 
-/// Reads every `v<N>.json` recorded for [library] under [root].
-Map<int, LibraryContractSnapshot> readLibraryContractSnapshots(
+Map<String, String> _readLibraryContractContents(
   Directory root,
+  Iterable<WidgetLibrary> libraries, {
+  Map<String, String> trackedContents = const {},
+  String? requireTrackedForPackage,
+}) {
+  final contents = Map<String, String>.of(trackedContents);
+  for (final library in libraries) {
+    final directory = _snapshotDirectory(root, library);
+    if (!directory.existsSync()) continue;
+    for (final file in directory.listSync().whereType<File>()) {
+      final name = file.uri.pathSegments.last;
+      if (libraryContractSnapshotVersion(name) == null) continue;
+      final path =
+          '$libraryContractSnapshotDirectory/${library.namespace}/$name';
+      if (contents.containsKey(path)) continue;
+      if (requireTrackedForPackage != null) {
+        throw StateError(
+            '$requireTrackedForPackage must expose $path as a build input. '
+            '$kUntrackedDurableStateAdvice');
+      }
+      contents[path] = file.readAsStringSync();
+    }
+  }
+  return contents;
+}
+
+Map<int, LibraryContractSnapshot> _decodeLibraryContractSnapshots(
   WidgetLibrary library,
+  Map<String, String> contents,
 ) {
-  final directory = _snapshotDirectory(root, library);
-  if (!directory.existsSync()) return const {};
+  final prefix = '$libraryContractSnapshotDirectory/${library.namespace}/';
   final snapshots = <int, LibraryContractSnapshot>{};
-  for (final file in directory.listSync().whereType<File>()) {
-    final name = file.uri.pathSegments.last;
-    final version = libraryContractSnapshotVersion(name);
+  for (final entry in contents.entries) {
+    if (!entry.key.startsWith(prefix)) continue;
+    final version =
+        libraryContractSnapshotVersion(entry.key.substring(prefix.length));
     if (version == null) continue;
-    final source =
-        '$libraryContractSnapshotDirectory/${library.namespace}/$name';
-    final snapshot =
-        LibraryContractSnapshot.decode(file.readAsStringSync(), source);
+    final snapshot = LibraryContractSnapshot.decode(entry.value, entry.key);
     if (snapshot.library != library || snapshot.capabilityVersion != version) {
       throw FormatException(
-        '$source records library `${snapshot.library.namespace}` '
+        '${entry.key} records library `${snapshot.library.namespace}` '
         'v${snapshot.capabilityVersion}.',
       );
     }
@@ -420,11 +444,32 @@ void enforceLibraryContracts(
   required bool write,
   Map<String, List<String>> enumMembers = const {},
 }) {
+  _enforceLibraryContracts(
+    catalog,
+    contents:
+        _readLibraryContractContents(root, _versionedCustomLibraries(catalog)),
+    root: root,
+    write: write,
+    enumMembers: enumMembers,
+  );
+}
+
+Iterable<WidgetLibrary> _versionedCustomLibraries(Catalog catalog) =>
+    catalog.libraries.keys.where((library) =>
+        WidgetLibrary.builtInByNamespace(library.namespace) == null &&
+        catalog.libraries[library]!.capabilityVersion != null);
+
+void _enforceLibraryContracts(
+  Catalog catalog, {
+  required Map<String, String> contents,
+  required Directory? root,
+  required bool write,
+  required Map<String, List<String>> enumMembers,
+}) {
   final lines = <String>[];
-  final libraries = catalog.libraries.keys.toList()
+  final libraries = _versionedCustomLibraries(catalog).toList()
     ..sort((a, b) => a.namespace.compareTo(b.namespace));
   for (final library in libraries) {
-    if (WidgetLibrary.builtInByNamespace(library.namespace) != null) continue;
     final current = LibraryContractSnapshot.of(
       catalog,
       library,
@@ -433,13 +478,13 @@ void enforceLibraryContracts(
     if (current == null) continue;
     final outcome = evaluateLibraryContract(
       current,
-      readLibraryContractSnapshots(root, library),
+      _decodeLibraryContractSnapshots(library, contents),
     );
     switch (outcome) {
       case LibraryContractUnchanged():
         break;
       case LibraryContractRecorded(:final snapshot):
-        if (write) writeLibraryContractSnapshot(root, snapshot);
+        if (write && root != null) writeLibraryContractSnapshot(root, snapshot);
       case LibraryContractRefused(lines: final refused):
         lines.addAll(refused);
     }
@@ -447,18 +492,34 @@ void enforceLibraryContracts(
   if (lines.isNotEmpty) throw LibraryContractException(lines);
 }
 
-/// Runs [enforceLibraryContracts] against [package]'s root, when it resolves.
+/// Checks package library contracts, tracking source snapshots when building.
 Future<void> enforcePackageLibraryContracts(
   Catalog catalog, {
   required String package,
   required bool write,
+  required BuildStep buildStep,
+  bool requireTracked = false,
   Map<String, List<String>> enumMembers = const {},
 }) async {
-  final root = await restagePackageRoot(package);
-  if (root == null) return;
-  enforceLibraryContracts(
+  final rootUri = await restagePackageRoot(package);
+  final root = rootUri == null ? null : Directory.fromUri(rootUri);
+  final contents = <String, String>{};
+  await for (final asset in buildStep.findAssets(
+    Glob('$libraryContractSnapshotDirectory/*/v*.json'),
+  )) {
+    contents[asset.path] = await buildStep.readAsString(asset);
+  }
+  _enforceLibraryContracts(
     catalog,
-    root: Directory.fromUri(root),
+    contents: root == null
+        ? contents
+        : _readLibraryContractContents(
+            root,
+            _versionedCustomLibraries(catalog),
+            trackedContents: contents,
+            requireTrackedForPackage: requireTracked ? package : null,
+          ),
+    root: root,
     write: write,
     enumMembers: enumMembers,
   );

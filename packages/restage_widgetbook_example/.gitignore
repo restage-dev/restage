@@ -14,12 +14,8 @@ assets/restage/source-index.json
 assets/restage/output-roster.json
 *.restage.md
 
-# Bundles are build output too, but the ones routed into the Flutter asset
-# directory are tracked: this example is checked in so it runs from a fresh
-# clone, and an untracked bundle would leave it unable to render its own
-# surfaces.
+# Portable bundles are build output, not Flutter assets.
 *.rsbundle
-!assets/restage/bundles/**/*.rsbundle
 
 # Written per developer by `restage init`; names your own project and app.
 restage_config.yaml

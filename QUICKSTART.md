@@ -48,12 +48,14 @@ and they ship the same way. The `id` is how you reference the surface when you
 render it. (An interactive paywall with plan selection is a `StatefulWidget`
 root that holds its selection state; the examples show that pattern.)
 
-Save the file as `lib/paywalls/pro_upgrade.dart`. The builder reads paywalls
-from `lib/paywalls/`, so this guide depends on that path.
+Save the file as `lib/paywalls/pro_upgrade.dart`. Other directories under
+`lib/` work too; the annotation identifies the surface.
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
+
+part 'restage.generated/pro_upgrade.restage.g.dart';
 
 @Paywall(id: 'pro_upgrade')
 class ProUpgradePaywall extends StatelessWidget {
@@ -95,130 +97,58 @@ class ProUpgradePaywall extends StatelessWidget {
 Both buttons use `paywallEvent`. It takes an event name and optional
 arguments, and the build compiles them into the artifact. When the user taps,
 your app receives a `PaywallCustomEvent` with that name and those arguments in
-`onEvent` (step 5), and runs the purchase from there through the store library
+`onEvent` (step 4), and runs the purchase from there through the store library
 it already uses.
 
 The names `purchase` and `restore`, and any name that starts with `restage.`,
 are reserved for the SDK and never reach your app. Use your own names, as this
 guide does.
 
-A few habits keep a surface compilable. The build follows your widget tree
-literally, so write each string as one literal, keep the build tree flat
-instead of extracting helper widgets, and write theme reads inline where you
-use them. The examples document the full list. Custom rendering logic, such as
-a `CustomPainter`, belongs in a registered app-backed widget. You can also
-compose the surface from catalog widgets. If the build can't lower something, it
-tells you at build time instead of rendering it differently.
+The compiler supports widget composition, helpers and theme reads, including
+widgets from packages your app depends on. Custom rendering logic, such as a
+`CustomPainter`, belongs in a registered app widget. Unsupported expressions
+produce build diagnostics.
 
 ## 3. Compile it
 
-This guide runs offline, so the compiled surface has to ship inside the app.
-Create a `build.yaml` next to `pubspec.yaml` that sets `bundled_runtime` on
-every `restage_codegen` builder key:
-
-```yaml
-targets:
-  $default:
-    builders:
-      restage_codegen:restage_source_roster:
-        options: &restage_placement
-          bundled_runtime: true
-      restage_codegen:restage_package_surface_compiler:
-        options: *restage_placement
-      restage_codegen:generated_dart:
-        options: *restage_placement
-      restage_codegen:outputs:
-        options: *restage_placement
-```
-
-The options must be identical on every key. `&restage_placement` names the
-block where it first appears and each `*restage_placement` reuses it, so there
-is one block to edit. If two keys disagree, the build fails with a placement
-options divergence error instead of scattering output.
-
-> [!NOTE]
-> This guide mounts `RestagePaywall` by id. Keep `bundled_runtime: true` and the
-> asset declarations for its offline fallback, including when adding hosted delivery.
-> Hosted delivery alone does not retain the original paywall widget. Generated
-> screen, paywall, and flow mounts do, without assets; see **Hosted delivery**
-> under *Where to go next* for the API-specific requirements.
-
-Run the build:
+Run the generator with its default options:
 
 ```sh
 dart run build_runner build
 ```
 
-This compiles your widget into one container:
+It writes the typed mount to
+`lib/paywalls/restage.generated/pro_upgrade.restage.g.dart` and the publishable
+artifacts under `.restage/build/`. The CLI reads
+`.restage/build/metadata/restage.publication.json` to find them when you push.
 
-```
-lib/paywalls/pro_upgrade.dart  ──▶  assets/restage/bundles/lib/paywalls/pro_upgrade.rsbundle
-```
+Leave `bundled_runtime` at its default, `false`. You do not need to set this
+option in `build.yaml` or add generated surface files to Flutter assets. The
+generated mount retains the original Flutter widget as its compiled fallback,
+so this example works offline without surface assets.
 
-The `.rsbundle` is a zip that holds the compiled artifacts at their logical
-paths: the binary `.rfw` artifact your app renders, the readable `.rfwtxt`, and
-the capability sidecar. Unzip it when you want to read the `.rfwtxt`.
+Commit generated Dart, `.restage/measurement-state.json` and
+`.restage/wire-ids.events.jsonl`. The latter two preserve identifiers across
+builds. `.restage/build/` is build output and does not belong in the app's
+asset list.
 
-Surfaces deliver data that composes and configures your compiled Flutter
-widgets. New behavior requires an app release.
+Bundling is optional when you want to ship RFW artifacts for offline loading.
+See the [bundled-surface reference](packages/restage/skills/restage-authoring/references/setup-and-delivery.md#optional-bundled-surfaces).
 
-The build also writes `lib/generated/restage.publication.json`, which records
-the exact artifacts for each surface id. It is a build output, so it appears
-after this step, not in a fresh clone. Commit the generated outputs your app
-bundles.
+## 4. Render it in your app
 
-Add the bundle directory to your `pubspec.yaml`. A Flutter asset directory
-entry isn't recursive, so list each bundle directory; the tree mirrors your
-`lib/` layout:
-
-```yaml
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/restage/bundles/lib/paywalls/
-```
-
-## 4. Push it and publish it
-
-When you want the surface on a server, push it by id, then publish the pushed
-revision:
-
-```sh
-restage surface push pro_upgrade
-restage surface publish pro_upgrade
-```
-
-A push uploads a version and changes nothing that is running. A publish makes
-one pushed revision live. Push ten variants; publish one.
-
-Run these after `restage init` has configured the project and app, and after
-`restage login`. The push reads `lib/generated/restage.publication.json` and
-uploads the artifacts recorded there. `--type paywall` is optional validation.
-
-You can also name the file instead of the id:
-
-```sh
-restage surface push lib/paywalls/pro_upgrade.dart
-```
-
-The CLI resolves the file through the same generated manifest, so it selects
-what the build produced. If a file produced more than one surface, the CLI
-lists them and asks; `--all` pushes all of them.
-
-You can skip this step for now. The rest of the guide renders the bundled copy.
-
-## 5. Render it in your app
-
-Configure Restage once at startup, then put `RestagePaywall` wherever you want
-the paywall. It loads the bundled artifact you just compiled by default, so
-there is nothing to point it at.
+Mount the generated `ProUpgradePaywallSurface` wherever you want the paywall.
+It installs the widgets it needs and uses your original widget as its compiled
+fallback. The placement is implicit. No hosted configuration or surface assets
+are needed for this example.
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+import 'paywalls/pro_upgrade.dart';
+
 void main() {
-  Restage.configure(apiKey: 'local-dev');
   runApp(const MyApp());
 }
 
@@ -229,8 +159,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        body: RestagePaywall(
-          id: 'pro_upgrade',
+        body: ProUpgradePaywallSurface(
           onEvent: (event) {
             switch (event) {
               case PaywallViewed():
@@ -250,13 +179,14 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-`RestagePaywall(id: 'pro_upgrade')` resolves the bundled paywall and renders
-it as real Flutter widgets. `onEvent` is where your app reacts to what happens
+`ProUpgradePaywallSurface` renders your original Flutter widget until hosted
+content is available. `onEvent` is where your app reacts to what happens
 in the surface: a view, a dismissal, or an event you fired with
 `paywallEvent`. The `continue` event arrives with `args['plan']`, so your
 purchase code goes in that case. Keep the `PaywallLoadFailed` case during
-development. A surface that can't render shows an empty box, and that
-event's message is the one signal that says why.
+development to report delivery failures. If delivered content can't render,
+the generated mount shows the original `ProUpgradePaywall` with the same event
+handler.
 
 Build and run it:
 
@@ -269,7 +199,7 @@ icons your app uses, so a release keeps only those and Flutter's icon
 tree-shaking works as usual. Don't pass `--no-tree-shake-icons`: it puts the
 whole icon font back into the app.
 
-## 6. The edit loop
+## 5. The edit loop
 
 Change the widget, recompile, and you have a new surface:
 
@@ -283,12 +213,41 @@ Or keep it rebuilding as you edit:
 dart run build_runner watch
 ```
 
-Flutter doesn't hot-reload bundled assets, so after the `.rfw` rebuilds,
-hot-restart the running app (press `R` in `flutter run`) to pick up the new
-artifact.
+The compiled-widget fallback follows Flutter's normal hot-reload rules.
+Regenerate after changes to the surface or its contract.
 
 That's the whole local loop: write Flutter, compile, render, repeat. Nothing
 so far needs an account or a network.
+
+## 6. Publish when ready (optional)
+
+When you want the surface on a server, push it by id, then publish the pushed
+revision:
+
+```sh
+restage surface push pro_upgrade
+restage surface publish pro_upgrade
+```
+
+A push uploads a version and changes nothing that is running. A publish makes
+one pushed revision live. Push ten variants; publish one.
+
+Run these after `restage init` has configured the project and app, and after
+`restage login`. The push reads `.restage/build/metadata/restage.publication.json` and
+uploads the artifacts recorded there. `--type paywall` is optional validation.
+
+You can also name the file instead of the id:
+
+```sh
+restage surface push lib/paywalls/pro_upgrade.dart
+```
+
+The CLI resolves the file through the same generated manifest, so it selects
+what the build produced. If a file produced more than one surface, the CLI
+lists them and asks; `--all` pushes all of them.
+
+The earlier steps work without publishing. Configure hosted delivery at app
+startup when you want this mount to fetch published content.
 
 ## Where to go next
 
@@ -300,7 +259,7 @@ so far needs an account or a network.
   plan, the selection updates, the purchase re-targets) that travels inside the
   artifact with no host code. The examples README explains the pattern.
 - **Restage Cloud.** When you want a published surface to update installed
-  apps over the air, push and publish it to Restage Cloud with
+  apps over the air, configure Restage at startup with your public API key
+  and service URL, then push and publish it with
   `restage surface push` and `restage surface publish`. Until a version is
-  published, the SDK renders your bundled artifact, so nothing you build now
-  has to change.
+  available, the generated mount renders your compiled widget.

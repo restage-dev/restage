@@ -31,29 +31,6 @@ final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
       '{"schemaVersion":1,"events":[{"id":"continue","arguments":{"encoding":"value","shape":{"kind":"string"}}}]}',
   hostDataSchemaJson:
       '{"schemaVersion":1,"inputs":{"context":{"kind":"string"},"data":{"kind":"string"},"description":{"kind":"string"},"enabled":{"kind":"bool"},"itemContext":{"kind":"string"},"title":{"kind":"string"},"usage":{"kind":"string"}}}',
-  bundle: SurfaceScreenBundleLocator(
-    assetKey:
-        'assets/restage/bundles/lib/onboarding/screens/get_started_screen.rsbundle',
-    packageName: 'restage_widgetbook_example',
-    authoredLibraryPath: 'lib/onboarding/screens/get_started_screen.dart',
-    entries: [
-      SurfaceScreenBundleEntryReference(
-        logicalPath: 'assets/onboarding/screens/get_started_screen.rfw',
-        role: RestageBundleEntryRole.screenBlob,
-        byteLength: 1747,
-        sha256:
-            'sha256:6de6f52ac71212a2a79391f6871f1eccf5645066bb6d7e6798aacbac29b3d355',
-      ),
-      SurfaceScreenBundleEntryReference(
-        logicalPath:
-            'assets/onboarding/screens/get_started_screen.capability.json',
-        role: RestageBundleEntryRole.capabilitySidecar,
-        byteLength: 141,
-        sha256:
-            'sha256:7640f8efacf15a352bc9da2b4d2cfb77ccf99d463956a37df63d3d9fdcca0e30',
-      ),
-    ],
-  ),
   vocabulary: const SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Center': buildCenter, 'Text': buildText},
@@ -83,6 +60,55 @@ GetStartedScreenEvent _decodeValidatedGetStartedScreenEvent(
   throw FormatException('Invalid GetStartedScreen event "$name".');
 }
 
+final _getStartedScreenPlacementDefinitionValue =
+    RestageScreen.generatedPlacementDefinition(
+      defaultSurface: getStartedScreenRef,
+      defaultSurfaceLocatorJson: <String, Object?>{
+        'surfaceType': 'onboarding',
+        'slug': 'get_started_screen',
+        'family': <String, Object?>{
+          'kind': 'screenContract',
+          'contractVersion': 1,
+        },
+      },
+      hostContractJson: <String, Object?>{
+        'schemaVersion': 1,
+        'hosting': <String, Object?>{
+          'contentKind': 'single',
+          'presentation': 'inline',
+        },
+        'providedContext': <String, Object?>{
+          'inputs': <String, Object?>{
+            'context': <String, Object?>{'kind': 'string'},
+            'data': <String, Object?>{'kind': 'string'},
+            'description': <String, Object?>{'kind': 'string'},
+            'enabled': <String, Object?>{'kind': 'bool'},
+            'itemContext': <String, Object?>{'kind': 'string'},
+            'title': <String, Object?>{'kind': 'string'},
+            'usage': <String, Object?>{'kind': 'string'},
+          },
+          'schemaVersion': 1,
+        },
+        'handledEvents': <String, Object?>{
+          'schemaVersion': 1,
+          'events': <Object?>[
+            <String, Object?>{
+              'id': 'continue',
+              'arguments': <String, Object?>{
+                'encoding': 'value',
+                'shape': <String, Object?>{'kind': 'string'},
+              },
+            },
+          ],
+        },
+        'flowBoundary': null,
+      },
+      vocabulary: getStartedScreenRef.provenance.vocabulary,
+    );
+
+final getStartedScreenPlacementDefinition = () =>
+    _getStartedScreenPlacementDefinitionValue;
+
 const bool _getStartedScreenMountDefault2 = true;
 
 const GetStartedScreenTone _getStartedScreenMountDefault3 =
@@ -102,7 +128,42 @@ const String _getStartedScreenMountDefault8 = 'Example description';
 const String _getStartedScreenMountDefault9 = 'Example usage';
 
 final class GetStartedScreenSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const GetStartedScreenSurface({
+    super.key,
+    required String title,
+    bool enabled = _getStartedScreenMountDefault2,
+    GetStartedScreenTone tone = _getStartedScreenMountDefault3,
+    String data = _getStartedScreenMountDefault4,
+    String context = _getStartedScreenMountDefault5,
+    String itemContext = _getStartedScreenMountDefault6,
+    GetStartedScreenTone restageA2uiStatus = _getStartedScreenMountDefault7,
+    String description = _getStartedScreenMountDefault8,
+    String usage = _getStartedScreenMountDefault9,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+    this.unavailable,
+  }) : _restageArgument1 = title,
+       _restageArgument2 = enabled,
+       _restageArgument3 = tone,
+       _restageArgument4 = data,
+       _restageArgument5 = context,
+       _restageArgument6 = itemContext,
+       _restageArgument7 = restageA2uiStatus,
+       _restageArgument8 = description,
+       _restageArgument9 = usage,
+       _restagePlacementName = placement;
+
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [GetStartedScreenSurface] for the default placement; no name is needed.
+  const GetStartedScreenSurface.atPlacement(
+    String restagePlacementId, {
     super.key,
     required String title,
     bool enabled = _getStartedScreenMountDefault2,
@@ -117,6 +178,7 @@ final class GetStartedScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restageArgument1 = title,
        _restageArgument2 = enabled,
        _restageArgument3 = tone,
@@ -125,7 +187,8 @@ final class GetStartedScreenSurface extends StatelessWidget {
        _restageArgument6 = itemContext,
        _restageArgument7 = restageA2uiStatus,
        _restageArgument8 = description,
-       _restageArgument9 = usage;
+       _restageArgument9 = usage,
+       _restagePlacementName = restagePlacementId;
 
   final String _restageArgument1;
 
@@ -144,6 +207,7 @@ final class GetStartedScreenSurface extends StatelessWidget {
   final String _restageArgument8;
 
   final String _restageArgument9;
+  final String? _restagePlacementName;
 
   final ValueChanged<GetStartedScreenEvent>? onEvent;
 
@@ -153,10 +217,16 @@ final class GetStartedScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<GetStartedScreenEvent>(
       screen: getStartedScreenRef,
+      placementBinding: RestageScreen.generatedPlacementBinding(
+        definition: getStartedScreenPlacementDefinition,
+        name: _restagePlacementName,
+      ),
       context: <String, Object?>{
         'title': _restageArgument1,
         'enabled': _restageArgument2,
@@ -166,19 +236,21 @@ final class GetStartedScreenSurface extends StatelessWidget {
         'description': _restageArgument8,
         'usage': _restageArgument9,
       },
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => GetStartedScreen(
-          title: _restageArgument1,
-          enabled: _restageArgument2,
-          tone: _restageArgument3,
-          data: _restageArgument4,
-          context: _restageArgument5,
-          itemContext: _restageArgument6,
-          restageA2uiStatus: _restageArgument7,
-          description: _restageArgument8,
-          usage: _restageArgument9,
-        ),
-      ),
+      unavailable:
+          unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => GetStartedScreen(
+              title: _restageArgument1,
+              enabled: _restageArgument2,
+              tone: _restageArgument3,
+              data: _restageArgument4,
+              context: _restageArgument5,
+              itemContext: _restageArgument6,
+              restageA2uiStatus: _restageArgument7,
+              description: _restageArgument8,
+              usage: _restageArgument9,
+            ),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,

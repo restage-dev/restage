@@ -1,12 +1,18 @@
+import 'dart:convert';
+
 import 'package:analyzer/dart/analysis/utilities.dart' show parseString;
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:build/build.dart';
+import 'package:restage_codegen/src/catalog_loader.dart'
+    show customCatalogPackages;
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_factory_emitter.dart';
+import 'package:restage_codegen/src/widget_library_registration.dart';
 import 'package:restage_shared/restage_shared.dart' show WidgetVocabulary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -32,6 +38,23 @@ const AppWidgetMountInstall _nothing =
 /// Where the app widget factory sidecar sits in a package.
 const String kAppWidgetFactoriesPath =
     'lib/src/widget_catalog/app_widget_factories.json';
+
+/// Loads custom factory sidecars from the declared package graph.
+Future<AppWidgetMountFactories> loadAppWidgetFactories(
+  BuildStep buildStep, {
+  bool includeRoot = true,
+}) async {
+  final factories = <String, AppWidgetMountFactories>{};
+  for (final package in await customCatalogPackages(buildStep)) {
+    if (!includeRoot && package == buildStep.inputId.package) continue;
+    final sidecar = AssetId(package, kAppWidgetFactoriesPath);
+    if (!await buildStep.canRead(sidecar)) continue;
+    factories[package] = AppWidgetMountFactories.fromJson(
+      jsonDecode(await buildStep.readAsString(sidecar)) as Map<String, Object?>,
+    );
+  }
+  return AppWidgetMountFactories.merge(factories);
+}
 
 /// The package's app widget factories, emitted once per build and spelled for
 /// each generated part that installs them.
@@ -118,6 +141,106 @@ final class AppWidgetMountFactories {
     );
   }
 
+  /// Combines package sidecars while giving every import a distinct prefix.
+  factory AppWidgetMountFactories.merge(
+    Map<String, AppWidgetMountFactories> packages,
+  ) {
+    final inputs = packages.values.toList();
+    if (inputs.length == 1) return inputs.single;
+    final uris = inputs
+        .expand((input) => input._uriByAlias.values)
+        .toSet()
+        .toList()
+      ..sort();
+    final aliasByUri = {
+      for (var i = 0; i < uris.length; i++) uris[i]: '$_aliasStem$i',
+    };
+    final factories = <String, _Factory>{};
+    final versions = <String, int>{};
+    final compatibleSince = <String, int>{};
+    final ownerByNamespace = <String, String>{};
+    for (final MapEntry(key: owner, value: input) in packages.entries) {
+      for (final namespace in input._namesByNamespace.keys) {
+        final previous = ownerByNamespace[namespace];
+        if (previous != null) {
+          throw StateError(
+            'Widget factory library $namespace is declared by packages '
+            '$previous and $owner. Each library must have one owner.',
+          );
+        }
+        ownerByNamespace[namespace] = owner;
+      }
+      for (final entry in input._factories.entries) {
+        final factory = entry.value;
+        var source = factory.source;
+        final uses = factory
+            .names(input._uriByAlias.keys.toSet())
+            .uses
+            .where((use) => use.alias != null)
+            .toList()
+          ..sort((a, b) => b.offset.compareTo(a.offset));
+        for (final use in uses) {
+          final alias = use.alias!;
+          source = source.replaceRange(
+            use.offset,
+            use.offset + alias.length,
+            aliasByUri[input._uriByAlias[alias]]!,
+          );
+        }
+        factories[entry.key] = _Factory(factory.function, source);
+      }
+      versions.addAll(input._versions);
+      compatibleSince.addAll(input._compatibleSince);
+    }
+    return AppWidgetMountFactories._(
+      factories,
+      {for (final entry in aliasByUri.entries) entry.value: entry.key},
+      versions,
+      compatibleSince,
+    );
+  }
+
+  /// Standalone factory declarations and custom registrations for startup.
+  /// Built-in vocabulary remains owned by the consuming app's derivation.
+  AppWidgetRegistrationSource registrationSource() {
+    final declarations = StringBuffer();
+    final registrations = StringBuffer();
+    for (final namespace in _namesByNamespace.keys.toList()..sort()) {
+      final builders = <String, String>{};
+      for (final name in _namesByNamespace[namespace]!) {
+        final factory =
+            _factories[WidgetVocabulary.qualifiedName(namespace, name)]!;
+        final function = _factoryFunctionName(namespace, name);
+        final declaration =
+            factory.unit.declarations.whereType<FunctionDeclaration>().single;
+        declarations.writeln(
+          factory.source.replaceRange(
+            declaration.name.offset,
+            declaration.name.end,
+            function,
+          ),
+        );
+        builders[name] = function;
+      }
+      writeWidgetLibraryRegistration(
+        registrations,
+        library: 'WidgetLibrary.custom(${dartStringLiteral(namespace)})',
+        builders: builders,
+        capabilityVersion: _versions[namespace],
+        compatibleSince: _compatibleSince[namespace],
+      );
+    }
+    return (
+      imports: [
+        if (!isEmpty) "import 'package:flutter/widgets.dart';",
+        for (final entry in _uriByAlias.entries)
+          'import ${dartStringLiteral(entry.value)} as ${entry.key};',
+      ],
+      declarations: declarations.toString(),
+      registrations: registrations.toString(),
+    );
+  }
+
   /// A package with no app widget.
   static final AppWidgetMountFactories none =
       AppWidgetMountFactories._(const {}, const {}, const {}, const {});
@@ -176,17 +299,15 @@ final class AppWidgetMountFactories {
           return _unavailable(name, 'no widget factory was generated for it');
         }
       }
-      final version = _versions[namespace];
       registrations
         ..write('${sdkPrefix}RestageWidgetLibraryRegistration.constant(')
         ..write('library: ${sdkPrefix}WidgetLibrary.custom(')
         ..write('${dartStringLiteral(namespace)}),')
-        ..write(version == null ? '' : 'capabilityVersion: $version,')
-        ..write(
-          switch (_compatibleSince[namespace]) {
-            final since? when since > 1 => 'compatibleSince: $since,',
-            _ => '',
-          },
+        ..writeAll(
+          widgetLibraryVersionArguments(
+            capabilityVersion: _versions[namespace],
+            compatibleSince: _compatibleSince[namespace],
+          ),
         )
         ..write('widgets: [');
       for (final name in installed) {

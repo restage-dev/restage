@@ -13,6 +13,7 @@ Generate the stories first, from the example package:
 ```sh
 cd ../../packages/restage_widgetbook_example
 dart run build_runner build
+cd ../../apps/widgetbook_example
 ```
 
 Then run or build the workbench from this directory:

@@ -19,6 +19,7 @@ import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -35,6 +36,7 @@ import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilityManifest, CapabilitySidecar, Surface;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const JsonEncoder _jsonEncoder = JsonEncoder.withIndent('  ');
 const String _restageSdkOrigin = 'package:restage';
@@ -135,8 +137,9 @@ final class ResolvedScreenCompilationResult {
 /// no screen identity is recovered from a type string or a directory name.
 Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
   LibraryElement library,
-  AssetId assetId,
-) async {
+  AssetId assetId, {
+  Catalog? catalog,
+}) async {
   final screens = <ResolvedScreenCompilationInput>[];
   final issues = <Issue>[];
   final implicit = <ClassElement>[];
@@ -191,6 +194,7 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
       continue;
     }
     final build = await extractSourceBuildBlueprint(
+      catalog: catalog,
       sourceClass: declaration,
       library: library,
       astNodeFor: resolvedAstNodeFor,
@@ -490,9 +494,11 @@ final class OnboardingScreenBuilder implements Builder {
       assetId,
       allowSyntaxErrors: true,
     );
+    final catalog = await loadMergedCatalog(buildStep);
     final canonical = await inspectCanonicalScreenDeclarations(
       library,
       assetId,
+      catalog: catalog,
     );
     if (canonical.issues.isNotEmpty) _surfaceIssues(canonical.issues);
     if (canonical.screens.isNotEmpty) {
@@ -508,13 +514,17 @@ final class OnboardingScreenBuilder implements Builder {
       buildStep,
       assetId: assetId,
       library: library,
+      catalog: catalog,
     );
     final result = admission.visitorResult;
     final issues = [...admission.issues];
 
     if (!admission.participates) return;
 
-    final stem = p.basenameWithoutExtension(assetId.path);
+    final stem = conventionalOutputStem(
+      assetId.path,
+      'lib/${p.posix.split(assetId.path)[1]}/screens',
+    );
     for (final src in result.sources) {
       final descriptorName = '${src.className}Descriptor';
       if (_hasTopLevelDeclaration(library, descriptorName)) {
@@ -530,7 +540,6 @@ final class OnboardingScreenBuilder implements Builder {
     }
     if (!admission.isAdmitted || issues.isNotEmpty) _surfaceIssues(issues);
 
-    final catalog = await loadMergedCatalog(buildStep);
     final helpers = HelperRegistry()..registerAll(onboardingHelpers);
     final classification = await classifyReferencedCustomWidgets(
       rootExpressions:
@@ -676,8 +685,11 @@ final class OnboardingScreenBuilder implements Builder {
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
-    final stem = p.basenameWithoutExtension(buildStep.inputId.path);
     final inputSurface = p.posix.split(buildStep.inputId.path)[1];
+    final stem = conventionalOutputStem(
+      buildStep.inputId.path,
+      'lib/$inputSurface/screens',
+    );
     final outputRoot = 'assets/$inputSurface/screens/$stem';
     final selected = screens.first;
     final effectiveSurface = selected.surface?.wireName ?? inputSurface;

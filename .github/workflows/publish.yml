@@ -91,7 +91,7 @@ jobs:
           channel: stable
           # Same pin as ci.yml: packages are validated on a pinned toolchain, so
           # they are published on it too rather than on whatever stable is today.
-          flutter-version: 3.47.0
+          flutter-version: 3.47.7
           cache: true
 
       - name: Prepare package for publishing

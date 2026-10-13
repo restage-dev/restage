@@ -31,7 +31,7 @@ final class UserCatalogJsonBuilder implements Builder {
   /// Const constructor used by the `userCatalogJsonBuilder` factory.
   const UserCatalogJsonBuilder(this.options);
 
-  /// `BuilderOptions` injected by build_runner; currently unused.
+  /// `BuilderOptions` injected by build_runner.
   final BuilderOptions options;
 
   @override
@@ -47,8 +47,11 @@ final class UserCatalogJsonBuilder implements Builder {
     final collection = await collectRestageWidgetsForPackage(buildStep);
     if (collection == null) return;
 
-    final logContents =
-        await readRootEventLog(buildStep, buildStep.inputId.package);
+    final logContents = await readRootEventLog(
+      buildStep,
+      buildStep.inputId.package,
+      requireTracked: !options.isRoot,
+    );
     final existingEvents = logContents == null
         ? <WireIdEvent>[]
         : parseWireIdEventsJsonl(
@@ -71,6 +74,8 @@ final class UserCatalogJsonBuilder implements Builder {
       allocation.catalog,
       package: buildStep.inputId.package,
       write: false,
+      buildStep: buildStep,
+      requireTracked: !options.isRoot,
       enumMembers:
           await resolveEnumMembers(buildStep.resolver, allocation.catalog),
     );

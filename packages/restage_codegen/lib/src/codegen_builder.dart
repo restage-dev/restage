@@ -17,6 +17,7 @@ import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
@@ -33,61 +34,6 @@ import 'package:restage_shared/restage_shared.dart'
     show CapabilitySidecar, encodeLocalSeedsArtifact, kPaywallScreensAssetDir;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-/// Per-build container for the merged catalog. The build system creates
-/// a fresh instance for each build pass via [_catalogResource]; the
-/// inner cache shares one load across every paywall input in that pass
-/// and is dropped automatically between passes (so `--watch` mode
-/// re-reads `catalog.json` after a change).
-///
-/// Every consumer's [BuildStep] still registers `catalog.json` as a
-/// read dependency via `canRead`, even on cache hits — without it,
-/// `build_runner` would only re-trigger the first paywall input when a
-/// catalog file changes, leaving subsequent paywalls stale until some
-/// other input invalidates them.
-/// Per-build container for the merged catalog, keyed by the input package.
-/// The build system creates a fresh instance for each build pass via
-/// [_catalogResource]; the inner cache shares one load across every input of a
-/// given package in that pass, and is dropped automatically between passes (so
-/// `--watch` mode re-reads `catalog.json` after a change). Keying by package
-/// keeps each package's own custom catalog from leaking to another in a
-/// multi-package build.
-///
-/// Every consumer's [BuildStep] still registers `catalog.json` as a read
-/// dependency via `canRead`, even on cache hits — without it, `build_runner`
-/// would only re-trigger the first input when a catalog file changes, leaving
-/// subsequent inputs stale until some other input invalidates them.
-@visibleForTesting
-class CatalogPerBuildCache {
-  /// Creates a per-build cache. [load] defaults to [loadMergedCatalog]; tests
-  /// inject a stub to assert the cache keys by input package without real
-  /// cross-package asset reads.
-  CatalogPerBuildCache({Future<Catalog> Function(BuildStep)? load})
-      : _load = load ?? loadMergedCatalog;
-
-  final Future<Catalog> Function(BuildStep) _load;
-
-  // Keyed by input package: the merged catalog is package-specific (it folds in
-  // `buildStep.inputId.package`'s own custom catalog), so a single cross-pass
-  // entry would serve one package's custom widgets to another in a build that
-  // spans multiple packages. Within a package, BuildSteps still share one load.
-  final Map<String, Future<Catalog>> _inflightByPackage = {};
-
-  /// Returns the merged catalog for [buildStep]'s package — loaded once per
-  /// package and shared across that package's BuildSteps — registering the
-  /// built-in catalog reads on every call so watch-mode invalidation stays
-  /// correct.
-  Future<Catalog> getOrLoad(BuildStep buildStep) async {
-    for (final id in builtInCatalogAssetIds.values) {
-      await buildStep.canRead(id);
-    }
-    final package = buildStep.inputId.package;
-    return _inflightByPackage[package] ??= _load(buildStep);
-  }
-}
-
-final Resource<CatalogPerBuildCache> _catalogResource =
-    Resource<CatalogPerBuildCache>(CatalogPerBuildCache.new);
 
 const String _kSourceDir = 'lib/paywalls';
 const String _kOutputDir = 'assets/paywalls';
@@ -245,8 +191,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     return ResolvedPaywallCompilationResult(paywalls: const [], issues: issues);
   }
 
-  final catalogCache = await buildStep.fetchResource(_catalogResource);
-  final catalog = await catalogCache.getOrLoad(buildStep);
+  final catalog = await loadMergedCatalog(buildStep);
   final helpers = productionPaywallHelperRegistry();
   final classification = await classifyReferencedCustomWidgets(
     rootExpressions: sources.expand((source) => source.build.collectorRoots),
@@ -668,8 +613,7 @@ final class RestageCodegenBuilder implements Builder {
       allowSyntaxErrors: true,
     );
 
-    final catalogCache = await buildStep.fetchResource(_catalogResource);
-    final catalog = await catalogCache.getOrLoad(buildStep);
+    final catalog = await loadMergedCatalog(buildStep);
 
     final state = CodegenBuildState(
       library: library,
@@ -715,6 +659,7 @@ final class RestageCodegenBuilder implements Builder {
     }
 
     final stem = p.basenameWithoutExtension(assetId.path);
+    final outputStem = conventionalOutputStem(assetId.path, _kSourceDir);
 
     // Filename-vs-id alignment remains a compatibility rule for the
     // deprecated source spelling. Canonical @Paywall IDs are authoritative:
@@ -866,7 +811,10 @@ final class RestageCodegenBuilder implements Builder {
               if (seeds.isNotEmpty) {
                 writes.add(
                   buildStep.writeAsBytes(
-                    AssetId(assetId.package, '$_kOutputDir/$stem.local.json'),
+                    AssetId(
+                      assetId.package,
+                      '$_kOutputDir/$outputStem.local.json',
+                    ),
                     encodeLocalSeedsArtifact({paywallRootWidgetName: seeds}),
                   ),
                 );
@@ -874,13 +822,13 @@ final class RestageCodegenBuilder implements Builder {
               writes
                 ..add(
                   buildStep.writeAsString(
-                    AssetId(assetId.package, '$_kOutputDir/$stem.rfwtxt'),
+                    AssetId(assetId.package, '$_kOutputDir/$outputStem.rfwtxt'),
                     lowered.text,
                   ),
                 )
                 ..add(
                   buildStep.writeAsBytes(
-                    AssetId(assetId.package, '$_kOutputDir/$stem.rfw'),
+                    AssetId(assetId.package, '$_kOutputDir/$outputStem.rfw'),
                     paywallBytes,
                   ),
                 )
@@ -888,7 +836,7 @@ final class RestageCodegenBuilder implements Builder {
                   buildStep.writeAsString(
                     AssetId(
                       assetId.package,
-                      '$_kOutputDir/$stem.capability.json',
+                      '$_kOutputDir/$outputStem.capability.json',
                     ),
                     _jsonEncoder.convert(
                       CapabilitySidecar(
@@ -947,7 +895,7 @@ final class RestageCodegenBuilder implements Builder {
                   buildStep.writeAsBytes(
                     AssetId(
                       assetId.package,
-                      '$_kPaywallScreenOutputDir/paywall_$stem.rfw',
+                      '$_kPaywallScreenOutputDir/paywall_$outputStem.rfw',
                     ),
                     flowScreenBytes,
                   ),
@@ -960,7 +908,7 @@ final class RestageCodegenBuilder implements Builder {
                   buildStep.writeAsString(
                     AssetId(
                       assetId.package,
-                      '$_kPaywallScreenOutputDir/paywall_$stem.capability.json',
+                      '$_kPaywallScreenOutputDir/paywall_$outputStem.capability.json',
                     ),
                     _jsonEncoder.convert(
                       CapabilitySidecar(
@@ -976,7 +924,7 @@ final class RestageCodegenBuilder implements Builder {
                   buildStep.writeAsString(
                     AssetId(
                       assetId.package,
-                      '$_kOutputDir/$stem.navplan.json',
+                      '$_kOutputDir/$outputStem.navplan.json',
                     ),
                     _jsonEncoder.convert(navigation.toJson()),
                   ),
@@ -1019,7 +967,7 @@ final class RestageCodegenBuilder implements Builder {
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
-    final stem = p.basenameWithoutExtension(buildStep.inputId.path);
+    final stem = conventionalOutputStem(buildStep.inputId.path, _kSourceDir);
     final id = source.id;
     List<int>? bytesAt(String path) =>
         publication.artifacts[path] ?? publication.ownedOutputs[path];
@@ -1138,6 +1086,7 @@ final class RestageCodegenBuilder implements Builder {
   Future<void> _buildFromRawDsl(BuildStep buildStep) async {
     final assetId = buildStep.inputId;
     final stem = p.basenameWithoutExtension(assetId.path);
+    final outputStem = conventionalOutputStem(assetId.path, _kSourceDir);
     final source = await buildStep.readAsString(assetId);
 
     final issues = <Issue>[];
@@ -1152,8 +1101,7 @@ final class RestageCodegenBuilder implements Builder {
       // widgets at construction time, so the model walk is the only
       // gate keeping unrecognised widget/property usage out of the
       // emitted blob.
-      final catalogCache = await buildStep.fetchResource(_catalogResource);
-      final catalog = await catalogCache.getOrLoad(buildStep);
+      final catalog = await loadMergedCatalog(buildStep);
       final lowering = lowerAnalyticsIds(
         text: source,
         library: parsedLibrary,
@@ -1177,11 +1125,14 @@ final class RestageCodegenBuilder implements Builder {
           } else {
             final bytes = fmt.encodeLibraryBlob(lowering.library);
             await buildStep.writeAsBytes(
-              AssetId(assetId.package, '$_kOutputDir/$stem.rfw'),
+              AssetId(assetId.package, '$_kOutputDir/$outputStem.rfw'),
               bytes,
             );
             await buildStep.writeAsString(
-              AssetId(assetId.package, '$_kOutputDir/$stem.capability.json'),
+              AssetId(
+                assetId.package,
+                '$_kOutputDir/$outputStem.capability.json',
+              ),
               _jsonEncoder.convert(
                 CapabilitySidecar(
                   blobSha256: CapabilitySidecar.hashBlob(bytes),

@@ -1,0 +1,9 @@
+import 'package:restage/restage.dart';
+
+export 'widgets.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('acme.widgets'),
+  capabilityVersion: 1,
+)
+const acmeWidgets = 0;

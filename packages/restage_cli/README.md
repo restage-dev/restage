@@ -20,7 +20,8 @@ the repo:
 ```sh
 git clone https://github.com/restage-dev/restage.git
 cd restage
-melos run cli:install
+flutter pub get
+dart run melos run cli:install
 ```
 
 That compiles the CLI and installs it at `$PUB_CACHE/bin/restage`. Make sure
@@ -252,6 +253,38 @@ Running them commits the same file. Nothing is pushed or published again.
 
 The CLI never pushes Git commits to a remote and never creates a branch or a
 pull request. Receipt commits land on your current branch.
+
+## Surface versions and library compatibility
+
+`restage surface rename-version`, `archive` and `restore` manage version labels
+and the surface lifecycle. Archiving stops the surface serving across its
+environments; restoring returns it to the list, and publishing a version makes
+it serve again. These commands require an admin role.
+Run each command with `--help` for its identity and confirmation arguments.
+
+`restage surface check-libraries` reads the local build's library contracts and
+reports live versions, delivery rules and experiment arms that would stop
+rendering on that build. It exits non-zero when it finds a break, so it can
+gate an app release.
+
+## Placements and delivery plans
+
+`restage delivery placements list` lists app locations; `show` reads one.
+`restage delivery observed-history` reads observed mounts, and
+`restage delivery simulate` previews decisions for supplied inputs.
+`restage delivery map` shows routing and actual paints by app build;
+`restage where welcome@v2` finds the placements serving one surface version.
+
+Use `restage delivery plan` to read, inspect history, check fit, simulate,
+review and publish a complete delivery plan. Review records the intended target
+and current revision; publish consumes that review. These commands use the same
+target selection and live-change confirmations as other delivery writes.
+
+`restage delivery sample` imports an explicit local capture and PNG, reviews
+it, uploads the reviewed image, and binds it to the captured placements. It also
+supports reading and deleting samples. Nothing is captured or uploaded just by
+listing placements. Run `restage delivery --help` for the command groups and
+individual commands' `--help` for required arguments.
 
 ## Builds (pre-release)
 

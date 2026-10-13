@@ -33,8 +33,18 @@ files use the same explicit id.
 ```
 
 Your own widget class is used in a surface. Add `@RestageWidget()` to it and export
-it from the widget library file. See [custom-widgets.md](custom-widgets.md). The same
-error names a helper declared in another library; move it into the surface's file.
+it from the widget library file. See [custom-widgets.md](custom-widgets.md). The
+annotation lets Restage inline supported composition or register a native factory.
+For an unsupported helper call, first check that it is an own method or same-library
+function whose body and arguments can be inlined.
+
+## missingCatalogDescription
+
+Document a custom widget class and each public constructor input with Dartdoc.
+The compiler uses these descriptions in the generated catalog. Explicit
+`RestageWidget.description` and `RestageProperty.description` are alternatives.
+Descriptions are required; a missing description stops catalog generation and can
+cause later surface builds to report that the widget is unknown.
 
 ## unknownProperty
 
@@ -43,8 +53,9 @@ error names a helper declared in another library; move it into the surface's fil
 ```
 
 The catalog version of that widget doesn't have the argument. Use one of the listed
-properties, express the same thing another way (an icon or a color that switches on
-state), or put the widget in a `@RestageWidget` of your own.
+properties or express the same design with supported composition. If the feature
+requires native code, isolate it in a small `@RestageWidget` with configurable
+properties and child slots; review the resulting factory notice below.
 
 The same code names an unsupported text field setting:
 
@@ -58,12 +69,8 @@ in place of `TextInputType.numberWithOptions(...)`.
 
 ## unrecognizedMethodCall
 
-```text
-[unrecognizedMethodCall] lib/messages/promo.dart:10:63: Unsupported expression: FunctionExpressionImpl `() => Navigator.of(context).pop()`. See the supported expression subset.
-```
-
-An inline callback that runs code. Surfaces can't run code. Fire a `SurfaceEvent`
-instead and do the work in the mount's `onEvent`:
+An expression or callback falls outside the compiler's supported subset. Keep API
+calls, platform work and app navigation in the mount's event handler:
 
 ```dart
 static const back = SurfaceEvent<void>('back');
@@ -73,7 +80,11 @@ TextButton(onPressed: surfaceEvent(back), child: const Text('Back'))
 MySurface(onEvent: (event) => Navigator.of(context).pop())
 ```
 
-The same code appears for a tap closure that changes state:
+Supported paywall Navigator calls can lower to flow transitions. They are constrained to
+recognized routes and callbacks, without observing a pushed route's result; see
+[flows.md](flows.md). Do not replace every navigation diagnostic with a custom widget.
+
+The same code appears for an unsupported tap closure that changes state:
 
 ```text
 [unrecognizedMethodCall] lib/screens/counter.dart:22:24: Unsupported expression: FunctionExpression `() => setState(() => count++)`. See the supported expression subset.
@@ -131,9 +142,10 @@ milliseconds.
 ```
 
 A field a value callback writes can also be set by a named method, but only to a
-literal (`setState(() => on = false)`), never to a computed value such as `!on`. Every
-state field needs a literal initial value, such as `String note = '';`. A nullable
-field without one stops the build.
+literal (`setState(() => on = false)`), never to a computed value such as `!on`.
+State fields support `bool`, `int`, `double`, `num`, `String` and enums with non-null
+constant initializers. A missing initializer, unsupported field type or lifecycle
+method stops the build. Keep controllers and subscriptions in app code.
 
 ## completesOn names an event no tap fires
 
@@ -178,7 +190,8 @@ when your own widget shows, so remove it.
 ```
 
 A helper that the build can't inline is refused by name: its body must be one returned
-expression, optionally after `final` or `const` locals it uses.
+expression, optionally after `final` or `const` locals it uses. Pass every parameter
+explicitly, including optional parameters, and avoid recursive helper calls.
 
 Every local in `build()` must reach the returned widget. Remove it, or use it. `late`,
 several variables in one statement, and any statement other than a local or the
@@ -193,12 +206,21 @@ several variables in one statement, and any statement other than a local or the
 For full width, use `Column(crossAxisAlignment: CrossAxisAlignment.stretch, ...)` or
 `Row(children: [Expanded(child: ...)])`.
 
-## Warnings you can leave
+## customWidgetAppFactoryUsed
 
-- `customWidgetAppFactoryUsed`: a `@RestageWidget` renders from its compiled Dart in
-  the app, because its `build()` uses something the build doesn't compile. Its
-  properties still come from the surface. Changing its code needs an app release, as
-  for any custom widget.
+This notice identifies a component that renders from the app's compiled factory
+and explains why it did not inline. Delivered surfaces can still set its arguments
+and child slots. Changes to that native implementation or its defaults require an
+app release.
+
+Review this notice when maximizing OTA coverage. Move layout, copy and composition
+out of a large native component, or rewrite an unsupported construct using the
+supported subset. Retain a native factory for platform behavior, controllers or
+custom painting that the app must own. An inlined `@RestageWidget` does not have the
+same implementation boundary. See [surface-design.md](surface-design.md).
+
+## Other build notices
+
 - "generated registration includes the whole built-in catalog by default": see *App
   size* in [setup-and-delivery.md](setup-and-delivery.md).
 - `interactionItemUnavailable` (shown with `--verbose`): taps in a loop share one
@@ -212,5 +234,6 @@ For full width, use `Column(crossAxisAlignment: CrossAxisAlignment.stretch, ...)
 
 ## When a fix isn't obvious
 
-The error also prints a link to request support for a missing capability. Before that,
-check whether the same design can use a catalog widget, host data, or a `@RestageWidget`.
+Check whether the same design can use catalog composition, a supported helper or
+host data. Use a small native component when the missing capability needs it. The
+compiler also links to support for capability gaps.

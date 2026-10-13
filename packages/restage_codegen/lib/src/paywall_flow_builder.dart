@@ -5,10 +5,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:build/build.dart';
-import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -229,20 +229,27 @@ final class PaywallFlowBuilder implements Builder {
   @override
   Future<void> build(BuildStep buildStep) async {
     final assetId = buildStep.inputId;
+    Future<Catalog>? pendingCatalog;
+    Future<Catalog> mergedCatalog() =>
+        pendingCatalog ??= loadMergedCatalog(buildStep);
     if (_aggregateOwnsCanonical &&
         await buildStep.resolver.isLibrary(assetId)) {
       final library = await buildStep.resolver.libraryFor(
         assetId,
         allowSyntaxErrors: true,
       );
-      final inspection = await visitPaywallSources(library, assetId);
+      final inspection = await visitPaywallSources(
+        library,
+        assetId,
+        catalog: await mergedCatalog(),
+      );
       if (inspection.issues.isNotEmpty) _surfaceIssues(inspection.issues);
       if (inspection.sources.isNotEmpty &&
           inspection.sources.every((source) => source.isCanonical)) {
         return;
       }
     }
-    final stem = p.basenameWithoutExtension(assetId.path);
+    final stem = conventionalOutputStem(assetId.path, _kPaywallSourceDir);
     final navPlanId = AssetId(
       assetId.package,
       '$_kPaywallOutputDir/$stem.navplan.json',
@@ -258,7 +265,7 @@ final class PaywallFlowBuilder implements Builder {
     // return). The capability floor each screen artifact declares is derived
     // from the built-ins that screen references, resolved against this catalog
     // — the same derivation the standalone blob uses, so the two never diverge.
-    final catalog = await loadMergedCatalog(buildStep);
+    final catalog = await mergedCatalog();
 
     final document = await _synthesizeFlowDocument(
       buildStep,

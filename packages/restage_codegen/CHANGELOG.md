@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+Measurement routes and publication drafts stay stable across repeated local
+builds after adding or removing a measured element.
+
 Widget lists support `if` inside a loop over host data, including `else`, nested
 conditions, and literal spreads. A false condition without `else` contributes no
 child. Generated widget factories use the shared grouped-list decoder; surfaces

@@ -8,6 +8,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_state.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _kSdkLibraryOrigin = 'package:restage';
 
@@ -48,8 +49,9 @@ final class OnboardingVisitorResult {
 /// using the same resolved build-expression substrate as paywall codegen.
 Future<OnboardingVisitorResult> visitOnboardingSources(
   LibraryElement library,
-  AssetId assetId,
-) async {
+  AssetId assetId, {
+  Catalog? catalog,
+}) async {
   final sources = <OnboardingScreenSourceFound>[];
   final issues = <Issue>[];
 
@@ -107,6 +109,7 @@ Future<OnboardingVisitorResult> visitOnboardingSources(
       astNodeFor: resolvedAstNodeFor,
       issues: issues,
       location: location,
+      catalog: catalog,
     );
     if (build == null) continue;
 

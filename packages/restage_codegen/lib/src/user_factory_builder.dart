@@ -16,6 +16,7 @@ import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/installed_catalog_scope.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/user_factory_emitter.dart';
@@ -66,6 +67,12 @@ final class UserFactoryBuilder implements Builder {
       await deriveCompiledSurfaceVocabulary(buildStep),
     );
     final collection = await collectRestageWidgetsForPackage(buildStep);
+    final dependencies = await loadAppWidgetFactories(
+      buildStep,
+      includeRoot: false,
+    );
+    final dependencyFactories =
+        dependencies.isEmpty ? null : dependencies.registrationSource();
 
     // The admitted structured graph is threaded to the inline reconstructor:
     // a widget carrying a renderable structured
@@ -76,6 +83,7 @@ final class UserFactoryBuilder implements Builder {
         ? emitEmptyUserFactoriesDart(
             appVocabulary: appVocabulary,
             installWholeCatalog: installWholeCatalog,
+            dependencyFactories: dependencyFactories,
           )
         : emitAdmittedUserFactoriesDart(
             collection.widgets,
@@ -89,6 +97,7 @@ final class UserFactoryBuilder implements Builder {
             compatibleSinceVersions: collection.compatibleSinceVersions,
             appVocabulary: appVocabulary,
             installWholeCatalog: installWholeCatalog,
+            dependencyFactories: dependencyFactories,
           );
 
     await buildStep.writeAsString(
@@ -230,6 +239,7 @@ String emitAdmittedUserFactoriesDart(
   Map<String, int> compatibleSinceVersions = const {},
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
+  AppWidgetRegistrationSource? dependencyFactories,
 }) {
   final source = emitUserFactoriesDart(
     widgets,
@@ -243,12 +253,14 @@ String emitAdmittedUserFactoriesDart(
     compatibleSinceVersions: compatibleSinceVersions,
     appVocabulary: appVocabulary,
     installWholeCatalog: installWholeCatalog,
+    dependencyFactories: dependencyFactories,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );
   return source ??
       emitEmptyUserFactoriesDart(
         appVocabulary: appVocabulary,
         installWholeCatalog: installWholeCatalog,
+        dependencyFactories: dependencyFactories,
       );
 }
 

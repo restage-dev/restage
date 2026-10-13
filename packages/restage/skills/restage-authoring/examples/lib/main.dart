@@ -15,10 +15,6 @@ void main() {
   Restage.configure(
     apiKey: _apiKey.isEmpty ? null : _apiKey,
     baseUrl: _apiKey.isEmpty ? null : _baseUrl,
-    // Flows stay bundled unless a hosted flow resolver is passed.
-    flowResolver: _apiKey.isEmpty
-        ? null
-        : ServerFlowResolver(baseUrl: _baseUrl, apiKey: _apiKey, active: true),
     // Fetch every surface in the background at startup.
     surfaces: restageSurfaces,
   );

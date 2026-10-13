@@ -2756,6 +2756,11 @@ Future<void> _expectParenthesizedActionLedgerCompatibility({
   final prior = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
     utf8.encode(File(fixturePath).readAsStringSync().trim()),
   );
+  expect(
+    prior.publications.single.draft.lineageIntents
+        .map((intent) => intent.operation),
+    [LineageOperation.create],
+  );
   final compiled = await _compileLedgerSource(
     _parenthesizedActionSource(mixed: mixed),
     priorOutput: prior,

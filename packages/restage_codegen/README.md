@@ -42,8 +42,9 @@ automatically and write their outputs next to the sources they read. No
 the surfaces it compiled.
 
 A surface that draws icons ships a subset of their icon font, cut with the
-Flutter SDK's `font-subset` tool. Run the build with the Flutter SDK's Dart,
-or set `FLUTTER_ROOT` to the SDK.
+Flutter SDK's `font-subset` tool. Run the build with your app's Flutter SDK.
+The CLI also resolves the app-selected SDK for `restage build push`; see the
+[toolchain selection order](../restage_cli/README.md#builds-pre-release).
 
 ## Annotations
 
@@ -81,6 +82,11 @@ From one annotated source file:
 What ships is data the app renders. Your widgets carry the logic, as real Dart
 compiled into your app. A surface composes and configures them over the air.
 New behavior needs an app release.
+
+Every generated `<Name>Surface(...)` mount has an implicit placement. Use the
+ordinary constructor for screens, paywalls and flows. The generated
+`.atPlacement('name', ...)` constructor is an optional override for an explicit
+placement name.
 
 ## Generated files
 
@@ -122,10 +128,13 @@ file; don't edit earlier lines.
 
 ## Optional targets
 
+Widgetbook and A2UI work independently of RFW bundling. Enable either emitter
+without setting `bundled_runtime` or adding surface assets to `pubspec.yaml`.
+
 **A2UI.** The generator can turn your `@RestageWidget` classes into a
 [genui](https://pub.dev/packages/genui) A2UI catalog. Restage still delivers
 surfaces as RFW; A2UI is an extra output. The
-[A2UI walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets-step-by-step)
+[A2UI walkthrough](../restage_a2ui/README.md#generate-an-a2ui-catalog-from-your-widgets)
 covers the dependencies, the `build.yaml` setting, and the build command.
 
 **Widgetbook.** The generator can write a Widgetbook v4 story for each of your
@@ -144,6 +153,18 @@ targets only.
 **Watch mode.** If you add or remove a `@RestageWidget` in a file that already
 has one, restart `dart run build_runner watch`. A normal
 `dart run build_runner build` always sees the change.
+
+## Shared widget packages
+
+Surfaces can import widgets and helpers from packages your app depends on.
+The compiler follows referenced package sources and tracks them as build
+inputs, so edits to those sources rebuild the surface. Keep those packages in
+your resolved dependency graph. Unsupported expressions still produce build
+diagnostics; a dependency does not bypass the compiler's authoring limits.
+
+Generated screen mounts accept an optional `unavailable` policy. By default
+they retain the original widget as a compiled fallback. Publication identity
+and measurement lineage remain stable when rebuilding unchanged sources.
 
 ## Large codebases
 

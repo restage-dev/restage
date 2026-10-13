@@ -252,7 +252,8 @@ builders:
       $lib$:
         - "src/widget_catalog/catalog.json"
         - "src/widget_catalog/app_widget_factories.json"
-    auto_apply: root_package
+    auto_apply: all_packages
+    is_optional: true
     build_to: cache
     runs_before:
       - 'restage_codegen:paywall_codegen'

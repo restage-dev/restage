@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_state.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _kSdkLibraryOrigin = 'package:restage';
 
@@ -95,8 +96,9 @@ final class VisitorResult {
 /// duplicate occurrences from `sources` while emitting `duplicateId` issues.
 Future<VisitorResult> visitPaywallSources(
   LibraryElement library,
-  AssetId assetId,
-) async {
+  AssetId assetId, {
+  Catalog? catalog,
+}) async {
   final sources = <PaywallSourceFound>[];
   final issues = <Issue>[];
   final implicitCanonicalClasses = <String>[];
@@ -192,6 +194,7 @@ Future<VisitorResult> visitPaywallSources(
       astNodeFor: resolvedAstNodeFor,
       issues: issues,
       location: location,
+      catalog: catalog,
     );
     if (build == null) continue;
 

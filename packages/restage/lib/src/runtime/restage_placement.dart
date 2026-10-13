@@ -15,6 +15,9 @@ import 'restage_paywall.dart';
 
 /// A placement mounted through the SDK's existing surface hosts.
 ///
+/// Prefer generated `*Surface(...)` widgets for typed bindings, registration,
+/// compiled fallbacks and implicit placements.
+///
 /// `onEvent` receives the events this placement fires; they also flow
 /// through [Restage.events] for app-wide listeners. A flow placement's
 /// `surfaceType` selects the host its content needs, and only content of

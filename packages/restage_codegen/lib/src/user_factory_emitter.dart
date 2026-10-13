@@ -6,7 +6,15 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
+import 'package:restage_codegen/src/widget_library_registration.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+/// Factory code and registrations contributed by dependency packages.
+typedef AppWidgetRegistrationSource = ({
+  List<String> imports,
+  String declarations,
+  String registrations,
+});
 
 /// Emits a `user_factories.g.dart` source string containing one
 /// `LocalWidgetBuilder` per emittable `@RestageWidget` class, plus a
@@ -46,6 +54,7 @@ String? emitUserFactoriesDart(
   Map<String, int> compatibleSinceVersions = const {},
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
+  AppWidgetRegistrationSource? dependencyFactories,
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = referencedAppWidgetLibraryUris(
@@ -147,10 +156,12 @@ String? emitUserFactoriesDart(
     // so no direct rfw import is needed (and the app package
     // isn't required to depend on rfw).
     ..writeln();
-  imports.importDirectivesFor(referencedUris).forEach(buf.writeln);
-  buf
-    ..writeln("import 'package:restage/restage.dart';")
-    ..writeln();
+  <String>{
+    ...imports.importDirectivesFor(referencedUris),
+    "import 'package:restage/restage.dart';",
+    ...?dependencyFactories?.imports,
+  }.forEach(buf.writeln);
+  buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
   _writeRegistrationConstant(buf);
   buf
@@ -162,40 +173,31 @@ String? emitUserFactoriesDart(
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
   _writeRegistrationStart(buf);
   _writeWholeCatalogInstall(buf, installWholeCatalog);
+  if (dependencyFactories != null) {
+    buf.writeln(dependencyFactories.registrations);
+  }
   buf.writeln(
     '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
   );
   for (final library in orderedLibraries) {
     final entries = byLibrary[library]!;
-    // A structured-admitting library carries its declared capabilityVersion so
-    // the runtime floor (`LibraryRuntimeRegistry.satisfies`) fail-closes an
-    // under-capable client; other libraries register unversioned (byte-stable).
-    final capabilityVersion = stampedCapabilityVersions[library.namespace];
-    buf
-      ..writeln('  Restage.registerWidgetLibrary(')
-      ..writeln('    ${_libraryFieldRef(library)},');
-    if (capabilityVersion != null) {
-      buf.writeln('    capabilityVersion: $capabilityVersion,');
-    }
-    final compatibleSince = compatibleSinceVersions[library.namespace];
-    if (compatibleSince != null && compatibleSince > 1) {
-      buf.writeln('    compatibleSince: $compatibleSince,');
-    }
-    buf.writeln('    widgets: const <RestageWidgetFactory>[');
-    for (final (entry, _) in entries) {
-      buf.writeln(
-        "      RestageWidgetFactory(name: '${entry.name}', "
-        'builder: ${functionNameFor(entry)}),',
-      );
-    }
-    buf
-      ..writeln('    ],')
-      ..writeln('  );');
+    writeWidgetLibraryRegistration(
+      buf,
+      library: _libraryFieldRef(library),
+      builders: {
+        for (final (entry, _) in entries) entry.name: functionNameFor(entry),
+      },
+      capabilityVersion: stampedCapabilityVersions[library.namespace],
+      compatibleSince: compatibleSinceVersions[library.namespace],
+    );
   }
   buf
     ..writeln('  }')
     ..writeln('}');
   _emitDeprecatedRegistrationAlias(buf);
+  if (dependencyFactories != null) {
+    buf.writeln(dependencyFactories.declarations);
+  }
   for (final (_, body) in emittable) {
     buf
       ..writeln()
@@ -215,20 +217,26 @@ String? emitUserFactoriesDart(
 String emitEmptyUserFactoriesDart({
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
+  AppWidgetRegistrationSource? dependencyFactories,
 }) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
   buf.writeln('// ignore_for_file: type=lint');
-  buf
-    ..writeln()
-    ..writeln("import 'package:restage/restage.dart';")
-    ..writeln();
+  buf.writeln();
+  <String>{
+    "import 'package:restage/restage.dart';",
+    ...?dependencyFactories?.imports,
+  }.forEach(buf.writeln);
+  buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
   _writeRegistrationConstant(buf);
   buf.writeln('/// Registers the currently enabled RFW widgets.');
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
   _writeRegistrationStart(buf);
   _writeWholeCatalogInstall(buf, installWholeCatalog);
+  if (dependencyFactories != null) {
+    buf.writeln(dependencyFactories.registrations);
+  }
   buf
     ..writeln(
       '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
@@ -236,6 +244,9 @@ String emitEmptyUserFactoriesDart({
     ..writeln('  }')
     ..writeln('}');
   _emitDeprecatedRegistrationAlias(buf);
+  if (dependencyFactories != null) {
+    buf.writeln(dependencyFactories.declarations);
+  }
   return formatGeneratedDart(buf.toString());
 }
 

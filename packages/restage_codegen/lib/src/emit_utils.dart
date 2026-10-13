@@ -1,8 +1,14 @@
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:dart_style/dart_style.dart';
+import 'package:path/path.dart' as p;
 import 'package:pub_semver/pub_semver.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+/// The `{{name}}` a conventional `<sourceDir>/{{name}}.<ext>` input binds:
+/// its path below [sourceDir], without the extension.
+String conventionalOutputStem(String inputPath, String sourceDir) =>
+    p.posix.withoutExtension(p.posix.relative(inputPath, from: sourceDir));
 
 final Map<Version, DartFormatter> _formatters = {};
 

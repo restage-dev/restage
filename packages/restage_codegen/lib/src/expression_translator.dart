@@ -516,6 +516,9 @@ final class ExpressionTranslator {
   /// Merged widget catalog the translator validates against.
   final Catalog catalog;
 
+  late final Set<String> _admittedHelperPackages =
+      artifactHelperPackages(catalog);
+
   /// The catalog `Text` entry, resolved once. A `TextSpan.style` reuses the
   /// flat-`Text` style decomposition so nested span styles share the exact
   /// encoding flat `Text` styles use; caching here keeps the recursive span
@@ -2540,7 +2543,12 @@ final class ExpressionTranslator {
               _walk.inlined.localBindings[element];
         },
         helperFor: (invocation) {
-          if (!isArtifactHelperInvocation(invocation)) return null;
+          if (!isArtifactHelperInvocation(
+            invocation,
+            admittedHelperPackages: _admittedHelperPackages,
+          )) {
+            return null;
+          }
           final helper = _walk.inlined.helpers[invocation.methodName.element] ??
               _collectionHelpers[invocation.methodName.element];
           if (helper == null) return null;
@@ -4417,7 +4425,10 @@ final class ExpressionTranslator {
     // A helper refused for a named prelude shape reports that shape
     // rather than falling through as an unrecognised widget.
     final helperElement = expr.methodName.element;
-    final helperRefusal = isArtifactHelperInvocation(expr)
+    final helperRefusal = isArtifactHelperInvocation(
+      expr,
+      admittedHelperPackages: _admittedHelperPackages,
+    )
         ? refusedHelperDefinitionsIn(expr)[helperElement] ??
             recordedHelperRefusal(helperElement!)
         : null;
@@ -4466,10 +4477,14 @@ final class ExpressionTranslator {
       // A static method is never a construction of its owner.
       if (expr.methodName.element case final MethodElement helper
           when helper.isStatic) {
-        final reason = isInCallersPackage(expr, helper)
+        final reason = isInArtifactHelperPackage(
+          expr,
+          helper,
+          admittedHelperPackages: _admittedHelperPackages,
+        )
             ? 'a helper must return a widget or a value of a class type'
-            : 'it is declared in another package, and helpers inline only '
-                'from this one';
+            : 'it is declared outside this package and the dependency '
+                'packages that publish custom Restage widgets';
         issues.add(
           Issue(
             code: IssueCode.customWidgetInliningDeferred,
@@ -5188,6 +5203,7 @@ final class ExpressionTranslator {
       visitStaticallyAdmittedExpressions(
         blueprint.buildExpression,
         inlined: blueprint.inlined,
+        admittedHelperPackages: _admittedHelperPackages,
         visit: (expression, bindings) {
           if (expression is! MethodInvocation) return;
           final name = _paywallEventName(expression, helpers, bindings);
@@ -5202,8 +5218,11 @@ final class ExpressionTranslator {
     Expression expr,
   ) sync* {
     final pending = [
-      for (final widgetClass
-          in customWidgetClassesIn(expr, inlined: _walk.inlined))
+      for (final widgetClass in customWidgetClassesIn(
+        expr,
+        inlined: _walk.inlined,
+        admittedHelperPackages: _admittedHelperPackages,
+      ))
         customWidgetKey(widgetClass),
     ];
     final visited = <String>{};

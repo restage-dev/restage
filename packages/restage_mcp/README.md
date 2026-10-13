@@ -14,13 +14,14 @@ subprocess and talks to it over standard input and output.
 
 ## Install
 
-```sh
-dart pub global activate restage_mcp
-```
+The package is not on pub.dev yet. From a source checkout, resolve the
+workspace and compile the executable:
 
-> **Note:** `restage_mcp` isn't on pub.dev yet. Until it's published, activate
-> it from a source checkout with
-> `dart pub global activate --source path <checkout>/packages/restage_mcp`.
+```sh
+flutter pub get
+mkdir -p "$HOME/.pub-cache/bin"
+dart compile exe packages/restage_mcp/bin/restage_mcp.dart -o "$HOME/.pub-cache/bin/restage_mcp"
+```
 
 This puts the `restage_mcp` executable in `~/.pub-cache/bin`. Make sure that
 directory is on your `PATH`.
@@ -197,6 +198,33 @@ Routing decides which published version each request receives.
 | `restage_routing_audience_usage` | List the experiments and routing rules that use one audience. |
 | `restage_read_delivery_diagnostics` | Read one surface's delivery diagnostics for a date range: default versions served and requests the server refused. |
 | `restage_read_delivery_flow` | Who saw which version of a surface, by rule, experiment and everyone else. |
+
+**Surface lifecycle and library compatibility**
+
+| Tool | What it does |
+| --- | --- |
+| `restage_rename_surface_version` | Set or clear a version label. |
+| `restage_archive_surface` / `restage_restore_surface` | Archive a surface across environments, or restore it to the list for publication. |
+| `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build’s library contracts would stop rendering. |
+
+**Placements and delivery plans**
+
+| Tool | What it does |
+| --- | --- |
+| `restage_read_delivery_map` / `restage_where` | Read routing and paints by app build, or find where a surface version serves. |
+| `restage_placement_list` / `restage_placement_read` | List app placements or read one. |
+| `restage_placement_observed_history` | Read observed placement mounts. |
+| `restage_placement_simulate` | Preview placement decisions for supplied inputs. |
+| `restage_delivery_policy_read` / `restage_delivery_policy_timeline` / `restage_delivery_policy_history` | Inspect the current plan and its revisions. |
+| `restage_delivery_policy_fit` / `restage_delivery_policy_simulate` | Check content compatibility and preview a plan's decisions. |
+| `restage_delivery_policy_review` / `restage_delivery_policy_publish` | Review a complete plan and publish the exact reviewed change. |
+| `restage_delivery_policy_undo_review` | Review a plan rollback before publishing it. |
+| `restage_placement_sample_import` / `restage_placement_sample_prepare` / `restage_placement_sample_store` / `restage_placement_sample_bind` | Validate an explicitly supplied capture and PNG, review, upload and bind it. |
+| `restage_placement_sample_read` / `restage_placement_sample_read_image` / `restage_placement_sample_delete` | Read or delete a stored sample. |
+
+These tools use exact target selection. Plan and sample mutations require the
+same live-target approval as other writes. Reading placements never captures
+or uploads a screen.
 
 **Builds and the widget catalog**
 

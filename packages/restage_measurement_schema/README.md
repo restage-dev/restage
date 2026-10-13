@@ -19,6 +19,13 @@ and the draft it was built from. All publications of one surface form a
 **family**, and the record of which publication replaced which is its
 **lineage**.
 
+## Experiments and results
+
+The package includes experiment draft and lifecycle requests, audience and
+routing policy descriptions, and typed analytics result pages. It also defines
+delivery-plan management records used by CLI and MCP tools. These records do
+not execute policies or calculate experiment results.
+
 ## Linking a signed-in user
 
 The package defines the challenge, request, receipt, and failure types for

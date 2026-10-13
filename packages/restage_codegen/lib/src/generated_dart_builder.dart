@@ -2,7 +2,6 @@
 // Uses the shared compiler result and the resolved output location.
 
 import 'package:build/build.dart';
-import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -64,12 +63,11 @@ final class RestageGeneratedDartBuilder implements Builder {
     RestageSurfacePublicationBundle bundle, {
     required String libraryPath,
   }) {
-    final stem = p.posix.basenameWithoutExtension(libraryPath);
     final elsewhere = bundle.ownedOutputs.keys
         .where(
           (path) =>
               path.endsWith(kNeutralGeneratedPartSuffix) &&
-              p.posix.basename(path) == '$stem$kNeutralGeneratedPartSuffix',
+              bundle.artifactLibraryPaths[path] == libraryPath,
         )
         .toList()
       ..sort();

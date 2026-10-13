@@ -414,15 +414,17 @@ final class PackageSurfaceCompilationBundle {
   /// The authored Dart library path that produced each output file this
   /// compiler wrote, sorted by logical path.
   ///
-  /// Covers every path in [outputFiles] — manifest-closure artifacts and
-  /// ancillary output (`.rfwtxt`, `.navplan.json`) alike — because
+  /// Covers every path in [outputFiles] and [generatedParts] —
+  /// manifest-closure artifacts and ancillary output (`.rfwtxt`,
+  /// `.navplan.json`) alike — because
   /// [_putFile] records the owning library at the same choke point it writes
   /// the bytes, for every write, regardless of manifest-closure membership.
   /// Never re-inferred from filenames or from a sibling path's own
   /// attribution. Every output file must resolve to exactly one owning
   /// library, or this throws rather than defaulting silently.
   Map<String, String> get artifactLibraryPaths {
-    final paths = _outputFiles.keys.toList()..sort();
+    final paths = {..._outputFiles.keys, ...generatedParts.keys}.toList()
+      ..sort();
     final result = <String, String>{};
     for (final path in paths) {
       final libraryPath = _artifactLibraryPaths[path];
@@ -2273,7 +2275,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final generatedParts = <String, String>{};
   for (final entry in partFragments.entries) {
     final source = _formatPart(entry.value, issues: issues);
-    if (source != null) generatedParts[entry.key] = source;
+    if (source == null) continue;
+    generatedParts[entry.key] = source;
+    artifactLibraryPaths[entry.key] = entry.value.libraryPath;
   }
   if (issues.isNotEmpty) return _invalidResult(issues);
 
@@ -4921,6 +4925,7 @@ void _addPartFragment(
   final accumulator = fragments[path];
   if (accumulator == null) {
     fragments[path] = _PartAccumulator(
+      libraryPath: source.libraryPath,
       header: header,
       languageVersion: libraryLanguageVersion(library),
       fragments: {fragment},
@@ -5555,11 +5560,13 @@ void _embedFinalizedFlowDocuments(
 
 final class _PartAccumulator {
   _PartAccumulator({
+    required this.libraryPath,
     required this.header,
     required this.languageVersion,
     required this.fragments,
   });
 
+  final String libraryPath;
   final String header;
   final Version languageVersion;
   final Set<String> fragments;

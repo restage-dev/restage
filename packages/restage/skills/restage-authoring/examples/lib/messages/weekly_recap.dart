@@ -20,14 +20,14 @@ final class WeeklyRecap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Nice week, $name', style: textTheme.headlineSmall),
+          Text('Nice week, $name'),
+          const RecapHeading(title: 'Weekly highlights'),
           const SizedBox(height: 12),
           StreakBadge(days: streakDays),
           const SizedBox(height: 12),

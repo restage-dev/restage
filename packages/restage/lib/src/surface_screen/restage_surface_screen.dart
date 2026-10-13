@@ -56,6 +56,9 @@ import 'surface_screen_types.dart';
 
 /// Category-neutral host for one independently published screen.
 ///
+/// Prefer generated `*Surface(...)` widgets for typed bindings, registration,
+/// compiled fallbacks and implicit placements.
+///
 /// The host accepts only a generated [SurfaceScreenRef]. It validates that
 /// reference against its compiled-in generated provenance before consulting a
 /// resolver, and validates whatever the resolver returns against the same

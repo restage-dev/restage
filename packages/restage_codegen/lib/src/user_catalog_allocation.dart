@@ -267,12 +267,14 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
 /// Reads the durable `.restage/wire-ids.events.jsonl` event log for [package].
 Future<RootEventLogContents?> readRootEventLog(
   BuildStep buildStep,
-  String package,
-) async {
+  String package, {
+  bool requireTracked = false,
+}) async {
   final bytes = await readDurableRestageState(
     buildStep,
     path: '.restage/wire-ids.events.jsonl',
     legacyPath: 'wire_ids.events.jsonl',
+    requireTracked: requireTracked,
   );
   if (bytes == null) return null;
   return RootEventLogContents(

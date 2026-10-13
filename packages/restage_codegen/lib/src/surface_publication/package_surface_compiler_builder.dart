@@ -38,9 +38,9 @@ import 'package:restage_codegen/src/surface_publication/app_widget_mount_install
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
+import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
-import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
@@ -98,11 +98,7 @@ Future<AppWidgetMountFactories> _appWidgetMountFactories(
   )) {
     return AppWidgetMountFactories.none;
   }
-  final sidecar = AssetId(buildStep.inputId.package, kAppWidgetFactoriesPath);
-  if (!await buildStep.canRead(sidecar)) return AppWidgetMountFactories.none;
-  return AppWidgetMountFactories.fromJson(
-    jsonDecode(await buildStep.readAsString(sidecar)) as Map<String, Object?>,
-  );
+  return await loadAppWidgetFactories(buildStep);
 }
 
 final class _AppFactoryNoticeCensus {
@@ -227,6 +223,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     final screenInspection = await inspectCanonicalScreenDeclarations(
       library,
       assetId,
+      catalog: await mergedCatalog(),
     );
     issues.addAll(screenInspection.issues);
     measurementScreenInputs.addAll(screenInspection.screens);
@@ -340,7 +337,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues.add(_lostDeclarationIssue(source));
         continue;
       }
-      final visited = await visitOnboardingSources(library, assetId);
+      final visited = await visitOnboardingSources(
+        library,
+        assetId,
+        catalog: await mergedCatalog(),
+      );
       issues.addAll(visited.issues);
       final legacySource = visited.sources
           .where((candidate) => candidate.className == declaration.name)
@@ -439,7 +440,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       if (contract.contract != null) legacyContracts.add(contract.contract!);
     }
 
-    final paywalls = await visitPaywallSources(library, assetId);
+    final paywalls = await visitPaywallSources(
+      library,
+      assetId,
+      catalog: await mergedCatalog(),
+    );
     issues.addAll(paywalls.issues);
     if (paywalls.sources.isNotEmpty) {
       paywallJobs.add(

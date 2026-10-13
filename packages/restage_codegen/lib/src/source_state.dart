@@ -13,6 +13,7 @@ import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Root-source build material for `@PaywallSource` and `@OnboardingSource`.
 @immutable
@@ -111,6 +112,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   required Future<AstNode?> Function(Fragment fragment) astNodeFor,
   required List<Issue> issues,
   required String location,
+  Catalog? catalog,
 }) async {
   final kind = _widgetKind(sourceClass);
   if (kind == null) {
@@ -190,6 +192,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   final reachable = await reachableArtifactHelpers(
     [extracted.expression, ...localBindings.values],
     astNodeFor: astNodeFor,
+    admittedHelperPackages: artifactHelperPackages(catalog),
   );
   if (reachable.recursive case final helper?) {
     issues.add(

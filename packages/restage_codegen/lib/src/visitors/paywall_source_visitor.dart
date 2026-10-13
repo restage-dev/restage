@@ -14,7 +14,11 @@ final class PaywallSourceVisitor implements LibraryVisitor {
 
   @override
   Future<void> visit(CodegenBuildState state) async {
-    final result = await visitPaywallSources(state.library, state.assetId);
+    final result = await visitPaywallSources(
+      state.library,
+      state.assetId,
+      catalog: state.catalog,
+    );
     state.issues.addAll(result.issues);
     state.paywallSources.addAll(result.sources);
   }

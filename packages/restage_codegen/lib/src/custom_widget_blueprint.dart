@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// One constructor parameter of a custom widget — what the call site binds
 /// and the definition body reads as an `args.` reference.
@@ -279,6 +280,7 @@ Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
     reachableArtifactHelpers(
   Iterable<Expression> roots, {
   required Future<AstNode?> Function(Fragment fragment) astNodeFor,
+  Set<String> admittedHelperPackages = const {},
 }) async {
   final helpers = Map<Element, HelperDef>.identity();
   final stack = <Element>{};
@@ -299,7 +301,7 @@ Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
 
   Future<void> visit(AstNode node) async {
     final calls = <MethodInvocation>[];
-    node.accept(_ArtifactHelperCallCollector(calls));
+    node.accept(_ArtifactHelperCallCollector(calls, admittedHelperPackages));
     for (final call in calls) {
       if (recursive != null) return;
       final element = call.methodName.element! as ExecutableElement;
@@ -330,20 +332,41 @@ Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
 }
 
 final class _ArtifactHelperCallCollector extends RecursiveAstVisitor<void> {
-  _ArtifactHelperCallCollector(this.calls);
+  _ArtifactHelperCallCollector(this.calls, this.admittedHelperPackages);
 
   final List<MethodInvocation> calls;
+  final Set<String> admittedHelperPackages;
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    if (isArtifactHelperInvocation(node)) calls.add(node);
+    if (isArtifactHelperInvocation(
+      node,
+      admittedHelperPackages: admittedHelperPackages,
+    )) {
+      calls.add(node);
+    }
     super.visitMethodInvocation(node);
   }
 }
 
-/// Whether [invocation] calls a helper the compiler inlines: an own instance
-/// method, or a top-level or static function from the caller's own package.
-bool isArtifactHelperInvocation(MethodInvocation invocation) {
+final _helperPackages = Expando<Set<String>>();
+
+/// Packages publishing custom widgets whose helpers can compose artifacts.
+Set<String> artifactHelperPackages(Catalog? catalog) => catalog == null
+    ? const {}
+    : _helperPackages[catalog] ??= Set.unmodifiable({
+        for (final widget in catalog.widgets)
+          if (WidgetLibrary.builtInByNamespace(widget.library.namespace) ==
+              null)
+            if (_packageOf(widget.flutterType) case final package?) package,
+      });
+
+/// Whether a call is an own instance helper or a top-level/static helper from
+/// the caller's package or an admitted widget package.
+bool isArtifactHelperInvocation(
+  MethodInvocation invocation, {
+  Set<String> admittedHelperPackages = const {},
+}) {
   final element = invocation.methodName.element;
   if (element is! ExecutableElement ||
       element.name == 'build' ||
@@ -360,9 +383,27 @@ bool isArtifactHelperInvocation(MethodInvocation invocation) {
   }
   if (element is TopLevelFunctionElement ||
       (element is MethodElement && element.isStatic)) {
-    return isInCallersPackage(invocation, element);
+    return isInArtifactHelperPackage(
+      invocation,
+      element,
+      admittedHelperPackages: admittedHelperPackages,
+    );
   }
   return false;
+}
+
+/// Whether [element] belongs to the caller or an admitted custom widget
+/// package.
+bool isInArtifactHelperPackage(
+  MethodInvocation invocation,
+  Element element, {
+  Set<String> admittedHelperPackages = const {},
+}) {
+  if (isInCallersPackage(invocation, element)) return true;
+  final library = element.library;
+  if (library == null) return false;
+  final package = _packageOf(library.identifier);
+  return package != null && admittedHelperPackages.contains(package);
 }
 
 /// Whether [element] is declared in the library or package that contains

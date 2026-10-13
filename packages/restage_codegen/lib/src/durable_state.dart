@@ -17,11 +17,12 @@ Future<Uri?> restagePackageRoot(String package) async {
   return root != null && root.isScheme('file') ? root : null;
 }
 
-/// Reads tracked state when admitted by the target, otherwise reads it on disk.
+/// Reads tracked state, allowing disk fallback unless [requireTracked] is set.
 Future<List<int>?> readDurableRestageState(
   BuildStep buildStep, {
   required String path,
   required String legacyPath,
+  bool requireTracked = false,
 }) async {
   final package = buildStep.inputId.package;
   final root = await restagePackageRoot(package);
@@ -34,7 +35,14 @@ Future<List<int>?> readDurableRestageState(
       return null;
     }
     final file = File.fromUri(root.resolve(relative));
-    return file.existsSync() ? file.readAsBytesSync() : null;
+    if (!file.existsSync()) return null;
+    if (requireTracked) {
+      throw StateError(
+        '$package must expose $relative as a build input. '
+        '${durableRestageStateAdvice(relative)}',
+      );
+    }
+    return file.readAsBytesSync();
   }
 
   final current = await read(path);
@@ -92,9 +100,15 @@ void _requireAgreement(
 
 /// The build.yaml line that makes edits to the durable state trigger a rebuild.
 const String kUntrackedDurableStateAdvice =
-    'Add `additional_public_assets: [.restage/measurement-state.json, '
-    '.restage/wire-ids.events.jsonl]` to build.yaml so edits to these files '
-    'trigger a rebuild.';
+    'Add `additional_public_assets: [.restage/**]` to build.yaml so edits to '
+    'these files trigger a rebuild. '
+    'If the target restricts sources, include `.restage/**` there too.';
+
+/// Visibility advice for current state and root-level legacy files.
+String durableRestageStateAdvice(String path) => path.startsWith('.restage/')
+    ? kUntrackedDurableStateAdvice
+    : '$kUntrackedDurableStateAdvice Also include `$path` in '
+        '`additional_public_assets` and any restricted target sources.';
 
 /// The [paths] that exist on disk under [packageRoot] but are not build
 /// inputs, so an edit to them does not invalidate a cached build.

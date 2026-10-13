@@ -15,18 +15,20 @@ final _constFirstRunFlowRef =
     RegExp(r'const firstRunFlowRef =\s*SurfaceFlowRef<\s*FirstRunResult\s*>');
 
 void main() {
-  test('public README documents the current asset-backed flow API', () {
+  test('public README recommends generated mounts and compiled fallbacks', () {
     final readme = _readFlutterSdkReadme();
 
     expect(readme, isNot(contains('Pre-implementation')));
     expect(readme, isNot(contains('Restage servers')));
     expect(readme, isNot(contains("Restage.configure(apiKey: 'rs_pk_...')")));
     expect(readme, isNot(contains('use Restage servers')));
-    // The current host widget, not the backward-compatible `RestageOnboarding`
-    // facade over it.
+    expect(readme, contains('Use generated `*Surface(...)` widgets'));
+    expect(readme, contains('Every generated surface mount is a placement'));
+    expect(readme, contains('compiled-widget fallback'));
+    expect(readme, contains('`bundled_runtime` at its default, `false`'));
+    // Lower-level mounts and optional asset resolvers remain documented.
     expect(readme, contains('RestageFlowGraph'));
     expect(readme, contains('FlowUnavailablePolicy'));
-    expect(readme, contains('asset resolvers'));
     expect(readme, contains('RestageVariantResolver'));
     expect(readme, isNot(contains('?? false')));
 

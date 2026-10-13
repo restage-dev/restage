@@ -11,5 +11,5 @@ import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen
 /// `Restage.configure(surfaces: restageSurfaces)`.
 final List<restage.RestageSurfaceRef> restageSurfaces =
     List<restage.RestageSurfaceRef>.unmodifiable(<restage.RestageSurfaceRef>[
-      s0.getStartedScreenRef,
+      s0.getStartedScreenPlacementDefinition(),
     ]);

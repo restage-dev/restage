@@ -1,5 +1,6 @@
 import 'package:build/build.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:yaml/yaml.dart';
 
 /// Asset paths that [loadMergedCatalog] reads, paired with the library
 /// each file owns. Listed in built-in priority order so the merged
@@ -29,19 +30,17 @@ final Map<WidgetLibrary, AssetId> builtInCatalogAssetIds = Map.unmodifiable({
   ),
 });
 
-/// Loads each built-in library's per-package
-/// `lib/src/widget_catalog/catalog.json` via cross-package asset reads,
-/// decodes each as a canonical catalog, and merges them into a single
-/// [Catalog] keyed by `(library, name)`.
-///
-/// Tolerates a missing per-package `catalog.json` — a built-in library
-/// that has no generated widgets yet
-/// simply contributes nothing to the merged catalog.
-///
-/// Per-package files only ever contain widgets for the file's owning
-/// library; the `library`-matches-owner filter on the merge is purely
-/// defensive against schema drift or hand-edits.
-Future<Catalog> loadMergedCatalog(BuildStep buildStep) async {
+/// Loads built-in catalogs and custom catalogs in the declared package graph.
+/// Built-ins keep their priority; custom packages follow in name order.
+/// Packages without a generated catalog contribute nothing.
+Future<Catalog> loadMergedCatalog(BuildStep buildStep) async =>
+    await (await buildStep.fetchResource(_catalogResource))
+        .getOrLoad(buildStep);
+
+Future<Catalog> _loadMergedCatalog(
+  BuildStep buildStep,
+  List<String> packages,
+) async {
   final results = await Future.wait(
     builtInCatalogAssetIds.entries.map((entry) async {
       try {
@@ -116,15 +115,20 @@ Future<Catalog> loadMergedCatalog(BuildStep buildStep) async {
     return a.name.compareTo(b.name);
   });
 
-  await _mergeCustomCatalog(
-    buildStep,
-    widgets: widgets,
-    structuredTypes: structuredTypes,
-    unions: unions,
-    designTokens: designTokens,
-    compatRules: compatRules,
-    libraries: libraries,
-  );
+  final owners = <WidgetLibrary, String>{};
+  for (final package in packages) {
+    await _mergeCustomCatalog(
+      buildStep,
+      package: package,
+      owners: owners,
+      widgets: widgets,
+      structuredTypes: structuredTypes,
+      unions: unions,
+      designTokens: designTokens,
+      compatRules: compatRules,
+      libraries: libraries,
+    );
+  }
 
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
@@ -139,24 +143,11 @@ Future<Catalog> loadMergedCatalog(BuildStep buildStep) async {
   );
 }
 
-/// Merges the app's own generated catalog — the custom `@RestageLibrary`
-/// widgets at `lib/src/widget_catalog/catalog.json` in the package being built
-/// — into the [widgets]/[structuredTypes]/[unions]/[designTokens]/[compatRules]
-/// /[libraries] accumulators already populated with the built-ins.
-///
-/// Custom entries are **appended after** the sorted built-ins (not re-sorted
-/// into them), so the built-in resolution order is preserved — a built-in
-/// widget name always resolves to its built-in, never a custom shadow — and the
-/// built-in byte order is unchanged. Only custom-library entries are taken
-/// (defensive against a custom catalog that somehow carries a built-in).
-///
-/// The built-in catalog packages are already merged via their fixed asset ids,
-/// so the custom read is **skipped when the input package is itself a
-/// built-in catalog package** — its catalog must never be re-merged as if it
-/// were custom. A package that ships no custom catalog (the common case)
-/// contributes nothing.
+/// Merges one package's custom entries after the built-ins.
 Future<void> _mergeCustomCatalog(
   BuildStep buildStep, {
+  required String package,
+  required Map<WidgetLibrary, String> owners,
   required List<WidgetEntry> widgets,
   required List<StructuredEntry> structuredTypes,
   required List<UnionEntry> unions,
@@ -164,12 +155,7 @@ Future<void> _mergeCustomCatalog(
   required List<CompatRule> compatRules,
   required Map<WidgetLibrary, LibraryInfo> libraries,
 }) async {
-  final inputPackage = buildStep.inputId.package;
-  final builtInPackages =
-      builtInCatalogAssetIds.values.map((id) => id.package).toSet();
-  if (builtInPackages.contains(inputPackage)) return;
-
-  final customId = AssetId(inputPackage, 'lib/src/widget_catalog/catalog.json');
+  final customId = AssetId(package, 'lib/src/widget_catalog/catalog.json');
   // Register the read even on a cache miss so build_runner re-runs every
   // dependent paywall when the custom catalog changes under `--watch`.
   await buildStep.canRead(customId);
@@ -192,6 +178,17 @@ Future<void> _mergeCustomCatalog(
       final byLib = a.library.namespace.compareTo(b.library.namespace);
       return byLib != 0 ? byLib : a.name.compareTo(b.name);
     });
+  for (final library in cat.libraries.keys.where(isCustom)) {
+    if (owners[library] case final owner?) {
+      throw StateError(
+        'Custom widget library ${library.namespace} is declared by both '
+        '$owner and $package. Each library must have one owner.',
+      );
+    }
+  }
+  for (final library in cat.libraries.keys.where(isCustom)) {
+    owners[library] = package;
+  }
   widgets.addAll(customWidgets);
   structuredTypes.addAll(cat.structuredTypes.where((s) => isCustom(s.library)));
   unions.addAll(cat.unions.where((u) => isCustom(u.library)));
@@ -205,6 +202,96 @@ Future<void> _mergeCustomCatalog(
   );
   for (final entry in cat.libraries.entries) {
     if (isCustom(entry.key)) libraries[entry.key] = entry.value;
+  }
+}
+
+/// Custom catalog owners in the declared dependency graph, cached per build.
+/// Every caller records the pubspec probes that determined this graph.
+Future<List<String>> customCatalogPackages(BuildStep buildStep) async =>
+    await (await buildStep.fetchResource(_catalogResource))
+        .packagesFor(buildStep);
+
+final _catalogResource =
+    Resource<CatalogPerBuildCache>(CatalogPerBuildCache.new);
+
+/// Shares dependency discovery and merged catalogs within one build pass.
+class CatalogPerBuildCache {
+  /// Creates a cache, optionally substituting the catalog loader.
+  CatalogPerBuildCache({Future<Catalog> Function(BuildStep)? load})
+      : _load = load;
+
+  final Future<Catalog> Function(BuildStep)? _load;
+  final _dependencies = <String, Future<List<String>>>{};
+  final _graphs =
+      <String, Future<({List<String> inputs, List<String> packages})>>{};
+  final _catalogs = <String, Future<Catalog>>{};
+
+  /// Discovers each package graph once and replays its input edges per caller.
+  Future<List<String>> packagesFor(BuildStep buildStep) async {
+    final graph =
+        await (_graphs[buildStep.inputId.package] ??= _discover(buildStep));
+    for (final package in graph.inputs) {
+      await buildStep.canRead(AssetId(package, 'pubspec.yaml'));
+    }
+    return graph.packages;
+  }
+
+  /// Loads one catalog per package, recording every catalog edge per consumer.
+  Future<Catalog> getOrLoad(BuildStep buildStep) async {
+    final packages = await packagesFor(buildStep);
+    for (final id in builtInCatalogAssetIds.values) {
+      await buildStep.canRead(id);
+    }
+    for (final package in packages) {
+      await buildStep.canRead(
+        AssetId(package, 'lib/src/widget_catalog/catalog.json'),
+      );
+    }
+    return await (_catalogs[buildStep.inputId.package] ??=
+        _load?.call(buildStep) ?? _loadMergedCatalog(buildStep, packages));
+  }
+
+  Future<({List<String> inputs, List<String> packages})> _discover(
+    BuildStep buildStep,
+  ) async {
+    final pending = [buildStep.inputId.package];
+    final visited = <String>{};
+    while (pending.isNotEmpty) {
+      final package = pending.removeLast();
+      if (!visited.add(package)) continue;
+      final dependencies = await (_dependencies[package] ??=
+          _readDependencies(buildStep, package));
+      pending.addAll(dependencies);
+    }
+    final inputs = visited.toList()..sort();
+    final builtIns =
+        builtInCatalogAssetIds.values.map((id) => id.package).toSet();
+    return (
+      inputs: List<String>.unmodifiable(inputs),
+      packages: List<String>.unmodifiable(
+        inputs.where((package) => !builtIns.contains(package)),
+      ),
+    );
+  }
+
+  Future<List<String>> _readDependencies(
+    BuildStep buildStep,
+    String package,
+  ) async {
+    final pubspec = AssetId(package, 'pubspec.yaml');
+    try {
+      if (!await buildStep.canRead(pubspec)) return const [];
+      final document = loadYaml(await buildStep.readAsString(pubspec));
+      if (document is YamlMap) {
+        final dependencies = document['dependencies'];
+        if (dependencies is YamlMap) {
+          return dependencies.keys.whereType<String>().toList();
+        }
+      }
+    } on PackageNotFoundException {
+      // An optional package is not installed.
+    }
+    return const [];
   }
 }
 

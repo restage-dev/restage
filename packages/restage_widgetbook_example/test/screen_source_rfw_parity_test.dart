@@ -7,14 +7,14 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart';
 
 void main() {
+  test('Widgetbook and A2UI example needs no runtime bundle', () {
+    expect(getStartedScreenRef.provenance.bundle, isNull);
+  });
+
   test(
     'native sibling authoring leaves the canonical Screen RFW baseline exact',
     () {
-      // The generated descriptor is ordinary source and is read as a file.
-      // Its bytes moved with the generated-Dart changes
-      // (collection-directory part URI, the category-neutral ref, and the
-      // additive runtime provenance); the DELIVERY bytes below did not move at
-      // all, which is the property this baseline exists to hold.
+      // Pin the generated handle separately from its unchanged RFW payload.
       expect(
         sha256
             .convert(
@@ -23,7 +23,7 @@ void main() {
               ).readAsBytesSync(),
             )
             .toString(),
-        '3fd3ac5bd7b8b85dedcc6d700ec43cf1dcf19ee959753f424a12669d68c60dfb',
+        '5d4186249463919d49d9cbafaf8f53b19403a7f389d9e3a5a6e27bf744858994',
         reason:
             'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       );
@@ -64,11 +64,6 @@ void main() {
       'onPressed: event "continue" {value: "preview"}, child: '
       'Text(text: "Get started")));\n',
     );
-    // A categorized `@Screen(surface:)` is standalone, so its handle is the
-    // typed `SurfaceScreenRef` — it carries no `artifactPath`/`minClient`,
-    // which belonged to the in-flow neutral reference this screen no longer
-    // generates. The packaged `.rfw` path those two stood for is asserted by
-    // exact digest in the delivery-map test above, not weakened here.
     expect(getStartedScreenRef.id, 'get_started_screen');
     expect(getStartedScreenRef.version, 1);
     expect(getStartedScreenRef.capabilities.builtInFloor, 1);
@@ -85,11 +80,10 @@ void main() {
   });
 }
 
-/// Every logical delivery artifact this package ships, read out of the
-/// deterministic containers it packages them into.
+/// Reads logical RFW artifacts from generated build output.
 Map<String, List<int>> _packagedArtifacts() {
   final entries = <String, List<int>>{};
-  final bundles = Directory('assets/restage/bundles');
+  final bundles = Directory('.restage/build/bundles');
   if (!bundles.existsSync()) return entries;
   for (final file in bundles.listSync(recursive: true).whereType<File>()) {
     if (!file.path.endsWith('.rsbundle')) continue;
