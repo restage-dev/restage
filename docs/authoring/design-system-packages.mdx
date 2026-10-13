@@ -1,0 +1,112 @@
+---
+title: Design-system packages
+description: Share branded widgets and helpers between apps through a Dart package.
+---
+
+A package can share custom widgets and helpers with several apps. The app imports
+its Dart API and uses those widgets inside a surface.
+
+## Define the package
+
+Annotate each widget with `@RestageWidget()`. Constructor parameters and doc comments
+supply its properties and description, just as for [custom widgets](/authoring/custom-widgets).
+
+```dart
+// lib/widgets.dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+/// A branded badge.
+@RestageWidget()
+class AcmeBadge extends StatelessWidget {
+  const AcmeBadge({required this.label, super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Chip(label: Text(label));
+}
+
+Widget acmeHeading(String label) => Text(label);
+```
+
+Export the widgets from a file with a `@RestageLibrary` declaration. That export
+assigns them to the library. Export any public types their constructors need too.
+
+```dart
+// lib/acme_design_system.dart
+import 'package:restage/restage.dart';
+
+export 'widgets.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('acme.widgets'),
+  capabilityVersion: 1,
+)
+const acmeWidgets = 0;
+```
+
+Each library namespace has one owning package. A build error names both packages
+if two dependencies declare the same namespace.
+
+## Build and publish the package
+
+Add `restage` to the package's `dependencies`, and `restage_codegen` and
+`build_runner` to its `dev_dependencies`. Run `dart run build_runner build` in the
+package before publishing it. This creates `.restage/wire-ids.events.jsonl` and
+`.restage/library-contracts/`, which preserve widget IDs and record library versions.
+Commit these files and include them in the published package.
+
+The consumer's build must be able to track these files. Add this to the package's
+`build.yaml` and include it when publishing:
+
+```yaml
+additional_public_assets:
+  - .restage/**
+```
+
+If you restrict a target's `sources`, include `.restage/**` there too. This also
+applies to every member of a Dart workspace, including when running
+`dart run build_runner build --workspace`. Follow
+[custom widget versioning](/authoring/custom-widgets#3-declare-exact-library-ownership)
+when changing the library's constructors.
+
+## Consume it from an app
+
+Declare the package in the app's `dependencies`. A path dependency works during
+development:
+
+```yaml
+dependencies:
+  acme_design_system:
+    path: ../acme_design_system
+```
+
+Import the package in the file that declares your surface:
+
+```dart
+import 'package:acme_design_system/acme_design_system.dart';
+
+// Inside a surface's build method:
+Column(children: [
+  acmeHeading('Welcome'),
+  const AcmeBadge(label: 'New'),
+])
+```
+
+Run the app's usual `dart run build_runner build`. It reads dependency annotations
+and prepares the catalog and factories it needs. Source changes and changes to the
+package's saved widget IDs or library versions rebuild affected app outputs.
+
+Generated surface mounts register the custom widgets they need. The app's
+`registerRestageWidgets()` startup helper also includes dependency widgets. With
+`catalog: derived`, it installs only the built-in widgets the app requires.
+
+## Helpers and diagnostics
+
+Top-level and static helpers from packages that publish custom Restage widgets
+follow the same [helper rules](/authoring/constraints#helper-methods) as helpers in
+your app. Other package calls, such as font or plugin methods, are not inlined.
+
+Errors point to the shared widget or helper's declaring file. Moving a widget or
+helper to another file or package gives it a new measurement id.

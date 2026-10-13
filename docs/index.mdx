@@ -1,0 +1,154 @@
+---
+title: What is Restage?
+description: Server-driven UI for Flutter. Annotate a widget you already wrote and publish it as a surface.
+---
+
+Restage is server-driven UI for Flutter. Add one annotation to a widget you already
+wrote, and it becomes a surface you can publish, measure, and roll back without a new
+app build: an onboarding flow, a message, a survey, a paywall, or any screen. It renders
+as real Flutter widgets inside your app, using your theme.
+
+What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
+your app. A published version composes and configures them. New behavior still ships as
+an app release.
+
+These guides describe the current repository source, which can include changes not
+yet published to pub.dev. For a released package, use its release tag and changelog.
+
+## A surface from source to screen
+
+Write the screen as a Flutter widget in `lib/welcome_screen.dart`. Data it needs from
+the app is an ordinary constructor parameter:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/welcome_screen.restage.g.dart';
+
+@Screen(surface: Surface.onboarding)
+class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({required this.name, super.key});
+
+  final String name;
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Welcome, $name',
+            style: TextStyle(
+              fontSize: 28,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          FilledButton(
+            onPressed: surfaceEvent(next),
+            child: const Text('Get started'),
+          ),
+        ],
+      );
+}
+```
+
+Run the build:
+
+```sh
+dart run build_runner build
+```
+
+It compiles the widget to a small artifact and generates a mount, `WelcomeScreenSurface`.
+The mount takes your constructor's parameters, `name` included, plus `onEvent` for the
+events the class declares (`next` arrives as a `WelcomeScreenNextEvent`) and optional
+`resolver`, `onUnavailable`, and `loadingBuilder` hooks. It's an ordinary widget, so it goes wherever the screen belongs in your
+widget tree. Here it is the whole body of a page the app routes to on first run:
+
+```dart
+class OnboardingPage extends StatelessWidget {
+  const OnboardingPage({required this.user, super.key});
+
+  final User user;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: WelcomeScreenSurface(
+          name: user.firstName,
+          onEvent: (event) {
+            if (event is WelcomeScreenNextEvent) {
+              Navigator.of(context).pushReplacementNamed('/home');
+            }
+          },
+        ),
+      );
+}
+```
+
+It could as easily be one card inside an existing screen. Only the subtree under the
+mount is delivered; the rest of the page stays app code.
+
+The button fires `surfaceEvent(next)` instead of a callback, because a published surface
+carries no code. The app receives the event through the mount's `onEvent`. The mount
+renders the published version of the screen, passes `name` to it, and shows the
+compiled-in `WelcomeScreen` if delivery or rendering fails. With no backend configured it
+renders from the app itself, so it works offline with no account.
+
+The file name gives the surface its id, `welcome_screen`. To change the screen without
+an app release, connect the app to Restage Cloud, push a version, then publish it:
+
+```sh
+restage surface push welcome_screen
+restage surface publish welcome_screen
+```
+
+A push uploads a version and changes nothing that is running. A publish makes it live.
+Installed apps pick up the published version the next time the screen mounts, and you
+can roll back to an earlier version at any time. See
+[Controlled delivery](/controlled-delivery).
+
+With the app connected, the SDK also measures each published version. Views, taps, and
+completions are captured automatically, with no tracking calls to add. Pass
+`measurementEnabled: false` to `Restage.configure` to switch it off. See
+[Telemetry and data](/trust/telemetry) for what is recorded.
+
+The [Quickstart](/quickstart) walks through the same steps with a paywall.
+
+## Kinds of surface
+
+Every surface has a category from the `Surface` enum: `onboarding`, `message`, `survey`,
+`paywall`, or `general` for anything else.
+
+- `@Screen(surface: ...)` publishes a single screen.
+- `@FlowGraph(surface: ...)` publishes a flow of screens. A bare `@Screen()` marks a
+  screen for use inside a flow.
+- `@Paywall()` publishes a paywall. A paywall can also be a step in a flow.
+
+Every mount takes a `context:` map for [data the app already has](/authoring/host-data).
+[Flows](/flows/overview) cover multi-screen surfaces. Generated mounts are the
+recommended starting point; [API choices](/authoring/write-a-surface#recommended-authoring-and-mounting-apis)
+explains named placements, direct mounts and older names.
+
+The build also writes `.restage/build/metadata/restage.publication.json`, which records each
+surface's id, category, and generated files. The CLI reads that file when you push, so
+the id comes from your code. Directories and output paths play no part in it.
+
+## The pieces
+
+The [`restage`](https://pub.dev/packages/restage) package is the open-source SDK that
+ships in your app. The catalog packages (`restage_core`, `restage_material`, and
+`restage_cupertino`) provide the built-in Flutter widgets, and `@RestageWidget` adds
+widgets from your own app.
+
+[`restage_codegen`](https://pub.dev/packages/restage_codegen) runs at build time. It
+checks your source and writes the artifacts, capability files, and flow documents. It
+does not ship in your app.
+
+[`restage_measurement_schema`](https://pub.dev/packages/restage_measurement_schema)
+holds the shared data types for measurement and experiments. The `restage` package
+re-exports the ones its API uses. It only defines types and sends nothing.
+
+The `restage` CLI, its full-screen terminal UI, and the MCP server are in the
+[public repository](https://github.com/restage-dev/restage). They are not on pub.dev
+yet. Their backend commands need a Restage Cloud account or your own server.

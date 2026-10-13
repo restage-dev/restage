@@ -1,0 +1,110 @@
+---
+title: Theming
+description: A delivered surface reads your app's theme when it renders, so it follows your app into dark mode or a rebrand.
+---
+
+A delivered surface reads your app's theme when it renders. A surface you wrote once
+follows the app into dark mode or a rebrand without any change to the surface.
+
+## The theme is read on the device
+
+`Theme.of(context)` inside a surface resolves against the running app's `ThemeData`
+when the surface renders. The surface draws inside your own widget tree, so there is no
+second set of styles to keep in sync.
+
+The same published surface follows your app into dark mode, a seasonal palette, or a
+full rebrand, with no rebuild and no new publish. Switch the device to dark mode and a
+surface that reads the theme repaints with the rest of your app.
+
+## Follow the theme, or keep a fixed look
+
+You decide for each surface whether it follows the app's theme or keeps a fixed look.
+
+- **Follow the theme.** The surface reads the app's theme and repaints when the app
+  does. Use this when the surface should feel like part of the app. The starter
+  surfaces in
+  [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples)
+  work this way: they repaint when you flip the gallery's light and dark toggle.
+- **Fixed look.** The surface uses literal colors that stay the same under any app
+  theme. Use this when a surface must look identical everywhere, such as a branded
+  promotion that should read the same in light and dark. Some of the example paywalls
+  work this way: the gallery's toggle changes the app around them, and they keep their
+  colors.
+
+Neither is more correct. An onboarding screen that is part of the app often follows
+the theme; a branded offer often keeps a fixed look.
+
+## Theme reads stay live
+
+Read the theme where you use it, or through a local variable. Both give the same
+result:
+
+```dart
+@override
+Widget build(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  return Text('Go Pro', style: TextStyle(color: scheme.primary));
+}
+```
+
+The build records `scheme.primary` as a reference to the theme's primary color, and
+the device looks it up in the current `ThemeData` each time the surface renders. The
+same works inside a `@RestageWidget` that the build compiles into the surface.
+
+The app's text theme works the same way, one field at a time. The text styles are
+nullable, so use `?.`:
+
+```dart
+Text('Go Pro', style: TextStyle(
+  fontSize: Theme.of(context).textTheme.titleLarge?.fontSize,
+  color: scheme.primary,
+))
+```
+
+A text style from the theme carries its colors, font family and fallbacks, size,
+weight, style (such as italic), letter and word spacing, height, baseline, overflow,
+and decoration. So your app's display font, italics, and underlines carry into the
+surface. `DefaultTextStyle.of(context).style` carries the same fields. `shadows`,
+`fontFeatures`, `fontVariations`, `foreground`, `background`, and `locale` are not
+carried; write a literal `TextStyle` for those.
+
+You can pass a whole style to a `style` argument, which is the usual way to write it:
+
+```dart
+Text('Go Pro', style: Theme.of(context).textTheme.titleLarge)
+```
+
+The delivered surface then uses the app's own heading size, weight, and color.
+`copyWith` on the style works too, and each named argument replaces that one field.
+The argument can be a literal, another theme read, or a value in scope:
+
+```dart
+Text('Go Pro', style: Theme.of(context).textTheme.titleLarge?.copyWith(
+  color: Theme.of(context).colorScheme.primary,
+  fontWeight: FontWeight.w700,
+))
+```
+
+`copyWith` on a theme style can set only the fields listed above. To set anything
+else, build a literal `TextStyle`. A field the theme leaves unset falls back to the
+widget's own default, and so does a `decoration` that combines more than one line. A
+whole style can go only where the argument is a `TextStyle`; anywhere else, read the
+fields one at a time. [Authoring constraints](/authoring/constraints#locals-before-the-return)
+has the rules for local variables.
+
+## Light and dark values
+
+A surface can choose its own values for each mode. Compare the theme's brightness with
+`Brightness.light` or `Brightness.dark`, and the delivered surface picks the branch
+when it renders:
+
+```dart
+final isDark = Theme.of(context).brightness == Brightness.dark;
+return Container(color: isDark ? Colors.black : Colors.white);
+```
+
+Only `==` and `!=` against a `Brightness` value work. Any other use of brightness stops
+the build with an error.
+
+The rest of the source rules are in [Authoring constraints](/authoring/constraints).
+[Custom widgets](/authoring/custom-widgets) covers your own components.

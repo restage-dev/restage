@@ -1,0 +1,249 @@
+---
+title: Hosted delivery
+description: Fetch the live version of each screen, flow, and paywall from Restage Cloud or your own server, with a fallback you choose.
+---
+
+With hosted delivery, a mount fetches the published version for its placement. A
+compatible update shows on later mounts without an app release, following that
+surface's delivery rules. The server can be Restage Cloud or a server of your own.
+
+Hosted delivery changes the content your app shows. The Flutter code, widgets, and
+host actions in your installed app stay the same, and a published version can only
+use what that app already contains.
+
+## Configure delivery
+
+Configure the server once at app startup:
+
+```dart
+const baseUrl = 'https://api.example.com';
+const apiKey = 'rs_pk_live_prod_...';
+
+// restageSurfaces comes from generated restage_surfaces.g.dart.
+Restage.configureWithInstalledCatalog(
+  surfaces: restageSurfaces,
+  apiKey: apiKey,
+  baseUrl: baseUrl,
+);
+```
+
+Generated mounts install their required widgets. If you use direct mounts, call
+`registerRestageWidgets()` from generated `user_factories.g.dart` before configuring
+delivery. Passing `surfaces: restageSurfaces` prefetches known surfaces after the
+first frame. Prefetching gets later mounts ready; it doesn't assign anyone to an
+experiment. Hosted delivery covers flows by default, so leave `flowResolver` unset
+for ordinary generated mounts. A resolver you set replaces that default for flows.
+
+Use the public SDK key (`rs_pk_...`) for the environment you want to serve. Keys
+name their plane (`live` or `sandbox`) and environment in the prefix, such as `rs_pk_live_prod_` or
+`rs_pk_sandbox_dev_`, and the server picks the environment from the key.
+
+The URL must use HTTPS. The one exception is a server on your own machine
+(`localhost`, `127.0.0.1`, or `::1`), which may use plain HTTP for local development.
+The SDK has no built-in server address: the key goes only to the `baseUrl` you set.
+For Restage Cloud, set `baseUrl` to your environment's API URL. A server of your
+own uses its own URL.
+
+Measurement is on when hosted delivery is configured. Pass
+`measurementEnabled: false` to `Restage.configure` to switch it off.
+
+You can also call `Restage.configure()` without an API key.
+Generated mounts then use their compiled fallbacks; optional bundled content
+can also render. Hosted delivery and measurement stay off.
+
+## Render deadline
+
+A mount waits up to 300 ms by default for fresh content. After that it shows the
+best local content that is ready: a version it saved earlier or an optional bundle,
+otherwise its compiled fallback or unavailable policy. A saved version is used only
+if it matches the surface and the installed build, comes from the current delivery
+decision, and hasn't expired. A slow read from local storage can also miss the
+deadline. Set `renderDeadline:` at startup to change the wait.
+
+The fetch continues in the background and can save the new version for later
+mounts. [Live refresh](/delivery/live-refresh) updates supported mounts when safe;
+a standalone screen already showing its compiled fallback needs a remount.
+
+A fallback shown before any assignment doesn't count as showing an experiment arm.
+Assignment and rendering are separate: a response that arrives late, or an
+assignment saved earlier, can still place the user in the experiment's results.
+See [Experiments](/delivery/experiments).
+
+## Fallbacks by mount API
+
+The widget you mount decides what shows when the server can't deliver a version:
+
+| Mount | Falls back to your original widget | Needs bundled assets |
+| --- | --- | --- |
+| Generated screen mount, `FeatureAnnouncementSurface()` | Yes, with its original constructor arguments | No |
+| Generated paywall mount, `ProUpgradePaywallSurface()` | Yes, with its original constructor arguments | No |
+| Generated flow mount, `WelcomeFlowSurface(...)` | Yes, your original screens | No |
+| `RestageScreen(screen: featureAnnouncementRef, unavailable: ...)` | No; your `unavailable` policy decides | Only for a bundled fallback |
+| `RestagePaywall(id: 'pro_upgrade')` | Only if you supply `fallbackBuilder` | For a bundled fallback, and for a paywall that navigates between screens |
+| `RestageFlowGraph(flow: welcomeFlowRef, ...)` | No; your `unavailable` policy decides | Yes: the bundled flow is what the SDK checks published versions against, and the fallback |
+
+### Generated paywall and flow mounts
+
+Paywalls and flows get generated mounts, like screens. Prefer them: they fall back to
+the Flutter you wrote without bundled assets.
+
+Add the generated part to the library that declares the paywall, then rebuild:
+
+```dart
+part 'restage.generated/pro_upgrade.restage.g.dart';
+
+@Paywall()
+class ProUpgradePaywall extends StatelessWidget { /* ... */ }
+
+// At the call site:
+ProUpgradePaywallSurface()
+```
+
+A `@FlowGraph(surface: Surface.onboarding)` declaration named `welcomeFlow` gets:
+
+```dart
+WelcomeFlowSurface(onComplete: (result) { /* ... */ })
+```
+
+These mounts keep your original widgets compiled into the app. A flow mount also keeps
+the flow graph itself, so the SDK can check a published version against it without
+bundled assets. If no published version can run when the flow starts, the mount runs
+your original flow from the beginning. If something fails partway through a flow, it
+doesn't restart the flow or repeat a host action. State, back navigation, subflows,
+and results behave the same either way.
+
+If a flow screen needs constructor arguments, or its class isn't visible from the flow
+library, the generated mount takes a builder for it. Pass the original widget with
+your app's values, for example
+`profileScreenBuilder: () => ProfileScreen(name: user.name)`.
+
+One case still needs bundled assets. A paywall that moves between screens with
+`Navigator` is built as a flow, and to serve it from the server the SDK checks each
+published version against its bundled copy. Without the bundle, the generated mount
+shows your original widget even when a compatible published version exists.
+
+Other generated paywall and flow mounts work with hosted delivery and no bundled
+assets. Bundles still let a surface render from assets when the app is offline. A
+paywall mounted by id, `RestagePaywall(id: ...)`, has no original widget to fall back
+to.
+
+## Direct mounts and custom resolvers
+
+Prefer generated mounts for authored screens, paywalls and flows. The examples
+below show the lower-level APIs for apps that supply references, resolvers and
+unavailable policies themselves. These APIs are supported. The deprecated names are
+listed under [Older names](/authoring/write-a-surface#older-names).
+
+## Hosted standalone screens
+
+Every standalone screen uses the same widget, whatever its category:
+
+```dart
+RestageScreen<MaintenanceNoticeEvent>(
+  screen: maintenanceNoticeRef,
+  unavailable: SurfaceScreenUnavailablePolicy.fallback(
+    builder: (context, error) => const Text('Notice unavailable'),
+  ),
+  onEvent: (event) {
+    if (event is MaintenanceNoticeDismissEvent) {
+      Navigator.of(context).maybePop();
+    }
+  },
+)
+```
+
+Before it renders a version from the server, `RestageScreen` checks that it matches
+the generated screen: its id, category, contract version, events, and the widgets it
+needs. When the server has nothing or can't be reached, the bundled copy is used if
+there is one. A version that fails a check is never shown, and the screen goes to your
+`unavailable` policy instead of showing some other content.
+
+## Hosted flows
+
+For a direct flow mount, use `RestageFlowGraph`, whatever the category. A
+`ServerFlowResolver` with `active: true` explicitly fetches the live version:
+
+```dart
+RestageFlowGraph<AccountRecoveryResult>(
+  flow: accountRecoveryRef,
+  resolver: ServerFlowResolver(
+    baseUrl: baseUrl,
+    apiKey: apiKey,
+    active: true,
+  ),
+  unavailable: FlowUnavailablePolicy.fallback(
+    builder: (context, error) => const Text('Flow unavailable'),
+  ),
+  onComplete: (result) {
+    Navigator.of(context).pushReplacementNamed('/home');
+  },
+)
+```
+
+The generated flow reference records the flow's id, version, minimum client version,
+category, delivery mode, and result type. Before the SDK runs a published version, it
+checks that version against the flow your app was built with. A generated flow mount
+carries that flow in Dart; `RestageFlowGraph` uses the bundled flow and its screens.
+
+A flow of any category can include a `@Paywall()` screen. The paywall keeps its own
+behavior, and the flow keeps its category.
+
+The graph's state, decisions, host actions, subflows, and results are checked when you
+build and again on the device. By default a published version can change what the
+screens show but not the shape of the graph. To change the graph over the air, see
+[what you can change without an app release](/flows/overview#what-you-can-change-without-an-app-release).
+
+## When a version can't be shown
+
+Local content counts only if it is ready by the render deadline. Within that limit,
+the mount's resolver and fallback policy decide what appears:
+
+- **Paywalls** prefer fresh content ready before the deadline, then a saved version
+  that still qualifies or a bundle, then `fallbackBuilder`.
+  Generated mounts supply the original widget. A direct mount without a usable
+  fallback uses `errorBuilder` for a load failure.
+- **Flows** use hosted or saved content that qualifies, then their compiled or
+  bundled flow. If none can run, `RestageFlowGraph` applies your
+  `FlowUnavailablePolicy`.
+- **Standalone screens** with a generated mount can show your original widget. A
+  `RestageScreen` uses your `unavailable` policy when nothing can render.
+
+A malformed response, a server error, a widget your app doesn't have, or a version
+built for a newer app never reaches the screen. No surface renders a version that
+hasn't passed every check.
+
+A build that declares a break in one of your
+[custom widget libraries](/authoring/custom-widgets) with `compatibleSince` also skips
+versions that need the older library. That applies to the live version and to the
+versions your delivery rules route to; each falls back in the order above. An experiment enrolls
+only builds that can show every one of its arms, so the new build is not enrolled in it.
+Users already enrolled see the fallback too. The experiment's results show both counts
+by app build.
+
+Before you release that build, run `restage surface check-libraries`. It compares
+the library versions recorded in your project with what live versions, delivery
+rules, and experiment arms need, and exits non-zero when it finds a breaking change.
+It doesn't detect a library missing from your project, or a version that needs a
+newer library than yours, so a passing check doesn't prove full compatibility.
+
+A new version can appear on a later mount. [Live refresh](/delivery/live-refresh)
+can update supported mounts while they are safe to replace; it does not replace a
+standalone screen's compiled fallback.
+
+## Push and publish
+
+Generate, push a version, then publish it to make it live:
+
+```sh
+dart run build_runner build
+restage surface push <id>
+restage surface publish <id>
+```
+
+A push uploads a version and changes nothing that is running. You can also name the
+`.dart` file instead of the id.
+
+Before publishing, inspect the [measurement-impact review](/tools/cli#review-experiment-impact)
+with `--review-measurement`. Warnings about experiments and metrics need their own
+acknowledgment; confirming a live publish doesn't approve them. Pass `--revision`
+to publish the exact version you reviewed.

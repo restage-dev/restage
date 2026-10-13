@@ -1,0 +1,90 @@
+---
+title: Why Restage
+description: Author surfaces in the Flutter you already write, publish them without an app release, and keep your app in charge of behavior.
+---
+
+Restage starts from the Flutter code and design system you already have. Add an
+annotation to a widget, and it becomes a surface you can publish, measure, and roll back
+without an app release: an onboarding flow, a message, a survey, a paywall, or any
+screen.
+
+## Start with Flutter
+
+You write a surface with Flutter widgets, in the same repository as the rest of the app.
+`restage_codegen` follows the annotated widget tree, checks it against the widgets your
+app has installed, and writes a [Remote Flutter Widgets](https://pub.dev/packages/rfw)
+artifact. Theme reads, structured values such as `TextStyle` and `BoxDecoration`,
+interactive state, and your own components carry through.
+
+Mark a component with `@RestageWidget` to add it to the catalog. A component built only
+from catalog widgets can be inlined into the artifact. A component with its own logic is
+registered with a generated factory and rendered by the code already in your app. Its
+properties can be plain data classes and lists of structured values.
+
+The compiler handles a bounded part of Flutter. When it can't represent something, the
+build stops and points at the line. It doesn't guess.
+[Authoring constraints](/authoring/constraints) lists the limits.
+
+## Your app owns the behavior
+
+What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
+your app. A published version composes and configures them. New behavior still ships as
+an app release.
+
+A surface can arrange catalog widgets, fire the events and actions your app registered,
+and set a flow's data and routing. Widget implementations, network access, and action
+handlers come from your app build.
+
+That boundary does more than help with app review. It gives the compiler clear
+rules to check against, keeps every version readable, and lets a rollback restore an
+earlier published version exactly. The [App Store compliance](/app-store-compliance)
+page covers it in more detail.
+
+## Theme values resolve on the device
+
+A surface that reads `Theme.of(context)` resolves it inside the running widget tree. It
+follows the app into dark mode and picks up a later design-system change without a
+rebuild. A surface can also use fixed colors where the design calls for them.
+
+## Every version is measured
+
+Analytics and A/B tests are in beta. Once the app is connected to Restage Cloud, the SDK measures each published version.
+Views, taps, and completions are captured automatically, with no tracking calls to add.
+Measurement is on by default; pass `measurementEnabled: false` to `Restage.configure` to
+switch it off. [Telemetry and data](/trust/telemetry) lists what is recorded.
+
+## Failures have a defined outcome
+
+Source the compiler can't handle stops the build. On the device, a fetched version is
+checked against the installed app before it replaces what is on screen. If a check or a
+fetch fails:
+
+- a generated screen mount shows the widget you wrote;
+- a paywall uses its last accepted version, a bundle, or its compiled fallback;
+- a flow uses its last accepted version, its bundled copy, or the
+  `FlowUnavailablePolicy` your app chose.
+
+[Live refresh](/delivery/live-refresh) of a surface already on screen goes through the
+same checks.
+
+## One runtime for every surface
+
+Onboarding, messages, surveys, and paywalls all use the same compiler and runtime.
+Use generated `*Surface(...)` widgets to mount screens, paywalls and flows. They
+supply typed inputs and events, a compiled fallback and an automatic placement. A flow with
+general delivery returns a `Map<String, Object?>`. Paywall purchase events go to
+your app, which uses its existing store library or an adapter.
+
+Direct `RestageScreen`, `RestagePaywall` and `RestageFlowGraph` mounts remain
+available for apps that supply their own references and fallback setup.
+
+The same runtime works for a smaller region too, such as a card inside an existing
+`Scaffold`. Your app decides how much of a screen is delivered.
+
+## You keep the artifacts
+
+Generated `.rfw` and flow files can be bundled, committed, inspected, and served from
+your own server or CDN. The SDK works without Restage Cloud. The runtime and everything
+that ships in your app are BSD-3-Clause, the build-time compiler is FSL-1.1-ALv2, and
+Restage Cloud is a proprietary, optional service. See [Licensing](/trust/licensing) for
+the package-by-package split.

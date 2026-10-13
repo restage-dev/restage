@@ -1,0 +1,194 @@
+---
+title: Quickstart
+description: Annotate a Flutter widget and mount it with a compiled fallback, without surface assets or a backend.
+---
+
+This guide takes one widget from source to a rendered surface. It uses a small paywall,
+but the steps are the same for onboarding screens, messages, surveys, and any other
+screen.
+
+Everything below runs locally. You don't need a Restage account or a backend.
+
+<AgentPrompt />
+
+## 1. Add the packages
+
+Restage 2.0 requires Flutter 3.41 or newer. Add the runtime, Material catalog, code
+generator, and `build_runner` to the app's `pubspec.yaml`:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  restage: ^2.0.0
+  restage_material: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ">=2.4.0 <3.0.0"
+  restage_codegen: ^2.0.0
+```
+
+Add these entries to what your project already lists. A fresh `flutter create` app
+already has `flutter_test` and `flutter_lints`.
+
+Then fetch the packages:
+
+```sh
+flutter pub get
+```
+
+If you use a coding agent, install the Restage skill too, so it writes surfaces the way
+the build expects. See [Coding agents](/tools/coding-agents).
+
+The `restage` CLI can do this step for you with `restage init`. It is optional and not on
+pub.dev yet; the [CLI guide](/tools/cli) covers installing it from source.
+
+## 2. Write a paywall
+
+Create `lib/paywalls/pro_upgrade.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/pro_upgrade.restage.g.dart';
+
+@Paywall()
+class ProUpgradePaywall extends StatelessWidget {
+  const ProUpgradePaywall({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Go Pro',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text('Everything you need, in one plan.'),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: paywallEvent('continue'),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+`@Paywall()` marks the widget as a surface. The file is named `pro_upgrade.dart`, so the
+paywall's id is `pro_upgrade`. Pass an explicit id when you want a different one, or one
+that survives renaming the file. `paywallEvent('continue')` sends an event to your app
+when the button is pressed. Theme reads such as the `color` above resolve from the live
+widget tree when the surface renders, so the surface follows your theme.
+
+If the compiler can't handle something, the build tells you where. It follows `final`
+locals, same-file constants, helper methods, and `for` loops over constant lists, so
+most ordinary Flutter compiles as written.
+[Authoring constraints](/authoring/constraints) lists the limits. To show data your app
+already has, see [Host data](/authoring/host-data).
+
+## 3. Generate the artifacts
+
+Run the generator with its default options:
+
+```sh
+dart run build_runner build
+```
+
+The build writes the typed mount to
+`lib/paywalls/restage.generated/pro_upgrade.restage.g.dart` and the publishable
+artifacts under `.restage/build/`. The CLI finds those artifacts through
+`.restage/build/metadata/restage.publication.json` when you push a surface.
+
+Use the default `bundled_runtime: false`. You do not need to add this option to
+`build.yaml` or add generated surfaces to Flutter's asset list. The generated
+mount retains your original widget as its compiled fallback and works offline.
+
+Commit generated Dart and the two files that keep Restage ids stable across builds
+(`.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`).
+`.restage/build/` is build output; it does not go in your app's assets.
+
+[Bundled assets](/delivery/bundled-assets) is an optional workflow for shipping
+and rendering RFW artifacts inside the app.
+
+## 4. Mount the generated paywall
+
+Mount `ProUpgradePaywallSurface` wherever the paywall belongs. It installs the widgets
+it needs and renders your original widget when no hosted content is available.
+It declares its placement automatically; use the ordinary constructor.
+Put this in `lib/main.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+
+import 'paywalls/pro_upgrade.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: ProUpgradePaywallSurface(
+          onEvent: (event) => debugPrint('$event'),
+        ),
+      ),
+    );
+  }
+}
+```
+
+This offline example needs no hosted configuration. To fetch published versions,
+configure delivery at startup. Measurement is on by default with hosted delivery;
+live refresh is opt-in. [Hosted delivery](/delivery/hosted-delivery) covers the setup.
+
+Run the app:
+
+```sh
+flutter run
+```
+
+`onEvent` is where your app reacts to the surface. When the `continue` event arrives,
+run the purchase through the store library your app already uses.
+
+## 5. Rebuild while editing
+
+Run the generator after a source change, or leave it in watch mode:
+
+```sh
+dart run build_runner watch
+```
+
+With no hosted content, the mount renders your compiled widget, so Flutter's normal
+hot-reload rules apply. Regenerate after changes to the surface or its parameters
+and events.
+For published content, [live refresh](/delivery/live-refresh) can update a surface
+already on screen.
+
+Release builds need no special flags. The build step records which widgets and icons your
+app uses, so a release keeps only those and Flutter's icon tree-shaking works as usual.
+Don't pass `--no-tree-shake-icons`: it puts the whole icon font back into the app.
+
+The [Starters](/starters) page points to small onboarding, message, paywall,
+custom-widget, and host-data examples. When you're ready to publish, move on to
+[Hosted delivery](/delivery/hosted-delivery).

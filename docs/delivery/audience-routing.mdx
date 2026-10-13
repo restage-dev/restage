@@ -1,0 +1,157 @@
+---
+title: Audience routing
+description: Target audiences, roll out versions and schedule delivery changes.
+---
+
+Routing selects published content for an audience in an environment. A
+[placement](/delivery/placements) uses a delivery plan to choose compatible
+content for an app mount. Generated `*Surface(...)` widgets declare their
+placements automatically; they need no special constructor for routing.
+
+## Choose the rule
+
+A placement rule chooses a live surface. That surface's rules then choose
+an exact published version. Use a percentage rollout to deliver a version
+gradually, or an [experiment](/delivery/experiments) to compare outcomes under a
+statistical design. A rollout alone does not produce a statistical winner.
+
+An activated placement experiment takes precedence over placement rules, and an
+activated surface experiment takes precedence over that surface's version rules. A
+user an experiment must enroll is never quietly routed by an ordinary rule instead.
+
+Rules run in order. Disabled rules, closed time windows and nonmatching audiences
+are skipped. The first matching rule whose selected destination fits the app
+wins. If that destination is incompatible, evaluation continues to the next rule.
+After all rules, the default is checked too; an incompatible default leaves the
+mount using its fallback.
+
+In the dashboard, choose a saved audience revision or combine conditions over
+available platform, OS, app-build, country, language, device and custom attributes.
+The inline editor combines conditions with AND. A missing observed attribute
+normally does not match; missing audience definitions are errors. New rules
+start at the lowest priority. Before reordering, check for rules that overlap or
+that hide later rules.
+
+## Roll out or schedule a change
+
+For a gradual version rollout, upload the candidate while keeping the current
+default serving. Add a surface rule with the intended audience, a small primary
+share and the current default as its remainder. Check fit, review and publish
+the plan, then check real renders and data coverage before increasing the share.
+
+An installation stays in the same share while the rule, its allocation id
+and its scope stay the same. Raising only the percentage keeps existing
+installations where they are. For a share between 0% and 100%, an installation
+with no install id gets the remainder. If the chosen branch is incompatible,
+evaluation moves on to the next rule; it never switches to the other branch. The placement editor currently creates single-surface rules
+and preserves existing percentage rules.
+
+A rule's time window includes its start and excludes its end. A scheduled plan
+replaces the whole policy before it. Both use each device's local time, worked out
+from server time and the offset the device reports. Your own time zone plays no
+part. When a device's local time can't be worked out, the mount falls back with
+`localClockUnavailable`.
+
+Inspect the complete timeline before changing scheduled work. Test matching and
+nonmatching audiences, missing attributes, both rollout branches, older builds
+and window boundaries. Fit checks use the build requirements Restage has observed;
+a build with no observations isn't proven compatible. Verify [delivery](/delivery/hosted-delivery)
+on a device after publishing.
+
+## Inspect the target
+
+[Sign in and select your project, app and environment](/tools/cli#sign-in).
+The examples below use an onboarding flow with the id `welcome_flow`. Replace
+it with your surface id and category. If an environment exists on both planes,
+select `--plane sandbox` or `--plane live` explicitly.
+
+```sh
+restage surface routing list-audiences --json
+restage surface routing read welcome_flow --type onboarding --json
+restage delivery placements list --json
+```
+
+An audience reference points to one fixed revision of that audience. A policy
+keeps the revision it was reviewed against. Before replacing one, inspect its usage with
+`restage surface routing audience-usage --audience-revision-id <id>`.
+The CLI exposes audience listing and usage; these commands do not create or
+edit audiences.
+
+## Simulate and review a policy
+
+Use the placement [delivery plan workflow](/delivery/placements#inspect-and-change-delivery)
+for placement policies. The surface routing API also accepts complete typed
+policy requests:
+
+- `preview --document` takes a `DeliveryPolicySimulationRequestV1`.
+- `review --request` takes a `DeliveryPolicyReviewRequestV1`.
+- `publish --review` takes the complete original `DeliveryPolicyReviewV1`
+  returned by the server.
+
+These types are exported by `restage_measurement_schema`. Build them for the
+selected target and serialize them exactly as the schema encodes them. Output from
+`routing read --out` is a policy document, which can't be used as a review request.
+Use the dashboard to write new rules. The public schema can build whole plans and
+schedules; it has no constructors for the rules inside them.
+
+With valid simulation and review-request files prepared for the same target:
+
+```sh
+restage surface routing preview welcome_flow --type onboarding \
+  --document simulation.json --json
+restage surface routing review welcome_flow --type onboarding \
+  --request review-request.json --out routing-review.json
+restage surface routing publish welcome_flow --type onboarding \
+  --review routing-review.json
+```
+
+`preview` simulates the current saved policy without enrolling users. Its
+request has no candidate-plan field. The separate review evaluates the proposed
+complete plan.
+
+Inspect the returned impact and warnings before publishing. An agent must explain
+new experiment impact and stop unless you have authorized it. Don't edit the review
+file. To accept measurement warnings you have approved, add `--reviewed-digest`
+with the exact digest of that review. The interactive CLI can ask for this
+acknowledgment separately; `--yes` only confirms the live change.
+
+Refusals block publication. If the policy or its impact changes, or the review is
+out of date, get a new review. Pass a lowercase UUIDv4 as `--operation-id`, and
+reuse it with the same review and acknowledgment when you retry.
+
+Placement delivery plans use `delivery plan publish --acknowledgement` with a
+`DeliveryMeasurementImpactAcknowledgementV1` JSON file in place of the surface
+routing digest flag. See [Placements](/delivery/placements#inspect-and-change-delivery)
+for that workflow.
+
+## Restore one route
+
+`review-rollback` reviews a single route from an earlier revision and keeps the
+other routes as they are. Supply the route id, prior revision ordinal and expected
+current policy ordinal:
+
+```sh
+restage surface routing review-rollback welcome_flow --type onboarding \
+  --route-id ROUTE_ID --prior-revision-ordinal 2 \
+  --expected-revision-ordinal 3 --out rollback-review.json
+restage surface routing publish welcome_flow --type onboarding \
+  --review rollback-review.json
+```
+
+Replace the example ordinals and route id with values from your policy history.
+Policies with structured schedules require a whole-policy review instead.
+
+## Use an agent or the TUI
+
+The [MCP tools](/tools/mcp-server) expose the same read, preview, review, publish
+and route-rollback operations. Use `restage_review_routing` before
+`restage_publish_routing`; the publish tool accepts the original review bytes.
+Pass `reviewedDigest` only for measurement warnings you have approved, and reuse
+the same `operationId` when you retry. `confirmLive` confirms a live change
+separately. Placement plan tools take `requestJson` with the publish request's
+review reference and acknowledgment. Tool schemas describe the required fields.
+
+In `restage console`, press `/` and run the same commands, including the `restage`
+prefix. The selected target supplies defaults. Revision checks and live-write
+confirmation still apply. The TUI does not automatically acknowledge measurement
+warnings; supply the approved digest or use a terminal for interactive approval.

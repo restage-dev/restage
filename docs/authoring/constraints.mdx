@@ -1,0 +1,167 @@
+---
+title: Authoring constraints
+description: The Flutter source the build can compile into a surface, and what to write when it can't.
+---
+
+A surface is built from your Flutter source, so the build has to be able to follow
+your code. Most of what you already write works as it is. This page lists the rules
+that do apply, with what to write instead. When the build can't follow something, it
+stops with an error that points at the line, before anything can be published.
+
+The rules are the same for every surface: onboarding, messages, surveys, paywalls, and
+any screen.
+
+## Locals before the return
+
+`build` may start with `final` and `const` local variables, one per statement, and end
+with one returned widget. Locals can read the theme, refer to each other, or hold a
+widget, including one of your own custom widgets. The result is the same as if you had
+written each value inline:
+
+```dart
+@override
+Widget build(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  final title = Text('Go Pro', style: TextStyle(color: scheme.primary));
+  return Column(children: [title, const Text('Everything, one plan.')]);
+}
+```
+
+The returned widget has to use every local, directly or through another local. A local
+it doesn't use stops the build with the local's name, because its value would never
+reach the surface; a call such as `final pushed = Navigator.push(...)` would otherwise
+disappear without a trace. Several variables in one statement (`final a = 1, b = 2;`),
+`late`, a `final` with no value, and any statement other than a local or the return
+also stop the build. See [Theming](/authoring/theming) for how theme reads through a
+local stay live.
+
+## Helper methods
+
+A method of your own that returns a widget or a value is followed and inlined where you
+call it, with its arguments:
+
+```dart
+Widget _plan(String name, String price) =>
+    ListTile(title: Text(name), trailing: Text(price));
+
+@override
+Widget build(BuildContext context) => Column(
+      children: [_plan('Monthly', '\$4.99'), _plan('Annual', '\$39.99')],
+    );
+```
+
+This works for methods in the same class and for top-level or static functions anywhere
+in your package, such as `Spacing.page()` or `PlanBadge.pro()`, and in dependency
+packages that publish custom Restage widgets. See
+[Design-system packages](/authoring/design-system-packages). Other package calls
+stop the build with an error that names them. The helper's body is one returned
+expression, optionally after `final` locals. Pass every optional parameter explicitly,
+and a helper can't call itself. For a component you reuse across surfaces, extract a
+[custom widget](/authoring/custom-widgets).
+
+## Your own widget classes
+
+A widget you move into its own class needs `@RestageWidget`. A class the build doesn't
+know stops the build with an error that says so. With the annotation, the build
+compiles a widget that only composes other widgets into the surface, and registers the
+others so your app renders them from its own compiled code. See
+[Custom widgets](/authoring/custom-widgets).
+
+## Constants
+
+A top-level or `static const` declared in the same file works anywhere a value goes,
+whether it's a number or string or a value such as a `Color`, `EdgeInsets`,
+`TextStyle`, `BorderRadius`, or `Alignment`:
+
+```dart
+const kBrand = Color(0xFF6E5AFF);
+const kPagePadding = EdgeInsets.all(20);
+
+// later, in build():
+Container(padding: kPagePadding, color: kBrand)
+```
+
+A constant declared in another file isn't followed, and the error says so. Enum values
+work. A class of your own with the same name as a Flutter class (`Alignment`,
+`Colors`) is rejected instead of guessed at.
+
+## Lists written in the source
+
+A `for` over a list literal or a same-file `const` list, a collection `if` on a
+condition the build can work out, and a spread of a list literal all expand at build
+time, nested as deep as you like:
+
+```dart
+const kFeatures = ['Unlimited projects', 'Priority support', 'Export'];
+
+Column(
+  children: [
+    for (final feature in kFeatures) Text(feature),
+    if (showFootnote) const Text('Cancel any time.'),
+    ...const [Divider(), SizedBox(height: 8)],
+  ],
+)
+```
+
+A `for` over a value that is only known when the app runs, such as a constructor
+parameter, is [host data](/authoring/host-data) and stays a loop in the surface. Not
+supported: a C-style `for`, a null-aware spread (`...?`), sets and maps, `.map()`
+chains, `TextSpan.children`, and a condition on a build-mode constant such as
+`kDebugMode`. One list can expand to at most 1,000 children. Callbacks inside a static `for`
+are compiled for each iteration, including event arguments from the loop variable.
+
+## Events on callbacks
+
+Pass `surfaceEvent(...)` directly as the callback, for taps and value callbacks alike:
+
+```dart
+onPressed: surfaceEvent(next),
+onChanged: surfaceEvent(pick),
+```
+
+When the widget passes a value, such as a Switch's `bool` or a TextField's text, that
+value is the event's value. Don't wrap the call in a closure: `() => surfaceEvent(next)`
+returns the callback without calling it, so the event never fires when your own widget
+shows as the fallback. The build compiles it with a warning.
+
+## Keep an interpolated string in one literal
+
+Adjacent plain strings are joined as in Dart. A group of adjacent strings that mixes
+plain and interpolated parts isn't supported, so keep the interpolation in one string:
+
+```dart
+// Instead of: Text('Hello, ' '$name')
+Text('Hello, $name')
+```
+
+## Full width without double.infinity
+
+A surface can't carry `double.infinity` or any other non-finite number, so
+`SizedBox(width: double.infinity)` stops the build with an error. Use layout instead.
+
+For one full-width child in a centered column, wrap it in a `Row` with `Expanded`:
+
+```dart
+Row(children: [Expanded(child: child)])
+```
+
+For a column that is full width throughout, stretch the cross axis:
+
+```dart
+Column(
+  crossAxisAlignment: CrossAxisAlignment.stretch,
+  children: [ /* ... */ ],
+)
+```
+
+## Custom painting, gestures, and animation
+
+Custom painting, such as a `CustomPainter`, goes in a custom widget that compiles into
+your app. A surface sets it up through its constructor properties. You can often build
+the same design from catalog widgets such as containers, gradients, and borders.
+Gestures and animation work the same way; see
+[Interactive surfaces](/authoring/interactive-surfaces).
+
+These rules keep every surface something the app can render from data. When a surface
+needs a component of your own, [custom widgets](/authoring/custom-widgets) are the way
+to add it.

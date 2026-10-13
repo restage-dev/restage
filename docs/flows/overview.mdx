@@ -1,0 +1,296 @@
+---
+title: Flows
+description: Connect your own Flutter screens into onboarding, messages, surveys, and other multi-screen surfaces.
+---
+
+A flow is a sequence of screens: an onboarding, a multi-step message, a survey, or
+any multi-screen surface in your app. You write each screen as an ordinary Flutter
+widget, then describe how the screens connect in a short Dart flow definition. The
+build checks the graph and generates a typed `*Surface` widget to mount in your app.
+
+Use a flow when Restage should own the journey's sequence and transitions. Your
+existing app router can keep presenting individual surfaces when it owns that
+navigation. For existing paywalls, supported `Navigator.push` and `Navigator.pop`
+calls can [compile into a flow automatically](/paywalls/overview#multi-screen-paywalls),
+without an explicit flow definition.
+
+Every flow and every standalone screen declares its category in source. `Surface` has
+five values: `onboarding`, `message`, `survey`, `paywall`, and `general`. Use
+`Surface.general` for anything that doesn't fit the other four. Where a file lives
+doesn't change its category.
+
+## Screens and events
+
+A screen that is used inside a flow takes a plain `@Screen()` and inherits the flow's
+category. Save this as `lib/screens/welcome.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen()
+final class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: surfaceEvent(next),
+      child: const Text('Continue'),
+    );
+  }
+}
+```
+
+`SurfaceEvent<T>` declares a typed event, and `surfaceEvent(event)` turns it into an
+ordinary Flutter callback. The flow refers to the static field, so neither the flow nor
+your app code deals in event strings.
+
+A screen published on its own declares its category instead, for example
+`@Screen(surface: Surface.message)`. See [standalone screens](#standalone-screens).
+
+Add the final screen in `lib/screens/profile.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/profile.restage.g.dart';
+
+@Screen()
+final class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+
+  static const finish = SurfaceEvent<void>('finish');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(finish),
+        child: const Text('Finish setup'),
+      );
+}
+```
+
+## Define the flow
+
+Annotate a top-level `FlowDefinition` with `@FlowGraph`. Each transition names the event
+that triggers it and the screen it leads to. `Transition.complete` ends the flow with a
+result. Save this as `lib/flows/welcome_flow.dart`:
+
+```dart
+import 'package:restage/restage.dart';
+
+import '../screens/profile.dart';
+import '../screens/welcome.dart';
+
+part 'restage.generated/welcome_flow.restage.g.dart';
+
+@FlowGraph(surface: Surface.onboarding)
+const welcomeFlow = FlowDefinition(
+  start: WelcomeScreen,
+  transitions: [
+    Transition(
+      WelcomeScreen.next,
+      to: ProfileScreen,
+    ),
+    Transition.complete(ProfileScreen.finish),
+  ],
+);
+```
+
+The flow id comes from the file name when the file holds one flow, so this flow is
+`welcome_flow`. Pass `id:` to keep the id stable when you move or rename the file, or
+when a file holds more than one flow.
+
+## Mount the flow
+
+Run `dart run build_runner build`, import `flows/welcome_flow.dart`, and mount the
+generated `WelcomeFlowSurface`:
+
+```dart
+WelcomeFlowSurface(
+  onComplete: (result) {
+    Navigator.of(context).pushReplacementNamed('/home');
+  },
+)
+```
+
+Use this inside your app's widget tree; `/home` is a route your app defines. The
+mount installs its widgets and keeps the original flow as its fallback, so it can
+run offline without surface assets. Its generated result type is `WelcomeFlowResult`.
+With [hosted delivery](/delivery/hosted-delivery) configured, the same mount can
+render a compatible published version. The mount declares its placement
+automatically; no placement id is needed.
+
+### Direct flow mounts
+
+`RestageFlowGraph<WelcomeFlowResult>(flow: welcomeFlowRef, ...)` is the lower-level
+entrypoint. Use it when supplying the reference and unavailable policy yourself.
+See [Bundled assets](/delivery/bundled-assets#mount-a-bundled-flow) for a complete
+direct-mount example. `RestageFlowView` additionally lets your app own the controller
+and navigation controls; see [Navigation](/flows/navigation-and-chrome).
+
+## State and decisions
+
+Declare a piece of flow state once as a `FlowStateRef<T>`, then reuse that one
+reference to capture an event's value, write a value, test a condition, or include it
+in the flow's result. A `Decision` picks the next screen from that state:
+
+```dart
+const mode = FlowStateRef<String>('mode');
+
+final route = Decision(
+  'route',
+  branches: [
+    Branch(
+      when: mode.equals('guided'),
+      to: GuidedScreen,
+    ),
+  ],
+  otherwise: ExploreScreen,
+);
+```
+
+A transition can lead to a screen, a `Decision`, a `Completion`, or a `Subflow` (a
+child flow). [Branching](/flows/branching) walks through a complete example, and
+[Host actions](/flows/host-actions) shows how a flow calls code in your app.
+
+For graphs that don't fit a constant definition, such as custom action or result
+handling, write the flow as a class with the same annotation and build the graph in
+`buildFlow()`:
+
+```dart
+@FlowGraph(surface: Surface.onboarding)
+final class ComplexFlow extends RestageFlow {
+  const ComplexFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: welcomeScreenRef,
+      states: [
+        screen(welcomeScreenRef).on(WelcomeScreen.next).goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+```
+
+## Paywalls inside flows
+
+A screen with an explicit category must match the flow it's in, and a plain
+`@Screen()` takes the flow's category. `@Paywall()` is the exception: it is always
+`Surface.paywall`, and it can still be a step in a flow of any category.
+
+```dart
+@FlowGraph(surface: Surface.general)
+const accountRecovery = FlowDefinition(
+  start: IdentifyAccountScreen,
+  transitions: [
+    Transition(
+      IdentifyAccountScreen.showPaywall,
+      to: GeneralPaywall,
+    ),
+    Transition.complete(GeneralPaywall.complete),
+  ],
+);
+```
+
+Here `GeneralPaywall` is a `@Paywall()` widget that declares its own
+`static const complete = SurfaceEvent<void>('complete')`. Mount the journey with
+the generated `AccountRecoverySurface`. The containing flow owns its events;
+standalone paywall purchase handlers cannot be passed directly to a flow. Use a
+[host action](/flows/host-actions) when a transition must await a purchase or other
+app work.
+
+## Standalone screens
+
+A screen published on its own declares its category and is mounted with
+its generated mount. This example declares the screen; add the generated part
+directive as described in [Write a surface](/authoring/write-a-surface):
+
+```dart
+@Screen(surface: Surface.general)
+final class MaintenanceNotice extends StatelessWidget {
+  const MaintenanceNotice({super.key});
+
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(dismiss),
+        child: const Text('Dismiss'),
+      );
+}
+
+MaintenanceNoticeSurface(
+  onEvent: (event) {
+    if (event is MaintenanceNoticeDismissEvent) {
+      Navigator.of(context).maybePop();
+    }
+  },
+)
+```
+
+Generated mounts work for every category and retain the original widget.
+`RestageScreen<E>` and `RestagePaywall` remain available for direct mounting.
+
+## What you can change without an app release
+
+By default a flow is typed: you can publish new content, copy, and layout for its
+screens, and your app receives a typed result class. Changing the shape of the graph,
+such as adding a screen or rerouting a transition, needs a new app build.
+
+To change the graph itself over the air, declare the flow with general delivery:
+
+```dart
+@FlowGraph(
+  surface: Surface.onboarding,
+  delivery: FlowDeliveryMode.general,
+)
+```
+
+A published version can then add, remove, or reorder screens and change where
+transitions lead. It can only use the host actions and custom events your installed
+app already declares. In exchange, `onComplete` receives a plain
+`Map<String, Object?>` instead of a generated result class. The generated mount
+uses that result type automatically; the direct equivalent is
+`RestageFlowGraph<Map<String, Object?>>`.
+
+`FlowDeliveryMode` and `Surface` are separate choices. `Surface.general` is a category;
+`FlowDeliveryMode.general` controls what a published version can change.
+
+## Push and publish
+
+The build writes a publication manifest to
+`.restage/build/metadata/restage.publication.json`. The CLI reads it to find the
+surface's artifacts. Push a version by its id, then publish it to make it live:
+
+```sh
+restage surface push welcome_flow
+restage surface publish welcome_flow
+```
+
+A push uploads a version and changes nothing that is running. You can also name the
+`.dart` file instead of the id; if the file produced more than one surface, `--all`
+pushes all of them. `--type` is optional: when you pass it, the CLI checks that the
+surface has that type.
+
+## Older annotations
+
+`@ScreenSource`, `@PaywallSource`, and `@FlowSource` are deprecated but still work. Use
+`@Screen`, `@Paywall`, and `@FlowGraph` in new code.
+
+## What ships in the app
+
+Flow documents and generated assets ship inside your app, and anyone can read them.
+Don't put credentials, private tokens, or secret business rules in them. Custom events,
+results, and action arguments are checked against their declarations before they reach
+your app code.

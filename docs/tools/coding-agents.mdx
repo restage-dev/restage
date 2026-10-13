@@ -1,0 +1,73 @@
+---
+title: Coding agents
+description: Install authoring and operations skills for Restage, from surface design to delivery and analytics.
+---
+
+The `restage` package ships two skills. Install both with one command, or choose
+only the one you need. Each has a short entry point and detailed references the
+agent reads for the current task.
+
+| Skill | Use it for |
+| --- | --- |
+| `restage-authoring` | Design surfaces for OTA updates, write screens and flows, connect host behavior, and verify generated mounts and delivered RFW. |
+| `restage-operations` | Inspect deployed state, interpret analytics, diagnose delivery, manage routing and experiments, and publish or roll back. |
+
+## Install the skills
+
+From your app's directory, after adding `restage` to its dependencies:
+
+```sh
+dart run skills@ get --package restage --all
+```
+
+Dart's [skills tool](https://pub.dev/packages/skills) reads the skills from the
+`restage` version your app resolves and asks which agent to install for. To select
+the agent explicitly:
+
+```sh
+dart run skills@ get --package restage --agent claude --all
+```
+
+`--agent claude` installs to `.claude/skills/`, `--agent cursor` to
+`.cursor/skills/`, and `--agent codex` to `.agents/skills/`. Omit `--all` to choose
+individual skills. Commit the installed skills when your team shares them, along
+with `.config/dart_skills/skills_config.json`, which records the selection.
+
+After upgrading `restage`, run the install command again. `dart run skills@ list`
+shows the installed skills; `dart run skills@ prune` removes skills from packages
+the app no longer depends on.
+
+## Author with the recommended APIs
+
+The authoring skill prefers generated `<Name>Surface(...)` mounts, automatic
+placements and compiled-widget fallback. `.atPlacement('name', ...)` is an
+optional naming override. Ordinary setup, Widgetbook and A2UI generation need no
+bundled surface assets.
+
+It explains how to preserve OTA flexibility: keep supported composition in the
+surface, expose useful inputs and child slots, and inspect compiler diagnostics
+and generated RFW to see when a custom component uses native code. It covers typed events,
+host data, branching and general flows, host actions, purchase integration and
+compiler failures.
+
+The skill's source examples build in a real app. Their fallback and bundled-RFW
+paths are tested separately, because a working fallback says nothing about
+delivered content.
+
+## Operate with project context
+
+The operations skill uses the [CLI and TUI](/tools/cli) or
+[MCP server](/tools/mcp-server). It teaches target and time-window selection,
+analytics interpretation, delivery diagnosis, reviewed routing changes and the
+experiment draft, validation, review and activation workflow. Ordinary experiment
+operations are available without an experimental opt-in. Local surface authoring
+needs neither a hosted account nor an MCP connection.
+
+The agent uses your existing authorization for the requested target and action.
+It asks before an action, or impact it discovers, goes beyond that. Uploading a
+revision doesn't make it live; publishing and routing change what the selected
+target serves, within the limits of compatibility and experiment assignment.
+
+You still supply app-specific credentials and purchase verification, and approve
+browser sign-in when required. The skills do not substitute example callbacks for
+real entitlement or platform behavior.

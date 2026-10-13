@@ -135,3 +135,14 @@ survey, an onboarding flow and a paywall. Copy the sources into an app with the
 SDK and generator dependencies, then generate their Dart parts. The examples
 use generated mounts and need no surface assets. Adapt their handlers to the
 app; logging a purchase event does not perform a purchase.
+
+## Documentation
+
+The full docs are at https://docs.restage.dev. For an agent:
+
+- https://docs.restage.dev/llms.txt lists every page with a one-line summary
+  and its Markdown URL.
+- Every page is also served as Markdown at its URL plus `.md`, such as
+  https://docs.restage.dev/delivery/hosted-delivery.md.
+- `restage docs search <query>` and `restage docs read <path>`, or the MCP tools
+  `restage_docs_search` and `restage_docs_read`, search and read the same pages.

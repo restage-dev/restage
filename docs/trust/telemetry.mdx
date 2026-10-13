@@ -1,0 +1,188 @@
+---
+title: Telemetry and data
+description: What the SDK sends, when it sends it, how to turn measurement off, and how measurement links to a signed-in user.
+---
+
+Measurement is in beta. Restage measures how users interact with each published version
+of a surface. There are no tracking calls to add: views, taps, and completions are captured for each
+version you ship. This page covers what the SDK sends and how to control it.
+
+## Nothing is sent without a hosted configuration
+
+The SDK talks to a server only when you pass both an `apiKey` and a `baseUrl` to
+`Restage.configure`. Without them, generated mounts use their compiled fallbacks
+(or optional bundled content) and make no network calls.
+
+There is no built-in endpoint. Requests go to the `baseUrl` you configure, with your
+publishable key (`rs_pk_...`). Point it at Restage Cloud or at your own server.
+
+The SDK sends the key as an opaque bearer credential. The server decides its scope and
+environment. See [Hosted delivery](/delivery/hosted-delivery).
+
+## Turn measurement off
+
+Measurement is on by default. To turn it off, pass `measurementEnabled: false`:
+
+```dart
+Restage.configure(
+  apiKey: 'rs_pk_...',
+  baseUrl: 'https://api.example.com',
+  measurementEnabled: false,
+);
+```
+
+The value must be a constant, because the code generator reads it. Generated surfaces
+then carry nothing to measure, and the SDK starts no measurement sessions. Hosted
+delivery keeps working.
+
+`analyticsEnabled: false` also turns measurement off. It also stops the SDK from
+creating the install id, so hosted requests carry no install id and no experiment
+assignment.
+
+Counts are the views and interactions that installed apps report. Restage doesn't
+verify that a real user made each one. Purchase conversion counts purchases your
+app reports and the service accepts. Button taps and store-verified revenue don't
+count toward it. Your billing integration
+remains responsible for transaction verification and entitlement checks. See
+[Products and purchases](/paywalls/products-and-purchases).
+
+## When measurement runs
+
+Measurement runs for a published version only when both of these hold:
+
+- Your app settings enable it. That means a hosted configuration, with
+  `measurementEnabled` and `analyticsEnabled` left on.
+- The service accepts measurement for that exact published revision and artifact.
+
+The SDK captures and uploads measurement on iOS, Android, macOS, Linux and Windows.
+Flutter Web opens no measurement session and records or uploads nothing.
+Separate delivery receipts and placement reporting can still operate under
+`deliveryReceiptsEnabled` (see below).
+
+## What is recorded
+
+With measurement on, the SDK records the interactions each published version defines,
+with their timing, the surface version, and the experiment variant where one applies.
+
+Measurement records (frames) hold a limited set of interaction facts and counts, timing,
+and references to the published version and the experiment. They hold no direct install or account ids, no
+raw event payloads and no host data.
+
+These records are only part of what the SDK sends. Hosted surface requests can still carry the
+pseudonymous install id (see [The install id](#the-install-id)), and delivery reports
+are separate (see below).
+
+## Offline behavior
+
+Records are queued on the device and retried if an upload fails. A retry sends the same
+bytes as the first attempt. The delay between retries grows from one second to a cap of
+one hour. The SDK drops records the service has not acknowledged after 24 hours.
+
+## Opting out
+
+Turning measurement off (see [Turn measurement off](#turn-measurement-off)) stops capture
+and purges the records still waiting on the device. It does not erase data the SDK has
+already uploaded.
+
+The SDK doesn't read advertising identifiers (IDFA or GAID), location, or contacts.
+[Host data](/authoring/host-data) you pass to a surface through `context:` stays on the
+device. Like any network call, requests expose ordinary metadata, such as the IP
+address, to the server you point them at.
+
+## Delivery reports and placement discovery
+
+Hosted delivery reports which content was selected and rendered: surface type, id
+and version, content source, fallback reason, render outcome, platform, app build,
+route, and latency grouped into minute buckets. Reports can also say which placement
+showed the content, and carry routing or experiment-assignment tokens. Reports are
+sent in batches every 30 seconds while a reporting surface is mounted, and on app
+pause.
+
+The SDK also reports the placements the app declares, the catalog capabilities the
+build has installed, and where each placement appeared on screen. These reports help the authoring tools show where content can
+appear and which app builds can render it. They do not capture screenshots.
+[Screen samples](/delivery/placements#share-a-screen-sample) require explicit capture
+and upload.
+
+These reports are controlled separately from measurement and analytics. Disable
+them with `deliveryReceiptsEnabled: false` in `Restage.configure` or
+`Restage.configureWithInstalledCatalog`. Hosted delivery and local authoring
+capture still work. Lost reports mean observed render counts can be incomplete.
+
+## The install id
+
+Each install gets a random UUID. It isn't derived from any device or advertising
+identifier, and it resets when the app is uninstalled or you call `Restage.reset()`.
+The same id is the key for experiment assignment.
+
+The install id is pseudonymous. Under GDPR and similar laws, treat it as personal data,
+as we do. The SDK attaches no account id of your own unless you link one (see below).
+
+`Restage.reset()` gives the install a new id and a new session. Experiment assignment is
+drawn again on the next surface presentation, and nothing links the old id to the new
+one. It runs only on the device: it doesn't delete or change anything already sent, and
+it doesn't clear the metering token.
+
+## Device facts
+
+Hosted surface requests describe the device, so the service can choose which version of
+a surface to serve, such as one for a country, for tablets, or for a language. Each
+request sends the platform and, when the device can supply them, the app build number,
+region, device type, language, and OS version. Web builds send no build number or OS
+version. These facts are sent even with analytics or measurement off. Measurement sessions
+record that context; delivery reports also carry platform and app-build information
+under their separate control above.
+
+## The metering token
+
+Restage Cloud is billed by monthly active users, so the SDK counts them with a metering
+token:
+
+- **It exists only with a `baseUrl`.** The SDK creates it the first time it fetches a
+  surface.
+- **It's a random UUID**, stored in `shared_preferences` and lost on uninstall. It
+  contains nothing about the user or the device, and it isn't linked to the install id.
+- **It's sent only with surface fetches**, and only to the server you configured. Your
+  own server can ignore it.
+- **`analyticsEnabled: false` doesn't remove it.** It stays as long as you fetch
+  surfaces from a server.
+
+For your privacy policy: a random per-install identifier, used only to count active
+users for billing, reset when the app is uninstalled.
+
+## Linking a signed-in user
+
+By default, measurement knows no user. If you want measurement tied to a signed-in
+account, link one explicitly through `Restage.measurement`:
+
+```dart
+// 1. Ask the service for a challenge.
+final challenge = await Restage.measurement.issueLinkChallenge(challengeRequest);
+
+// 2. Link, with that challenge, proof from your own sign-in system,
+//    and the user's consent and region.
+final result = await Restage.measurement.linkSubject(request);
+
+// Later:
+final reset = await Restage.measurement.resetSubject(resetRequest);
+final withdrawal = await Restage.measurement.withdrawConsent(withdrawalRequest);
+```
+
+Because the request needs a challenge from the service, proof from your sign-in system,
+and the user's consent, a link can't happen by accident. You get back a receipt or a
+failure. `resetSubject` unlinks, and `withdrawConsent` blocks future linking.
+
+These calls need a transport. They do nothing until you pass
+`governedMeasurementTransportEnabled: true`, which sends them to your `baseUrl`, or
+your own `governedMeasurementTransport`, to `Restage.configure`. Pass one of the two.
+Configuring both is rejected with an `ArgumentError`. Until then each call returns an
+"unavailable" result. This setting covers only these explicit operations. Ordinary
+interaction measurement does not need it. Privacy requests go through `Restage.privacy`, which
+returns an "unavailable" receipt until the service handles them for your app.
+
+## Source
+
+The SDK is BSD-3-Clause, so you can read exactly what it sends. Measurement is in
+[`packages/restage/lib/src/measurement`](https://github.com/restage-dev/restage/tree/main/packages/restage/lib/src/measurement)
+and the metering token in
+[`packages/restage/lib/src/metering`](https://github.com/restage-dev/restage/tree/main/packages/restage/lib/src/metering).

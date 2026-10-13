@@ -294,6 +294,13 @@ reports live versions, delivery rules and experiment arms that would stop
 rendering on that build. It exits non-zero when it finds a break, so it can
 gate an app release.
 
+## Documentation
+
+`restage docs search <query>` lists the docs sections that match, with their URLs.
+`restage docs read <path-or-url>` prints a page as Markdown; add `#anchor` to print
+one section. Both read the published docs at https://docs.restage.dev. Every page
+is listed in https://docs.restage.dev/llms.txt.
+
 ## Placements and delivery plans
 
 `restage delivery placements list` lists app locations; `show` reads one.

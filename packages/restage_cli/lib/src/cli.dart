@@ -10,6 +10,7 @@ import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/measurement_page_command.dart';
 import 'package:restage_cli/src/measurement/page_read.dart' show pageReads;
 import 'package:restage_cli/src/commands/catalog_command.dart';
+import 'package:restage_cli/src/commands/docs_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/delivery_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
@@ -380,6 +381,14 @@ class RestageCli {
           controllerFactory: _consoleControllerFactory,
           launcher: _consoleLauncher,
           interactive: interactive,
+        ),
+      )
+      ..addCommand(
+        DocsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          httpClient: _httpClient,
+          environment: _environment,
         ),
       )
       ..addCommand(

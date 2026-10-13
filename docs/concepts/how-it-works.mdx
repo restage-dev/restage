@@ -1,0 +1,95 @@
+---
+title: How it works
+description: Follow a Restage surface from the widget you wrote, through the build and the device checks, to the screen.
+---
+
+A Restage surface starts as a Flutter widget you annotate. The build compiles it, the SDK
+on the device fetches and checks the live version, and Flutter renders it inside your
+app. Both the build and the SDK work from the same list of widgets your app has
+installed, called the catalog.
+
+## Write and compile
+
+A surface is a plain Flutter widget with `@Screen()` or `@Paywall()`, or a flow with
+`@FlowGraph(surface: ...)`. A screen published on its own declares its category with
+`@Screen(surface: Surface.<category>)`, and a bare `@Screen()` is a step inside a flow.
+Your own widgets join the catalog with `@RestageWidget`.
+
+The categories are the `Surface` enum: `onboarding`, `message`, `survey`, `paywall`, and
+`general`. `@Paywall()` implies `Surface.paywall`. `Surface.general` covers anything
+else, whether a single screen or a whole flow.
+
+`dart run build_runner build` runs `restage_codegen`. It reads your source with the Dart
+analyzer, checks every widget and value against the catalog, and writes:
+
+- `.rfw`, the binary file the app renders;
+- `.rfwtxt`, a readable copy of it for review;
+- a small file listing what the surface needs from the app, used for compatibility
+  checks;
+- for each standalone `@Screen(surface: ...)` or `@Paywall()`, a typed mount,
+  `<ClassName>Surface`, that takes the same constructor parameters as your widget and shows your widget if the published
+  version can't render;
+- for flows, generated Dart and a `.flow.json` document;
+- `.restage/build/metadata/restage.publication.json`, which records each surface's id and the
+  files that make it up;
+- optionally, an A2UI catalog in Dart and a standalone `.a2ui.json` document.
+
+Anything the compiler can't express is a build error. It never drops a property or
+swaps in a similar widget without telling you.
+
+The generator finds annotated widgets anywhere in the package. Folders are for
+organizing your project and don't set a category or an id. If you omit the id, the
+generator uses the file name. Give an explicit id when it has to survive a file move.
+
+## The catalog
+
+The catalog describes the widgets, properties, and value types that a released build of
+your app can render. The compiler accepts only source it can express with that catalog,
+and the SDK registers the matching widgets, including factories generated for your own
+widgets.
+
+What ships is data the app renders. Your widgets carry the logic, as Dart compiled into
+your app. A published version composes and configures them. New behavior still ships as
+an app release.
+
+## On the device
+
+Generated `*Surface(...)` widgets are the recommended mounts. They declare their
+placement automatically and keep the original Flutter screen, paywall or flow as a
+fallback.
+Bundled surfaces load from the app's assets and need no account or network. When the app
+is connected to Restage Cloud or your own server, the SDK asks for the live version and
+checks it before rendering it.
+
+A render deadline limits the initial wait for fresh content to 300 ms by default.
+The fetch continues after a fallback appears. Each kind of mount has its own fallback:
+
+- A generated `<ClassName>Surface` or `RestageScreen<E>` checks the version's id,
+  category, required widgets, and events against what the build generated. If a check
+  fails, the generated mount shows the widget you wrote unless you pass an
+  `unavailable` policy, and `RestageScreen` follows the policy you pass it.
+- A generated flow mount checks the flow's declarations and can fall back to a
+  version it accepted earlier, a bundle or the authored flow. The lower-level `RestageFlowGraph<R>` uses
+  the available content and the `FlowUnavailablePolicy` your app supplies.
+- `RestagePaywall` uses an accepted version saved on the device, a bundled copy,
+  or its `fallbackBuilder`. Generated paywall mounts supply the original widget.
+
+See [Hosted delivery](/delivery/hosted-delivery) for setup and the exact fallback order.
+
+## Rendering and events
+
+The SDK builds real Flutter widgets inside your widget tree. Theme reads resolve against
+the current `ThemeData`, and [host data](/authoring/host-data) passed through a
+generated mount's typed inputs resolves under `data.context.*`, rebuilding only the widgets that read
+a changed value. Flutter still owns layout, accessibility, scrolling, and gestures.
+
+Events come back to your app through `SurfaceEvent<T>` declarations and
+`surfaceEvent(...)` in the widget, or through typed flow actions. A generated reference
+only produces the events the class declares, so you never look events up by name. A flow
+can call an action your app registered, with arguments that match its schema, and use
+the result. The handler itself stays in your app.
+
+By default, the SDK picks up a newly published version the next time a surface mounts.
+[Live refresh](/delivery/live-refresh) can also update a surface already on screen when
+the app resumes, when Restage Cloud or your own channel signals a change, or when you
+call `Restage.reloadSurfaces()`.

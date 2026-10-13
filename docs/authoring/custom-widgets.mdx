@@ -1,0 +1,397 @@
+---
+title: Custom widgets
+description: Add a widget from your own app to the catalog with one annotation, and generate RFW, A2UI, and Widgetbook output from the same class.
+---
+
+A custom widget is a widget from your own app, such as a component from your design
+system, that you add to the catalog next to the built-in Flutter, Material, and
+Cupertino widgets. Surfaces can then use it like any other widget. From one ordinary
+Flutter class, Restage can generate three outputs:
+
+- an entry in your RFW widget catalog, with the code that builds the widget in your
+  app;
+- optionally, an A2UI `CatalogItem` and its JSON Schema; and
+- optionally, a Widgetbook v4 story.
+
+The unnamed public constructor defines the widget's inputs, and doc comments supply
+their descriptions. You add target annotations only for things Dart can't express.
+
+## 1. Write plain Flutter first
+
+Build the widget with normal Flutter widgets. Don't annotate `Container`, `Text`,
+`Column`, or any other widget you use inside it. Only the surface itself and your
+custom widget carry an annotation.
+
+See [Write a surface](/authoring/write-a-surface#plain-flutter-composition)
+for a compiled example.
+
+## 2. Add the annotation
+
+In most cases `@RestageWidget()` is all you need:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+/// A card registered with only `@RestageWidget()`.
+@RestageWidget()
+class BareCatalogCard extends StatelessWidget {
+  /// Creates the card.
+  const BareCatalogCard({super.key, this.label = 'Bare catalog card'});
+
+  /// Visible card label.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Card(child: Text(label));
+}
+```
+
+This example leaves out `name`, `library`, `category`, property annotations, and a
+hand-written story, because:
+
+- the Dart class name becomes the catalog name;
+- the unnamed constructor gives the order of the inputs, which are required, which are
+  nullable, and their defaults;
+- the doc comment on each field describes the property;
+- with no category, Widgetbook lists the widget at the top level instead of guessing a
+  group; and
+- the `@RestageLibrary` file that exports the widget says which library it belongs to.
+
+Use `@RestageProperty` only for details Dart can't express, such as value
+constraints, a default taken from your theme, grouping in the editor, or a different
+description. An ordinary public constructor input needs no annotation.
+
+## 3. Declare exact library ownership
+
+A custom widget library is a Dart file that exports the widgets it owns, and only
+those:
+
+```dart
+import 'package:restage/restage.dart';
+
+export 'widgets/bare_catalog_card.dart';
+export 'widgets/status_panel.dart';
+export 'widgets/feature_panel.dart';
+export 'widgets/feature_row.dart';
+export 'widgets/price_badge.dart';
+export 'widgets/stat_tile.dart';
+
+/// The custom widget library of the example package.
+final class RestageWidgetbookLibrary extends WidgetLibrary {
+  /// Creates the library.
+  const RestageWidgetbookLibrary();
+
+  @override
+  final String namespace = 'restage_widgetbook_example.widgets';
+}
+
+/// The package's widget library.
+const WidgetLibrary restageWidgetbookLibrary = RestageWidgetbookLibrary();
+
+/// Declares the library's capability version for every generated target.
+@RestageLibrary(library: restageWidgetbookLibrary, capabilityVersion: 3)
+const restageWidgetbookCatalog = 0;
+```
+
+A widget belongs to the library whose file exports it. File names and class names
+don't decide it. A widget with no library, or with more than one, stops the build, and
+the error names the files involved. Increase `capabilityVersion` when a catalog change
+needs a newer version of your app.
+
+Adding a widget or a parameter is safe: raise `capabilityVersion`, and every version you
+published before keeps rendering. Renaming, removing, or retyping a widget or a
+parameter is a break. Declare it by raising `capabilityVersion` and setting
+`compatibleSince` to the same number. The build records each version of the library in
+`.restage/library-contracts/`, which you commit, and stops with a message naming the
+widget or parameter when a change needs a new version or a declared break. The first
+build records the library as it is. On the new build, published versions that need the
+older library use the mount's fallback, such as a bundled surface or the original
+compiled widget.
+`restage surface check-libraries` lists those versions before you ship.
+
+## 4. Add useful target-specific configuration
+
+Target settings sit next to the field or class they affect. This example, compiled in
+the public example package, adds a hint for the model, picks the value a callback
+writes back, and sets the Widgetbook preview states:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:restage/a2ui.dart' as a2ui;
+import 'package:restage/restage.dart';
+import 'package:restage/widgetbook.dart' as wb;
+
+/// The current state of a [CatalogShowcase].
+enum CatalogShowcaseStatus {
+  /// Ready for input.
+  ready,
+
+  /// Processing a change.
+  processing,
+}
+
+/// Structured information displayed by a [CatalogShowcase].
+class CatalogShowcaseData {
+  /// Creates showcase information.
+  const CatalogShowcaseData({required this.note, required this.count});
+
+  /// Supporting text.
+  final String note;
+
+  /// The displayed count.
+  final int count;
+}
+
+/// A catalog widget that feeds every enabled target from one source.
+/// It combines ordinary state, an enum, a callback that writes a value back,
+/// child widget inputs, and your own data class. The `hero`, `details`, and
+/// `footer` inputs need no slot annotation.
+///
+/// This second paragraph also appears in the generated metadata, because
+/// every paragraph of a doc comment is kept.
+@a2ui.Config(
+  usage:
+      'Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
+)
+@RestageWidget(category: WidgetCategory.input)
+class CatalogShowcase extends StatelessWidget {
+  /// Creates a catalog showcase.
+  const CatalogShowcase({
+    super.key,
+    required this.title,
+    this.enabled = true,
+    required this.status,
+    required this.onChanged,
+    required this.hero,
+    required this.details,
+    this.footer,
+    required this.data,
+  });
+
+  /// Visible title.
+  final String title;
+
+  /// Whether the control is enabled.
+  @wb.Config.allValues()
+  final bool enabled;
+
+  /// Current state.
+  @wb.Config.allValues()
+  final CatalogShowcaseStatus status;
+
+  /// Reports changes to [enabled].
+  @a2ui.Config.writeBackValue('enabled')
+  final ValueChanged<bool> onChanged;
+
+  /// Custom widget shown before the detail list.
+  final Widget hero;
+
+  /// Detail widgets shown in source order.
+  final List<Widget> details;
+
+  /// Optional custom widget shown after the detail list.
+  final Widget? footer;
+
+  /// Structured information.
+  final CatalogShowcaseData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        hero,
+        Text(title),
+        Text('${status.name}: ${data.note} (${data.count})'),
+        Switch(value: enabled, onChanged: onChanged),
+        ...details,
+        ?footer,
+      ],
+    );
+  }
+}
+```
+
+`a2ui.Config.usage` is a hint for the model choosing components.
+`a2ui.Config.writeBackValue('enabled')` says which value a callback writes back when
+more than one would fit. When only one fits, you don't need it.
+
+Any `Widget` or `List<Widget>` constructor input can take child widgets. `hero`,
+`details`, and `footer` keep their names, and a class can have as many of these as it
+needs. None of them has to be called `child` or `children`.
+
+Generated A2UI payloads all use the same layout. A2UI's own `id` and `component` keys
+stay at the top level, and every constructor input goes inside the required `props`
+object:
+
+```json
+{
+  "id": "showcase",
+  "component": "CatalogShowcase",
+  "props": {
+    "title": "Catalog proof",
+    "enabled": true,
+    "status": "ready",
+    "hero": "hero-component-id",
+    "details": ["detail-a-id", "detail-b-id"],
+    "footer": "footer-component-id",
+    "data": {"note": "Generated once", "count": 2}
+  }
+}
+```
+
+`wb.Config.allValues()` asks Widgetbook to generate a story for each other `bool` or
+enum value. By default each field varies on its own: the class above gets the default
+story, one for `enabled: false`, and one for `status: processing`. Use
+`wb.Config.values([...])` to pick specific values, or the class-level
+`wb.Config(expansion: ..., maxStories: ...)` when you want every combination.
+
+RFW needs no callback settings. It takes the callbacks from the constructor and uses
+the Dart property name as the event name. The only RFW setting, `rfw.Config`, turns
+the RFW output on or off for one widget.
+
+Each target checks its own inputs. A problem that only affects Widgetbook doesn't
+block A2UI, and a package that only uses Widgetbook doesn't need A2UI. An input a
+target can't handle stops the build at its source line if the input is required. An
+optional one is left out only when leaving it out gives the same result as its
+default.
+
+## 5. Generate every enabled target once
+
+Add `widgetbook: 4.0.0-beta.14` to the source package's dependencies for
+Widgetbook; it includes its generator. For A2UI, add the dependencies in the
+[A2UI guide](/tools/a2ui#add-the-dependencies). Keep `restage_codegen` and
+`build_runner` as development dependencies, then enable the outputs you want
+in `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_a2ui_catalog:
+        enabled: true
+      restage_codegen:widgetbook_stories:
+        enabled: true
+```
+
+These emitter options do not require RFW bundling. Leave `bundled_runtime` at its
+default, `false`; no generated surface assets need to be added to the app.
+
+Then run the normal build. There is no separate step per target:
+
+```sh
+dart run build_runner build
+```
+
+The first build also creates `.restage/wire-ids.events.jsonl` and
+`.restage/library-contracts/`. Commit both: they preserve widget IDs and record the
+library versions you have shipped. For a reusable package, run this build in the
+package before publishing, include those files, and expose them to consumer builds
+with `additional_public_assets: [.restage/**]` in its `build.yaml`. If you restrict
+a target's `sources`, include `.restage/**` there too. Every Dart workspace member
+must expose this state, including for `build_runner build --workspace`. See
+[design-system packages](/authoring/design-system-packages) for the complete setup.
+
+For custom widgets, the build writes:
+
+- `lib/user_catalog.g.dart`, `lib/user_factories.g.dart`, and
+  `.restage/build/widget_catalog/catalog.json` for the RFW catalog;
+- `lib/generated/restage_a2ui_catalog.g.dart` and
+  `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json` for A2UI; and
+- `restage.generated/<class_name>.stories.dart` next to the source file, Widgetbook's
+  matching `.stories.g.dart`, and `lib/components.g.dart` for Widgetbook v4.
+
+Restage writes ordinary Widgetbook story source. Widgetbook's own generator still owns
+`Story`, controls, registration, the workbench app, and deployment. You don't write a
+story host or run an extra step.
+
+## 6. Run the consumers
+
+The order is Flutter source → Restage generation → the consuming app. For GenUI,
+register `buildRestageCatalog()` with a `SurfaceController`, feed it A2UI messages,
+and mount a GenUI `Surface`. The [A2UI guide](/tools/a2ui#connect-genui-and-check-incoming-payloads)
+shows the controller and its lifecycle.
+
+For Widgetbook, a workbench entry point under the source package's `lib/` can use:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:widgetbook/widgetbook.dart' as widgetbook;
+
+import 'components.g.dart';
+
+void main() => widgetbook.runWidgetbook(
+  widgetbook.Config(
+    components: components,
+    lightTheme: ThemeData.light(useMaterial3: true),
+    darkTheme: ThemeData.dark(useMaterial3: true),
+  ),
+);
+```
+
+A separate workbench app depends on the source package and Widgetbook, then imports
+that package's `components.g.dart`. Generate the source package before running the
+workbench. Neither consumer requires a Restage upload, publication, or
+`restage build push`.
+
+These previews instantiate native Dart widgets. Test delivered RFW and real host
+actions separately. Generated screen stories capture preview events;
+custom-widget callback previews normally use no-op closures. Scalar and enum
+inputs have controls. Complex inputs and child slots do not always have visual
+editors.
+
+## See them in the dashboard
+
+Dashboard previews are a separate workflow. The dashboard needs a compiled build
+containing your native widgets. Push one when you add or change those widgets:
+
+```sh
+restage build push                # your personal build, for your own preview
+restage build push --env staging  # the build everyone in your organization sees
+```
+
+Without a build that includes your widgets, the dashboard can't show surfaces that use
+them, and `restage surface push` tells you which command to run. A preview build
+does not install native code on users' devices or activate a surface. See
+[Push a build](/tools/cli#push-a-build) for environments and CI.
+
+## Data classes, children, and callbacks
+
+Your data classes are rebuilt from their public constructors, including nested values,
+supported lists, maps, records, enums, and defaults. Every `Widget` and `List<Widget>`
+constructor input becomes a child property under its own name. Callbacks with no
+argument or one value argument keep their Dart names.
+
+The [target matrix](/authoring/custom-widget-target-matrix) lists what RFW, A2UI, and
+Widgetbook each accept. Anything a target can't handle is a build error. The build
+doesn't drop data or ask you to write glue code to cover the gap.
+
+## Screens use the same build
+
+A `@Screen(surface: ...)` can also produce an A2UI component and a Widgetbook story
+next to its delivered surface. A2UI and Widgetbook work from the constructor; RFW
+still compiles only the `build` tree, state, and `SurfaceEvent`s. A `@Screen()` with no
+category can still be used inside a flow. See the complete
+[screen example](/authoring/write-a-surface#one-source-three-targets).
+
+The build finds `@Screen` classes anywhere in the package. Folders and file names don't
+set the category or the id. Leave out the id to use the file name, or give one that
+stays the same if the file moves. The publication manifest records the category, id,
+contract, and generated files.
+
+This doesn't cover `@FlowGraph` or `@Paywall`, break a screen's widget tree into
+built-in A2UI components, or copy Flutter, Material, or Cupertino widgets into your
+catalog. Mount published screens, flows and paywalls with their generated
+`*Surface(...)` widgets. The [lower-level APIs](/authoring/write-a-surface#recommended-authoring-and-mounting-apis)
+are available when you need to supply the reference and fallback setup yourself.
+
+## Watch mode
+
+Under `build_runner watch`, edits to an annotated widget or screen regenerate its
+story right away. Adding, removing, or renaming an annotated class changes which files
+the build writes, so restart `dart run build_runner watch` after that. A full build
+rescans the package and removes story output it no longer needs. Several
+`@RestageWidget` and `@Screen` classes can share a file. Invalid source stops the
+build before any output is written.

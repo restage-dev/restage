@@ -12,6 +12,7 @@ import 'package:stream_channel/stream_channel.dart';
 import 'api_runner.dart';
 import 'build_tools.dart';
 import 'delivery_tools.dart';
+import 'docs_tools.dart';
 import 'experiment_tools.dart';
 import 'experimental_gate.dart';
 import 'measurement_page_tools.dart';
@@ -59,6 +60,8 @@ Show a published surface in an app (restage_publish_surface returns this as show
 - A generated mount fetches the live version and falls back to the compiled widget.
 - Example: in the Restage examples app, `lib/main_hosted_surface_demo.dart` renders a published surface given `--dart-define`s for RESTAGE_BASE_URL, RESTAGE_API_KEY, RESTAGE_SURFACE=<slug> and RESTAGE_SURFACE_TYPE=<type>.
 - Docs: https://docs.restage.dev/delivery/hosted-delivery and https://docs.restage.dev/authoring/custom-widgets
+
+Docs: restage_docs_search finds sections of the Restage documentation; restage_docs_read returns a page or section as Markdown. https://docs.restage.dev/llms.txt lists every page.
 ''';
 
 /// The Restage MCP server.
@@ -159,6 +162,10 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         (request) => handleReadSurfaceFunnel(tools, request),
       ),
       (checkLibrariesTool, (request) => handleCheckLibraries(tools, request)),
+      ...docsTools(
+        _httpClient,
+        environment: environment ?? Platform.environment,
+      ),
       ...experimentTools(tools),
       if (experimentalToolsEnabled(environment))
         ...experimentalTools(tools, activation: experimentActivationApi),
