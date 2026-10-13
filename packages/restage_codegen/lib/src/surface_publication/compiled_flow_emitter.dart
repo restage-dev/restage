@@ -119,6 +119,9 @@ ${sdk}CompiledFlow(
     sdkHost: '${sdk}RestageFlowGraph',
   );
   String constructor({required bool atPlacement}) => '''
+  /// ${atPlacement ? 'Overrides the implicit placement with an explicit name.' : 'Mounts this flow at its implicit placement by default.'}
+  ///
+  /// ${atPlacement ? 'Use [$mountName] for the default placement; no name is needed.' : 'Use this constructor for ordinary mounts; no placement name is needed.'}
   ${builders.isEmpty ? 'const ' : ''}$mountName${atPlacement ? '.atPlacement(String restagePlacementId, ' : '('}{
     super.key,
     $requiredBuilders

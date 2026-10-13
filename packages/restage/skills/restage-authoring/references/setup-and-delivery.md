@@ -21,33 +21,8 @@ additional_public_assets:
 ```
 
 Generated mounts keep the widget you wrote as their fallback, so nothing has to be
-bundled as an asset.
-
-## Bundled surfaces
-
-To ship the compiled surface inside the app, so it renders with no network and a test
-can prove it compiles, set `bundled_runtime: true` on every `restage_codegen` builder
-in `build.yaml`:
-
-```yaml
-targets:
-  $default:
-    builders:
-      restage_codegen:restage_source_roster:
-        options: &restage_placement
-          bundled_runtime: true
-      restage_codegen:restage_package_surface_compiler:
-        options: *restage_placement
-      restage_codegen:generated_dart:
-        options: *restage_placement
-      restage_codegen:outputs:
-        options: *restage_placement
-```
-
-The build then writes each surface to `assets/restage/bundles/<path under lib>/`. List
-each of those directories under `flutter: assets:` in `pubspec.yaml`, since asset
-directories aren't recursive, and commit the bundles. A widget test that mounts the
-generated surface with `onUnavailable` set now fails if the compiled copy can't render.
+bundled as an asset. Leave `bundled_runtime` at its default, `false`, for ordinary
+examples and integrations. No generated surface assets are needed in `pubspec.yaml`.
 
 ## Build
 
@@ -59,9 +34,8 @@ dart run build_runner watch   # while editing
 Run the build with the Dart that comes with Flutter, or set `FLUTTER_ROOT`: a surface
 that draws icons ships a subset of their icon font, cut with a Flutter SDK tool.
 
-Restart `watch` after adding, removing or renaming an annotated class. Hot reload
-doesn't replace a compiled surface that the app loads as an asset; hot restart (`R`)
-does.
+Restart `watch` after adding, removing or renaming an annotated class. The
+compiled-widget fallback follows Flutter's normal hot-reload rules.
 
 The build writes, per annotated file:
 
@@ -74,7 +48,8 @@ The build writes, per annotated file:
   custom widgets.
 
 Commit the generated Dart files, `.restage/measurement-state.json` and
-`.restage/wire-ids.events.jsonl`; the last two keep analytics and catalog ids stable
+`.restage/wire-ids.events.jsonl` and `.restage/library-contracts/` when generated;
+these keep analytics and catalog identities/contracts stable
 across clean builds. `.restage/build/` is build output; `restage init` adds it to
 `.gitignore`.
 
@@ -89,8 +64,12 @@ published, the network fails, or a version can't render on this app:
 | `@Paywall()` | `<Class>Surface(...)` | `RestagePaywall(id: '...')` |
 | `@FlowGraph` | `<FlowName>Surface(onComplete: ...)` | `RestageFlowGraph<R>(flow: <name>Ref, unavailable: ...)` |
 
-The lower-level mounts don't fall back to your widget. They need an `unavailable`
-policy, an `errorBuilder`, or bundled assets. Use them only when you need that control.
+Every generated mount is an implicit placement. Use its ordinary constructor;
+`.atPlacement('name', ...)` is an optional naming override.
+
+Lower-level mounts require you to supply the fallback setup, such as an
+`unavailable` policy, `fallbackBuilder` or bundled assets. Use them when you need
+to manage that setup yourself.
 
 `RestagePaywall(id: ...)` in an app with no generated mounts needs
 `registerRestageWidgets()` (from the generated `user_factories.g.dart`) once at startup.
@@ -108,11 +87,6 @@ void main() {
     Restage.configure(
       apiKey: apiKey,
       baseUrl: baseUrl,
-      flowResolver: ServerFlowResolver(
-        baseUrl: baseUrl,
-        apiKey: apiKey,
-        active: true,
-      ),
       surfaces: restageSurfaces, // from 'restage_surfaces.g.dart'
     );
   }
@@ -124,7 +98,9 @@ void main() {
   side and environment, such as `rs_pk_sandbox_dev_` or `rs_pk_live_prod_`. Never put a
   secret key (`rs_sk_...`) in app code.
 - `baseUrl` must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
-- Without `flowResolver`, flows render the version built into the app.
+- With the key and base URL configured, default hosted resolution covers screens,
+  paywalls and flows. Do not add an explicit `flowResolver` for ordinary setup: a
+  custom resolver overrides normal placement-aware flow resolution.
 - Call `Restage.configure()` with no key to render only what the app contains.
 - `surfaces: restageSurfaces` fetches every surface in the background as the app
   starts, so a surface's first mount can show its published version.
@@ -143,9 +119,7 @@ that mount.
 
 A generated mount shows the widget you wrote when nothing is published, the network
 fails, or a published version can't render on this app. Its events still reach `onEvent`
-as the same typed classes, so app code handles both cases the same way. The one
-exception: with two copies of the same screen on screen at once, the SDK can't tell
-which copy an event came from, so it refuses the event.
+as the same typed classes, so app code handles both cases the same way.
 
 ## Measurement
 
@@ -177,3 +151,30 @@ Then call the generated `registerRestageWidgets()` followed by
 Updates can then only use widgets the app draws somewhere. They can still use any icon:
 each surface carries the icons it names. Release builds need no extra flags. Never pass
 `--no-tree-shake-icons`.
+
+## Optional bundled surfaces
+
+To ship RFW artifacts for offline loading, set `bundled_runtime: true` on each
+surface builder in `build.yaml`:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:restage_source_roster:
+        options: &restage_placement
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options: *restage_placement
+      restage_codegen:generated_dart:
+        options: *restage_placement
+      restage_codegen:outputs:
+        options: *restage_placement
+```
+
+The build then writes each surface to `assets/restage/bundles/<path under lib>/`. List
+each of those directories under `flutter: assets:` in `pubspec.yaml`, since asset
+directories aren't recursive, and commit the bundles. A widget test that mounts the
+generated surface with `onUnavailable` set now fails if the compiled copy can't render.
+
+Flutter does not hot-reload bundled assets. Hot-restart after regenerating them.

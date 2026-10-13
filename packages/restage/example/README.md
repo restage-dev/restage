@@ -6,8 +6,8 @@ All offline, no account.
 ## 1. Author a surface
 
 A surface is a plain Flutter widget annotated with its surface type
-(`@Paywall` here; use `@Screen` or `@FlowGraph(surface: ...)` for ordinary
-screens and flows). It uses your own widgets and your app's theme.
+(`@Screen` here; use `@Paywall` for paywalls or `@FlowGraph(surface: ...)`
+for flows). It uses your own widgets and your app's theme.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -41,10 +41,10 @@ dart run build_runner build
 
 This writes generated, inert render artifacts. Commit the generated output your
 app bundles. The fixed
-`lib/generated/restage.publication.json` records the publication
+`.restage/build/metadata/restage.publication.json` records the publication
 identity and exact artifact closure.
 
-Push the generated surface by id, then publish the pushed revision:
+When you configure a hosted project, you can also push and publish the surface:
 
 ```sh
 restage surface push welcome
@@ -57,20 +57,15 @@ A push uploads a version. A publish makes it live.
 
 ```dart
 void main() {
-  Restage.configure(apiKey: 'local-dev');
-  runApp(const MaterialApp(
-    home: Scaffold(
-      body: RestageScreen(
-        screen: welcomeScreenRef,
-        unavailable: SurfaceScreenUnavailablePolicy.hide(),
-      ),
-    ),
+  runApp(MaterialApp(
+    home: Scaffold(body: WelcomeScreenSurface()),
   ));
 }
 ```
 
-`RestageScreen` decodes the blob and renders it as real Flutter widgets, in your
-own widget tree.
+The generated `WelcomeScreenSurface` installs its widgets and renders delivered
+content when configured. Without hosted content, it uses the original
+`WelcomeScreen` as its compiled fallback. No API key is needed for this example.
 
 ## Full, runnable examples
 

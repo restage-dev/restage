@@ -13,6 +13,8 @@ step lowers it against the catalog into an inert render blob.
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/pro.restage.g.dart';
+
 @Paywall(id: 'pro')
 final class ProSurface extends StatelessWidget {
   const ProSurface({super.key});
@@ -41,7 +43,7 @@ dart run build_runner build
 ```
 
 The generated manifest at
-`lib/generated/restage.publication.json` records the surface identity
+`.restage/build/metadata/restage.publication.json` records the surface identity
 and exact artifact closure. Push by surface id, then publish the pushed
 revision:
 

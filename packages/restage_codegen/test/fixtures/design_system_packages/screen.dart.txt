@@ -1,0 +1,20 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:acme_design_system/widgets.dart';
+
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.general)
+class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  static const done = SurfaceEvent<void>('done');
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        const AcmeBadge(),
+        acmeTitle('Welcome'),
+        AcmeHelpers.action(surfaceEvent(done)),
+        const AcmeMark(),
+      ]);
+}

@@ -524,7 +524,7 @@ final class WelcomeScreen extends StatelessWidget {
       expect(called, inlined);
     });
 
-    test('from another package are refused by name', () async {
+    test('from an unadmitted package are refused by name', () async {
       const surface = '''
 import 'package:acme_kit/kit.dart';
 import 'package:flutter/material.dart';
@@ -563,8 +563,9 @@ abstract final class Kit {
       expect(
         logs.join('\n'),
         contains(
-          "The helper 'Kit.badge' cannot be inlined: it is declared in "
-          'another package, and helpers inline only from this one.',
+          "The helper 'Kit.badge' cannot be inlined: it is declared outside "
+          'this package and the dependency packages that publish custom '
+          'Restage widgets.',
         ),
       );
     });

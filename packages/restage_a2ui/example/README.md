@@ -3,9 +3,8 @@
 This example shows the whole `@RestageWidget` → A2UI catalog loop end to end: it
 compiles annotated Flutter widgets into a [`genui`](https://pub.dev/packages/genui)
 A2UI catalog, then gates payloads against that catalog with `restage_a2ui`'s
-app-side, fail-closed **pre-render check** *before* handing them to genui. A
-payload the build can't render faithfully fails with a clean diagnostic instead of
-throwing mid-render.
+app-side, fail-closed **pre-render check** *before* handing them to genui. The check rejects unknown components and unmet capability versions before
+rendering; genui still validates each component’s fields.
 
 ## What it generates
 
@@ -62,12 +61,14 @@ Build the check once (it is immutable, so reuse it for every payload), then gate
 each payload before render:
 
 ```dart
-import 'package:genui/genui.dart';
+import 'package:flutter/widgets.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
+
+import 'generated/restage_a2ui_catalog.g.dart';
 
 // The genui catalog your build emitted, and what it provides.
 final catalog = buildRestageCatalog();
-final installed = A2uiInstalledCapability.fromStampJson(restageCapability);
+final installed = restageA2uiCapability.installedCapability;
 
 // One instance, reused for every payload.
 final check = RestageA2uiPreRenderCheck(catalog: catalog, installed: installed);
@@ -75,7 +76,10 @@ final check = RestageA2uiPreRenderCheck(catalog: catalog, installed: installed);
 Widget? renderCached(Map<String, Object?> payload) {
   switch (check.check(payload)) {
     case A2uiRenderable():
-      return renderWithGenui(payload); // your genui render call
+      final content = RestageA2uiSidecar.isRestageSidecar(payload)
+          ? RestageA2uiSidecar.fromJson(payload).a2ui
+          : payload;
+      return renderWithGenui(content); // your genui render call
     case A2uiRejected(:final diagnostic):
       // Do NOT render. Fall back to a built-in surface and log why.
       debugPrint('A2UI rejected: $diagnostic');

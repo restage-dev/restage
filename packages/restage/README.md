@@ -34,8 +34,9 @@ New behavior still ships as an app release.
   screen, or one card inside your own `Scaffold`.
 - **Compatible updates.** Publish layouts, content and configuration that use
   the widgets your installed app already has.
-- **It fails safe.** A surface is never served to a client too old to render
-  it, and a failed fetch renders your bundled copy.
+- **It fails safe.** The SDK checks compatibility before rendering an update.
+  A render deadline limits the wait before it shows retained content, a bundled
+  copy, or your compiled fallback.
 
 ## Quick start
 
@@ -90,23 +91,31 @@ Change the widget, rebuild, and the surface updates. Push it with
 `restage surface push welcome`, make that revision live with
 `restage surface publish welcome`, and installed apps pick it up over the air.
 The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
-walks through a full example, including the `build.yaml` for bundled assets.
+walks through a full example using the compiled-widget fallback, with no
+generated surface assets. Leave `bundled_runtime` at its default, `false`.
 
 ## Surfaces
 
+Use generated `*Surface(...)` widgets for screens, paywalls and flows. Each
+supplies its typed bindings, widget registration, compiled fallback and implicit
+placement.
+
 - **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a
-  multi-step message, or a survey. Mount it with
-  `RestageFlowGraph(flow: firstRunFlowRef, ...)`; the build generates the
-  descriptor. See [doc/flows.md](doc/flows.md) for the full example, host
+  multi-step message, or a survey. Mount it with the generated
+  `<FlowName>Surface(onComplete: ...)`. See [doc/flows.md](doc/flows.md) for the full example, host
   actions, and data minimization, and
   [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
   for back navigation and the system-back policy.
 - **Paywalls**: a `@Paywall` surface for upgrade or subscription content. Mount
-  it with `RestagePaywall(id: 'pro_upgrade', ...)`.
+  it with its generated `<ClassName>Surface(onEvent: ...)`.
 - **Screens**: any single surface you write with `@Screen`, such as a welcome
-  page, a notice, or a settings card. Use the generated mount, or
-  `RestageScreen(screen: welcomeRef, unavailable: ...)` to choose what shows
-  when the surface can't render.
+  page, a notice, or a settings card. Use its generated
+  `<ClassName>Surface(onEvent: ...)`.
+
+### Lower-level mounts
+
+Use `RestageScreen`, `RestagePaywall` or `RestageFlowGraph` when supplying the
+reference or id and fallback setup yourself. These APIs remain supported.
 
 A mount by id, such as `RestagePaywall(id: ...)`, has no generated mount behind
 it. An app that mounts surfaces only by id calls the generated
@@ -120,6 +129,39 @@ void main() {
   runApp(const MyApp());
 }
 ```
+
+Generated screen mounts use the original widget by default. Pass an
+`unavailable` policy to choose a different fallback or hide the screen when
+content cannot render.
+
+## Placements
+
+Every generated surface mount is a placement by default. Use the ordinary
+constructor, such as `AnnouncementSurface(...)` or `WelcomeFlowSurface(...)`;
+the placement identity and host contract are implicit.
+
+Use `.atPlacement('name', ...)` only to override that default with an explicit
+placement name. It is optional for screens, paywalls and flows.
+
+The lower-level `RestagePlacement(id: ..., fallback: ...)` and
+`RestagePlacement.forSurface` APIs let you supply the fallback yourself.
+`RestagePlacement.flow` also requires the surface type and host contract; it
+delivers only compatible flow content. Placement events reach `onEvent` and
+`Restage.events`.
+
+Manage the selection rules with the CLI's `restage delivery` commands or the
+corresponding MCP tools. To capture a placement screen for authoring tools,
+import `package:restage/placement_authoring.dart` and use
+`capturePlacementScreenSample`. Capture is explicit; normal mounts do not
+upload screenshots.
+
+## Purchases
+
+Your app handles paywall purchase and restore events. Use
+[`restage_revenuecat`](../restage_revenuecat) with your RevenueCat configuration,
+or [`restage_store_bridge`](../restage_store_bridge) with Flutter's
+`in_app_purchase` plugin and your own verification and fulfillment. Both include
+examples with generated mounts, hosted delivery and compiled fallbacks.
 
 ## Host data
 
@@ -161,16 +203,16 @@ ids move.
 
 ## Delivery
 
-Apps that bundle their surfaces use the asset resolvers, with no server. To
-fetch surfaces from Restage Cloud or your own server, call
+Generated mounts render their compiled-widget fallback without a server or
+bundled surface assets. To fetch surfaces from Restage Cloud or your own server, call
 `Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...)` at startup. That
 installs `RestageVariantResolver`, which fetches the active published version
-and falls back to the bundled copy when the fetch fails. Flows fetch through
+and retains the generated mount's fallback when delivery is unavailable. Flows fetch through
 `ServerFlowResolver` (pass it as `flowResolver:`).
 
 A surface shows within a render deadline, 300 ms by default. If the published
 version hasn't arrived by then, the mount shows the best copy it already has:
-the last published version saved on the device, then your bundled copy, then
+the last published version saved on the device, then an optional bundled copy, then
 the widget you wrote. The fetch keeps going in the background and saves what it
 receives. The next mount shows it, or the current one updates in place when
 live refresh is on. Set the deadline with
@@ -183,9 +225,9 @@ For Restage Cloud, set `baseUrl` to the environment's edge API hostname (for
 example, `https://api-staging.restage.dev` on staging). The SDK sends hosted
 surface and Measurement requests through that hostname.
 
-A surface is never served to a client too old to render it. If a fetch fails,
-the SDK renders your bundled copy. Flows require a `FlowUnavailablePolicy`, so
-a flow that can't run falls back or hides instead of running partway.
+The SDK checks a delivered surface against the installed app's capabilities.
+Direct flow mounts require a `FlowUnavailablePolicy`, so a flow that can't run
+falls back or hides instead of running partway.
 
 See [doc/live_refresh.md](doc/live_refresh.md) to update surfaces that are
 already on screen.
@@ -241,10 +283,9 @@ extra flags; don't pass `--no-tree-shake-icons`. Unused Cupertino widgets alone
 don't remove the bundled Cupertino font; that also needs the font's package
 dependency removed.
 
-Each build reports which catalog selection it uses. Compare matched release
-builds to measure the difference. See
-[App size](https://docs.page/restage-dev/restage/delivery/app-size) for the
-measurement methods and the options in full.
+Each build reports which catalog selection it uses. Compare release builds
+using the same Flutter version, platform and build settings to measure the
+difference.
 
 ## Measurement and data
 
@@ -254,7 +295,8 @@ There are no tracking calls to add: activity is captured automatically for
 each version you ship.
 
 - **It needs a hosted configuration.** Without an `apiKey` and `baseUrl`, the
-  SDK renders bundled surfaces and calls no server.
+  SDK renders the compiled fallback (or an optional bundled surface) and calls
+  no server.
 - **No endpoint is built in.** Data goes to the `baseUrl` you configure,
   authenticated with your public key (`rs_pk_...`). Point it at Restage Cloud
   or at your own server.
@@ -330,17 +372,25 @@ accident. You get back a receipt or a failure. `resetSubject` unlinks;
 
 ## Coding agents
 
-This package ships an agent skill, `restage-authoring`, that teaches coding agents
-such as Claude Code, Cursor, and Codex to write, build, and mount surfaces. Install
-it from your app's directory:
+This package ships two skills for coding agents such as Claude Code, Cursor and
+Codex:
+
+- `restage-authoring`: design OTA-updateable composition, write screens and flows,
+  connect host behavior, and verify generated mounts and delivered RFW.
+- `restage-operations`: inspect delivery, interpret analytics, manage routing and
+  experiments, and publish or roll back at the intended target.
+
+Install both from your app's directory:
 
 ```sh
-dart run skills@ get --package restage
+dart run skills@ get --package restage --all
 ```
 
 The [skills tool](https://pub.dev/packages/skills) asks which agent to install for.
-Pass `--agent claude` (or `cursor`, `codex`, `copilot`, and others) and `--all` to skip
-the prompts. Run the same command after upgrading `restage` to update the skill.
+Add `--agent claude` (or `cursor`, `codex`, `copilot`, and others) to select it.
+Omit `--all` to choose individual skills. Run the command again after upgrading
+`restage` to update the installed skills. Each skill has a short entry point and
+focused references loaded for the task.
 
 ## License
 

@@ -72,7 +72,7 @@ New behavior is a release.
 - A per-surface `.rfw` render blob the Restage runtime decodes into real Flutter
   widgets, in your own widget tree.
 - A generated `SurfaceScreenRef<E>` and publication entry in
-  `lib/generated/restage.publication.json`.
+  `.restage/build/metadata/restage.publication.json`.
 - Catalog entries for any custom widgets you registered with `@RestageWidget`
   (see [`rfw_catalog_compiler`](https://pub.dev/packages/rfw_catalog_compiler)).
 

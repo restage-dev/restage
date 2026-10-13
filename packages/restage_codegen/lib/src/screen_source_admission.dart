@@ -13,7 +13,8 @@ import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_routing_reader.dart';
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' show EmitTarget;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
+    show Catalog, EmitTarget;
 
 const String _restageOrigin = 'package:restage';
 const Set<String> _screenSourceAnnotations = {
@@ -66,6 +67,7 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
   BuildStep buildStep, {
   required AssetId assetId,
   required LibraryElement library,
+  required Catalog catalog,
   RestageOutputLocationPlan? plan,
 }) async {
   final sourceText = await buildStep.readAsString(assetId);
@@ -80,7 +82,11 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
             null,
       )
       .toList(growable: false);
-  final visitorResult = await visitOnboardingSources(library, assetId);
+  final visitorResult = await visitOnboardingSources(
+    library,
+    assetId,
+    catalog: catalog,
+  );
   final issues = <Issue>[...visitorResult.issues];
 
   final resolved = await resolveLibraryInLongForm(library);

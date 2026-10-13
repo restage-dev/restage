@@ -190,6 +190,48 @@ void main() {
       expect(catalog.widgets, isEmpty);
     });
 
+    test('loads only declared dependencies including transitive publishers',
+        () async {
+      final custom = encodeCatalog(_customCatalog());
+      final catalog = await _runLoaderWith(
+        {
+          'acme': custom,
+          'unrelated': custom
+              .replaceAll('acme.', 'unrelated.')
+              .replaceAll('AcmeBanner', 'UnrelatedBanner'),
+        },
+        pubspecs: {
+          'restage_codegen': 'dependencies:\n  bridge: any\n',
+          'bridge': 'dependencies:\n  acme: any\n'
+              'dev_dependencies:\n  unrelated: any\n',
+        },
+      );
+      expect(catalog.widgets.map((widget) => widget.name), ['AcmeBanner']);
+    });
+
+    test('rejects two packages owning the same custom library', () async {
+      final custom = encodeCatalog(_customCatalog());
+      await expectLater(
+        _runLoaderWith(
+          {
+            'restage_codegen': custom,
+            'acme': custom,
+          },
+          pubspecs: {
+            'restage_codegen': 'dependencies:\n  acme: any\n',
+          },
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.toString(),
+            'message',
+            allOf(
+                contains('acme.widgets'), contains('acme and restage_codegen')),
+          ),
+        ),
+      );
+    });
+
     test('merges the custom catalog from the input package', () async {
       // The app's own generated catalog (custom @RestageLibrary widgets)
       // lives at lib/src/widget_catalog/catalog.json in the package being built
@@ -253,12 +295,19 @@ void main() {
 /// pre-existing real `catalog.json` files for libraries that aren't in
 /// [fixtures], so omitting a library from the map exercises the
 /// loader's tolerance for a missing per-package file.
-Future<Catalog> _runLoaderWith(Map<String, String> fixtures) async {
+Future<Catalog> _runLoaderWith(
+  Map<String, String> fixtures, {
+  Map<String, String> pubspecs = const {},
+}) async {
   const rootPackage = 'restage_codegen';
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: rootPackage,
   );
 
+  for (final entry in pubspecs.entries) {
+    readerWriter.testing
+        .writeString(AssetId(entry.key, 'pubspec.yaml'), entry.value);
+  }
   for (final entry in fixtures.entries) {
     readerWriter.testing.writeString(
       AssetId(entry.key, 'lib/src/widget_catalog/catalog.json'),
@@ -286,7 +335,7 @@ Future<Catalog> _runLoaderWith(Map<String, String> fixtures) async {
     'class _Probe {}',
   );
 
-  await testBuilder(
+  final result = await testBuilder(
     _LoaderProbeBuilder(
       onCatalog: (c) => captured = c,
       probeAsset: AssetId.parse(probeAssetKey),
@@ -296,6 +345,7 @@ Future<Catalog> _runLoaderWith(Map<String, String> fixtures) async {
     readerWriter: readerWriter,
   );
 
+  if (!result.succeeded) throw StateError(result.errors.join('\n'));
   if (captured == null) {
     throw StateError('loadMergedCatalog probe builder did not run');
   }

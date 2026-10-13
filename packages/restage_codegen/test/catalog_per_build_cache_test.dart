@@ -1,5 +1,7 @@
+import 'dart:convert';
+
 import 'package:build/build.dart';
-import 'package:restage_codegen/src/codegen_builder.dart';
+import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -21,6 +23,45 @@ void main() {
       expect(a.generatedAt, 'pkg_a');
       // The cross-pass-cache bug would serve pkg_a's catalog here.
       expect(b.generatedAt, 'pkg_b');
+    });
+
+    test('every cache consumer tracks dependency catalogs and pubspecs',
+        () async {
+      final cache = CatalogPerBuildCache(load: (_) async => _stamped('app'));
+      final first = _FakeBuildStep(
+        'app',
+        pubspecs: {
+          'app':
+              'dependencies:\n  acme: any\ndev_dependencies:\n  tools: any\n',
+          'acme': 'dependencies:\n  tokens: any\n',
+        },
+      );
+      final second = _FakeBuildStep('app', pubspecs: first.pubspecs);
+      await cache.getOrLoad(first);
+      await cache.getOrLoad(second);
+      expect(first.contentsReads, {'app': 1, 'acme': 1});
+      expect(second.contentsReads, isEmpty);
+      expect(await cache.packagesFor(second), ['acme', 'app', 'tokens']);
+      expect(second.contentsReads, isEmpty);
+      expect(
+        identical(
+          await cache.packagesFor(first),
+          await cache.packagesFor(second),
+        ),
+        isTrue,
+      );
+      for (final step in [first, second]) {
+        expect(step.reads, isNot(contains(AssetId('tools', 'pubspec.yaml'))));
+        for (final package in ['app', 'acme', 'tokens']) {
+          expect(step.reads, contains(AssetId(package, 'pubspec.yaml')));
+          expect(
+            step.reads,
+            contains(
+              AssetId(package, 'lib/src/widget_catalog/catalog.json'),
+            ),
+          );
+        }
+      }
     });
 
     test('still shares one load across BuildSteps of the SAME package',
@@ -54,7 +95,11 @@ Catalog _stamped(String stamp) => Catalog(
 /// A minimal [BuildStep] exposing only the surface the cache uses:
 /// [inputId] (the cache key) and [canRead] (the dependency registration).
 class _FakeBuildStep implements BuildStep {
-  _FakeBuildStep(this._package);
+  _FakeBuildStep(this._package, {this.pubspecs = const {}});
+
+  final Map<String, String> pubspecs;
+  final Set<AssetId> reads = {};
+  final Map<String, int> contentsReads = {};
 
   final String _package;
 
@@ -62,7 +107,16 @@ class _FakeBuildStep implements BuildStep {
   AssetId get inputId => AssetId(_package, 'lib/paywalls/example.dart');
 
   @override
-  Future<bool> canRead(AssetId id) async => true;
+  Future<bool> canRead(AssetId id) async {
+    reads.add(id);
+    return id.path != 'pubspec.yaml' || pubspecs.containsKey(id.package);
+  }
+
+  @override
+  Future<String> readAsString(AssetId id, {Encoding encoding = utf8}) async {
+    contentsReads.update(id.package, (count) => count + 1, ifAbsent: () => 1);
+    return pubspecs[id.package]!;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

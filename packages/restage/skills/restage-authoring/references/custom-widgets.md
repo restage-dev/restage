@@ -2,7 +2,9 @@
 
 A custom widget is a component from the app, such as a design-system card, added to the
 catalog so surfaces can use it next to the built-in Flutter, Material and Cupertino
-widgets. Its Dart code is compiled into the app. Surfaces set its properties.
+widgets. The compiler inlines supported composition when it can; otherwise a
+registered factory runs the widget in the installed app. See
+[surface-design.md](surface-design.md) to choose and verify that boundary.
 
 ## Annotate the widget
 
@@ -97,19 +99,29 @@ widget library file in the surface's file.
 
 ## Releases
 
-A custom widget's code runs from the installed app. Adding a widget, changing its code,
-or changing its constructor needs an app release. Raise `capabilityVersion` when a
-surface starts depending on such a change, so older apps never receive it.
+An update can change inlined composition within the installed contract. A component
+rendered through its native factory keeps the implementation installed in the app;
+changing that implementation, or requiring a new native component or property,
+needs an app release. Raise `capabilityVersion` when a surface depends on a changed
+library capability so incompatible builds refuse it. Check the generated output
+and build diagnostics rather than inferring the rendering path from the annotation.
+
+Commit `.restage/library-contracts/` with the catalog identity files. The compiler
+compares the declared library contract against these snapshots. Additive capability
+changes increase `capabilityVersion`; a breaking contract change also advances
+`compatibleSince` to the new capability version. Follow the compiler's exact
+version diagnostic and never lower the compatibility floor. These library
+capabilities describe installed widget support, not the package's semver policy.
 
 Before the dashboard can show a surface that uses custom widgets, push a build of the
 app. `restage build push` makes a personal build that only your own preview uses;
-`restage build push --env <env>` updates the build everyone sees. See
-[tools.md](tools.md).
+`restage build push --env <env>` updates the build everyone sees. Inspect the selected target before updating its build. Pushing a build is separate
+from publishing a surface revision.
 
 ## Optional A2UI and Widgetbook output
 
-The same classes can also produce an A2UI catalog and Widgetbook stories. Turn them on in
-`build.yaml`:
+The same classes can also produce an A2UI catalog and Widgetbook stories. Enable
+either emitter independently in `build.yaml`:
 
 ```yaml
 targets:
@@ -123,3 +135,7 @@ targets:
 
 Import `package:restage/a2ui.dart` and `package:restage/widgetbook.dart` with prefixes
 for their options, such as `@a2ui.Config.usage('...')` and `@wb.Config.allValues()`.
+
+Leave `bundled_runtime` at its default, `false`; neither emitter requires RFW
+surface assets. A2UI catalogs and Widgetbook stories instantiate the Dart widgets,
+so they do not prove that the corresponding RFW composition renders correctly.

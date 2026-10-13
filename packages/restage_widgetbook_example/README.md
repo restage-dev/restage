@@ -30,6 +30,21 @@ The sources live under `lib/widgets/` and in
 `lib/onboarding/screens/get_started_screen.dart`. Folder names don't matter;
 the annotations decide what each widget or screen is.
 
+## Enable the emitters
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_a2ui_catalog:
+        enabled: true
+      restage_codegen:widgetbook_stories:
+        enabled: true
+```
+
+Enable either emitter independently. Neither needs `bundled_runtime: true` or
+surface entries under Flutter's `assets:` list.
+
 ## What one build produces
 
 Run from this package:
@@ -46,6 +61,11 @@ That one command produces:
   `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json` for payload producers;
 - one Widgetbook story file per custom widget or screen, and
   `lib/components.g.dart`.
+
+Widgetbook and A2UI generation require no bundled surface assets. This example
+enables both emitters and leaves `bundled_runtime` at its default, `false`. Its
+RFW parity tests read `.restage/build/bundles/` after generation; those files
+are build output and are not packaged in the app.
 
 You don't write any stories by hand. Stories come with Restage's event
 handling already set up, so you don't need a custom `appBuilder`.

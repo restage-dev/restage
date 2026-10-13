@@ -967,6 +967,19 @@ void _reportGeneratedSymbolCollisions(
     );
   }
 
+  final prefixCollision = _mountControlNames(paywall: paywall)
+      .where(namespace.prefixNames.contains)
+      .firstOrNull;
+  if (prefixCollision != null) {
+    return (
+      mount: null,
+      message: omitted(
+        'import prefix ${dartStringLiteral(prefixCollision)} conflicts with '
+        'a generated mount control',
+      ),
+    );
+  }
+
   return (
     mount: _ResolvedScreenMount(
       sdk: sdk,
@@ -1036,13 +1049,7 @@ void _reportGeneratedSymbolCollisions(
     return (constructor: null, reason: problem);
   }
 
-  final controls = {
-    'onEvent',
-    'resolver',
-    'onUnavailable',
-    if (paywall) 'errorBuilder',
-    'loadingBuilder',
-  };
+  final controls = _mountControlNames(paywall: paywall);
   final captureNames = <String>{
     ...controls,
     'build',
@@ -1383,6 +1390,14 @@ String _emitReferenceDart(
   return '${formatGeneratedDart(buffer.toString()).trimRight()}\n';
 }
 
+Set<String> _mountControlNames({required bool paywall}) => {
+      'onEvent',
+      'resolver',
+      if (paywall) 'errorBuilder' else 'onUnavailable',
+      'loadingBuilder',
+      if (!paywall) 'unavailable',
+    };
+
 void _emitScreenMount(
   StringBuffer buffer, {
   required String screenName,
@@ -1421,10 +1436,7 @@ void _emitScreenMount(
       parameter.slotName,
     ],
     for (final binding in constructor.defaultBindings) binding.name,
-    'onEvent',
-    'resolver',
-    unavailableControl,
-    'loadingBuilder',
+    ..._mountControlNames(paywall: paywall),
   };
   String allocate(String stem) {
     var name = stem;
@@ -1455,6 +1467,18 @@ void _emitScreenMount(
       'final class $mountName extends ${flutter}StatelessWidget {',
     );
   for (final atPlacement in [false, true]) {
+    buffer
+      ..writeln(
+        atPlacement
+            ? '  /// Overrides the implicit placement with an explicit name.'
+            : '  /// Mounts this surface at its implicit placement by default.',
+      )
+      ..writeln('  ///')
+      ..writeln(
+        atPlacement
+            ? '  /// Use [$mountName] for the default placement; no name is needed.'
+            : '  /// Use this constructor for ordinary mounts; no placement name is needed.',
+      );
     buffer.writeln(
       '  const $mountName${atPlacement ? '.atPlacement' : ''}(',
     );
@@ -1488,8 +1512,11 @@ void _emitScreenMount(
       ..writeln('    this.onEvent,')
       ..writeln('    this.resolver,')
       ..writeln('    this.$unavailableControl,')
-      ..writeln('    this.loadingBuilder,')
-      ..writeln(optionalPositional.isNotEmpty ? '    ]' : '    }');
+      ..writeln('    this.loadingBuilder,');
+    if (!paywall) {
+      buffer.writeln('    this.unavailable,');
+    }
+    buffer.writeln(optionalPositional.isNotEmpty ? '    ]' : '    }');
     final placementValue = atPlacement
         ? placementArgument
         : namedPlacement
@@ -1540,7 +1567,13 @@ void _emitScreenMount(
               '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
     )
     ..writeln()
-    ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;')
+    ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;');
+  if (!paywall) {
+    buffer
+      ..writeln()
+      ..writeln('  final ${sdk}SurfaceScreenUnavailablePolicy? unavailable;');
+  }
+  buffer
     ..writeln()
     ..writeln('  @override')
     ..writeln(
@@ -1605,7 +1638,8 @@ void _emitScreenMount(
     ..writeln(
       paywall
           ? '      fallbackBuilder: (context) => $screenName('
-          : '      unavailable: ${sdk}SurfaceScreenUnavailablePolicy.fallback(',
+          : '      unavailable: unavailable ?? '
+              '${sdk}SurfaceScreenUnavailablePolicy.fallback(',
     )
     ..write(
       paywall ? '' : '        builder: (context, error) => $screenName(\n',

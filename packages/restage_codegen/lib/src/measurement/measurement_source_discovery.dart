@@ -380,6 +380,8 @@ final class _MeasurementSourceDiscovery {
   _MeasurementSourceDiscovery(this.input);
 
   final MeasurementSourceDiscoveryInput input;
+  late final Set<String> _admittedHelperPackages =
+      artifactHelperPackages(input.catalog);
   final List<MeasurementDiscoveredNode> _nodes = [];
   final List<MeasurementDiscoveredEvent> _events = [];
   final Set<String> _nodeKeys = {};
@@ -705,7 +707,12 @@ final class _MeasurementSourceDiscovery {
               : context.expressionBindings[element]?.expression;
         },
         helperFor: (invocation) {
-          if (!isArtifactHelperInvocation(invocation)) return null;
+          if (!isArtifactHelperInvocation(
+            invocation,
+            admittedHelperPackages: _admittedHelperPackages,
+          )) {
+            return null;
+          }
           final executable = invocation.methodName.element;
           if (executable == null) return null;
           final definition = context.helperDefinitions[executable];
@@ -1192,7 +1199,12 @@ final class _MeasurementSourceDiscovery {
     _WidgetVisitContext context,
   ) {
     if (expression is! MethodInvocation) return null;
-    if (!isArtifactHelperInvocation(expression)) return null;
+    if (!isArtifactHelperInvocation(
+      expression,
+      admittedHelperPackages: _admittedHelperPackages,
+    )) {
+      return null;
+    }
     final executable = expression.methodName.element;
     if (executable is! ExecutableElement) return null;
     final definition = context.helperDefinitions[executable];

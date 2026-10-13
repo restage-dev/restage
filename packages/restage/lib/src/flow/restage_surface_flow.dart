@@ -92,6 +92,9 @@ enum _FlowUnavailablePolicyKind { fallback, hide }
 
 /// Fail-closed surface flow host.
 ///
+/// Prefer generated `*Surface(...)` widgets for typed bindings, registration,
+/// compiled fallbacks and implicit placements.
+///
 /// Loads a generated [SurfaceFlowRef], resolves its pinned artifacts, runs
 /// typed app-owned actions when declared, and calls [onComplete] only after the
 /// terminal result has been filtered and decoded.

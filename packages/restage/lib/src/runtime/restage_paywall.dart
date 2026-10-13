@@ -77,6 +77,9 @@ void debugClearRestagePaywallCache() => resetRestagePaywallCache();
 
 /// RFW paywall rendered as native Flutter widgets.
 ///
+/// Prefer generated `*Surface(...)` widgets for typed bindings, registration,
+/// compiled fallbacks and implicit placements.
+///
 /// Looks up the paywall variant via [resolver] (or [Restage.defaultResolver]
 /// if omitted), decodes the returned `.rfw` blob, and renders the resulting
 /// widget tree using the three built-in widget libraries (`restage.core`,

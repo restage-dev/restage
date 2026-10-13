@@ -8,6 +8,56 @@ import 'helpers.dart';
 
 void main() {
   untrackedStateTests();
+  for (final legacy in [false, true]) {
+    test(
+        'dependency ${legacy ? 'legacy' : 'current'} state must be visible '
+        'to the build', () async {
+      final root = (await restagePackageRoot('restage_codegen'))!;
+      final directory = Directory.fromUri(
+        root.resolve('.restage/build/'),
+      )..createSync(recursive: true);
+      final temporary = directory.createTempSync('dependency-input-');
+      addTearDown(() => temporary.deleteSync(recursive: true));
+      final relativeDirectory = temporary.uri.path.substring(root.path.length);
+      final filename = legacy ? 'wire_ids.events.jsonl' : 'state.json';
+      final path = '$relativeDirectory$filename';
+      final currentPath = legacy ? '$path.current' : path;
+      final legacyPath = legacy ? path : '$path.legacy';
+      File.fromUri(root.resolve(path)).writeAsStringSync('{}');
+      final errors = <String>[];
+      final result = await testBuilder(
+        _ReadState(currentPath, legacyPath, (_) {}, requireTracked: true),
+        {'restage_codegen|lib/probe.dart': ''},
+        rootPackage: 'restage_codegen',
+        onLog: (record) => errors.add(record.toString()),
+      );
+      expect(result.succeeded, isFalse);
+      expect(
+        errors.join('\n'),
+        allOf(
+          contains(path),
+          contains('`additional_public_assets: [.restage/**]`'),
+          contains(
+            'If the target restricts sources, include `.restage/**` there too.',
+          ),
+        ),
+      );
+      List<int>? tracked;
+      final success = await testBuilder(
+        _ReadState(
+          currentPath,
+          legacyPath,
+          (bytes) => tracked = bytes,
+          requireTracked: true,
+        ),
+        {'restage_codegen|$path': '{}'},
+        rootPackage: 'restage_codegen',
+      );
+      expect(success.succeeded, isTrue);
+      expect(tracked, '{}'.codeUnits);
+    });
+  }
+
   for (final paths in [
     ('.restage/measurement-state.json', 'restage_measurement.compiler.json'),
     ('.restage/wire-ids.events.jsonl', 'wire_ids.events.jsonl'),
@@ -98,7 +148,9 @@ void main() {
 }
 
 class _ReadState implements Builder {
-  _ReadState(this.path, this.legacyPath, this.onRead);
+  _ReadState(this.path, this.legacyPath, this.onRead,
+      {this.requireTracked = false});
+  final bool requireTracked;
   final String path;
   final String legacyPath;
   final void Function(List<int>?) onRead;
@@ -112,6 +164,7 @@ class _ReadState implements Builder {
       buildStep,
       path: path,
       legacyPath: legacyPath,
+      requireTracked: requireTracked,
     ));
   }
 }

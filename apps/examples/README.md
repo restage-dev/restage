@@ -124,6 +124,10 @@ lib/onboarding/flows/<flow>.dart      ──▶  flows/restage.generated/<flow>.
 lib/paywalls/<name>.dart              ──▶  paywalls/restage.generated/<name>.restage.g.dart
 ```
 
+The gallery enables bundling to compare source widgets with RFW artifact
+rendering. Ordinary app integrations should leave bundling off and use generated
+`*Surface(...)` mounts, whose compiled-widget fallbacks work offline.
+
 The generated Dart part holds the typed reference. The `.rsbundle` holds the
 exact bytes the SDK renders. The bundles are committed so the gallery runs from
 a fresh clone.
@@ -191,7 +195,9 @@ GestureDetector(
 ```
 
 Surfaces send events; they never start a purchase. Your app handles the event
-and runs its own purchase code.
+and runs its own purchase code. For store-connected paywalls, see the
+[RevenueCat example](../../packages/restage_revenuecat/example) or the
+[native store example](../../packages/restage_store_bridge/example).
 
 ## Authoring limits
 

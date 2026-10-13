@@ -114,6 +114,9 @@ targets:
         enabled: false
 ```
 
+These emitter options do not require RFW bundling. Leave `bundled_runtime` at its
+default, `false`; no generated surface assets need to be added to the app.
+
 **5. Generate:**
 
 ```bash

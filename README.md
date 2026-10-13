@@ -55,16 +55,26 @@ final class WelcomeScreen extends StatelessWidget {
 dart run build_runner build
 ```
 
-The build generates `WelcomeSurface`. Mount it in your app and handle its events:
+The build generates `WelcomeScreenSurface`. Mount it in your app and handle its events:
 
 ```dart
-WelcomeSurface(
+WelcomeScreenSurface(
   onEvent: (event) => Navigator.of(context).pushNamed('/home'),
 )
 ```
 
 The mount installs the widgets it needs and uses your original widget as a
-fallback. To deliver updates through your configured server:
+fallback. For hosted updates, configure Restage at app startup with your public
+API key and service URL:
+
+```dart
+Restage.configureWithInstalledCatalog(
+  apiKey: const String.fromEnvironment('RESTAGE_API_KEY'),
+  baseUrl: const String.fromEnvironment('RESTAGE_BASE_URL'),
+);
+```
+
+Then push the surface and publish it:
 
 ```sh
 restage surface push welcome
@@ -111,7 +121,7 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
 - **Use it anywhere in the app.** An onboarding flow, a survey, a paywall, a
   whole screen, or one card inside your own `Scaffold`. One runtime renders
   all of them.
-- **It has a catalog of 119 widgets** across `restage_core`,
+- **It has a catalog of 120 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
   `@RestageWidget`.
 - **Your app owns the implementation.** What ships is data the app renders.
@@ -139,6 +149,11 @@ falls back to a safe one. Restage Cloud adds the controls: roll back, freeze,
 or switch off any surface, decide who can publish, and export an audit trail of
 what changed, when, and by whom.
 
+Every generated `Surface` mount is an implicit placement. Use its ordinary
+constructor; `.atPlacement('name', ...)` is an optional naming override. The
+service can choose compatible content for that placement. See the [SDK placement guide](packages/restage/README.md#placements)
+and [delivery commands](packages/restage_cli/README.md#placements-and-delivery-plans).
+
 ## Works with
 
 - **A2UI (early):** the same widget constructors emit a genui A2UI catalog, so
@@ -147,6 +162,9 @@ what changed, when, and by whom.
   in a Widgetbook v4 workbench.
 
 ## Install
+
+This README describes the current source. Source updates can precede pub.dev
+releases; use a release tag’s documentation when working with that release.
 
 ```yaml
 dependencies:

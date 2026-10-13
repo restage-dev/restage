@@ -34,6 +34,12 @@ jobs:
       - name: Bootstrap workspace
         run: melos bootstrap
 
+      - name: Generate Widgetbook and A2UI example outputs
+        working-directory: packages/restage_widgetbook_example
+        run: |
+          dart run build_runner build
+          git diff --exit-code -- .
+
       - name: Analyze
         run: dart analyze
 

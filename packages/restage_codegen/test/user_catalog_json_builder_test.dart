@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/durable_state.dart';
+import 'package:restage_codegen/src/library_contract.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -26,6 +30,103 @@ void main() {
       @RestageProperty(description: 'c') final int count;
     }
   ''';
+
+  const namespace = 'catalog_state_visibility';
+  const statePaths = {
+    'widget IDs': '.restage/wire-ids.events.jsonl',
+    'legacy widget IDs': 'wire_ids.events.jsonl',
+    'library contract': '.restage/library-contracts/$namespace/v1.json',
+  };
+  for (final MapEntry(key: state, value: path) in statePaths.entries) {
+    test('dependency catalog requires exposed $state state', () async {
+      const package = 'restage_codegen';
+      final root = (await restagePackageRoot(package))!;
+      for (final fixturePath in statePaths.values) {
+        final leftover = File.fromUri(root.resolve(fixturePath));
+        if (leftover.existsSync()) {
+          leftover.deleteSync();
+        }
+      }
+      final fixture = source.replaceAll('acme.design_system', namespace);
+      final file = File.fromUri(root.resolve(path));
+      final logs = <String>[];
+      Future<({bool succeeded, Catalog? catalog})> build({
+        bool isRoot = false,
+        bool expose = false,
+      }) async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: package,
+        );
+        readerWriter.testing.writeString(
+          AssetId(package, 'lib/visibility.dart'),
+          fixture,
+        );
+        if (expose) {
+          readerWriter.testing
+              .writeString(AssetId(package, path), file.readAsStringSync());
+        }
+        logs.clear();
+        final result = await testBuilder(
+          UserCatalogJsonBuilder(BuilderOptions(const {}, isRoot: isRoot)),
+          {
+            '$package|lib/visibility.dart': fixture,
+            if (expose) '$package|$path': file.readAsStringSync(),
+          },
+          rootPackage: package,
+          readerWriter: readerWriter,
+          flattenOutput: true,
+          onLog: (record) => logs.add(record.toString()),
+        );
+        return (
+          succeeded: result.succeeded,
+          catalog: result.succeeded
+              ? decodeCatalog(readerWriter.testing.readString(
+                  AssetId(package, 'lib/src/widget_catalog/catalog.json'),
+                ))
+              : null,
+        );
+      }
+
+      final baseline = await build();
+      expect(baseline.succeeded, isTrue, reason: logs.join('\n'));
+      final contents = state == 'library contract'
+          ? LibraryContractSnapshot.of(
+              baseline.catalog!,
+              WidgetLibrary.custom(namespace),
+            )!
+              .encode()
+          : '{"kind":"alloc","type":"widget","id":"w0042","name":"Badge",'
+              '"source":"package:$package/visibility.dart#Badge",'
+              '"at":"2026-10-09T00:00:00Z","by":"test"}\n';
+      file.parent.createSync(recursive: true);
+      file.createSync(exclusive: true);
+      try {
+        file.writeAsStringSync(contents);
+        final hidden = await build();
+        expect(hidden.succeeded, isFalse);
+        expect(
+            logs.join('\n'),
+            allOf([
+              contains('$package must expose $path as a build input.'),
+              contains('additional_public_assets: [.restage/**]'),
+              contains('If the target restricts sources, '
+                  'include `.restage/**` there too.'),
+              if (state == 'legacy widget IDs')
+                contains('Also include `wire_ids.events.jsonl`'),
+            ]));
+        for (final isRoot in [false, true]) {
+          final visible = await build(isRoot: isRoot, expose: !isRoot);
+          expect(visible.succeeded, isTrue, reason: logs.join('\n'));
+          if (state != 'library contract') {
+            expect(visible.catalog!.widgets.single.wireId.value, 'w0042');
+          }
+        }
+      } finally {
+        file.deleteSync();
+        if (state == 'library contract') file.parent.deleteSync();
+      }
+    });
+  }
 
   Future<Catalog> runJsonBuilder([String? src]) async {
     final s = src ?? source;

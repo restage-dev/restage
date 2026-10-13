@@ -326,8 +326,8 @@ final class RestageSurfacePublicationBundle {
   final Map<String, List<int>> ownedOutputs;
 
   /// The authored Dart library path that produced each manifest artifact
-  /// (the union of [artifacts] and [borrowedArtifacts]), keyed by logical
-  /// artifact path. Every manifest artifact has exactly one entry.
+  /// (the union of [artifacts] and [borrowedArtifacts]) and each generated
+  /// part, keyed by logical path. Every manifest artifact has one entry.
   final Map<String, String> artifactLibraryPaths;
 
   /// Namespaced catalog widget names every compiled surface in this package

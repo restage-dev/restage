@@ -29,8 +29,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
-  # The parity gate checks shipped delivery artifacts, which are packaged
-  # inside deterministic `.rsbundle` containers, so it needs the codec.
+  # The parity tests decode generated RFW artifacts from build output.
   restage_shared:
     path: ../restage_shared
   restage_codegen:
@@ -39,8 +38,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    # Generated surfaces ship as deterministic `.rsbundle` containers. A Flutter
-    # directory entry is not recursive, so the bundle directory is listed
-    # explicitly; the tree mirrors the authored `lib/` layout.
-    - assets/restage/bundles/lib/onboarding/screens/

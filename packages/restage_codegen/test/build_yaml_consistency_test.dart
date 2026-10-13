@@ -112,11 +112,17 @@ void main() {
       for (final name in [
         'restage_source_roster',
         'restage_package_surface_compiler',
-        'user_catalog_json'
       ]) {
         expect(_declaredBuilders[name]['build_to'], 'cache');
         expect(_declaredBuilders[name]['auto_apply'], 'root_package');
       }
+    });
+
+    test('custom catalog metadata is generated on demand in dependencies', () {
+      final definition = _declaredBuilders['user_catalog_json']! as YamlMap;
+      expect(definition['build_to'], 'cache');
+      expect(definition['auto_apply'], 'all_packages');
+      expect(definition['is_optional'], isTrue);
     });
 
     test('A2UI artifacts have one declared default generated path', () {
@@ -376,8 +382,9 @@ void main() {
           for (final entry in builders.entries)
             if (((entry.value as YamlMap)['auto_apply'] == autoApply ||
                     (autoApply == 'dependents' &&
-                        (entry.value as YamlMap)['auto_apply'] ==
-                            'root_package')) &&
+                        {'root_package', 'all_packages'}.contains(
+                          (entry.value as YamlMap)['auto_apply'],
+                        ))) &&
                 primaryInput(entry.key.toString()).startsWith(r'$'))
               entry.key.toString(),
         };

@@ -41,7 +41,8 @@ part 'restage.generated/offer.restage.g.dart';
 
 @Paywall(id: 'offer')
 final class Offer extends StatelessWidget {
-  const Offer({super.key});
+  const Offer({this.unavailable = false, super.key});
+  final bool unavailable;
   @override
   Widget build(BuildContext context) => const Text('Offer');
 }

@@ -269,6 +269,9 @@ final class WidgetClassifier {
   /// custom widget to recurse into.
   final Catalog catalog;
 
+  late final Set<String> _admittedHelperPackages =
+      artifactHelperPackages(catalog);
+
   /// Registry of recognised paywall-helper calls — a helper call inside a
   /// custom widget classifies as composition, not as a Dart call.
   final HelperRegistry helpers;
@@ -1114,22 +1117,14 @@ class _Walk {
     );
   }
 
-  /// The inlinable helper [expr] is a call to, or `null` when [expr] is not an
-  /// inlinable helper call. Three shapes, all element-resolved (never
-  /// name-matched), all excluding `build`:
-  ///
-  ///   * an own *instance* method of this widget's own class (or its `State`),
-  ///     called bare (`_x(...)`) — the original named-intermediate rule;
-  ///   * a top-level function declared in the widget's own package
-  ///     (`header()`);
-  ///   * a `static` method whose declaring class is in the widget's own
-  ///     package (`Helpers.row(...)`).
-  ///
-  /// Helpers are matched by resolved element, never by name. A helper from
-  /// another package is not inlined and falls through to the `dartCall` defer.
+  /// Resolves an own helper or a helper from an admitted widget package.
   ExecutableElement? _resolveInlinableHelper(MethodInvocation expr) {
     final element = expr.methodName.element;
-    return element is ExecutableElement && isArtifactHelperInvocation(expr)
+    return element is ExecutableElement &&
+            isArtifactHelperInvocation(
+              expr,
+              admittedHelperPackages: _classifier._admittedHelperPackages,
+            )
         ? element
         : null;
   }
@@ -1966,7 +1961,12 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
   );
   final entryPoints = <ClassElement>{};
   for (final expression in rootExpressions) {
-    entryPoints.addAll(customWidgetClassesIn(expression));
+    entryPoints.addAll(
+      customWidgetClassesIn(
+        expression,
+        admittedHelperPackages: classifier._admittedHelperPackages,
+      ),
+    );
   }
   for (final widgetClass in entryPoints) {
     await classifier.classify(widgetClass);
@@ -1982,11 +1982,13 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
 Set<ClassElement> customWidgetClassesIn(
   Expression expression, {
   InlinedDefinitions inlined = const InlinedDefinitions.empty(),
+  Set<String> admittedHelperPackages = const {},
 }) {
   final classes = <ClassElement>{};
   visitStaticallyAdmittedExpressions(
     expression,
     inlined: inlined,
+    admittedHelperPackages: admittedHelperPackages,
     visit: (expression, _) {
       if (expression is! InstanceCreationExpression) return;
       final type = expression.constructorName.type.element;
@@ -2007,18 +2009,25 @@ void visitStaticallyAdmittedExpressions(
     Map<Element, Expression> bindings,
   ) visit,
   InlinedDefinitions inlined = const InlinedDefinitions.empty(),
+  Set<String> admittedHelperPackages = const {},
 }) {
-  _StaticallyAdmittedExpressionVisitor(visit, inlined).collect(expression);
+  _StaticallyAdmittedExpressionVisitor(visit, inlined, admittedHelperPackages)
+      .collect(expression);
 }
 
 final class _StaticallyAdmittedExpressionVisitor {
-  _StaticallyAdmittedExpressionVisitor(this._visit, this._inlined);
+  _StaticallyAdmittedExpressionVisitor(
+    this._visit,
+    this._inlined,
+    this._admittedHelperPackages,
+  );
 
   final void Function(
     Expression expression,
     Map<Element, Expression> bindings,
   ) _visit;
   final InlinedDefinitions _inlined;
+  final Set<String> _admittedHelperPackages;
   final Set<Expression> _active = <Expression>{};
 
   void collect(Expression expression) {
@@ -2094,7 +2103,12 @@ final class _StaticallyAdmittedExpressionVisitor {
     return CollectionSemanticProbe(
       bindingFor: (identifier) => _inlined.localBindings[identifier.element],
       helperFor: (invocation) {
-        if (!isArtifactHelperInvocation(invocation)) return null;
+        if (!isArtifactHelperInvocation(
+          invocation,
+          admittedHelperPackages: _admittedHelperPackages,
+        )) {
+          return null;
+        }
         final element = invocation.methodName.element;
         final definition = _inlined.helpers[element] ?? helpers[element];
         if (definition == null) return null;

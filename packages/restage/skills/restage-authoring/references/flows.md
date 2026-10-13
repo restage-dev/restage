@@ -3,6 +3,22 @@
 A flow is a sequence of screens: onboarding, a multi-step message, a survey. Each step
 is a `@Screen()` with no category, in its own file, and inherits the flow's category.
 The flow itself is a top-level `FlowDefinition` annotated with `@FlowGraph`.
+Use the generated `<FlowName>Surface` to mount it at its implicit placement, with
+typed callbacks and the authored flow as its compiled fallback. No bundle or
+explicit placement name is required.
+
+## Choose the flow contract
+
+- Use the default typed flow when the app depends on a fixed graph or typed result.
+  Published updates can change screen content while preserving that contract.
+- Use `delivery: FlowDeliveryMode.general` when adding, removing or reordering
+  steps over the air matters more than a generated result class. The installed
+  actions and signals still bound what the flow can do; results are maps.
+- Use standalone surfaces when the app already owns the navigation between them.
+
+Keep platform work in host actions and presentation decisions in the graph. Separate
+temporary screen state from flow state that must survive a transition, and declare
+only the result fields the app needs.
 
 ## Steps
 
@@ -52,9 +68,11 @@ const firstRun = FlowDefinition(
 
 - `capture: goal` stores the event's value. `writes: [goal.set('skipped')]` stores a
   fixed value.
-- State is private to the flow. Only state marked `exportable` and listed in `outbound`
-  leaves it. `terminalResult` becomes the generated result class (`FirstRunResult`,
-  with a `goal` field).
+- Flow-state values are `bool`, `int` or `String`. Keep richer display data in the
+  flow's render context and screen builders.
+- Mark result state as `exportable` and explicitly list its fields in `outbound`.
+  `terminalResult` becomes the generated result class (`FirstRunResult`, with a
+  `goal` field). A state declaration alone does not add a result field.
 - Every `Transition.complete` in a flow must end with the same result shape.
 
 ## Answers
@@ -119,25 +137,123 @@ const returningUser = SeedableFlowStateRef<bool>(
 );
 ```
 
-The build generates `<FlowName>Seed`, passed as `initialState:` on the mount.
+Add `returningUser` to the flow's `state` list alongside `goal`. A decision can
+branch on `returningUser.equals(true)`. The generated `FirstRunSeed` exposes only
+the seedable keys:
+
+```dart
+FirstRunSurface(
+  initialState: const FirstRunSeed(returningUser: true),
+  onComplete: (result) => saveGoal(result.goal),
+)
+```
+
+The default applies when the app omits a seed. This is initial flow state; use
+render context and step builders for display-only host data, as below. In a general
+flow, host-seeded state can guide branching but cannot be returned in `terminalResult`.
+
+## Host data in flow screens
+
+A generated flow mount does not take every step's constructor parameters directly.
+It generates a `<screenId>ScreenBuilder` argument for a step whose original
+constructor needs app-owned values. Supply the same values through `context` for
+the delivered RFW screens and through that builder for the compiled fallback.
+
+For a step declared with `@Screen(id: 'profile')` and
+`const ProfileStep(this.name, {super.key})`, the `typedJourney` flow generates
+`profileScreenBuilder`:
+
+```dart
+Widget journeyFor(String name) => TypedJourneySurface(
+  context: {'name': name},
+  profileScreenBuilder: () => ProfileStep(name),
+);
+```
+
+The flow's `context` publishes `data.context.name` to its screens; the zero-argument
+builder constructs the original Dart widget. Use required constructor inputs for
+values the app must supply. Steps with callable constructors that need no arguments
+use their defaults automatically. Inspect the generated constructor for exact builder
+names, including child-flow screens. Use serializable render values in `context`,
+and test both delivered and compiled paths with the same input.
+
+An enclosing Restage surface's render context takes precedence over this flow's
+`context`. Keep data ownership explicit when nesting surfaces.
 
 ## Host actions
 
-A host action is app code the flow can call, such as a permission request:
+A host action is app code the flow can call, such as a permission request. In
+`lib/flows/permission_flow.dart`, import two `@Screen()` steps: `PermissionScreen`
+declares a void `enable` event and `ReadyScreen` declares a void `finish` event.
+Their buttons pass `surfaceEvent(...)` directly as callbacks.
 
 ```dart
+import 'package:restage/restage.dart';
+
+import '../screens/permission.dart';
+import '../screens/ready.dart';
+
+part 'restage.generated/permission_flow.restage.g.dart';
+
 const requestNotifications = FlowActionRef<void, bool>('requestNotifications');
 
-// In transitions:
-Transition(
-  PermissionStep.enable,
-  action: requestNotifications.continueWhen((granted) => granted),
-  to: ReadyStep,
-),
+@FlowGraph(surface: Surface.onboarding)
+final permissionFlow = FlowDefinition(
+  start: PermissionScreen,
+  transitions: [
+    Transition(
+      PermissionScreen.enable,
+      action: requestNotifications.continueWhen((granted) => granted),
+      to: ReadyScreen,
+    ),
+    Transition.complete(ReadyScreen.finish),
+  ],
+);
 ```
 
-The app supplies the implementation on the mount through `actions:`. A published
-version can only call actions the installed app provides.
+The app supplies its platform handler through the generated actions class:
+
+```dart
+Widget permissionEntry({
+  required Future<bool> Function() requestNotificationPermission,
+}) => PermissionFlowSurface(
+  actions: PermissionFlowActions(
+    requestNotifications: (_, actionContext) => requestNotificationPermission(),
+  ),
+);
+```
+
+Import Flutter widgets and the flow file at this call site. The handler returns
+whether permission was granted. A false result leaves the user on the current
+screen; a thrown error follows the flow's unavailable handling. Handle expected
+platform outcomes in the app rather than throwing for an ordinary decline.
+
+The handler receives its typed input and `FlowActionContext`. The context has an
+operation ID and retry fields; it does not promise automatic retries. A published
+flow can call only actions whose installed contracts match. Adding a native action
+or changing its input/output types requires an app release.
+
+## Reuse a child flow
+
+Use `Subflow` to run a reusable graph, with explicit input and completion targets.
+For example, `profileFlow` declares `profileName` in its state and `accountSetup`
+declares `accountName`:
+
+```dart
+final done = Completion('done');
+final profileStep = Subflow(
+  'profile',
+  flow: profileFlow,
+  input: [profileName.fromState(accountName)],
+  onComplete: done,
+  onUnavailable: ErrorScreen,
+);
+```
+
+Route `Transition(AccountScreen.profile, to: profileStep)` to this node. Each input
+names the child's state reference and its parent source; use `fromValue(...)` for
+a literal. Choose an unavailable target so the app has a useful path when the
+child cannot run. Keep child contracts compatible with the installed parent.
 
 ## Paywalls in flows
 
@@ -155,18 +271,48 @@ the air, declare:
 ```
 
 A published version can then add, remove and reorder steps and change transitions,
-using only the events and host actions the installed app declares. `onComplete` then
-receives `Map<String, Object?>` in place of a generated result class.
+using the installed widget vocabulary, events and host actions. `onComplete` then
+receives `Map<String, Object?>` in place of a generated result class. Validate the
+fields your app reads from that map.
+
+General flows have additional outbound limits:
+
+- Host-seeded flow state cannot leave through `terminalResult`.
+- Analytics-reaching outputs (`customEvents`, `surveyAnswers`, `lifecycle`) may
+  reference event arguments, not captured flow state.
+- `measurementAnswers` is unavailable; use a typed flow for measured answers.
+
+The simple `FlowOutboundPolicy` maps shown above reference state. Do not copy its
+`surveyAnswers` example into a general flow. Use an advanced descriptor only when
+its outbound contract requires one; keep ordinary graphs in `FlowDefinition`.
 
 `Surface.general` (a category) and `FlowDeliveryMode.general` (what an update can
 change) are separate choices.
 
 ## Hosted flows
 
-Flows render the version built into the app unless `Restage.configure` gets
-`flowResolver: ServerFlowResolver(baseUrl: ..., apiKey: ..., active: true)`, or the
-mount gets it as `resolver:`. If no published version can run, the generated mount runs
-the flow built into the app from the start. A flow never switches versions halfway.
+`Restage.configure(apiKey: ..., baseUrl: ..., surfaces: restageSurfaces)` enables
+hosted flow delivery automatically. Leave resolver overrides out of ordinary
+integrations so generated mounts use placement resolution. Explicit resolvers are
+for custom delivery behavior.
+
+Without hosted configuration, the generated mount can run its compiled flow.
+Unavailable hosted content falls back to compatible retained content or the authored
+flow. Publishing normally affects later mounts. Opt-in live refresh uses the SDK's
+swap-safety checks and does not discard user-contributed flow state.
 
 Flow definitions and generated assets ship inside the app and can be read by anyone.
 Don't put secrets or private business rules in them.
+
+## Existing paywall navigation
+
+Prefer `FlowDefinition` for explicit branching, actions and results. Restage also
+recognizes bounded navigation between `@Paywall` widgets: a single synchronous
+`Navigator.push(context, MaterialPageRoute(builder: ...))` or
+`Navigator.of(context).push(...)` from `onPressed`/`onTap`, with an annotated paywall
+destination. `CupertinoPageRoute` is also supported; `Navigator.pop(context)` in a
+pushed paywall becomes a flow back action. The entry paywall needs a dismissal path.
+
+Awaiting or reading a route result, returning a value with `pop`, root-navigator
+overrides and arbitrary navigation callbacks are outside that lowering. Keep app
+navigation in a generated mount's callbacks when it is not part of the flow.

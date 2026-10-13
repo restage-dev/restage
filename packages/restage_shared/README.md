@@ -39,6 +39,13 @@ behind onboarding, messages, and surveys:
   the flow graph (screens, decisions, sub-flows, branches), its action schemas,
   and the content hash used to detect changes.
 
+### Placements and delivery
+
+Placement keys, host contracts, delivery requests and decisions describe which
+content can render at an app location. Screen-capture records describe explicit
+samples supplied to authoring tools. These types carry data only; the SDK owns
+mounting and the CLI/MCP tools manage delivery plans.
+
 ### Theme contract
 
 - **`kThemeContractPaths`**: the `data.theme.*` paths a delivered surface may

@@ -144,7 +144,6 @@ abstract final class MeasurementPublicationPlanner {
           final plan = _routePlan(
             publication,
             reconciliation: reconciliation,
-            priorOutput: priorOutput,
             policy: policy,
           );
           plans[publication.selector.key] = plan;
@@ -734,7 +733,6 @@ _LedgerReconciliation _reconcile({
 MeasurementPublicationRoutePlanV1 _routePlan(
   MeasurementPublicationPlanningInput input, {
   required _LedgerReconciliation reconciliation,
-  required RestageMeasurementCompilerOutputV1 priorOutput,
   required MeasurementCompilerPolicyInput policy,
 }) {
   final selector = input.selector;
@@ -1097,21 +1095,8 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     }
   }
 
-  final priorPublication = priorOutput.publications
-      .where((publication) => publication.selector.key == selector.key)
-      .firstOrNull;
-  final priorEvents = {
-    for (final event in priorPublication?.draft.events ??
-        const <MeasurementPublicationDraftEventV1>[])
-      event.generatedReferenceId.value: event,
-  };
-  final currentEvents = {
-    for (final event in events) event.generatedReferenceId.value: event,
-  };
-  final intents = <MeasurementPublicationLineageIntentV1>[];
-  for (final event in events) {
-    final prior = priorEvents[event.generatedReferenceId.value];
-    intents.add(
+  final intents = [
+    for (final event in events)
       MeasurementPublicationLineageIntentV1(
         transitionId: LineageTransitionId(
           _opaqueId(
@@ -1119,16 +1104,14 @@ MeasurementPublicationRoutePlanV1 _routePlan(
             domain: 'restage-measurement-lineage-intent-v1',
             value: {
               'generatedReferenceId': event.generatedReferenceId.value,
-              'operation': prior == null ? 'create' : 'continue',
+              'operation': LineageOperation.continueLineage.wireName,
               'surfaceId': measurementSurfaceIdForSelectorV1(selector).value,
             },
           ),
         ),
-        operation: prior == null
-            ? LineageOperation.create
-            : LineageOperation.continueLineage,
+        operation: LineageOperation.continueLineage,
         authority: LineageTransitionAuthority.exactToken,
-        priorLineageIds: prior == null ? const [] : [prior.lineageId],
+        priorLineageIds: [event.lineageId],
         next: [
           MeasurementPublicationCurrentEndpointIntentV1(
             generatedReferenceId: event.generatedReferenceId,
@@ -1136,29 +1119,7 @@ MeasurementPublicationRoutePlanV1 _routePlan(
           ),
         ],
       ),
-    );
-  }
-  for (final prior in priorEvents.values) {
-    if (currentEvents.containsKey(prior.generatedReferenceId.value)) continue;
-    intents.add(
-      MeasurementPublicationLineageIntentV1(
-        transitionId: LineageTransitionId(
-          _opaqueId(
-            prefix: 'transition.v1.',
-            domain: 'restage-measurement-lineage-intent-v1',
-            value: {
-              'generatedReferenceId': prior.generatedReferenceId.value,
-              'operation': 'retire',
-              'surfaceId': measurementSurfaceIdForSelectorV1(selector).value,
-            },
-          ),
-        ),
-        operation: LineageOperation.retire,
-        authority: LineageTransitionAuthority.exactToken,
-        priorLineageIds: [prior.lineageId],
-      ),
-    );
-  }
+  ];
 
   return MeasurementPublicationRoutePlanV1(
     surfaceId: measurementSurfaceIdForSelectorV1(selector),

@@ -179,8 +179,8 @@ refuses to write a catalog that still contains them.
 
 ## Stability
 
-The public API is stable and follows semantic versioning: breaking changes
-come only in a new major version.
+See [CHANGELOG.md](CHANGELOG.md) for released API and format changes. Source
+updates may precede a package release.
 
 ## License
 

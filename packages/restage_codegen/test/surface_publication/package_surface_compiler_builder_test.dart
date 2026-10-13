@@ -1388,9 +1388,16 @@ part 'restage.generated/offer.restage.g.dart';
 
 @Paywall(id: 'upgrade_offer')
 final class UpgradeOffer extends StatelessWidget {
-  const UpgradeOffer(this.title, {super.key, this.subtitle = 'Try it'});
+  const UpgradeOffer(this.title, {
+    super.key,
+    this.subtitle = 'Try it',
+    this.onUnavailable = 'Try again',
+    this.unavailable = false,
+  });
   final String title;
   final String subtitle;
+  final String onUnavailable;
+  final bool unavailable;
   @override
   Widget build(BuildContext context) => Text(title);
 }
@@ -1417,7 +1424,13 @@ final class UpgradeOffer extends StatelessWidget {
       matches(RegExp(r'fallbackBuilder: \(context\) =>\s*UpgradeOffer\(')),
     );
     await _expectAnalyzesClean({
-      'apps_examples|lib/offer.dart': source,
+      'apps_examples|lib/offer.dart': '''
+$source
+const defaultOffer = UpgradeOfferSurface('Offer');
+const customOffer = UpgradeOfferSurface(
+  'Offer', onUnavailable: 'Retry', unavailable: true,
+);
+''',
       'apps_examples|lib/restage.generated/offer.restage.g.dart': generated,
     });
   });

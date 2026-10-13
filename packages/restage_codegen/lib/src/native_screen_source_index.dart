@@ -8,6 +8,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -396,6 +397,7 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
     );
   }
 
+  Future<Catalog>? admissionCatalog;
   for (final source in sources) {
     final hasLegacyAnnotatedClass = source.library.classes.any(
       (cls) =>
@@ -422,6 +424,7 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
 
     final admission = await inspectScreenSourceAdmission(
       buildStep,
+      catalog: await (admissionCatalog ??= loadMergedCatalog(buildStep)),
       assetId: source.assetId,
       library: source.library,
       plan: plan,

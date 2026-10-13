@@ -5,7 +5,7 @@
 Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 The `restage.core` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
-57 cross-platform layout, structure, and decoration widgets, including
+58 cross-platform layout, structure, and decoration widgets, including
 Container, Column, Row, Stack, SizedBox, Padding, Center, Text, and Image.
 Add your own design-system widgets to the catalog with `@RestageWidget`.
 

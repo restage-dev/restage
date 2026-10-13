@@ -170,7 +170,7 @@ void main() {
       expect(emitted, isNot(contains(contract.contractFingerprint)));
       expect(
         sha256.convert(utf8.encode(emitted)).toString(),
-        'bdc277cf46b92b573c4bb5273df257ae275e80576756c56368e9ae4728115f90',
+        '7de13bfe06a683c8bdd3099ddadaf2568d1f550989cbfa4e620444ed49fd9758',
         reason: emitted,
       );
     });
@@ -372,6 +372,9 @@ final class Controller {
         emitted,
         contains('''
 final class TypedNoticeSurface extends fw.StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const TypedNoticeSurface(
     int count, {
     required Map<String, List<int>?> groups,
@@ -383,6 +386,7 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   })  : _restageArgument0 = count,
         _restageArgument1 = groups,
         _restageArgument2 = message,
@@ -408,19 +412,29 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
       expect(
         emitted,
         contains('''
-        builder: (context, error) => TypedNotice(
-          _restageArgument0,
-          groups: _restageArgument1,
-          message: _restageArgument2,
-          controller: _restageArgument3,
-        ),
+            builder: (context, error) => TypedNotice(
+              _restageArgument0,
+              groups: _restageArgument1,
+              message: _restageArgument2,
+              controller: _restageArgument3,
+            ),
 '''),
       );
       expect(
         emitted,
         contains('rs.SurfaceScreenUnavailablePolicy.fallback('),
       );
-      expect(emitted, isNot(contains('this.unavailable')));
+      expect(emitted, contains('this.unavailable'));
+      expect(
+        emitted,
+        contains('final fw.WidgetBuilder? loadingBuilder;\n\n'
+            '  final rs.SurfaceScreenUnavailablePolicy? unavailable;'),
+      );
+      expect(
+        emitted.replaceAll(RegExp(r'\s+'), ' '),
+        contains('unavailable: unavailable ?? '
+            'rs.SurfaceScreenUnavailablePolicy.fallback('),
+      );
       await _assertGeneratedPartAnalyzes(
         source,
         emitted,
@@ -543,13 +557,13 @@ final class HabitNotice extends StatelessWidget {
       expect(
         emitted,
         contains('''
-        builder: (context, error) => HabitNotice(
-          habit: _restageArgument0,
-          habits: _restageArgument1,
-          byId: _restageArgument2,
-          selected: _restageArgument3,
-          controller: _restageArgument4,
-        ),
+            builder: (context, error) => HabitNotice(
+              habit: _restageArgument0,
+              habits: _restageArgument1,
+              byId: _restageArgument2,
+              selected: _restageArgument3,
+              controller: _restageArgument4,
+            ),
 '''),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -586,6 +600,7 @@ final class HabitNotice extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   ])  : _restageArgument0 = title,
         _restageArgument1 = count,
         _restagePlacementName = null,
@@ -600,10 +615,10 @@ final class HabitNotice extends StatelessWidget {
       expect(
         emitted,
         contains('''
-        builder: (context, error) => PositionalNotice(
-          _restageArgument0,
-          _restageArgument1,
-        ),
+            builder: (context, error) => PositionalNotice(
+              _restageArgument0,
+              _restageArgument1,
+            ),
 '''),
       );
       await _assertGeneratedPartAnalyzes(
@@ -612,6 +627,10 @@ $source
 const originalCall = PositionalNoticeSurface('original', 3);
 const defaultCall = PositionalNoticeSurface('default');
 const namedCall = PositionalNoticeSurface.atPlacement('settings_card', 'named', 4);
+const hiddenCall = PositionalNoticeSurface('hidden', 5, null, null, null, null,
+  null, SurfaceScreenUnavailablePolicy.hide());
+const hiddenPlacement = PositionalNoticeSurface.atPlacement('settings_card',
+  'hidden', 5, null, null, null, null, null, SurfaceScreenUnavailablePolicy.hide());
 ''',
         emitted,
         constantFields: const {
@@ -659,10 +678,12 @@ const namedCall = PositionalNoticeSurface.atPlacement('settings_card', 'named', 
 $source
 void handleNotice(NamedNoticeEvent event) {}
 const originalCall = NamedNoticeSurface('original', count: 3,
-  key: ValueKey('original'), onEvent: handleNotice);
+  key: ValueKey('original'), onEvent: handleNotice,
+  unavailable: SurfaceScreenUnavailablePolicy.hide());
 const namedCall = NamedNoticeSurface('named', count: 4, placement: 'settings_card');
 const universalCall = NamedNoticeSurface.atPlacement('profile_card', 'universal',
-  count: 5, subtitle: 'more', key: ValueKey('universal'), onEvent: handleNotice);
+  count: 5, subtitle: 'more', key: ValueKey('universal'), onEvent: handleNotice,
+  unavailable: SurfaceScreenUnavailablePolicy.hide());
 ''',
         emitted,
         constantFields: const {
@@ -729,6 +750,41 @@ const namedCall = CampaignNoticeSurface.atPlacement('settings_card', $arguments)
         );
       });
     }
+
+    test('mount controls cannot shadow owning import prefixes', () async {
+      for (final control in const [
+        'onEvent',
+        'resolver',
+        'onUnavailable',
+        'loadingBuilder',
+        'unavailable',
+      ]) {
+        final source = '''
+import 'package:flutter/widgets.dart' as fw;
+import 'package:restage/restage.dart' as $control;
+
+part 'restage.generated/maintenance_notice.restage.g.dart';
+
+@$control.Screen(id: 'maintenance_notice', surface: $control.Surface.general)
+final class PrefixNotice extends fw.StatelessWidget {
+  const PrefixNotice({super.key});
+
+  @override
+  fw.Widget build(fw.BuildContext context) => const fw.SizedBox.shrink();
+}
+''';
+        final inspection = await _inspect(source, className: 'PrefixNotice');
+        expect(inspection.issues, isEmpty);
+        expect(
+          inspection.contract!.mountOmissionMessage,
+          'Generated screen mount PrefixNoticeSurface was omitted because '
+          "import prefix '$control' conflicts with a generated mount control.",
+        );
+        final emitted = inspection.contract!.emitReferenceDart();
+        expect(emitted, isNot(contains('class PrefixNoticeSurface')));
+        await _assertGeneratedPartAnalyzes(source, emitted);
+      }
+    });
 
     test('qualifies class-owned defaults without changing library defaults',
         () async {
@@ -2415,9 +2471,9 @@ final class WarmBindingNoticeSurface {}
       expect(
         optionalOutput,
         contains('''
-        builder: (context, error) => OptionalKeyNotice(
-          label: _restageArgument0,
-        ),
+            builder: (context, error) => OptionalKeyNotice(
+              label: _restageArgument0,
+            ),
 '''),
       );
       await _assertGeneratedPartAnalyzes(optionalSource, optionalOutput);
@@ -2474,10 +2530,10 @@ final class PositionalKeyNotice extends StatelessWidget {
       expect(
         emitted,
         contains('''
-        builder: (context, error) => PositionalKeyNotice(
-          _restageArgument0,
-          null,
-        ),
+            builder: (context, error) => PositionalKeyNotice(
+              _restageArgument0,
+              null,
+            ),
 '''),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -3163,7 +3219,7 @@ final class RecordKeyRoute extends StatelessWidget {
           admitted: true,
           includes: const [
             'super(key: widgetKey)',
-            'DirectPositionalKeyRoute(\n          null,',
+            'DirectPositionalKeyRoute(\n              null,',
           ],
           excludes: const ['_restageArgument0'],
         ),
@@ -3172,7 +3228,7 @@ final class RecordKeyRoute extends StatelessWidget {
           admitted: true,
           includes: const [
             'super(key: widgetKey)',
-            'FieldFormalKeyRoute(\n          null,',
+            'FieldFormalKeyRoute(\n              null,',
           ],
           excludes: const ['_restageArgument0'],
         ),
@@ -3203,7 +3259,7 @@ final class RecordKeyRoute extends StatelessWidget {
           admitted: true,
           includes: const [
             'super(key: second)',
-            '_restageArgument0,\n          null,',
+            '_restageArgument0,\n              null,',
           ],
           excludes: const ['super(key: first)'],
         ),
@@ -3417,10 +3473,10 @@ final class PositionalRedirectNotice extends StatelessWidget {
       expect(
         positionalOutput,
         contains('''
-        builder: (context, error) => PositionalRedirectNotice(
-          _restageArgument0,
-          null,
-        ),
+            builder: (context, error) => PositionalRedirectNotice(
+              _restageArgument0,
+              null,
+            ),
 '''),
       );
       expect(positionalOutput, isNot(contains('super(key: first)')));
@@ -3814,6 +3870,7 @@ final class StoredKeyNotice extends StatelessWidget {
         'resolver',
         'onUnavailable',
         'loadingBuilder',
+        'unavailable',
       ]) {
         final source = _screenSource(
           className: 'ReservedKeyNotice',

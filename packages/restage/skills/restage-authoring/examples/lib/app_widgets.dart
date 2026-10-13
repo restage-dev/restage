@@ -1,5 +1,6 @@
 import 'package:restage/restage.dart';
 
+export 'widgets/recap_heading.dart';
 export 'widgets/streak_badge.dart';
 
 /// The app's custom widget library.

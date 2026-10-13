@@ -60,6 +60,7 @@ final class UserCatalogBuilder implements Builder {
       allocation.catalog,
       package: buildStep.inputId.package,
       write: true,
+      buildStep: buildStep,
       enumMembers:
           await resolveEnumMembers(buildStep.resolver, allocation.catalog),
     );

@@ -1,10 +1,10 @@
-import 'package:restage_measurement_schema/src/ordered_capture.dart';
 import 'dart:convert';
 
 import 'package:restage_measurement_schema/src/canonical.dart';
 import 'package:restage_measurement_schema/src/identifiers.dart';
 import 'package:restage_measurement_schema/src/lineage.dart';
 import 'package:restage_measurement_schema/src/manifest.dart';
+import 'package:restage_measurement_schema/src/ordered_capture.dart';
 import 'package:restage_measurement_schema/src/publication_route.dart';
 import 'package:restage_measurement_schema/src/published_identity.dart';
 

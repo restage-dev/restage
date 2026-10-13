@@ -1,12 +1,16 @@
 # Flows
 
-`restage_codegen` generates the `SurfaceFlowRef<R>` and, when the flow uses host actions, a `FlowActionRegistry`. The example below shows the public API that generated code and your app code use together.
+For an authored `@FlowGraph`, use its generated `<FlowName>Surface(...)` widget.
+It supplies the flow reference, typed completion callback, widget registration,
+compiled original fallback and implicit placement. No placement name is needed.
+The [authoring guide](../skills/restage-authoring/references/flows.md) shows the
+source and generated mount together.
 
-For the normal bundled path, `RestageFlowGraph` uses `AssetFlowResolver` by
-default; it can also be passed explicitly as shown below. The resolver loads
-the generated flow artifact closure from the app bundle. It does not determine
-the flow's identity or publication category; generated publication metadata is
-the authority for those.
+## Lower-level flow hosting
+
+Use `RestageFlowGraph` when supplying a reference and fallback policy yourself.
+The example below constructs those contracts explicitly to show the runtime API.
+`AssetFlowResolver` loads the generated flow artifacts from the app bundle.
 
 ```dart
 import 'package:flutter/widgets.dart';
@@ -75,7 +79,7 @@ class FlowEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RestageFlowGraph<FirstRunResult>(
-      flow: firstRunFlowRef,
+      flow: FirstRunFlowDescriptor.ref,
       resolver: const AssetFlowResolver(),
       actions: FirstRunActions(
         requestNotifications: (_, context) async {

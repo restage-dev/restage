@@ -2,15 +2,9 @@ additional_public_assets:
   - .restage/measurement-state.json
   - .restage/wire-ids.events.jsonl
 
-# The example app ships its generated surfaces inside the app bundle so the demos run
-# standalone, with no hosted delivery configured. `bundled_runtime` routes only
-# the deterministic `.rsbundle` containers into the Flutter asset directory
-# declared in pubspec.yaml; every other generated artifact stays where it is.
-#
-# Build Runner has no cross-builder options channel, so the option is repeated
-# identically on every placement-affected Restage builder key. Configuring one
-# and not another is a loud placement-divergence error, not a silent partial
-# application.
+# The gallery compares source widgets with bundled RFW artifacts.
+# Ordinary apps can use generated mounts and compiled fallbacks with bundling off.
+# Keep this option identical across the surface builders.
 targets:
   $default:
     builders:

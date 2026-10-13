@@ -12,12 +12,12 @@ const nativeClassFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeClassFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"native_class_flow","initial":"native_preferences","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:7b2f445875903b6606b1aeccdb8990d03cff2cbdd219d912dd15a2bf0522d784","minClient":1,"path":"measurement/fd61b201e0ea5991/native_preferences.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_preferences":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_preferences"}},"version":1}',
+        '{"flow":"native_class_flow","initial":"native_preferences","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:00df0121c09668013f66d2aa13863841057a9a764d006ecdd79fad37917b891f","minClient":1,"path":"measurement/fd61b201e0ea5991/native_preferences.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_preferences":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_preferences"}},"version":1}',
     screens: {'native_preferences': NativePreferences.new},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '580d59fcf4c4d78991c7c3291240b8ff2d9e6debaadd74e9257a95cff9bc9d2b',
+      '8ab3b22213058cffc7294251f7d9e4308f328f5a839a3bf002d66241079d213b',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Text': buildText},
@@ -94,6 +94,9 @@ final nativeClassFlowPlacementDefinition =
 
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class NativeClassFlowSurface extends RestageFlowGraph<NativeClassResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const NativeClassFlowSurface({
     super.key,
     String? placement,
@@ -112,6 +115,9 @@ final class NativeClassFlowSurface extends RestageFlowGraph<NativeClassResult> {
   })  : _restagePlacementName = placement,
         super(flow: nativeClassFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [NativeClassFlowSurface] for the default placement; no name is needed.
   const NativeClassFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -149,12 +155,12 @@ const nativeNamedFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeNamedFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"native_named_flow","initial":"native_named","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_named":{"contentHash":"sha256:4f4ebdb7219fabdfb3922c9dada13e0bb555a5ed86c79f4330d5e78224c0bb47","minClient":1,"path":"native_named.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_named":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_named"}},"version":1}',
+        '{"flow":"native_named_flow","initial":"native_named","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_named":{"contentHash":"sha256:3f12802b0f5393ea2b00a3e2a4757f1902ac0c941f69973724f59f139e0b2cf3","minClient":1,"path":"native_named.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_named":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_named"}},"version":1}',
     screens: {},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'c17374675b37c0cac715eb8b9ca539c064611fc8755d62eb3a9d2857275a3c30',
+      'dc060820141bb2c4fd085e10ad0c8df35f3696d07cb2e88f9a2777fdd1ba81f3',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Text': buildText},
@@ -223,6 +229,9 @@ final nativeNamedFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class NativeNamedFlowSurface
     extends RestageFlowGraph<NativeNamedFlowResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   NativeNamedFlowSurface({
     super.key,
     required CompiledFlowScreenBuilder nativeNamedScreenBuilder,
@@ -245,6 +254,9 @@ final class NativeNamedFlowSurface
           screenBuilders: {'native_named': nativeNamedScreenBuilder},
         );
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [NativeNamedFlowSurface] for the default placement; no name is needed.
   NativeNamedFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -300,12 +312,12 @@ const nativeOfferFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeOfferFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:b978355ee4e61bf490296ace8cf3cb0578387ce36d5272e85ee09dce8a7afdc4","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
+        '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:c8c4cee7bd1c8ab4bd65ac07e362e959c1cab5113401d0d397a096a621168be5","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
     screens: {'paywall_native_offer': NativeOffer.new},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'd9b54a8c7e7b481c531d7f963ef14b1c47ab9ee289ec50b11b583904febe2236',
+      '378d477b261b89f5fda3324c3c6254443f3fe309b4cfbb1acfae4c929ecc04a0',
 );
 
 NativeOfferFlowResult _decodeNativeOfferFlowResult(
@@ -368,6 +380,9 @@ final nativeOfferFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class NativeOfferFlowSurface
     extends RestageFlowGraph<NativeOfferFlowResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const NativeOfferFlowSurface({
     super.key,
     String? placement,
@@ -386,6 +401,9 @@ final class NativeOfferFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: nativeOfferFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [NativeOfferFlowSurface] for the default placement; no name is needed.
   const NativeOfferFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -437,7 +455,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeWelcomeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"permission":{"actionName":"permission","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":1,"resultSchema":{"kind":"bool"},"resultSchemaHash":"sha256:b381695502a4099cf3610d182b471a2562086e5e8bdb11f4426f63ba512542b3"}},"flow":"native_welcome_flow","flowState":{"completed":{"classification":"exportable","default":false,"type":"bool"}},"initial":"native_welcome","minClient":1,"outbound":{"terminalResult":{"fields":{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:345b1a6bd546e2f204421593afc162b6238c338e1a5eac7ccc42844c0cafd167","minClient":1,"path":"measurement/8e5c98f316d3660d/native_preferences.rfw","schemaVersion":1,"version":1},"native_welcome":{"contentHash":"sha256:2f02b1c62505f4f57af1d256aa3545735721c80f0dead6e599515260b25ec40b","minClient":1,"path":"native_welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"completed":true}},"native_preferences":{"kind":"screen","on":{"done":{"set":{"completed":{"type":"bool","value":{"literal":true,"type":"bool"}}},"target":"offer","type":"goto"}},"screen":"native_preferences"},"native_welcome":{"kind":"screen","on":{"next":{"action":"permission","resultPredicate":{"kind":"boolEquals","value":true},"target":"native_preferences","type":"action"}},"screen":"native_welcome"},"offer":{"contentHash":"sha256:edb947a61e9f8ec415e0b8eca141ce1fa0cd62932f99aebfa9976cd47d354208","default":{"goto":"done"},"flow":"native_offer_flow","kind":"subFlow","minClient":1,"onComplete":[{"goto":"done","when":{}}],"schemaVersion":1,"version":1}},"version":1}',
+        '{"actions":{"permission":{"actionName":"permission","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":1,"resultSchema":{"kind":"bool"},"resultSchemaHash":"sha256:b381695502a4099cf3610d182b471a2562086e5e8bdb11f4426f63ba512542b3"}},"flow":"native_welcome_flow","flowState":{"completed":{"classification":"exportable","default":false,"type":"bool"}},"initial":"native_welcome","minClient":1,"outbound":{"terminalResult":{"fields":{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:0364f2b8177b1d234e2c5e35070c2ac490fb4e61207e5402d0e3de3db0256133","minClient":1,"path":"measurement/8e5c98f316d3660d/native_preferences.rfw","schemaVersion":1,"version":1},"native_welcome":{"contentHash":"sha256:b98f00f65c66754315c13ad5b24bf65817edb5140d728929a2b7795cca36be58","minClient":1,"path":"native_welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"completed":true}},"native_preferences":{"kind":"screen","on":{"done":{"set":{"completed":{"type":"bool","value":{"literal":true,"type":"bool"}}},"target":"offer","type":"goto"}},"screen":"native_preferences"},"native_welcome":{"kind":"screen","on":{"next":{"action":"permission","resultPredicate":{"kind":"boolEquals","value":true},"target":"native_preferences","type":"action"}},"screen":"native_welcome"},"offer":{"contentHash":"sha256:44f15c4932200f3608de0c4a7bcfdf6c75f7c07addc447527ce2331a87d0334b","default":{"goto":"done"},"flow":"native_offer_flow","kind":"subFlow","minClient":1,"onComplete":[{"goto":"done","when":{}}],"schemaVersion":1,"version":1}},"version":1}',
     screens: {
       'native_preferences': NativePreferences.new,
       'native_welcome': NativeWelcome.new,
@@ -445,14 +463,14 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
     children: {
       'native_offer_flow': CompiledFlow(
         documentJson:
-            '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:b978355ee4e61bf490296ace8cf3cb0578387ce36d5272e85ee09dce8a7afdc4","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
+            '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:c8c4cee7bd1c8ab4bd65ac07e362e959c1cab5113401d0d397a096a621168be5","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
         screens: {'paywall_native_offer': NativeOffer.new},
         children: {},
       ),
     },
   ),
   measurementPublicationDraftDigest:
-      '316e98ebfb4bc957fab632176b6a8c1ef7a2e04fe46737c33f62317db9069143',
+      '3694a15e7de8147f3f16a00d9e8a81ae45719e5fbc6a1fbf7e72720d8b4ccb3a',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Text': buildText},
@@ -540,6 +558,9 @@ final nativeWelcomeFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class NativeWelcomeFlowSurface
     extends RestageFlowGraph<NativeWelcomeFlowResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const NativeWelcomeFlowSurface({
     super.key,
     String? placement,
@@ -558,6 +579,9 @@ final class NativeWelcomeFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: nativeWelcomeFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [NativeWelcomeFlowSurface] for the default placement; no name is needed.
   const NativeWelcomeFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -658,7 +682,7 @@ final nativeNoticeRef =
   provenance: _nativeNoticeProvenance,
   eventContract: _nativeNoticeEvents,
   measurementPublicationDraftDigest:
-      'f3201ddb8a9a582eb93101863f52ce35e484ed135e5f41197ccd583ae786b62f',
+      '2d764b0b7aa08c7c959046fea6fd4351cbec67d0233af8c24b3d238da28d42e3',
 );
 
 final _nativeNoticePlacementDefinitionValue =
@@ -700,6 +724,9 @@ final nativeNoticePlacementDefinition =
 const int _nativeNoticeMountDefault1 = 2;
 
 final class NativeNoticeSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const NativeNoticeSurface(
     String title, [
     int count = _nativeNoticeMountDefault1,
@@ -708,11 +735,15 @@ final class NativeNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   ])  : _restageArgument0 = title,
         _restageArgument1 = count,
         _restagePlacementName = null,
         super(key: key);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [NativeNoticeSurface] for the default placement; no name is needed.
   const NativeNoticeSurface.atPlacement(
     String restagePlacementId,
     String title, [
@@ -722,6 +753,7 @@ final class NativeNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   ])  : _restageArgument0 = title,
         _restageArgument1 = count,
         _restagePlacementName = restagePlacementId,
@@ -740,6 +772,8 @@ final class NativeNoticeSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<Never>(
@@ -752,10 +786,11 @@ final class NativeNoticeSurface extends StatelessWidget {
         'title': _restageArgument0,
         'count': _restageArgument1,
       },
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) =>
-            NativeNotice(_restageArgument0, _restageArgument1),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) =>
+                NativeNotice(_restageArgument0, _restageArgument1),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,
@@ -800,6 +835,9 @@ final nativeOfferPlacementDefinition =
     () => _nativeOfferPlacementDefinitionValue;
 
 final class NativeOfferSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const NativeOfferSurface({
     super.key,
     String? placement,
@@ -809,6 +847,9 @@ final class NativeOfferSurface extends StatelessWidget {
     this.loadingBuilder,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [NativeOfferSurface] for the default placement; no name is needed.
   const NativeOfferSurface.atPlacement(
     String restagePlacementId, {
     super.key,

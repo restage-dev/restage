@@ -27,6 +27,20 @@ WidgetEntry _widgetEntry({
 
 void main() {
   group('emitUserFactoriesDart', () {
+    for (final since in [null, 1, 2]) {
+      test('registration version defaults remain stable for $since', () {
+        final source = emitUserFactoriesDart(
+          [_widgetEntry(name: 'Badge')],
+          stampedCapabilityVersions: const {'acme.design_system': 3},
+          compatibleSinceVersions: {
+            if (since != null) 'acme.design_system': since,
+          },
+        );
+        expect(source, contains('capabilityVersion: 3,'));
+        expect(source!.contains('compatibleSince:'), since == 2);
+      });
+    }
+
     test('returns null on an empty input list', () {
       expect(emitUserFactoriesDart(const []), isNull);
     });

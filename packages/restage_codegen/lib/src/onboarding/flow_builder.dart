@@ -13,6 +13,7 @@ import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -236,7 +237,10 @@ final class OnboardingFlowBuilder implements Builder {
       ]);
     }
     final compiled = result.flows.single;
-    final stem = p.basenameWithoutExtension(assetId.path);
+    final stem = conventionalOutputStem(
+      assetId.path,
+      'lib/${p.posix.split(assetId.path)[1]}/flows',
+    );
     final surfaceSeg = compiled.surface.wireName;
     await buildStep.writeAsBytes(
       AssetId(
@@ -262,8 +266,11 @@ final class OnboardingFlowBuilder implements Builder {
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
     final selected = flows.first;
-    final stem = p.basenameWithoutExtension(buildStep.inputId.path);
     final inputSurface = p.posix.split(buildStep.inputId.path)[1];
+    final stem = conventionalOutputStem(
+      buildStep.inputId.path,
+      'lib/$inputSurface/flows',
+    );
     final canonicalPath =
         'assets/${selected.surface.wireName}/flows/${selected.id}.flow.json';
     final destinationPath = 'assets/$inputSurface/flows/$stem.flow.json';
@@ -837,6 +844,7 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
   final source = await buildStep.readAsString(flowAssetId);
   final screenSourceDir = _screenSourceDir(_surfaceSegmentOf(flowAssetId));
   final importPattern = RegExp(r'''import\s+['"]([^'"]+)['"]\s*;''');
+  Future<Catalog>? admissionCatalog;
   final descriptors = <String, _ScreenDescriptor>{};
   for (final match in importPattern.allMatches(source)) {
     final uri = match.group(1)!;
@@ -850,6 +858,7 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
         await buildStep.resolver.isLibrary(screenAsset)) {
       final admission = await inspectScreenSourceAdmission(
         buildStep,
+        catalog: await (admissionCatalog ??= loadMergedCatalog(buildStep)),
         assetId: screenAsset,
         library: await buildStep.resolver.libraryFor(
           screenAsset,

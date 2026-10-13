@@ -1,10 +1,13 @@
 import 'dart:io';
 
+import 'package:build/build.dart';
 import 'package:restage_codegen/src/library_contract.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
+
+import 'helpers.dart';
 
 const _library = WidgetLibrary.custom('app');
 
@@ -117,6 +120,49 @@ void main() {
   final planCard = [
     _widget('PlanCard', [_property('title'), _property('badge')]),
   ];
+
+  test('tracked contracts ignore unrelated binary files', () async {
+    final catalog = app.build(planCard, capabilityVersion: 3);
+    const contractPath = '.restage/library-contracts/app/v3.json';
+    const unrelatedPaths = [
+      '.restage/library-contracts/.DS_Store',
+      '.restage/library-contracts/app/.v3.json.swp',
+      '.restage/library-contracts/app/notes.bin',
+    ];
+    final result = await testBuilder(
+      TestBuilder(
+        buildExtensions: const {
+          '.trigger': ['.checked'],
+        },
+        build: (step, _) async {
+          await enforcePackageLibraryContracts(
+            catalog,
+            package: 'app',
+            write: false,
+            buildStep: step,
+          );
+          await step.writeAsString(
+            step.inputId.changeExtension('.checked'),
+            'ok',
+          );
+        },
+      ),
+      {
+        'app|check.trigger': '',
+        'app|$contractPath':
+            LibraryContractSnapshot.of(catalog, _library)!.encode(),
+        for (final path in unrelatedPaths) 'app|$path': <int>[0xff],
+      },
+      rootPackage: 'app',
+      outputs: {'app|check.checked': 'ok'},
+    );
+    expect(result.succeeded, isTrue);
+    final inputs = result.readerWriter.testing.inputsTracked;
+    expect(inputs, contains(AssetId('app', contractPath)));
+    for (final path in unrelatedPaths) {
+      expect(inputs, isNot(contains(AssetId('app', path))));
+    }
+  });
 
   test('the first build writes the baseline', () {
     enforce(app.build(planCard, capabilityVersion: 3));
