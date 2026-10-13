@@ -21,8 +21,7 @@ a widget catalog, and typed Dart accessors that the
 
 ## Setup
 
-Add the package as a dev dependency, build, then push and publish with the
-`restage` CLI:
+Add the package as a dev dependency and generate the local outputs:
 
 ```yaml
 dev_dependencies:
@@ -32,9 +31,11 @@ dev_dependencies:
 
 ```sh
 dart run build_runner build
-restage surface push <id>
-restage surface publish <id>
 ```
+
+Mount a generated `*Surface` widget to use its compiled fallback locally. When
+using hosted delivery, `restage surface push <id>` uploads a revision and
+`restage surface publish <id>` activates it.
 
 You don't import this package in app code. Its builders apply to your package
 automatically and write their outputs next to the sources they read. No
@@ -130,19 +131,26 @@ file; don't edit earlier lines.
 
 Widgetbook and A2UI work independently of RFW bundling. Enable either emitter
 without setting `bundled_runtime` or adding surface assets to `pubspec.yaml`.
+The order is annotated Flutter source → `build_runner` generation → the
+consuming app. Neither consumer needs hosted publication or `restage build push`;
+that command creates dashboard previews.
 
-**A2UI.** The generator can turn your `@RestageWidget` classes into a
+**A2UI.** The generator can turn your `@RestageWidget` and `@Screen` classes into a
 [genui](https://pub.dev/packages/genui) A2UI catalog. Restage still delivers
 surfaces as RFW; A2UI is an extra output. The
 [A2UI walkthrough](../restage_a2ui/README.md#generate-an-a2ui-catalog-from-your-widgets)
-covers the dependencies, the `build.yaml` setting, and the build command.
+covers dependencies, the builder, and wiring `buildRestageCatalog()` into a
+GenUI `SurfaceController` and `Surface`. The app supplies the model transport,
+messages and action handling.
 
 **Widgetbook.** The generator can write a Widgetbook v4 story for each of your
-widgets from its constructor and doc comments. Enable
-`restage_codegen:widgetbook_stories` in `build.yaml`, keep Widgetbook's usual
-`runWidgetbook(Config(...))` setup, and run the same `build_runner` command.
-Stories are not generated for Flutter, Material, Cupertino, or Restage
-built-in widgets.
+widgets and annotated screens from their constructors and doc comments. Add
+`widgetbook: 4.0.0-beta.14` to the source package's dependencies and enable
+`restage_codegen:widgetbook_stories` in `build.yaml`. The same `build_runner`
+command runs both Restage and Widgetbook generation. Pass the resulting
+`components` from `components.g.dart` to `runWidgetbook(Config(...))`; see the
+[workbench example](../../apps/widgetbook_example/README.md). Stories are not
+generated for Flutter, Material, Cupertino, or Restage built-in widgets.
 
 **Opting out.** One `@RestageWidget` can skip a target with that target's
 `Config(enabled: false)` or `Config.enabled(false)` annotation. `@ignore` on a

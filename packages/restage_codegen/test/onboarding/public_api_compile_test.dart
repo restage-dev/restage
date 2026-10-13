@@ -29,7 +29,7 @@ void main() {
     // Lower-level mounts and optional asset resolvers remain documented.
     expect(readme, contains('RestageFlowGraph'));
     expect(readme, contains('FlowUnavailablePolicy'));
-    expect(readme, contains('RestageVariantResolver'));
+    expect(readme, contains('Leave `flowResolver` unset for ordinary setup'));
     expect(readme, isNot(contains('?? false')));
 
     // The flow API details moved from the README to the package's flow guide;

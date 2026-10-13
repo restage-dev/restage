@@ -5,24 +5,8 @@ import 'package:restage/restage.dart';
 
 import 'flows/reel_cancel.dart';
 
-/// Hosts the "before you cancel" retention-survey engagement surface.
-///
-/// The host side: supply the `redeemOffer` host action, act on the two outcomes,
-/// and fail closed. It does what a real app does:
-///
-/// 1. **Supplies the host action.** A real app applies the retention discount
-///    through billing and returns the result; this demo returns a fixed
-///    [redeemOffer] decision so both branches are exercisable. The flow advances
-///    to the confirmation **only on a redeemed result** — the save-offer gate is
-///    the one conditional the flow runtime offers.
-/// 2. **Owns the "cancel" outcome.** The save-offer's "No thanks, cancel" fires a
-///    `cancel` custom event the flow does not handle; the host listens for it and
-///    confirms the cancellation.
-/// 3. **Fails closed.** An unavailable flow shows a plain surface, never a
-///    broken or partial one.
-///
-/// Like the other examples it ships its flow as a bundled asset (no backend). A
-/// production app delivers it over the air by injecting a `ServerFlowResolver`.
+/// Hosts the cancellation survey with a simulated discount action.
+/// Successful redemption keeps the membership; the cancel event ends it.
 class ReelCancelDemo extends StatefulWidget {
   /// Creates the survey host.
   ///
@@ -82,8 +66,7 @@ class _ReelCancelDemoState extends State<ReelCancelDemo> {
     if (_outcome != _Outcome.none) {
       return _OutcomeScreen(retained: _outcome == _Outcome.retained);
     }
-    return RestageFlowGraph<ReelCancelResult>(
-      flow: reelCancelFlowRef,
+    return ReelCancelFlowSurface(
       actions: _actions,
       onComplete: (result) => _settle(_Outcome.retained),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF141414)),

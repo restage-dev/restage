@@ -67,6 +67,61 @@ DeliveryMeasurementMutationReviewV1 surfaceMutationReview(
   );
 }
 
+DeliveryMeasurementMutationReviewV1 exactVersionKillReview({
+  bool live = false,
+  int activationOrdinal = 2,
+  bool refused = false,
+}) {
+  final scope = DeliveryPolicyScopeV1(
+    root: DeliveryRootIdentityV1.surface(
+      PublishedSurfaceIdentityV1(
+        target: surfaceReviewTarget(live: live),
+        surfaceId: SurfaceId('pro'),
+      ),
+    ),
+    family: const DeliveryFamilySelectorV1.general(),
+  );
+  final publications = [
+    for (final revision in [1, 3])
+      DeliveryPublicationReferenceV1(
+        surface: DeliverySurfaceReferenceV1(
+          surfaceIdentity: scope.root.surface!,
+          family: scope.family,
+        ),
+        publishedVersion: revision,
+        payloadFormatVersion: 2,
+        contentHash: CanonicalDigest('$revision' * 64),
+      ),
+  ];
+  final source = warningImpact(scope).affectedSources.single;
+  return DeliveryMeasurementMutationReviewV1(
+    operation: 'surfaceKill',
+    reviews: [
+      DeliveryMeasurementImpactReviewV1(
+        scope: scope,
+        operation: 'surfaceKill',
+        dependencyDigest: CanonicalDigest('a' * 64),
+        expectedLivePublications: [publications.last],
+        affectedSources: [
+          DeliveryMeasurementSourceImpactV1.fromJson({
+            ...source.toJson(),
+            'experimentReference': {
+              ...source.experimentReference.toJson(),
+              'activationOrdinal': activationOrdinal,
+            },
+            'affectedPublications': [
+              for (final publication in publications) publication.toJson(),
+            ],
+            'warningCode': 'scheduledOutputLost',
+          }),
+        ],
+      ),
+    ],
+    dependencyDigest: CanonicalDigest('b' * 64),
+    refusalCodes: refused ? ['impactAuthorityUnavailable'] : const [],
+  );
+}
+
 Map<String, Object?> surfaceMutationResponse(int revision) => {
   'family': {
     'surfaceType': 'paywall',
@@ -189,7 +244,6 @@ class SurfaceReviewHarness {
       credentialStore: store,
       httpClient: client(),
       interactiveFactory: (_) => interactive,
-      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
     ).run([
       '--yes',
       'surface',
@@ -227,6 +281,85 @@ class SurfaceReviewHarness {
 }
 
 void main() {
+  test(
+    'kill exposes exact-version impact and requires its current acknowledgement',
+    () async {
+      final h = await SurfaceReviewHarness.create();
+      addTearDown(h.dispose);
+      h.review = exactVersionKillReview();
+      expect(await h.run('kill', ['--yes']), 1);
+      expect(h.mutations, isEmpty);
+      for (final detail in [
+        'Welcome experiment',
+        'welcome-experiment',
+        'Completed welcome',
+        'scheduledOutputLost',
+        '"publishedVersion": 1',
+        '"publishedVersion": 3',
+        'stops fresh experimental delivery',
+        'saved results are unchanged',
+      ]) {
+        expect(h.stdout.toString(), contains(detail));
+      }
+      expect(h.stdout.toString(), isNot(contains('expectedLivePolicy')));
+      final previous = h.review.digest.hex;
+      h.review = exactVersionKillReview(activationOrdinal: 3);
+      expect(await h.run('kill', ['--yes', '--reviewed-digest', previous]), 1);
+      expect(h.mutations, isEmpty);
+      expect(
+        await h.run('kill', [
+          '--yes',
+          '--reviewed-digest',
+          h.review.digest.hex,
+          '--operation-id',
+          operationId,
+        ]),
+        0,
+        reason: h.stderr.toString(),
+      );
+      final proceed = DeliveryMeasurementMutationProceedV1.fromCanonicalBytes(
+        decodeByteDataWire(
+          h.mutations.single['measurementProceedBytes'],
+          malformed: FormatException.new,
+        ),
+      );
+      expect(proceed.acknowledges(h.review), true);
+      expect(proceed.operationId, operationId);
+      expect(proceed.acknowledgements.single.warningCodes, [
+        'scheduledOutputLost',
+      ]);
+    },
+  );
+  test(
+    'kill acknowledgement cannot override review or mutation refusals',
+    () async {
+      final h = await SurfaceReviewHarness.create();
+      addTearDown(h.dispose);
+      h.review = exactVersionKillReview(refused: true);
+      expect(
+        await h.run('kill', [
+          '--yes',
+          '--reviewed-digest',
+          h.review.digest.hex,
+        ]),
+        1,
+      );
+      expect(h.mutations, isEmpty);
+      expect(h.stderr.toString(), contains('impactAuthorityUnavailable'));
+      h.review = exactVersionKillReview();
+      h.refusal = 'review_stale';
+      expect(
+        await h.run('kill', [
+          '--yes',
+          '--reviewed-digest',
+          h.review.digest.hex,
+        ]),
+        1,
+      );
+      expect(h.mutations, hasLength(1));
+      expect(h.stderr.toString(), contains('review_stale'));
+    },
+  );
   test(
     'identity-wide review omits a family selected by the actual manifest',
     () async {
@@ -389,7 +522,7 @@ void main() {
     () async {
       final h = await SurfaceReviewHarness.create();
       addTearDown(h.dispose);
-      h.review = surfaceMutationReview('surfaceKill', live: true);
+      h.review = exactVersionKillReview(live: true);
       final executor = ConsoleCommandExecutor(
         credentialStore: h.store,
         httpClient: h.client(),
@@ -418,6 +551,10 @@ void main() {
       expect(result.exitCode, 1);
       expect(h.mutations, isEmpty);
       expect(result.stdout, contains('Welcome experiment'));
+      expect(result.stdout, contains('scheduledOutputLost'));
+      expect(result.stdout, contains('"publishedVersion": 3'));
+      expect(result.stdout, contains('stops fresh experimental delivery'));
+      expect(result.stdout, contains('saved results are unchanged'));
       final accepted = await executor.runCommand([
         '--yes',
         'surface',

@@ -3,6 +3,7 @@ import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
+import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/tui/restage_tui.dart';
 import 'package:test/test.dart';
 
@@ -32,6 +33,12 @@ void main() {
 }
 
 class _FakeConsoleRepository implements ConsoleRepository {
+  @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) async => null;
+
   @override
   Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
     context: ConsoleContext(

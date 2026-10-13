@@ -3,17 +3,8 @@ import 'package:restage/restage.dart';
 
 import 'flows/tally_onboarding.dart';
 
-/// Hosts the Tally goal-fork onboarding — the public answer-branching template.
-///
-/// The host side is minimal: this flow has no host actions and no embedded
-/// paywall — the answer-driven branch lives entirely in the flow graph (the
-/// goal fork + the routing decision). The host gives the flow somewhere to run,
-/// shows a completion hand-off, and fails closed.
-///
-/// Like the other examples this ships its flow as a bundled asset (no backend).
-/// A production app delivers onboarding over the air by injecting a
-/// `ServerFlowResolver` once at startup — the fail-closed and completion wiring
-/// are identical either way.
+/// Hosts the goal-based onboarding with its generated surface mount.
+/// The flow selects a branch from the answer and reports completion.
 class TallyOnboardingDemo extends StatefulWidget {
   /// Creates the onboarding host.
   const TallyOnboardingDemo({super.key});
@@ -30,8 +21,7 @@ class _TallyOnboardingDemoState extends State<TallyOnboardingDemo> {
     if (_completed) {
       return const _CompletionScreen();
     }
-    return RestageFlowGraph<TallyOnboardingResult>(
-      flow: tallyOnboardingFlowRef,
+    return TallyOnboardingFlowSurface(
       onComplete: (result) {
         if (mounted) setState(() => _completed = true);
       },

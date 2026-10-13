@@ -86,7 +86,7 @@ String _trimFixed(double value) {
 
 String _revenue(Map<String, Object?> document) {
   var gross = 0;
-  var earning = false;
+  var measured = false;
   var unconverted = false;
   for (final row in figureList(document, ['rows'])) {
     for (final version in figureList(row, ['activity', 'values'])) {
@@ -96,17 +96,17 @@ String _revenue(Map<String, Object?> document) {
           'kind': 'available',
           'grossUsdMicros': final List<Object?> micros,
         }:
-          earning = true;
           for (final value in micros) {
-            if (value is int) gross += value;
+            if (value is! int) return kFigureUnavailable;
+            measured = true;
+            gross += value;
           }
         case {'kind': 'unavailable', 'reason': 'currencyRateUnavailable'}:
-          earning = true;
           unconverted = true;
       }
     }
   }
-  if (!earning) return kFigureUnavailable;
+  if (!measured) return kFigureUnavailable;
   final whole = '\$${groupedCount(_wholeDollars(gross))}';
   return unconverted ? '$whole so far' : whole;
 }

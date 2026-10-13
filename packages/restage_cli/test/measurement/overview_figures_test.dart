@@ -124,6 +124,46 @@ void main() {
     expect(figures.revenue, r'$3,000 so far');
   });
 
+  test('unavailable and malformed revenue amounts never become zero', () {
+    for (final revenue in [
+      {'kind': 'unavailable', 'reason': 'currencyRateUnavailable'},
+      {'kind': 'available', 'grossUsdMicros': <Object?>[]},
+      {
+        'kind': 'available',
+        'grossUsdMicros': <Object?>[null],
+      },
+      {
+        'kind': 'available',
+        'grossUsdMicros': <Object?>[1000000, null],
+      },
+    ]) {
+      final figures = overviewFiguresOf(
+        _reply({
+          'rows': [
+            _row([revenue]),
+          ],
+        }),
+      );
+      expect(figures.revenue, 'Not available', reason: '$revenue');
+    }
+  });
+
+  test('a measured zero remains a zero', () {
+    final figures = overviewFiguresOf(
+      _reply({
+        'rows': [
+          _row([
+            {
+              'kind': 'available',
+              'grossUsdMicros': [0],
+            },
+          ]),
+        ],
+      }),
+    );
+    expect(figures.revenue, r'$0');
+  });
+
   test('a reply with no page states nothing', () {
     expect(overviewFiguresOf('{"kind":"refused"}').sessions, 'Not available');
     expect(overviewFiguresOf('nope').revenue, 'Not available');
@@ -159,4 +199,33 @@ void main() {
     expect(lines['finished'], ['Stride 25.0%', 'Lumen Not available']);
     expect(lines['revenue'], [r'Stride $1,000', 'Lumen Not available']);
   });
+
+  test(
+    'all-app lines distinguish unavailable, measured zero and partial revenue',
+    () {
+      for (final (gross, unconverted, expected) in [
+        (0, true, 'Not available'),
+        (0, false, r'$0'),
+        (1000000000, true, r'$1,000 so far'),
+      ]) {
+        final lines = overviewAppLinesOf(
+          _reply({
+            'apps': [
+              {
+                'appName': 'Stride',
+                'figures': {
+                  'revenue': {
+                    'earning': true,
+                    'grossUsdMicros': gross,
+                    'unconverted': unconverted,
+                  },
+                },
+              },
+            ],
+          }),
+        );
+        expect(lines['revenue'], ['Stride $expected']);
+      }
+    },
+  );
 }

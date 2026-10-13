@@ -195,6 +195,9 @@ final lumenOnboardingFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class LumenOnboardingFlowSurface
     extends RestageFlowGraph<LumenOnboardingResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   LumenOnboardingFlowSurface({
     super.key,
     required CompiledFlowScreenBuilder paywallLumenWelcomeOfferScreenBuilder,
@@ -216,6 +219,9 @@ final class LumenOnboardingFlowSurface
           'paywall_lumen_welcome_offer': paywallLumenWelcomeOfferScreenBuilder,
         });
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenOnboardingFlowSurface] for the default placement; no name is needed.
   LumenOnboardingFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

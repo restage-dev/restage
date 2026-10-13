@@ -1,10 +1,15 @@
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart'
     show kCohortImpactNotePrefix;
+import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 
 abstract interface class ConsoleRepository {
   Future<ConsoleSnapshot> load();
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  });
   Future<SurfaceStatusResult> status(
     ConsoleSurface surface, {
     required ConsoleContext context,
@@ -28,13 +33,23 @@ class ConsoleController {
   final ConsoleOperationExecutor? _operationExecutor;
   ConsoleState _state = const ConsoleState.loading();
   int _exitCode = 0;
+  int _loadGeneration = 0;
+  int _overviewGeneration = 0;
+  int _statusGeneration = 0;
+  int _auditGeneration = 0;
 
   ConsoleState get state => _state;
   int get exitCode => _exitCode;
 
   Future<void> load() async {
+    final generation = ++_loadGeneration;
+    _overviewGeneration++;
+    _statusGeneration++;
+    _auditGeneration++;
+    _state = const ConsoleState.loading();
     try {
       final snapshot = await _repository.load();
+      if (generation != _loadGeneration) return;
       _state = ConsoleState(
         loading: false,
         focusedPanel: ConsolePanel.projects,
@@ -48,11 +63,13 @@ class ConsoleController {
         environments: snapshot.environments,
         surfaces: snapshot.surfaces,
         builds: snapshot.builds,
-        overview: snapshot.overview,
       );
-      await refreshStatus();
-      await refreshAudit();
+      await Future.wait([refreshOverview(), refreshStatus(), refreshAudit()]);
     } on ConsoleLoadException catch (e) {
+      if (generation != _loadGeneration) return;
+      _overviewGeneration++;
+      _statusGeneration++;
+      _auditGeneration++;
       _state = ConsoleState(
         loading: false,
         focusedPanel: ConsolePanel.projects,
@@ -65,26 +82,69 @@ class ConsoleController {
     }
   }
 
+  Future<void> refreshOverview() async {
+    final context = _state.context;
+    if (context == null) return;
+    final generation = ++_overviewGeneration;
+    _state = _state.copyWith(
+      clearOverview: true,
+      overviewLoading: true,
+      clearOverviewError: true,
+    );
+    try {
+      final figures = await _repository.overview(
+        context: context,
+        appCount: _state.apps.length,
+      );
+      if (generation != _overviewGeneration) return;
+      _state = _state.copyWith(
+        overview: figures,
+        clearOverview: figures == null,
+        overviewLoading: false,
+      );
+    } on ConsoleLoadException catch (e) {
+      if (generation != _overviewGeneration) return;
+      _state = _state.copyWith(
+        clearOverview: true,
+        overviewLoading: false,
+        overviewError: e.message,
+      );
+    }
+  }
+
   Future<void> refreshStatus() async {
     final surface = _state.selectedSurface;
     final context = _state.context;
     if (surface == null || context == null) return;
-    final status = await _repository.status(surface, context: context);
-    _state = _state.copyWith(status: status);
+    final generation = ++_statusGeneration;
+    _state = _state.copyWith(clearStatus: true);
+    try {
+      final status = await _repository.status(surface, context: context);
+      if (generation != _statusGeneration) return;
+      _state = _state.copyWith(status: status);
+    } on ConsoleLoadException catch (e) {
+      if (generation != _statusGeneration) return;
+      _state = _state.copyWith(
+        operationMessage: 'Surface status unavailable: ${e.message}',
+      );
+    }
   }
 
   Future<void> refreshAudit() async {
     final context = _state.context;
     if (context == null) return;
+    final generation = ++_auditGeneration;
     try {
       final verdict = await _repository.surfaceChainVerdict(context: context);
       final auditLog = await _repository.auditLog(context: context);
+      if (generation != _auditGeneration) return;
       _state = _state.copyWith(
         auditVerdict: verdict,
         auditLog: auditLog,
         clearAuditError: true,
       );
     } on ConsoleLoadException catch (e) {
+      if (generation != _auditGeneration) return;
       _state = _state.copyWith(auditError: e.message);
     }
   }
@@ -150,7 +210,7 @@ class ConsoleController {
         runtimePlane: environment.runtimePlane,
       ),
     );
-    await refreshStatus();
+    await Future.wait([refreshOverview(), refreshStatus()]);
   }
 
   void quit() {
@@ -333,7 +393,10 @@ class ConsoleController {
       return;
     }
     _state = _state.copyWith(operationMessage: 'Running...');
-    final result = await executor.runCommand(arguments);
+    final result = await executor.runCommand(
+      arguments,
+      context: _state.context,
+    );
     final message = _operationMessage(result);
     _state = _state.copyWith(
       operationMessage: message,

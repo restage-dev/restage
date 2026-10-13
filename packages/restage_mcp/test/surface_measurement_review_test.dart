@@ -48,6 +48,61 @@ DeliveryMeasurementMutationReviewV1 mutationReview(
   );
 }
 
+DeliveryMeasurementMutationReviewV1 exactVersionKillReview({
+  bool live = false,
+  int activationOrdinal = 2,
+  bool refused = false,
+}) {
+  final scope = DeliveryPolicyScopeV1(
+    root: DeliveryRootIdentityV1.surface(
+      PublishedSurfaceIdentityV1(
+        target: sampleTarget(live: live),
+        surfaceId: SurfaceId('first-run'),
+      ),
+    ),
+    family: DeliveryFamilySelectorV1.screenContract(contractVersion: 2),
+  );
+  final publications = [
+    for (final revision in [1, 3])
+      DeliveryPublicationReferenceV1(
+        surface: DeliverySurfaceReferenceV1(
+          surfaceIdentity: scope.root.surface!,
+          family: scope.family,
+        ),
+        publishedVersion: revision,
+        payloadFormatVersion: 2,
+        contentHash: CanonicalDigest('$revision' * 64),
+      ),
+  ];
+  final source = warningImpact(scope).affectedSources.single;
+  return DeliveryMeasurementMutationReviewV1(
+    operation: 'surfaceKill',
+    reviews: [
+      DeliveryMeasurementImpactReviewV1(
+        scope: scope,
+        operation: 'surfaceKill',
+        dependencyDigest: CanonicalDigest('a' * 64),
+        expectedLivePublications: [publications.last],
+        affectedSources: [
+          DeliveryMeasurementSourceImpactV1.fromJson({
+            ...source.toJson(),
+            'experimentReference': {
+              ...source.experimentReference.toJson(),
+              'activationOrdinal': activationOrdinal,
+            },
+            'affectedPublications': [
+              for (final publication in publications) publication.toJson(),
+            ],
+            'warningCode': 'scheduledOutputLost',
+          }),
+        ],
+      ),
+    ],
+    dependencyDigest: CanonicalDigest('b' * 64),
+    refusalCodes: refused ? ['impactAuthorityUnavailable'] : const [],
+  );
+}
+
 const surfaceArguments = <String, Object?>{
   'projectSlug': 'demo',
   'appSlug': 'mobile',
@@ -148,6 +203,151 @@ class SurfaceReviewHarness {
 }
 
 void main() {
+  test('dependency-free kill review has no experiment consequence', () async {
+    final h = await SurfaceReviewHarness.create();
+    addTearDown(h.dispose);
+    h.review = DeliveryMeasurementMutationReviewV1(
+      operation: 'surfaceKill',
+      reviews: const [],
+      dependencyDigest: CanonicalDigest('b' * 64),
+    );
+    final connection = await h.connect();
+    final reviewed = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_kill_surface',
+        arguments: {...surfaceArguments, 'reviewOnly': true},
+      ),
+    );
+    expect(reviewed.isError, isNot(true));
+    expect(h.mutations, isEmpty);
+    expect(reviewed.structuredContent!.containsKey('consequence'), false);
+    expect(jsonDecode(text(reviewed)), reviewed.structuredContent);
+  });
+  test(
+    'live kill exposes exact-version impact and requires its current acknowledgement',
+    () async {
+      final h = await SurfaceReviewHarness.create();
+      addTearDown(h.dispose);
+      h.review = exactVersionKillReview(live: true);
+      final connection = await h.connect();
+      final arguments = {
+        ...surfaceArguments,
+        'environmentSlug': 'production',
+        'runtimePlane': 'live',
+        'confirmLive': true,
+      };
+      final missing = await connection.callTool(
+        CallToolRequest(name: 'restage_kill_surface', arguments: arguments),
+      );
+      expect(missing.isError, true);
+      expect(h.mutations, isEmpty);
+      expect(
+        missing.structuredContent!['measurementReview'],
+        h.review.toJson(),
+      );
+      expect(missing.structuredContent!['acknowledgementRequired'], true);
+      expect(jsonDecode(text(missing)), missing.structuredContent);
+      for (final detail in [
+        'Welcome experiment',
+        'welcome-experiment',
+        'Completed welcome',
+        'scheduledOutputLost',
+        '"publishedVersion": 1',
+        '"publishedVersion": 3',
+        'stops fresh experimental delivery',
+        'saved results are unchanged',
+      ]) {
+        expect(text(missing), contains(detail));
+      }
+      expect(text(missing), isNot(contains('expectedLivePolicy')));
+      final reviewed = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_kill_surface',
+          arguments: {...arguments, 'reviewOnly': true},
+        ),
+      );
+      expect(reviewed.isError, isNot(true));
+      expect(h.mutations, isEmpty);
+      expect(
+        reviewed.structuredContent!['measurementReview'],
+        h.review.toJson(),
+      );
+      expect(jsonDecode(text(reviewed)), reviewed.structuredContent);
+      expect(text(reviewed), contains('stops fresh experimental delivery'));
+      final previous = h.review.digest.hex;
+      h.review = exactVersionKillReview(live: true, activationOrdinal: 3);
+      final stale = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_kill_surface',
+          arguments: {...arguments, 'reviewedDigest': previous},
+        ),
+      );
+      expect(stale.isError, true);
+      expect(h.mutations, isEmpty);
+      expect(stale.structuredContent!['reviewDigest'], h.review.digest.hex);
+      final accepted = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_kill_surface',
+          arguments: {
+            ...arguments,
+            'reviewedDigest': h.review.digest.hex,
+            'operationId': operationId,
+          },
+        ),
+      );
+      expect(accepted.isError, isNot(true), reason: text(accepted));
+      final proceed = DeliveryMeasurementMutationProceedV1.fromCanonicalBytes(
+        decodeByteDataWire(
+          h.mutations.single.body['measurementProceedBytes'],
+          malformed: FormatException.new,
+        ),
+      );
+      expect(proceed.acknowledges(h.review), true);
+      expect(proceed.operationId, operationId);
+      expect(proceed.acknowledgements.single.warningCodes, [
+        'scheduledOutputLost',
+      ]);
+    },
+  );
+  test(
+    'kill acknowledgement cannot override review or mutation refusals',
+    () async {
+      final h = await SurfaceReviewHarness.create();
+      addTearDown(h.dispose);
+      h.review = exactVersionKillReview(refused: true);
+      final connection = await h.connect();
+      final refused = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_kill_surface',
+          arguments: {
+            ...surfaceArguments,
+            'reviewedDigest': h.review.digest.hex,
+          },
+        ),
+      );
+      expect(refused.isError, true);
+      expect(h.mutations, isEmpty);
+      expect(
+        refused.structuredContent!['measurementReview'],
+        h.review.toJson(),
+      );
+      expect(text(refused), contains('impactAuthorityUnavailable'));
+      h.review = exactVersionKillReview();
+      h.refusal = 'review_stale';
+      final stale = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_kill_surface',
+          arguments: {
+            ...surfaceArguments,
+            'reviewedDigest': h.review.digest.hex,
+          },
+        ),
+      );
+      expect(stale.isError, true);
+      expect(h.mutations, hasLength(1));
+      expect(text(stale), contains('review_stale'));
+    },
+  );
   test(
     'identity-wide governance never carries partial family selectors from metadata',
     () async {

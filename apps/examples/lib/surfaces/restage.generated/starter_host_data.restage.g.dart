@@ -24,7 +24,7 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
   slug: 'starter_checklist',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 9,
+    builtInFloor: 10,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
@@ -46,9 +46,9 @@ final _starterChecklistProvenance = SurfaceScreenRuntimeProvenance.generated(
       SurfaceScreenBundleEntryReference(
         logicalPath: 'assets/general/screens/starter_checklist.capability.json',
         role: RestageBundleEntryRole.capabilitySidecar,
-        byteLength: 141,
+        byteLength: 142,
         sha256:
-            'sha256:198d7880f40c4036212f7078fbc19a359bf7cadcf24d5b3cc97f3e880be7196e',
+            'sha256:dfef376ff815373338893e037c344030e7f4e28b24a8aef0ba5ca48bc5389d68',
       ),
     ],
   ),
@@ -79,7 +79,7 @@ final starterChecklistRef = SurfaceScreenRef<
   provenance: _starterChecklistProvenance,
   eventContract: _starterChecklistEvents,
   measurementPublicationDraftDigest:
-      'e9e783e3f132de5897bf76153c94a31a376cdbe389e56900a820e67364fd39ab',
+      '84dcdbe78773bb177b95aad636ac6717e4afca920e25ba77c732bc32129d00d5',
 );
 
 StarterChecklistEvent _decodeValidatedStarterChecklistEvent(
@@ -145,6 +145,9 @@ final starterChecklistPlacementDefinition =
     () => _starterChecklistPlacementDefinitionValue;
 
 final class StarterChecklistSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const StarterChecklistSurface({
     required String owner,
     required List<ChecklistItem> items,
@@ -154,10 +157,14 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   })  : _restageArgument0 = owner,
         _restageArgument1 = items,
         _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [StarterChecklistSurface] for the default placement; no name is needed.
   const StarterChecklistSurface.atPlacement(
     String restagePlacementId, {
     required String owner,
@@ -167,6 +174,7 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   })  : _restageArgument0 = owner,
         _restageArgument1 = items,
         _restagePlacementName = restagePlacementId;
@@ -183,6 +191,8 @@ final class StarterChecklistSurface extends StatelessWidget {
   final ValueChanged<SurfaceScreenUnavailableError>? onUnavailable;
 
   final WidgetBuilder? loadingBuilder;
+
+  final SurfaceScreenUnavailablePolicy? unavailable;
 
   @override
   Widget build(BuildContext context) {
@@ -203,12 +213,13 @@ final class StarterChecklistSurface extends StatelessWidget {
             }
         ],
       },
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => StarterChecklist(
-          owner: _restageArgument0,
-          items: _restageArgument1,
-        ),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => StarterChecklist(
+              owner: _restageArgument0,
+              items: _restageArgument1,
+            ),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,

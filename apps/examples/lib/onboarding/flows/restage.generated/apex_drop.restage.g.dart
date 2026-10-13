@@ -6,20 +6,20 @@ const apexDropFlowRef = SurfaceFlowRef<
     ApexDropResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'apex_drop',
   version: 1,
-  minClient: 9,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeApexDropFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"apex_drop","initial":"apex_drop","minClient":9,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:2be9387241d683e1855efdafe8d3942b875e25a1b7f3c36bc4bfdb48b390cb30","minClient":9,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
+        '{"flow":"apex_drop","initial":"apex_drop","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:2be9387241d683e1855efdafe8d3942b875e25a1b7f3c36bc4bfdb48b390cb30","minClient":10,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
     screens: {
       'apex_drop': ApexDropScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'a96d2984c0709049ca5807cec45286c35272c13e2f405dce2799a4d0300db945',
+      'abbcdbeaab740ff15204bf9420fbafeb47865c9afc14b8da9a6cf519d3ada3fc',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -117,6 +117,9 @@ final apexDropFlowPlacementDefinition =
 
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class ApexDropFlowSurface extends RestageFlowGraph<ApexDropResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const ApexDropFlowSurface({
     super.key,
     String? placement,
@@ -135,6 +138,9 @@ final class ApexDropFlowSurface extends RestageFlowGraph<ApexDropResult> {
   })  : _restagePlacementName = placement,
         super(flow: apexDropFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [ApexDropFlowSurface] for the default placement; no name is needed.
   const ApexDropFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

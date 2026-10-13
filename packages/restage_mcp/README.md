@@ -143,10 +143,11 @@ the config.
 
 **Changes to a live target**
 
-One rule covers every tool. A call that changes what a live target serves is
-refused unless it sets `confirmLive: true`, and an agent sets it only after
-the user approves that change. Where a tool records a `reason`, a live change
-needs one. Reads never need `confirmLive`, and neither does a sandbox target.
+A call that changes what a live target serves requires `confirmLive: true`.
+An agent sets it only after the user approves that change. Where a tool records
+a `reason`, a live change needs one. Surface mutations retain this guard with
+`reviewOnly: true`, even though that call only returns the impact review.
+Ordinary reads and sandbox targets do not need `confirmLive`.
 
 The tools that change what a target serves are `restage_publish_surface`,
 `restage_rollback_surface`, `restage_kill_surface`,
@@ -156,8 +157,18 @@ The tools that change what a target serves are `restage_publish_surface`,
 more ask only for some calls: `restage_experiment_apply` for
 `activateDraft`, `pauseExperiment`, `resumeExperiment`, and
 `concludeExperiment`, and `restage_rebuild_serving_records` for a full
-rebuild (not `readinessOnly`). The CLI asks for the same changes; there,
-`--yes` or an interactive confirmation is the approval.
+rebuild (not `readinessOnly`). The CLI asks for the same changes. Most accept
+`--yes` after approval; live surface kill and rollback require an interactive
+confirmation.
+
+Measurement warnings require separate approval on either plane. Surface publish,
+rollback, kill, freeze and unfreeze accept `reviewOnly` to inspect impact and
+`reviewedDigest` to acknowledge the exact warning set. An agent must explain newly disclosed
+experiment impact and stop unless it is already authorized. `confirmLive`
+does not acknowledge warnings. Refusals block the change; stale reviews need
+refreshing. See the
+[review workflow](https://docs.restage.dev/tools/mcp-server#review-experiment-impact)
+for response fields and retry options.
 
 **Surfaces**
 
@@ -172,9 +183,9 @@ rebuild (not `readinessOnly`). The CLI asks for the same changes; there,
 | `restage_publish_surface` | Publish a pushed revision so it serves (admin). Without `revision`, publishes the latest one pushed. `showInApp` says how to mount it in an app. |
 | `restage_push_surface_draft` | Push a surface's saved dashboard draft as a new revision (admin). This does not make it live. |
 | `restage_pull_surface_draft` | Download a surface's saved dashboard draft as base64. |
-| `restage_rollback_preflight` | Check whether a rollback is compatible with the apps already installed, without changing anything. |
+| `restage_rollback_preflight` | Compare a rollback's compatibility with the current active version without changing anything. |
 | `restage_rollback_surface` | Make an earlier published version live again, with an audit reason (admin). Can also freeze the surface against new publishes. |
-| `restage_kill_surface` | Stop serving a surface in an environment, so the SDK falls back to its bundled copy (admin, audit reason). |
+| `restage_kill_surface` | Stop new hosted delivery; SDK cache and fallback policies apply (admin, audit reason). |
 | `restage_freeze_surface` / `restage_unfreeze_surface` | Stop or allow new publishes of a surface (admin, audit reason). |
 | `restage_list_paywalls` | List paywalls under a project and app. |
 
@@ -182,6 +193,10 @@ rebuild (not `readinessOnly`). The CLI asks for the same changes; there,
 `restage_push_surface` (or `restage_push_surface_draft`), then publish it with
 `restage_publish_surface`. Routing, below, decides which published version
 each audience receives.
+
+After a kill, devices may use eligible retained content or their configured
+fallback. Content already displayed is not necessarily removed immediately.
+Generated mounts include the original Flutter widgets as fallback.
 
 **Delivery routing (beta)**
 
@@ -192,7 +207,9 @@ Routing decides which published version each request receives.
 | `restage_read_routing` | Read the routing rules stored for one surface in one environment, with the revision to pass back when you publish. |
 | `restage_read_routing_revision` | Read an earlier revision of those rules, to review before restoring it. |
 | `restage_preview_routing` | Evaluate routing rules against a sample request without publishing them. |
-| `restage_publish_routing` | Publish a complete set of routing rules, replacing what is stored. |
+| `restage_review_routing` | Review a complete candidate policy and return its original impact review. |
+| `restage_publish_routing` | Publish the exact policy from the original server review. |
+| `restage_review_route_rollback` | Review restoring one route from an earlier policy revision. |
 | `restage_rollback_route` | Restore one route to an earlier revision and leave the rest unchanged. |
 | `restage_list_routing_audiences` | List the audiences a routing rule can name. |
 | `restage_routing_audience_usage` | List the experiments and routing rules that use one audience. |
@@ -292,7 +309,10 @@ command that fixes it.
 **Analytics and experiment reads**
 
 These tools are always registered. Each reads one page for an exact target and
-a window, and returns the service's reply unchanged.
+returns the service's reply unchanged. Most analytics default to the last 30 days;
+experiment results default to the whole accepted run. A selected date window
+filters descriptive traffic breakdowns. Experiment inference remains tied to the
+retained epoch and design.
 
 | Tool | What it does |
 | --- | --- |
@@ -304,17 +324,16 @@ a window, and returns the service's reply unchanged.
 | `restage_read_experiments` | Experiments with their status. |
 | `restage_read_experiment` | One experiment's summary, variants and safety metrics. |
 
-**Experiments (beta)**
+**Experiments**
 
-These tools register only when the host sets `RESTAGE_EXPERIMENTAL=1` in the
-server's environment, because Restage Cloud does not serve these operations
-yet.
+These tools are registered by default. Create and edit a draft at the selected
+target, validate it, review the current revision, then activate that reviewed
+revision. Read results before deciding whether to pause, resume or conclude it.
 
 | Tool | What it does |
 | --- | --- |
 | `restage_experiment_apply` | Apply one experiment operation at a target: drafting, validation, review, activation, pausing, concluding, archiving, and reads. |
 | `restage_rebuild_serving_records` | Create any serving records an experiment target is missing, and report what is still missing. |
-| `restage_apply_canonical_mutation` | Apply one pre-encoded (base64) measurement or experiment request. For tooling that already produces these requests. |
 
 `restage_experiment_apply` takes an `operation` chosen from a fixed list and
 a `payload`. For `replaceDraft`, pass the accepted result envelope from any
@@ -325,8 +344,11 @@ other operations, `payload` is the operation's own document. Unknown
 properties are rejected before a request is sent. Pass `idempotencyKey` for
 an operation that changes state. A service refusal returns its code.
 
-Results come back as decimals together with the counts they were computed
-from, unrounded.
+The `readExperimentResults` operation returns unrounded decimal results and their
+supporting counts. It requires `experimentId`, `activationOrdinal` and
+`resultDigest`; take the latter two from the `readExperiment` response's
+`summary.activationOrdinal` and `inferenceReference.resultDigest`. This is separate
+from the `restage_read_experiment` analytics page.
 
 An agent can work in a loop: read results with
 `restage_read_experiments` or `restage_read_experiment`, read a
@@ -334,8 +356,14 @@ surface's funnel with `restage_read_surface_funnel`, push the next onboarding
 flow, survey, message, or paywall with `restage_push_surface`, publish it with
 `restage_publish_surface`, and roll back with `restage_rollback_surface` if the numbers say so.
 
-Experiment writes to a live target follow the same live-change rule as
-every other tool: they need `confirmLive: true`.
+Activation, pause, resume and conclusion at a live target require
+`confirmLive: true`. A full serving-record rebuild does too; a readiness-only
+check does not.
+
+The low-level `restage_apply_canonical_mutation` and `restage_activate_experiment`
+tools retain the `RESTAGE_EXPERIMENTAL=1` opt-in. The former accepts pre-encoded
+requests; the latter also requires an injected activation API. These integration
+tools are separate from the normal `restage_experiment_apply` workflow.
 
 ## Security
 

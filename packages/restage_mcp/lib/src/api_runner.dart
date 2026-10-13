@@ -73,6 +73,7 @@ Future<CallToolResult> guardErrors(
         'measurementReview': e.review.toJson(),
         'reviewDigest': e.review.digest.hex,
         'acknowledgementRequired': true,
+        'consequence': ?deliveryMeasurementMutationConsequence(e.review),
       });
       return CallToolResult(
         isError: true,

@@ -202,7 +202,7 @@ void renderDeliveryMapPage(
     out.writeln(
       _line([
         '${figureAt(surface, ['surfaceSlug'])}',
-        fits.isEmpty ? 'Fits no reported spot' : 'Fits ${fits.join(', ')}',
+        fits.isEmpty ? 'Fits no reported placement' : 'Fits ${fits.join(', ')}',
       ]),
     );
   }

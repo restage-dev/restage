@@ -148,6 +148,9 @@ final lumenTrialEndingScreenPlacementDefinition =
     () => _lumenTrialEndingScreenPlacementDefinitionValue;
 
 final class LumenTrialEndingScreenSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const LumenTrialEndingScreenSurface({
     super.key,
     String? placement,
@@ -155,8 +158,12 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenTrialEndingScreenSurface] for the default placement; no name is needed.
   const LumenTrialEndingScreenSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -164,6 +171,7 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -176,6 +184,8 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<LumenTrialEndingScreenEvent>(
@@ -184,9 +194,10 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
         definition: lumenTrialEndingScreenPlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => LumenTrialEndingScreen(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => LumenTrialEndingScreen(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,

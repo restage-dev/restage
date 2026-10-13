@@ -7,17 +7,19 @@ part 'restage.generated/lumen_cancel_flow.restage.g.dart';
 /// The reason a cancelled meditation subscription gives, captured once.
 const lumenCancelReason = FlowStateRef<String>(
   'reason',
+  defaultValue: '',
   classification: FlowStateClassification.exportable,
 );
 
 /// The optional note the user types, returned with the result only.
 const lumenCancelNote = FlowStateRef<String>(
   'note',
+  defaultValue: '',
   classification: FlowStateClassification.exportable,
 );
 
 /// Exit survey with a measured answer and an optional unmeasured note.
-/// Both reach the terminal result. Skipping completes without a captured answer.
+/// Skipping returns empty strings; only a changed reason emits an answer event.
 @FlowGraph(id: 'lumen_cancel', surface: Surface.survey)
 const lumenCancel = FlowDefinition(
   start: LumenCancelReasonScreen,

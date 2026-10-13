@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
+import 'package:restage_cli/src/measurement/overview_figures.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:test/test.dart';
 
@@ -75,6 +78,185 @@ void main() {
     expect(controller.state.context?.namedEnvironmentId, 41);
     expect(controller.state.context?.runtimePlane, RuntimePlane.live);
     expect(repo.statusTargetIds, [31, 32]);
+    expect(
+      repo.overviewContexts.map(
+        (c) => (c.environmentTargetId, c.namedEnvironmentId, c.runtimePlane),
+      ),
+      [(31, 41, RuntimePlane.sandbox), (32, 41, RuntimePlane.live)],
+    );
+    expect(controller.state.overview?.sessions, '32');
+  });
+
+  test(
+    'environment overview clears before loading and replaces figures',
+    () async {
+      final repo = FakeConsoleRepository();
+      final controller = ConsoleController(repository: repo);
+      await controller.load();
+      expect(controller.state.overview?.sessions, '12');
+      expect(repo.overviewContexts, hasLength(1));
+
+      final next = Completer<OverviewFigures?>();
+      repo.readOverview = (_) => next.future;
+      final selecting = controller.selectEnvironment(0);
+      expect(controller.state.context?.environmentTargetId, 13);
+      expect(controller.state.overview, isNull);
+      expect(controller.state.overviewLoading, isTrue);
+      expect(controller.state.overviewError, isNull);
+
+      next.complete(_figures('250'));
+      await selecting;
+      expect(controller.state.overview?.sessions, '250');
+      expect(controller.state.overviewLoading, isFalse);
+    },
+  );
+
+  test(
+    'failed overview clears figures and successful retry clears error',
+    () async {
+      final repo = FakeConsoleRepository();
+      final controller = ConsoleController(repository: repo);
+      await controller.load();
+      repo.readOverview = (_) async =>
+          throw const ConsoleLoadException('Read failed.');
+
+      await controller.selectEnvironment(0);
+      expect(controller.state.overview, isNull);
+      expect(controller.state.overviewLoading, isFalse);
+      expect(controller.state.overviewError, 'Read failed.');
+      expect(controller.state.error, isNull);
+
+      final next = Completer<OverviewFigures?>();
+      repo.readOverview = (_) => next.future;
+      final retry = controller.refreshOverview();
+      expect(controller.state.overviewError, isNull);
+      next.complete(_figures('75'));
+      await retry;
+      expect(controller.state.overview?.sessions, '75');
+      expect(controller.state.overviewError, isNull);
+    },
+  );
+
+  test('an unavailable overview never retains previous figures', () async {
+    final repo = FakeConsoleRepository();
+    final controller = ConsoleController(repository: repo);
+    await controller.load();
+    repo.readOverview = (_) async => null;
+
+    await controller.selectEnvironment(0);
+    expect(controller.state.overview, isNull);
+    expect(controller.state.overviewLoading, isFalse);
+    expect(controller.state.overviewError, isNull);
+  });
+
+  for (final failLate in [false, true]) {
+    test(
+      'late overview ${failLate ? 'failure' : 'success'} cannot replace newer selection',
+      () async {
+        final repo = FakeConsoleRepository();
+        final controller = ConsoleController(repository: repo);
+        await controller.load();
+        final old = Completer<OverviewFigures?>();
+        final latest = Completer<OverviewFigures?>();
+        repo.readOverview = (context) =>
+            context.environmentTargetId == 13 ? old.future : latest.future;
+
+        final first = controller.selectEnvironment(0);
+        final second = controller.selectEnvironment(1);
+        latest.complete(_figures('500'));
+        await second;
+        if (failLate) {
+          old.completeError(const ConsoleLoadException('Old error.'));
+        } else {
+          old.complete(_figures('300'));
+        }
+        await first;
+        expect(controller.state.context?.environmentTargetId, 12);
+        expect(controller.state.overview?.sessions, '500');
+        expect(controller.state.overviewError, isNull);
+        expect(controller.state.overviewLoading, isFalse);
+      },
+    );
+  }
+
+  test(
+    'overlapping refreshes of one target retain the newest response',
+    () async {
+      final repo = FakeConsoleRepository();
+      final controller = ConsoleController(repository: repo);
+      await controller.load();
+      final old = Completer<OverviewFigures?>();
+      final latest = Completer<OverviewFigures?>();
+      repo.readOverview = (_) => old.future;
+      final first = controller.refreshOverview();
+      repo.readOverview = (_) => latest.future;
+      final second = controller.refreshOverview();
+      latest.complete(_figures('500'));
+      await second;
+      old.complete(_figures('300'));
+      await first;
+      expect(controller.state.overview?.sessions, '500');
+    },
+  );
+
+  test(
+    'full reload invalidates an overview while changing project and app',
+    () async {
+      final repo = ReloadableConsoleRepository();
+      final controller = ConsoleController(repository: repo);
+      await controller.load();
+      final previous = Completer<OverviewFigures?>();
+      repo.readOverview = (_) => previous.future;
+      final refresh = controller.refreshOverview();
+      final replacement = Completer<ConsoleSnapshot>();
+      repo.nextLoad = () => replacement.future;
+      final reload = controller.load();
+      expect(controller.state.loading, isTrue);
+      expect(controller.state.overview, isNull);
+      previous.complete(_figures('300'));
+      await refresh;
+      expect(controller.state.overview, isNull);
+
+      repo.readOverview = (_) async => _figures('700');
+      replacement.complete(_replacementSnapshot);
+      await reload;
+      expect(controller.state.context?.project, 'beta');
+      expect(controller.state.context?.appId, 6);
+      expect(controller.state.overview?.sessions, '700');
+      expect(repo.overviewContexts.last.appId, 6);
+    },
+  );
+
+  test('late snapshot cannot replace a newer full reload', () async {
+    final repo = ReloadableConsoleRepository();
+    final controller = ConsoleController(repository: repo);
+    final oldSnapshot = await repo.load();
+    final previous = Completer<ConsoleSnapshot>();
+    repo.nextLoad = () => previous.future;
+    final first = controller.load();
+    repo.nextLoad = () async => _replacementSnapshot;
+    await controller.load();
+    previous.complete(oldSnapshot);
+    await first;
+    expect(controller.state.context?.project, 'beta');
+    expect(controller.state.context?.appId, 6);
+    expect(repo.overviewContexts, hasLength(1));
+    expect(controller.state.overview?.sessions, '52');
+  });
+
+  test('status failure leaves the selected overview available', () async {
+    final controller = ConsoleController(
+      repository: FailedStatusConsoleRepository(),
+    );
+    await controller.load();
+    await controller.selectEnvironment(0);
+    expect(controller.state.error, isNull);
+    expect(controller.state.overview?.sessions, '13');
+    expect(controller.state.status, isNull);
+    expect(
+      controller.state.operationMessage,
+      'Surface status unavailable: Status failed.',
+    );
   });
 
   test('tab cycles panels', () async {
@@ -182,6 +364,7 @@ void main() {
     await controller.runCommand(['surface', 'history', 'pro']);
 
     expect(executor.commands.single, ['surface', 'history', 'pro']);
+    expect(executor.commandContexts.single, same(controller.state.context));
     expect(controller.state.commandOutput!.lines, [
       'REVISION\tACTIVE',
       'r3\ttrue',
@@ -227,6 +410,18 @@ void main() {
 class FakeConsoleRepository implements ConsoleRepository {
   final statusEnvironments = <String>[];
   final statusTargetIds = <int>[];
+  final overviewContexts = <ConsoleContext>[];
+  Future<OverviewFigures?> Function(ConsoleContext context)? readOverview;
+
+  @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) async {
+    overviewContexts.add(context);
+    if (readOverview != null) return readOverview!(context);
+    return _figures(context.environmentTargetId.toString());
+  }
 
   @override
   Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
@@ -417,13 +612,62 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   }) async => _result();
 
   final commands = <List<String>>[];
+  final commandContexts = <ConsoleContext?>[];
 
   @override
-  Future<ConsoleOperationResult> runCommand(List<String> arguments) async {
+  Future<ConsoleOperationResult> runCommand(
+    List<String> arguments, {
+    ConsoleContext? context,
+  }) async {
     commands.add(arguments);
+    commandContexts.add(context);
     return _result();
   }
 
   ConsoleOperationResult _result() =>
       ConsoleOperationResult(exitCode: 0, stdout: nextStdout, stderr: '');
 }
+
+OverviewFigures _figures(String sessions) =>
+    OverviewFigures(sessions: sessions, finished: '20%', revenue: r'$10');
+
+class ReloadableConsoleRepository extends FakeConsoleRepository {
+  Future<ConsoleSnapshot> Function()? nextLoad;
+
+  @override
+  Future<ConsoleSnapshot> load() => nextLoad?.call() ?? super.load();
+}
+
+class FailedStatusConsoleRepository extends FakeConsoleRepository {
+  @override
+  Future<SurfaceStatusResult> status(
+    ConsoleSurface surface, {
+    required ConsoleContext context,
+  }) async {
+    throw const ConsoleLoadException('Status failed.');
+  }
+}
+
+const _replacementSnapshot = ConsoleSnapshot(
+  context: ConsoleContext(
+    organizationSlug: 'restage',
+    project: 'beta',
+    appId: 6,
+    app: 'web',
+    environmentTargetId: 52,
+    namedEnvironmentId: 22,
+    environment: 'staging',
+    runtimePlane: RuntimePlane.live,
+  ),
+  projects: [ConsoleProject(slug: 'beta', name: 'Beta')],
+  apps: [ConsoleAppTarget(appId: 6, slug: 'web', name: 'Web')],
+  environments: [
+    ConsoleEnvironmentTarget(
+      environmentTargetId: 52,
+      namedEnvironmentId: 22,
+      slug: 'staging',
+      runtimePlane: RuntimePlane.live,
+    ),
+  ],
+  surfaces: [],
+);

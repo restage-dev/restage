@@ -112,9 +112,13 @@ restage doctor
 server when you are signed in. `login` and the other commands talk to
 Restage Cloud, or to the backend URL you configure.
 
-`surface kill` turns a surface off in an environment, so apps fall back to
-the version bundled with them. `surface freeze` stops new publishes to a
-surface until you unfreeze it. `surface results` reads the surface's funnel:
+`surface kill` stops new hosted delivery in an environment. Devices may use
+eligible retained content or their configured fallback; generated mounts include
+the original Flutter widgets as fallback. Content already displayed is not
+necessarily removed immediately.
+
+`surface freeze` stops new publishes until you unfreeze the surface.
+`surface results` reads the surface's funnel:
 views, steps, drop-off, and completions per published version.
 
 In the console, `p` pushes the selected surface and `l` publishes its latest
@@ -123,6 +127,20 @@ freeze, and unfreeze also ask you to type `confirm`; rollback always does. Type 
 `restage surface history welcome`, to run it there and read its output. Pushes,
 publishes and other actions show their full output there too, with next steps
 written as console commands.
+
+The overview shows analytics for the selected app, environment, and plane.
+Switching targets clears the previous figures while the new overview loads.
+Unavailable figures show `Not available`; counts below the disclosure floor show
+`<5`. Neither is shown as zero.
+
+Commands inherit the console's selected organization, project, app, environment,
+and plane wherever the command supports those options. An explicit
+`--organization`, `--project`, `--app`, `--env`, or `--plane` overrides that part
+of the selection for that command. The output panel shows the command and its
+effective target options. For example, type `/` and enter
+`restage analytics overview --plane live` to read the selected environment's live
+plane. Commands such as `restage help` work without a target. Keep the `restage`
+prefix: text without it searches surfaces.
 
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts. A required value with no default then exits non-zero with a
@@ -136,6 +154,15 @@ Commands that change what the live plane serves ask first. `surface publish`,
 refuse `--yes` on the live plane and need an interactive confirmation. On a
 sandbox target the first group does not ask, and kill and rollback accept
 `--yes`.
+
+Measurement warnings require separate acknowledgement, including on sandbox
+targets. Use `--review-measurement` on surface publish, rollback, kill, freeze
+or unfreeze to inspect impact without applying the change. Review the affected
+experiments and metrics before supplying `--reviewed-digest`; `--yes` and the
+console's confirmation do not acknowledge these warnings. Refusals block the
+change, and stale reviews need refreshing. See the
+[review workflow](https://docs.restage.dev/tools/cli#review-experiment-impact)
+for approval and retry options.
 
 List commands such as `restage apps` and `restage targets` print a table with a
 header row. Scripts should pass `--json`.
@@ -346,8 +373,11 @@ in `restage_config.yaml`, and it is never written to the credentials file.
 ## Analytics and experiment reads
 
 The Analytics pages and the experiment pages are readable from the terminal.
-Each command reads one page for one target and window (`--from`, `--until`; the
-last 30 days by default). `--json` prints the service's reply unchanged.
+Each command reads one page for one target. Most analytics default to the last
+30 days; use `--from` and `--until` to select a window. Experiment results default
+to the whole accepted run. Selected dates filter descriptive traffic breakdowns;
+experiment inference remains tied to the retained epoch and design.
+`--json` prints the service's reply unchanged.
 
 ```sh
 restage analytics overview
@@ -360,26 +390,30 @@ restage experiment list
 restage experiment results --experiment <id>
 ```
 
-## Experiments (beta)
+These commands and their options also work in the console's `/` field, including
+`restage analytics overview --all-apps` for every app in the selected environment
+and plane. Use `--help` on a command to see its supported filters and options.
 
-`restage experiment` has one subcommand per experiment operation: drafting,
-validation, review, activation, pausing, concluding, and reading. The write
-subcommands are hidden until you set `RESTAGE_EXPERIMENTAL=1`, because
-Restage Cloud does not serve these operations yet. `list` and `results` are
-always available. Run `restage experiment --help` for the full list.
+## Experiments
+
+`restage experiment` supports discovery, drafting, validation, review, activation,
+pausing, resuming, concluding and results. These commands are available by default.
+Discover the target's surfaces and metrics, create and edit a draft, then validate
+and review its current revision before activating it. Run
+`restage experiment --help` for the full list.
 
 ```sh
 restage experiment discover
 restage experiment create
 restage experiment save --replacement draft.json
 restage experiment validate --draft-id <id> --draft-revision-id <rev> \
-  --expected-cas <token>
+  --expected-cas <token> --json
 restage experiment review --draft-id <id> --draft-revision-id <rev> \
   --expected-cas <token>
 restage experiment activate --draft-id <id> --draft-revision-id <rev> \
   --expected-cas <token> --review-id <id> --review-digest <digest> --yes
 
-restage experiment read --experiment-id <id>
+restage experiment read --experiment-id <id> --json
 restage experiment pause --experiment-id <id> --expected-lifecycle-ordinal <n>
 ```
 
@@ -398,8 +432,11 @@ run `resolve-draft` again before saving.
 
 `--json` prints the service's response unchanged. A write that changes live
 state needs `--yes` or an interactive confirmation. Writes send an idempotency
-key (one per run, or pass `--idempotency-key`), so a retry never applies an
-operation twice.
+key. Reuse the same explicit `--idempotency-key` when retrying an operation.
+
+The low-level `mutation` and injected `experiment-activation` integrations retain
+their separate `RESTAGE_EXPERIMENTAL=1` opt-in. Normal `restage experiment`
+commands, including `rebuild-serving-records`, do not need it.
 
 ## Generated files
 

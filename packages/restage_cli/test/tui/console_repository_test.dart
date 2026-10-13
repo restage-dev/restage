@@ -1,12 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:restage_cli/src/tui/console_repository.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    hide RuntimePlane;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as measurement
+    show RuntimePlane;
 import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
@@ -217,6 +224,278 @@ void main() {
       },
     );
   }
+
+  for (final plane in RuntimePlane.values) {
+    test(
+      'overview reads selected exact target on ${plane.wireName}, including all apps',
+      () async {
+        await seedCredential(store);
+        await seedRestageConfig(
+          tempDir,
+          'alpha',
+          'mobile',
+          defaultEnvironment: 'staging',
+          organization: 'restage',
+          endpoint: 'http://localhost:8080/',
+        );
+        final targetId = plane == RuntimePlane.live ? 32 : 31;
+        final requests = <Map<String, dynamic>>[];
+        final repo = DefaultConsoleRepository(
+          credentialStore: store,
+          directory: tempDir,
+          httpClient: mockHttpClient((request) {
+            if (request.url.path == '/scope') return _scopeSnapshot(request);
+            if (request.url.path == '/renderBundle') {
+              return http.Response('[]', 200);
+            }
+            expect(request.url.path, '/measurementRead');
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            requests.add(body);
+            expect(body['organizationId'], 7);
+            expect(body['namedEnvironmentId'], 41);
+            expect(body['runtimePlane'], plane.wireName);
+            final allApps = body['method'] == 'readOverviewAppsPage';
+            if (!allApps) {
+              expect(body['appId'], 5);
+              expect(body['environmentTargetId'], targetId);
+            } else {
+              expect(body, isNot(contains('appId')));
+              expect(body, isNot(contains('environmentTargetId')));
+            }
+            return _overviewResponse(
+              targetId: targetId,
+              plane: plane,
+              document: allApps
+                  ? {
+                      'apps': [
+                        {
+                          'appName': 'Mobile',
+                          'figures': {
+                            'sessions': {'value': targetId},
+                            'flowsFinished': {'value': 1},
+                            'flowsEligible': {'value': 2},
+                            'revenue': {'earning': false},
+                          },
+                        },
+                      ],
+                    }
+                  : {
+                      'sessions': {
+                        'counts': {
+                          'distinctKnownSessions': targetId,
+                          'distinctSessions': targetId,
+                        },
+                      },
+                    },
+            );
+          }, withDefaultTargetDiscovery: false),
+        );
+        final snapshot = await repo.load();
+        expect(
+          requests,
+          isEmpty,
+          reason: 'Snapshot discovery must not read the overview.',
+        );
+        final selected = snapshot.context.copyWith(
+          environmentTargetId: targetId,
+          namedEnvironmentId: 41,
+          environment: 'prod',
+          runtimePlane: plane,
+        );
+        final figures = await repo.overview(context: selected, appCount: 2);
+        expect(requests.map((r) => r['method']), [
+          'readOverviewPage',
+          'readOverviewAppsPage',
+        ]);
+        expect(figures?.sessions, '$targetId');
+        expect(figures?.appLines['sessions'], ['Mobile $targetId']);
+        for (final key in ['windowStartMicros', 'windowEndExclusiveMicros']) {
+          expect(requests[0][key], isA<int>());
+          expect(requests[1][key], requests[0][key]);
+        }
+      },
+    );
+  }
+
+  for (final failure in [
+    'request',
+    'mismatched target',
+    'all apps',
+    'malformed response',
+  ]) {
+    test(
+      'overview reports $failure failure instead of retaining figures',
+      () async {
+        await seedCredential(store);
+        await seedRestageConfig(
+          tempDir,
+          'alpha',
+          'mobile',
+          defaultEnvironment: 'prod',
+          organization: 'restage',
+          endpoint: 'http://localhost:8080/',
+        );
+        var reads = 0;
+        final repo = DefaultConsoleRepository(
+          credentialStore: store,
+          directory: tempDir,
+          httpClient: mockHttpClient((request) {
+            if (request.url.path == '/scope') {
+              return _sameSlugScopeSnapshot(request);
+            }
+            if (request.url.path == '/renderBundle') {
+              return http.Response('[]', 200);
+            }
+            reads++;
+            if (failure == 'malformed response') {
+              return http.Response('not json', 200);
+            }
+            if (failure == 'request' || failure == 'all apps' && reads == 2) {
+              return http.Response('Unavailable', 503);
+            }
+            return _overviewResponse(
+              targetId: failure == 'mismatched target' ? 32 : 31,
+              plane: RuntimePlane.sandbox,
+              document: {
+                'sessions': {
+                  'counts': {
+                    'distinctKnownSessions': 500,
+                    'distinctSessions': 500,
+                  },
+                },
+              },
+            );
+          }, withDefaultTargetDiscovery: false),
+        );
+        final snapshot = await repo.load();
+        await expectLater(
+          repo.overview(
+            context: snapshot.context,
+            appCount: failure == 'all apps' ? 2 : 1,
+          ),
+          throwsA(isA<ConsoleLoadException>()),
+        );
+        expect(reads, failure == 'all apps' ? 2 : 1);
+      },
+    );
+  }
+
+  test(
+    'an unavailable overview reply keeps every figure unavailable',
+    () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'alpha',
+        'mobile',
+        defaultEnvironment: 'prod',
+        organization: 'restage',
+        endpoint: 'http://localhost:8080/',
+      );
+      final repo = DefaultConsoleRepository(
+        credentialStore: store,
+        directory: tempDir,
+        httpClient: mockHttpClient((request) {
+          if (request.url.path == '/scope') {
+            return _sameSlugScopeSnapshot(request);
+          }
+          if (request.url.path == '/renderBundle') {
+            return http.Response('[]', 200);
+          }
+          return _overviewResponse(
+            targetId: 31,
+            plane: RuntimePlane.sandbox,
+            document: const {},
+          );
+        }, withDefaultTargetDiscovery: false),
+      );
+      final snapshot = await repo.load();
+      final figures = await repo.overview(
+        context: snapshot.context,
+        appCount: 1,
+      );
+      expect(figures?.sessions, 'Not available');
+      expect(figures?.finished, 'Not available');
+      expect(figures?.revenue, 'Not available');
+    },
+  );
+
+  test(
+    'a late snapshot cannot replace the repository session or saved config',
+    () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'alpha',
+        'mobile',
+        defaultEnvironment: 'prod',
+        organization: 'restage',
+        endpoint: 'http://localhost:8080/',
+      );
+      final firstEntered = Completer<void>();
+      final firstScope = Completer<http.Response>();
+      http.Request? previousRequest;
+      var scopeReads = 0;
+      final repo = DefaultConsoleRepository(
+        credentialStore: store,
+        directory: tempDir,
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/scope') {
+            scopeReads++;
+            if (scopeReads == 1) {
+              previousRequest = request;
+              firstEntered.complete();
+              return firstScope.future;
+            }
+            final response =
+                jsonDecode(_sameSlugScopeSnapshot(request).body)
+                    as Map<String, dynamic>;
+            response['organizationId'] = 8;
+            return http.Response(jsonEncode(response), 200);
+          }
+          if (request.url.path == '/renderBundle') {
+            return http.Response('[]', 200);
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['organizationId'], 8);
+          return _overviewResponse(
+            organizationId: 8,
+            targetId: 31,
+            plane: RuntimePlane.sandbox,
+            document: {
+              'sessions': {
+                'counts': {'distinctKnownSessions': 80, 'distinctSessions': 80},
+              },
+            },
+          );
+        }),
+      );
+      final first = repo.load();
+      await firstEntered.future;
+      await seedRestageConfig(
+        tempDir,
+        'alpha',
+        'mobile',
+        defaultEnvironment: 'prod',
+        organization: 'other',
+        endpoint: 'http://localhost:8080/',
+      );
+      final current = await repo.load();
+      firstScope.complete(_sameSlugScopeSnapshot(previousRequest!));
+      final previous = await first;
+      expect(previous.context.organizationSlug, 'restage');
+      expect(current.context.organizationSlug, 'other');
+      final figures = await repo.overview(
+        context: current.context,
+        appCount: 1,
+      );
+      expect(figures?.sessions, '80');
+      expect(
+        await File(p.join(tempDir.path, 'restage_config.yaml')).readAsString(),
+        contains('organization: other'),
+      );
+    },
+  );
 
   test('names a key restage_config.yaml does not set', () async {
     await seedCredential(store);
@@ -430,3 +709,29 @@ http.Response _scopeResponse(http.Request request, {required bool prodLegacy}) {
     200,
   );
 }
+
+http.Response _overviewResponse({
+  int organizationId = 7,
+  required int targetId,
+  required RuntimePlane plane,
+  required Map<String, Object?> document,
+}) => http.Response(
+  jsonEncode(
+    jsonEncode({
+      'kind': 'served',
+      'target': TargetCoordinate(
+        organizationId: OrganizationId(organizationId),
+        appId: ApplicationId(5),
+        environmentTargetId: EnvironmentTargetId(targetId),
+        namedEnvironmentId: NamedEnvironmentId(41),
+        runtimePlane: plane == RuntimePlane.live
+            ? measurement.RuntimePlane.live
+            : measurement.RuntimePlane.sandbox,
+      ).toJson(),
+      'projections': [
+        {'document': document},
+      ],
+    }),
+  ),
+  200,
+);

@@ -118,6 +118,9 @@ final generalStatusPlacementDefinition =
     () => _generalStatusPlacementDefinitionValue;
 
 final class GeneralStatusSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const GeneralStatusSurface({
     super.key,
     String? placement,
@@ -125,8 +128,12 @@ final class GeneralStatusSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [GeneralStatusSurface] for the default placement; no name is needed.
   const GeneralStatusSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -134,6 +141,7 @@ final class GeneralStatusSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -146,6 +154,8 @@ final class GeneralStatusSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<GeneralStatusEvent>(
@@ -154,9 +164,10 @@ final class GeneralStatusSurface extends StatelessWidget {
         definition: generalStatusPlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => GeneralStatus(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => GeneralStatus(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,
@@ -281,6 +292,9 @@ final messageNoticePlacementDefinition =
     () => _messageNoticePlacementDefinitionValue;
 
 final class MessageNoticeSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const MessageNoticeSurface({
     super.key,
     String? placement,
@@ -288,8 +302,12 @@ final class MessageNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [MessageNoticeSurface] for the default placement; no name is needed.
   const MessageNoticeSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -297,6 +315,7 @@ final class MessageNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -309,6 +328,8 @@ final class MessageNoticeSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<MessageNoticeEvent>(
@@ -317,9 +338,10 @@ final class MessageNoticeSurface extends StatelessWidget {
         definition: messageNoticePlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => MessageNotice(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => MessageNotice(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,
@@ -443,6 +465,9 @@ final onboardingWelcomePlacementDefinition =
     () => _onboardingWelcomePlacementDefinitionValue;
 
 final class OnboardingWelcomeSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const OnboardingWelcomeSurface({
     super.key,
     String? placement,
@@ -450,8 +475,12 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [OnboardingWelcomeSurface] for the default placement; no name is needed.
   const OnboardingWelcomeSurface.atPlacement(
     String restagePlacementId, {
     super.key,
@@ -459,6 +488,7 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.unavailable,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -471,6 +501,8 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
+  final SurfaceScreenUnavailablePolicy? unavailable;
+
   @override
   Widget build(BuildContext context) {
     return RestageScreen<OnboardingWelcomeEvent>(
@@ -479,9 +511,10 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
         definition: onboardingWelcomePlacementDefinition,
         name: _restagePlacementName,
       ),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => OnboardingWelcome(),
-      ),
+      unavailable: unavailable ??
+          SurfaceScreenUnavailablePolicy.fallback(
+            builder: (context, error) => OnboardingWelcome(),
+          ),
       onEvent: onEvent,
       resolver: resolver,
       onUnavailable: onUnavailable,

@@ -5,24 +5,8 @@ import 'package:restage/restage.dart';
 
 import 'flows/stride_first_run.dart';
 
-/// Hosts Stride's first-run onboarding — a **general-delivery** flow.
-///
-/// The host side is the same shape as any engagement surface: supply the host
-/// action, act on the outcomes, and fail closed. What differs from a typed flow
-/// is the result type — `RestageFlowGraph<Map<String, Object?>>`. The flow is
-/// authored in general mode (`delivery: FlowDeliveryMode.general`), so there is
-/// no generated result class; `onComplete` receives a plain `Map` — the
-/// outbound-declared fields, already filtered by the runtime — and the host
-/// reads them (`result['completed']`). Everything else — the host action, the
-/// custom-event listener, the fail-closed fallback — is identical to a typed
-/// flow.
-///
-/// This demo ships the flow as a bundled asset (no backend). A production app
-/// delivers it over the air by injecting a `ServerFlowResolver` once at startup;
-/// general delivery lets the server recompose the graph without an app release,
-/// bounded to the vocabulary this app installs. See
-/// `main_stride_general_demo.dart` for the active-arm variant pointed at a
-/// backend.
+/// Hosts a general-delivery flow with the generated StrideFirstRunFlowSurface.
+/// Completion returns the flow's declared fields as a `Map<String, Object?>`.
 class StrideFirstRunDemo extends StatefulWidget {
   /// Creates the Stride onboarding host.
   ///
@@ -51,13 +35,8 @@ class _StrideFirstRunDemoState extends State<StrideFirstRunDemo> {
     super.initState();
     _actions = StrideFirstRunActions(
       requestNotifications: (args, context) async {
-        // A real app requests the OS notification permission here and returns
-        // the user's answer. The demo returns a fixed decision so both branches
-        // are exercisable. Note the error contract: an uncaught throw from a
-        // host action fails the WHOLE flow closed (to the unavailable
-        // fallback), not to a declined branch — so catch platform-channel
-        // failures and return `granted: false` if hold-on-screen is the UX
-        // you intend.
+        // Catch permission errors here and return granted: false to stay on
+        // the primer. An uncaught action error makes the flow unavailable.
         return ReminderDecision(granted: widget.grantReminders);
       },
     );
@@ -87,14 +66,9 @@ class _StrideFirstRunDemoState extends State<StrideFirstRunDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return _EnteredAppScreen(completed: _completed);
-    return RestageFlowGraph<Map<String, Object?>>(
-      flow: strideFirstRunFlowRef,
+    return StrideFirstRunFlowSurface(
       actions: _actions,
-      // The untyped result: the host reads the fields the flow declared, with
-      // no generated class in between — and reads them defensively. Under
-      // general delivery the graph can be recomposed over the air, so an
-      // outbound field is a contract to honour, not a shape the compiler
-      // guarantees.
+      // General flows return declared fields; read optional values defensively.
       onComplete: (result) => _enterApp(completed: result['completed'] == true),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF241024)),
       unavailable: FlowUnavailablePolicy.fallback(

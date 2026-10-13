@@ -1,9 +1,102 @@
-# Routing and experiments
+# Placement plans and audience routing
 
 Resolve the [target](targets-and-tools.md), then decide whether the requested
-change belongs to a placement plan, surface routing policy or experiment.
+change belongs to a placement plan, surface routing policy or
+[experiment](experiments.md).
 Generated `*Surface(...)` mounts declare implicit placements. Routing does not
 require changing them to `.atPlacement()`.
+
+## Choose the change
+
+| Need | Use |
+| --- | --- |
+| Choose which surface appears at a placement | A placement rule targeting a live surface family |
+| Choose a particular version of a surface | A surface rule targeting an exact published version |
+| Gradually deliver a change | A percentage rollout with an explicit remainder or default |
+| Compare outcomes under a statistical design | An [experiment](experiments.md) |
+| Apply one rule during a period | A rule's start/end window |
+| Replace the policy at a future time | A scheduled snapshot of the complete plan |
+
+Placement selection happens before surface-version selection. An admitted
+placement experiment takes precedence over placement rules; a surface experiment
+takes precedence over that surface's rules. Required enrollment that remains
+unresolved does not silently become an ordinary routing decision.
+
+## Understand rule evaluation
+
+Rules run in order. Disabled rules, closed windows and nonmatching audiences
+are skipped. The first matching rule whose selected destination fits the app
+wins. Ordinary compatibility failure continues to the next rule. Missing
+required policy or audience authority refuses selection.
+
+If no rule selects a destination, the declared default or owner's default is
+checked. An incompatible default leaves no resolved path, so the placement uses
+its fallback. Preserve a usable default when changing a targeted rule.
+
+The dashboard can add, enable, reorder, remove and retarget rules. New rules
+start at the lowest priority. Inspect overlap and shadowing before reordering:
+a possible overlap needs inspection, while a shadowed rule may never receive
+matching traffic.
+
+Choose a saved audience revision or define conditions over available platform,
+OS, app-build, country, language, device and custom attributes. The inline rule
+editor combines conditions with AND; a membership condition can contain several
+values. An absent observed attribute normally does not match. A missing audience
+definition is an authority error. Check attribute and build readiness separately.
+
+## Roll out a version
+
+Surface rules support a single destination or a primary percentage with the
+remainder sent to another destination or the default. Allocation is stable for
+an installation within its scope. Keep the rule and allocation identities when
+increasing a share: changing only the threshold preserves the existing buckets.
+
+For an intermediate share, missing installation identity selects the remainder.
+Shares of 0% and 100% are deterministic. If the selected branch is incompatible,
+evaluation continues to the next rule; it does not try the other branch.
+The placement editor currently creates single-surface rules and preserves
+existing percentage rules.
+
+For a gradual onboarding update:
+
+1. Build and upload the candidate with `restage surface push`; keep the current
+   default serving.
+2. In the dashboard, select the audience revision and compatible candidate
+   version. Start with a 10% share and the current default as the remainder.
+3. Check fit, ordering and overlap, then review and publish the complete plan.
+4. Inspect observed paints, delivery refusals and data coverage. Increase the
+   same allocation's share when the evidence and user's authorization allow it.
+5. Deliberately update the default when ready, or review restoration of the
+   previous plan. A rollout's traffic split alone provides no statistical winner.
+
+## Schedule a change
+
+Rule windows include the start and exclude the end. Scheduled plan snapshots
+replace the preceding complete policy. Times use each device's local civil
+time, derived from server time and its reported offset. Do not reinterpret them
+as the operator's timezone or UTC. Missing required clock evidence produces
+`localClockUnavailable` fallback.
+
+Inspect the whole timeline before editing. Keep the baseline start null and
+future snapshot starts strictly increasing. The dashboard protects existing
+future snapshots from ordinary edits; inspect or cancel scheduled work before
+replacing it. Cancel and undo produce changes that still need publication.
+
+## Check selection before publishing
+
+Exercise matching and nonmatching audiences, missing attributes, each rollout
+branch, an older incompatible build, and the times before/start/end of a window.
+Include experiment assignment when it applies. Check offline behavior and the
+generated mount's compiled fallback separately.
+
+Fit checks use observed build requirements; missing observations leave a gap.
+Simulation checks selection without enrolling users. Verify actual device
+rendering through [delivery observations](delivery.md) after publication.
+
+The dashboard authors new rule bodies. CLI and MCP inspect, simulate, review,
+publish and restore complete plans using public envelopes. The TUI's `/` prompt
+runs those same CLI commands, including the `restage` prefix. Use the following
+recipe to preserve rule bytes while changing an existing schedule.
 
 ## Review and publish a placement plan
 
@@ -31,6 +124,7 @@ one future snapshot while preserving every routing document. Add
 `restage_measurement_schema` as a development dependency and save this as
 `tool/prepare_delivery_plan.dart`:
 
+<!-- skill-check: file tool/prepare_delivery_plan.dart -->
 ```dart
 import 'dart:convert';
 import 'dart:io';
@@ -94,7 +188,9 @@ restage delivery plan publish --review plan-review.json \
   --operation-id YOUR_UUID_V4
 ```
 
-If warnings exist, add `--acknowledgement` with the canonical
+If warnings exist, follow
+[Protect running experiments](experiments.md#protect-running-experiments) before
+applying. Once the impact is authorized, add `--acknowledgement` with the canonical
 `DeliveryMeasurementImpactAcknowledgementV1` for the reviewed warning set.
 Reuse the same operation id and content only when retrying that attempt. A
 changed plan, stale head or changed impact requires another review. Verify the
@@ -155,62 +251,9 @@ inputs. It does not simulate pending edits in the separate review request;
 `DeliveryPolicySimulationRequestV1` has no candidate-plan field. The review
 evaluates the complete proposed plan before it can be published.
 
-Inspect and acknowledge every returned warning before publication. The routing
+Inspect every returned warning and stop if its impact is outside the user's
+authorization. Acknowledge authorized impact before publication. The routing
 publish interface accepts `--reviewed-digest` when acknowledgement is needed.
 For a single-route restoration, `review-rollback` takes `--route-id`,
 `--prior-revision-ordinal`, `--expected-revision-ordinal` and `--out`. Publish
 that review separately. Structured schedules require a whole-policy review.
-
-## Experiment reads and experimental authoring
-
-Use `experiment list` and `experiment results` for ordinary supported reads;
-see [Analytics](analytics.md) for windows and interpretation.
-
-Draft and lifecycle authoring is experimental and is not served by production
-yet. Use it only with a backend that supports those operations. Setting
-`RESTAGE_EXPERIMENTAL=1` exposes commands or MCP tools; it does not provide the
-backend implementation. Set it in the CLI/TUI process or MCP server process.
-
-On a supporting target:
-
-```sh
-restage experiment discover --json
-restage experiment create --json
-restage experiment resolve-draft --draft-id DRAFT_ID --json > draft.json
-```
-
-Use discovery to select available surfaces, metrics and audiences. Keep the
-returned draft id, revision and compare-and-set token. Edit only
-`response.choices` in the accepted draft result envelope, then save the entire
-file:
-
-```sh
-restage experiment save --replacement draft.json --json > saved-draft.json
-```
-
-Use the newly returned revision and token for subsequent operations. A bare
-choices object is invalid; another target's envelope is invalid. Resolve again
-after a stale-edit refusal rather than overwriting a newer draft.
-
-```sh
-restage experiment validate --draft-id DRAFT_ID \
-  --draft-revision-id REVISION_ID --expected-cas CAS_TOKEN
-restage experiment review --draft-id DRAFT_ID \
-  --draft-revision-id REVISION_ID --expected-cas CAS_TOKEN --json
-restage experiment activate --draft-id DRAFT_ID \
-  --draft-revision-id REVISION_ID --expected-cas CAS_TOKEN \
-  --review-id REVIEW_ID --review-digest REVIEW_DIGEST
-```
-
-Fix validation issues and inspect audience conflicts and impact before
-activation. The review must name the exact current draft. Read the active
-experiment with `experiment read --experiment-id EXPERIMENT_ID`; use its
-current `--expected-lifecycle-ordinal` for pause, resume or conclude. Preserve an
-explicit `--idempotency-key` and unchanged payload when retrying a write after
-a lost response.
-
-MCP uses `restage_experiment_apply` with an exact target, operation and semantic
-payload. `replaceDraft` accepts the whole accepted draft result with edited
-`response.choices`. State-changing operations require `idempotencyKey`; reads
-refuse it. Consult the registered schema for the operation's required payload.
-Use the same authorization, review and live-confirmation rules as the CLI.

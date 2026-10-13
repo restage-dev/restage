@@ -171,7 +171,7 @@ void main() {
       );
     });
 
-    test('is not registered without the host opt-in', () async {
+    test('is registered without an experimental opt-in', () async {
       final connection = await connectServer(
         store: store,
         httpClient: MockClient((request) async => http.Response('{}', 200)),
@@ -181,7 +181,7 @@ void main() {
 
       expect(
         tools.tools.map((tool) => tool.name),
-        isNot(contains('restage_experiment_apply')),
+        contains('restage_experiment_apply'),
       );
     });
   });
@@ -321,27 +321,30 @@ void main() {
       },
     );
 
-    test('reaches the route the declared operation names', () async {
-      for (final operation in ExperimentAuthoringOperationV1.values) {
-        final server = await connect();
-        await server.connection.callTool(
-          CallToolRequest(
-            name: 'restage_experiment_apply',
-            arguments: arguments(
-              operation: operation.wireName,
-              payload: _payloadFor(operation),
-              idempotencyKey: operation.requiresIdempotencyKey
-                  ? 'retry-key'
-                  : null,
+    test(
+      'reaches every semantic route without an experimental opt-in',
+      () async {
+        for (final operation in ExperimentAuthoringOperationV1.values) {
+          final server = await connect();
+          await server.connection.callTool(
+            CallToolRequest(
+              name: 'restage_experiment_apply',
+              arguments: arguments(
+                operation: operation.wireName,
+                payload: _payloadFor(operation),
+                idempotencyKey: operation.requiresIdempotencyKey
+                    ? 'retry-key'
+                    : null,
+              ),
             ),
-          ),
-        );
+          );
 
-        expect(server.methods, [
-          operation.wireName,
-        ], reason: '${operation.wireName} must reach only its own route');
-      }
-    });
+          expect(server.methods, [
+            operation.wireName,
+          ], reason: '${operation.wireName} must reach only its own route');
+        }
+      },
+    );
 
     test(
       'reports a delivery-options refusal as a refusal, not as an error',

@@ -253,11 +253,13 @@ abstract final class Restage {
   /// [resolver] defaults to [RestageVariantResolver]: active hosted content,
   /// last accepted content, then bundled `assets/paywalls/<id>.rfw`.
   /// Use [AssetVariantResolver] for bundled paywalls. [onSurfaceResolution]
-  /// reports hosted paywall resolution sources; callback errors are ignored.
+  /// reports surface resolution sources; callback errors are ignored.
   /// [flowResolver] defaults to [ServerFlowResolver] when [apiKey] and
   /// [baseUrl] are set, and [AssetFlowResolver] otherwise.
   /// [surfaceScreenResolver] defaults to the generated manifest-aware resolver
   /// with the exact bundled screen closure as fallback.
+  /// Leave resolver overrides unset for ordinary generated mounts; an override
+  /// bypasses that surface kind's default placement-aware resolution.
   ///
   /// [channel] names the build channel. Empty values and values over 128 UTF-8
   /// bytes are omitted. Requests report whole days since the first observed
@@ -271,31 +273,36 @@ abstract final class Restage {
   /// Disabling it leaves hosted delivery, governed operations and metering
   /// available. [measurementEnabled] controls new Measurement sessions;
   /// disabled sessions neither load publications nor submit data.
+  /// Assignment credentials require both options to be enabled.
   ///
   /// [deliveryReceiptsEnabled] reports surface type, slug, version, content
-  /// source and reason, paint result, platform, app build, selected route and
-  /// mount-to-paint latency in minute buckets. Receipts carry no device,
+  /// source and reason, paint result, platform, app build, selected route,
+  /// bucketed mount-to-paint latency and a timestamp grouped by minute.
+  /// Receipts carry no device,
   /// install or user identifier. Batches send every 30 seconds and on app
-  /// pause. Lost batches are not retried, so counts are lower bounds.
+  /// pause. Bounded buffering and retries can miss or duplicate observations.
   /// This option also controls placement declarations and painted bounds.
   /// Local capture remains available when reporting is off. Renderless screen
   /// and flow fallbacks report declarations and explicit capture geometry,
   /// but do not claim painted runtime bounds.
   ///
-  /// [surfaces] prefetches generated references at startup. Previously stored
-  /// paywalls and listed surfaces are also refreshed. [renderDeadline]
-  /// (default 300 ms) limits a mount's wait for fresh content. At the deadline,
-  /// the last accepted content, bundled asset or compiled widget renders;
-  /// the fetch continues for the next mount.
+  /// [surfaces] prefetches generated references after the first frame, without
+  /// creating experiment assignments. Previously stored paywalls and listed
+  /// surfaces are also refreshed. [renderDeadline] (default 300 ms) limits a
+  /// mount's wait for fresh content when it has a fallback. At the deadline,
+  /// eligible local content already available, or the compiled widget, renders.
+  /// A direct mount with neither can keep waiting for the response.
   ///
   /// [liveRefreshEdgeUrl] enables hosted refresh with [baseUrl]. An explicit
   /// [updateChannel] takes precedence. Surfaces remain mounted if refresh is
   /// unavailable. [identity] is an experimental hook with no runtime effect:
-  /// its callback is not invoked or attached to requests or analytics.
+  /// its callback is not invoked or attached to requests or analytics. [locale]
+  /// currently does not override delivery locale or Flutter localization.
   ///
   /// [governedMeasurementTransportEnabled] installs the canonical transport
-  /// over [baseUrl]; configure the host/IDP proof source first. An explicit
-  /// [governedMeasurementTransport] takes precedence. With neither option,
+  /// over [baseUrl]; configure the host/IDP proof source first. Alternatively,
+  /// supply [governedMeasurementTransport]; using both throws [ArgumentError].
+  /// With neither option,
   /// governed Measurement and privacy calls refuse the request; legacy
   /// analytics identity is unaffected.
   ///

@@ -335,6 +335,7 @@ class PaywallPushCommand extends Command<int> {
               config?.project == project &&
                   config?.app == app &&
                   config?.defaultEnvironment == environment &&
+                  config?.organization == preferredOrganizationSlug &&
                   !(argResults?.wasParsed('plane') ?? false)
               ? config?.environmentTargetId
               : null,

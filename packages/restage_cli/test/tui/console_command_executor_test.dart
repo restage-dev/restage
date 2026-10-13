@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
+import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart'
     show kCohortImpactNotePrefix;
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -17,6 +18,374 @@ import '../_helpers/publication_fixtures.dart';
 import '../_helpers/test_fixtures.dart';
 
 void main() {
+  for (final selection in [
+    (flags: <String>[], environment: 'dev', targetId: 11, plane: 'sandbox'),
+    (
+      flags: ['--env', 'staging'],
+      environment: 'staging',
+      targetId: 12,
+      plane: 'sandbox',
+    ),
+    (
+      flags: ['--env=production', '--plane=live'],
+      environment: 'production',
+      targetId: 13,
+      plane: 'live',
+    ),
+  ]) {
+    test('command inherits target with overrides ${selection.flags}', () async {
+      final fixture = await _seedExecutorFixture(environment: 'production');
+      Map<String, dynamic>? request;
+      final executor = ConsoleCommandExecutor(
+        credentialStore: fixture.store,
+        directory: fixture.dir,
+        httpClient: scriptedHttpClient([
+          (incoming) {
+            request = jsonDecode(incoming.body) as Map<String, dynamic>;
+            return _okStatus(incoming);
+          },
+        ]),
+      );
+      final arguments = ['paywall', 'status', 'pro', ...selection.flags];
+      final result = await executor.runCommand(
+        arguments,
+        context: _context('dev').copyWith(project: 'alpha', app: 'mobile'),
+      );
+
+      expect(result.exitCode, 0, reason: result.stderr);
+      expect(request?['projectSlug'], 'alpha');
+      expect(request?['appSlug'], 'mobile');
+      expect(request?['environmentTargetId'], selection.targetId);
+      expect(request?['runtimePlane'], selection.plane);
+      expect(result.targetDescription, contains('--project=alpha'));
+      expect(result.targetDescription, contains('--app=mobile'));
+      expect(
+        result.targetDescription,
+        contains('--env=${selection.environment}'),
+      );
+      expect(result.targetDescription, contains('--plane=${selection.plane}'));
+      expect(
+        ConsoleCommandOutput(arguments: arguments, result: result).lines.first,
+        'Target: ${result.targetDescription}',
+      );
+    });
+  }
+
+  test('command inherits the selected plane for a same-named target', () async {
+    final fixture = await _seedExecutorFixture(environment: 'staging');
+    Map<String, dynamic>? request;
+    final executor = ConsoleCommandExecutor(
+      credentialStore: fixture.store,
+      directory: fixture.dir,
+      httpClient: scriptedHttpClient([
+        _target('staging', 42, RuntimePlane.live),
+        (incoming) {
+          request = jsonDecode(incoming.body) as Map<String, dynamic>;
+          return _okStatus(incoming);
+        },
+      ], withDefaultTargetDiscovery: false),
+    );
+
+    final result = await executor.runCommand(
+      ['paywall', 'status', 'pro'],
+      context: _context(
+        'staging',
+        environmentTargetId: 42,
+        namedEnvironmentId: 142,
+        runtimePlane: RuntimePlane.live,
+      ),
+    );
+
+    expect(result.exitCode, 0, reason: result.stderr);
+    expect(request?['environmentTargetId'], 42);
+    expect(request?['runtimePlane'], 'live');
+  });
+
+  test('explicit project and app replace only those selectors', () async {
+    final fixture = await _seedExecutorFixture(environment: 'production');
+    Map<String, dynamic>? request;
+    final executor = ConsoleCommandExecutor(
+      credentialStore: fixture.store,
+      directory: fixture.dir,
+      httpClient: scriptedHttpClient([
+        (incoming) {
+          request = jsonDecode(incoming.body) as Map<String, dynamic>;
+          return _okStatus(incoming);
+        },
+      ]),
+    );
+
+    final result = await executor.runCommand([
+      'paywall',
+      'status',
+      '--project=other',
+      '--app=a',
+      '--',
+      'pro',
+    ], context: _context('staging'));
+
+    expect(result.exitCode, 0, reason: result.stderr);
+    expect(request?['projectSlug'], 'other');
+    expect(request?['appSlug'], 'a');
+    expect(request?['environmentTargetId'], 12);
+    expect(request?['runtimePlane'], 'sandbox');
+    expect(result.targetDescription, contains('--project=other'));
+    expect(result.targetDescription, contains('--app=a'));
+  });
+
+  test(
+    'an environment override keeps the selected plane and refuses mismatch',
+    () async {
+      final fixture = await _seedExecutorFixture(environment: 'production');
+      final executor = ConsoleCommandExecutor(
+        credentialStore: fixture.store,
+        directory: fixture.dir,
+        httpClient: scriptedHttpClient([]),
+      );
+
+      final result = await executor.runCommand([
+        'paywall',
+        'status',
+        'pro',
+        '--env=production',
+      ], context: _context('staging'));
+
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('No environment target matches'));
+      expect(result.targetDescription, contains('--env=production'));
+      expect(result.targetDescription, contains('--plane=sandbox'));
+    },
+  );
+
+  test('app-scoped commands inherit only their supported selectors', () async {
+    final fixture = await _seedExecutorFixture(environment: 'production');
+    final executor = ConsoleCommandExecutor(
+      credentialStore: fixture.store,
+      directory: fixture.dir,
+      httpClient: scriptedHttpClient([
+        scopeTargetStep({
+          'environmentTargetId': 42,
+          'namedEnvironmentId': 142,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
+        }, organizationSlug: 'selected-org'),
+      ], withDefaultTargetDiscovery: false),
+    );
+
+    final result = await executor.runCommand(
+      ['targets', '--json'],
+      context: _context('staging').copyWith(
+        organizationSlug: 'selected-org',
+        project: 'alpha',
+        app: 'mobile',
+      ),
+    );
+
+    expect(result.exitCode, 0, reason: result.stderr);
+    expect(result.stdout, contains('42'));
+    expect(result.targetDescription, contains('--organization=selected-org'));
+    expect(result.targetDescription, contains('--project=alpha'));
+    expect(result.targetDescription, contains('--app=mobile'));
+    expect(result.targetDescription, isNot(contains('--env=')));
+  });
+
+  test(
+    'an explicit organization overrides the selected organization',
+    () async {
+      final fixture = await _seedExecutorFixture(environment: 'production');
+      final executor = ConsoleCommandExecutor(
+        credentialStore: fixture.store,
+        directory: fixture.dir,
+        httpClient: scriptedHttpClient([
+          scopeTargetStep({
+            'environmentTargetId': 12,
+            'namedEnvironmentId': 22,
+            'environmentSlug': 'staging',
+            'runtimePlane': 'sandbox',
+          }, organizationSlug: 'other-org'),
+          _okStatus,
+        ], withDefaultTargetDiscovery: false),
+      );
+
+      final result = await executor.runCommand([
+        'paywall',
+        'status',
+        'pro',
+        '--organization=other-org',
+      ], context: _context('staging'));
+
+      expect(result.exitCode, 0, reason: result.stderr);
+      expect(result.targetDescription, contains('--organization=other-org'));
+      expect(
+        result.targetDescription,
+        isNot(contains('--organization=restage')),
+      );
+    },
+  );
+
+  test(
+    'an explicit personal build head suppresses the inherited environment',
+    () async {
+      final fixture = await _seedExecutorFixture(environment: 'production');
+      final executor = ConsoleCommandExecutor(
+        credentialStore: FileCredentialStore(
+          p.join(fixture.dir.path, 'unsigned-credential.json'),
+        ),
+        directory: fixture.dir,
+        httpClient: scriptedHttpClient([]),
+      );
+
+      final result = await executor.runCommand([
+        'build',
+        'push',
+        '--personal',
+      ], context: _context('staging'));
+
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('Not signed in'));
+      expect(result.stderr, isNot(contains('Name one target')));
+      expect(result.targetDescription, contains('--app=default'));
+      expect(result.targetDescription, isNot(contains('--env=')));
+      expect(result.targetDescription, isNot(contains('--plane=')));
+    },
+  );
+
+  for (final explicitSlug in [false, true]) {
+    test('organization ID overrides defaults and checks explicit slug: '
+        '$explicitSlug', () async {
+      final fixture = await _seedExecutorFixture(environment: 'staging');
+      File(p.join(fixture.dir.path, 'restage_config.yaml')).writeAsStringSync(
+        'organizationId: 99\nappId: 98\nenvironmentTargetId: 97\n'
+        'namedEnvironmentId: 96\n',
+        mode: FileMode.append,
+      );
+      final arguments = [
+        'paywall',
+        'status',
+        'pro',
+        '--organization-id=7',
+        if (explicitSlug) '--organization=restage',
+      ];
+      http.Client client() => scriptedHttpClient([
+        scopeTargetStep(
+          {
+            'environmentTargetId': 12,
+            'namedEnvironmentId': 22,
+            'environmentSlug': 'staging',
+            'runtimePlane': 'sandbox',
+          },
+          organizationSlug: 'other-org',
+          inspect: (request) => expect(request['organizationId'], 7),
+        ),
+        if (!explicitSlug) _okStatus,
+      ], withDefaultTargetDiscovery: false);
+      final executor = ConsoleCommandExecutor(
+        credentialStore: fixture.store,
+        directory: fixture.dir,
+        httpClient: client(),
+      );
+
+      final result = await executor.runCommand(
+        arguments,
+        context: _context('staging'),
+      );
+      final stderr = StringBuffer();
+      final cliCode =
+          await RestageCli(
+            credentialStore: fixture.store,
+            httpClient: client(),
+            stderr: stderr,
+          ).run([
+            '--non-interactive',
+            ...arguments,
+            '--directory=${fixture.dir.path}',
+            '--env=staging',
+          ]);
+
+      expect(result.exitCode, explicitSlug ? 1 : 0, reason: result.stderr);
+      expect(cliCode, result.exitCode, reason: stderr.toString());
+      expect(result.stderr, stderr.toString());
+      expect(result.targetDescription, contains('--organization-id=7'));
+      if (explicitSlug) {
+        expect(result.stderr, contains('No organization matches'));
+      } else {
+        expect(result.targetDescription, isNot(contains('--organization=')));
+      }
+    });
+  }
+
+  for (final command in [
+    ['analytics', 'overview'],
+    ['surface', 'push', 'pro'],
+    ['build', 'push'],
+    ['catalog', 'push'],
+  ]) {
+    test(
+      'malformed organization ID refuses before requests: $command',
+      () async {
+        final fixture = await _seedExecutorFixture(environment: 'staging');
+        for (final value in ['abc', '0', '-7']) {
+          final client = scriptedHttpClient(
+            [],
+            withDefaultTargetDiscovery: false,
+          );
+          final executor = ConsoleCommandExecutor(
+            credentialStore: fixture.store,
+            directory: fixture.dir,
+            httpClient: client,
+          );
+          final arguments = [...command, '--organization-id=$value'];
+          final result = await executor.runCommand(
+            arguments,
+            context: _context('staging'),
+          );
+          final stderr = StringBuffer();
+          final code = await RestageCli(
+            credentialStore: fixture.store,
+            httpClient: client,
+            stderr: stderr,
+          ).run(['--directory=${fixture.dir.path}', ...arguments]);
+
+          expect(result.exitCode, 1);
+          expect(code, 1);
+          expect(
+            result.stderr,
+            contains('--organization-id must be a positive integer'),
+          );
+          expect(result.stderr, stderr.toString());
+          expect(result.targetDescription, isNull);
+          expect(result.stdout, isEmpty);
+        }
+      },
+    );
+  }
+
+  for (final arguments in [
+    ['help'],
+    ['orgs'],
+    ['analytics', 'overview', '--help'],
+  ]) {
+    test('non-target command or help works with context: $arguments', () async {
+      final fixture = await _seedExecutorFixture(environment: 'production');
+      final executor = ConsoleCommandExecutor(
+        credentialStore: fixture.store,
+        directory: fixture.dir,
+        httpClient: scriptedHttpClient([]),
+      );
+
+      final result = await executor.runCommand(
+        arguments,
+        context: _context('staging'),
+      );
+
+      expect(result.exitCode, 0, reason: result.stderr);
+      expect(result.stdout, isNotEmpty);
+      if (!arguments.contains('analytics')) {
+        expect(result.targetDescription, isNull);
+      }
+    });
+  }
+
   test(
     'kill routes through surface kill with reason and confirmation',
     () async {

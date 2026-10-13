@@ -110,6 +110,9 @@ final lumenTrialOfferPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class LumenTrialOfferSurface
     extends RestageFlowGraph<LumenTrialOfferResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const LumenTrialOfferSurface({
     super.key,
     String? placement,
@@ -128,6 +131,9 @@ final class LumenTrialOfferSurface
   })  : _restagePlacementName = placement,
         super(flow: lumenTrialOfferRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [LumenTrialOfferSurface] for the default placement; no name is needed.
   const LumenTrialOfferSurface.atPlacement(
     String restagePlacementId, {
     super.key,

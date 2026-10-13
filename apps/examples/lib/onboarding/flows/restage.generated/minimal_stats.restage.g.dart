@@ -6,20 +6,20 @@ const minimalStatsFlowRef = SurfaceFlowRef<
     MinimalStatsResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_stats',
   version: 1,
-  minClient: 1,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalStatsFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_stats","initial":"starter_stats","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:c383a951687aedfb9936f5da8d9e7d9087254a9fcee7a9e66e235fb29d3f6470","minClient":1,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
+        '{"flow":"minimal_stats","initial":"starter_stats","minClient":10,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:c383a951687aedfb9936f5da8d9e7d9087254a9fcee7a9e66e235fb29d3f6470","minClient":10,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
     screens: {
       'starter_stats': StarterStatsScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '71b5c5a598883ccbd630eef12554d02bd2129e8e14eed783d7aca66bc3e53111',
+      '447e0fc4fc2abea39c1a0bc77ff9324292fa05d0d9eaef54dc3f203942d15e87',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -111,6 +111,9 @@ final minimalStatsFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class MinimalStatsFlowSurface
     extends RestageFlowGraph<MinimalStatsResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const MinimalStatsFlowSurface({
     super.key,
     String? placement,
@@ -129,6 +132,9 @@ final class MinimalStatsFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: minimalStatsFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [MinimalStatsFlowSurface] for the default placement; no name is needed.
   const MinimalStatsFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

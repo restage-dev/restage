@@ -6,32 +6,8 @@ import 'package:restage_example/user_factories.g.dart';
 
 import 'onboarding/flows/section_header_showcase.dart';
 
-/// On-device demo for the `section_header_showcase` screen — two **record
-/// properties rendered natively from the delivered blob**.
-///
-/// The screen (`lib/onboarding/screens/section_header_showcase.dart`) authors
-/// a `SectionHeader` in ordinary Flutter. The build-time codegen encodes its
-/// heading record and nested entry metadata record into
-/// `assets/onboarding/screens/section_header_showcase.rfw` as
-/// field-name-keyed maps. This entrypoint renders that bundled blob through
-/// the SDK — the generated factory reconstructs both records and paints the
-/// header as real Flutter widgets. Run it on a real device to confirm the
-/// native render fidelity a web smoke cannot see (status bar, theming, real
-/// pixels):
-///
-///   flutter run -t lib/main_section_header_demo.dart
-///
-/// This closes the chain end to end for record-shaped properties:
-/// source → encode → wire → decode → pixels.
-///
-/// **Do not copy this file's hosting code.** It drives the flow controller and
-/// the screen view directly, which is incidental to what is being demonstrated
-/// here, not an example of how to host a flow. Record reconstruction does not
-/// depend on the host at all — the generated factory is the decoder — so the
-/// low-level route proves the same thing while skipping what a real app gets
-/// from the wrapper. For the idiomatic host, see
-/// `lib/onboarding/minimal_notice_demo.dart`, which renders a
-/// structurally identical single-screen flow through `RestageFlowGraph`.
+/// Renders bundled RFW to exercise record decoding in a custom widget factory.
+/// For ordinary flow hosting, see MinimalNoticeFlowSurface in minimal_notice_demo.dart.
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Register the example's custom widgets (incl. SectionHeader) so the

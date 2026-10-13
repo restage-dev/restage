@@ -5,14 +5,8 @@ import 'package:restage/restage.dart';
 
 import 'flows/minimal_notice.dart';
 
-/// Gallery host for the single-screen surface starter.
-///
-/// It renders the flow and reacts to its two outcomes:
-/// - `onComplete` (the CTA acted) hands off to the app — here a small result
-///   screen stands in for "your app takes over" (open the feature, the link,
-///   the next screen). The CTA leads somewhere, so it never reads as inert.
-/// - the `dismiss` custom event (the ×) closes the surface — back to the
-///   gallery.
+/// Hosts a notice with its generated surface mount.
+/// Completion opens the example feature; the dismiss event closes the route.
 class MinimalNoticeDemo extends StatefulWidget {
   /// Creates the surface gallery host.
   const MinimalNoticeDemo({super.key});
@@ -58,8 +52,7 @@ class _MinimalNoticeDemoState extends State<MinimalNoticeDemo> {
   @override
   Widget build(BuildContext context) {
     if (_opened) return const _OpenedScreen();
-    return RestageFlowGraph<MinimalNoticeResult>(
-      flow: minimalNoticeFlowRef,
+    return MinimalNoticeFlowSurface(
       // A one-screen surface draws nothing if it can't load, rather than a
       // fallback; `onFlowUnavailable` then routes away from the blank surface.
       unavailable: const FlowUnavailablePolicy.hide(),

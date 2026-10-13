@@ -6,20 +6,20 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
     MinimalNoticeResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_notice',
   version: 1,
-  minClient: 9,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalNoticeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_notice","initial":"starter_notice","minClient":9,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:036fad8ac7f265dcef0ebe8b266809a210f1f517996c04ed8d80196c986057c8","minClient":9,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
+        '{"flow":"minimal_notice","initial":"starter_notice","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:036fad8ac7f265dcef0ebe8b266809a210f1f517996c04ed8d80196c986057c8","minClient":10,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
     screens: {
       'starter_notice': StarterNoticeScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'ef21c42f55d43ea452e54454ba96eee2c59795734dd9619bc38665facf8c6f26',
+      '99cb5716ac8f0e2b71383175c21749822be6beec1052b0833e36981d96177071',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -117,6 +117,9 @@ final minimalNoticeFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class MinimalNoticeFlowSurface
     extends RestageFlowGraph<MinimalNoticeResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const MinimalNoticeFlowSurface({
     super.key,
     String? placement,
@@ -135,6 +138,9 @@ final class MinimalNoticeFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: minimalNoticeFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [MinimalNoticeFlowSurface] for the default placement; no name is needed.
   const MinimalNoticeFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

@@ -257,11 +257,26 @@ void main() {
         calls.map((call) => call.method),
         contains('rebuildServingRecords'),
       );
+
+      final confirmed = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_rebuild_serving_records',
+          arguments: {...exactTarget('live'), 'confirmLive': true},
+        ),
+      );
+      expect(confirmed.isError, isNot(true), reason: _text(confirmed));
+      expect(
+        calls
+            .where((call) => call.method == 'rebuildServingRecords')
+            .map((call) => call.body['readinessOnly']),
+        [true, false],
+      );
     });
 
     test('an activation command for a live target needs confirmLive', () async {
       var executed = 0;
       final connection = await connectServer(
+        environment: const {'RESTAGE_EXPERIMENTAL': '1'},
         store: store,
         httpClient: fakeBackend((_) async => _identityResult()),
         experimentActivationApi: ExperimentActivationApi(

@@ -22,9 +22,7 @@ Future<ServerConnection> connectServer({
   Uri? loginEndpoint,
   DateTime Function()? now,
   ExperimentActivationApi? experimentActivationApi,
-  // The harness exists to exercise tools, so it opts in by default. Pass an
-  // empty map to assert what a default server does NOT expose.
-  Map<String, String> environment = const {'RESTAGE_EXPERIMENTAL': '1'},
+  Map<String, String> environment = const {},
   CliRunner? cliRunner,
 }) async {
   final clientController = StreamController<String>();

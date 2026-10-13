@@ -112,6 +112,9 @@ final bareSurfaceFlowPlacementDefinition =
 
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class BareSurfaceFlowSurface extends RestageFlowGraph<BareSurfaceResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const BareSurfaceFlowSurface({
     super.key,
     String? placement,
@@ -130,6 +133,9 @@ final class BareSurfaceFlowSurface extends RestageFlowGraph<BareSurfaceResult> {
   })  : _restagePlacementName = placement,
         super(flow: bareSurfaceFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [BareSurfaceFlowSurface] for the default placement; no name is needed.
   const BareSurfaceFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

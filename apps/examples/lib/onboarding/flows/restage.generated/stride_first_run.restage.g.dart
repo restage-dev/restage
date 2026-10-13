@@ -174,6 +174,9 @@ final strideFirstRunFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class StrideFirstRunFlowSurface
     extends RestageFlowGraph<Map<String, Object?>> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const StrideFirstRunFlowSurface({
     super.key,
     String? placement,
@@ -192,6 +195,9 @@ final class StrideFirstRunFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: strideFirstRunFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [StrideFirstRunFlowSurface] for the default placement; no name is needed.
   const StrideFirstRunFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

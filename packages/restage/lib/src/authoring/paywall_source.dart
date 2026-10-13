@@ -20,8 +20,11 @@ final class Paywall {
   /// Optional stable source identity.
   final String? id;
 
-  /// Declared events whose taps end the paywall as completed rather than
-  /// dismissed.
+  /// Declared events whose taps mark the paywall interaction as completed for
+  /// measurement rather than dismissed.
+  ///
+  /// The host still handles purchases and navigation. This does not close a
+  /// route or advance a flow.
   final List<SurfaceEvent<Object?>> completesOn;
 
   /// Narrows the presentation modes the complete compiled paywall must prove.

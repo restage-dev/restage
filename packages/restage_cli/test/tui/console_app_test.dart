@@ -22,6 +22,291 @@ import '../commands/delivery_command_test.dart' show placementScope, policyRead;
 
 void main() {
   test(
+    'analytics loading and failure clear the visible previous target',
+    () async {
+      await testNocterm('analytics target states', (tester) async {
+        final repository = PendingOverviewRepository();
+        final controller = ConsoleController(repository: repository);
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+        expect(tester.terminalState, containsText('1,234'));
+        await captureConsole(tester, 'overview');
+
+        final target = tester.terminalState.findText('production').single;
+        await tester.tap(target.x + 1, target.y);
+        await tester.pump();
+        expect(tester.terminalState, containsText('Loading analytics...'));
+        expect(tester.terminalState, isNot(containsText('1,234')));
+        expect(tester.terminalState, isNot(containsText(r'$5,000')));
+        await captureConsole(tester, 'overview-loading');
+
+        repository.pending.completeError(
+          const ConsoleLoadException('Metrics request failed'),
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(tester.terminalState, containsText('Analytics unavailable:'));
+        expect(tester.terminalState, containsText('Metrics request failed'));
+        expect(tester.terminalState, isNot(containsText('1,234')));
+        expect(tester.terminalState, containsText('Not available'));
+        expect(
+          tester.terminalState,
+          hasStyledText(
+            'Analytics unavailable:',
+            const TextStyle(color: Color.fromRGB(226, 125, 125)),
+          ),
+        );
+        await captureConsole(tester, 'overview-error');
+      }, size: const Size(120, 34));
+    },
+  );
+
+  test(
+    'unavailable figures stay unavailable in the rendered overview',
+    () async {
+      await testNocterm('unavailable figures', (tester) async {
+        final controller = ConsoleController(
+          repository: EmptyConsoleRepository(),
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+        expect(tester.terminalState, containsText('Analytics unavailable'));
+        expect(tester.terminalState.findText('Not available'), hasLength(3));
+        expect(tester.terminalState, isNot(containsText('0%')));
+        expect(tester.terminalState, isNot(containsText(r'$0')));
+        await captureConsole(tester, 'overview-unavailable');
+      }, size: const Size(120, 30));
+    },
+  );
+
+  test(
+    'command output has room for target, semantic errors and scrolling',
+    () async {
+      await testNocterm('readable command output', (tester) async {
+        final controller = ConsoleController(
+          repository: FakeConsoleRepository(),
+          operationExecutor: OutputConsoleExecutor(),
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+        await tester.sendKey(LogicalKey.slash);
+        await tester.enterText('restage analytics overview');
+        await tester.sendEnter();
+        await tester.pump();
+        await tester.pump();
+        expect(tester.terminalState, containsText('Command output'));
+        expect(
+          tester.terminalState,
+          containsText(
+            'Target: --organization=restage --project=default --app=default',
+          ),
+        );
+        expect(tester.terminalState, containsText('App sessions: 1,234'));
+        expect(tester.terminalState, isNot(containsText('Overview detail')));
+        expect(
+          tester.terminalState,
+          hasStyledText(
+            'Exit 0',
+            const TextStyle(color: Color.fromRGB(111, 174, 140)),
+          ),
+        );
+        await captureConsole(tester, 'command-output');
+        await tester.sendKey(LogicalKey.end);
+        expect(tester.terminalState, containsText('Last output line'));
+        await tester.sendKey(LogicalKey.home);
+        expect(
+          tester.terminalState,
+          containsText('Target: --organization=restage'),
+        );
+
+        await tester.sendKey(LogicalKey.slash);
+        await tester.enterText('restage analytics health');
+        await tester.sendEnter();
+        await tester.pump();
+        await tester.pump();
+        expect(tester.terminalState, containsText('Exit 1'));
+        expect(
+          tester.terminalState,
+          hasStyledText(
+            'Analytics unavailable',
+            const TextStyle(color: Color.fromRGB(226, 125, 125)),
+          ),
+        );
+        await captureConsole(tester, 'command-error');
+      }, size: const Size(120, 30));
+    },
+  );
+
+  for (final width in [56, 120]) {
+    for (final operation in ['push', 'build', 'freeze', 'rollback']) {
+      test(
+        'built-in $operation output from detail at $width columns',
+        () async {
+          await testNocterm('built-in output owns visible focus', (
+            tester,
+          ) async {
+            final controller = ConsoleController(
+              repository: SameSlugConsoleRepository(),
+              operationExecutor: LongOperationConsoleExecutor(),
+            );
+            await tester.pumpComponent(
+              RestageConsoleApp(controller: controller),
+            );
+            await tester.pump();
+            await tester.pump();
+            await tester.sendArrowDown();
+            await tester.sendKey(LogicalKey.tab);
+            await tester.sendKey(LogicalKey.tab);
+            expect(controller.state.focusedPanel, ConsolePanel.detail);
+            switch (operation) {
+              case 'push':
+                await tester.sendEnter();
+              case 'build':
+                await tester.sendKey(LogicalKey.keyB);
+              case 'freeze':
+                await tester.sendKey(LogicalKey.keyF);
+                await tester.enterText('maintenance');
+                await tester.sendEnter();
+              case 'rollback':
+                await tester.sendKey(LogicalKey.keyR);
+                await tester.enterText('1 restore previous version');
+                await tester.sendEnter();
+                await tester.pump();
+                await tester.pump();
+                await tester.enterText('confirm');
+                await tester.sendEnter();
+            }
+            await tester.pump();
+            await tester.pump();
+            expect(controller.state.focusedPanel, ConsolePanel.surfaces);
+            expect(
+              tester.terminalState,
+              hasStyledText(
+                'Command output',
+                const TextStyle(color: Color.fromRGB(255, 151, 134)),
+              ),
+            );
+            expect(tester.terminalState, containsText('First operation line'));
+            await tester.sendKey(LogicalKey.pageDown);
+            expect(
+              tester.terminalState,
+              isNot(containsText('First operation line')),
+            );
+            await tester.sendKey(LogicalKey.end);
+            expect(tester.terminalState, containsText('Final operation line'));
+            await tester.sendKey(LogicalKey.keyP);
+            await tester.pump();
+            await tester.pump();
+            expect(tester.terminalState, containsText('First operation line'));
+          }, size: Size(width.toDouble(), 30));
+        },
+      );
+    }
+  }
+
+  test('compact panels remain reachable with keyboard and mouse', () async {
+    await testNocterm('compact panel navigation', (tester) async {
+      final controller = ConsoleController(repository: FakeConsoleRepository());
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.terminalState, containsText('[nav] [view] [detail]'));
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.tab);
+      expect(tester.terminalState, containsText('Overview detail'));
+      expect(tester.terminalState, containsText('1,234'));
+      await captureConsole(tester, 'compact-overview');
+      final navigation = tester.terminalState.findText('[nav]').single;
+      await tester.tap(navigation.x + 1, navigation.y);
+      expect(tester.terminalState, containsText('Dashboard'));
+      await tester.sendArrowDown();
+      await tester.sendKey(LogicalKey.tab);
+      expect(tester.terminalState, containsText('> pro'));
+      await tester.sendArrowDown();
+      expect(tester.terminalState, containsText('> welcome'));
+      await captureConsole(tester, 'compact-selected-row');
+      await tester.sendKey(LogicalKey.tab);
+      expect(tester.terminalState, containsText('Detail: welcome'));
+    }, size: const Size(56, 30));
+  });
+
+  test('same-name environment choices show each runtime plane', () async {
+    await testNocterm('plane choices remain visible', (tester) async {
+      final controller = ConsoleController(
+        repository: SameSlugConsoleRepository(),
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+      final sandbox = tester.terminalState.findText('  sandbox').single;
+      final live = tester.terminalState.findText('  live').single;
+      expect(live.y, sandbox.y + 2);
+      expect(tester.terminalState, containsText('> prod'));
+      await captureConsole(tester, 'environment-planes');
+      await tester.tap(live.x + 2, live.y);
+      await tester.pump();
+      await tester.pump();
+      expect(controller.state.context!.runtimePlane, RuntimePlane.live);
+      expect(
+        tester.terminalState,
+        containsText('default / default / prod (live)'),
+      );
+    }, size: const Size(80, 28));
+  });
+
+  test(
+    'compact command output keeps the effective runtime plane readable',
+    () async {
+      await testNocterm('compact effective command target', (tester) async {
+        final controller = ConsoleController(
+          repository: FakeConsoleRepository(),
+          operationExecutor: OutputConsoleExecutor(),
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+        await tester.sendKey(LogicalKey.slash);
+        await tester.enterText('restage analytics overview');
+        await tester.sendEnter();
+        await tester.pump();
+        await tester.pump();
+        expect(
+          tester.terminalState,
+          containsText('Target: --organization=restage'),
+        );
+        expect(tester.terminalState, containsText('--env=staging'));
+        expect(tester.terminalState, containsText('--plane=live'));
+        await captureConsole(tester, 'compact-command-output');
+      }, size: const Size(56, 30));
+    },
+  );
+
+  test('resizing retains selection and reachable panels', () async {
+    await testNocterm('resize across compact breakpoint', (tester) async {
+      final controller = ConsoleController(repository: FakeConsoleRepository());
+      await tester.pumpComponent(ResizableConsole(controller: controller));
+      await tester.pump();
+      await tester.pump();
+      await tester.sendArrowDown();
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendArrowDown();
+      final host = tester.findState<ResizableConsoleState>();
+      host.resize(56);
+      await tester.pump();
+      expect(tester.terminalState, containsText('[nav] [view] [detail]'));
+      expect(tester.terminalState, containsText('> welcome'));
+      host.resize(120);
+      await tester.pump();
+      expect(tester.terminalState, containsText('Detail: welcome'));
+      expect(tester.terminalState, containsText('> welcome'));
+      await captureConsole(tester, 'selected-row');
+    }, size: const Size(120, 32));
+  });
+
+  test(
     'console runner executes delivery history with unchanged scope cursor and status',
     () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -144,7 +429,7 @@ void main() {
       await tester.pump();
 
       const brand = Color.fromRGB(45, 212, 191);
-      const focus = Color.fromRGB(111, 174, 140);
+      const focus = Color.fromRGB(255, 151, 134);
 
       expect(
         tester.terminalState,
@@ -162,7 +447,13 @@ void main() {
       );
       expect(
         tester.terminalState,
-        hasStyledText('> Overview', const TextStyle(color: brand)),
+        hasStyledText(
+          '> Overview',
+          const TextStyle(
+            color: Color.fromRGB(238, 240, 244),
+            backgroundColor: Color.fromRGB(35, 40, 51),
+          ),
+        ),
       );
     });
   });
@@ -216,6 +507,10 @@ void main() {
 
       await tester.sendArrowDown();
       await tester.pump();
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.pageDown);
+      await tester.pump();
 
       expect(tester.terminalState, containsText('Status-backed history'));
       expect(tester.terminalState, isNot(containsText('Recent activity')));
@@ -230,6 +525,10 @@ void main() {
       await tester.pump();
 
       await tester.sendArrowDown();
+      await tester.pump();
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.pageDown);
       await tester.pump();
 
       final historyLine = tester
@@ -930,7 +1229,7 @@ void main() {
         await tester.pump();
 
         expect(tester.terminalState, containsText('prod (sandbox'));
-        expect(tester.terminalState, containsText('prod (live'));
+        expect(tester.terminalState, containsText('  live'));
         await controller.selectEnvironment(1);
         await tester.pump();
         await tester.sendArrowDown();
@@ -1022,6 +1321,7 @@ void main() {
       await tester.sendKey(LogicalKey.keyP);
       await tester.pump();
       await tester.pump();
+      await tester.sendKey(LogicalKey.tab);
       await tester.sendArrowDown();
       await tester.sendArrowDown();
       await tester.pump();
@@ -1058,6 +1358,7 @@ void main() {
       await tester.sendKey(LogicalKey.keyP);
       await tester.pump();
       await tester.pump();
+      await tester.sendKey(LogicalKey.tab);
       await tester.sendArrowDown();
       await tester.sendArrowDown();
       await tester.pump();
@@ -1288,8 +1589,7 @@ void main() {
       await tester.sendArrowRight();
       await tester.pump();
 
-      const brand = Color.fromRGB(45, 212, 191);
-      const focus = Color.fromRGB(111, 174, 140);
+      const focus = Color.fromRGB(255, 151, 134);
 
       expect(
         tester.terminalState,
@@ -1301,7 +1601,10 @@ void main() {
 
       expect(
         tester.terminalState,
-        hasStyledText('[pay]', const TextStyle(color: brand)),
+        hasStyledText(
+          '[pay]',
+          const TextStyle(color: Color.fromRGB(238, 240, 244)),
+        ),
       );
 
       await tester.sendArrowDown();
@@ -1557,11 +1860,11 @@ void main() {
       await tester.tap(33, 11);
       await tester.pump();
 
-      const brand = Color.fromRGB(45, 212, 191);
+      const selected = Color.fromRGB(238, 240, 244);
 
       expect(
         tester.terminalState,
-        hasStyledText('[pay]', const TextStyle(color: brand)),
+        hasStyledText('[pay]', const TextStyle(color: selected)),
       );
 
       await tester.sendArrowDown();
@@ -1666,6 +1969,19 @@ void main() {
 
 class FakeConsoleRepository implements ConsoleRepository {
   @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) async => const OverviewFigures(
+    sessions: '1,234',
+    finished: '42%',
+    revenue: r'$5,000',
+    appLines: {
+      'revenue': [r'Stride $4,000', r'Lumen $1,000'],
+    },
+  );
+
+  @override
   Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
     context: ConsoleContext(
       organizationSlug: 'restage',
@@ -1702,14 +2018,6 @@ class FakeConsoleRepository implements ConsoleRepository {
       ),
       ConsoleSurface(surfaceType: 'paywall', slug: 'upsell', name: 'Upsell'),
     ],
-    overview: OverviewFigures(
-      sessions: '1,234',
-      finished: '42%',
-      revenue: r'$5,000',
-      appLines: {
-        'revenue': [r'Stride $4,000', r'Lumen $1,000'],
-      },
-    ),
   );
 
   @override
@@ -1816,6 +2124,12 @@ class FakeConsoleRepository implements ConsoleRepository {
 
 class ManifestConsoleRepository extends FakeConsoleRepository {
   @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) async => null;
+
+  @override
   Future<ConsoleSnapshot> load() async {
     final snapshot = await super.load();
     return ConsoleSnapshot(
@@ -1880,6 +2194,12 @@ Future<void> selectProSurfaceInProduction(
 /// is (or can be) selected.
 class EmptyConsoleRepository extends FakeConsoleRepository {
   @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) async => null;
+
+  @override
   Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
     context: ConsoleContext(
       organizationSlug: 'restage',
@@ -1912,6 +2232,12 @@ class EmptyConsoleRepository extends FakeConsoleRepository {
 }
 
 class SameSlugConsoleRepository extends FakeConsoleRepository {
+  @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) async => null;
+
   @override
   Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
     context: ConsoleContext(
@@ -2111,7 +2437,10 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   }
 
   @override
-  Future<ConsoleOperationResult> runCommand(List<String> arguments) async {
+  Future<ConsoleOperationResult> runCommand(
+    List<String> arguments, {
+    ConsoleContext? context,
+  }) async {
     calls.add('run:${arguments.join(' ')}');
     return ConsoleOperationResult(
       exitCode: 0,
@@ -2131,4 +2460,140 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
       stderr: '',
     );
   }
+}
+
+class LongOperationConsoleExecutor extends RecordingConsoleOperationExecutor {
+  ConsoleOperationResult get result => ConsoleOperationResult(
+    exitCode: 0,
+    stdout:
+        'First operation line\n'
+        '${List.generate(30, (i) => 'Operation detail $i').join('\n')}\n'
+        'Final operation line\n',
+    stderr: '',
+  );
+
+  @override
+  Future<ConsoleOperationResult> push({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+  }) async => result;
+
+  @override
+  Future<ConsoleOperationResult> pushBuild({
+    required ConsoleContext context,
+  }) async => result;
+
+  @override
+  Future<ConsoleOperationResult> freeze({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required String reason,
+    bool confirmedProduction = false,
+  }) async => result;
+
+  @override
+  Future<ConsoleOperationResult> rollback({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required String reason,
+    required int toVersion,
+    required bool freeze,
+    bool confirmedProduction = false,
+  }) async => result;
+}
+
+class PendingOverviewRepository extends FakeConsoleRepository {
+  final pending = Completer<OverviewFigures?>();
+
+  @override
+  Future<OverviewFigures?> overview({
+    required ConsoleContext context,
+    required int appCount,
+  }) {
+    if (context.environment == 'production') return pending.future;
+    return super.overview(context: context, appCount: appCount);
+  }
+}
+
+class OutputConsoleExecutor extends RecordingConsoleOperationExecutor {
+  @override
+  Future<ConsoleOperationResult> runCommand(
+    List<String> arguments, {
+    ConsoleContext? context,
+  }) async {
+    final failed = arguments.contains('health');
+    return ConsoleOperationResult(
+      exitCode: failed ? 1 : 0,
+      stdout: failed
+          ? ''
+          : 'App sessions: 1,234\nCompleted: 42%\nRevenue: \$5,000\n'
+                '${List.generate(25, (i) => 'Surface ${i + 1}: available').join('\n')}\nLast output line\n',
+      stderr: failed
+          ? 'Analytics unavailable: the selected target could not be read.\n'
+          : '',
+      targetDescription:
+          '--organization=${context!.organizationSlug} --project=${context.project} '
+          '--app=${context.app} --env=${context.environment} '
+          '--plane=${context.runtimePlane.wireName}',
+    );
+  }
+}
+
+class ResizableConsole extends StatefulComponent {
+  const ResizableConsole({required this.controller, super.key});
+  final ConsoleController controller;
+
+  @override
+  State<ResizableConsole> createState() => ResizableConsoleState();
+}
+
+class ResizableConsoleState extends State<ResizableConsole> {
+  double width = 120;
+
+  void resize(double value) => setState(() => width = value);
+
+  @override
+  Component build(BuildContext context) => Align(
+    alignment: Alignment.topLeft,
+    child: SizedBox(
+      width: width,
+      child: RestageConsoleApp(controller: component.controller),
+    ),
+  );
+}
+
+/// Exports the real rendered cells when visual review artifacts are requested.
+Future<void> captureConsole(NoctermTester tester, String name) async {
+  final path = Platform.environment['RESTAGE_CONSOLE_CAPTURE_DIR'];
+  if (path == null) return;
+  final directory = await Directory(path).create(recursive: true);
+  final state = tester.terminalState;
+  final svg = StringBuffer(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="${state.size.width * 9}" '
+    'height="${state.size.height * 18}" viewBox="0 0 ${state.size.width * 9} ${state.size.height * 18}">'
+    '<rect width="100%" height="100%" fill="#0c0e13"/>'
+    '<g font-family="DejaVu Sans Mono,monospace" font-size="14">',
+  );
+  const escape = HtmlEscape();
+  String hex(Color? color, String fallback) => color == null
+      ? fallback
+      : '#${color.red.toRadixString(16).padLeft(2, '0')}${color.green.toRadixString(16).padLeft(2, '0')}${color.blue.toRadixString(16).padLeft(2, '0')}';
+  for (var y = 0; y < state.size.height; y++) {
+    for (var x = 0; x < state.size.width; x++) {
+      final cell = state.getCellAt(x, y)!;
+      final style = cell.style;
+      svg.write(
+        '<rect x="${x * 9}" y="${y * 18}" width="9" height="18" fill="${hex(style.backgroundColor, '#0c0e13')}"/>',
+      );
+      if (cell.char.trim().isNotEmpty && cell.char != '\u200B') {
+        svg.write(
+          '<text x="${x * 9}" y="${y * 18 + 14}" fill="${hex(style.color, '#eef0f4')}" '
+          'font-weight="${style.fontWeight == FontWeight.bold ? 'bold' : 'normal'}">${escape.convert(cell.char)}</text>',
+        );
+      }
+    }
+  }
+  svg.write('</g></svg>');
+  await File('${directory.path}/$name.svg').writeAsString(svg.toString());
+  await File('${directory.path}/$name.txt').writeAsString(state.getText());
 }

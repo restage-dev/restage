@@ -6,13 +6,13 @@ const reelCancelFlowRef = SurfaceFlowRef<
     ReelCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'reel_cancel',
   version: 1,
-  minClient: 9,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeReelCancelFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"redeemOffer":{"actionName":"redeemOffer","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"redeemed":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:cdba58b8037dcf2c43d7add16c74558a786b6b1dede9d095ac4c00399ddaaaae"}},"flow":"reel_cancel","flowState":{"retained":{"classification":"exportable","type":"bool"}},"initial":"reel_reason","minClient":9,"outbound":{"customEvents":{"cancel":{"fields":{}}},"terminalResult":{"fields":{"retained":{"ref":{"state":"retained"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"reel_frequency":{"contentHash":"sha256:eb65bb12ce49f1b42812a81fb87518ffca7a1804cfa8cf2fe9e3f1bdcd079866","minClient":9,"path":"reel_frequency.rfw","schemaVersion":1,"version":1},"reel_kept":{"contentHash":"sha256:805d0f1a050a6f675286cabb5bb772edaf5a93836b8c383a2cd8687247eee887","minClient":9,"path":"reel_kept.rfw","schemaVersion":1,"version":1},"reel_offer":{"contentHash":"sha256:4181f010b4009efd61944d7f577b8bfc3578c3d95797ee1b42f44556643c4cb2","minClient":1,"path":"reel_offer.rfw","schemaVersion":1,"version":1},"reel_reason":{"contentHash":"sha256:2991b59a165ea69dda9381555e7aa57583a6b12098ab2192212313fd9971e7a9","minClient":9,"path":"reel_reason.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"retained":true}},"reel_frequency":{"kind":"screen","on":{"next":{"target":"reel_offer","type":"goto"}},"screen":"reel_frequency"},"reel_kept":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"reel_kept"},"reel_offer":{"kind":"screen","on":{"keep":{"action":"redeemOffer","resultPredicate":{"field":"redeemed","kind":"objectBoolFieldEquals","value":true},"target":"reel_kept","type":"action"}},"screen":"reel_offer"},"reel_reason":{"kind":"screen","on":{"next":{"target":"reel_frequency","type":"goto"}},"screen":"reel_reason"}},"version":1}',
+        '{"actions":{"redeemOffer":{"actionName":"redeemOffer","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":6,"resultSchema":{"fields":{"redeemed":{"required":true,"schema":{"kind":"bool"}}},"kind":"object"},"resultSchemaHash":"sha256:cdba58b8037dcf2c43d7add16c74558a786b6b1dede9d095ac4c00399ddaaaae"}},"flow":"reel_cancel","flowState":{"retained":{"classification":"exportable","type":"bool"}},"initial":"reel_reason","minClient":10,"outbound":{"customEvents":{"cancel":{"fields":{}}},"terminalResult":{"fields":{"retained":{"ref":{"state":"retained"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"reel_frequency":{"contentHash":"sha256:eb65bb12ce49f1b42812a81fb87518ffca7a1804cfa8cf2fe9e3f1bdcd079866","minClient":10,"path":"reel_frequency.rfw","schemaVersion":1,"version":1},"reel_kept":{"contentHash":"sha256:805d0f1a050a6f675286cabb5bb772edaf5a93836b8c383a2cd8687247eee887","minClient":10,"path":"reel_kept.rfw","schemaVersion":1,"version":1},"reel_offer":{"contentHash":"sha256:4181f010b4009efd61944d7f577b8bfc3578c3d95797ee1b42f44556643c4cb2","minClient":10,"path":"reel_offer.rfw","schemaVersion":1,"version":1},"reel_reason":{"contentHash":"sha256:2991b59a165ea69dda9381555e7aa57583a6b12098ab2192212313fd9971e7a9","minClient":10,"path":"reel_reason.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"retained":true}},"reel_frequency":{"kind":"screen","on":{"next":{"target":"reel_offer","type":"goto"}},"screen":"reel_frequency"},"reel_kept":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"reel_kept"},"reel_offer":{"kind":"screen","on":{"keep":{"action":"redeemOffer","resultPredicate":{"field":"redeemed","kind":"objectBoolFieldEquals","value":true},"target":"reel_kept","type":"action"}},"screen":"reel_offer"},"reel_reason":{"kind":"screen","on":{"next":{"target":"reel_frequency","type":"goto"}},"screen":"reel_reason"}},"version":1}',
     screens: {
       'reel_reason': ReelReasonScreen.new,
       'reel_frequency': ReelFrequencyScreen.new,
@@ -22,7 +22,7 @@ const reelCancelFlowRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '4fc2cd55d51fc76d7ffceec8011a34ea12b81254800b414577e3e5563d6468c8',
+      'b84f98eb9206223804070656829b208f69c31f2d219f20466fdc02d39aee8fc3',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -184,6 +184,9 @@ final reelCancelFlowPlacementDefinition =
 
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class ReelCancelFlowSurface extends RestageFlowGraph<ReelCancelResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const ReelCancelFlowSurface({
     super.key,
     String? placement,
@@ -202,6 +205,9 @@ final class ReelCancelFlowSurface extends RestageFlowGraph<ReelCancelResult> {
   })  : _restagePlacementName = placement,
         super(flow: reelCancelFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [ReelCancelFlowSurface] for the default placement; no name is needed.
   const ReelCancelFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

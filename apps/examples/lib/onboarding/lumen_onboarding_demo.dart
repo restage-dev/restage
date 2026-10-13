@@ -1,28 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+import '../paywalls/lumen_welcome_offer.dart';
 import 'flows/lumen_onboarding.dart';
 
-/// Hosts the meditation onboarding→paywall engagement surface.
-///
-/// This is the *host* side: the small amount of app code that gives the flow
-/// somewhere to run. It composes the public flow primitives directly — a
-/// [RestageFlowController] (the brain) under a [RestageFlowView] (the rendering
-/// surface) rather than the convenience `RestageFlowGraph` widget.
-///
-/// It does three things a real app would do:
-/// 1. **Supplies the reminder host action.** A real app shows the OS permission
-///    dialog and returns the user's answer; this demo returns a fixed
-///    [grantReminders] decision so both branches are exercisable.
-/// 2. **Fails closed.** An unavailable flow shows a plain fallback, never a
-///    broken or partial flow.
-///
-/// Like the other examples this ships its flow as a bundled asset (no backend).
-/// A production app delivers onboarding over the air by injecting a
-/// `ServerFlowResolver` once at startup; the host action, fail-closed, and
-/// completion wiring are identical either way.
+/// Hosts meditation onboarding with a simulated reminder action.
+/// Supplies the embedded offer's constructor for the compiled fallback.
 class LumenOnboardingDemo extends StatefulWidget {
   /// Creates the onboarding host.
   ///
@@ -42,8 +25,6 @@ class LumenOnboardingDemo extends StatefulWidget {
 
 class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
   late final LumenOnboardingActions _actions;
-  RestageFlowController<LumenOnboardingResult>? _controller;
-  FlowUnavailableError? _unavailableError;
   bool _completed = false;
 
   @override
@@ -57,37 +38,6 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
         return ReminderDecision(granted: widget.grantReminders);
       },
     );
-    _start();
-  }
-
-  void _start() {
-    late final RestageFlowController<LumenOnboardingResult> controller;
-    controller = RestageFlowController<LumenOnboardingResult>(
-      flow: lumenOnboardingFlowRef,
-      resolver: Restage.defaultFlowResolver,
-      actions: _actions,
-      onEvent: (event) {
-        if (!mounted || !identical(_controller, controller)) return;
-        Restage.fireEvent(event);
-      },
-      onComplete: (result) {
-        if (!mounted || !identical(_controller, controller)) return;
-        setState(() => _completed = result.completed);
-      },
-      onUnavailable: (error) {
-        if (!mounted || !identical(_controller, controller)) return;
-        setState(() => _unavailableError = error);
-      },
-    );
-    _controller = controller;
-    unawaited(controller.load());
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    _controller = null;
-    super.dispose();
   }
 
   @override
@@ -95,28 +45,24 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
     if (_completed) {
       return const _CompletionScreen();
     }
-    final error = _unavailableError;
-    if (error != null) {
-      return ColoredBox(
-        color: const Color(0xFFF7F5FB),
-        child: Center(
-          child: Text(
-            error.message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF2A2833)),
+    return LumenOnboardingFlowSurface(
+      paywallLumenWelcomeOfferScreenBuilder: LumenWelcomeOfferPaywall.new,
+      actions: _actions,
+      onComplete: (result) {
+        if (mounted) setState(() => _completed = result.completed);
+      },
+      loadingBuilder: (context) => const ColoredBox(color: Color(0xFFF7F5FB)),
+      unavailable: FlowUnavailablePolicy.fallback(
+        builder: (context, error) => ColoredBox(
+          color: const Color(0xFFF7F5FB),
+          child: Center(
+            child: Text(
+              error.message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF2A2833)),
+            ),
           ),
         ),
-      );
-    }
-    final controller = _controller;
-    if (controller == null) {
-      return const ColoredBox(color: Color(0xFFF7F5FB));
-    }
-    return RestageEventDispatcher(
-      onEvent: controller.handleEvent,
-      child: RestageFlowView<LumenOnboardingResult>(
-        controller: controller,
-        loadingBuilder: (context) => const ColoredBox(color: Color(0xFFF7F5FB)),
       ),
     );
   }

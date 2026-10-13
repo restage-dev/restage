@@ -447,6 +447,28 @@ void main() {
     expect(err.toString(), contains('`restage build push --env staging`'));
   });
 
+  test(
+    'organization ID overrides config for the surface and its build',
+    () async {
+      File(p.join(app.path, 'restage_config.yaml')).writeAsStringSync(
+        'project: demo\napp: mobile\ndefaultEnvironment: staging\n'
+        'organization: configured-org\norganizationId: 99\nappId: 98\n'
+        'environmentTargetId: 97\nnamedEnvironmentId: 96\n',
+      );
+      final seen = <List<String>>[];
+      final code = await push(
+        ['pro_upgrade', '--build', '--organization-id=7'],
+        client: backend(registered: const {'acme.widgets': 2}),
+        buildCommand: () => _FakeBuildCommand(seen, exitCode: 0),
+      );
+
+      expect(code, 0, reason: err.toString());
+      expect(seen.single, contains('--organization-id=7'));
+      expect(seen.single, isNot(contains('--organization')));
+      expect(out.toString(), contains('Pushed pro_upgrade'));
+    },
+  );
+
   test('--flutter-root reaches the build step', () async {
     final seen = <List<String>>[];
     final code = await push(
@@ -483,6 +505,7 @@ final class _FakeBuildPushCommand extends Command<int> {
       ..addOption('project')
       ..addOption('app')
       ..addOption('organization')
+      ..addOption('organization-id')
       ..addOption('env')
       ..addOption('directory', abbr: 'C')
       ..addOption('flutter-root')

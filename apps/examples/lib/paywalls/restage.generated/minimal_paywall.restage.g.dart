@@ -52,6 +52,9 @@ final minimalPaywallPlacementDefinition =
     () => _minimalPaywallPlacementDefinitionValue;
 
 final class MinimalPaywallSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const MinimalPaywallSurface({
     super.key,
     String? placement,
@@ -61,6 +64,9 @@ final class MinimalPaywallSurface extends StatelessWidget {
     this.loadingBuilder,
   }) : _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [MinimalPaywallSurface] for the default placement; no name is needed.
   const MinimalPaywallSurface.atPlacement(
     String restagePlacementId, {
     super.key,

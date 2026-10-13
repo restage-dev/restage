@@ -12,7 +12,10 @@ const kHighlights = ['Longest session', 'Most active day', 'New habits'];
 final class WeeklyRecap extends StatelessWidget {
   const WeeklyRecap({super.key, required this.name, required this.streakDays});
 
+  /// Display name for the recap greeting.
   final String name;
+
+  /// Consecutive days of activity shown in the badge.
   final int streakDays;
 
   static const dismiss = SurfaceEvent<void>('dismiss');

@@ -37,6 +37,12 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
   final TextEditingController _promptController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _outputScroll = ScrollController();
+  final Map<ConsolePanel, ScrollController> _panelScroll = {
+    ConsolePanel.projects: ScrollController(),
+    ConsolePanel.surfaces: ScrollController(),
+    ConsolePanel.detail: ScrollController(),
+  };
   _PromptKind? _prompt;
   _PendingConfirmOperation? _pendingConfirm;
   bool _previewInFlight = false;
@@ -66,6 +72,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   void dispose() {
     _promptController.dispose();
     _searchController.dispose();
+    _outputScroll.dispose();
+    for (final scroll in _panelScroll.values) {
+      scroll.dispose();
+    }
     super.dispose();
   }
 
@@ -264,6 +274,11 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
   ConsolePanel _adjacentVisualPanel({required bool reverse}) {
     final focusedPanel = component.controller.state.focusedPanel;
+    if (_showingOutput) {
+      return _isLeftPanel(focusedPanel)
+          ? ConsolePanel.surfaces
+          : ConsolePanel.projects;
+    }
     if (_isLeftPanel(focusedPanel)) {
       return reverse ? ConsolePanel.detail : ConsolePanel.surfaces;
     }
@@ -312,6 +327,35 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         return true;
       }
       return false;
+    }
+
+    final scroll = _scrollForPanel(component.controller.state.focusedPanel);
+    if (event.logicalKey == LogicalKey.pageUp) {
+      scroll.scrollUp(10);
+      return true;
+    }
+    if (event.logicalKey == LogicalKey.pageDown) {
+      scroll.scrollDown(10);
+      return true;
+    }
+    if (_showingOutput &&
+        component.controller.state.focusedPanel == ConsolePanel.surfaces) {
+      switch (event.logicalKey) {
+        case LogicalKey.arrowUp:
+          _outputScroll.scrollUp(1);
+          return true;
+        case LogicalKey.arrowDown:
+          _outputScroll.scrollDown(1);
+          return true;
+        case LogicalKey.home:
+          _outputScroll.jumpTo(0);
+          return true;
+        case LogicalKey.end:
+          _outputScroll.jumpTo(_outputScroll.maxScrollExtent);
+          return true;
+        default:
+          break;
+      }
     }
 
     switch (event.logicalKey) {
@@ -403,7 +447,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     if (arguments != null) {
       _closeSearch(clear: true);
       if (arguments.isEmpty) return;
-      setState(() => _showingOutput = true);
+      _showCommandOutput();
       await component.controller.runCommand(arguments);
       if (!mounted) return;
       setState(() {});
@@ -615,6 +659,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           freeze: false,
           confirmedProduction: true,
         );
+        _showCommandOutput();
     }
   }
 
@@ -651,7 +696,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         return;
     }
     // Notes and next steps print below the result.
-    if (mounted) setState(() => _showingOutput = true);
+    _showCommandOutput();
   }
 
   bool get _needsLiveConfirmation =>
@@ -672,16 +717,23 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     });
   }
 
+  void _showCommandOutput() {
+    if (!mounted) return;
+    setState(() {
+      _showingOutput = true;
+      component.controller.focusPanel(ConsolePanel.surfaces);
+      _outputScroll.jumpTo(0);
+    });
+  }
+
   Future<void> _pushSelected() async {
     await component.controller.pushSelected();
-    if (!mounted) return;
-    setState(() => _showingOutput = true);
+    _showCommandOutput();
   }
 
   Future<void> _pushBuild() async {
     await component.controller.pushBuild();
-    if (!mounted) return;
-    setState(() => _showingOutput = true);
+    _showCommandOutput();
   }
 
   Future<void> _selectSurface(int index) async {
@@ -753,7 +805,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       _leftEnvironmentFocusIndex = index;
       component.controller.focusPanel(ConsolePanel.projects);
     });
-    await component.controller.selectEnvironment(index);
+    final refresh = component.controller.selectEnvironment(index);
+    setState(() {});
+    await refresh;
     if (!mounted) return;
     setState(() {
       _leftEnvironmentFocusIndex = component.controller.state.environmentIndex;
@@ -853,12 +907,24 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 1),
-            Text(
-              'restage        ${_contextLabel(state)}',
-              style: const TextStyle(
-                color: _ConsoleTheme.selected,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                const Text(
+                  'restage',
+                  style: TextStyle(
+                    color: _ConsoleTheme.brand,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(
+                    _contextLabel(state),
+                    maxLines: 1,
+                    style: const TextStyle(color: _ConsoleTheme.heading),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 1),
             _searchBand(state),
@@ -881,11 +947,17 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
                 maxLines: 1,
                 style: const TextStyle(color: _ConsoleTheme.warning),
               ),
-            const Text(
-              '/ search | tab panels | arrows move | enter/space select | drag resize | q quit',
-              maxLines: 1,
-              overflow: TextOverflow.clip,
-              style: TextStyle(color: _ConsoleTheme.muted),
+            LayoutBuilder(
+              builder: (context, constraints) => Text(
+                constraints.maxWidth < 70
+                    ? '/ search | tab panels | pgup/dn scroll | q quit'
+                    : _showingOutput
+                    ? '/ command | tab panels | arrows/page up/down scroll | q quit'
+                    : '/ search | tab panels | arrows move | enter/space select | drag resize | q quit',
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: const TextStyle(color: _ConsoleTheme.muted),
+              ),
             ),
           ],
         ),
@@ -910,7 +982,37 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final widths = _resolvedPanelWidths(constraints.maxWidth.floor());
+        final availableWidth = constraints.maxWidth.floor();
+        if (availableWidth < 70) {
+          return _compactBody(state, availableWidth);
+        }
+        final widths = _resolvedPanelWidths(availableWidth);
+        if (_showingOutput) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: widths.nav.toDouble(),
+                child: _panelBox(
+                  panel: ConsolePanel.projects,
+                  title: 'Dashboard',
+                  focused: _isLeftPanel(state.focusedPanel),
+                  child: _leftNav(state),
+                ),
+              ),
+              SizedBox(width: _dividerWidth.toDouble()),
+              Expanded(
+                child: _panelBox(
+                  panel: ConsolePanel.surfaces,
+                  title: 'Command output',
+                  focused: state.focusedPanel == ConsolePanel.surfaces,
+                  scrollController: _outputScroll,
+                  child: _commandOutputPanel(state),
+                ),
+              ),
+            ],
+          );
+        }
         return MouseRegion(
           onHover: _handlePanelResizeMouse,
           child: Row(
@@ -952,6 +1054,56 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           ),
         );
       },
+    );
+  }
+
+  Component _compactBody(ConsoleState state, int width) {
+    final left = _isLeftPanel(state.focusedPanel);
+    final detail = _isDetailPanel(state.focusedPanel);
+    final title = left
+        ? 'Dashboard'
+        : detail
+        ? _detailPanelTitle(state)
+        : _middlePanelTitle;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            for (final entry in [
+              (ConsolePanel.projects, 'nav'),
+              (ConsolePanel.surfaces, _showingOutput ? 'output' : 'view'),
+              if (!_showingOutput) (ConsolePanel.detail, 'detail'),
+            ]) ...[
+              GestureDetector(
+                onTap: () => _focusPanel(entry.$1),
+                child: Text(
+                  '[${entry.$2}]',
+                  style: TextStyle(
+                    color: state.focusedPanel == entry.$1
+                        ? _ConsoleTheme.focus
+                        : _ConsoleTheme.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 1),
+            ],
+          ],
+        ),
+        Expanded(
+          child: _panelBox(
+            panel: state.focusedPanel,
+            title: title,
+            focused: true,
+            scrollController: _showingOutput && !left ? _outputScroll : null,
+            child: left
+                ? _leftNav(state)
+                : detail
+                ? _detailPanel(state)
+                : _middlePanel(state, width: width),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1107,18 +1259,31 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'restage ${output.arguments.join(' ')}  exit '
-          '${output.result.exitCode}',
-          maxLines: 1,
+          'restage ${output.arguments.join(' ')}',
+
           style: TextStyle(
-            color: output.result.succeeded
-                ? _ConsoleTheme.heading
-                : _ConsoleTheme.warning,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
-        for (final line in output.lines)
+        Text(
+          'Exit ${output.result.exitCode}',
+          style: TextStyle(
+            color: output.result.succeeded
+                ? _ConsoleTheme.success
+                : _ConsoleTheme.danger,
+          ),
+        ),
+        if (output.result.targetDescription case final target?)
+          Text(
+            'Target: $target',
+            style: const TextStyle(color: _ConsoleTheme.link),
+          ),
+        for (final line in output.result.stdout.trimRight().split('\n'))
           Text(line, style: const TextStyle(color: _ConsoleTheme.text)),
+        if (output.result.stderr.trim().isNotEmpty)
+          for (final line in output.result.stderr.trimRight().split('\n'))
+            Text(line, style: const TextStyle(color: _ConsoleTheme.danger)),
       ],
     );
   }
@@ -1145,7 +1310,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             maxLines: 1,
             style: TextStyle(
               color: verdict.status == 'verified'
-                  ? _ConsoleTheme.focus
+                  ? _ConsoleTheme.success
                   : _ConsoleTheme.warning,
             ),
           ),
@@ -1168,7 +1333,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
               maxLines: 1,
               style: TextStyle(
                 color: entry.chain == AuditChain.verified
-                    ? _ConsoleTheme.focus
+                    ? _ConsoleTheme.success
                     : _ConsoleTheme.muted,
               ),
             ),
@@ -1202,7 +1367,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
               maxLines: 1,
               style: TextStyle(
                 color: entry.exitCode == 0
-                    ? _ConsoleTheme.focus
+                    ? _ConsoleTheme.success
                     : _ConsoleTheme.warning,
               ),
             ),
@@ -1245,6 +1410,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
               ? TextField(
                   controller: _searchController,
                   focused: true,
+                  style: const TextStyle(color: _ConsoleTheme.text),
+                  placeholderStyle: const TextStyle(color: _ConsoleTheme.muted),
+                  cursorColor: _ConsoleTheme.focus,
+                  selectionColor: _ConsoleTheme.selectedSoft,
                   placeholder: 'search surfaces, commands',
                   onChanged: _updateSearch,
                   onSubmitted: (value) => unawaited(_submitSearch(value)),
@@ -1313,20 +1482,31 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => unawaited(_selectEnvironment(index)),
-      child: SizedBox(
-        width: 17,
-        child: Text(
-          '${selected ? '>' : ' '} ${environment.label}',
-          maxLines: 1,
-          style: TextStyle(
-            color: focused
-                ? _ConsoleTheme.focus
-                : selected
-                ? _ConsoleTheme.selected
-                : _ConsoleTheme.text,
-            backgroundColor: selected ? _ConsoleTheme.selectedSoft : null,
-            fontWeight: selected || focused ? FontWeight.bold : null,
-          ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected ? _ConsoleTheme.selectedSoft : _ConsoleTheme.panel,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${selected ? '>' : ' '} ${environment.slug}',
+              maxLines: 1,
+              style: TextStyle(
+                color: focused
+                    ? _ConsoleTheme.focus
+                    : selected
+                    ? _ConsoleTheme.selected
+                    : _ConsoleTheme.text,
+                fontWeight: selected || focused ? FontWeight.bold : null,
+              ),
+            ),
+            Text(
+              '  ${environment.runtimePlane.wireName}',
+              maxLines: 1,
+              style: const TextStyle(color: _ConsoleTheme.muted),
+            ),
+          ],
         ),
       ),
     );
@@ -1558,13 +1738,28 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         Text(
           'Active surfaces ${state.surfaces.length}',
           maxLines: 1,
-          style: const TextStyle(color: _ConsoleTheme.focus),
+          style: const TextStyle(color: _ConsoleTheme.text),
         ),
         Text(
           'Paywalls $paywallCount / onboarding $onboardingCount',
           maxLines: 1,
           style: const TextStyle(color: _ConsoleTheme.text),
         ),
+        if (state.overviewLoading)
+          const Text(
+            'Loading analytics...',
+            style: TextStyle(color: _ConsoleTheme.muted),
+          )
+        else if (state.overviewError != null)
+          Text(
+            'Analytics unavailable: ${state.overviewError}',
+            style: const TextStyle(color: _ConsoleTheme.danger),
+          )
+        else if (state.overview == null)
+          const Text(
+            'Analytics unavailable',
+            style: TextStyle(color: _ConsoleTheme.muted),
+          ),
         _figure(
           'App sessions that saw a surface',
           state.overview?.sessions,
@@ -1604,7 +1799,12 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           Text(
             value ?? kFigureUnavailable,
             maxLines: 1,
-            style: const TextStyle(color: _ConsoleTheme.text),
+            style: TextStyle(
+              color: value == null || value == kFigureUnavailable
+                  ? _ConsoleTheme.muted
+                  : _ConsoleTheme.heading,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           for (final line in apps ?? const <String>[])
             Text(
@@ -1666,7 +1866,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             maxLines: 1,
             style: TextStyle(
               color: verdict.status == 'verified'
-                  ? _ConsoleTheme.focus
+                  ? _ConsoleTheme.success
                   : _ConsoleTheme.warning,
             ),
           ),
@@ -1710,7 +1910,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             maxLines: 1,
             style: TextStyle(
               color: latestAudit.chain == AuditChain.verified
-                  ? _ConsoleTheme.focus
+                  ? _ConsoleTheme.success
                   : _ConsoleTheme.muted,
             ),
           ),
@@ -1747,14 +1947,14 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           Text(
             '${latestOperation.operation} ${latestOperation.surfaceSlug}',
             maxLines: 1,
-            style: const TextStyle(color: _ConsoleTheme.focus),
+            style: const TextStyle(color: _ConsoleTheme.text),
           ),
           Text(
             'Result exit ${latestOperation.exitCode}',
             maxLines: 1,
             style: TextStyle(
               color: latestOperation.exitCode == 0
-                  ? _ConsoleTheme.focus
+                  ? _ConsoleTheme.success
                   : _ConsoleTheme.warning,
             ),
           ),
@@ -1813,7 +2013,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           style: TextStyle(
             color: status?.locked == true
                 ? _ConsoleTheme.warning
-                : _ConsoleTheme.focus,
+                : _ConsoleTheme.success,
           ),
         ),
         if (status != null)
@@ -1932,11 +2132,20 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     );
   }
 
+  ScrollController _scrollForPanel(ConsolePanel panel) {
+    if (_isLeftPanel(panel)) return _panelScroll[ConsolePanel.projects]!;
+    if (_isDetailPanel(panel)) return _panelScroll[ConsolePanel.detail]!;
+    return _showingOutput
+        ? _outputScroll
+        : _panelScroll[ConsolePanel.surfaces]!;
+  }
+
   Component _panelBox({
     required ConsolePanel panel,
     required String title,
     required bool focused,
     required Component child,
+    ScrollController? scrollController,
   }) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1944,7 +2153,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       child: Container(
         padding: const EdgeInsets.all(1),
         decoration: BoxDecoration(
-          color: focused ? _ConsoleTheme.panel : _ConsoleTheme.recessed,
+          color: _ConsoleTheme.panel,
           border: BoxBorder.all(
             color: focused ? _ConsoleTheme.focus : _ConsoleTheme.border,
           ),
@@ -1960,7 +2169,12 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
               ),
             ),
             const SizedBox(height: 1),
-            Expanded(child: child),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController ?? _scrollForPanel(panel),
+                child: child,
+              ),
+            ),
           ],
         ),
       ),
@@ -2015,6 +2229,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           TextField(
             controller: _promptController,
             focused: true,
+            style: const TextStyle(color: _ConsoleTheme.text),
+            placeholderStyle: const TextStyle(color: _ConsoleTheme.muted),
+            cursorColor: _ConsoleTheme.focus,
+            selectionColor: _ConsoleTheme.selectedSoft,
             placeholder: prompt.placeholder,
             onSubmitted: (value) => unawaited(_submitPrompt(value)),
           ),
@@ -2039,24 +2257,24 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   }
 }
 
-/// The dashboard's dark palette, as a terminal can show it: the same ground
-/// ladder, ink ladder, teal for what is selected or linked, sage for what is
-/// good, cream for headings, and the theater red for what failed.
+/// Dark terminal roles: neutral selection, coral focus, and semantic status ink.
 abstract class _ConsoleTheme {
   static const ground = Color.fromRGB(12, 14, 19);
   static const recessed = Color.fromRGB(26, 30, 39);
-  static const panel = Color.fromRGB(35, 40, 51);
+  static const panel = Color.fromRGB(20, 23, 30);
   static const border = Color.fromRGB(51, 58, 71);
   static const text = Color.fromRGB(238, 240, 244);
   static const muted = Color.fromRGB(142, 151, 170);
   static const heading = Color.fromRGB(239, 222, 186);
-  static const selected = Color.fromRGB(45, 212, 191);
-  // `selectedSoft` over the card ground, since a cell has no alpha.
-  static const selectedSoft = Color.fromRGB(37, 71, 76);
+  static const brand = Color.fromRGB(45, 212, 191);
+  static const selected = text;
+  static const selectedSoft = Color.fromRGB(35, 40, 51);
   static const link = Color.fromRGB(45, 212, 191);
-  static const focus = Color.fromRGB(111, 174, 140);
+  // A solid coral cell preserves the focus role without alpha blending.
+  static const focus = Color.fromRGB(255, 151, 134);
+  static const success = Color.fromRGB(111, 174, 140);
   static const warning = Color.fromRGB(224, 168, 82);
-  static const danger = Color.fromRGB(194, 80, 80);
+  static const danger = Color.fromRGB(226, 125, 125);
 }
 
 enum _ConsoleView {

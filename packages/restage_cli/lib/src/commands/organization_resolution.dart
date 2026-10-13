@@ -18,8 +18,15 @@ class ConfiguredOrganizationContext {
 
 /// Register the hidden `--organization-id` selector a tool that already
 /// knows the organization id passes.
-void addOrganizationIdOption(ArgParser parser) =>
-    parser.addOption('organization-id', hide: true);
+void addOrganizationIdOption(ArgParser parser) => parser.addOption(
+  'organization-id',
+  hide: true,
+  callback: (value) {
+    if (value != null && (int.tryParse(value) ?? 0) < 1) {
+      throw ArgParserException('--organization-id must be a positive integer.');
+    }
+  },
+);
 
 /// The organization id `--organization-id` names, if any.
 int? organizationIdOption(ArgResults? argResults) {
@@ -27,6 +34,14 @@ int? organizationIdOption(ArgResults? argResults) {
     return null;
   }
   return int.tryParse(argResults['organization-id'] as String? ?? '');
+}
+
+/// An explicit organization selector takes precedence over configured scope.
+String? resolveOrganizationSlug(ArgResults? argResults, RestageConfig? config) {
+  if (argResults?.options.contains('organization') ?? false) {
+    return argResults!['organization'] as String?;
+  }
+  return organizationIdOption(argResults) == null ? config?.organization : null;
 }
 
 void _writeOrganizationDiscoveryError(
@@ -48,7 +63,7 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
   String? preferredSlug,
   int? organizationId,
 }) async {
-  if (organizationId != null) {
+  if (organizationId != null && !(preferredSlug?.isNotEmpty ?? false)) {
     return ConfiguredOrganizationContext(organizationId);
   }
   final organizationSlug = preferredSlug?.isNotEmpty ?? false
@@ -61,7 +76,9 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
   try {
     final organizations = await DiscoveryApi(api).listOrganizations();
     for (final organization in organizations) {
-      if (organization.slug == organizationSlug) {
+      if (organization.slug == organizationSlug &&
+          (organizationId == null ||
+              organization.organizationId == organizationId)) {
         return ConfiguredOrganizationContext(organization.organizationId);
       }
     }

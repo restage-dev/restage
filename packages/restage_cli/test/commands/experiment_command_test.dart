@@ -243,6 +243,7 @@ void main() {
     Uint8ListReply? reply,
     String Function(String method)? operatorReply,
     bool withYes = true,
+    Map<String, String> environment = const {},
   }) async {
     final methods = <String>[];
     final stdout = StringBuffer();
@@ -284,7 +285,7 @@ void main() {
           stderr: stderr,
           credentialStore: store,
           httpClient: client,
-          environment: const {'RESTAGE_EXPERIMENTAL': '1'},
+          environment: environment,
         ).run([
           '--non-interactive',
           if (withYes) '--yes',
@@ -357,7 +358,6 @@ void main() {
         stdout: stdout,
         stderr: stderr,
         credentialStore: store,
-        environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       ).run(const ['experiment', '--help']);
 
       expect(
@@ -420,7 +420,6 @@ void main() {
         stdout: stdout,
         stderr: StringBuffer(),
         credentialStore: store,
-        environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       ).run(const ['experiment', 'discover', '--help']);
 
       expect(stdout.toString(), contains('--surface-id'));
@@ -553,7 +552,6 @@ void main() {
                 stderr: stderr,
                 credentialStore: store,
                 httpClient: client,
-                environment: const {'RESTAGE_EXPERIMENTAL': '1'},
               ).run([
                 '--non-interactive',
                 '--yes',
@@ -668,7 +666,6 @@ void main() {
         stderr: stderr,
         credentialStore: store,
         httpClient: client,
-        environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       ).run([
         '--non-interactive',
         '--yes',
@@ -714,7 +711,6 @@ void main() {
         stderr: StringBuffer(),
         credentialStore: store,
         httpClient: client,
-        environment: const {'RESTAGE_EXPERIMENTAL': '1'},
       ).run([
         '--non-interactive',
         '--yes',
@@ -761,7 +757,6 @@ void main() {
             stderr: StringBuffer(),
             credentialStore: store,
             httpClient: client,
-            environment: const {'RESTAGE_EXPERIMENTAL': '1'},
           ).run([
             '--non-interactive',
             'experiment',
@@ -1433,7 +1428,6 @@ void main() {
             stderr: stderr,
             credentialStore: store,
             httpClient: client,
-            environment: const {'RESTAGE_EXPERIMENTAL': '1'},
           ).run([
             ...globals,
             'experiment',
@@ -1463,52 +1457,81 @@ void main() {
     });
   });
 
-  group('the experimental gate', () {
-    test('lists only the reads until the host opts in', () async {
-      final stdout = StringBuffer();
-      await RestageCli(
-        stdout: stdout,
-        stderr: StringBuffer(),
-        credentialStore: store,
-        environment: const {},
-      ).run(const ['experiment', '--help']);
+  group('available without experimental opt-in', () {
+    for (final entry in <String, Map<String, String>>{
+      'unset': const {},
+      'false': const {'RESTAGE_EXPERIMENTAL': 'false'},
+      'zero': const {'RESTAGE_EXPERIMENTAL': '0'},
+    }.entries) {
+      test('lists every subcommand with opt-in ${entry.key}', () async {
+        final stdout = StringBuffer();
+        final code = await RestageCli(
+          stdout: stdout,
+          stderr: StringBuffer(),
+          credentialStore: store,
+          environment: entry.value,
+        ).run(const ['experiment', '--help']);
 
-      expect(_subcommandsInHelp(stdout.toString()), ['list', 'results']);
-    });
+        expect(code, 0);
+        expect(
+          _subcommandsInHelp(stdout.toString()),
+          [..._routes.keys, ..._operatorRoutes.keys, 'list', 'results']..sort(),
+        );
+      });
 
-    test('a subcommand refuses and reaches no route without it', () async {
-      final methods = <String>[];
-      final stderr = StringBuffer();
-      final code =
-          await RestageCli(
-            stdout: StringBuffer(),
-            stderr: stderr,
-            credentialStore: store,
-            httpClient: MockClient((request) async {
-              methods.add(
-                (jsonDecode(request.body) as Map<String, Object?>)['method']!
-                    as String,
-              );
-              return http.Response('{}', 200);
-            }),
-            environment: const {},
-          ).run([
-            '--non-interactive',
-            '--yes',
-            'experiment',
-            'conclude',
-            ..._lifecycleSelectors,
-            '--directory=${project.path}',
-          ]);
+      test('executes authoring with opt-in ${entry.key}', () async {
+        for (final command in ['discover', 'create', 'read-draft']) {
+          final result = await run(
+            [command, ..._selectors[command]!],
+            environment: entry.value,
+            reply: (method, sent) =>
+                acceptedFor(method, correlationId: sent.correlationId),
+          );
 
-      expect(code, 1);
-      expect(stderr.toString(), contains('experimental'));
-      expect(
-        methods,
-        isEmpty,
-        reason: 'no request may leave without the opt-in',
-      );
-    });
+          expect(result.code, 0, reason: '$command: ${result.err}');
+          expect(result.methods, [_routes[command]]);
+          expect(result.out, isNotEmpty);
+        }
+      });
+
+      test('still requires authentication with opt-in ${entry.key}', () async {
+        await store.delete();
+        var requests = 0;
+        final stderr = StringBuffer();
+        final code =
+            await RestageCli(
+              stdout: StringBuffer(),
+              stderr: stderr,
+              credentialStore: store,
+              environment: entry.value,
+              httpClient: MockClient((request) async {
+                requests += 1;
+                return http.Response('{}', 200);
+              }),
+            ).run([
+              '--non-interactive',
+              'experiment',
+              'create',
+              '--directory=${project.path}',
+            ]);
+
+        expect(code, 1);
+        expect(stderr.toString(), contains('Not signed in.'));
+        expect(requests, 0);
+      });
+
+      test('still requires live consent with opt-in ${entry.key}', () async {
+        final result = await run(
+          const ['pause', ..._lifecycleSelectors],
+          environment: entry.value,
+          withYes: false,
+        );
+
+        expect(result.code, 1);
+        expect(result.err, contains('changes what the live plane serves'));
+        expect(result.methods, isEmpty);
+      });
+    }
   });
 }
 

@@ -90,6 +90,9 @@ final messageOfferPlacementDefinition =
 
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class MessageOfferSurface extends RestageFlowGraph<MessageOfferResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const MessageOfferSurface({
     super.key,
     String? placement,
@@ -108,6 +111,9 @@ final class MessageOfferSurface extends RestageFlowGraph<MessageOfferResult> {
   })  : _restagePlacementName = placement,
         super(flow: messageOfferRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [MessageOfferSurface] for the default placement; no name is needed.
   const MessageOfferSurface.atPlacement(
     String restagePlacementId, {
     super.key,

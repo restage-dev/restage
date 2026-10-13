@@ -161,6 +161,7 @@ void main() {
       store: FileCredentialStore('${directory.path}/credentials'),
       httpClient: MockClient((_) async => http.Response('[]', 200)),
       experimentActivationApi: activation,
+      environment: const {'RESTAGE_EXPERIMENTAL': '1'},
     );
     final tools = (await connection.listTools(ListToolsRequest())).tools;
     toolDefinitions = {for (final tool in tools) tool.name: tool};

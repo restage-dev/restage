@@ -6,20 +6,20 @@ const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
     SectionHeaderShowcaseResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'section_header_showcase',
   version: 1,
-  minClient: 9,
+  minClient: 10,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeSectionHeaderShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":9,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:a19b24bfd19e74537a4a4f95b5d07d1d1be84bfc143966a2816d8c7417e2db58","minClient":9,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
+        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:a19b24bfd19e74537a4a4f95b5d07d1d1be84bfc143966a2816d8c7417e2db58","minClient":10,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
     screens: {
       'section_header_showcase': SectionHeaderShowcaseScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'a6ad6c053f49b4cc83dd0c87f0d2fb76a9aec826b93de8d9c81ca4345cf8b693',
+      'fe25dd0ec2d22ac0e1270d4b84b8da259cf4c17d79e4392ffe4c0aa0aa1fea90',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -117,6 +117,9 @@ final sectionHeaderShowcaseFlowPlacementDefinition =
 /// Mounts the authored flow with hosted delivery and a compiled original fallback.
 final class SectionHeaderShowcaseFlowSurface
     extends RestageFlowGraph<SectionHeaderShowcaseResult> {
+  /// Mounts this flow at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const SectionHeaderShowcaseFlowSurface({
     super.key,
     String? placement,
@@ -135,6 +138,9 @@ final class SectionHeaderShowcaseFlowSurface
   })  : _restagePlacementName = placement,
         super(flow: sectionHeaderShowcaseFlowRef);
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [SectionHeaderShowcaseFlowSurface] for the default placement; no name is needed.
   const SectionHeaderShowcaseFlowSurface.atPlacement(
     String restagePlacementId, {
     super.key,

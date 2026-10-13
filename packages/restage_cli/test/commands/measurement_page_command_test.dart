@@ -337,7 +337,7 @@ void main() {
       expect(table, contains(['Not placed yet', '1'].join('|')));
       expect(
         table,
-        contains(['weekly-progress', 'Fits no reported spot'].join('|')),
+        contains(['weekly-progress', 'Fits no reported placement'].join('|')),
       );
     });
 
@@ -1023,6 +1023,65 @@ void main() {
       );
     });
 
+    test(
+      'revenue totals distinguish unavailable amounts from measured zero',
+      () async {
+        for (final (gross, unconverted, expected) in [
+          (0, true, 'Not available'),
+          (0, false, r'$0'),
+          (1000000000, true, r'$1,000 so far'),
+        ]) {
+          final result = await run(
+            readOf('analytics overview'),
+            const ['--all-apps'],
+            reply: _served({
+              'totals': {
+                'revenue': {
+                  'earning': true,
+                  'grossUsdMicros': gross,
+                  'unconverted': unconverted,
+                },
+              },
+            }),
+          );
+          expect(result.code, 0, reason: result.err);
+          expect(result.out, contains('Revenue from surfaces\n$expected\n'));
+        }
+      },
+    );
+
+    test(
+      'an unconverted app amount never claims a zero revenue share',
+      () async {
+        final result = await run(
+          readOf('analytics overview'),
+          const ['--all-apps'],
+          reply: _served({
+            'totals': {
+              'revenue': {'earning': true, 'grossUsdMicros': 1000000000},
+            },
+            'apps': [
+              {
+                'appName': 'Stride',
+                'figures': {
+                  'revenue': {
+                    'earning': true,
+                    'grossUsdMicros': 0,
+                    'unconverted': true,
+                  },
+                },
+              },
+            ],
+          }),
+        );
+        expect(result.code, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('Revenue from surfaces\n\$1,000\n  Stride  Not available\n'),
+        );
+      },
+    );
+
     test('--json prints the reply unchanged', () async {
       final reply = _served(apps);
       final result = await run(readOf('analytics overview'), const [
@@ -1095,17 +1154,16 @@ void main() {
     expect(result.out, isEmpty);
   });
 
-  test('experiment reads are not behind the experimental opt-in', () {
+  test('experiment reads and authoring are visible by default', () {
     final command = ExperimentCommand(
       stdout: StringBuffer(),
       stderr: StringBuffer(),
       interactive: const NonInteractive(),
-      environment: const {},
     );
 
     expect(command.hidden, isFalse);
     expect(command.subcommands['list']!.hidden, isFalse);
     expect(command.subcommands['results']!.hidden, isFalse);
-    expect(command.subcommands['create']!.hidden, isTrue);
+    expect(command.subcommands['create']!.hidden, isFalse);
   });
 }

@@ -10,9 +10,26 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 @experimental
 String formatDeliveryMeasurementMutationReview(
   DeliveryMeasurementMutationReviewV1 review,
-) =>
-    'Measurement impact ${review.operation}; review ${review.digest.hex}.\n'
-    '${const JsonEncoder.withIndent('  ').convert(review.toJson())}';
+) {
+  final consequence = deliveryMeasurementMutationConsequence(review);
+  return 'Measurement impact ${review.operation}; review ${review.digest.hex}.'
+      '${consequence == null ? '' : ' $consequence'}\n'
+      '${const JsonEncoder.withIndent('  ').convert(review.toJson())}';
+}
+
+/// Describes the serving consequence without changing the canonical review.
+@experimental
+String? deliveryMeasurementMutationConsequence(
+  DeliveryMeasurementMutationReviewV1 review,
+) {
+  if (review.operation != 'surfaceKill' ||
+      !review.reviews.any((impact) => impact.affectedSources.isNotEmpty)) {
+    return null;
+  }
+  return 'Killing this surface stops fresh experimental delivery from it and '
+      'may interrupt measurement. Experiment lifecycle, immutable versions, '
+      'and saved results are unchanged.';
+}
 
 /// The original server review that requires explicit acknowledgement.
 @experimental

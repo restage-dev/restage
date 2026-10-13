@@ -80,7 +80,7 @@ void main() {
 
     expect(
       largest,
-      533530,
+      723192,
       reason: 'the largest generated draft in the example app has moved',
     );
   });

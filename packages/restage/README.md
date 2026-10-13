@@ -94,6 +94,19 @@ The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
 walks through a full example using the compiled-widget fallback, with no
 generated surface assets. Leave `bundled_runtime` at its default, `false`.
 
+### Start with existing Flutter UI
+
+Keep your layout, theme, supported local state and helper widgets. Add the import,
+annotation and generated part to the smallest useful subtree, generate, then
+replace its app mount with `<ClassName>Surface(...)`. Your router, services and
+state owners can stay where they are; pass their display values through the
+constructor and connect app behavior through events.
+
+Fix unsupported expressions where the compiler reports them. Keep native
+boundaries small so surrounding layout and content remain updateable. Check both
+the original-widget fallback and delivered content with the same data and
+interactions.
+
 ## Surfaces
 
 Use generated `*Surface(...)` widgets for screens, paywalls and flows. Each
@@ -111,6 +124,20 @@ placement.
 - **Screens**: any single surface you write with `@Screen`, such as a welcome
   page, a notice, or a settings card. Use its generated
   `<ClassName>Surface(onEvent: ...)`.
+
+Use `@Screen(surface: ...)` for an independent surface and bare `@Screen()` for a
+flow step. Choose a flow when Restage should own its sequence and transitions;
+existing app routes can still present separate surfaces. `Surface` is the category
+enum, not an annotation. Reusable components inside a surface use
+`@RestageWidget()` and a widget-library export.
+
+Existing navigation between `@Paywall()` widgets can compile into a flow too:
+supported synchronous `Navigator.push` calls with an inline `MaterialPageRoute` or
+`CupertinoPageRoute`, and `Navigator.pop(context)` in the destination. The target
+uses an unnamed constructor without arguments; pushes are limited to one level,
+with no awaited results or root-navigator override. Mount the generated entry
+paywall. This automatic flow needs a bundle for hosted version validation; ordinary
+generated screens, paywalls and explicit flows use compiled fallbacks without one.
 
 ### Lower-level mounts
 
@@ -165,8 +192,11 @@ examples with generated mounts, hosted delivery and compiled fallbacks.
 
 ## Host data
 
-Every surface host accepts an optional `context:` map. Its values are available
-to authored widgets under `data.context.*`.
+Generated screen and paywall mounts pass supported constructor values as host data
+automatically. For a flow step with app-owned constructor values, supply `context:`
+for delivered content and its generated step builder for the compiled fallback.
+Lower-level hosts also accept a `context:` map. Its values are available under
+`data.context.*`.
 
 Context accepts strings, integers, finite doubles, booleans, lists, and maps
 with string keys through 32 collection levels below the root. A context may
@@ -177,7 +207,7 @@ Normalization synchronously deep-copies accepted input. Invalid values,
 unreadable collections, and exceeded limits throw in debug; release reports
 diagnostics and omits the offending value or collection.
 
-For example, a screen can render state already owned by the app:
+For a direct screen mount, supply state already owned by the app through that map:
 
 ```dart
 RestageScreen(
@@ -205,21 +235,26 @@ ids move.
 
 Generated mounts render their compiled-widget fallback without a server or
 bundled surface assets. To fetch surfaces from Restage Cloud or your own server, call
-`Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...)` at startup. That
-installs `RestageVariantResolver`, which fetches the active published version
-and retains the generated mount's fallback when delivery is unavailable. Flows fetch through
-`ServerFlowResolver` (pass it as `flowResolver:`).
+`Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...)` at startup. Default hosted
+resolution covers screens, paywalls and flows, including the generated mount's
+implicit placement. Leave `flowResolver` unset for ordinary setup; an explicit
+resolver overrides the default placement-aware flow path.
 
-A surface shows within a render deadline, 300 ms by default. If the published
-version hasn't arrived by then, the mount shows the best copy it already has:
-the last published version saved on the device, then an optional bundled copy, then
-the widget you wrote. The fetch keeps going in the background and saves what it
-receives. The next mount shows it, or the current one updates in place when
-live refresh is on. Set the deadline with
-`Restage.configure(renderDeadline: ...)`, and pass `surfaces:` to fetch the
-surfaces your app knows about as soon as it starts. When a user's experiment
-assignment isn't ready by the deadline, they see the fallback and are not
-counted in the experiment on that mount.
+The render deadline limits the wait for fresh content to 300 ms by default.
+Otherwise the mount uses an eligible local candidate ready by the deadline:
+retained content or an optional bundle, followed by the generated mount's compiled
+fallback. Retained content must still match the target, installed build and
+identity, and remain unexpired. Set the wait with
+`Restage.configure(renderDeadline: ...)`.
+
+Accepted background responses can be retained for later mounts. Pass `surfaces:`
+to prefetch known surfaces after the first frame; prefetch does not assign users
+to experiments. Live refresh can update supported mounts when safe, but a
+standalone screen already showing its compiled fallback needs a remount.
+
+Unassigned fallback is not an experiment presentation. Assignment is separate
+from rendering: an assigned unit can remain in the analysis even if its version
+never renders. A late response or eligible cached delivery can retain an assignment.
 
 For Restage Cloud, set `baseUrl` to the environment's edge API hostname (for
 example, `https://api-staging.restage.dev` on staging). The SDK sends hosted
@@ -299,12 +334,19 @@ each version you ship.
   no server.
 - **No endpoint is built in.** Data goes to the `baseUrl` you configure,
   authenticated with your public key (`rs_pk_...`). Point it at Restage Cloud
-  or at your own server.
+  or at your own server. The SDK sends the key as an opaque bearer credential;
+  the server decides its scope and environment. See
+  [Hosted delivery](https://docs.restage.dev/delivery/hosted-delivery).
+- **It runs on iOS, Android, macOS, Linux and Windows.** Flutter Web opens no
+  measurement session and produces or uploads no measurement frames. Separate
+  delivery receipts and placement reporting can still operate under
+  `deliveryReceiptsEnabled`.
 - **The install id is pseudonymous.** Each install gets a random UUID. It isn't
   derived from any device or advertising identifier, and it resets on
   uninstall or `Restage.reset()`. Treat it as personal data under GDPR and
   similar laws, as we do. The SDK attaches no account id of your own.
-- **Records are queued on the device** and retried if an upload fails.
+- **Records are queued on the device** and retried if an upload fails. Records
+  the service has not acknowledged are dropped after 24 hours.
 
 **What's recorded:** the interactions each published version defines, with
 their timing, the surface version, and the experiment variant where one
@@ -368,7 +410,13 @@ A link request carries proof from your own sign-in system, the user's consent
 and region, and a challenge from the service, so a link can't happen by
 accident. You get back a receipt or a failure. `resetSubject` unlinks;
 `withdrawConsent` blocks future linking. These calls are refused until you pass
-`governedMeasurementTransportEnabled: true` to `Restage.configure(...)`.
+either `governedMeasurementTransportEnabled: true` or your own
+`governedMeasurementTransport` to `Restage.configure(...)`. Passing both throws
+an `ArgumentError`. Ordinary interaction measurement does not need either.
+
+The
+[telemetry guide](https://docs.restage.dev/trust/telemetry) covers when
+measurement runs, what the records contain, offline behavior and opting out.
 
 ## Coding agents
 

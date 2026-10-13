@@ -417,24 +417,26 @@ Future<LifecycleContext?> _resolveTarget({
     stderr.writeln(environmentRequiredSentence());
     return null;
   }
+  final organizationSlug = resolveOrganizationSlug(argResults, config);
   final resolved = await resolveTargetInteractively(
     api: api,
     interactive: io.interactive,
     projectSlug: project,
     appSlug: app,
     environmentSlug: environment,
-    organizationSlug:
-        _option(argResults, 'organization') ?? config?.organization,
+    organizationSlug: organizationSlug,
     organizationId:
         organizationIdOption(argResults) ??
-        (config?.organization ==
-                (_option(argResults, 'organization') ?? config?.organization)
+        (config?.organization == organizationSlug
             ? config?.organizationId
             : null),
     environmentTargetId:
         config?.project == project &&
             config?.app == app &&
             config?.defaultEnvironment == environment &&
+            config?.organization == organizationSlug &&
+            (organizationIdOption(argResults) == null ||
+                config?.organizationId == organizationIdOption(argResults)) &&
             (argResults == null || !argResults.wasParsed('plane'))
         ? config?.environmentTargetId
         : null,

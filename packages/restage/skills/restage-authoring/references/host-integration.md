@@ -11,6 +11,7 @@ a name is needed only when deliberately overriding it.
 
 This uses the message shipped with this skill:
 
+<!-- skill-check: file lib/show_recap.dart -->
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';

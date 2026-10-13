@@ -12,6 +12,7 @@ import 'package:stream_channel/stream_channel.dart';
 import 'api_runner.dart';
 import 'build_tools.dart';
 import 'delivery_tools.dart';
+import 'experiment_tools.dart';
 import 'experimental_gate.dart';
 import 'measurement_page_tools.dart';
 import 'in_flight_gate.dart';
@@ -158,10 +159,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         (request) => handleReadSurfaceFunnel(tools, request),
       ),
       (checkLibrariesTool, (request) => handleCheckLibraries(tools, request)),
-      // Experimental tools call routes production does not serve yet, and an
-      // MCP client's only signal about what it may call is the tool list.
+      ...experimentTools(tools),
       if (experimentalToolsEnabled(environment))
-        ...experimentTools(tools, activation: experimentActivationApi),
+        ...experimentalTools(tools, activation: experimentActivationApi),
     ]) {
       final (adapted, filled) = withProjectConfig(tools, (tool, handler));
       registerTool(adapted, _scrubbed(filled));
