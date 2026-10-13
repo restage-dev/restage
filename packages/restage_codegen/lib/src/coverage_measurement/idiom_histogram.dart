@@ -226,13 +226,10 @@ class IdiomHistogram {
   }
 }
 
-/// The first clause of an unclassifiable reason (everything up to the first
-/// comma — the "…, which this transpiler increment does not yet …" tail is
-/// dropped), so similar reasons aggregate into one row. Capped to keep the
-/// label readable. The comma is the only split point: a `(` is not, so a reason
-/// that opens with `build()` keeps its meaning rather than truncating to
-/// `build`.
+/// The first clause of an unclassifiable reason, up to the first comma or
+/// `: ` (the quoted source after it is dropped), so similar reasons aggregate
+/// into one row. Capped to keep the label readable.
 String _reasonHead(String reason) {
-  final head = reason.split(',').first.trim();
+  final head = reason.split(RegExp(',|: ')).first.trim();
   return head.length <= 80 ? head : '${head.substring(0, 79)}…';
 }

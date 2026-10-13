@@ -8,16 +8,16 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../measurement/measurement_sdk_runtime_session.dart'
     show measurementReportedSdkVersion;
+import '../resolver/delivery_input_budget.dart';
 import '../resolver/surface_assignment_built_ins.dart'
     show assignmentSdkApiLevel;
 import '../resolver/surface_canonical_carrier_provider.dart';
 import '../resolver/surface_delivery_observations.dart'
-    show currentSurfaceDeliveryObservationCell, normalizeDeliveryPlatform;
-import '../resolver/surface_assignment_key_provider.dart';
-import '../resolver/surface_analytics_identity_provider.dart';
-import '../resolver/surface_metering_key_provider.dart';
+    show normalizeDeliveryPlatform;
+import '../resolver/surface_request_inputs.dart';
 import '../retry_after.dart';
 import '../secure_transport.dart';
+import 'bounded_http_client.dart';
 import 'surface_artifact_assembly.dart';
 import 'surface_delivery_evidence.dart';
 
@@ -590,16 +590,15 @@ final class MeasurementPublicationBindingReadRpcUnavailable
 /// HTTP/JSON client for the SDK's `/sdk/v1` endpoints.
 class RestageRpcClient {
   /// Creates a client targeting [baseUrl] and authenticating as [apiKey].
-  ///
-  /// [httpClient] is the seam tests use to inject `MockClient`; production
-  /// callers omit it and a default [http.Client] is constructed.
+  /// Uses [httpClient] when supplied, otherwise a new [http.Client].
+  /// Every request is bounded by [BoundedHttpClient.defaultTimeout].
   RestageRpcClient({
     required String baseUrl,
     required String apiKey,
     http.Client? httpClient,
   })  : _baseUrl = baseUrl,
         _apiKey = apiKey,
-        _client = httpClient ?? http.Client() {
+        _client = BoundedHttpClient(httpClient ?? http.Client()) {
     if (baseUrl.isEmpty) {
       throw ArgumentError.value(baseUrl, 'baseUrl', 'must not be empty');
     }
@@ -808,6 +807,7 @@ class RestageRpcClient {
         return const IttAssignmentRpcUnavailable(
           IttAssignmentRpcUnavailableReason.forbidden,
         );
+      case 429:
       case 503:
         return const IttAssignmentRpcUnavailable(
           IttAssignmentRpcUnavailableReason.serviceUnavailable,
@@ -956,157 +956,157 @@ class RestageRpcClient {
   /// (paywalls). Returns `null` on a network error, non-2xx status, unsupported
   /// response field, or missing/invalid artifact descriptor. A `null` is the
   /// caller's signal to treat the surface as unavailable. A successful response
-  /// carries an artifact outcome and any contract-retry signals.
+  /// carries an artifact outcome and any contract-retry signals. Pass
+  /// [inputs] already gathered by the caller, or they are gathered here under
+  /// a deadline of their own.
   Future<SurfaceFetchResult?> fetchSurface({
     required String surfaceType,
     required String surfaceSlug,
     int? version,
     String? assignmentKey,
     SurfaceRequestPublicationGuard? publicationGuard,
-  }) async {
-    final lease = await SurfaceAssignmentKeyProvider.captureLease();
-    assignmentKey ??= lease.assignmentKey;
-    final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
-    final analyticsGeneration = SurfaceAnalyticsIdentityProvider.generation;
-    final analyticsAnonymousId =
-        await SurfaceAnalyticsIdentityProvider.anonymousId();
-    // Both carriers are forwarded verbatim and only when they satisfy the
-    // wire grammar, so a malformed one is never sent as if it were readable.
-    final observationCell = SurfaceCanonicalCarrierProvider.hasBuiltIns
-        ? currentSurfaceDeliveryObservationCell()
-        : null;
-    final builtIns = _carrierOrNull(
-      observationCell != null
-          ? (await observationCell.read()).canonicalBuiltInsBase64()
-          : await SurfaceCanonicalCarrierProvider.builtIns(),
-    );
-    final heldAssignment = _carrierOrNull(
-      await SurfaceCanonicalCarrierProvider.heldAssignment(
-        surface: surfaceType,
-        slug: surfaceSlug,
-        assignmentKey: assignmentKey,
-      ),
-    );
-    if (publicationGuard != null) {
-      final bool canPublish;
-      try {
-        canPublish = publicationGuard();
-      } on Object {
-        throw const SurfaceRequestPublicationRejected();
-      }
-      if (!canPublish) {
-        throw const SurfaceRequestPublicationRejected();
-      }
-    }
-    final httpResult = await _postJsonObjectAnyStatus(
-      path: '/sdk/v1/surface',
-      body: {
-        'surfaceType': surfaceType,
-        'surfaceSlug': surfaceSlug,
-        if (version != null) 'version': version,
-        if (assignmentKey != null) 'assignmentKey': assignmentKey,
-        if (meteringKey != null) 'meteringKey': meteringKey,
-        if (supportedPolicyRevisionsCarrier() case final carrier?)
-          'sdkSupportedPolicyRevisions': carrier,
+    SurfaceRequestInputs? inputs,
+  }) =>
+      DeliveryInputBudget.run(shared: inputs?.budget, (budget) async {
+        final gathered = inputs ??
+            await SurfaceRequestInputs.gather(
+              budget: budget,
+              surface: surfaceType,
+              slug: surfaceSlug,
+              assignmentKey: assignmentKey,
+            );
+        final lease = gathered.lease;
+        assignmentKey ??= lease.assignmentKey;
+        final meteringKey = gathered.meteringKey;
         // An explicit version asks for that version, so no decision reads it.
-        if (version == null &&
-            analyticsAnonymousId != null &&
-            lease.isCurrent &&
-            SurfaceAnalyticsIdentityProvider.generation == analyticsGeneration)
-          'analyticsAnonymousId': analyticsAnonymousId,
-        if (builtIns != null) 'sdkBuiltInsCanonicalBase64': builtIns,
-        if (heldAssignment != null) 'assignmentCanonicalBase64': heldAssignment,
-      },
-    );
-    if (httpResult == null) return null;
-    if (httpResult.statusCode == 429) {
-      try {
-        SurfaceDeliveryEvidence.rateLimited(
-          surfaceType: Surface.fromWireName(surfaceType),
-          surfaceSlug: surfaceSlug,
-          retryAfter: retryAfterDelay(
-            _headerValue(httpResult.headers, 'retry-after'),
-          ),
+        final analyticsAnonymousId =
+            version == null ? gathered.analyticsAnonymousId : null;
+        // Both carriers are forwarded verbatim and only when they satisfy the
+        // wire grammar, so a malformed one is never sent as if it were readable.
+        final builtIns = _carrierOrNull(gathered.builtIns);
+        final heldAssignment = _carrierOrNull(gathered.heldAssignment);
+        if (publicationGuard != null) {
+          final bool canPublish;
+          try {
+            canPublish = publicationGuard();
+          } on Object {
+            throw const SurfaceRequestPublicationRejected();
+          }
+          if (!canPublish) {
+            throw const SurfaceRequestPublicationRejected();
+          }
+        }
+        final httpResult = await _postJsonObjectAnyStatus(
+          path: '/sdk/v1/surface',
+          body: {
+            'surfaceType': surfaceType,
+            'surfaceSlug': surfaceSlug,
+            if (version != null) 'version': version,
+            if (assignmentKey != null) 'assignmentKey': assignmentKey,
+            if (meteringKey != null) 'meteringKey': meteringKey,
+            if (supportedPolicyRevisionsCarrier() case final carrier?)
+              'sdkSupportedPolicyRevisions': carrier,
+            if (analyticsAnonymousId != null)
+              'analyticsAnonymousId': analyticsAnonymousId,
+            if (builtIns != null) 'sdkBuiltInsCanonicalBase64': builtIns,
+            if (heldAssignment != null)
+              'assignmentCanonicalBase64': heldAssignment,
+          },
         );
-      } on FormatException {
-        return null;
-      }
-      return null;
-    }
-    if (httpResult.statusCode < 200 || httpResult.statusCode >= 300) {
-      // A refusal says why. Reporting the cause is the whole point of the
-      // slot; the surface is still unavailable either way. The response body
-      // remains optional so an invalid or empty error response fails closed.
-      final refusal = surfaceAssignmentDiagnosticFrom(
-        httpResult.json?['assignment'],
-      );
-      debugPrint(
-        refusal == null
-            ? '[restage] surface delivery failed with '
-                'status ${httpResult.statusCode}'
-            : '[restage] surface delivery refused: ${refusal.name}',
-      );
-      return null;
-    }
-    final json = httpResult.json;
-    if (json == null) return null;
-    if (_containsRetiredSurfaceResponseField(json)) {
-      debugPrint('[restage] surface delivery contains an unsupported field');
-      return null;
-    }
-    final SurfaceArtifactDescriptor descriptor;
-    try {
-      descriptor = SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
-    } on FormatException catch (error) {
-      // Includes the version gates: a delivery this build does not understand
-      // is refused HERE, before a byte of it is fetched.
-      debugPrint('[restage] surface delivery was not readable: $error');
-      return null;
-    }
+        if (httpResult == null) return null;
+        if (httpResult.statusCode == 429) {
+          try {
+            SurfaceDeliveryEvidence.rateLimited(
+              surfaceType: Surface.fromWireName(surfaceType),
+              surfaceSlug: surfaceSlug,
+              retryAfter: retryAfterDelay(
+                _headerValue(httpResult.headers, 'retry-after'),
+              ),
+            );
+          } on FormatException {
+            return null;
+          }
+          return null;
+        }
+        if (httpResult.statusCode < 200 || httpResult.statusCode >= 300) {
+          // A refusal says why. Reporting the cause is the whole point of the
+          // slot; the surface is still unavailable either way. The response body
+          // remains optional so an invalid or empty error response fails closed.
+          final refusal = surfaceAssignmentDiagnosticFrom(
+            httpResult.json?['assignment'],
+          );
+          debugPrint(
+            refusal == null
+                ? '[restage] surface delivery failed with '
+                    'status ${httpResult.statusCode}'
+                : '[restage] surface delivery refused: ${refusal.name}',
+          );
+          return null;
+        }
+        final json = httpResult.json;
+        if (json == null) return null;
+        if (_containsRetiredSurfaceResponseField(json)) {
+          debugPrint(
+              '[restage] surface delivery contains an unsupported field');
+          return null;
+        }
+        final SurfaceArtifactDescriptor descriptor;
+        try {
+          descriptor =
+              SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
+        } on FormatException catch (error) {
+          // Includes the version gates: a delivery this build does not understand
+          // is refused HERE, before a byte of it is fetched.
+          debugPrint('[restage] surface delivery was not readable: $error');
+          return null;
+        }
 
-    // Decoded before the artifact request: an assignment this build cannot
-    // read refuses the delivery rather than spending a fetch on it.
-    final routingSelectionProvenance =
-        SurfaceRoutingSelectionProvenanceV1.normalize(
-      json['routingSelectionProvenance'],
-    );
-    final rawReceipt = json['routingSelectionReceipt'];
-    final routingSelectionReceipt =
-        rawReceipt is String && rawReceipt.length <= 4096 ? rawReceipt : null;
-    final rawAssignment = json['assignment'];
-    final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
-    final CanonicalSurfaceExperimentAssignmentV1? assignment;
-    try {
-      assignment = (rawAssignment == null || diagnostic != null)
-          ? null
-          : CanonicalSurfaceExperimentAssignmentV1Codec.decode(rawAssignment);
-    } on FormatException catch (error) {
-      debugPrint('[restage] surface assignment was not readable: $error');
-      return null;
-    }
+        // Decoded before the artifact request: an assignment this build cannot
+        // read refuses the delivery rather than spending a fetch on it.
+        final routingSelectionProvenance =
+            SurfaceRoutingSelectionProvenanceV1.normalize(
+          json['routingSelectionProvenance'],
+        );
+        final rawReceipt = json['routingSelectionReceipt'];
+        final routingSelectionReceipt =
+            rawReceipt is String && rawReceipt.length <= 4096
+                ? rawReceipt
+                : null;
+        final rawAssignment = json['assignment'];
+        final diagnostic = surfaceAssignmentDiagnosticFrom(rawAssignment);
+        final CanonicalSurfaceExperimentAssignmentV1? assignment;
+        try {
+          assignment = (rawAssignment == null || diagnostic != null)
+              ? null
+              : CanonicalSurfaceExperimentAssignmentV1Codec.decode(
+                  rawAssignment);
+        } on FormatException catch (error) {
+          debugPrint('[restage] surface assignment was not readable: $error');
+          return null;
+        }
 
-    if (assignmentKey == lease.assignmentKey) {
-      await SurfaceCanonicalCarrierProvider.retain(
-        surface: surfaceType,
-        slug: surfaceSlug,
-        lease: lease,
-        assignment: assignment,
-      );
-    }
-    final artifact = await _resolveArtifact(descriptor);
+        if (assignmentKey == lease.assignmentKey) {
+          await budget.bound(SurfaceCanonicalCarrierProvider.retain(
+            surface: surfaceType,
+            slug: surfaceSlug,
+            lease: lease,
+            assignment: assignment,
+          ));
+        }
+        final artifact = await _resolveArtifact(descriptor);
 
-    return SurfaceFetchResult(
-      artifact: artifact,
-      publicationBindingReference:
-          _measurementPublicationBindingReferenceFromHeaders(
-        httpResult.headers,
-      ),
-      canonicalExperimentAssignment: assignment,
-      routingSelectionReceipt: routingSelectionReceipt,
-      routingSelectionProvenance: routingSelectionProvenance,
-      assignmentDiagnostic: diagnostic,
-    );
-  }
+        return SurfaceFetchResult(
+          artifact: artifact,
+          publicationBindingReference:
+              _measurementPublicationBindingReferenceFromHeaders(
+            httpResult.headers,
+          ),
+          canonicalExperimentAssignment: assignment,
+          routingSelectionReceipt: routingSelectionReceipt,
+          routingSelectionProvenance: routingSelectionProvenance,
+          assignmentDiagnostic: diagnostic,
+        );
+      });
 
   /// The carrier when it satisfies the wire grammar, else null.
   static String? _carrierOrNull(String? value) =>

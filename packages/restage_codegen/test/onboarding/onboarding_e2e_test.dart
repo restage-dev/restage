@@ -27,7 +27,7 @@ void main() {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,

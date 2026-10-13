@@ -14,58 +14,54 @@
   <a href="LICENSE"><img alt="License: BSD-3-Clause" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
 </p>
 
-Restage is a server-driven UI toolkit for Flutter. Build any part of your app
-with the widgets you already use and ship it over the air. Everything renders as
-real Flutter widgets in your app, using your theme.
+Restage is server-driven UI for Flutter. Add one annotation to a widget you
+already wrote, and it becomes a surface you can update over the air:
+onboarding, messages, surveys, paywalls, or any screen. It renders as real
+Flutter widgets in your app, using your theme.
 
-This package is the runtime SDK. It renders what the build produced as real
-Flutter widgets in your widget tree, through
+This package is the runtime SDK. It renders what the build produced through
 [Remote Flutter Widgets](https://pub.dev/packages/rfw).
 
-What ships is data the app renders. Your widgets carry the logic — real Dart,
-compiled into your app. The surface composes and configures them over the air.
-New behavior is a release.
-
-One runtime renders every surface: paywalls, onboarding, in-app messages,
-surveys, and whole screens.
-
-> Upcoming SDK/codegen release: `@Paywall()` and `@FlowGraph(...)` gain generated
-> `<Name>Surface` mounts with authored Flutter fallbacks. Flow references retain
-> their original contract in Dart, so these mounts can run without `.rsbundle`
-> assets. Published 2.0.0 paywall and active-flow examples below still need their
-> bundled artifacts. Generated standalone screen mounts already retain their
-> original widget. Hosted paywalls with Navigator navigation still need their
-> bundled graph baseline, including when mounted through a generated widget.
+What ships is data the app renders. Your widgets carry the logic, as real Dart
+compiled into your app. An update over the air composes and configures them.
+New behavior still ships as an app release.
 
 ## Why Restage
 
 - **Your widgets, your theme.** The build compiles the code you wrote, and
   `Theme.of(context)` resolves when the surface renders.
-- **Any part of the app.** A whole screen, a paywall, an onboarding flow, or
-  one card inside your own `Scaffold`.
-- **Compatible updates.** Publish layouts, content and configuration using
-  your app's installed widgets.
-- **It fails safe.** A surface never reaches a client too old to render it, and
-  a failed fetch renders your bundled copy.
+- **Whole screens or small parts.** An onboarding flow, a paywall, a whole
+  screen, or one card inside your own `Scaffold`.
+- **Compatible updates.** Publish layouts, content and configuration that use
+  the widgets your installed app already has.
+- **It fails safe.** A surface is never served to a client too old to render
+  it, and a failed fetch renders your bundled copy.
 
 ## Quick start
 
-Here's a paywall, written as a plain Flutter widget with one annotation:
+Here's a welcome screen, written as a plain Flutter widget with one annotation:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@Paywall(id: 'pro_upgrade')
-class ProUpgradePaywall extends StatelessWidget {
-  const ProUpgradePaywall({super.key});
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  static const getStarted = SurfaceEvent<void>('get_started');
 
   @override
   Widget build(BuildContext context) => Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Go Pro', style: Theme.of(context).textTheme.headlineMedium),
-          const Text('Choose the plan that fits your needs.'),
+          Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
+          FilledButton(
+            onPressed: surfaceEvent(getStarted),
+            child: const Text('Get started'),
+          ),
         ],
       );
 }
@@ -77,22 +73,46 @@ Compile it with [`restage_codegen`](https://pub.dev/packages/restage_codegen):
 dart run build_runner build
 ```
 
-Render it anywhere in your app. The SDK loads the compiled artifact and draws
-it as real Flutter widgets:
+The build generates a typed mount, `WelcomeSurface`. Render it anywhere in your
+app, and handle its events:
 
 ```dart
-RestagePaywall(id: 'pro_upgrade')
+WelcomeSurface(
+  onEvent: (event) => Navigator.of(context).pushNamed('/home'),
+)
 ```
 
-There is no startup call to make. The build generates a mount for each surface,
-and generated screen, flow and paywall mounts each install the widgets and icons
-their surface draws as they render.
+Generated mounts install the widgets and icons their surface draws, including
+your own `@RestageWidget` widgets, so there is no startup call to make. If the
+surface can't be delivered or rendered, the mount shows the widget you wrote.
 
-Mounting by id is the exception: no generated mount stands behind it, so an
-app whose surfaces are all `RestagePaywall(id: ...)` calls the generated
-`registerRestageWidgets()` once at startup. That call installs every built-in
-widget and icon your own Dart names, which is also what gives an over-the-air
-update room to use one your surfaces don't draw today.
+Change the widget, rebuild, and the surface updates. Push it with
+`restage surface push welcome`, make that revision live with
+`restage surface publish welcome`, and installed apps pick it up over the air.
+The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
+walks through a full example, including the `build.yaml` for bundled assets.
+
+## Surfaces
+
+- **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a
+  multi-step message, or a survey. Mount it with
+  `RestageFlowGraph(flow: firstRunFlowRef, ...)`; the build generates the
+  descriptor. See [doc/flows.md](doc/flows.md) for the full example, host
+  actions, and data minimization, and
+  [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
+  for back navigation and the system-back policy.
+- **Paywalls**: a `@Paywall` surface for upgrade or subscription content. Mount
+  it with `RestagePaywall(id: 'pro_upgrade', ...)`.
+- **Screens**: any single surface you write with `@Screen`, such as a welcome
+  page, a notice, or a settings card. Use the generated mount, or
+  `RestageScreen(screen: welcomeRef, unavailable: ...)` to choose what shows
+  when the surface can't render.
+
+A mount by id, such as `RestagePaywall(id: ...)`, has no generated mount behind
+it. An app that mounts surfaces only by id calls the generated
+`registerRestageWidgets()` once at startup. That installs your `@RestageWidget`
+widgets and every built-in widget and icon your Dart code uses. Later updates
+can use them even if no current surface does.
 
 ```dart
 void main() {
@@ -100,33 +120,6 @@ void main() {
   runApp(const MyApp());
 }
 ```
-
-Change the widget, rebuild, and the surface updates. Push it with
-`restage surface push pro_upgrade`, then make that revision live with
-`restage surface publish pro_upgrade`, and installed apps pick it up over the
-air. The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
-walks through all of it, including the `build.yaml` for bundled assets.
-
-## Surfaces
-
-One host widget per surface kind:
-
-- **Screens**: any single surface you write with `@Screen`, such as a welcome
-  page, a notice, or a settings card. The build generates a typed mount such as
-  `WelcomeScreenSurface(...)` with the authored constructor arguments and typed
-  events. If delivery or rendering becomes unavailable, including after an
-  event rejection or render failure, it displays the compiled-in authored
-  widget. Use `RestageScreen(screen: welcomeScreenRef, ...)` directly for a
-  different unavailable policy.
-- **Paywalls**: a `@Paywall` surface for upgrade or subscription content. Mount
-  it with `RestagePaywall(id: 'pro_upgrade', ...)`.
-- **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a survey,
-  or a multi-step message. Mount it with
-  `RestageFlowGraph(flow: firstRunFlowRef, ...)`; the build
-  generates the descriptor. See [doc/flows.md](doc/flows.md)
-  for the full example, host actions, and data minimization, and
-  [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
-  for back navigation and the system-back policy.
 
 ## Host data
 
@@ -166,63 +159,49 @@ rebuilds the list host and its rows. Reconciliation is positional: on insert
 and reorder, persistent row state stays with its position while authored row
 ids move.
 
-### Delivery
+## Delivery
 
-Apps that bundle their artifacts use the asset resolvers. To fetch surfaces
-from a server, call `Restage.configure(baseUrl: ...)` at startup. That
-installs `RestageVariantResolver`, which fetches the active published surface
-and falls back to the bundled asset when the fetch fails. Flows take the same
-path through `ServerFlowResolver` (pass it as `flowResolver:`). Point `baseUrl`
-at your own backend, or at the hosted service.
+Apps that bundle their surfaces use the asset resolvers, with no server. To
+fetch surfaces from Restage Cloud or your own server, call
+`Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...)` at startup. That
+installs `RestageVariantResolver`, which fetches the active published version
+and falls back to the bundled copy when the fetch fails. Flows fetch through
+`ServerFlowResolver` (pass it as `flowResolver:`).
 
-A surface never reaches a client that is too old to render it. If a fetch
-fails, the SDK renders your bundled copy. For flows, `FlowUnavailablePolicy`
-is required, so a flow that can't run falls back or hides instead of running
-partway.
+A surface is never served to a client too old to render it. If a fetch fails,
+the SDK renders your bundled copy. Flows require a `FlowUnavailablePolicy`, so
+a flow that can't run falls back or hides instead of running partway.
 
-See [doc/live_refresh.md](doc/live_refresh.md) for opt-in in-place updates to
-surfaces that are already on screen.
+See [doc/live_refresh.md](doc/live_refresh.md) to update surfaces that are
+already on screen.
 
 ## App size
 
-Choose complete Material and Cupertino catalog coverage at app startup. Both
-options default to `true`:
+A delivered surface renders with widgets compiled into your app, so what the
+app can render decides what it costs. By default `Restage.configure()` installs
+the whole built-in catalog and both icon tables, so a surface you deliver later
+can use anything the catalog can express.
+
+There are two ways to make it smaller.
+
+**Drop a whole catalog.** Pass constant `includeMaterial` and
+`includeCupertino` values. Both default to `true`; this example drops
+Cupertino:
 
 ```dart
 Restage.configure(
   includeMaterial: true,
   includeCupertino: false,
   registerWidgets: kRestageWidgetRegistration,
-  // Your existing delivery and analytics settings.
+  // Your existing delivery settings.
 );
 ```
 
-Regenerate `user_factories.g.dart` to obtain `kRestageWidgetRegistration`, then
-pass it here instead of separately calling `registerRestageWidgets()` with its
-inclusive defaults. It receives both choices and adds the app's generated
-vocabulary and custom widgets. With no code generation, omit `registerWidgets`.
+`kRestageWidgetRegistration` comes from the generated `user_factories.g.dart`
+and adds your app's own widgets. Without code generation, omit it. Widgets and
+icons your generated surfaces need are kept either way.
 
-These options choose complete catalog contributions. A `false` value preserves
-widgets and icons your generated surfaces or explicit registrations require,
-including the shared Icon builder used for Cupertino glyphs. Use constant values
-and rebuild the app when changing coverage. Runtime-dependent values can retain
-both implementations in the compiled app. Font assets also depend on the app's
-package dependencies.
-
-A delivered surface renders with widgets compiled into your app, so what the
-app can render decides what it costs. By default `Restage.configure()` installs
-the whole built-in catalog and both icon tables, even without code generation,
-so a surface you deliver later can use anything the catalog can express. An
-explicitly installed selection is preserved, including an empty selection, when
-no registration callback is supplied.
-
-The added size depends on the widgets, fonts and plugins your app already uses.
-Compare matched release builds with the same minification and obfuscation
-settings. Raw APK growth and an app store's compressed download estimate are
-different measurements.
-
-If app size is a live constraint, opt down to the widgets your own code draws by
-setting the `catalog` option in `build.yaml`:
+**Keep only what your code draws.** Set the `catalog` option in `build.yaml`:
 
 ```yaml
 targets:
@@ -233,150 +212,94 @@ targets:
           catalog: derived
 ```
 
-Call the generated registration helper before the installed-catalog entrypoint:
+Then call the generated helper before the installed-catalog entrypoint:
 
 ```dart
 registerRestageWidgets();
 Restage.configureWithInstalledCatalog(/* your existing configuration */);
 ```
 
-This configuration entrypoint has no reference to the full catalog, so unused
-factories and icons can be removed from the release build. Ordinary
-`Restage.configure()` with its default options retains the full-default path
-even when a selected vocabulary has already been installed.
-
-Derived registration keeps the existing package dependencies. Removing an entire
-font asset also requires removing its asset dependency; unused Cupertino
-registrations alone do not remove the bundled Cupertino font.
-
 The build collects the catalog widgets your code draws and the ones your
-surfaces use, and generates the registration from that set. To make a widget
-available over the air before your app draws it, draw it once in a `@Screen` you
-never mount.
+surfaces use. To make a widget available to future updates before your app
+draws it, draw it once in a `@Screen` you never mount. Release builds need no
+extra flags; don't pass `--no-tree-shake-icons`. Unused Cupertino widgets alone
+don't remove the bundled Cupertino font; that also needs the font's package
+dependency removed.
 
-Release builds need no flags, and don't pass `--no-tree-shake-icons`. Opting
-down also generates an icon table of compile-time constants, which lets Flutter's
-icon tree-shaking work as usual.
-
-Every code generation run reports which catalog selection the build uses and how
-to change it. `--verbose` adds historical reference estimates for omitted widget
-groups; measure your own release builds to determine their actual cost. See
+Each build reports which catalog selection it uses. Compare matched release
+builds to measure the difference. See
 [App size](https://docs.page/restage-dev/restage/delivery/app-size) for the
-measurement methods and the catalog choices in full.
+measurement methods and the options in full.
 
-## Telemetry and data
+## Measurement and data
 
-Restage includes a conversion-analytics layer for surface and experiment
-results. It's built to be boring and honest:
+Measurement is in beta. Restage measures how users interact with each published
+version of a surface.
+There are no tracking calls to add: activity is captured automatically for
+each version you ship.
 
-- **It's off until you connect a backend.** Analytics activates only when you
-  pass `baseUrl` to `Restage.configure(...)`. In local mode (no `baseUrl`) the
-  SDK renders everything on device and calls no backend.
-- **No endpoint is baked in.** Events go to *your* configured `baseUrl`
-  (`<baseUrl>/analytics/events`), authenticated with your public key
-  (`rs_pk_...`). Point it at Restage Cloud and your events power your dashboard
-  and usage-based billing. Point it at your own backend and they go there.
-  There is no hidden Restage host in the SDK.
-- **The identity is pseudonymous.** Each install gets a random UUID. It isn't
+- **It needs a hosted configuration.** Without an `apiKey` and `baseUrl`, the
+  SDK renders bundled surfaces and calls no server.
+- **No endpoint is built in.** Data goes to the `baseUrl` you configure,
+  authenticated with your public key (`rs_pk_...`). Point it at Restage Cloud
+  or at your own server.
+- **The install id is pseudonymous.** Each install gets a random UUID. It isn't
   derived from any device or advertising identifier, and it resets on
-  uninstall or `Restage.reset()`. It's a pseudonymous identifier rather than
-  an anonymous one. Treat it as personal data under GDPR and similar laws, as
-  we do. **The SDK attaches no user identity of your own.** No call binds
-  your account id to an event.
-- **What `Restage.reset()` does, and doesn't do.** It rotates the pseudonymous
-  id on the device and rotates the session. That id is also the experiment
-  assignment key, so the install becomes a new randomized unit: assignment is
-  re-drawn on the next surface presentation, and nothing records a link
-  between the old unit and the new one. It's a local call: it sends nothing
-  and tells the server nothing. It does **not** erase or amend events already
-  sent, and it does **not** clear the metering token described below. It isn't
-  a deletion request. Treat it as rotating an identifier going forward, not as
-  erasing a history.
+  uninstall or `Restage.reset()`. Treat it as personal data under GDPR and
+  similar laws, as we do. The SDK attaches no account id of your own.
+- **Records are queued on the device** and retried if an upload fails.
 
-**What each event contains:** a dedup id; the event name and a UTC timestamp;
-which surface it was, with its id, version, and session; the pseudonymous
-install id and an app-session id; an app context of `platform`, `locale`, SDK
-version, and optional app version or build; conversion dimensions (variant and
-experiment) where they apply; and the event's own typed fields, after a scrub
-that keeps render and host context out of analytics.
+**What's recorded:** the interactions each published version defines, with
+their timing, the surface version, and the experiment variant where one
+applies. The SDK doesn't read advertising identifiers (IDFA/GAID), location,
+or contacts. Like any network call, requests expose ordinary metadata such as
+the IP address to the server you point them at.
 
-**What it never collects:** advertising identifiers (IDFA/GAID), device
-fingerprints, location, contacts, or screen content. Beyond the fields listed
-above, it collects no personal data you don't explicitly attach. Ordinary
-request metadata such as an IP address is visible to whatever backend you point
-it at, as with any network call.
+**Turning it off:** pass `measurementEnabled: false` to
+`Restage.configure(...)`. The value must be a constant: the build reads it, so
+generated surfaces carry nothing to measure, and the SDK starts no measurement
+sessions. `analyticsEnabled: false` also turns measurement off and stops the
+SDK from creating the install id, while keeping hosted delivery.
 
-**Delivery is fail-safe.** Events are batched, capped, retried safely, and
-never throw into your app.
+**`Restage.reset()`** gives the install a new pseudonymous id and a new
+session. Experiment assignment is drawn again on the next surface
+presentation, and nothing links the old id to the new one. It runs only on the
+device: it doesn't delete or change anything already sent, and it doesn't
+clear the metering token below.
 
-**Turning it off:** run in local mode (omit `baseUrl`) for zero telemetry, or
-pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted
-delivery and disable analytics. If you use the hosted service, surface fetches
-still include the metering token described below.
+### Device facts
 
-**Disabling measurement at build time:** pass `measurementEnabled: false` to
-`Restage.configure(...)`. The generator still produces ordinary surface
-artifacts, but emits no measurement candidates or bindings, and the SDK opens
-no measurement sessions. The setting defaults to `true` and is independent of
-`analyticsEnabled`, hosted operational controls, and platform admission. None
-of those controls can enable measurement in a build that disables it.
-
-Hosted surface requests describe the device. Every request includes the
-platform (for example, `ios`). From request API level 3 a request also carries
-the app build ordinal (`412`), the device region (`se`), the device class
-(`phone`), the device language (`sv`) and the operating-system version (`17` on
-iOS and macOS, the API level `34` on Android) whenever the device can supply
-them, and omits any it cannot — an app whose build number is not a plain
-number, for instance, sends the rest without it. A web build reads neither an
-app build ordinal nor an operating-system version, so it sends its platform,
-region, device class and language. These facts travel regardless
-of `analyticsEnabled` and `measurementEnabled`. They let the service choose a
-published version of a surface for your device, such as a version for one
-country, for tablets, or for a language your app has just been translated into.
-Without them, the service can only serve the default.
-
-With analytics off, hosted requests carry no analytics identifier and no
-assignment credential. The metering token described in the next section is
-separate and is unaffected by that setting. The device facts above are stored
-only when measurement is on and a session is created.
+Hosted surface requests describe the device so the service can choose which
+version of a surface to serve, such as one for a country, for tablets, or for
+a language. Each request sends the platform and, when the device can supply
+them, the app build number, region, device type, language and OS version. Web
+builds send no build number or OS version. These facts are sent even with
+analytics or measurement off. They are stored only when a measurement session
+is created.
 
 ### The metering token
 
-The hosted service is billed by monthly active users, so the SDK needs a way to
-count them. How it works:
+Restage Cloud is billed by monthly active users, so the SDK counts them with a
+metering token:
 
-- **If you don't use the hosted service, there is no token.** Without a
-  `baseUrl` the SDK never creates one. Even with a `baseUrl`, the SDK creates
-  the token only the first time it fetches a surface from the server.
-- **It's a random UUID.** The device generates it, stores it in
-  `shared_preferences`, and loses it when the app is uninstalled. It contains
-  nothing about the user or the device, and it isn't connected to the
-  analytics install id.
-- **It's sent only with surface fetches.** It goes in the body of the request
-  to `<baseUrl>/sdk/v1/surface` and nowhere else. It never appears in
-  analytics events.
-- **It goes only to the server you configured.** There is no baked-in Restage
-  endpoint. If your `baseUrl` is your own backend, the token goes there, and
-  your server is free to ignore the field.
-- **`analyticsEnabled: false` doesn't remove it.** That flag turns off
-analytics. The metering token is how use of the hosted service is counted,
-so it stays as long as you fetch surfaces from the server. Run without a
-`baseUrl` and the SDK sends nothing at all.
+- **It exists only with a `baseUrl`**, and the SDK creates it the first time it
+  fetches a surface.
+- **It's a random UUID**, stored in `shared_preferences` and lost on uninstall.
+  It contains nothing about the user or the device, and it isn't linked to the
+  install id.
+- **It's sent only with surface fetches**, and only to the server you
+  configured. Your own server can ignore it.
+- **`analyticsEnabled: false` doesn't remove it.** It stays as long as you
+  fetch surfaces from a server.
 
-If you need to describe it in your own privacy policy: a random per-install
-identifier, used only to count active users for billing, reset when the app is
-uninstalled. The implementation is in `lib/src/metering/` and it's short.
-
-All of this is BSD-3-Clause and readable: see `lib/src/analytics/` and
-`lib/src/metering/`.
+For your privacy policy: a random per-install identifier, used only to count
+active users for billing, reset when the app is uninstalled. The code is in
+`lib/src/metering/` and `lib/src/measurement/`.
 
 ### Linking a signed-in user
 
-By default, measurement knows no user. Events and experiment assignment key
-off the pseudonymous install id, and nothing ties them to an account.
-
-If your app has signed-in users and you want measurement tied to a user or an
-account, you link one explicitly:
+By default, measurement knows no user. If you want measurement tied to a
+signed-in account, link one explicitly:
 
 ```dart
 final result = await Restage.measurement.linkSubject(request);
@@ -384,13 +307,25 @@ final reset = await Restage.measurement.resetSubject(resetRequest);
 final withdrawal = await Restage.measurement.withdrawConsent(withdrawalRequest);
 ```
 
-Linking is deliberately not a one-liner. A request carries proof from your own
-auth system that the user is signed in, the user's consent and region, and a
-challenge from the service, so a link can't happen by accident. You get back a
-receipt or a failure, and nothing you sent is ever echoed back.
-`resetSubject` unlinks; `withdrawConsent` blocks future linking. Until your
-app installs a verifier for these proofs, every call here fails closed and
-does nothing.
+A link request carries proof from your own sign-in system, the user's consent
+and region, and a challenge from the service, so a link can't happen by
+accident. You get back a receipt or a failure. `resetSubject` unlinks;
+`withdrawConsent` blocks future linking. These calls are refused until you pass
+`governedMeasurementTransportEnabled: true` to `Restage.configure(...)`.
+
+## Coding agents
+
+This package ships an agent skill, `restage-authoring`, that teaches coding agents
+such as Claude Code, Cursor, and Codex to write, build, and mount surfaces. Install
+it from your app's directory:
+
+```sh
+dart run skills@ get --package restage
+```
+
+The [skills tool](https://pub.dev/packages/skills) asks which agent to install for.
+Pass `--agent claude` (or `cursor`, `codex`, `copilot`, and others) and `--all` to skip
+the prompts. Run the same command after upgrading `restage` to update the skill.
 
 ## License
 

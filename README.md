@@ -22,15 +22,10 @@
   <a href="QUICKSTART.md">Quickstart</a>
 </p>
 
-<!--
-  Hero: animated overprint wordmark. GitHub renders the theme-adaptive animated
-  SVG; viewers that strip SVG fall back to the WebP. Paths are relative to the
-  repository root.
--->
-
-Restage is a server-driven UI toolkit for Flutter. Build any part of your app
-with the widgets you already use and ship it over the air. Everything renders as
-real Flutter widgets in your app, using your theme.
+Restage is server-driven UI for Flutter. Add one annotation to a widget you
+already wrote, and it becomes a surface you can publish, measure, and roll back
+without a new app build: an onboarding flow, a message, a survey, a paywall, or
+any screen. It renders as real Flutter widgets in your app, using your theme.
 
 ## Getting started
 
@@ -63,9 +58,9 @@ restage surface publish welcome
 ```
 
 That's it. The [Quickstart](QUICKSTART.md) takes you from install to a
-published surface. [`apps/examples`](apps/examples) has five
-starters to copy: a paywall, an onboarding flow, a one-screen message, a
-custom widget, and a screen driven by host data.
+published surface. [`apps/examples`](apps/examples) has starters to copy:
+an onboarding flow, a one-screen message, a paywall, a custom widget, and a
+screen driven by host data.
 
 ## Author, push, and publish
 
@@ -99,15 +94,18 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
   compiles the code you wrote, and `Theme.of(context)` resolves when the
   surface renders, so a published surface follows your app into dark mode or a
   rebrand.
-- **It covers any part of the app.** A whole screen, a paywall, an onboarding
-  flow, a survey, or one card inside your own `Scaffold`. One runtime renders
+- **Use it anywhere in the app.** An onboarding flow, a survey, a paywall, a
+  whole screen, or one card inside your own `Scaffold`. One runtime renders
   all of them.
 - **It has a catalog of 119 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
   `@RestageWidget`.
 - **Your app owns the implementation.** What ships is data the app renders.
-  Your widgets carry the logic — real Dart, compiled into your app. The surface
-  composes and configures them over the air. New behavior is a release.
+  Your widgets carry the logic as Dart compiled into your app, and the surface
+  composes and configures them. New behavior needs an app release.
+- **It measures every version (beta).** Views, taps, and completions are captured
+  automatically for each version, with no tracking calls to add. With Restage
+  Cloud, A/B tests show which version moves your main metric.
 - **It fails safe.** The build stops with an error when it cannot compile
   something. A surface never reaches a client that is too old to render it. If
   a fetch fails, the SDK renders your bundled copy.
@@ -116,16 +114,16 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
   and runs the purchase through the store library it already uses. The SDK
   does not talk to the app stores.
 - **It does not lock you in.** Serve the artifacts from your own backend or
-  CDN. The SDK runs fully offline.
+  CDN. The SDK works without Restage Cloud.
 
 ## Controlled delivery
 
 The SDK ships immutable surface versions. A client that cannot render a version
-falls back to a safe one. The hosted service adds the controls: roll back,
-freeze, or kill any version, and export an audit trail of what changed, when,
-and by whom. The hosted service is in private beta.
+falls back to a safe one. Restage Cloud adds the controls: roll back, freeze,
+or switch off any surface, decide who can publish, and export an audit trail of
+what changed, when, and by whom.
 
-## Also
+## Works with
 
 - **A2UI (early):** the same widget constructors emit a genui A2UI catalog, so
   AI-generated UI builds from your real widgets.
@@ -160,7 +158,7 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`restage_cupertino`](packages/restage_cupertino) | Cupertino widget catalog | BSD-3 |
 | [`restage_shared`](packages/restage_shared) | Surface format, schemas, and validation shared by the SDK and the toolchain | BSD-3 |
 | [`rfw_catalog_schema`](packages/rfw_catalog_schema) | Catalog format and the `@RestageWidget` annotations | BSD-3 |
-| [`restage_measurement_schema`](packages/restage_measurement_schema) | Inert measurement and experiment contracts | BSD-3 |
+| [`restage_measurement_schema`](packages/restage_measurement_schema) | Shared data types for measurement and experiments | BSD-3 |
 | [`restage_codegen`](packages/restage_codegen) | Build-time toolchain that compiles your Flutter into render artifacts | FSL-1.1-ALv2 |
 | [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |

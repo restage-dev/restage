@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/widgets.dart' show Offset, Rect;
-import 'package:restage_preview_host/src/document_path_codec.dart';
+import 'render_core.dart';
 
 /// The authored node and frame-relative rectangle selected by a geometry hit.
 @immutable

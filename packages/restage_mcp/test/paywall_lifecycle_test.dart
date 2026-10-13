@@ -102,7 +102,8 @@ void main() {
       final connection = await connectServer(
         store: store,
         httpClient: MockClient((request) async {
-          seen = jsonDecode(request.body) as Map<String, dynamic>;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['method'] != 'coverage') seen = body;
           return http.Response('4', 200);
         }),
       );
@@ -313,7 +314,8 @@ void main() {
       final connection = await connectServer(
         store: store,
         httpClient: MockClient((request) async {
-          seen = jsonDecode(request.body) as Map<String, dynamic>;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['method'] != 'coverage') seen = body;
           return http.Response(jsonEncode(wire), 200);
         }),
       );

@@ -218,9 +218,9 @@ void main() {
       ),
     );
     expect(dart, contains(r'$RestageExclusions'));
-    expect(dart, contains('"widget": "Gauge"'));
-    expect(dart, contains('"property": "hostState"'));
-    expect(dart, contains('"target": "a2ui"'));
+    expect(dart, contains("'widget': 'Gauge'"));
+    expect(dart, contains("'property': 'hostState'"));
+    expect(dart, contains("'target': 'a2ui'"));
     expect(dart, contains('Object?'));
   });
 }

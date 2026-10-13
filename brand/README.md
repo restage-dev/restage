@@ -6,12 +6,11 @@ This directory contains the official Restage mark and wordmark.
 
 Copyright © 2026 Restage Inc. All rights reserved.
 
-Restage™ and the Restage logos are claimed as trademarks of Restage Inc. in
-connection with the Restage software and related services.
+Restage™ and the Restage logos are trademarks of Restage Inc.
 
 The software licenses elsewhere in this repository do not apply to files in
-this directory. No rights to these assets are granted except as described
-below or with prior written permission.
+this directory. You may use these assets only as described below, or with our
+written permission.
 
 ## Permitted use
 
@@ -24,8 +23,8 @@ refer to Restage, including:
 - In a factual statement such as “built with Restage,” “for Restage,” or
   “compatible with Restage.”
 
-You may resize an asset proportionally and choose the appropriate light- or
-dark-background variant. Do not otherwise alter the asset.
+You may resize an asset proportionally and pick the light or dark version to
+suit the background. Do not otherwise change the asset.
 
 ## Not permitted
 
@@ -35,8 +34,8 @@ You may not:
   identity.
 - Imply that Restage sponsors, endorses, or is affiliated with your product or
   organization when that is not the case.
-- Modify, redraw, recolor, distort, crop, or combine a Restage asset with
-  another logo.
+- Modify, redraw, recolor, distort, or crop a Restage asset, or combine it
+  with another logo.
 - Use a Restage asset in a way that is likely to confuse people about the
   source of a product or service.
 - Register a confusingly similar trademark, domain name, social account, or
@@ -50,24 +49,24 @@ They do not grant permission to use the Restage name or branding for those
 projects.
 
 A publicly distributed fork should remove or replace the Restage name and
-brand assets. It may still state factually that it is derived from or compatible
-with Restage, provided that it does not imply endorsement or official status.
+brand assets. It may still say that it is derived from or compatible with
+Restage, as long as it does not suggest that Restage endorses it or that it is
+official.
 
 ## Choosing an asset
 
-The "r" is cut into its stem and its arm, one ink each, laid across each other
-so the overlap is the registration. The wordmark sets the rest of the word in
-the colour the two inks make together.
-
-- **Mark:** the standalone Restage symbol, for compact or square placements.
-- **Wordmark:** the Restage name.
-- **Light:** intended for light backgrounds.
-- **Dark:** intended for dark backgrounds.
-- **Banner:** the wordmark on its own dark ground, for places that show one
-  image on any background (a package listing, an avatar, a slide). Supplied as
-  PNG.
-- **On light / on dark:** the mark on a square of the Restage light or dark
-  ground, for avatars and app icons that need the background included.
+- **Mark** (`restage-mark-bold-*.svg`): the Restage symbol on its own, for
+  small or square spaces.
+- **Wordmark** (`restage-wordmark-bold-*.svg`): the symbol with the Restage
+  name.
+- **`-light` files** are for light backgrounds; **`-dark` files** are for dark
+  backgrounds.
+- **Banner** (`restage-wordmark-banner-dark.png`): the wordmark on its own dark
+  background, for places that show one image on any background, such as a
+  package listing or a slide.
+- **On light / on dark** (`restage-mark-on-light.*`, `restage-mark-on-dark.*`):
+  the mark on a light or dark square, for avatars and app icons that need the
+  background included.
 
 Use the supplied files rather than recreating the artwork.
 

@@ -446,11 +446,6 @@ enum IssueCode {
   /// final instance field without changing its semantics.
   invalidWidgetConstructorInput,
 
-  /// Constructor-first discovery changed a legacy catalog fact, such as
-  /// admitting a previously unannotated input or restoring constructor order.
-  /// Informational: it announces a reviewed authoring-contract migration.
-  constructorCatalogMigration,
-
   /// A widget or constructor-bound property has neither an explicit
   /// description override nor Dart documentation.
   missingCatalogDescription,
@@ -566,7 +561,6 @@ enum IssueCode {
         // to-dos (a curation gap), not curator errors.
         IssueCode.unrepresentableCtorDefault ||
         IssueCode.stablePropertyDeferred ||
-        IssueCode.constructorCatalogMigration ||
         // Custom-widget inlining is recognised but the inlining path / this
         // transpiler increment cannot bring the widget in yet — a deferral with
         // a deferred-blob disposition, not a regression.
@@ -826,6 +820,9 @@ final class Issue {
   String toString() => '[${code.name}] $location: $message';
 }
 
+/// The build-notice identity prefix for an event helper wrapped in a closure.
+const String kEventClosureNoticePrefix = 'event-closure\u0000';
+
 /// Logs [issue] once for its stable build-notice identity.
 void logBuildNoticeOnce(
   Logger logger,
@@ -834,7 +831,9 @@ void logBuildNoticeOnce(
 ) {
   if (!seenKeys.add(issue.buildNoticeKey)) return;
   final message = issue.toLogString();
-  if (issue.code == IssueCode.customWidgetAppFactoryUsed) {
+  if (issue.code == IssueCode.customWidgetAppFactoryUsed ||
+      (issue.buildNoticeIdentity?.startsWith(kEventClosureNoticePrefix) ??
+          false)) {
     logger.warning(message);
     return;
   }

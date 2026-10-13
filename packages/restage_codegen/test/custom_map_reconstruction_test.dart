@@ -235,11 +235,11 @@ void main() {
     );
     expect(
       flat,
-      contains('if (_restagePresenceGlossary.supplied) #glossary:'),
+      contains('if (restagePresenceGlossary.supplied) #glossary:'),
     );
     expect(
       flat,
-      isNot(contains('if (_restagePresenceGlossary.hasValue) #glossary:')),
+      isNot(contains('if (restagePresenceGlossary.hasValue) #glossary:')),
     );
   });
 
@@ -248,12 +248,12 @@ void main() {
       'wrong shape', () {
     final flat = _emitOptionalScalarMap().replaceAll(RegExp(r'\s+'), ' ');
 
-    expect(flat, contains('_restagePresenceGlossary.hasValue ?'));
+    expect(flat, contains('restagePresenceGlossary.hasValue ?'));
     expect(
       flat,
       contains(
         'source.isList('
-        '<Object>[..._restagePresenceGlossary.valuePath])',
+        '<Object>[...restagePresenceGlossary.valuePath])',
       ),
     );
     expect(flat, contains('FieldNotes.glossary is required.'));
@@ -261,7 +261,7 @@ void main() {
       flat,
       contains(
         RegExp(
-          r'_restagePresenceGlossary\.hasValue \? .*? : '
+          r'restagePresenceGlossary\.hasValue \? .*? : '
           r"\(throw ArgumentError\('FieldNotes\.glossary is required\.'\)\)",
         ),
       ),
@@ -275,18 +275,18 @@ void main() {
     final flat = _emitOptionalScalarMap(constructorNullable: true)
         .replaceAll(RegExp(r'\s+'), ' ');
 
-    expect(flat, contains('_restagePresenceGlossary.hasValue ?'));
+    expect(flat, contains('restagePresenceGlossary.hasValue ?'));
     expect(
       flat,
       contains(
         'source.isList('
-        '<Object>[..._restagePresenceGlossary.valuePath])',
+        '<Object>[...restagePresenceGlossary.valuePath])',
       ),
     );
     expect(flat, contains('FieldNotes.glossary is required.'));
     expect(
       flat,
-      contains(RegExp(r'_restagePresenceGlossary\.hasValue \? .* : null')),
+      contains(RegExp(r'restagePresenceGlossary\.hasValue \? .* : null')),
     );
   });
 }

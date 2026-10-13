@@ -258,4 +258,49 @@ void main() {
       expect(LibraryRuntimeRegistry.registeredVersion('acme.widgets'), isNull);
     });
   });
+
+  group('generation', () {
+    RestageWidgetLibraryRegistration registration(
+      String namespace,
+      List<String> widgets, {
+      int? capabilityVersion,
+    }) =>
+        RestageWidgetLibraryRegistration(
+          library: WidgetLibrary.custom(namespace),
+          capabilityVersion: capabilityVersion,
+          widgets: [
+            for (final name in widgets)
+              RestageWidgetFactory(name: name, builder: _stubBuilder),
+          ],
+        );
+
+    test('additive mount installs leave it unchanged', () {
+      final start = LibraryRuntimeRegistry.generation;
+      LibraryRuntimeRegistry.install(
+        registration('app.widgets', ['Badge'], capabilityVersion: 1),
+      );
+      LibraryRuntimeRegistry.install(
+        registration('app.widgets', ['Badge', 'Chip'], capabilityVersion: 1),
+      );
+      LibraryRuntimeRegistry.install(
+        registration('app.cards', ['Card'], capabilityVersion: 2),
+      );
+      LibraryRuntimeRegistry.install(
+        registration('app.widgets', ['Badge'], capabilityVersion: 2),
+      );
+
+      expect(LibraryRuntimeRegistry.generation, start);
+      expect(LibraryRuntimeRegistry.registeredVersion('app.widgets'), 2);
+    });
+
+    test('a registration that replaces a namespace changes it', () {
+      LibraryRuntimeRegistry.install(
+        registration('app.widgets', ['Badge'], capabilityVersion: 1),
+      );
+      final installed = LibraryRuntimeRegistry.generation;
+      _registerOne('app.widgets', 'Chip');
+
+      expect(LibraryRuntimeRegistry.generation, isNot(installed));
+    });
+  });
 }

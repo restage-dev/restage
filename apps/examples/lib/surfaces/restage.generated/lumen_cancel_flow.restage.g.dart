@@ -10,10 +10,10 @@ const lumenCancelRef = SurfaceFlowRef<
   decodeResult: _decodeLumenCancelResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"lumen_cancel\",\"flowState\":{\"reason\":{\"classification\":\"exportable\",\"type\":\"string\"}},\"initial\":\"lumen_cancel_reason\",\"minClient\":6,\"outbound\":{\"surveyAnswers\":{\"fields\":{\"reason\":{\"ref\":{\"state\":\"reason\"},\"type\":\"string\"}}},\"terminalResult\":{\"fields\":{\"reason\":{\"ref\":{\"state\":\"reason\"},\"type\":\"string\"}}}},\"schemaVersion\":2,\"screenArtifacts\":{\"lumen_cancel_reason\":{\"contentHash\":\"sha256:3cb0f6062e543a0b6888b915f5f7be265689a06d934f079b7df05e88fc5d946f\",\"minClient\":6,\"path\":\"lumen_cancel_reason.rfw\",\"schemaVersion\":1,\"version\":1},\"lumen_cancel_thanks\":{\"contentHash\":\"sha256:01cf3e5e09be6898346464f29565259b6d4966c94c665b75d69d9cb0591a366e\",\"minClient\":6,\"path\":\"lumen_cancel_thanks.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"lumen_cancel_reason\":{\"kind\":\"screen\",\"on\":{\"reason\":{\"set\":{\"reason\":{\"type\":\"string\",\"value\":{\"ref\":{\"event\":\"value\"}}}},\"target\":\"lumen_cancel_thanks\",\"type\":\"goto\"},\"skip\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"lumen_cancel_reason\"},\"lumen_cancel_thanks\":{\"kind\":\"screen\",\"on\":{\"finish\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"lumen_cancel_thanks\"}},\"surveyQuestionOrder\":[\"reason\"],\"version\":1}",
+        '{"flow":"lumen_cancel","flowState":{"reason":{"classification":"exportable","type":"string"}},"initial":"lumen_cancel_reason","minClient":6,"outbound":{"surveyAnswers":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}},"terminalResult":{"fields":{"reason":{"ref":{"state":"reason"},"type":"string"}}}},"schemaVersion":2,"screenArtifacts":{"lumen_cancel_reason":{"contentHash":"sha256:3cb0f6062e543a0b6888b915f5f7be265689a06d934f079b7df05e88fc5d946f","minClient":6,"path":"lumen_cancel_reason.rfw","schemaVersion":1,"version":1},"lumen_cancel_thanks":{"contentHash":"sha256:01cf3e5e09be6898346464f29565259b6d4966c94c665b75d69d9cb0591a366e","minClient":6,"path":"lumen_cancel_thanks.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_cancel_reason":{"kind":"screen","on":{"reason":{"set":{"reason":{"type":"string","value":{"ref":{"event":"value"}}}},"target":"lumen_cancel_thanks","type":"goto"},"skip":{"target":"done","type":"goto"}},"screen":"lumen_cancel_reason"},"lumen_cancel_thanks":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"lumen_cancel_thanks"}},"surveyQuestionOrder":["reason"],"version":1}',
     screens: {
-      "lumen_cancel_reason": LumenCancelReasonScreen.new,
-      "lumen_cancel_thanks": LumenCancelThanksScreen.new,
+      'lumen_cancel_reason': LumenCancelReasonScreen.new,
+      'lumen_cancel_thanks': LumenCancelThanksScreen.new,
     },
     children: {},
   ),
@@ -55,10 +55,10 @@ const lumenCancelRef = SurfaceFlowRef<
 );
 
 LumenCancelResult _decodeLumenCancelResult(Map<String, Object?> result) {
-  if (result.length != 1 || !result.containsKey("reason")) {
+  if (result.length != 1 || !result.containsKey('reason')) {
     throw const FormatException('Unexpected flow result keys.');
   }
-  final reason = result["reason"];
+  final reason = result['reason'];
   if (reason is! String) {
     throw const FormatException('Expected result field reason to be String.');
   }

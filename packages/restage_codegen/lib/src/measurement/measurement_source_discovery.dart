@@ -43,13 +43,17 @@ final class MeasurementSourceDiscoveryInput {
     Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints = const {},
     Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
     Map<Element, Expression> rootLocalBindings = const {},
+    Map<Element, HelperDef> rootHelpers = const {},
   })  : inlinedCustomWidgetBlueprints = Map.unmodifiable(
           inlinedCustomWidgetBlueprints,
         ),
         inlinedCustomWidgetCollectionRefusals = Map.unmodifiable(
           inlinedCustomWidgetCollectionRefusals,
         ),
-        rootLocalBindings = Map.unmodifiable(rootLocalBindings);
+        rootLocalBindings = Map.unmodifiable(
+          withHelperLocals(rootLocalBindings, rootHelpers.values),
+        ),
+        rootHelpers = Map.unmodifiable(rootHelpers);
 
   /// Exact source-root annotation authority.
   final MeasurementSourceAuthority authority;
@@ -63,6 +67,10 @@ final class MeasurementSourceDiscoveryInput {
   /// The root `build()`'s leading `final` locals, keyed by element. A widget
   /// held in one resolves to its initializer at the widget position.
   final Map<Element, Expression> rootLocalBindings;
+
+  /// The helpers the root `build()` inlines, wherever they are declared, keyed
+  /// by element.
+  final Map<Element, HelperDef> rootHelpers;
 
   /// Exact merged catalog used by the same compiler pass.
   final Catalog catalog;
@@ -372,6 +380,7 @@ final class _MeasurementSourceDiscovery {
       provenance,
       input.rootExpression,
       input.rootLocalBindings,
+      input.rootHelpers,
     );
     _admitOrdinaryLeaf(input.rootExpression, rootContext);
     _visitWidgetExpression(
@@ -635,7 +644,7 @@ final class _MeasurementSourceDiscovery {
           if (bindings == null) return null;
           return CollectionResolvedHelper(
             body: definition.body,
-            parameterBindings: bindings,
+            parameterBindings: {...definition.localBindings, ...bindings},
           );
         },
       );
@@ -668,7 +677,10 @@ final class _MeasurementSourceDiscovery {
       context.enterHelper(
         helper: helper.executable,
         helperIdentity: helper.identity,
-        parameterBindings: helper.parameterBindings,
+        parameterBindings: {
+          ...helper.definition.localBindings,
+          ...helper.parameterBindings,
+        },
       ),
     );
   }
@@ -1090,6 +1102,7 @@ final class _WidgetVisitContext {
     MeasurementSourceProvenance provenance,
     Expression rootExpression,
     Map<Element, Expression> rootLocalBindings,
+    Map<Element, HelperDef> rootHelpers,
   ) =>
       _WidgetVisitContext._(
         sourceProvenance: provenance,
@@ -1098,9 +1111,10 @@ final class _WidgetVisitContext {
         ),
         inlinedCustomWidgetIdentities: const [],
         expressionBindings: _plainExpressionBindings(rootLocalBindings),
-        helperDefinitions: Map.unmodifiable(
-          inlinableHelperDefinitionsIn(rootExpression),
-        ),
+        helperDefinitions: Map.unmodifiable({
+          ...inlinableHelperDefinitionsIn(rootExpression),
+          ...rootHelpers,
+        }),
         inlinedHelperIdentities: const [],
       );
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -40,7 +41,7 @@ CompiledFlowEmission emitCompiledFlow({
           !constructor.formalParameters
               .any((parameter) => parameter.isRequired) &&
           !(declaration!.isAbstract && !constructor.isFactory)) {
-        constructors.add('${_string(id)}: $name.new,');
+        constructors.add('${dartStringLiteral(id)}: $name.new,');
       } else {
         final identifier = id.replaceAll(RegExp('[^a-zA-Z0-9_]'), '_');
         final stem = lowerCamelIdentifier(identifier, fallback: 'screen');
@@ -59,11 +60,13 @@ CompiledFlowEmission emitCompiledFlow({
     };
     for (final id in childIds) {
       final child = descendants[id];
-      if (child != null) children.add('${_string(id)}: ${encode(child)},');
+      if (child != null) {
+        children.add('${dartStringLiteral(id)}: ${encode(child)},');
+      }
     }
     return '''
 ${sdk}CompiledFlow(
-      documentJson: ${_string(utf8.decode(FlowDocumentCodec.encodeCanonicalJson(doc)))},
+      documentJson: ${dartStringLiteral(utf8.decode(FlowDocumentCodec.encodeCanonicalJson(doc)))},
       screens: {${constructors.join('\n')}},
       children: {${children.join('\n')}},
     )''';
@@ -79,7 +82,7 @@ ${sdk}CompiledFlow(
       ? ''
       : '''
 , screenBuilders: {
-    ${builders.entries.map((entry) => '${_string(entry.key)}: ${entry.value},').join('\n')}
+    ${builders.entries.map((entry) => '${dartStringLiteral(entry.key)}: ${entry.value},').join('\n')}
   }''';
   return (
     argument: '  compiled: $compiled,\n',
@@ -106,5 +109,3 @@ final class $mountName extends ${sdk}RestageFlowGraph<$resultType> {
 ''',
   );
 }
-
-String _string(String value) => jsonEncode(value).replaceAll(r'$', r'\$');

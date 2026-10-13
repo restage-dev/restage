@@ -1,18 +1,22 @@
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
+import '../delivery/surface_delivery_receipt.dart';
+import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../runtime/restage.dart';
 import 'surface_resolution_report.dart';
 
-/// Labels a resolved leaf and safely reports its closed identity and source.
+/// Labels a resolved leaf, reports its closed identity and source, and opens
+/// its delivery receipt; [reason] says why a held or bundled copy was served.
 @internal
 T reportSurfaceResolution<T extends Object>(
   Surface surfaceType,
   String surface,
   T resolved,
-  SurfaceResolutionSource source,
-) {
+  SurfaceResolutionSource source, {
+  SurfaceDeliveryReceiptReason reason = SurfaceDeliveryReceiptReason.none,
+}) {
   attachMeasurementPublicationBindingReference(
     resolved,
     null,
@@ -35,6 +39,21 @@ T reportSurfaceResolution<T extends Object>(
     );
   } on Object {
     // A host's reporting callback never fails a resolution.
+  }
+  try {
+    attachSurfaceDeliveryReceipt(
+      resolved,
+      SurfaceDeliveryReceiptBatch.instance.open(
+        surfaceType: surfaceType,
+        surfaceSlug: surface,
+        publishedVersion: surfaceDeliveryPublishedVersionOf(resolved),
+        source: source,
+        reason: reason,
+        routeId: selection?.selectedRouteId ?? '',
+      ),
+    );
+  } on Object {
+    // A receipt never fails a resolution.
   }
   return resolved;
 }

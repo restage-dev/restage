@@ -15,8 +15,8 @@ import 'package:restage_shared/restage_shared.dart';
 
 /// Freeze or unfreeze a surface in one environment.
 ///
-/// When frozen, a push snapshots a new version but does not make it live.
-/// Unfreezing restores the default behaviour: the next push publishes.
+/// While frozen, no version can be published. Unfreezing allows publishing
+/// again.
 ///
 /// Usable two ways via [fixedSurfaceType]:
 ///   - null → generic `surface freeze`/`surface unfreeze` group, normally
@@ -68,8 +68,8 @@ class SurfaceLockCommand extends Command<int> {
 
   @override
   String get description => _lock
-      ? 'Freeze a surface (a push snapshots a version but does not publish it).'
-      : 'Unfreeze a surface (let the next push publish again).';
+      ? 'Freeze a surface: no version can be published until you unfreeze it.'
+      : 'Unfreeze a surface so versions can be published again.';
 
   @override
   Future<int> run() async {

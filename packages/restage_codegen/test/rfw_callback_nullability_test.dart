@@ -132,14 +132,14 @@ void main() {
 
         expect(
           source,
-          contains(r'if (_restagePresenceOn$Retry.supplied) #on$Retry:'),
+          contains(r'if (restagePresenceOn$Retry.supplied) #on$Retry:'),
           reason: 'omission must leave the named argument out so Dart applies '
               'the public constructor default',
         );
         expect(
           source,
           contains(
-            r'source.voidHandler(_restagePresenceOn$Retry.valuePath)',
+            r'source.voidHandler(restagePresenceOn$Retry.valuePath)',
           ),
           reason: 'a supplied event envelope must decode its handler',
         );
@@ -246,7 +246,7 @@ void main() {
           allOf(
             contains(r"<Object>['\$source']"),
             contains(r"<Object>['on\$Retry']"),
-            contains(r'if (_restagePresenceOn$Retry.supplied)'),
+            contains(r'if (restagePresenceOn$Retry.supplied)'),
             contains(r'#$source:'),
             contains(r'#on$Retry:'),
             contains('throw ArgumentError('),

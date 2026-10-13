@@ -10,9 +10,9 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"plan_board_showcase\",\"initial\":\"plan_board_showcase\",\"minClient\":6,\"outbound\":{\"customEvents\":{\"dismiss\":{\"fields\":{}}}},\"schemaVersion\":1,\"screenArtifacts\":{\"plan_board_showcase\":{\"contentHash\":\"sha256:dca048ce170c22dc0826dd651575293d1263575c5bea403fc118c0e56c6a5f10\",\"minClient\":6,\"path\":\"plan_board_showcase.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"plan_board_showcase\":{\"kind\":\"screen\",\"on\":{\"act\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"plan_board_showcase\"}},\"version\":1}",
+        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":6,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:dca048ce170c22dc0826dd651575293d1263575c5bea403fc118c0e56c6a5f10","minClient":6,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
     screens: {
-      "plan_board_showcase": PlanBoardShowcaseScreen.new,
+      'plan_board_showcase': PlanBoardShowcaseScreen.new,
     },
     children: {},
   ),

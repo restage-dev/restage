@@ -208,6 +208,19 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// Current screen state id, if a screen is rendered.
   String? get currentScreenId => _currentFrame?.currentStateId;
 
+  /// Whether the current screen can handle [eventId].
+  @internal
+  bool declaresScreenEvent(String eventId) {
+    final frame = _currentFrame;
+    final current = frame?.currentStateId;
+    if (frame == null || current == null) return false;
+    final document = frame.resolved.document;
+    final state = document.states[current];
+    return eventId == _backEventName ||
+        (state is ScreenFlowState && state.on.containsKey(eventId)) ||
+        document.outbound.customEvents.containsKey(eventId);
+  }
+
   /// Decoded RFW library for the current screen.
   WidgetLibrary? get currentLibrary => _currentFrame?.currentLibrary;
 

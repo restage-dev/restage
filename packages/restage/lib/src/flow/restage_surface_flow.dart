@@ -1064,8 +1064,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final candidatePending =
         transaction != null && transaction.isReady && !transaction.isCommitted;
     final handler = _authoredEventHandlerFor(controller);
-    Widget child = RestageEventDispatcher(
+    Widget child = DeclaredEventDispatcher(
       key: ObjectKey(controller),
+      surfaceName: controller.flow.id,
+      declares: controller.declaresScreenEvent,
       onEvent: handler,
       child: RestageFlowEventHandlerAssociation(
         controller: controller,

@@ -188,7 +188,7 @@ void main() {
             'cannot declare static outputs and is not permitted.',
       );
       final compilerOutputs = restagePackageSurfaceCompilerBuilder(
-        BuilderOptions.empty,
+        BuilderOptions.forRoot,
       ).buildExtensions[r'$package$']!;
       expect(
         compilerOutputs,

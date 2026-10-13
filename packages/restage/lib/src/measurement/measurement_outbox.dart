@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'measurement_outbox_stub.dart'
     if (dart.library.io) 'measurement_outbox_io.dart' as implementation;
 import 'measurement_outbox_protocol.dart';
@@ -12,9 +14,11 @@ MeasurementOutboxStore createMeasurementOutboxStore({
   required MeasurementOutboxConfiguration configuration,
   MeasurementOutboxClock? clock,
   MeasurementOutboxFileSystem? fileSystem,
+  Random? retryRandom,
 }) =>
     implementation.createMeasurementOutboxStore(
       configuration: configuration,
       clock: clock ?? measurementOutboxSystemClock,
       fileSystem: fileSystem,
+      retryRandom: retryRandom,
     );

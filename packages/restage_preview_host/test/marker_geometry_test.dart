@@ -11,10 +11,7 @@ import 'package:restage/restage.dart'
         WidgetLibrary,
         kReservedPreviewConstructorName,
         kReservedPreviewLibraryName;
-import 'package:restage_preview_host/src/geometry_registry.dart';
-import 'package:restage_preview_host/src/marker_library.dart';
-import 'package:restage_preview_host/src/protocol.dart' show RenderEnv;
-import 'package:restage_preview_host/src/raw_rfw_render_surface.dart';
+import 'package:restage_preview_host/restage_preview_host.dart';
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
 void main() {

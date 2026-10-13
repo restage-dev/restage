@@ -5118,12 +5118,13 @@ Object x() => Pair(
       expect(notice.code.isBuildNotice, isTrue);
       expect(notice.location, contains('#InlinePanel'));
       expect(notice.message, contains("Custom widget 'InlinePanel'"));
-      expect(notice.message, contains("registered 'acme.ds' app factory"));
-      expect(notice.message, contains('Local RFW output was unavailable:'));
-      expect(notice.message, contains("installed app's compiled widget body"));
-      expect(notice.message, contains('defaults remain authoritative'));
-      expect(notice.message, contains('requires an app release'));
-      expect(notice.message, contains('Explicit call values remain supplied'));
+      expect(
+        notice.message,
+        contains("renders from your app's compiled code because"),
+      );
+      expect(notice.message, contains('still set its arguments'));
+      expect(notice.message, contains('ship with your next app release'));
+      expect(notice.message, isNot(contains('transpiler')));
       expect(
         result.translation.widgetDefinitions.keys,
         isNot(contains('InlinePanel')),

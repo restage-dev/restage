@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart'
     show reconstructionVariant, structuredSlotKey;
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
@@ -852,7 +853,7 @@ String? _reproducibleDefaultLiteral(FormalParameterElement parameter) {
   final value = parameter.computeConstantValue();
   if (value == null) return null;
   final stringValue = value.toStringValue();
-  if (stringValue != null) return _dartStringLiteral(stringValue);
+  if (stringValue != null) return dartStringLiteral(stringValue);
   final boolValue = value.toBoolValue();
   if (boolValue != null) return boolValue.toString();
   final intValue = value.toIntValue();
@@ -877,18 +878,6 @@ String? _reproducibleEnumDefault(FormalParameterElement parameter) {
     if (name != null && name.isNotEmpty) return name;
   }
   return null;
-}
-
-/// Renders [value] as a single-quoted Dart string literal, escaping
-/// backslashes, single quotes, `$` (so it is a literal, not interpolation),
-/// and newlines so the emitted default parses byte-stably.
-String _dartStringLiteral(String value) {
-  final escaped = value
-      .replaceAll(r'\', r'\\')
-      .replaceAll("'", r"\'")
-      .replaceAll(r'$', r'\$')
-      .replaceAll('\n', r'\n');
-  return "'$escaped'";
 }
 
 /// A concise human-readable reason from a structured type's walk diagnostics,

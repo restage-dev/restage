@@ -31,6 +31,7 @@ import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
@@ -76,6 +77,26 @@ final class TrackedPackageSurfaceCompilation {
   final List<Issue> issues;
 
   bool get isValid => publicationBundle.valid && issues.isEmpty;
+}
+
+/// The app widget factories generated mounts install, read from the catalog
+/// builder's sidecar only when a compiled surface draws an app widget.
+Future<AppWidgetMountFactories> _appWidgetMountFactories(
+  BuildStep buildStep,
+  List<CompiledSurfaceArtifact> rendered,
+) async {
+  if (!rendered.any(
+    (artifact) =>
+        artifact.vocabulary.namesAppWidgets ||
+        artifact.mountVocabulary.namesAppWidgets,
+  )) {
+    return AppWidgetMountFactories.none;
+  }
+  final sidecar = AssetId(buildStep.inputId.package, kAppWidgetFactoriesPath);
+  if (!await buildStep.canRead(sidecar)) return AppWidgetMountFactories.none;
+  return AppWidgetMountFactories.fromJson(
+    jsonDecode(await buildStep.readAsString(sidecar)) as Map<String, Object?>,
+  );
 }
 
 final class _AppFactoryNoticeCensus {
@@ -585,9 +606,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     roster: roster,
     renderedSources: rendered,
   );
+  final appWidgets = await _appWidgetMountFactories(buildStep, rendered);
   final provisionalResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
+      appWidgets: appWidgets,
       flows: flows,
       renderedSources: rendered,
       standaloneScreens: contracts,
@@ -791,6 +814,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final finalizedDraftResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
+      appWidgets: appWidgets,
       flows: flows,
       renderedSources: finalRendered,
       standaloneScreens: finalContracts,
@@ -858,6 +882,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final result = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
+      appWidgets: appWidgets,
       flows: flows,
       renderedSources: finalRendered,
       standaloneScreens: finalContracts,
@@ -1382,6 +1407,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
           inlinedCustomWidgetCollectionRefusals:
               classification.collectionRefusals,
           rootLocalBindings: screen.build.localBindings,
+          rootHelpers: screen.build.helpers,
         ),
       );
     }
@@ -1431,6 +1457,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
           inlinedCustomWidgetCollectionRefusals:
               classification.collectionRefusals,
           rootLocalBindings: entry.source.build.localBindings,
+          rootHelpers: entry.source.build.helpers,
         ),
       );
     }

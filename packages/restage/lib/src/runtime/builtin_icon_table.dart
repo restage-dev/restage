@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart' show IconData;
-import 'package:restage_core/restage_core.dart' show RestageIconTable;
+import 'package:restage_core/restage_core.dart'
+    show InstalledIconTable, RestageIconTable;
 import 'package:restage_cupertino/icon_table.dart';
 import 'package:restage_material/icon_table.dart';
 
@@ -30,18 +31,34 @@ RestageIconTable builtInIconTable({
   return RestageIconTable.fromFamilies(
     families: // ignore: prefer_const_literals_to_create_immutables
         <String, Map<int, IconData>>{
-      if (includeMaterial)
-        RestageIconTable.materialIconsFamily: createMaterialIconTable(),
+      if (includeMaterial) RestageIconTable.materialIconsFamily: _materialIcons,
       if (includeCupertino)
-        RestageIconTable.cupertinoIconsFamily: createCupertinoIconTable(),
+        RestageIconTable.cupertinoIconsFamily: _cupertinoIcons,
     },
     // ignore: prefer_const_literals_to_create_immutables
     mirrored: <String, Map<int, IconData>>{
       if (includeMaterial)
-        RestageIconTable.materialIconsFamily: createMirroredMaterialIconTable(),
+        RestageIconTable.materialIconsFamily: _mirroredMaterialIcons,
       if (includeCupertino)
-        RestageIconTable.cupertinoIconsFamily:
-            createMirroredCupertinoIconTable(),
+        RestageIconTable.cupertinoIconsFamily: _mirroredCupertinoIcons,
     },
   );
+}
+
+final _materialIcons = createMaterialIconTable();
+final _cupertinoIcons = createCupertinoIconTable();
+final _mirroredMaterialIcons = createMirroredMaterialIconTable();
+final _mirroredCupertinoIcons = createMirroredCupertinoIconTable();
+
+/// Adds built-in glyphs while retaining identical immutable family maps.
+void addBuiltInIconTable() {
+  final table = builtInIconTable();
+  final installed = InstalledIconTable.current;
+  table.families.removeWhere(
+    (family, icons) => identical(installed.families[family], icons),
+  );
+  table.mirrored.removeWhere(
+    (family, icons) => identical(installed.mirrored[family], icons),
+  );
+  InstalledIconTable.add(table, explicitSelection: true);
 }

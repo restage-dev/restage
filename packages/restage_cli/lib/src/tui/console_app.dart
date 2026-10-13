@@ -23,6 +23,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     'freeze',
     'unfreeze',
     'push',
+    'build',
   ];
   static const _minNavWidth = 18;
   static const _minSurfaceWidth = 22;
@@ -360,6 +361,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         _detailAction = _DetailAction.push;
         unawaited(_pushSelected());
         return true;
+      case LogicalKey.keyB:
+        unawaited(_pushBuild());
+        return true;
       default:
         return false;
     }
@@ -410,6 +414,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       case 'push':
         _detailAction = _DetailAction.push;
         await _pushSelected();
+      case 'build':
+        await _pushBuild();
     }
   }
 
@@ -622,6 +628,12 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     setState(() {});
   }
 
+  Future<void> _pushBuild() async {
+    await component.controller.pushBuild();
+    if (!mounted) return;
+    setState(() {});
+  }
+
   Future<void> _selectSurface(int index) async {
     setState(() {
       component.controller.focusPanel(ConsolePanel.surfaces);
@@ -793,7 +805,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             Text(
               'restage        ${_contextLabel(state)}',
               style: const TextStyle(
-                color: _ConsoleTheme.brand,
+                color: _ConsoleTheme.selected,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -842,7 +854,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     final error = state.error;
     if (error != null) {
       return Center(
-        child: Text(error, style: const TextStyle(color: _ConsoleTheme.brand)),
+        child: Text(error, style: const TextStyle(color: _ConsoleTheme.danger)),
       );
     }
     return LayoutBuilder(
@@ -985,7 +997,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         const Text(
           'Project snapshot',
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1026,7 +1038,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Server audit',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1075,7 +1087,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Session activity',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1215,9 +1227,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             color: focused
                 ? _ConsoleTheme.focus
                 : selected
-                ? _ConsoleTheme.brand
+                ? _ConsoleTheme.selected
                 : _ConsoleTheme.text,
-            backgroundColor: selected ? _ConsoleTheme.brandScrim : null,
+            backgroundColor: selected ? _ConsoleTheme.selectedSoft : null,
             fontWeight: selected || focused ? FontWeight.bold : null,
           ),
         ),
@@ -1239,8 +1251,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           '${selected ? '>' : ' '} $label',
           maxLines: 1,
           style: TextStyle(
-            color: selected ? _ConsoleTheme.brand : _ConsoleTheme.text,
-            backgroundColor: selected ? _ConsoleTheme.brandScrim : null,
+            color: selected ? _ConsoleTheme.selected : _ConsoleTheme.text,
+            backgroundColor: selected ? _ConsoleTheme.selectedSoft : null,
             fontWeight: selected ? FontWeight.bold : null,
           ),
         ),
@@ -1318,11 +1330,11 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
                 maxLines: 1,
                 style: TextStyle(
                   color: state.surfaces.indexOf(surface) == state.surfaceIndex
-                      ? _ConsoleTheme.brand
+                      ? _ConsoleTheme.selected
                       : _ConsoleTheme.text,
                   backgroundColor:
                       state.surfaces.indexOf(surface) == state.surfaceIndex
-                      ? _ConsoleTheme.brandScrim
+                      ? _ConsoleTheme.selectedSoft
                       : null,
                   fontWeight:
                       state.surfaces.indexOf(surface) == state.surfaceIndex
@@ -1352,9 +1364,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           color: focused
               ? _ConsoleTheme.focus
               : selected
-              ? _ConsoleTheme.brand
+              ? _ConsoleTheme.selected
               : _ConsoleTheme.text,
-          backgroundColor: selected ? _ConsoleTheme.brandScrim : null,
+          backgroundColor: selected ? _ConsoleTheme.selectedSoft : null,
           fontWeight: selected || focused ? FontWeight.bold : null,
         ),
       ),
@@ -1444,7 +1456,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Project snapshot',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1482,9 +1494,32 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           Text(
             'Env ${context.environmentLabel}',
             maxLines: 1,
-            style: const TextStyle(color: _ConsoleTheme.accentBlue),
+            style: const TextStyle(color: _ConsoleTheme.link),
           ),
+        _buildLine(state),
       ],
+    );
+  }
+
+  /// The app's build for the selected environment, or its absence.
+  Component _buildLine(ConsoleState state) {
+    final build = state.selectedBuild;
+    final environment = state.selectedEnvironment?.slug ?? '-';
+    if (build == null) {
+      return Text(
+        'Build none for $environment (b to push one)',
+        maxLines: 1,
+        style: const TextStyle(color: _ConsoleTheme.muted),
+      );
+    }
+    final commit = build.sourceCommit;
+    final source = commit == null
+        ? ''
+        : ' from ${commit.substring(0, 7)}${build.sourceDirty ? ' dirty' : ''}';
+    return Text(
+      'Build v${build.version}$source',
+      maxLines: 1,
+      style: const TextStyle(color: _ConsoleTheme.link),
     );
   }
 
@@ -1501,7 +1536,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Chain verdict',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1545,7 +1580,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Latest server event',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1583,7 +1618,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Latest operation',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1648,14 +1683,14 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           'Snapshot Active surfaces',
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
         Text(
           'Live version $liveText',
           maxLines: 1,
-          style: const TextStyle(color: _ConsoleTheme.accentBlue),
+          style: const TextStyle(color: _ConsoleTheme.link),
         ),
         Text(
           deliveryText,
@@ -1672,7 +1707,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           _commandPreview(state, _detailAction),
           maxLines: 1,
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1680,7 +1715,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         const Text(
           'Status-backed history',
           style: TextStyle(
-            color: _ConsoleTheme.text,
+            color: _ConsoleTheme.heading,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -1708,9 +1743,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         'Version history ${_versionHistoryLabel(latest)}',
         maxLines: 1,
         style: TextStyle(
-          color: latest.isActive
-              ? _ConsoleTheme.accentBlue
-              : _ConsoleTheme.muted,
+          color: latest.isActive ? _ConsoleTheme.link : _ConsoleTheme.muted,
         ),
       ),
     ];
@@ -1778,9 +1811,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           color: focused
               ? _ConsoleTheme.focus
               : selected
-              ? _ConsoleTheme.brand
+              ? _ConsoleTheme.selected
               : _ConsoleTheme.text,
-          backgroundColor: selected ? _ConsoleTheme.brandScrim : null,
+          backgroundColor: selected ? _ConsoleTheme.selectedSoft : null,
           fontWeight: selected || focused ? FontWeight.bold : null,
         ),
       ),
@@ -1861,10 +1894,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (prompt == _PromptKind.operationConfirm && impactNote != null)
-            Text(
-              impactNote,
-              style: const TextStyle(color: _ConsoleTheme.accentBlue),
-            ),
+            Text(impactNote, style: const TextStyle(color: _ConsoleTheme.link)),
           Text(
             prompt.label,
             maxLines: 1,
@@ -1897,18 +1927,24 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   }
 }
 
+/// The dashboard's dark palette, as a terminal can show it: the same ground
+/// ladder, ink ladder, teal for what is selected or linked, sage for what is
+/// good, cream for headings, and the theater red for what failed.
 abstract class _ConsoleTheme {
-  static const ground = Color.fromRGB(16, 15, 14);
-  static const recessed = Color.fromRGB(32, 31, 28);
-  static const panel = Color.fromRGB(42, 41, 38);
-  static const border = Color.fromRGB(86, 82, 77);
-  static const text = Color.fromRGB(244, 243, 240);
-  static const muted = Color.fromRGB(150, 146, 139);
-  static const brand = Color.fromRGB(255, 126, 107);
-  static const brandScrim = Color.fromRGB(72, 43, 38);
-  static const focus = Color.fromRGB(52, 211, 153);
-  static const accentBlue = Color.fromRGB(96, 165, 250);
-  static const warning = Color.fromRGB(245, 158, 11);
+  static const ground = Color.fromRGB(12, 14, 19);
+  static const recessed = Color.fromRGB(26, 30, 39);
+  static const panel = Color.fromRGB(35, 40, 51);
+  static const border = Color.fromRGB(51, 58, 71);
+  static const text = Color.fromRGB(238, 240, 244);
+  static const muted = Color.fromRGB(142, 151, 170);
+  static const heading = Color.fromRGB(239, 222, 186);
+  static const selected = Color.fromRGB(45, 212, 191);
+  // `selectedSoft` over the card ground, since a cell has no alpha.
+  static const selectedSoft = Color.fromRGB(37, 71, 76);
+  static const link = Color.fromRGB(45, 212, 191);
+  static const focus = Color.fromRGB(111, 174, 140);
+  static const warning = Color.fromRGB(224, 168, 82);
+  static const danger = Color.fromRGB(194, 80, 80);
 }
 
 enum _ConsoleView {

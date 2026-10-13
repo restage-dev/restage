@@ -106,7 +106,7 @@ Future<TestReaderWriter> _run(
   );
 
   final result = await testBuilder(
-    restageSourceRosterBuilder(BuilderOptions.empty),
+    restageSourceRosterBuilder(BuilderOptions.forRoot),
     {
       for (final entry in sources.entries)
         'apps_examples|${entry.key}': entry.value,

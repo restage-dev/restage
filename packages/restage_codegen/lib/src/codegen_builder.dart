@@ -271,7 +271,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       rootParams: source.build.rootParams,
       rootEventHandlers: source.build.eventHandlers,
       buildContextParameter: source.build.buildContextParameter,
-      rootLocalBindings: source.build.localBindings,
+      rootInlined: source.build.inlined,
     );
     final usesFlowForm = probe.navigation != null || probe.suppressed;
     final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
@@ -289,7 +289,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             rootParams: source.build.rootParams,
             rootEventHandlers: source.build.eventHandlers,
             buildContextParameter: source.build.buildContextParameter,
-            rootLocalBindings: source.build.localBindings,
+            rootInlined: source.build.inlined,
           )
         : probe;
     final adapter = usesFlowForm
@@ -303,7 +303,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             rootEventHandlers: source.build.eventHandlers,
             buildContextParameter: source.build.buildContextParameter,
             flowScreenContext: true,
-            rootLocalBindings: source.build.localBindings,
+            rootInlined: source.build.inlined,
           )
         : routePlan != null && emitAdapter
             ? translatorFor(source, routePlan).translate(
@@ -316,7 +316,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
                 rootEventHandlers: source.build.eventHandlers,
                 buildContextParameter: source.build.buildContextParameter,
                 flowScreenContext: true,
-                rootLocalBindings: source.build.localBindings,
+                rootInlined: source.build.inlined,
               )
             : probe;
     _addFatalTranslationIssues(
@@ -763,7 +763,7 @@ final class RestageCodegenBuilder implements Builder {
         rootParams: src.build.rootParams,
         rootEventHandlers: src.build.eventHandlers,
         buildContextParameter: src.build.buildContextParameter,
-        rootLocalBindings: src.build.localBindings,
+        rootInlined: src.build.inlined,
       );
       final adapterTranslation = (standaloneTranslation.navigation != null ||
               standaloneTranslation.suppressed)
@@ -777,7 +777,7 @@ final class RestageCodegenBuilder implements Builder {
               rootEventHandlers: src.build.eventHandlers,
               buildContextParameter: src.build.buildContextParameter,
               flowScreenContext: true,
-              rootLocalBindings: src.build.localBindings,
+              rootInlined: src.build.inlined,
             )
           : standaloneTranslation;
       _addFatalTranslationIssues(

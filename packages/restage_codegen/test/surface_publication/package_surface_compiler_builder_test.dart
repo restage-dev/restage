@@ -730,6 +730,117 @@ final class HiddenCollectionOffer extends StatelessWidget {
     }
   });
 
+  test('inlines a custom widget absent from the package catalog', () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+part 'restage.generated/plain_badge.restage.g.dart';
+
+@RestageWidget(
+  name: 'PlainBadge',
+  library: WidgetLibrary.custom('fixture.badge'),
+  category: WidgetCategory.content,
+  description: 'Badge.',
+)
+final class PlainBadge extends StatelessWidget {
+  const PlainBadge({super.key, required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(label);
+}
+
+@Screen(id: 'plain_badge', surface: Surface.general)
+final class PlainBadgeScreen extends StatelessWidget {
+  const PlainBadgeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const Column(children: [PlainBadge(label: 'streak')]);
+}
+
+@Paywall(id: 'plain_badge_offer')
+final class PlainBadgeOffer extends StatelessWidget {
+  const PlainBadgeOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const Column(children: [PlainBadge(label: 'streak')]);
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/plain_badge.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    for (final path in [
+      'assets/general/screens/plain_badge.rfwtxt',
+      'assets/paywalls/plain_badge_offer.rfwtxt',
+    ]) {
+      final text = utf8.decode(bundle.ownedOutputs[path]!);
+      expect(text, contains('PlainBadge(label: "streak")'));
+      expect(text, contains('widget PlainBadge'));
+    }
+  });
+
+  test('leaves a dependency package to compile in its own build', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/dependency_screen.restage.g.dart';
+
+@Screen(id: 'dependency_screen', surface: Surface.general)
+final class DependencyScreen extends StatelessWidget {
+  const DependencyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('dependency');
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      restagePackageSurfaceCompilerBuilder(
+        const BuilderOptions({'bundled_runtime': true}),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/dependency_screen.dart': screen,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    expect(
+      readerWriter.testing.exists(
+        AssetId('apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+      ),
+      isFalse,
+    );
+  });
+
   test('rejects reused callback collection sources before publication',
       () async {
     const sources = '''
@@ -1273,7 +1384,7 @@ final class UpgradeOffer extends StatelessWidget {
       bundle.ownedOutputs['lib/restage.generated/offer.restage.g.dart']!,
     );
     expect(generated, contains('class UpgradeOfferSurface'));
-    expect(generated, contains('id: "upgrade_offer"'));
+    expect(generated, contains("id: 'upgrade_offer'"));
     expect(generated, contains('fallbackBuilder: (context) => UpgradeOffer('));
     await _expectAnalyzesClean({
       'apps_examples|lib/offer.dart': source,
@@ -2386,11 +2497,14 @@ final class FlatParent extends RestageFlow {
       bundle.ownedOutputs[
           'lib/a_parents/restage.generated/flat_parent.restage.g.dart']!,
     );
-    final compiledDocuments = RegExp(r'documentJson:\s*("(?:\\.|[^"\\])*")')
+    final compiledDocuments = RegExp(r"documentJson:\s*'((?:\\.|[^'\\])*)'")
         .allMatches(generated)
         .map(
           (match) => FlowDocumentCodec.decodeJson(
-            jsonDecode(match.group(1)!) as String,
+            match.group(1)!.replaceAllMapped(
+                  RegExp(r'\\(.)'),
+                  (escape) => escape.group(1)!,
+                ),
           ),
         )
         .toList();
@@ -2743,11 +2857,11 @@ Future<String> _generatedPart(String source, String name) async {
   final result = await testBuilders(
     [
       restageSourceRosterBuilder(
-        const BuilderOptions({'bundled_runtime': true}),
+        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
       ),
       userCatalogJsonBuilder(BuilderOptions.empty),
       restagePackageSurfaceCompilerBuilder(
-        const BuilderOptions({'bundled_runtime': true}),
+        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
       ),
       restageGeneratedDartBuilder(
         const BuilderOptions({'bundled_runtime': true}),

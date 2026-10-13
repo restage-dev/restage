@@ -26,18 +26,33 @@ final class SourceBuildBlueprint {
     this.mountConstructorProblem,
     Map<String, RecognisedSetState> eventHandlers = const {},
     Map<Element, Expression> localBindings = const {},
+    Map<Element, HelperDef> helpers = const {},
   })  : state = state == null ? null : List.unmodifiable(state),
         rootParams = List.unmodifiable(rootParams),
         constructorParams = List.unmodifiable(constructorParams ?? rootParams),
         eventHandlers = Map.unmodifiable(eventHandlers),
-        localBindings = Map.unmodifiable(localBindings);
+        inlined = InlinedDefinitions(
+          localBindings: Map.unmodifiable(
+            withHelperLocals(localBindings, helpers.values),
+          ),
+          helpers: Map.unmodifiable(helpers),
+        );
 
   /// The returned expression from the effective `build()` host.
   final Expression rootExpression;
 
-  /// The effective `build()`'s leading `final` locals, keyed by declared
-  /// element; each reference resolves-through to the initializer.
-  final Map<Element, Expression> localBindings;
+  /// The effective `build()`'s leading `final` locals and the same-class and
+  /// same-library helpers its calls inline.
+  final InlinedDefinitions inlined;
+
+  /// The effective `build()`'s leading `final` locals and those of its
+  /// helpers, keyed by declared element; each reference resolves-through to
+  /// the initializer.
+  Map<Element, Expression> get localBindings => inlined.localBindings;
+
+  /// Same-class and same-library helpers `build()` calls, keyed by element;
+  /// each call inlines the helper's body.
+  Map<Element, HelperDef> get helpers => inlined.helpers;
 
   /// The effective `build()` method's `BuildContext` parameter element.
   final Element? buildContextParameter;
@@ -62,6 +77,7 @@ final class SourceBuildBlueprint {
   late final List<Expression> collectorRoots = [
     rootExpression,
     ...localBindings.values,
+    for (final helper in helpers.values) helper.body,
   ];
 }
 
@@ -170,6 +186,21 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     );
     return null;
   }
+  final reachable = await reachableArtifactHelpers(
+    [extracted.expression, ...localBindings.values],
+    astNodeFor: astNodeFor,
+  );
+  if (reachable.recursive case final helper?) {
+    issues.add(
+      Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message: "build() makes a recursive helper call ('${helper.name}'); "
+            'a helper cannot call itself.',
+        location: '$location.${helper.name}',
+      ),
+    );
+    return null;
+  }
   final buildContextParameter = _buildContextParameter(buildMethod);
   final constructorFacts = await _constructorParams(sourceClass, astNodeFor);
   final constructorParams = constructorFacts.params;
@@ -183,6 +214,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     constructorParams: constructorParams,
     mountConstructorProblem: constructorFacts.mountProblem,
     localBindings: localBindings,
+    helpers: reachable.helpers,
   );
   if (stateClass == null) return blueprint;
 
@@ -194,9 +226,10 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   );
   if (state == null) return null;
   final eventHandlers = await _collectReferencedHandlers(
-    blueprint.collectorRoots,
+    [blueprint.rootExpression, ...blueprint.localBindings.values],
     stateClass: stateClass,
     stateFieldNames: state.map((field) => field.name).toSet(),
+    helpers: blueprint.helpers,
     astNodeFor: astNodeFor,
   );
   for (final entry in eventHandlers.entries) {
@@ -223,6 +256,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     mountConstructorProblem: blueprint.mountConstructorProblem,
     eventHandlers: eventHandlers,
     localBindings: blueprint.localBindings,
+    helpers: blueprint.helpers,
   );
 }
 
@@ -760,9 +794,10 @@ Future<Map<String, RecognisedSetState>> _collectReferencedHandlers(
   Iterable<Expression> roots, {
   required ClassElement stateClass,
   required Set<String> stateFieldNames,
+  required Map<Element, HelperDef> helpers,
   required Future<AstNode?> Function(Fragment fragment) astNodeFor,
 }) async {
-  final collector = _ReferencedStateMethodCollector(stateClass);
+  final collector = _ReferencedStateMethodCollector(stateClass, helpers);
   for (final root in roots) {
     root.accept(collector);
   }
@@ -784,11 +819,31 @@ Future<Map<String, RecognisedSetState>> _collectReferencedHandlers(
   };
 }
 
+/// The State methods a walk references, reading each helper call as its body.
 final class _ReferencedStateMethodCollector extends RecursiveAstVisitor<void> {
-  _ReferencedStateMethodCollector(this.stateClass);
+  _ReferencedStateMethodCollector(this.stateClass, this.helpers);
 
   final ClassElement stateClass;
+  final Map<Element, HelperDef> helpers;
   final Set<MethodElement> methods = {};
+  final Set<Element> _expanded = Set.identity();
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    final element = node.methodName.element;
+    final helper = helpers[element];
+    if (element == null || helper == null) {
+      super.visitMethodInvocation(node);
+      return;
+    }
+    node.target?.accept(this);
+    node.argumentList.accept(this);
+    if (_expanded.add(element)) {
+      for (final root in helper.roots) {
+        root.accept(this);
+      }
+    }
+  }
 
   @override
   void visitSimpleIdentifier(SimpleIdentifier node) {

@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_shared/restage_shared.dart' show WidgetVocabulary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -178,15 +179,15 @@ final class IconDataReference {
   String spelling([String sdkPrefix = '']) {
     final buffer = StringBuffer(
       '${sdkPrefix}IconData(0x${codePoint.toRadixString(16)}',
-    )..write(', fontFamily: ${_dartStringLiteral(fontFamily)}');
+    )..write(', fontFamily: ${dartStringLiteral(fontFamily)}');
     final package = fontPackage;
     if (package != null) {
-      buffer.write(', fontPackage: ${_dartStringLiteral(package)}');
+      buffer.write(', fontPackage: ${dartStringLiteral(package)}');
     }
     if (matchTextDirection) buffer.write(', matchTextDirection: true');
     final fallback = fontFamilyFallback;
     if (fallback != null) {
-      final families = fallback.map(_dartStringLiteral).join(', ');
+      final families = fallback.map(dartStringLiteral).join(', ');
       buffer.write(', fontFamilyFallback: <String>[$families]');
     }
     buffer.write(')');
@@ -343,16 +344,6 @@ List<String>? _optionalStringList(DartObject value, String field) {
   return families;
 }
 
-String _dartStringLiteral(String value) {
-  final escaped = value
-      .replaceAll(r'\', r'\\')
-      .replaceAll("'", r"\'")
-      .replaceAll(r'$', r'\$')
-      .replaceAll('\n', r'\n')
-      .replaceAll('\r', r'\r');
-  return "'$escaped'";
-}
-
 /// [family] re-keyed in ascending code-point order, which is what makes a
 /// regenerated table byte-stable.
 Map<int, IconDataReference> _byAscendingCodePoint(
@@ -500,6 +491,15 @@ final class SurfaceVocabularyReferences {
             );
       });
 
+  /// Whether any widget here comes from an app's own widget library.
+  bool get namesAppWidgets => widgetNames.any((qualified) {
+        final separator = qualified.indexOf(':');
+        return separator > 0 &&
+            !_kBuiltInNamespaceArguments.containsKey(
+              qualified.substring(0, separator),
+            );
+      });
+
   /// Every icon, the non-mirroring ones first, each half ordered by family and
   /// then by code point.
   Iterable<IconDataReference> get orderedIcons sync* {
@@ -591,11 +591,12 @@ SurfaceVocabularyReferences referencesOfCatalogEntries(
 /// context.
 ///
 /// [sdkPrefix] qualifies the SDK types, the re-exported per-widget builder
-/// functions, and `IconData`. Custom-library widgets are left out — an app
-/// registers those through its generated factories.
+/// functions, and `IconData`. Custom-library widgets are carried by
+/// [libraries], the source of their registration list, when given.
 String emitSurfaceVocabulary(
   SurfaceVocabularyReferences references, {
   String sdkPrefix = '',
+  String? libraries,
 }) {
   final buildersByArgument = <String, List<String>>{};
   for (final qualified in references.widgetNames) {
@@ -610,7 +611,9 @@ String emitSurfaceVocabulary(
   final hasWidgets = buildersByArgument.isNotEmpty;
   final hasMirroredIcons = references.mirroredIcons.isNotEmpty;
   final hasIcons = references.icons.isNotEmpty || hasMirroredIcons;
-  if (!hasWidgets && !hasIcons) return '${sdkPrefix}SurfaceVocabulary.none';
+  if (!hasWidgets && !hasIcons && libraries == null) {
+    return '${sdkPrefix}SurfaceVocabulary.none';
+  }
 
   final buffer = StringBuffer('${sdkPrefix}SurfaceVocabulary(');
   if (hasWidgets) {
@@ -636,6 +639,7 @@ String emitSurfaceVocabulary(
     }
     buffer.write('),');
   }
+  if (libraries != null) buffer.write('libraries: $libraries,');
   buffer.write(')');
   return buffer.toString();
 }

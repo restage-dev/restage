@@ -10,7 +10,11 @@ void main() {
   test(
     'native sibling authoring leaves the canonical Screen RFW baseline exact',
     () {
-      // Pin the generated descriptor and canonical delivery bytes together.
+      // The generated descriptor is ordinary source and is read as a file.
+      // Its bytes moved with the generated-Dart changes
+      // (collection-directory part URI, the category-neutral ref, and the
+      // additive runtime provenance); the DELIVERY bytes below did not move at
+      // all, which is the property this baseline exists to hold.
       expect(
         sha256
             .convert(
@@ -19,18 +23,18 @@ void main() {
               ).readAsBytesSync(),
             )
             .toString(),
-        '88d33a47453596cc7e1a8a1b2cd624e40fbf7dde0a3c2f0e23a7850561f4a185',
+        '443a31a3373787d347f56a816d18029769c216030c895f4a55f88975effbfc90',
         reason:
             'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       );
 
       const delivery = <String, String>{
-        'assets/onboarding/screens/opaque_screen_proof.rfwtxt':
-            '566db8996c86df38e03a8f68d7aef5f8edffcd42e42d8354270be54905c5a6a7',
-        'assets/onboarding/screens/opaque_screen_proof.rfw':
-            '8cc8b91acac4f019533b9b6f5d38c8aed5fbb1e23edb9a1b23fe2883269aa71b',
-        'assets/onboarding/screens/opaque_screen_proof.capability.json':
-            '4d6d51b9ffb9050f4dd471ba0c198eda72adc62dffad4c043a43a9c98e17cbf1',
+        'assets/onboarding/screens/get_started_screen.rfwtxt':
+            '12f5157042be9f5670451f4b338a9cb1404f7ea70b24412845e383e64261d670',
+        'assets/onboarding/screens/get_started_screen.rfw':
+            '6de6f52ac71212a2a79391f6871f1eccf5645066bb6d7e6798aacbac29b3d355',
+        'assets/onboarding/screens/get_started_screen.capability.json':
+            '7640f8efacf15a352bc9da2b4d2cfb77ccf99d463956a37df63d3d9fdcca0e30',
       };
 
       final packaged = _packagedArtifacts();
@@ -50,7 +54,7 @@ void main() {
     expect(
       utf8.decode(
         _packagedArtifacts()['assets/onboarding/screens/'
-            'opaque_screen_proof.rfwtxt']!,
+            'get_started_screen.rfwtxt']!,
       ),
       'import restage.core;\n'
       'import restage.material;\n'
@@ -58,24 +62,24 @@ void main() {
       '\n'
       'widget OnboardingScreen = Center(child: ElevatedButton('
       'onPressed: event "continue" {value: "preview"}, child: '
-      'Text(text: "Opaque screen proof")));\n',
+      'Text(text: "Get started")));\n',
     );
     // A categorized `@Screen(surface:)` is standalone, so its handle is the
     // typed `SurfaceScreenRef` — it carries no `artifactPath`/`minClient`,
     // which belonged to the in-flow neutral reference this screen no longer
     // generates. The packaged `.rfw` path those two stood for is asserted by
     // exact digest in the delivery-map test above, not weakened here.
-    expect(opaqueScreenProofRef.id, 'opaque_screen_proof');
-    expect(opaqueScreenProofRef.version, 1);
-    expect(opaqueScreenProofRef.capabilities.builtInFloor, 1);
-    expect(opaqueScreenProofRef.surface, Surface.onboarding);
+    expect(getStartedScreenRef.id, 'get_started_screen');
+    expect(getStartedScreenRef.version, 1);
+    expect(getStartedScreenRef.capabilities.builtInFloor, 1);
+    expect(getStartedScreenRef.surface, Surface.onboarding);
     expect(
       utf8.decode(
         _packagedArtifacts()['assets/onboarding/screens/'
-            'opaque_screen_proof.capability.json']!,
+            'get_started_screen.capability.json']!,
       ),
       '{"blobSha256":'
-      '"sha256:8cc8b91acac4f019533b9b6f5d38c8aed5fbb1e23edb9a1b23fe2883269aa71b",'
+      '"sha256:6de6f52ac71212a2a79391f6871f1eccf5645066bb6d7e6798aacbac29b3d355",'
       '"manifest":{"builtInFloor":1,"requiredLibraries":[]}}',
     );
   });

@@ -27,11 +27,11 @@ dependencies:
   # to package a flow as a surface document and serve it from an in-app fake.
   restage_shared:
     path: ../../packages/restage_shared
-  restage_preview_harness:
-    path: ../../packages/restage_preview_harness
+  # Used by `main_marketing_lumen.dart`.
   restage_preview_host:
     path: ../../packages/restage_preview_host
   http: ^1.2.0
+  # Used by `marketing_lumen_bridge.dart`.
   web: ^1.1.1
 
 dev_dependencies:
@@ -57,7 +57,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/fonts/fallback/Roboto_LICENSE.txt
     - assets/marketing/lumen_original.payload
     # Hand-authored demo blob, not generated output.
     - assets/paywalls/
@@ -68,10 +67,6 @@ flutter:
     - assets/restage/bundles/lib/onboarding/screens/
     - assets/restage/bundles/lib/paywalls/
     - assets/restage/bundles/lib/surfaces/
-  fonts:
-    - family: Roboto
-      fonts:
-        - asset: assets/fonts/fallback/Roboto-Regular.ttf
 
 patrol:
   app_name: Restage Examples

@@ -48,7 +48,7 @@ class PreviewCommand extends Command<int> {
   @override
   String get description =>
       'Launch the desktop preview application against a compiled '
-      '`.rfw` paywall.';
+      '`.rfw` surface.';
 
   // Hidden from `--help` until the desktop preview binary is distributed: this
   // command locates the binary but does not fetch it, so listing it before the

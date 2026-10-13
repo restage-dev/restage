@@ -291,6 +291,11 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     required ConsoleSurface surface,
   }) async => _result();
 
+  @override
+  Future<ConsoleOperationResult> pushBuild({
+    required ConsoleContext context,
+  }) async => _result();
+
   ConsoleOperationResult _result() =>
       ConsoleOperationResult(exitCode: 0, stdout: nextStdout, stderr: '');
 }

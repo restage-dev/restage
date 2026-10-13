@@ -376,8 +376,7 @@ final class WidgetClassifier {
     if (node is! MethodDeclaration) {
       return UnclassifiableWidget(
         key,
-        reason: "the widget's build() source was not available "
-            'to the transpiler',
+        reason: "the widget's build() source was not available",
       );
     }
     final extracted = extractInlinableBuildBody(node.body);
@@ -423,8 +422,8 @@ final class WidgetClassifier {
       // follow-up; until then a positional call could mis-map arguments.
       return UnclassifiableWidget(
         key,
-        reason: 'the widget declares multiple constructors, which this '
-            'transpiler increment does not disambiguate for inlining',
+        reason: 'the widget declares more than one constructor, which '
+            'Restage does not yet disambiguate for inlining',
       );
     }
     final params = _constructorParams(
@@ -434,7 +433,7 @@ final class WidgetClassifier {
     if (params == null) {
       return UnclassifiableWidget(
         key,
-        reason: 'a constructor parameter has a default value the transpiler '
+        reason: 'a constructor parameter has a default value Restage '
             'cannot fold to a literal',
       );
     }
@@ -459,7 +458,7 @@ final class WidgetClassifier {
           );
         } else {
           eventHandlers[methodName] = const SetStateUnrecognised(
-            reason: 'the method source was not available to the transpiler',
+            reason: 'the method source was not available',
           );
         }
       }
@@ -620,7 +619,9 @@ class _Walk {
   /// The captured named intermediates for the blueprint.
   InlinedDefinitions get inlinedDefinitions => InlinedDefinitions(
         helpers: Map.of(_capturedHelpers),
-        localBindings: Map.of(_localBindings),
+        localBindings: Map.of(
+          withHelperLocals(_localBindings, _capturedHelpers.values),
+        ),
       );
 
   /// The `State` fields captured by [classifyStateShape], in declaration
@@ -875,8 +876,10 @@ class _Walk {
       return;
     }
     if (expr is FunctionExpression) {
-      _unclassifiable('an inline event-handler closure, which this '
-          'transpiler increment does not yet analyse');
+      _unclassifiable(
+        'an inline closure Restage does not analyse yet: '
+        '${_truncateSource(expr)}',
+      );
       return;
     }
     if (_isPlainLiteral(expr)) return;
@@ -885,8 +888,7 @@ class _Walk {
       return;
     }
     _unclassifiable(
-      'an expression this transpiler increment does not yet recognise '
-      '(${expr.runtimeType})',
+      'an expression Restage does not convert yet: ${_truncateSource(expr)}',
     );
   }
 
@@ -946,8 +948,7 @@ class _Walk {
     _unclassifiable(
       springTarget != null
           ? motionDeferMessage(springTarget)
-          : "a construction of '${type.name}', which this transpiler increment "
-              'does not yet recognise',
+          : "a construction of '${type.name}', which is not recognised yet",
     );
   }
 
@@ -1043,8 +1044,8 @@ class _Walk {
       case UnclassifiableWidget():
         _collectionRefusal ??= _classifier._collectionRefusals[nested.classKey];
         _unclassifiable(
-          "the custom widget '${type.name}', which this transpiler "
-          'increment does not yet classify (${nested.reason})',
+          "the custom widget '${type.name}', which Restage does not "
+          'recognise yet (${nested.reason})',
         );
     }
     // The arguments passed at this call site are still part of this
@@ -1148,8 +1149,8 @@ class _Walk {
   ) async {
     if (!_helperStack.add(helper)) {
       _unclassifiable(
-        "a recursive helper call ('${helper.name}'), which this transpiler "
-        'increment cannot inline',
+        "a recursive helper call ('${helper.name}'), which Restage "
+        'cannot inline',
       );
       return;
     }
@@ -1172,11 +1173,12 @@ class _Walk {
       // each parameter reference classifies as its bound argument (the inlined
       // composition). The bindings are removed on exit so a sibling call's
       // arguments don't leak.
-      _paramBindings.addAll(binding);
+      final scoped = {...definition.localBindings, ...binding};
+      _paramBindings.addAll(scoped);
       try {
         await classify(definition.body);
       } finally {
-        binding.keys.forEach(_paramBindings.remove);
+        scoped.keys.forEach(_paramBindings.remove);
       }
     } finally {
       _helperStack.remove(helper);
@@ -1191,24 +1193,14 @@ class _Walk {
   ) async {
     final existing = _capturedHelpers[helper] ?? _indexedHelpers[helper];
     if (existing != null) return existing;
-    final node = await _classifier.astNodeFor(helper.firstFragment);
-    final functionBody = switch (node) {
-      MethodDeclaration() => node.body,
-      FunctionDeclaration() => node.functionExpression.body,
-      _ => null,
-    };
-    final body =
-        functionBody == null ? null : singleReturnExpressionOf(functionBody);
-    if (body == null) {
-      final problem =
-          functionBody == null ? null : preludeDeclarationProblem(functionBody);
-      _blocker(BlockerKind.dartCall, call, problem ?? _truncateSource(call));
-      return null;
-    }
-    return HelperDef(
-      params: helper.formalParameters.toList(),
-      body: body,
+    final (:definition, :refusal) = helperDefinitionOf(
+      helper,
+      await _classifier.astNodeFor(helper.firstFragment),
     );
+    if (definition == null) {
+      _blocker(BlockerKind.dartCall, call, refusal ?? _truncateSource(call));
+    }
+    return definition;
   }
 
   /// Resolves helpers for the collection probe without capturing them — the
@@ -1234,7 +1226,7 @@ class _Walk {
           followed?[helper] = definition;
           return CollectionResolvedHelper(
             body: definition.body,
-            parameterBindings: bindings,
+            parameterBindings: {...definition.localBindings, ...bindings},
           );
         },
       );
@@ -1408,7 +1400,8 @@ class _Walk {
       return;
     }
     _unclassifiable(
-      'a property access this transpiler increment does not yet recognise',
+      'a property access Restage does not recognise yet: '
+      '${_truncateSource(expr)}',
     );
   }
 
@@ -1427,7 +1420,8 @@ class _Walk {
     // non-arithmetic operator) — not runtime data, but not inlinable by this
     // increment either.
     _unclassifiable(
-      'a constant expression this transpiler increment does not yet fold',
+      'a constant expression Restage does not fold yet: '
+      '${_truncateSource(expr)}',
     );
   }
 
@@ -1582,8 +1576,7 @@ class _Walk {
       return;
     }
     _unclassifiable(
-      "a reference '${expr.name}' this transpiler increment does not yet "
-      'recognise',
+      "a reference Restage does not recognise yet: '${expr.name}'",
     );
   }
 
@@ -1662,8 +1655,8 @@ class _Walk {
     if (_stateClass == null) {
       _unclassifiable(
         "a method tear-off ('${member.name}') referenced as an event "
-        'handler in a stateless widget — the transpiler can emit only '
-        'state mutations and named event handlers',
+        'handler in a stateless widget; Restage can deliver only '
+        'state changes and named event handlers',
       );
       return;
     }
@@ -2116,7 +2109,10 @@ final class _StaticallyAdmittedExpressionVisitor {
         if (parameterBindings == null) return null;
         return CollectionResolvedHelper(
           body: definition.body,
-          parameterBindings: parameterBindings,
+          parameterBindings: {
+            ...definition.localBindings,
+            ...parameterBindings,
+          },
         );
       },
     );

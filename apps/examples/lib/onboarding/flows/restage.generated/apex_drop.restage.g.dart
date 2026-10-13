@@ -10,9 +10,9 @@ const apexDropFlowRef = SurfaceFlowRef<
   decodeResult: _decodeApexDropFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"apex_drop\",\"initial\":\"apex_drop\",\"minClient\":6,\"outbound\":{\"customEvents\":{\"dismiss\":{\"fields\":{}}}},\"schemaVersion\":1,\"screenArtifacts\":{\"apex_drop\":{\"contentHash\":\"sha256:168370446c1565cb995288ab68dfa5c14c9df33d6bece98302dda72cf835fc98\",\"minClient\":6,\"path\":\"apex_drop.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"apex_drop\":{\"kind\":\"screen\",\"on\":{\"act\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"apex_drop\"},\"done\":{\"kind\":\"end\",\"result\":{}}},\"version\":1}",
+        '{"flow":"apex_drop","initial":"apex_drop","minClient":6,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:168370446c1565cb995288ab68dfa5c14c9df33d6bece98302dda72cf835fc98","minClient":6,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
     screens: {
-      "apex_drop": ApexDropScreen.new,
+      'apex_drop': ApexDropScreen.new,
     },
     children: {},
   ),

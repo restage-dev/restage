@@ -419,13 +419,30 @@ final class MeasurementHostSessionController
     return _openWithAuthority(request, authority);
   }
 
-  /// Opens Measurement for one already-resolved host artifact or payload.
-  ///
-  /// Exact hosted provenance takes precedence. Only when no hosted reference
-  /// is attached does this load the verified bundled target profile and ask
-  /// the generated-source resolver for one exact final publication locator. The
-  /// nullable construction authority is checked before either lazy path.
+  /// Opens Measurement for a resolved artifact after checking construction authority.
+  /// Uses hosted provenance first, then a verified bundled profile and locator.
+  /// Exceeding [openBudget] disables the session; a late session is aborted.
   static Future<MeasurementHostSessionController> openForResolvedArtifact(
+    Object resolvedOrPayload, {
+    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
+  }) {
+    final opening = _openForResolvedArtifact(
+      resolvedOrPayload,
+      presentationObservations: presentationObservations,
+    );
+    return opening.timeout(openBudget, onTimeout: () {
+      unawaited(opening.then(
+        (late) => late._disableAfterConstructionFailure(),
+        onError: (Object _) {},
+      ));
+      return MeasurementHostSessionController._disabled();
+    });
+  }
+
+  /// The longest a surface waits for its Measurement session to open.
+  static const Duration openBudget = Duration(seconds: 3);
+
+  static Future<MeasurementHostSessionController> _openForResolvedArtifact(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
   }) async {

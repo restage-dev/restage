@@ -2,29 +2,25 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_cupertino.svg)](https://pub.dev/packages/restage_cupertino) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-A curated [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog of Cupertino (Apple HIG) widgets
-for server-driven Flutter UI: the `restage.cupertino` library
-(`CupertinoButton` and `CupertinoButtonFilled`, navigation/page scaffolding,
-switches, sliders, pickers, text fields, and more; 16 widgets). Sibling to
-`restage_core` and `restage_material`.
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
-Part of [Restage](https://restage.dev), server-driven UI for Flutter. Extend this
-catalog with your own design-system widgets via `@RestageWidget`.
+The `restage.cupertino` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
+16 Cupertino (Apple-style) widgets, including `CupertinoButton` (and
+`CupertinoButton.filled`), navigation and page scaffolding, switches,
+sliders, pickers, and text fields. It sits alongside `restage_core` and
+`restage_material`. Add your own design-system widgets to the catalog with
+`@RestageWidget`.
 
-The package provides catalog metadata (`lib/registry.dart` `kRegistry`, mirrored
-to `lib/src/widget_catalog/catalog.json`) and an RFW `LocalWidgetBuilder`
-registration map (`lib/src/registration.g.dart`); the standard Cupertino widgets
-are mapped through the catalog. A surface that uses `CupertinoButton` renders
-through the `restage.cupertino` library.
+The package provides catalog metadata for authoring tools and the code
+generator, and an RFW `LocalWidgetBuilder` map that renders the catalog's
+widgets. You write surfaces in plain Flutter; standard Cupertino widgets map to
+the catalog. The same widgets build onboarding, messages, surveys, paywalls, or
+any other screen.
 
-The catalog is surface-general: the same widgets compose any server-driven UI
-surface.
-
-## Status
-
-`1.0.0`, stable public release. The wire format is frozen at v1. Cupertino
-coverage is the smallest of the three catalogs and grows demand-first.
+Cupertino has the fewest widgets of the three catalogs.
+[Open an issue](https://github.com/restage-dev/restage/issues) for any widget
+you need.
 
 ## License
 
-BSD-3-Clause. See `LICENSE`.
+BSD-3-Clause. See [LICENSE](LICENSE).

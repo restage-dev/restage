@@ -11,12 +11,12 @@ import 'onboarding_event_dispatcher.dart';
 /// In a codegen-built flow screen, this call is replaced at build time
 /// with a descriptor event reference and never executes at runtime.
 @Deprecated('Use surfaceEvent instead.')
-VoidCallback onboardingEvent<T, V extends T>(
+void Function([Object?]) onboardingEvent<T, V extends T>(
   SurfaceEvent<T> event, [
   V? value,
 ]) {
   final access = captureAuthoringDispatcherAccess(
-    activeSurfaceEventDispatcher,
+    () => surfaceEventDispatcherFor(event.id),
   );
   return _flowEvent(
     AuthoringHelperKind.onboardingEvent,
@@ -24,19 +24,18 @@ VoidCallback onboardingEvent<T, V extends T>(
     value,
     dispatcher: access.dispatcher,
     captureRefusal: access.refusal,
+    refusalDetail: access.detail,
   );
 }
 
-/// Returns a callback that fires a neutral flow screen event.
-///
-/// In a codegen-built screen, this call is replaced at build time with a
-/// descriptor event reference and never executes at runtime.
-VoidCallback surfaceEvent<T, V extends T>(
+/// Returns a screen-event callback; widget callback values replace [value].
+/// Codegen replaces this call with a descriptor event reference.
+void Function([Object?]) surfaceEvent<T, V extends T>(
   SurfaceEvent<T> event, [
   V? value,
 ]) {
   final access = captureAuthoringDispatcherAccess(
-    activeSurfaceEventDispatcher,
+    () => surfaceEventDispatcherFor(event.id),
   );
   return _flowEvent(
     AuthoringHelperKind.surfaceEvent,
@@ -44,11 +43,12 @@ VoidCallback surfaceEvent<T, V extends T>(
     value,
     dispatcher: access.dispatcher,
     captureRefusal: access.refusal,
+    refusalDetail: access.detail,
   );
 }
 
 /// Returns a flow event callback bound to the nearest mounted dispatcher.
-VoidCallback surfaceEventWithContext<T, V extends T>(
+void Function([Object?]) surfaceEventWithContext<T, V extends T>(
   BuildContext context,
   SurfaceEvent<T> event, [
   V? value,
@@ -62,31 +62,42 @@ VoidCallback surfaceEventWithContext<T, V extends T>(
     value,
     dispatcher: access.dispatcher,
     captureRefusal: access.refusal,
+    refusalDetail: access.detail,
   );
 }
 
-VoidCallback _flowEvent<T, V extends T>(
+void Function([Object?]) _flowEvent<T, V extends T>(
   AuthoringHelperKind helper,
   SurfaceEvent<T> event,
   V? value, {
   required SurfaceEventHandler? dispatcher,
   required AuthoringRefusalKind? captureRefusal,
+  String? refusalDetail,
 }) {
-  void onRefused(AuthoringRefusalKind refusal) {
+  void onRefused(AuthoringRefusalKind refusal, [String? detail]) {
     reportAuthoringRefusal(
       helper: helper,
       refusal: refusal,
+      detail: detail,
     );
   }
 
-  return () {
+  return ([Object? widgetValue = _noWidgetValue]) {
     if (dispatcher != null) {
+      final dispatched =
+          identical(widgetValue, _noWidgetValue) ? value : widgetValue;
       RestageFlowEventDispatchRegistry.runWithControllerEventRefusal<void>(
-        body: () => dispatcher(event.id, value),
+        body: () => dispatcher(event.id, dispatched),
         onRefused: () => onRefused(AuthoringRefusalKind.callbackRefused),
       );
       return;
     }
-    onRefused(captureRefusal ?? AuthoringRefusalKind.missingDispatcher);
+    onRefused(
+      captureRefusal ?? AuthoringRefusalKind.missingDispatcher,
+      refusalDetail,
+    );
   };
 }
+
+// Marks a call that carried no widget value.
+const Object _noWidgetValue = Object();

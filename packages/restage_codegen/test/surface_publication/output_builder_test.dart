@@ -497,18 +497,18 @@ final class FeatureAnnouncement extends StatelessWidget {
     );
 
     expect(generatedPart, contains('SurfaceScreenBundleLocator('));
-    expect(generatedPart, contains('assetKey: "$bundleAssetKey"'));
-    expect(generatedPart, contains('packageName: "apps_examples"'));
+    expect(generatedPart, contains("assetKey: '$bundleAssetKey'"));
+    expect(generatedPart, contains("packageName: 'apps_examples'"));
     expect(
       generatedPart,
-      contains('authoredLibraryPath: "lib/features/announcement.dart"'),
+      contains("authoredLibraryPath: 'lib/features/announcement.dart'"),
     );
     // Asserted against the DECODED bundle's own META-INF-derived entry
     // records, never against an independent recomputation of the hash.
     expect(
       generatedPart,
       contains(
-        'logicalPath: "${blobEntry.logicalPath}"',
+        "logicalPath: '${blobEntry.logicalPath}'",
       ),
     );
     expect(
@@ -519,13 +519,13 @@ final class FeatureAnnouncement extends StatelessWidget {
       generatedPart,
       contains('byteLength: ${blobEntry.byteLength}'),
     );
-    // Matched on the quoted value alone, not `sha256: "..."` on one line:
+    // Matched on the quoted value alone, not `sha256: '...'` on one line:
     // dart_format wraps the key onto its own line when the value is this
     // long, but the quoted literal itself stays intact.
-    expect(generatedPart, contains('"${blobEntry.sha256}"'));
+    expect(generatedPart, contains("'${blobEntry.sha256}'"));
     expect(
       generatedPart,
-      contains('logicalPath: "${sidecarEntry.logicalPath}"'),
+      contains("logicalPath: '${sidecarEntry.logicalPath}'"),
     );
     expect(
       generatedPart,
@@ -535,7 +535,7 @@ final class FeatureAnnouncement extends StatelessWidget {
       generatedPart,
       contains('byteLength: ${sidecarEntry.byteLength}'),
     );
-    expect(generatedPart, contains('"${sidecarEntry.sha256}"'));
+    expect(generatedPart, contains("'${sidecarEntry.sha256}'"));
   });
 
   test('bundled_runtime: false emits no bundle locator', () async {

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:dart_style/dart_style.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -18,6 +16,46 @@ final DartFormatter _formatter = DartFormatter(
 /// Formats [source] with `dart format` rules so emitted code passes
 /// `dart format --set-exit-if-changed` byte-stably across runs.
 String formatGeneratedDart(String source) => _formatter.format(source);
+
+/// Renders [value] as a single-quoted Dart string literal.
+///
+/// Generated source paths, diagnostics, and reconstructed constants share
+/// this renderer so `$` can never become interpolation and control characters
+/// cannot break the generated library.
+String dartStringLiteral(String value) {
+  final buffer = StringBuffer("'");
+  for (final rune in value.runes) {
+    switch (rune) {
+      case 0x08:
+        buffer.write(r'\b');
+      case 0x09:
+        buffer.write(r'\t');
+      case 0x0A:
+        buffer.write(r'\n');
+      case 0x0C:
+        buffer.write(r'\f');
+      case 0x0D:
+        buffer.write(r'\r');
+      case 0x24:
+        buffer.write(r'\$');
+      case 0x27:
+        buffer.write(r"\'");
+      case 0x5C:
+        buffer.write(r'\\');
+      default:
+        // Lone surrogates stay escaped so the file still encodes as UTF-8.
+        if (rune < 0x20 || rune == 0x7F || (rune >= 0xD800 && rune <= 0xDFFF)) {
+          buffer
+            ..write(r'\u')
+            ..write(rune.toRadixString(16).padLeft(4, '0'));
+        } else {
+          buffer.writeCharCode(rune);
+        }
+    }
+  }
+  buffer.write("'");
+  return buffer.toString();
+}
 
 /// Writes the standard generated-file banner: a `// GENERATED CODE`
 /// marker followed by attribution to `restage_codegen`. Callers append
@@ -63,18 +101,15 @@ void writePropertyExclusionReport(
   for (final exclusion in sorted) {
     buf
       ..writeln('  {')
-      ..writeln('    "widget": ${_jsonDartString(exclusion.widget)},')
-      ..writeln('    "property": ${_jsonDartString(exclusion.property)},')
-      ..writeln('    "target": ${_jsonDartString(exclusion.target)},')
-      ..writeln('    "reason": ${_jsonDartString(exclusion.reason)},')
-      ..writeln('    "location": ${_jsonDartString(exclusion.location)},')
+      ..writeln("    'widget': ${dartStringLiteral(exclusion.widget)},")
+      ..writeln("    'property': ${dartStringLiteral(exclusion.property)},")
+      ..writeln("    'target': ${dartStringLiteral(exclusion.target)},")
+      ..writeln("    'reason': ${dartStringLiteral(exclusion.reason)},")
+      ..writeln("    'location': ${dartStringLiteral(exclusion.location)},")
       ..writeln('  },');
   }
   buf.writeln('];');
 }
-
-String _jsonDartString(String value) =>
-    jsonEncode(value).replaceAll(r'$', r'\$');
 
 /// Appends `.0` to a bare integer-literal string so it decodes through rfw's
 /// `source.v<double>(...)` strict cast. Handles a leading minus sign; passes

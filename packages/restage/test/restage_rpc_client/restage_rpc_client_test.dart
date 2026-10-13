@@ -627,12 +627,12 @@ void main() {
       'six opaque API keys remain the only exact-target SDK authority',
       () async {
         final keys = <String>[
-          'rs_pk_dev_sandbox',
-          'rs_pk_dev_live',
-          'rs_pk_staging_sandbox',
-          'rs_pk_staging_live',
-          'rs_pk_prod_sandbox',
-          'rs_pk_prod_live',
+          'rs_pk_sandbox_dev',
+          'rs_pk_live_dev',
+          'rs_pk_sandbox_staging',
+          'rs_pk_live_staging',
+          'rs_pk_sandbox_prod',
+          'rs_pk_live_prod',
         ];
         final requests = <http.Request>[];
 

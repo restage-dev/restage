@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -50,12 +51,22 @@ final class SurfaceAssignmentCredentialStore {
     }
     _generation = current;
     _expiresAtMicros = null;
-    return _pending = _resolve(current);
+    final pending = _pending = _resolve(current);
+    // A missing key is never held, so the next request registers again.
+    unawaited(pending.then((key) {
+      if (key == null && identical(_pending, pending)) _pending = null;
+    }));
+    return pending;
   }
 
   Future<String?> _resolve(int generation) async {
     final persistenceGeneration = SurfaceAssignmentPersistence.generation;
-    final rpc = client();
+    final RestageRpcClient? rpc;
+    try {
+      rpc = client();
+    } on Object {
+      return null;
+    }
     if (rpc == null) return null;
     bool isCurrent() =>
         identityGeneration() == generation &&

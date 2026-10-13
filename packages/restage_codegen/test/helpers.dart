@@ -608,52 +608,6 @@ Future<WidgetConstructorFacts> runWidgetConstructorFactsOn(
   return results.single;
 }
 
-/// Resolves and repeatedly projects constructor facts for [className].
-Future<WidgetConstructorFacts> runProjectedWidgetConstructorFactsOn(
-  Map<String, String> sources, {
-  required EmitTarget target,
-  int projections = 1,
-  Set<String>? emittedPropertyNames,
-  String className = 'Probe',
-}) async {
-  final results = await _runOnLibraries<WidgetConstructorFacts>(
-    sources,
-    packageName: 'apps_examples',
-    onLibrary: (library, assetId) async {
-      final element = library.classes
-          .where((candidate) => candidate.name == className)
-          .single;
-      var facts = readWidgetConstructorFacts(element, assetId);
-      for (var index = 0; index < projections; index++) {
-        facts = projectWidgetConstructorFacts(
-          element,
-          assetId,
-          facts,
-          target: target,
-        );
-      }
-      if (emittedPropertyNames != null) {
-        final issues = [...facts.issues];
-        addProjectedConstructorOrderMigrationNotice(
-          element,
-          facts,
-          assetId,
-          target: target,
-          emittedPropertyNames: emittedPropertyNames,
-          issues: issues,
-        );
-        facts = WidgetConstructorFacts(
-          inputs: facts.inputs,
-          allInputs: facts.allInputs,
-          issues: issues,
-        );
-      }
-      return facts;
-    },
-  );
-  return results.single;
-}
-
 /// Resolves one target's class-level routing configuration for [className].
 Future<WidgetTargetRoutingFacts> runWidgetTargetRoutingReaderOn(
   Map<String, String> sources, {

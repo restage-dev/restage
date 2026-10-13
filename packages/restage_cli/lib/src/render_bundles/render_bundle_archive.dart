@@ -13,13 +13,8 @@ const renderBundleCapabilityManifestPath = 'restage_bundle_manifest.json';
 /// Complete client-side upload ceiling, measured on the RAW container.
 const renderBundleMaxArchiveBytes = 64 * 1024 * 1024;
 
-/// Ceiling for the bytes actually put on the wire for one upload.
-///
-/// The raw container is gzipped for transport, so this bounds the compressed
-/// body, not the archive. It sits well under the 32 MiB single-request body
-/// limit imposed by the serving platform: a raw 64 MiB archive of Flutter web
-/// artifacts compresses far below this, and anything that does not is refused
-/// locally with a clear error instead of a generic edge rejection.
+/// Maximum compressed upload size, below the serving platform's 32 MiB limit.
+/// Oversized bodies are rejected locally before transport.
 const renderBundleMaxUploadTransferBytes = 24 * 1024 * 1024;
 
 const _magic = <int>[0x52, 0x42, 0x53, 0x52, 0x41, 0x57, 0x31, 0x0a];
@@ -57,8 +52,10 @@ final class RenderBundleArchiveException implements Exception {
   String toString() => 'RenderBundleArchiveException($reason)';
 }
 
-/// Builds the deterministic raw render-bundle container from one directory.
-Future<Uint8List> encodeRenderBundleDirectory(
+/// Reads one built directory into its exact per-file bytes.
+///
+/// Paths are bundle-relative and use forward slashes.
+Future<Map<String, Uint8List>> collectRenderBundleDirectory(
   Directory root, {
   RenderBundleArchiveLimits limits = const RenderBundleArchiveLimits(),
 }) async {
@@ -101,8 +98,17 @@ Future<Uint8List> encodeRenderBundleDirectory(
     files[path] = bytes;
   }
   validateOfflineRenderBundleFiles(files);
-  return encodeRenderBundleArchive(files, limits: limits);
+  return files;
 }
+
+/// Builds the deterministic raw render-bundle container from one directory.
+Future<Uint8List> encodeRenderBundleDirectory(
+  Directory root, {
+  RenderBundleArchiveLimits limits = const RenderBundleArchiveLimits(),
+}) async => encodeRenderBundleArchive(
+  await collectRenderBundleDirectory(root, limits: limits),
+  limits: limits,
+);
 
 /// Encodes exact file bytes into the canonical, sorted uncompressed container.
 Uint8List encodeRenderBundleArchive(

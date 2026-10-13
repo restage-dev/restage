@@ -145,7 +145,7 @@ void main() {
     );
     final flat = dart.replaceAll(RegExp(r'\s+'), ' ');
     String presenceLocal(String property) =>
-        '_restagePresence${property[0].toUpperCase()}'
+        'restagePresence${property[0].toUpperCase()}'
         '${property.substring(1)}';
     String argumentSource(String property) {
       final start = flat.indexOf('#$property:');
@@ -169,8 +169,8 @@ void main() {
     expect(
       flat,
       contains(
-        'if (_restagePresenceRetries.supplied) '
-        '#retries: source.v<int>(_restagePresenceRetries.valuePath)',
+        'if (restagePresenceRetries.supplied) '
+        '#retries: source.v<int>(restagePresenceRetries.valuePath)',
       ),
       reason: 'Function.apply must include a supplied scalar even when its '
           'decoded value is null or the wrong scalar type',
@@ -179,13 +179,13 @@ void main() {
       flat,
       isNot(
         contains(
-          'if (_restagePresenceRetries.hasValue) #retries:',
+          'if (restagePresenceRetries.hasValue) #retries:',
         ),
       ),
     );
     expect(
       flat,
-      isNot(contains('_restagePresenceRetries.valuePath) ?? Tokens.retries')),
+      isNot(contains('restagePresenceRetries.valuePath) ?? Tokens.retries')),
       reason: 'a supplied malformed scalar must not silently take the Dart '
           'constructor default',
     );
@@ -254,7 +254,7 @@ void main() {
     }
     expect(
       flat,
-      contains('source.isList(_restagePresenceChildren.valuePath)'),
+      contains('source.isList(restagePresenceChildren.valuePath)'),
       reason: 'canonical children must validate the nested supplied value',
     );
     for (final property in ['tone', 'tones', 'scores', 'summary', 'children']) {
@@ -294,7 +294,7 @@ void main() {
     expect(
       flat,
       contains(
-        'source.childList(_restagePresenceChildren.valuePath)',
+        'source.childList(restagePresenceChildren.valuePath)',
       ),
     );
     expect(
@@ -313,7 +313,7 @@ void main() {
     expect(
       nullableChildrenFactory.replaceAll(' ', ''),
       allOf(
-        contains('#children:_restagePresenceChildren.hasValue?'),
+        contains('#children:restagePresenceChildren.hasValue?'),
         contains(':null,'),
       ),
       reason: 'nullable canonical children must preserve supplied null',

@@ -15,6 +15,7 @@ import 'package:restage_codegen/src/custom_structured_admissibility.dart'
         structuredSlotKey;
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/rfw_callback_signature.dart';
@@ -665,7 +666,7 @@ String _positionalEmit(
     final read = 'source.v<int>(${_directSourcePath(prop.name, path)})';
     final fallback = prop.required
         ? '(throw ArgumentError('
-            '${_dartStringLiteral('$widgetName.${prop.name} is required.')}))'
+            '${dartStringLiteral('$widgetName.${prop.name} is required.')}))'
         : '0';
     final family = _iconFontFamilyExpression(entry);
     final mirroring = _iconMatchTextDirectionArgument(entry);
@@ -693,7 +694,7 @@ String _iconFontFamilyExpression(WidgetEntry entry) {
   final family = entry.properties.firstWhereOrNull(
     (p) => p.synthetic == _iconFontFamilySynthetic,
   );
-  final literal = _dartStringLiteral(_defaultIconFontFamily);
+  final literal = dartStringLiteral(_defaultIconFontFamily);
   if (family == null) return literal;
   return 'source.v<String>(const ${_sourcePath(family.name)}) ?? $literal';
 }
@@ -982,7 +983,7 @@ String _parameterDefaultExpression(FactoryParameter parameter) {
             enumRef != null) {
           return '${enumRef.symbolName}.$value';
         }
-        return _dartStringLiteral(value);
+        return dartStringLiteral(value);
       }
       throw StateError(
         'Unsupported literal default for native factory parameter '
@@ -1213,7 +1214,7 @@ String _transformBindingExpression(
 String _literalExpression(Object? value) {
   if (value == null) return 'null';
   if (value is bool || value is int || value is double) return '$value';
-  if (value is String) return _dartStringLiteral(value);
+  if (value is String) return dartStringLiteral(value);
   throw StateError('Unsupported native transform literal: $value.');
 }
 
@@ -2173,7 +2174,7 @@ String _decodeExpression(
     }
     if (!applyDefault) {
       final message =
-          _dartStringLiteral('$widgetName.${prop.name} is required.');
+          dartStringLiteral('$widgetName.${prop.name} is required.');
       return '$decoded ?? (throw ArgumentError($message))';
     }
     final signature = prop.callbackSignature;
@@ -2195,7 +2196,7 @@ String _decodeExpression(
   final nullable = _structuredRefDecoderFor(prop, index) != null ||
       _decoderReturnsNullable(prop.type);
   if (!nullable) return decoded;
-  final message = _dartStringLiteral('$widgetName.${prop.name} is required.');
+  final message = dartStringLiteral('$widgetName.${prop.name} is required.');
   return '$decoded ?? (throw ArgumentError($message))';
 }
 
@@ -2892,7 +2893,7 @@ String _pathLiteral(List<Object> path) =>
 String _pathSegmentLiteral(Object segment) {
   if (segment is _PathIndex) return segment.expression;
   if (segment is _PathSpread) return '...${segment.expression}';
-  return _dartStringLiteral(segment.toString());
+  return dartStringLiteral(segment.toString());
 }
 
 /// The argument VALUE expression for a custom structured WIDGET property [p]
@@ -4034,7 +4035,7 @@ String? _defaultExpressionFor(
       // nullable Flutter type so the emitted `??` fallback type-checks.
       // The cast is nullable on purpose — a theme property may itself be
       // null (e.g. `iconTheme.color`), and a non-null cast would throw.
-      return 'resolveThemeBinding(context, path: ${_dartStringLiteral(path)}) '
+      return 'resolveThemeBinding(context, path: ${dartStringLiteral(path)}) '
           'as ${_nullableFlutterType(prop.type)}';
     }
     // resolverName-only bindings are not currently supported — fall
@@ -4096,7 +4097,7 @@ String? _defaultExpressionFor(
       final shapeDefault = _shapeBorderDefaultExpression(value);
       if (shapeDefault != null) return shapeDefault;
     }
-    return _dartStringLiteral(value);
+    return dartStringLiteral(value);
   }
   if (value is List && prop.type == PropertyType.edgeInsets) {
     // Catalog encodes EdgeInsets defaults as a 4-element [L, T, R, B]
@@ -4142,10 +4143,8 @@ String? _enumDartTypeName(PropertyEntry prop) {
   return enumRef?.symbolName ?? prop.enumType;
 }
 
-String _dartStringLiteral(String value) => renderDartStringLiteral(value);
-
 String _sourcePath(String propertyName) =>
-    '<Object>[${_dartStringLiteral(propertyName)}]';
+    '<Object>[${dartStringLiteral(propertyName)}]';
 
 /// Returns the nullable Flutter type a [type] property's value occupies
 /// at a ctor-arg call site. Used as the cast target for a theme-binding

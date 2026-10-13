@@ -21,6 +21,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocument,
         Surface;
 
+import '../delivery/surface_delivery_receipt.dart';
 import '../assets/bundled_asset_source.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
@@ -334,6 +335,9 @@ final class ServerFlowResolver
             requiredLibraries: cached.requiredLibraries,
           ),
           SurfaceResolutionSource.holdLastGood,
+          reason: active == null
+              ? SurfaceDeliveryReceiptReason.offline
+              : SurfaceDeliveryReceiptReason.unsupported,
         );
       }
 
@@ -344,6 +348,9 @@ final class ServerFlowResolver
         flow.id,
         bundled,
         SurfaceResolutionSource.bundled,
+        reason: active == null
+            ? SurfaceDeliveryReceiptReason.offline
+            : SurfaceDeliveryReceiptReason.unsupported,
       );
     }
 
@@ -842,6 +849,7 @@ final class _ServerFlowExperimentPresentation
       final snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
       _snapshot = snapshot;
 
+      var fallbackReason = SurfaceDeliveryReceiptReason.offline;
       try {
         final fresh = await owner._fetchExperimentActive(
           flow,
@@ -850,6 +858,7 @@ final class _ServerFlowExperimentPresentation
         );
         if (_disposed) throw _unavailable('disposed');
         if (fresh != null) {
+          fallbackReason = SurfaceDeliveryReceiptReason.unsupported;
           final prefetched = await FlowCandidatePrefetcher.prefetch(
             snapshot: snapshot,
             captureSeed: captureSeed,
@@ -896,6 +905,7 @@ final class _ServerFlowExperimentPresentation
             flow.id,
             accepted.candidateRoot,
             SurfaceResolutionSource.holdLastGood,
+            reason: fallbackReason,
           );
         }
         owner._experimentActiveCache.remove(key);
@@ -915,6 +925,7 @@ final class _ServerFlowExperimentPresentation
         flow.id,
         snapshot.baselineRoot,
         SurfaceResolutionSource.bundled,
+        reason: fallbackReason,
       );
     }
     throw _unavailable('unstable_mount_identity');

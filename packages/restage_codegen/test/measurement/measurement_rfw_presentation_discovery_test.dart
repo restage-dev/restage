@@ -364,45 +364,44 @@ void main() {
     );
   });
 
-  test('requires exact origins for emitted generated definitions', () {
+  test('emitted definitions carry exactly the catalog origin they have', () {
     final origin = fmt.RfwCatalogConstructorProvenance(
       constructorName: 'InlineBadge',
       catalogLibraryNamespace: 'example.presentation',
       catalogWidgetWireId: WireId('w0001'),
     );
-    final missing = TranslationResult(
-      dsl: 'InlineBadge()',
-      issues: const [],
-      widgetDefinitions: const {'InlineBadge': 'Generic()'},
-    );
-    final mismatched = TranslationResult(
-      dsl: 'InlineBadge()',
-      issues: const [],
-      widgetDefinitions: const {'InlineBadge': 'Generic()'},
-      rfwCatalogConstructorOrigins: [
+    fmt.RfwCatalogOccurrenceResolutionInput resolve(
+      List<fmt.RfwCatalogConstructorProvenance> origins,
+    ) =>
+        TranslationResult(
+          dsl: 'InlineBadge()',
+          issues: const [],
+          widgetDefinitions: const {'InlineBadge': 'Generic()'},
+          rfwCatalogConstructorOrigins: origins,
+        ).rfwCatalogOccurrenceResolutionInput(
+          artifactProvenance: 'fixture.artifact',
+          sourceLibraryIdentity: 'fixture.library',
+          sourceDeclarationIdentity: 'fixture.declaration',
+          renderEntryNames: const ['Paywall'],
+        );
+
+    final generated = resolve([origin]).localSymbolForName('InlineBadge');
+    expect(generated?.generatedCatalogOrigin?.matches(origin), isTrue);
+
+    // A definition inlined without a catalog entry is an ordinary local.
+    final ordinary = resolve(const []).localSymbolForName('InlineBadge');
+    expect(ordinary, isNotNull);
+    expect(ordinary!.generatedCatalogOrigin, isNull);
+
+    expect(
+      () => resolve([
+        origin,
         fmt.RfwCatalogConstructorProvenance(
-          constructorName: 'OtherBadge',
+          constructorName: 'InlineBadge',
           catalogLibraryNamespace: origin.catalogLibraryNamespace,
-          catalogWidgetWireId: origin.catalogWidgetWireId,
+          catalogWidgetWireId: WireId('w0002'),
         ),
-      ],
-    );
-    expect(
-      () => missing.rfwCatalogOccurrenceResolutionInput(
-        artifactProvenance: 'fixture.artifact',
-        sourceLibraryIdentity: 'fixture.library',
-        sourceDeclarationIdentity: 'fixture.declaration',
-        renderEntryNames: const ['Paywall'],
-      ),
-      throwsA(isA<StateError>()),
-    );
-    expect(
-      () => mismatched.rfwCatalogOccurrenceResolutionInput(
-        artifactProvenance: 'fixture.artifact',
-        sourceLibraryIdentity: 'fixture.library',
-        sourceDeclarationIdentity: 'fixture.declaration',
-        renderEntryNames: const ['Paywall'],
-      ),
+      ]),
       throwsA(isA<StateError>()),
     );
   });

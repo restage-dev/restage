@@ -85,7 +85,7 @@ Future<({TestBuilderResult result, String logs})> _build(
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,

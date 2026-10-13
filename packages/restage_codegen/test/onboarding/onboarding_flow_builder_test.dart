@@ -26,7 +26,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -151,7 +151,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -208,7 +208,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -236,7 +236,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -294,7 +294,7 @@ void main() {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -385,7 +385,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -420,7 +420,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -487,7 +487,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -619,7 +619,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -691,7 +691,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -717,7 +717,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         plainSources,
@@ -766,7 +766,7 @@ void main() {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -845,7 +845,7 @@ void main() {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -877,7 +877,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -1116,7 +1116,7 @@ final class extends RestageFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -1208,7 +1208,7 @@ final class OnboardingFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -1279,7 +1279,7 @@ final class OnboardingFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -1320,7 +1320,7 @@ final class OnboardingFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -1379,7 +1379,7 @@ final class OnboardingFlow {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1426,7 +1426,7 @@ final class PermissionResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1494,7 +1494,7 @@ final class ActionArgs {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1720,7 +1720,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1764,7 +1764,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1800,7 +1800,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1834,7 +1834,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -1942,7 +1942,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           entry.value,
@@ -2103,7 +2103,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -2152,7 +2152,7 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
-            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
             restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
@@ -2625,7 +2625,7 @@ final class NotificationResult {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         _decisionRouteSources(),

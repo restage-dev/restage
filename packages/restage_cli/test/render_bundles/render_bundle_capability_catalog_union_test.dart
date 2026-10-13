@@ -326,6 +326,7 @@ void main() {
           projectRoot: project,
           catalogJson: customCatalog(),
           parentOrigin: Uri.parse('http://dashboard.restage.localhost:8082'),
+          controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
         ),
         throwsA(
           isA<RenderBundleBuildException>().having(

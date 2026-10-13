@@ -1,4 +1,3 @@
-import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:test/test.dart';
 
@@ -24,11 +23,7 @@ class Probe extends StatelessWidget {
 ''',
     });
 
-    expect(facts.issues, hasLength(2));
-    expect(
-      facts.issues.map((issue) => issue.code),
-      everyElement(IssueCode.constructorCatalogMigration),
-    );
+    expect(facts.issues, isEmpty);
     expect(
       facts.inputs.map((input) => input.name),
       <String>['title', 'enabled'],

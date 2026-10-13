@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 Future<String> _identityCatalogResolver(
@@ -13,34 +14,12 @@ Future<String> _identityCatalogResolver(
   String catalogJson,
 ) async => catalogJson;
 
-Map<String, Uint8List> _archiveFiles(Uint8List archive) {
-  const archivePreambleLength = 8;
-  final manifestLength = ByteData.sublistView(
-    archive,
-  ).getUint32(archivePreambleLength);
-  final manifestStart = archivePreambleLength + 4;
-  final manifestEnd = manifestStart + manifestLength;
-  final manifest =
-      jsonDecode(utf8.decode(archive.sublist(manifestStart, manifestEnd)))
-          as Map<String, dynamic>;
-  final files = <String, Uint8List>{};
-  var offset = manifestEnd;
-  for (final entry in manifest['files']! as List<dynamic>) {
-    final file = entry as Map<String, dynamic>;
-    final length = file['length']! as int;
-    files[file['path']! as String] = Uint8List.sublistView(
-      archive,
-      offset,
-      offset + length,
-    );
-    offset += length;
-  }
-  return files;
-}
-
 void main() {
+  // The engine script defines the loader before the build configuration, the
+  // way a built output does.
   const safeBootstrap = '''
 window._flutter ??= {};
+window._flutter.loader ??= {load(){}};
 _flutter.buildConfig = {"engineRevision":"test","builds":[]};
 _flutter.loader.load({
   config: {
@@ -49,6 +28,26 @@ _flutter.loader.load({
   },
 });
 ''';
+  // A build produces every file its pinned set names, so the fake build here
+  // produces a small set of its own and writes exactly those bytes.
+  final engineJs = Uint8List.fromList(utf8.encode('canvaskit loader'));
+  final engineWasm = Uint8List.fromList(utf8.encode('canvaskit runtime'));
+  final engineSet = RenderBundleEngineSet(
+    flutterVersion: '3.47.0',
+    files: <RenderBundleEngineFile>[
+      RenderBundleEngineFile(
+        path: 'canvaskit.js',
+        contentHash: 'sha256:${sha256.convert(engineJs)}',
+        byteLength: engineJs.length,
+      ),
+      RenderBundleEngineFile(
+        path: 'canvaskit.wasm',
+        contentHash: 'sha256:${sha256.convert(engineWasm)}',
+        byteLength: engineWasm.length,
+      ),
+    ],
+  );
+
   late Directory root;
   late Directory project;
   late Directory sdk;
@@ -83,7 +82,8 @@ _flutter.loader.load({
     if (root.existsSync()) await root.delete(recursive: true);
   });
 
-  Future<Uint8List> buildCompatibilityWorkerScenario({
+  Future<RenderBundleArtifact> buildCompatibilityWorkerScenario({
+    Uri? controlOrigin,
     bool includeWorker = true,
     List<int> workerBytes = const <int>[],
     String bootstrap = safeBootstrap,
@@ -118,6 +118,12 @@ _flutter.loader.load({
         ).writeAsStringSync(bootstrap);
         final wasm = File(p.join(output.path, 'main.dart.wasm'))
           ..writeAsBytesSync(Uint8List.fromList(<int>[9, 8, 7]));
+        File(p.join(output.path, 'canvaskit', 'canvaskit.js'))
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(engineJs);
+        File(p.join(output.path, 'canvaskit', 'canvaskit.wasm'))
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(engineWasm);
         if (includeWorker) {
           final workerPath = p.join(output.path, 'flutter_service_worker.js');
           if (workerIsLink) {
@@ -169,6 +175,7 @@ _flutter.loader.load({
         fontSha256: sha256.convert(font.readAsBytesSync()).toString(),
         licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
       ),
+      engineSet: engineSet,
     );
 
     try {
@@ -178,6 +185,7 @@ _flutter.loader.load({
         parentOrigin:
             parentOrigin ??
             Uri.parse('http://dashboard.restage.localhost:8082'),
+        controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
       );
     } finally {
       expect(scenarioScratch.existsSync(), isFalse);
@@ -213,6 +221,7 @@ _flutter.loader.load({
           projectRoot: project,
           catalogJson: '{"libraries":{},"widgets":[]}',
           parentOrigin: Uri.parse(origin),
+          controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
         ),
         throwsA(
           isA<RenderBundleBuildException>().having(
@@ -293,6 +302,12 @@ _flutter.loader.load({
           File(
             p.join(output.path, 'main.dart.wasm'),
           ).writeAsBytesSync(Uint8List.fromList(<int>[9, 8, 7]));
+          File(p.join(output.path, 'canvaskit', 'canvaskit.js'))
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(engineJs);
+          File(p.join(output.path, 'canvaskit', 'canvaskit.wasm'))
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(engineWasm);
           return ProcessResult(2, 0, 'ignored stdout $buildNumber', '');
         }
         if (executable.endsWith('chmod')) {
@@ -312,14 +327,16 @@ _flutter.loader.load({
           fontSha256: sha256.convert(font.readAsBytesSync()).toString(),
           licenseSha256: sha256.convert(license.readAsBytesSync()).toString(),
         ),
+        engineSet: engineSet,
       );
-      final archive = await builder.build(
+      final artifact = await builder.build(
         projectRoot: project,
         catalogJson: catalogJson,
         parentOrigin: Uri.parse('http://dashboard.restage.localhost:8082'),
+        controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
       );
 
-      expect(archive, isNotEmpty);
+      expect(artifact.appFiles, isNotEmpty);
       final buildCalls = calls
           .where((call) => call.arguments.take(2).join(' ') == 'build web')
           .toList();
@@ -359,7 +376,7 @@ _flutter.loader.load({
         );
       }
       expect(
-        _archiveFiles(archive)[renderBundleCapabilityManifestPath],
+        artifact.appFiles[renderBundleCapabilityManifestPath],
         createRenderBundleCapabilityManifest(catalogJson),
       );
       expect(scratch.existsSync(), isFalse);
@@ -406,14 +423,12 @@ _flutter.loader.load({
     'https://dashboard.restage.dev',
   ]) {
     test('accepts finite parent authority $origin', () async {
-      expect(
-        await buildCompatibilityWorkerScenario(
-          includeWorker: false,
-          parentOrigin: Uri.parse(origin),
-        ),
-        isNotEmpty,
-        reason: origin,
+      final artifact = await buildCompatibilityWorkerScenario(
+        includeWorker: false,
+        parentOrigin: Uri.parse(origin),
+        controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
       );
+      expect(artifact.appFiles, isNotEmpty, reason: origin);
     });
   }
 
@@ -440,7 +455,7 @@ _flutter.loader.load({
   });
 
   test('omits the build symbol maps and keeps everything else', () async {
-    final archive = await buildCompatibilityWorkerScenario(
+    final artifact = await buildCompatibilityWorkerScenario(
       extraFiles: <String, String>{
         'main.dart.wasm.symbols': 'wasm symbol map',
         'main.dart.js.symbols': 'js symbol map',
@@ -448,7 +463,7 @@ _flutter.loader.load({
         'assets/glyphs/math.symbols': 'a bundled asset',
       },
     );
-    final files = _archiveFiles(archive);
+    final files = artifact.appFiles;
 
     expect(files, isNot(contains('main.dart.wasm.symbols')));
     expect(files, isNot(contains('main.dart.js.symbols')));
@@ -504,6 +519,7 @@ _flutter.loader.load({
           projectRoot: project,
           catalogJson: '{"libraries":{},"widgets":[]}',
           parentOrigin: Uri.parse('http://dashboard.restage.localhost:8082'),
+          controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
         ),
         throwsA(isA<RenderBundleBuildException>()),
       );
@@ -536,6 +552,7 @@ _flutter.loader.load({
           catalogJson:
               '{"libraries":{},"widgets":[],"nested":{"authCredentials":"no"}}',
           parentOrigin: Uri.parse('http://dashboard.restage.localhost:8082'),
+          controlOrigin: Uri.parse('http://bundles.restage.localhost:8081'),
         ),
         throwsA(isA<RenderBundleBuildException>()),
       );

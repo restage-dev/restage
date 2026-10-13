@@ -21,7 +21,7 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -81,7 +81,7 @@ Future<Uint8List> _flowJsonFor({required bool useGenericNames}) async {
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,

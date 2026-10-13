@@ -114,10 +114,10 @@ void main() {
 
     for (final factory in [nullableDefault, nonNullableDefault]) {
       final flat = factory.replaceAll(RegExp(r'\s+'), ' ');
-      expect(flat, contains('if (_restagePresenceRegions.supplied)'));
+      expect(flat, contains('if (restagePresenceRegions.supplied)'));
       expect(
         flat,
-        contains('source.isList(_restagePresenceRegions.valuePath)'),
+        contains('source.isList(restagePresenceRegions.valuePath)'),
         reason: 'authored empty and non-empty lists must stay on the list '
             'decoder path',
       );
@@ -205,17 +205,17 @@ void main() {
       );
       expect(
         flat,
-        contains('if (_restagePresenceRegions.supplied)'),
+        contains('if (restagePresenceRegions.supplied)'),
         reason: 'absence must omit the trailing optional positional slot',
       );
       expect(
         flat,
-        contains('source.isList(_restagePresenceRegions.valuePath)'),
+        contains('source.isList(restagePresenceRegions.valuePath)'),
         reason: 'a supplied value must retain list-shape validation',
       );
       expect(
         flat,
-        isNot(contains('if (_restagePresenceRegions.hasValue)')),
+        isNot(contains('if (restagePresenceRegions.hasValue)')),
         reason: 'supplied null/missing must not become constructor omission',
       );
       expect(
@@ -325,14 +325,14 @@ void main() {
     expect(
       gapFlat,
       contains(
-        'if (_restagePresenceTones.supplied || '
-        '_restagePresenceLabel.supplied)',
+        'if (restagePresenceTones.supplied || '
+        'restagePresenceLabel.supplied)',
       ),
       reason: 'a later supplied slot must extend the contiguous prefix',
     );
     expect(
       gapFlat,
-      contains('_restagePresenceTones.supplied ?'),
+      contains('restagePresenceTones.supplied ?'),
       reason: 'a supplied first slot must retain its supplied value semantics',
     );
     expect(
@@ -342,24 +342,24 @@ void main() {
     );
     expect(
       gapFlat,
-      contains('if (_restagePresenceLabel.supplied)'),
+      contains('if (restagePresenceLabel.supplied)'),
       reason: 'the final absent optional slot must remain a trailing omission',
     );
     expect(
       gapFlat,
-      isNot(contains('_restagePresenceTones.hasValue ? const')),
+      isNot(contains('restagePresenceTones.hasValue ? const')),
       reason: 'supplied null/wrong shape must not select the gap default',
     );
 
     expect(
       forcedFlat,
-      contains('_restagePresenceTones.supplied ?'),
+      contains('restagePresenceTones.supplied ?'),
       reason: 'an unconditionally emitted later slot must force the earlier '
           'slot into the prefix',
     );
     expect(
       forcedFlat,
-      isNot(contains('if (_restagePresenceTones.supplied)')),
+      isNot(contains('if (restagePresenceTones.supplied)')),
       reason: 'the forced prefix must not conditionally omit its first slot',
     );
     expect(forcedFlat, contains('Defaults.level'));
@@ -426,7 +426,7 @@ void main() {
     );
     expect(
       dart.replaceAll(RegExp(r'\s+'), ' '),
-      contains('if (_restagePresenceTones.supplied) #tones:'),
+      contains('if (restagePresenceTones.supplied) #tones:'),
       reason: 'the import is pruned only because the default is truly omitted',
     );
     await _expectGeneratedAnalyzesClean(sources, dart);

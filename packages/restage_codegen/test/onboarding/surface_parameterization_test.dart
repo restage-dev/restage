@@ -158,13 +158,13 @@ List<Builder> _buildersFor(Surface surface) => switch (surface) {
       Surface.message => [
           messageScreenBuilder(BuilderOptions.empty),
           messageFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
       Surface.survey => [
           surveyScreenBuilder(BuilderOptions.empty),
           surveyFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
       _ => throw ArgumentError('unexpected surface $surface'),

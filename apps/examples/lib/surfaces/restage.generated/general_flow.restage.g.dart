@@ -10,9 +10,9 @@ const generalJourneyRef = SurfaceFlowRef<
   decodeResult: _decodeGeneralJourneyResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"general_journey\",\"initial\":\"general_status\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"general_status\":{\"contentHash\":\"sha256:5e3d337414301058ab8a74a34ed20dbb0d9617218f1d97f9f9aba6ebbe7b1abe\",\"minClient\":1,\"path\":\"general_status.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"general_status\":{\"kind\":\"screen\",\"on\":{\"finish\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"general_status\"}},\"version\":1}",
+        '{"flow":"general_journey","initial":"general_status","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"general_status":{"contentHash":"sha256:5e3d337414301058ab8a74a34ed20dbb0d9617218f1d97f9f9aba6ebbe7b1abe","minClient":1,"path":"general_status.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"general_status":{"kind":"screen","on":{"finish":{"target":"done","type":"goto"}},"screen":"general_status"}},"version":1}',
     screens: {
-      "general_status": GeneralStatus.new,
+      'general_status': GeneralStatus.new,
     },
     children: {},
   ),

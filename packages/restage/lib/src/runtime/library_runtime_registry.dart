@@ -13,9 +13,14 @@ abstract final class LibraryRuntimeRegistry {
 
   static final Map<String, _CustomLibraryEntry> _entries =
       <String, _CustomLibraryEntry>{};
+  // Registrations [install] has merged since the last [register] or [clear].
+  static final Set<RestageWidgetLibraryRegistration> _installed =
+      Set<RestageWidgetLibraryRegistration>.identity();
   static int _generation = 0;
 
-  /// Monotonic identity of the mutable registration set.
+  /// Changes whenever a registration replaces what a namespace renders.
+  ///
+  /// Mount installs that only add libraries or widgets leave it unchanged.
   static int get generation => _generation;
 
   /// Record [library] under its namespace, replacing any prior registration.
@@ -36,6 +41,19 @@ abstract final class LibraryRuntimeRegistry {
     WidgetLibrary library,
     List<RestageWidgetFactory> widgets, {
     int? capabilityVersion,
+  }) =>
+      _register(
+        library,
+        widgets,
+        capabilityVersion: capabilityVersion,
+        additive: false,
+      );
+
+  static void _register(
+    WidgetLibrary library,
+    List<RestageWidgetFactory> widgets, {
+    required int? capabilityVersion,
+    required bool additive,
   }) {
     if (library.namespace == kReservedPreviewLibraryName) {
       assert(
@@ -123,6 +141,8 @@ abstract final class LibraryRuntimeRegistry {
       );
       builders[w.name] = w.builder;
     }
+    // A replaced namespace may drop widgets an earlier install added.
+    if (!additive) _installed.clear();
     // Pre-build the rfw types so each per-mount `applyTo` is a cheap update.
     _entries[library.namespace] = _CustomLibraryEntry(
       libraryName: rfw.LibraryName(library.namespace.split('.')),
@@ -130,7 +150,49 @@ abstract final class LibraryRuntimeRegistry {
       capabilityVersion: capabilityVersion,
       registration: registration,
     );
-    _generation += 1;
+    if (!additive) _generation += 1;
+  }
+
+  /// Adds the widgets of [registration] that its namespace does not yet carry.
+  ///
+  /// Installed widgets keep their builders. A registration already installed
+  /// returns at once, so installing it on every mount costs a set lookup.
+  static void install(RestageWidgetLibraryRegistration registration) {
+    if (_installed.contains(registration)) return;
+    _merge(registration);
+    _installed.add(registration);
+  }
+
+  static void _merge(RestageWidgetLibraryRegistration registration) {
+    final namespace = registration.library.namespace;
+    final existing = _entries[namespace]?.registration;
+    if (existing == null) {
+      _register(
+        registration.library,
+        registration.widgets,
+        capabilityVersion: registration.capabilityVersion,
+        additive: true,
+      );
+      return;
+    }
+    final installed = {for (final widget in existing.widgets) widget.name};
+    final added = [
+      for (final widget in registration.widgets)
+        if (!installed.contains(widget.name)) widget,
+    ];
+    final existingVersion = existing.capabilityVersion;
+    final addedVersion = registration.capabilityVersion;
+    final version = existingVersion == null ||
+            addedVersion != null && addedVersion > existingVersion
+        ? addedVersion
+        : existingVersion;
+    if (added.isEmpty && version == existingVersion) return;
+    _register(
+      existing.library,
+      [...existing.widgets, ...added],
+      capabilityVersion: version,
+      additive: true,
+    );
   }
 
   /// Whether any custom library is registered at all.
@@ -196,6 +258,7 @@ abstract final class LibraryRuntimeRegistry {
   /// don't leak registrations across cases.
   static void clear() {
     _entries.clear();
+    _installed.clear();
     _generation += 1;
   }
 }

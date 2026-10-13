@@ -211,12 +211,12 @@ void main() {
   group('shell/client endpoint contract', () {
     late FakeRenderMessageTransport transport;
     late ManualFrameScheduler frames;
-    late SeamRenderProvider provider;
+    late RenderHostProvider provider;
 
     setUp(() {
       transport = FakeRenderMessageTransport();
       frames = ManualFrameScheduler();
-      provider = SeamRenderProvider(
+      provider = RenderHostProvider(
         transport: transport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1, 2],
@@ -328,7 +328,7 @@ void main() {
 
     test('snapshot timeout clears exact state and permits recovery', () async {
       await provider.dispose();
-      provider = SeamRenderProvider(
+      provider = RenderHostProvider(
         transport: transport = FakeRenderMessageTransport(),
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],
@@ -552,7 +552,7 @@ void main() {
       expect(transport.sent.last.payload['v'], 2);
 
       final malformedTransport = FakeRenderMessageTransport();
-      final malformed = SeamRenderProvider(
+      final malformed = RenderHostProvider(
         transport: malformedTransport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],
@@ -575,7 +575,7 @@ void main() {
       await malformed.dispose();
 
       final isolated = FakeRenderMessageTransport();
-      final other = SeamRenderProvider(
+      final other = RenderHostProvider(
         transport: isolated,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],
@@ -597,7 +597,7 @@ void main() {
     test('1b. exposes explicit retryable and terminal readiness states',
         () async {
       final delayedTransport = FakeRenderMessageTransport();
-      final delayed = SeamRenderProvider(
+      final delayed = RenderHostProvider(
         transport: delayedTransport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1, 2],
@@ -641,7 +641,7 @@ void main() {
       await delayed.dispose();
 
       final retryTransport = FakeRenderMessageTransport();
-      final retry = SeamRenderProvider(
+      final retry = RenderHostProvider(
         transport: retryTransport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],
@@ -660,7 +660,7 @@ void main() {
       await retry.dispose();
 
       final disjointTransport = FakeRenderMessageTransport();
-      final disjoint = SeamRenderProvider(
+      final disjoint = RenderHostProvider(
         transport: disjointTransport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],
@@ -681,7 +681,7 @@ void main() {
       await disjoint.dispose();
 
       final disposedTransport = FakeRenderMessageTransport();
-      final disposed = SeamRenderProvider(
+      final disposed = RenderHostProvider(
         transport: disposedTransport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],
@@ -695,7 +695,7 @@ void main() {
     test('1c. validates client versions and initialize frame before send',
         () async {
       expect(
-        () => SeamRenderProvider(
+        () => RenderHostProvider(
           transport: FakeRenderMessageTransport(),
           bundleOrigin: _origin,
           supportedVersions: const <int>[],
@@ -704,7 +704,7 @@ void main() {
         throwsArgumentError,
       );
       expect(
-        () => SeamRenderProvider(
+        () => RenderHostProvider(
           transport: FakeRenderMessageTransport(),
           bundleOrigin: _origin,
           supportedVersions: const <int>[0, 1],
@@ -2568,13 +2568,13 @@ void main() {
   group('shell/client mount contract', () {
     late FakeRenderMessageTransport transport;
     late ManualFrameScheduler frames;
-    late SeamRenderProvider provider;
+    late RenderHostProvider provider;
     late List<RenderEvent> events;
 
     setUp(() {
       transport = FakeRenderMessageTransport();
       frames = ManualFrameScheduler();
-      provider = SeamRenderProvider(
+      provider = RenderHostProvider(
         transport: transport,
         bundleOrigin: _origin,
         supportedVersions: const <int>[1],

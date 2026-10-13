@@ -55,7 +55,7 @@ Future<String> _generatedPart(Map<String, String> sources) async {
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,

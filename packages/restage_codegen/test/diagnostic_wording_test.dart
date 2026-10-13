@@ -6,28 +6,10 @@ import 'package:test/test.dart';
 
 import 'helpers.dart';
 
-/// Wording discipline for the cluster of diagnostics that fire when a
-/// custom widget — or a construct inside one — does not transpile.
-///
-/// Two categories, distinguished by phrasing (no `[deferred]` /
-/// `[structural]` prefix marker — IssueCode is the routing key for
-/// tooling; the message is for humans, and the verbs carry the category
-/// unambiguously):
-///
-///   - **Deferred** — *"…this transpiler increment does not yet …"*. A
-///     later codegen capability could move the construct into the inlinable
-///     set; the developer can also rewrite to a recognised shape today.
-///   - **Structural** — *"…the declarative paywall format cannot
-///     express…"* / *"…cannot be transpiled…"*. The construct is
-///     fundamentally outside RFW's declarative envelope; no future
-///     codegen will bring it in.
-///
-/// These tests enforce the category boundary so changes to diagnostic
-/// wording surface immediately. The behaviour-level tests for each diagnostic
-/// live in `custom_widget_recognition_test.dart`,
-/// `custom_widget_e2e_test.dart`, and `widget_classifier_test.dart`;
-/// this file only guards the category-verb invariants. Messages asserted
-/// here appear in app build output and must describe the supported behavior.
+/// Checks diagnostic wording for unsupported custom-widget constructs.
+/// Deferred diagnostics say “does not yet”; structural limits say
+/// “a delivered surface cannot express”. IssueCode identifies the category.
+/// Behavior tests cover recognition, compilation and classification separately.
 const String _key = 'package:restage_codegen/_expr_probe.dart#AcmeWidget';
 
 const String _acmeWidgetSource = '''
@@ -166,7 +148,7 @@ void main() {
         ),
       );
       expect(issue.code, IssueCode.customWidgetUnsupportedReducible);
-      expect(issue.message, contains('not supported by this transpiler'));
+      expect(issue.message, contains('not supported in delivered surfaces'));
       expect(issue.message, isNot(contains('cannot express')));
     });
 

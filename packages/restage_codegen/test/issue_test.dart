@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:logging/logging.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:test/test.dart';
 
@@ -18,7 +19,6 @@ void main() {
       IssueCode.structuredDepthExceeded,
       IssueCode.unrepresentableCtorDefault,
       IssueCode.stablePropertyDeferred,
-      IssueCode.constructorCatalogMigration,
       IssueCode.customWidgetInliningDeferred,
       IssueCode.customWidgetUnsupportedReducible,
       // The announced-rewrite build notice — a non-failing annotation.
@@ -113,6 +113,23 @@ void main() {
         location: 'lib/offer.dart#second',
       );
       expect(firstRewrite.buildNoticeKey, isNot(secondRewrite.buildNoticeKey));
+    });
+
+    test('an event closure notice logs as a warning, once', () {
+      final logger = Logger.detached('notice')..level = Level.ALL;
+      final records = <LogRecord>[];
+      logger.onRecord.listen(records.add);
+      const notice = Issue(
+        code: IssueCode.idiomAutoSubstituted,
+        message: 'Pass it directly.',
+        location: 'lib/survey.dart#Survey@3:5',
+        buildNoticeIdentity:
+            '${kEventClosureNoticePrefix}lib/survey.dart#Survey@3:5',
+      );
+      final seen = <String>{};
+      logBuildNoticeOnce(logger, seen, notice);
+      logBuildNoticeOnce(logger, seen, notice);
+      expect(records.map((record) => record.level), [Level.WARNING]);
     });
 
     test('an unrendered-widget deferral is NOT a build notice', () {

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'measurement_outbox_protocol.dart';
 
 /// Builds the unsupported-platform store without resolving paths or files.
@@ -5,6 +7,7 @@ MeasurementOutboxStore createMeasurementOutboxStore({
   required MeasurementOutboxConfiguration configuration,
   required MeasurementOutboxClock clock,
   MeasurementOutboxFileSystem? fileSystem,
+  Random? retryRandom,
 }) =>
     const _UnsupportedMeasurementOutboxStore();
 

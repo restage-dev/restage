@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// One source type that a downstream generator will reproduce without a
@@ -884,50 +885,11 @@ String _renderDartConstInvocation({
 String _renderDartConstScalar(Object value) => switch (value) {
       bool() || int() => value.toString(),
       double() when value.isFinite => value.toString(),
-      String() => renderDartStringLiteral(value),
+      String() => dartStringLiteral(value),
       _ => throw StateError(
           'Cannot emit non-portable Dart const scalar ${value.runtimeType}.',
         ),
     };
-
-/// Renders [value] as a single-quoted Dart string literal.
-///
-/// Generated source paths, diagnostics, and reconstructed constants share
-/// this renderer so `$` can never become interpolation and control characters
-/// cannot break the generated library.
-String renderDartStringLiteral(String value) {
-  final buffer = StringBuffer("'");
-  for (final rune in value.runes) {
-    switch (rune) {
-      case 0x08:
-        buffer.write(r'\b');
-      case 0x09:
-        buffer.write(r'\t');
-      case 0x0A:
-        buffer.write(r'\n');
-      case 0x0C:
-        buffer.write(r'\f');
-      case 0x0D:
-        buffer.write(r'\r');
-      case 0x24:
-        buffer.write(r'\$');
-      case 0x27:
-        buffer.write(r"\'");
-      case 0x5C:
-        buffer.write(r'\\');
-      default:
-        if (rune < 0x20 || rune == 0x7F) {
-          buffer
-            ..write(r'\u')
-            ..write(rune.toRadixString(16).padLeft(4, '0'));
-        } else {
-          buffer.writeCharCode(rune);
-        }
-    }
-  }
-  buffer.write("'");
-  return buffer.toString();
-}
 
 String _validatedDartIdentifier(
   String value, {

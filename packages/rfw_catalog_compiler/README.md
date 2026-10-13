@@ -2,76 +2,50 @@
 
 [![pub package](https://img.shields.io/pub/v/rfw_catalog_compiler.svg)](https://pub.dev/packages/rfw_catalog_compiler) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE)
 
-Analyzer-backed compiler pipeline that turns annotated Dart widget libraries
-into a [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog. It walks an app's
-`@RestageLibrary` / `@RestageWidget` source with the Dart analyzer, builds an
-internal IR, allocates stable wire IDs, and lowers the result to the public
-`rfw_catalog_schema` wire shape: the durable contract that authoring tools, SDK
-runtimes, and backends decode.
+A compiler that turns annotated Dart widget libraries into a
+[Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw) widget catalog.
+It reads your `@RestageLibrary` and `@RestageWidget` source with the Dart
+analyzer, assigns each widget and property a stable catalog ID, and writes the
+result in the
+[`rfw_catalog_schema`](https://pub.dev/packages/rfw_catalog_schema) format
+that editors, SDK runtimes, and servers read.
 
-A catalog produced here describes the widget vocabulary available to any
-server-driven UI surface, independent of which surface is being rendered.
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
+
+A catalog describes the widgets any surface can use, whichever surface is
+being rendered.
 
 ## What this package contains
 
-- **Source walker.** Analyzer-backed passes over annotated Dart libraries.
-  `walkRestageLibrary` reads a barrel's `@RestageLibrary` declaration and
-  collects its exported `@RestageWidget` classes; `walkStructuredType`
-  decomposes structured types (records, named-constructor variants) and
-  `resolveUnion` resolves discriminated unions. `classifyStructured`,
-  the value-shape resolver, the default-value resolver (constant evaluation,
-  theme-binding and static-const member resolution), and a stable set of
-  walker issue codes back these passes.
-- **Internal IR.** Typed intermediate-representation nodes for widgets,
-  properties, structured types, unions, design tokens, factory variants,
-  decomposition recipes, provenance, policy decisions, and diagnostics.
-- **Lowering.** `lowerStructured` and `lowerUnion` (and the catalog-level
-  lowering they compose into) translate compiler IR to the canonical
+- **Source walker.** Reads annotated Dart libraries with the analyzer.
+  `walkRestageLibrary` reads a library's `@RestageLibrary` declaration and
+  collects the `@RestageWidget` classes it exports. `walkStructuredType`
+  breaks structured types (records, named-constructor variants) into fields,
+  and `resolveUnion` resolves tagged unions. Default values are worked out
+  from constants and theme reads.
+- **Catalog output.** `lowerStructured` and `lowerUnion`, and the catalog-level
+  step built on them, turn the compiler's internal model into
   `rfw_catalog_schema` types: `Catalog`, `WidgetEntry`, `StructuredEntry`,
   `UnionEntry`, and the rest.
-- **Wire-ID allocation.** An append-only event log, replay, and current-state
-  materialization that mints stable, monotonic `WireId`s and re-uses the
-  recorded ID for an entry that already exists, so identity survives across
-  regenerations. `rename` events preserve identity across label changes and
-  source moves; a cascading class move also moves the recorded source
-  identities of its owned properties, fields, variants, and parameters. A
-  later cascade also normalizes descendants left under an earlier source by a
-  non-cascading event when that would keep live descendant identities unique;
-  otherwise replay fails atomically so the duplicate can be explicitly
-  deprecated or reconciled first. Every rename also preflights the target's
-  projected allocation identity against other live entries of the same kind.
-  Unnamed constructor variants use `<unnamed>` as the event's canonical
-  `from`/`to` label while retaining `namedConstructor: null` in state; their
-  projected source must end in exactly one canonical `.` delimiter. Cascades
-  use the most specific matching current or historical owner prefix and join
-  owner and parameter sources with exactly one delimiter across named ↔ unnamed
-  constructor transitions.
-  `deprecate` records an intentional retirement. Backfill helpers re-attach
-  recorded IDs to a freshly walked catalog, and a cross-reference linker
-  applies allocated IDs to post-allocation reference sites with explicit
-  duplicate-key detection.
-- **Compatibility diff.** Per-entry change detection between two catalog
-  versions, a forwarding/breaking compatibility classifier, and `CompatRule`
-  emission: the tooling that decides whether a regenerated catalog is a safe
-  forwarding change.
-- **Policy layer.** Deny-lists, category and design-token heuristics, mutex
-  rules, metadata inference, stability classification, and the structured-walk
-  policy, with the built-in default content the compiler ships with, recorded
-  through a policy ledger.
-- **Reflector adapter.** An integration surface that drives the walk, IR build,
-  lowering, and wire-ID resolution from the reflector/codegen build step,
-  including resolver hooks for widget, property, structured, union, and
-  deprecation identity.
+- **Catalog IDs.** An append-only event log assigns each widget, property, and
+  structured type a stable ID that survives regeneration. `rename` events keep
+  IDs across renames and file moves; `deprecate` retires one. If the log would
+  produce two live entries with the same identity, replay fails and nothing is
+  changed.
+- **Compatibility check.** Compares two versions of a catalog entry by entry
+  and reports whether the new one is compatible with the old or a breaking
+  change.
+- **Built-in rules.** Defaults for which widgets and properties are included
+  and how they are categorized.
+- **Build integration.** Entry points the Restage code generator uses to run
+  the whole pipeline in a build step.
 
-## Status
+## API
 
-The barrel re-exports the walker, lowering, wire-ID, diff, link, policy, and
-adapter entry points used for reflector integration; the full IR remains
-internal under `src/ir`.
+The main library exports the walker, catalog output, catalog ID, compatibility,
+and build-integration entry points. The compiler's internal model stays
+private.
 
 ## License
 
-Licensed under the Functional Source License, Version 1.1, ALv2 Future License
-(FSL-1.1-ALv2): free for all use except building a competing product; each
-release automatically becomes Apache-2.0 two years after publication. See
-`LICENSE` for the full terms.
+FSL-1.1-ALv2. See [LICENSE](LICENSE).

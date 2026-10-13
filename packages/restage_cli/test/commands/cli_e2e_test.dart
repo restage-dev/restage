@@ -481,7 +481,7 @@ environment:
         '--directory',
         tempDir.path,
         '--no-starter',
-        '--no-wire-deps',
+        '--no-add-deps',
       ]);
 
       expect(exit, 1);

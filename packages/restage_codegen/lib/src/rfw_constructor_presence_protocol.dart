@@ -1,4 +1,4 @@
-import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Translator-side encoder for Restage's versioned RFW constructor-presence
@@ -61,9 +61,9 @@ final class RfwConstructorPresenceFactoryPlan {
       if (!RfwConstructorPresenceEncoder.appliesTo(property)) continue;
 
       final suffix = _upperCamel(property.name);
-      var localName = '_restagePresence$suffix';
+      var localName = 'restagePresence$suffix';
       if (!usedLocalNames.add(localName)) {
-        localName = '_restagePresence${ordinal}_$suffix';
+        localName = 'restagePresence$ordinal$suffix';
         if (!usedLocalNames.add(localName)) {
           throw StateError(
             'Could not allocate a unique RFW constructor-presence local for '
@@ -92,7 +92,7 @@ final class RfwConstructorPresenceFactoryPlan {
 
   /// Generated declaration for the centralized SDK decoder.
   String get declaration {
-    final pathSegment = renderDartStringLiteral(property.name);
+    final pathSegment = dartStringLiteral(property.name);
     return '  final $localName = RestageRfwConstructorPresence.read(\n'
         '    source,\n'
         '    <Object>[$pathSegment],\n'

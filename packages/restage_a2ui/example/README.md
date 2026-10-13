@@ -19,11 +19,12 @@ writes the `CatalogItem`s and the JSON schemas for you:
 
 The generated catalog contains exactly these widgets, all of them your own. Each
 library carries its own capability version in the emitted
-stamp. The two outputs
-(`lib/generated/restage_a2ui_catalog.g.dart` +
-`lib/generated/restage_a2ui_catalog.a2ui.json`) are regenerated from the
-annotated source, which is the only authoring input. The example has no app
-entrypoint:
+stamp. The build writes the catalog to
+`lib/generated/restage_a2ui_catalog.g.dart` and the stamp to
+`.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`, both from the annotated
+source. A copy of the stamp is committed at
+`lib/generated/restage_a2ui_catalog.a2ui.json` for the tests. The example has
+no app entrypoint:
 
 ```bash
 dart run build_runner build   # regenerate the catalog + stamp from the @RestageWidget source

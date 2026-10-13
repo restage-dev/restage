@@ -10,10 +10,10 @@ const messageOfferRef = SurfaceFlowRef<
   decodeResult: _decodeMessageOfferResult,
   compiled: CompiledFlow(
     documentJson:
-        "{\"flow\":\"message_offer\",\"initial\":\"message_notice\",\"minClient\":1,\"outbound\":{},\"schemaVersion\":1,\"screenArtifacts\":{\"message_notice\":{\"contentHash\":\"sha256:562850c510f4a7b96da6be807d931e848052bbdeaa33b5b7f76c2871f9546a45\",\"minClient\":1,\"path\":\"message_notice.rfw\",\"schemaVersion\":1,\"version\":1},\"paywall_upgrade_offer\":{\"contentHash\":\"sha256:f381b3d9a17e881db13ba9b8871d1e8274ee83a00ecc4c96d3f750f409a6dfbc\",\"minClient\":1,\"path\":\"paywall_upgrade_offer.rfw\",\"schemaVersion\":1,\"version\":1}},\"states\":{\"done\":{\"kind\":\"end\",\"result\":{}},\"message_notice\":{\"kind\":\"screen\",\"on\":{\"open_offer\":{\"target\":\"paywall_upgrade_offer\",\"type\":\"goto\"}},\"screen\":\"message_notice\"},\"paywall_upgrade_offer\":{\"kind\":\"screen\",\"on\":{\"continue\":{\"target\":\"done\",\"type\":\"goto\"}},\"screen\":\"paywall_upgrade_offer\"}},\"version\":1}",
+        '{"flow":"message_offer","initial":"message_notice","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"message_notice":{"contentHash":"sha256:562850c510f4a7b96da6be807d931e848052bbdeaa33b5b7f76c2871f9546a45","minClient":1,"path":"message_notice.rfw","schemaVersion":1,"version":1},"paywall_upgrade_offer":{"contentHash":"sha256:f381b3d9a17e881db13ba9b8871d1e8274ee83a00ecc4c96d3f750f409a6dfbc","minClient":1,"path":"paywall_upgrade_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"message_notice":{"kind":"screen","on":{"open_offer":{"target":"paywall_upgrade_offer","type":"goto"}},"screen":"message_notice"},"paywall_upgrade_offer":{"kind":"screen","on":{"continue":{"target":"done","type":"goto"}},"screen":"paywall_upgrade_offer"}},"version":1}',
     screens: {
-      "message_notice": MessageNotice.new,
-      "paywall_upgrade_offer": UpgradeOffer.new,
+      'message_notice': MessageNotice.new,
+      'paywall_upgrade_offer': UpgradeOffer.new,
     },
     children: {},
   ),

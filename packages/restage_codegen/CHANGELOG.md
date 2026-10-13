@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+Generated mounts install the app widget library their surface draws on. This needs
+restage 2.1.0 or newer; the build stops with the minimum version when an older
+restage from pub.dev is resolved.
+
+A surface's `build()` may call helper methods and same-library functions that return
+widgets or values. Their bodies may start with `final` or `const` locals. A helper
+that can't be inlined is refused by name, and measurement follows helpers declared
+in part files.
+
+Pass `surfaceEvent(...)` directly to value callbacks. A closure around it still
+compiles, with a build notice suggesting the direct form.
+
+Generated Dart passes the recommended Flutter lints. Generated string literals use
+single quotes. Build notices use plain wording. The `constructorCatalogMigration`
+issue code is removed.
+
+A package that depends on another Restage package no longer compiles that
+package's surfaces in its own build.
+
 The generated registration installs the whole built-in catalog and both icon
 tables by default. Pass the generated `kRestageWidgetRegistration` object to
 `Restage.configure(registerWidgets: ...)` to forward its `includeMaterial` and

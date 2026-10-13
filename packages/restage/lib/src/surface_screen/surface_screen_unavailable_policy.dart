@@ -18,6 +18,9 @@ typedef SurfaceScreenUnavailableBuilder = Widget Function(
 @immutable
 final class SurfaceScreenUnavailablePolicy {
   /// Shows host-provided fallback UI when the screen is unavailable.
+  ///
+  /// Events the fallback fires with `surfaceEvent` reach the host's `onEvent`
+  /// through the screen's generated event contract.
   const SurfaceScreenUnavailablePolicy.fallback({
     required SurfaceScreenUnavailableBuilder builder,
   })  : fallbackBuilder = builder,

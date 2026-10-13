@@ -65,7 +65,7 @@ void main() {
             '--directory',
             tempDir.path,
             '--no-starter',
-            '--no-wire-deps',
+            '--no-add-deps',
           ]);
 
       expect(exitCode, 0);
@@ -173,7 +173,7 @@ void main() {
               '--env',
               'staging',
               '--no-starter',
-              '--no-wire-deps',
+              '--no-add-deps',
             ]);
 
         expect(exitCode, 0);
@@ -356,7 +356,7 @@ void main() {
               '--env',
               'dev',
               '--no-starter',
-              '--no-wire-deps',
+              '--no-add-deps',
             ]);
 
         expect(exitCode, 0);
@@ -406,7 +406,7 @@ void main() {
       );
     });
 
-    test('skips pubspec edits when --no-wire-deps is passed', () async {
+    test('skips pubspec edits when --no-add-deps is passed', () async {
       await _writePubspec(tempDir);
 
       final exitCode =
@@ -425,7 +425,7 @@ void main() {
             'a',
             '--env',
             'dev',
-            '--no-wire-deps',
+            '--no-add-deps',
           ]);
 
       expect(exitCode, 0);

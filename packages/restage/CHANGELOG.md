@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+Generated mounts install the app's own `@RestageWidget` widgets from the library a
+surface draws on, so apps with generated mounts need no startup registration call.
+`registerRestageWidgets()` is still needed when an app mounts surfaces only by id.
+
+When a mount shows the widget you wrote, because nothing is published or delivery
+failed, its events reach `onEvent` as the same typed classes as on the hosted path.
+`surfaceEvent`, `paywallEvent` and `onboardingEvent` now return a callback that
+works as both a tap and a value callback: pass them directly, as in
+`onChanged: surfaceEvent(pick)`, and the widget's value becomes the event's value.
+A closure around them never fires in your own widget.
+
+Hosted requests no longer wait without limit. Optional inputs such as the metering
+key share a short deadline, measurement setup has its own, and every request stops
+after a period with no response or no data. A surface then falls back as before.
+
+New libraries: `package:restage/catalog.dart` for generated catalog code, and
+`package:restage/render_host.dart` for the entrypoint `restage build push`
+generates. Apps don't import either directly.
+
+The package ships an agent skill, `restage-authoring`, for coding agents such as
+Claude Code, Cursor, and Codex. It covers annotations, events, host data,
+generated mounts, flows, custom widgets, what an update can change without an app
+release, and fixes for build errors, with examples that compile against this
+version. Install or update it with `dart run skills@ get --package restage`.
+
 `Restage.configure` includes the complete built-in widget and icon catalogs by
 default. Its independent `includeMaterial` and `includeCupertino` options can
 omit a complete family while preserving app-required entries. Both default to

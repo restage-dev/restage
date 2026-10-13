@@ -28,6 +28,9 @@ import '../measurement/restage_measurement.dart';
 import '../measurement/restage_privacy.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_delivery_evidence.dart';
+import '../delivery/surface_delivery_receipt.dart';
+import '../delivery/surface_delivery_receipt_batch.dart';
+import '../delivery/surface_delivery_receipt_uploader.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_resolver.dart';
 import '../surface_screen/asset_surface_screen_resolver.dart';
@@ -171,6 +174,16 @@ abstract final class Restage {
   /// describes it in full. The device facts above are stored only when
   /// measurement is enabled and a session is created.
   ///
+  /// [deliveryReceiptsEnabled] (default `true`) reports what each hosted
+  /// presentation showed. A receipt carries the surface type and slug, the
+  /// published version shown, where the content came from (fresh, held or
+  /// bundled) and why, whether it painted or failed, the platform and app
+  /// build, the selected route and a mount-to-paint latency bucket, bucketed
+  /// to the minute. It carries no device, install or user identifier. Receipts
+  /// batch in memory and post every 30 seconds and on app pause; a batch lost
+  /// with the process is never resent, so the counts are lower bounds. Pass
+  /// `false` to send none.
+  ///
   /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
   /// update signals. A custom [updateChannel] takes precedence when both are
   /// provided. If hosted refresh is unavailable, mounted surfaces continue
@@ -227,6 +240,7 @@ abstract final class Restage {
     Uri? liveRefreshEdgeUrl,
     bool governedMeasurementTransportEnabled = false,
     RestageGovernedMeasurementTransport? governedMeasurementTransport,
+    bool deliveryReceiptsEnabled = true,
   }) {
     configureWithInstalledCatalog(
       apiKey: apiKey,
@@ -246,6 +260,7 @@ abstract final class Restage {
       liveRefreshEdgeUrl: liveRefreshEdgeUrl,
       governedMeasurementTransportEnabled: governedMeasurementTransportEnabled,
       governedMeasurementTransport: governedMeasurementTransport,
+      deliveryReceiptsEnabled: deliveryReceiptsEnabled,
     );
     registerWidgets?.call(
       includeMaterial: includeMaterial,
@@ -304,6 +319,7 @@ abstract final class Restage {
     Uri? liveRefreshEdgeUrl,
     bool governedMeasurementTransportEnabled = false,
     RestageGovernedMeasurementTransport? governedMeasurementTransport,
+    bool deliveryReceiptsEnabled = true,
   }) {
     if (governedMeasurementTransportEnabled &&
         governedMeasurementTransport != null) {
@@ -322,6 +338,11 @@ abstract final class Restage {
     _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
+    SurfaceDeliveryReceiptUploader.instance.configure(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      enabled: deliveryReceiptsEnabled,
+    );
     // A reconfiguration must never retain a client bound to the previous
     // origin or credential. Test clients can be reinstalled after configure.
     _rpcClient = null;
@@ -393,8 +414,9 @@ abstract final class Restage {
       enabled: analyticsEnabled && measurementEnabled,
     );
     _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
-    SurfaceDeliveryEvidence.installRateLimited(
-      _emitSurfaceDeliveryRateLimited,
+    SurfaceDeliveryEvidence.install(
+      _noteSurfaceDeliveryArtifactFailed,
+      rateLimited: _emitSurfaceDeliveryRateLimited,
     );
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
     _reportDeliveryConfiguration(
@@ -541,6 +563,9 @@ abstract final class Restage {
       key: credentialStore.resolve,
       identityGeneration: () => credentialStore.generation,
     );
+    // Register a turn after configuration so the first surface finds the key
+    // ready or in flight.
+    scheduleMicrotask(() => unawaited(credentialStore.resolve()));
   }
 
   static void _configureMeasurementHost({
@@ -701,11 +726,31 @@ abstract final class Restage {
     }
   }
 
+  static void _noteSurfaceDeliveryArtifactFailed({
+    required Surface surfaceType,
+    required String surfaceSlug,
+    required int version,
+    required String reason,
+  }) {
+    SurfaceDeliveryReceiptBatch.instance.noteRefusal(
+      surfaceType,
+      surfaceSlug,
+      reason == 'transport'
+          ? SurfaceDeliveryReceiptReason.offline
+          : SurfaceDeliveryReceiptReason.serverError,
+    );
+  }
+
   static void _emitSurfaceDeliveryRateLimited({
     required Surface surfaceType,
     required String surfaceSlug,
     required Duration retryAfter,
   }) {
+    SurfaceDeliveryReceiptBatch.instance.noteRefusal(
+      surfaceType,
+      surfaceSlug,
+      SurfaceDeliveryReceiptReason.throttled,
+    );
     fireEvent(SurfaceDeliveryRateLimited(
       surface: surfaceType,
       surfaceId: surfaceSlug,
@@ -875,6 +920,8 @@ abstract final class Restage {
     _meteringTokenStore = null;
     SurfaceMeteringKeyProvider.clear();
     SurfaceDeliveryEvidence.clear();
+    SurfaceDeliveryReceiptUploader.debugReset();
+    SurfaceDeliveryReceiptBatch.debugReset();
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();
     resetRestagePaywallCache();
@@ -902,6 +949,7 @@ abstract final class Restage {
         // Every non-resumed state flushes analytics; only a true background
         // (paused/hidden) pauses the update-channel subscriptions — a
         // transient inactive (e.g. the app switcher) must not tear them down.
+        unawaited(SurfaceDeliveryReceiptUploader.instance.flush());
         if (state == AppLifecycleState.hidden ||
             state == AppLifecycleState.paused) {
           SurfaceRefreshRegistry.instance.onAppBackgrounded();

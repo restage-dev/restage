@@ -865,9 +865,9 @@ const chainedDefaultValue = defaultValue;
         contains(
           'const List<Map<String, String>> restageExclusions = [',
         ),
-        contains('"widget": "HostStateCard"'),
-        contains('"property": "hostState"'),
-        contains('"target": "widgetbook"'),
+        contains("'widget': 'HostStateCard'"),
+        contains("'property': 'hostState'"),
+        contains("'target': 'widgetbook'"),
         contains('Object?'),
       ),
     );

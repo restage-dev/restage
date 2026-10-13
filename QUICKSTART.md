@@ -140,8 +140,7 @@ options divergence error instead of scattering output.
 > This guide mounts `RestagePaywall` by id. Keep `bundled_runtime: true` and the
 > asset declarations for its offline fallback, including when adding hosted delivery.
 > Hosted delivery alone does not retain the original paywall widget. Generated
-> standalone screen mounts already retain their authored widget. Typed paywall and
-> flow mounts add that behavior in the next SDK release; see **Hosted delivery**
+> screen, paywall, and flow mounts do, without assets; see **Hosted delivery**
 > under *Where to go next* for the API-specific requirements.
 
 Run the build:
@@ -256,8 +255,8 @@ it as real Flutter widgets. `onEvent` is where your app reacts to what happens
 in the surface: a view, a dismissal, or an event you fired with
 `paywallEvent`. The `continue` event arrives with `args['plan']`, so your
 purchase code goes in that case. Keep the `PaywallLoadFailed` case during
-development. A surface that can't render fails closed to an empty box, and
-that event's message is the one signal that says why.
+development. A surface that can't render shows an empty box, and that
+event's message is the one signal that says why.
 
 Build and run it:
 
@@ -300,8 +299,8 @@ so far needs an account or a network.
 - **An interactive paywall.** The example paywalls show plan selection (tap a
   plan, the selection updates, the purchase re-targets) that travels inside the
   artifact with no host code. The examples README explains the pattern.
-- **Hosted delivery.** When you want a published surface to update installed
-  apps over the air, use hosted delivery with `restage surface push` and
-  `restage surface publish`. Hosted delivery is in private beta. The SDK falls
-  back to your bundled artifact until it is available, so nothing you build now
+- **Restage Cloud.** When you want a published surface to update installed
+  apps over the air, push and publish it to Restage Cloud with
+  `restage surface push` and `restage surface publish`. Until a version is
+  published, the SDK renders your bundled artifact, so nothing you build now
   has to change.

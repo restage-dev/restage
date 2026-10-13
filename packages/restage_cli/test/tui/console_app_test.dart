@@ -68,8 +68,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      const brand = Color.fromRGB(255, 126, 107);
-      const focus = Color.fromRGB(52, 211, 153);
+      const brand = Color.fromRGB(45, 212, 191);
+      const focus = Color.fromRGB(111, 174, 140);
 
       expect(
         tester.terminalState,
@@ -1114,8 +1114,8 @@ void main() {
       await tester.sendArrowRight();
       await tester.pump();
 
-      const brand = Color.fromRGB(255, 126, 107);
-      const focus = Color.fromRGB(52, 211, 153);
+      const brand = Color.fromRGB(45, 212, 191);
+      const focus = Color.fromRGB(111, 174, 140);
 
       expect(
         tester.terminalState,
@@ -1383,7 +1383,7 @@ void main() {
       await tester.tap(33, 11);
       await tester.pump();
 
-      const brand = Color.fromRGB(255, 126, 107);
+      const brand = Color.fromRGB(45, 212, 191);
 
       expect(
         tester.terminalState,
@@ -1887,6 +1887,18 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     return ConsoleOperationResult(
       exitCode: 0,
       stdout: 'pushed ${surface.slug}\n',
+      stderr: '',
+    );
+  }
+
+  @override
+  Future<ConsoleOperationResult> pushBuild({
+    required ConsoleContext context,
+  }) async {
+    calls.add('build:${context.app}:${context.environment}');
+    return ConsoleOperationResult(
+      exitCode: 0,
+      stdout: 'Pushed ${context.app} ${context.environment} version 4.\n',
       stderr: '',
     );
   }

@@ -10,6 +10,8 @@ import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
+import '../delivery/surface_delivery_paint_boundary.dart';
+import '../delivery/surface_delivery_receipt.dart';
 import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
@@ -613,6 +615,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
         library = decodeLibraryBlob(variant.bytes);
       } catch (e, st) {
         payload.abandonHostedLastGood();
+        markSurfaceDeliveryRenderFailed(
+          variant,
+          reason: SurfaceDeliveryReceiptReason.decodeFailed,
+        );
         throw RestagePaywallError(
           code: RestageErrorCodes.decodeFailed,
           message: 'Could not decode .rfw blob for ${widget.id}: $e',
@@ -2113,6 +2119,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
           // Evict the poisonous payload (bytes + version travel together on the
           // sealed payload, so there is no orphaned version to mis-attribute).
           _lastSuccessfulPayloads.remove(widget.id);
+          markSurfaceDeliveryRenderFailed(
+            variant,
+            reason: SurfaceDeliveryReceiptReason.decodeFailed,
+          );
           FlutterError.reportError(FlutterErrorDetails(
             exception: e,
             stack: st,
@@ -2436,6 +2446,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
                     onEvent: stage.eventHandler,
                     child: RuntimeErrorBoundary(
                       onError: (error, _) {
+                        markSurfaceDeliveryRenderFailed(stage.payload.variant);
                         _handleBlobBuildFailure(stage, error);
                       },
                       errorReplacement: (context, _, __) {
@@ -2458,14 +2469,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
                         // failure rejects the candidate.
                         FirstPaintLeaseScope(
                           transaction: stage.transaction,
-                          child: RemoteWidget(
-                            runtime: stage.runtime,
-                            data: stage.data,
-                            widget: const FullyQualifiedWidgetName(
-                              _paywallLibrary,
-                              'Paywall',
+                          child: SurfaceDeliveryPaintBoundary(
+                            resolved: stage.payload.variant,
+                            child: RemoteWidget(
+                              runtime: stage.runtime,
+                              data: stage.data,
+                              widget: const FullyQualifiedWidgetName(
+                                _paywallLibrary,
+                                'Paywall',
+                              ),
+                              onEvent: stage.eventHandler,
                             ),
-                            onEvent: stage.eventHandler,
                           ),
                         ),
                       ),

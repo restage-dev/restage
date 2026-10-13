@@ -32,43 +32,25 @@ void main() {
       expect(exitCode, 0);
     });
 
-    test(
-      'always prints the required flag and the tofu failure-mode explanation',
-      () async {
-        final exitCode = await runDoctor();
-        expect(exitCode, 0);
-
-        final out = stdout.toString();
-        // The mechanical surfacing: the exact flag is named.
-        expect(out, contains('--no-tree-shake-icons'));
-        // The failure mode is explained in plain terms.
-        expect(out, contains('tofu'));
-        // The exact build commands are copy-pasteable.
-        expect(out, contains('flutter build ios --no-tree-shake-icons'));
-        expect(out, contains('flutter build web --wasm --no-tree-shake-icons'));
-      },
-    );
-
-    test('WARNs when no build config mentions the flag', () async {
+    test('PASSes when no build config turns off icon tree shaking', () async {
       final exitCode = await runDoctor();
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('WARN'));
-      // The reminder block is still emitted on a WARN.
-      expect(stdout.toString(), contains('--no-tree-shake-icons'));
+      expect(stdout.toString(), contains('PASS'));
+      expect(stdout.toString(), isNot(contains('WARN')));
     });
 
-    test('PASSes when a Makefile carries the flag', () async {
+    test('WARNs when a Makefile carries the flag', () async {
       await File(
         p.join(tempDir.path, 'Makefile'),
       ).writeAsString('build:\n\tflutter build ios --no-tree-shake-icons\n');
 
       final exitCode = await runDoctor();
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('PASS'));
+      expect(stdout.toString(), contains('WARN'));
       expect(stdout.toString(), contains('Makefile'));
     });
 
-    test('PASSes when a CI workflow file carries the flag', () async {
+    test('WARNs when a CI workflow file carries the flag', () async {
       final workflows = Directory(p.join(tempDir.path, '.github', 'workflows'));
       await workflows.create(recursive: true);
       await File(p.join(workflows.path, 'release.yml')).writeAsString(
@@ -78,10 +60,10 @@ void main() {
 
       final exitCode = await runDoctor();
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('PASS'));
+      expect(stdout.toString(), contains('WARN'));
     });
 
-    test('PASSes when a release script carries the flag', () async {
+    test('WARNs when a release script carries the flag', () async {
       final scripts = Directory(p.join(tempDir.path, 'scripts'));
       await scripts.create(recursive: true);
       await File(p.join(scripts.path, 'release.sh')).writeAsString(
@@ -90,7 +72,7 @@ void main() {
 
       final exitCode = await runDoctor();
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('PASS'));
+      expect(stdout.toString(), contains('WARN'));
     });
 
     test('exits 1 with a clear message on a missing directory', () async {
@@ -108,7 +90,7 @@ void main() {
         stderr: stderr,
       ).run(['--non-interactive', 'doctor', '--directory', tempDir.path]);
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('--no-tree-shake-icons'));
+      expect(stdout.toString(), contains('Icon tree shaking'));
     });
   });
 }

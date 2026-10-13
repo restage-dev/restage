@@ -339,7 +339,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -418,7 +418,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -501,7 +501,7 @@ final class FirstRunFlow extends RestageFlow {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -568,7 +568,7 @@ final class FirstRunFlow extends RestageFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -612,7 +612,7 @@ final class FirstRunFlow extends RestageFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
@@ -701,7 +701,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -786,7 +786,7 @@ final class FirstRunFlow extends RestageFlow {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -883,7 +883,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -975,7 +975,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -1075,7 +1075,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
@@ -1175,7 +1175,7 @@ final class NotificationResult {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,

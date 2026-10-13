@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+New library `package:restage_shared/catalog.dart`, the catalog names generated code
+needs.
+
+The render bundle channel helpers (`isValidRenderBundleChannel`,
+`validateRenderBundleChannel`, `renderBundleMainChannel`,
+`renderBundleUserHandleMaxLength`) are removed; builds are addressed by
+environment and person.
+
 ## 2.0.0
 
 - The `data.device.*` contract publishes `viewPaddingTop`,

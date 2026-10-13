@@ -3,28 +3,14 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
-/// The build flag every app shipping the renderer must pass.
+/// A build flag Restage apps no longer need.
 ///
-/// The generated catalog reconstructs icon glyphs from runtime codepoint
-/// values rather than from compile-time constants, so the framework's
-/// icon tree-shaker cannot see them and strips the font glyphs from a
-/// release build. Without this flag every catalog icon renders as a
-/// missing-glyph box ("tofu") — a failure visible only on a real
-/// release-mode device build, never in tests or debug.
-const _requiredBuildFlag = '--no-tree-shake-icons';
-
-/// The exact build/run invocations the app must use, copy-pasteable.
-const _recommendedBuildCommands = <String>[
-  'flutter build ios --no-tree-shake-icons',
-  'flutter build appbundle --no-tree-shake-icons',
-  'flutter build web --wasm --no-tree-shake-icons',
-  'flutter run --no-tree-shake-icons',
-];
+/// Generated registrations keep icons as compile-time constants, so icon tree
+/// shaking works. Passing this flag only keeps every glyph in the app.
+const _unneededBuildFlag = '--no-tree-shake-icons';
 
 /// Relative paths (from the project root) of files that commonly carry a
-/// build invocation. If any of these mentions the required flag we treat
-/// it as evidence the project enforces it; otherwise we cannot prove it
-/// and emit an actionable reminder instead.
+/// build invocation.
 const _buildConfigCandidates = <String>[
   'Makefile',
   'makefile',
@@ -62,15 +48,9 @@ const _scannableExtensions = <String>{
   '.kts',
 };
 
-/// Check the host project for the build-flag requirement and print a
-/// clear PASS / WARN result plus a copy-pasteable reminder.
+/// Check the host project for common setup issues and print PASS or WARN.
 ///
-/// `doctor` never fails the build; it is advisory. It exits `0` whether
-/// or not the flag is detected — a WARN result is informational, because
-/// the flag lives in the host app's build invocation (a Makefile, a CI
-/// job, a release script) which the tool cannot always see. The reminder
-/// block is always printed so the developer can copy the correct
-/// commands regardless of the detection outcome.
+/// Advisory only: it exits `0` either way.
 class DoctorCommand extends Command<int> {
   /// Construct a doctor command bound to the given output sinks.
   DoctorCommand({required StringSink stdout, required StringSink stderr})
@@ -92,8 +72,8 @@ class DoctorCommand extends Command<int> {
 
   @override
   String get description =>
-      'Check the host project for common configuration issues — currently '
-      'the $_requiredBuildFlag build-flag requirement.';
+      'Check the project for common setup issues, such as a build command '
+      'that turns off icon tree shaking.';
 
   @override
   Future<int> run() async {
@@ -112,48 +92,24 @@ class DoctorCommand extends Command<int> {
     _stdout.writeln('');
 
     if (evidence != null) {
-      _stdout.writeln('PASS  $_requiredBuildFlag');
+      _stdout.writeln('WARN  Icon tree shaking is turned off');
       _stdout.writeln(
-        '      Found in ${p.relative(evidence, from: root.path)} — your '
-        'build invocation passes the flag.',
+        '      ${p.relative(evidence, from: root.path)} passes '
+        '$_unneededBuildFlag. Restage apps don\'t need it, and it keeps '
+        'every icon glyph in your app. Remove it unless another dependency '
+        'needs it.',
       );
     } else {
-      _stdout.writeln('WARN  $_requiredBuildFlag');
+      _stdout.writeln('PASS  Icon tree shaking');
       _stdout.writeln(
-        '      Could not confirm your release build passes the flag. This '
-        'is informational: the flag lives in your build command (a '
-        'Makefile, CI job, or release script), which this check cannot '
-        'always see.',
+        '      No build command found that passes $_unneededBuildFlag.',
       );
     }
-
-    _stdout.writeln('');
-    _printReminder();
 
     return 0;
   }
 
-  /// Print the always-on reminder block: the failure mode in plain terms
-  /// and the exact commands to copy.
-  void _printReminder() {
-    _stdout.writeln('Build with $_requiredBuildFlag.');
-    _stdout.writeln(
-      'Why: the renderer builds icons from runtime values, so the icon '
-      'tree-shaker strips the glyphs from a release build unless this flag '
-      'is set. Every icon then renders as a missing-glyph box ("tofu") — '
-      'visible only on a real release-mode device build, not in debug or '
-      'tests.',
-    );
-    _stdout.writeln('');
-    _stdout.writeln('Use these invocations (copy as needed):');
-    for (final command in _recommendedBuildCommands) {
-      _stdout.writeln('  $command');
-    }
-  }
-
-  /// Walk the known build-config candidates under [root] and return the
-  /// path of the first file that mentions the required flag, or null when
-  /// none is found.
+  /// Returns the first build-config file under [root] that mentions the flag.
   String? _findFlagEvidence(Directory root) {
     for (final candidate in _buildConfigCandidates) {
       final path = p.join(root.path, candidate);
@@ -171,9 +127,7 @@ class DoctorCommand extends Command<int> {
     return null;
   }
 
-  /// Scan the scannable files directly under [dir] (recursing into
-  /// subdirectories) for the required flag. Bounded by [_scannableExtensions]
-  /// so we never read large binary trees.
+  /// Scans text files under [dir], limited to [_scannableExtensions].
   String? _scanDirectory(Directory dir) {
     final List<FileSystemEntity> entries;
     try {
@@ -192,10 +146,10 @@ class DoctorCommand extends Command<int> {
     return null;
   }
 
-  /// True when [file] can be read as text and contains the required flag.
+  /// True when [file] reads as text and contains the flag.
   bool _fileMentionsFlag(File file) {
     try {
-      return file.readAsStringSync().contains(_requiredBuildFlag);
+      return file.readAsStringSync().contains(_unneededBuildFlag);
     } on FileSystemException {
       return false;
     } on FormatException {

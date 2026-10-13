@@ -303,7 +303,7 @@ Future<TestBuilderResult> _run(Map<String, String> sources) async {
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,

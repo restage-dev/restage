@@ -30,9 +30,10 @@ Map<String, Builder> _defaultOnPackageWalkers() => {
 /// The default-on walkers whose walk stops at the annotation prefilter, so an
 /// unannotated package pays them nothing.
 Map<String, Builder> _prefilteredPackageWalkers() => {
-      'restage_source_roster': restageSourceRosterBuilder(BuilderOptions.empty),
+      'restage_source_roster':
+          restageSourceRosterBuilder(BuilderOptions.forRoot),
       'restage_package_surface_compiler':
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       'user_catalog': userCatalogBuilder(BuilderOptions.empty),
       'user_catalog_json': userCatalogJsonBuilder(BuilderOptions.empty),
     };
@@ -246,7 +247,7 @@ void main() {
       );
 
       final result = await testBuilder(
-        restageSourceRosterBuilder(BuilderOptions.empty),
+        restageSourceRosterBuilder(BuilderOptions.forRoot),
         {
           ..._unannotatedPackage.map(
             (path, source) => MapEntry('apps_examples|$path', source),

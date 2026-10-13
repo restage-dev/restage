@@ -14,9 +14,8 @@ void main() {
     expect(
       prose,
       contains(
-        'RFW delivery admits supported structured objects, maps, '
-        'records, and lists only when Restage can form a reconstruction plan '
-        'for the exact property',
+        'structured objects, maps, records, and lists work only when '
+        'Restage can rebuild them for the exact property',
       ),
     );
     expect(

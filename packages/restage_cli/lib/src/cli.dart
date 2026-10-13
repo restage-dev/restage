@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/audit_command.dart';
 import 'package:restage_cli/src/commands/build_command.dart';
+import 'package:restage_cli/src/commands/build_push_command.dart';
 import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
@@ -25,7 +26,9 @@ import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
+import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_repository.dart';
@@ -72,8 +75,13 @@ class RestageCli {
     PreviewLauncher? previewLauncher,
     bool Function()? hasTerminal,
     ConsoleLauncher? consoleLauncher,
-    ConsoleController Function()? consoleControllerFactory,
+    ConsoleController Function(io.Directory? directory)?
+    consoleControllerFactory,
     RenderBundleArtifactBuilder? renderBundleBuilder,
+    RenderBundleCatalogProducer? renderBundleCatalog,
+    BundleSourceReader? renderBundleSource,
+    ReleaseRecorderOpener? renderBundleRecorderOpener,
+    RenderBundlePushReceipt? renderBundleReceipt,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
   }) : _stdout = stdout ?? StringBuffer(),
@@ -90,18 +98,24 @@ class RestageCli {
        _hasTerminal = hasTerminal ?? stdioHasTerminal,
        _consoleLauncher = consoleLauncher ?? runRestageConsole,
        _renderBundleBuilder = renderBundleBuilder,
+       _renderBundleCatalog = renderBundleCatalog,
+       _renderBundleSource = renderBundleSource,
+       _renderBundleRecorderOpener = renderBundleRecorderOpener,
+       _renderBundleReceipt = renderBundleReceipt,
        _experimentActivationApi = experimentActivationApi,
        _environment = environment,
        _consoleControllerFactory =
            consoleControllerFactory ??
-           (() => ConsoleController(
+           ((directory) => ConsoleController(
              repository: DefaultConsoleRepository(
                credentialStore: credentialStore,
                httpClient: httpClient,
+               directory: directory,
              ),
              operationExecutor: ConsoleCommandExecutor(
                credentialStore: credentialStore,
                httpClient: httpClient,
+               directory: directory,
              ),
            ));
 
@@ -117,8 +131,13 @@ class RestageCli {
   final PreviewLauncher _previewLauncher;
   final bool Function() _hasTerminal;
   final ConsoleLauncher _consoleLauncher;
-  final ConsoleController Function() _consoleControllerFactory;
+  final ConsoleController Function(io.Directory? directory)
+  _consoleControllerFactory;
   final RenderBundleArtifactBuilder? _renderBundleBuilder;
+  final RenderBundleCatalogProducer? _renderBundleCatalog;
+  final BundleSourceReader? _renderBundleSource;
+  final ReleaseRecorderOpener? _renderBundleRecorderOpener;
+  final RenderBundlePushReceipt? _renderBundleReceipt;
   final ExperimentActivationApi? _experimentActivationApi;
   final Map<String, String>? _environment;
 
@@ -228,6 +247,12 @@ class RestageCli {
           credentialStore: _credentialStore,
           httpClient: _httpClient,
           builder: _renderBundleBuilder,
+          catalog: _renderBundleCatalog,
+          source: _renderBundleSource,
+          openRecorder: _renderBundleRecorderOpener,
+          recordReceipt: _renderBundleReceipt,
+          defaultEndpoint: _defaultEndpoint,
+          environment: _environment,
         ),
       )
       ..addCommand(
@@ -332,7 +357,7 @@ class RestageCli {
     }
     try {
       if (args.isEmpty && _hasTerminal()) {
-        return await _consoleLauncher(_consoleControllerFactory());
+        return await _consoleLauncher(_consoleControllerFactory(null));
       }
       final result = await runZoned(
         () => runner.run(args),

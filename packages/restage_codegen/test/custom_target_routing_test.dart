@@ -496,8 +496,7 @@ class Probe {
       );
     });
 
-    test('selective Ignore retains migration notices on included siblings',
-        () async {
+    test('selective Ignore keeps the input on included siblings', () async {
       const sources = {
         'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -520,29 +519,15 @@ class Probe {
         sources,
         target: WidgetVisitorTarget.a2ui,
       );
-      expect(
-        a2ui.issues.where(
-          (issue) => issue.code == IssueCode.constructorCatalogMigration,
-        ),
-        isEmpty,
-      );
+      expect(a2ui.issues, isEmpty);
+      expect(a2ui.widgets.single.properties, isEmpty);
 
       for (final target in const [
         WidgetVisitorTarget.rfw,
         WidgetVisitorTarget.widgetbook,
       ]) {
         final sibling = await runWidgetVisitorOn(sources, target: target);
-        final notices = sibling.issues
-            .where(
-              (issue) => issue.code == IssueCode.constructorCatalogMigration,
-            )
-            .toList();
-        expect(notices, hasLength(1), reason: target.name);
-        expect(
-          notices.single.location,
-          'lib/probe.dart#Probe.label',
-          reason: target.name,
-        );
+        expect(sibling.issues, isEmpty, reason: target.name);
         expect(
           sibling.widgets.single.properties.map((property) => property.name),
           ['label'],
@@ -551,7 +536,7 @@ class Probe {
       }
     });
 
-    test('selective Ignore compares migration order among surviving fields',
+    test('selective Ignore keeps constructor order among surviving fields',
         () async {
       final sources = {
         'lib/probe.dart': _orderMigrationSource(
@@ -561,25 +546,12 @@ class Probe {
 
       for (final target in WidgetVisitorTarget.values) {
         final result = await runWidgetVisitorOn(sources, target: target);
-        final notices = result.issues
-            .where(
-              (issue) =>
-                  issue.code == IssueCode.constructorCatalogMigration &&
-                  issue.location == 'lib/probe.dart#Probe',
-            )
-            .toList();
-        expect(notices, hasLength(1), reason: target.name);
+        expect(result.issues, isEmpty, reason: target.name);
         expect(
-          notices.single.message,
-          allOf(
-            contains('For the ${target.name} target'),
-            target == WidgetVisitorTarget.a2ui
-                ? allOf(contains('second, first'), contains('first, second'))
-                : allOf(
-                    contains('hidden, second, first'),
-                    contains('hidden, first, second'),
-                  ),
-          ),
+          result.widgets.single.properties.map((property) => property.name),
+          target == WidgetVisitorTarget.a2ui
+              ? ['first', 'second']
+              : ['hidden', 'first', 'second'],
           reason: target.name,
         );
       }
@@ -689,32 +661,9 @@ class Probe {
       );
     });
 
-    test('same-target double projection keeps one order migration notice',
-        () async {
-      final facts = await runProjectedWidgetConstructorFactsOn(
-        {
-          'lib/probe.dart': _orderMigrationSource(
-            '@Ignore({EmitTarget.a2ui})',
-          ),
-        },
-        target: EmitTarget.a2ui,
-        projections: 2,
-        emittedPropertyNames: const {'first', 'second'},
-      );
-
-      expect(
-        facts.issues.where(
-          (issue) =>
-              issue.code == IssueCode.constructorCatalogMigration &&
-              issue.location == 'lib/probe.dart#Probe',
-        ),
-        hasLength(1),
-      );
-    });
-
     test(
-        'invalid selective positional omission does not change order '
-        'diagnostics', () async {
+        'invalid selective positional omission is reported only for the '
+        'omitting target', () async {
       const sources = {
         'lib/probe.dart': _positionalOrderMigrationSource,
       };
@@ -731,54 +680,13 @@ class Probe {
         ),
         hasLength(1),
       );
-      expect(
-        a2ui.issues.where(
-          (issue) =>
-              issue.code == IssueCode.constructorCatalogMigration &&
-              issue.location == 'lib/probe.dart#Probe',
-        ),
-        isEmpty,
-      );
 
       for (final target in const [
         WidgetVisitorTarget.rfw,
         WidgetVisitorTarget.widgetbook,
       ]) {
         final sibling = await runWidgetVisitorOn(sources, target: target);
-        expect(
-          sibling.issues.where(
-            (issue) =>
-                issue.code == IssueCode.constructorCatalogMigration &&
-                issue.location == 'lib/probe.dart#Probe',
-          ),
-          hasLength(1),
-          reason: target.name,
-        );
-      }
-    });
-
-    test('legacy all-target Ignore keeps historical order diagnostics',
-        () async {
-      final sources = {
-        'lib/probe.dart': _orderMigrationSource('@Ignore()'),
-      };
-
-      final neutral = await runWidgetConstructorFactsOn(sources);
-      expect(
-        neutral.issues.where(
-          (issue) => issue.code == IssueCode.constructorCatalogMigration,
-        ),
-        isEmpty,
-      );
-      for (final target in WidgetVisitorTarget.values) {
-        final result = await runWidgetVisitorOn(sources, target: target);
-        expect(
-          result.issues.where(
-            (issue) => issue.code == IssueCode.constructorCatalogMigration,
-          ),
-          isEmpty,
-          reason: target.name,
-        );
+        expect(sibling.issues, isEmpty, reason: target.name);
       }
     });
   });

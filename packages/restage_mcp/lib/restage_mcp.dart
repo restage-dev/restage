@@ -5,4 +5,5 @@
 library;
 
 export 'src/auth.dart' show NotSignedInException;
-export 'src/server.dart' show RestageMcpServer, restageMcpVersion;
+export 'src/server.dart'
+    show BuildPushRunner, RestageMcpServer, restageMcpVersion;

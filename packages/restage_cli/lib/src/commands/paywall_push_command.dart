@@ -4,6 +4,8 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/commands/build_command.dart';
+import 'package:restage_cli/src/commands/render_bundle_coverage.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/publish_selection.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
@@ -27,14 +29,23 @@ class PaywallPushCommand extends Command<int> {
     required Interactive interactive,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
+    BuildCommandFactory? buildCommand,
     PublicationBundleReader? bundleReader,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
        _credentialStore = credentialStore,
        _httpClient = httpClient,
+       _buildCommand = buildCommand,
        _bundleReader = bundleReader {
     argParser
+      ..addFlag(
+        'build',
+        negatable: false,
+        help:
+            'Push the app\'s build to the same environment first, so the '
+            'dashboard can display the widgets these surfaces use.',
+      )
       ..addOption(
         'organization',
         help: 'Organization slug (overrides restage_config.yaml).',
@@ -67,6 +78,7 @@ class PaywallPushCommand extends Command<int> {
   final Interactive _interactive;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
+  final BuildCommandFactory? _buildCommand;
   final PublicationBundleReader? _bundleReader;
 
   @override
@@ -205,6 +217,29 @@ class PaywallPushCommand extends Command<int> {
     );
     if (environment == null) return 1;
 
+    if (argResults?['build'] as bool? ?? false) {
+      final built = await pushBuildFirst(
+        buildCommand:
+            _buildCommand ??
+            () => BuildCommand(
+              stdout: _stdout,
+              stderr: _stderr,
+              credentialStore: _credentialStore,
+              httpClient: _httpClient,
+            ),
+        project: project,
+        app: app,
+        organization:
+            (argResults?['organization'] as String?) ??
+            loadedConfig?.config.organization,
+        environment: environment,
+        directory: directory,
+        recordGit: false,
+        stdout: _stdout,
+      );
+      if (built != 0) return built;
+    }
+
     return _runPipeline(
       credential: credential,
       apiEndpoint: apiEndpoint,
@@ -256,7 +291,7 @@ class PaywallPushCommand extends Command<int> {
       );
       if (target == null) return 1;
 
-      return await runPush(
+      final pushCode = await runPush(
         api: api,
         assembled: assembled,
         packageRoot: packageRoot,
@@ -271,6 +306,21 @@ class PaywallPushCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
       );
+      if (pushCode == 0) {
+        await reportRenderBundleCoverage(
+          api: api,
+          apiEndpoint: apiEndpoint,
+          credential: credential,
+          assembled: assembled,
+          project: project,
+          app: app,
+          environment: environment,
+          organizationId: target.organizationId,
+          stdout: _stdout,
+          stderr: _stderr,
+        );
+      }
+      return pushCode;
     } finally {
       if (_httpClient == null) api.close();
     }

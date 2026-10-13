@@ -14,6 +14,7 @@ void main() {
         [
           'discoverTargetsAndCapabilities',
           'openDraft',
+          'deleteDraft',
           'readDraft',
           'resolveDraft',
           'replaceDraft',
@@ -65,6 +66,12 @@ void main() {
               'surface-revision.v1.bf52ce6e8d6a0ea45d1f4c6680a8cf340c02f1f2f25449c37e221d472647d281',
             ),
           },
+        ),
+        'deleteDraft': _request(
+          operation: 'deleteDraft',
+          correlationId: 'correlation-delete-1',
+          idempotencyKey: 'idempotency-delete-1',
+          payload: _draftBinding(),
         ),
         'readDraft': _request(
           operation: 'readDraft',
@@ -5561,8 +5568,8 @@ void main() {
     });
 
     test('names the target on every accepted response that has one', () {
-      // Two operations answer about a draft's content rather than a target.
-      const targetFree = {'validateDraft', 'reviewDraft'};
+      // These operations answer about a draft's content rather than a target.
+      const targetFree = {'deleteDraft', 'validateDraft', 'reviewDraft'};
       final responses = _acceptedResponses();
       expect(
         responses.keys.toSet(),
@@ -6560,6 +6567,13 @@ Map<String, Object?> _minimalRequest(String operation) {
         correlationId: 'correlation-minimal-1',
         idempotencyKey: 'idempotency-minimal-1',
         payload: const {},
+      );
+    case 'deleteDraft':
+      return _request(
+        operation: operation,
+        correlationId: 'correlation-minimal-1',
+        idempotencyKey: 'idempotency-minimal-1',
+        payload: _draftBinding(),
       );
     case 'readDraft':
     case 'validateDraft':
@@ -7905,6 +7919,11 @@ Map<String, Object?> _detail({
 Map<String, Map<String, Object?>> _acceptedResponses() => {
       'discoverTargetsAndCapabilities': _discovery(),
       'openDraft': _draftView(),
+      'deleteDraft': {
+        'draftId': 'draft-9f2c',
+        'kind': 'experimentDraftDeletionAcceptedView',
+        'schemaVersion': 1,
+      },
       'readDraft': _draftView(),
       'resolveDraft': _draftView(),
       'replaceDraft': _draftView(),

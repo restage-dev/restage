@@ -2,9 +2,11 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-The `restage` command line. Use it to set up a project, push surfaces,
-manage what is live, and preview compiled artifacts. It works the same for a
-person at a terminal, a CI job, and an agent.
+The `restage` command line. Use it to set up a project, push surfaces, and
+manage what is live. It works the same for a person at a terminal, a CI job,
+and an agent.
+
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 ## Status
 
@@ -25,9 +27,8 @@ That compiles the CLI and installs it at `$PUB_CACHE/bin/restage`. Make sure
 `$HOME/.pub-cache/bin` is on your `PATH`.
 
 Once published, `dart pub global activate restage_cli` installs a shell
-wrapper at the same location. The native binary skips the wrapper's snapshot
-rebuild on every run, which you notice on a home directory that contains
-spaces. Switch between the two freely.
+wrapper at the same location. You can use either one. The native binary starts
+faster because it skips the wrapper's snapshot rebuild on each run.
 
 ## Usage
 
@@ -38,9 +39,16 @@ restage --help
 restage login
 restage whoami
 restage logout
+restage status
 
 # Set up a Flutter project for Restage.
 restage init
+
+# See what you have access to.
+restage projects
+restage apps
+restage envs
+restage targets
 
 # List and push the surfaces the build generated.
 restage surface list --all
@@ -55,29 +63,187 @@ restage surface publish <id> --revision <revision>
 # Manage one surface.
 restage surface status <id>
 restage surface history <id>
+restage surface results <id>
 restage surface rollback <id> --to-version <version> --reason "<reason>"
 restage surface freeze <id> --reason "<reason>"
 restage surface unfreeze <id> --reason "<reason>"
+restage surface kill <id> --reason "<reason>"
 
-# Open the desktop preview on a compiled .rfw.
-restage preview path/to/paywall.rfw
+# Decide which published version each request receives (beta).
+restage surface routing --help
+
+# Push the widget catalog or an app build.
+restage catalog push
+restage build push
+
+# Read the audit log.
+restage audit log
+restage audit export
+restage audit verdict
+
+# Open the full-screen console.
+restage console
 
 # Check the local toolchain.
 restage doctor
 ```
 
-`init`, `preview`, and `doctor` work offline. `login` and the `surface`
-commands talk to a Restage backend; hosted access is in private beta.
+`init` and `doctor` work offline. `login` and the other commands talk to
+Restage Cloud, or to the backend URL you configure.
+
+`surface kill` turns a surface off in an environment, so apps fall back to
+the version bundled with them. `surface freeze` stops new publishes to a
+surface until you unfreeze it. `surface results` reads the surface's funnel:
+views, steps, drop-off, and completions per published version.
 
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts. A required value with no default then exits non-zero with a
 `required: --foo <value>` message.
 
-## Experiments (pre-release)
+## Pushing and publishing
 
-`restage experiment` runs one experiment operation per subcommand. It is
-pre-release and hidden until you set `RESTAGE_EXPERIMENTAL=1`, because the
-hosted service does not serve these routes yet.
+A push uploads a version and changes nothing that is running. A publish makes
+one of those versions live. Push ten variants; publish one.
+
+After `dart run build_runner build`, the CLI reads the generated manifest at
+`.restage/build/metadata/restage.publication.json` and uploads the artifacts it
+lists for the surface you name. `--type` is optional; when you pass it, the CLI
+checks that the surface has that type.
+
+You can name the surface by id or by its `.dart` file:
+
+```sh
+restage surface push welcome
+restage surface push lib/screens/welcome.dart
+```
+
+A file is looked up in the same manifest, so it selects what the build
+produced for that file. A screen that belongs to a flow selects the flow,
+since the flow is what ships it. If a file produced more than one surface, the
+CLI lists them and asks, or pushes all of them with `--all`. A file that
+produced nothing is an error. A run over several surfaces stops at the first
+failure and reports what was pushed and what was not attempted.
+
+Surface types are `onboarding`, `message`, `survey`, `paywall`, and `general`.
+
+`restage surface publish <id>` makes a pushed revision live. Without
+`--revision` it publishes the latest revision pushed to the target
+environment and prints which one that was. Pass `--revision <n>` to publish an
+older one. `--reason` is optional and is recorded in the audit trail.
+`restage surface history <id>` lists what has been pushed and marks which
+revision is live.
+
+`restage paywall push <name>` still works for a `@Paywall` surface. New scripts
+should use `restage surface push` for every surface type.
+
+### Release receipts
+
+`--record-git` records a push or a publish in your repository. The CLI writes a
+small JSON file under `.restage/receipts/` and commits that one file.
+
+```sh
+restage surface push welcome --record-git
+restage surface publish welcome --record-git
+```
+
+Set `recordGit: true` in `restage_config.yaml` to make it the default for the
+project, and pass `--no-record-git` to skip it for one run.
+
+A recorded push checks your source before it calls the server:
+
+- Your app package, and the packages it depends on inside the repository, must
+  be committed. Untracked files count; ignored files do not. If the package
+  graph has not been resolved, the push stops and asks you to run
+  `dart pub get`.
+- The code generator runs and the check repeats, so generated files your
+  repository tracks must be committed too.
+- The receipt records the revision, the artifact hashes, and the commit the
+  output was built from.
+
+Two commits are involved:
+
+- The source commit is yours, made with your normal Git workflow.
+- The receipt commit is the CLI's. It holds only the receipt and points at the
+  source commit. Anything else you have staged or modified stays where it is.
+
+Revision numbers count per organization, project, and environment, so `r17` in
+staging and `r17` in production are different content. Receipts are filed the
+same way:
+
+```
+.restage/receipts/acme/storefront/mobile/surface/onboarding/welcome/staging/push-r17.json
+.restage/receipts/acme/storefront/mobile/surface/onboarding/welcome/staging/publish-20260917T195237.412Z-r17.json
+```
+
+A publish receipt reads the push receipt for that revision. That way it names
+the commit the revision was built from, even if your `HEAD` has moved since. If
+no push receipt exists, the publish receipt says the source is unknown and the
+publish goes ahead.
+
+If the server call succeeds but the commit fails (for example because of a hook
+or a signing key), the receipt file is already written. The CLI reports both
+results, shows what Git said, and prints the two commands that commit the file:
+
+```
+Published "welcome" at r17 in production (contract v2).
+Git receipt pending: the operation is recorded in app/.restage/receipts/...
+error: cannot run .git/hooks/pre-commit: No such file or directory
+Commit it with:
+  git -C '/path/to/repo' add -- 'app/.restage/receipts/...'
+  git -C '/path/to/repo' commit --only -m 'restage: publish welcome r17 to production' -- 'app/.restage/receipts/...'
+```
+
+Running them commits the same file. Nothing is pushed or published again.
+
+The CLI never pushes Git commits to a remote and never creates a branch or a
+pull request. Receipt commits land on your current branch.
+
+## Builds (pre-release)
+
+When a surface uses widgets from your app, the dashboard needs a build of your
+app to display it. `restage build push` builds those widgets for the web and
+uploads the build:
+
+```sh
+restage build push               # your personal build
+restage build push --env staging # the build for an environment
+```
+
+Each app has one build per environment plus one personal build per user.
+Moving an environment's build needs an admin account or an API key. The
+command builds twice, checks that both builds are identical, and uploads only
+the files the service does not already have:
+
+```
+Pushed mobile staging version 4. Moved 3 of 41 app files. Built from a91f2c3.
+```
+
+`restage build push` runs the code generator first. Pass `--no-generate` to
+build from what the last run produced. `--record-git` writes a release receipt
+for the build.
+
+When you push a surface that uses your app's widgets and the environment has no
+build that includes them, the CLI tells you which command to run.
+`restage surface push welcome --build` pushes the build first.
+
+For CI, set `RESTAGE_API_KEY` to a secret key with the bundle-push scope. A key
+belongs to one organization, app, and environment, so give each environment
+its own key and its own job:
+
+```sh
+RESTAGE_API_KEY=… restage build push
+```
+
+The key is read from the environment only. It cannot be passed as a flag or
+in `restage_config.yaml`, and it is never written to the credentials file.
+
+## Experiments (beta)
+
+`restage experiment` has one subcommand per experiment operation: drafting,
+validation, review, activation, pausing, concluding, and reading results. It
+is hidden until you set `RESTAGE_EXPERIMENTAL=1`, because Restage Cloud does
+not serve these operations yet. Run `restage experiment --help` for the full
+list.
 
 ```sh
 restage experiment discover
@@ -96,168 +262,17 @@ restage experiment read --experiment-id <id>
 restage experiment pause --experiment-id <id> --expected-lifecycle-ordinal <n>
 ```
 
-There are fifteen subcommands, one per operation: `discover`, `create`,
-`read-draft`, `save`, `copy`, `validate`, `review`, `activate`, `pause`,
-`resume`, `conclude`, `list`, `read`, `results`, `archive`. Reading a draft,
-reading an experiment, and reading its results are three of them, because they
-are three different requests.
+`--json` prints the service's response unchanged. A write that changes live
+state needs `--yes` or an interactive confirmation. Writes send an idempotency
+key (one per run, or pass `--idempotency-key`), so a retry never applies an
+operation twice.
 
-`--json` prints the exact result the service returned rather than a shape this
-tool invents, so a script reads what the service said. A write that changes live
-state needs `--yes` or an interactive confirmation. Writes carry an idempotency
-key, generated per run unless you pass `--idempotency-key`; a retry within one
-run resends byte-identical content under the same key, so a lost reply cannot
-apply an operation twice.
+## Generated files
 
-## Pushing and publishing
-
-A push uploads a version to the server and changes nothing that is running. A
-publish makes one of those versions live. Push ten variants; publish one.
-
-After `dart run build_runner build`, the CLI reads the generated manifest at
-`.restage/build/metadata/restage.publication.json` and uploads the artifacts it records
-for the surface you name. `--type` is optional validation.
-
-You can name the surface by id or by its `.dart` file:
-
-```sh
-restage surface push welcome
-restage surface push lib/screens/welcome.dart
-```
-
-A file is resolved through the same manifest, so it selects what the build
-produced for that file. Nothing is parsed and no directory is scanned. A screen
-that belongs to a flow selects the flow, since the flow is what ships it. If a
-file produced more than one surface, the CLI lists them and asks, or pushes
-all of them under `--all`. A file that produced nothing is an error that names
-the manifest. A run over several surfaces stops at the first failure and
-reports what was pushed and what was not attempted.
-
-Surface categories are `paywall`, `onboarding`, `message`, `survey`, and
-`general`.
-
-`restage surface publish <id>` makes a pushed revision live. With no
-`--revision` it publishes the latest revision pushed to the target
-environment and prints which one that was; pass `--revision <n>` to name an
-older one. `--reason` is optional here and recorded in the audit trail.
-`restage surface history <id>` lists what has been pushed and marks which
-revision is live now.
-
-`restage paywall push <name>` still works for a `@Paywall` surface and reads
-the same manifest. New scripts should use `restage surface push` for every
-category.
-
-### Release receipts
-
-`--record-git` records a push or a publish in your repository. The CLI writes a
-small JSON file under `.restage/receipts/` and commits that one file.
-
-```sh
-restage surface push welcome --record-git
-restage surface publish welcome --record-git
-```
-
-Set `recordGit: true` in `restage_config.yaml` to make it the default for the
-project, and pass `--no-record-git` to skip it for one run. With neither, push
-and publish behave as they do above.
-
-A recorded push checks its source before it calls the server:
-
-- Your app package, and the packages it depends on inside the repository, must
-  be committed. Untracked files count. Ignored files do not. If the resolved
-  package graph is missing, the push stops and asks you to run `dart pub get`,
-  since the packages to check cannot be read without it.
-- The generator runs and the check repeats, so generated output your repository
-  tracks has to be committed too.
-- The receipt then carries the exact revision, the artifact hashes, and the
-  commit the output was produced from.
-
-Two commits are involved, and they are different things:
-
-- The source commit is yours, made with your normal Git workflow.
-- The receipt commit is the CLI's. It holds only the receipt and points at the
-  source commit. Anything else you have staged or modified stays where it is.
-
-Revision numbers are counted per organization, per project and per environment,
-so `r17` in staging and `r17` in production are different content, and so is
-another project's `r17`. Receipts are filed that way for the same reason, under
-the organization the operation resolved to:
-
-```
-.restage/receipts/acme/storefront/mobile/surface/paywall/welcome/staging/push-r17.json
-.restage/receipts/acme/storefront/mobile/surface/paywall/welcome/staging/publish-20260917T195237.412Z-r17.json
-```
-
-Publishing reads that revision's push receipt, so the record names the commit
-the revision was built from however far your `HEAD` has moved since. When no
-receipt here recorded that push, the receipt says the source is unknown and the
-publish goes ahead.
-
-If the server call succeeds and the commit does not, because of a hook or a
-signing key, the receipt file is already written. The CLI reports both outcomes
-and prints the two commands that commit it:
-
-```
-Published "welcome" at r17 in production (contract v2).
-Git receipt pending: the operation is recorded in app/.restage/receipts/...
-error: cannot run .git/hooks/pre-commit: No such file or directory
-Commit it with:
-  git -C '/path/to/repo' add -- 'app/.restage/receipts/...'
-  git -C '/path/to/repo' commit --only -m 'restage: publish welcome r17 to production' -- 'app/.restage/receipts/...'
-```
-
-What Git said is printed above the commands, so a receipts directory you have
-ignored, or a key that is locked, says so.
-
-Running those commits the same file. Nothing is pushed or published again.
-
-The CLI never sends Git commits to a remote, and never creates a branch or a
-pull request. Receipt commits land on your current branch and go out with your
-normal workflow.
-
-## Render bundles (pre-release)
-
-`restage build push` builds a renderer for your custom widgets, uploads it, and
-advances one channel. Each bundle is immutable and runs on its own derived
-origin:
-
-```sh
-restage build push \
-  --project <project-slug> \
-  --channel main
-```
-
-`--channel` accepts `main` or a `user/<handle>` value. The command rejects an
-invalid channel before it touches credentials, build work, or the network. It
-builds twice and requires byte-identical output before it uploads, then
-reports the channel's new version and content hash.
-
-Configure the three origins in `restage_config.yaml`:
-
-```yaml
-endpoint: http://api.restage.localhost:8080
-dashboardOrigin: http://dashboard.restage.localhost:8082
-renderBundleOrigin: http://bundles.restage.localhost:8081
-```
-
-Local use needs those three `restage.localhost` roles on distinct, explicit
-ports. `renderBundleOrigin` is the upload and control origin; a bundle runs on
-its own derived origin, such as `http://b-42.restage.localhost:8081` for bundle
-42. Deployed use needs three distinct HTTPS siblings under `restage.dev`. The
-dashboard origin is the pinned parent origin. `--parent-origin` is accepted
-only when it matches the configured dashboard origin, and `--bundle-origin`
-may supply the bundle control member of the same triplet.
-
-Render bundles are pre-release. Their presence here is not a public deployment
-or package-release signal.
-
-Hosted generation works without an app `build.yaml`. The CLI reads generated
-publication metadata from `.restage/build/metadata/` and follows its bundle
-locators. Explicit `output_root` configuration remains supported. `restage init`
-adds `.restage/build/` to portable output ignore rules. Keep the durable identity
-files `.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`
-tracked in Git.
+`restage init` adds `.restage/build/` to your ignore rules. Commit
+`.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`: they
+keep analytics IDs and catalog IDs stable across clean builds.
 
 ## License
 
-BSD-3-Clause. See `LICENSE`.
+BSD-3-Clause. See [LICENSE](LICENSE).

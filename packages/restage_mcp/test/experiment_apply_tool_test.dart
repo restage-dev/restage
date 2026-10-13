@@ -754,6 +754,7 @@ Map<String, Object?> _payloadFor(ExperimentAuthoringOperationV1 operation) =>
         'pageSize': 100,
       },
       ExperimentAuthoringOperationV1.openDraft => const {},
+      ExperimentAuthoringOperationV1.deleteDraft ||
       ExperimentAuthoringOperationV1.readDraft ||
       ExperimentAuthoringOperationV1.validateDraft ||
       ExperimentAuthoringOperationV1.reviewDraft => _draftBinding,

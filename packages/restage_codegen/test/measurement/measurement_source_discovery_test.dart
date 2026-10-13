@@ -1445,6 +1445,51 @@ void main() {
       );
     });
 
+    test('discovers a measured slot inside a helper declared in a part',
+        () async {
+      final fixture = await _resolveFixture(
+        _partHelperSource(),
+        extraSources: {
+          'apps_examples|lib/onboarding/screens/probe_helpers.dart':
+              _partHelperPartSource(),
+        },
+      );
+      final reachable = await reachableArtifactHelpers(
+        [fixture.rootExpression],
+        astNodeFor: fixture.astNodeFor,
+      );
+      expect(reachable.helpers, hasLength(1));
+      final catalog = _catalogForAstNodes(
+        fixture.resolved.units.map((unit) => unit.unit),
+      );
+
+      final discovery = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+        catalog: catalog,
+        rootHelpers: reachable.helpers,
+      );
+
+      expect(
+        discovery.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: discovery.rejectionReason,
+      );
+      expect(
+        discovery.events.map(
+          (event) => event.resolvedEvent.declarationProvenance.memberName,
+        ),
+        ['onPressed'],
+      );
+
+      final unseeded = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+        catalog: catalog,
+      );
+      expect(unseeded.events, isEmpty);
+    });
+
     test(
       'a locally held widget list matches its literal twin',
       () async {
@@ -1501,6 +1546,7 @@ MeasurementSourceDiscoveryResult _discover(
   Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints = const {},
   Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
   Map<Element, Expression> rootLocalBindings = const {},
+  Map<Element, HelperDef> rootHelpers = const {},
 }) =>
     MeasurementSourceDiscovery.discover(
       MeasurementSourceDiscoveryInput(
@@ -1516,6 +1562,7 @@ MeasurementSourceDiscoveryResult _discover(
         inlinedCustomWidgetCollectionRefusals:
             inlinedCustomWidgetCollectionRefusals,
         rootLocalBindings: rootLocalBindings,
+        rootHelpers: rootHelpers,
       ),
     );
 
@@ -1660,12 +1707,13 @@ final class _FlutterCreationCollector extends RecursiveAstVisitor<void> {
 Future<_ResolvedFixture> _resolveFixture(
   String source, {
   String assetPath = 'lib/onboarding/screens/probe.dart',
+  Map<String, String> extraSources = const {},
 }) async {
   final assetId = AssetId('apps_examples', assetPath);
   late final LibraryElement library;
   late final ResolvedLibraryResult resolved;
   await resolveWorkspaceSources(
-    {assetId.toString(): source},
+    {assetId.toString(): source, ...extraSources},
     (resolver) async {
       library = await resolver.libraryFor(assetId);
       final result = await library.session.getResolvedLibraryByElement(library);
@@ -2845,6 +2893,30 @@ final class UnresolvedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MissingButton(onPressed: () {});
+}
+''';
+
+String _partHelperSource() => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'probe_helpers.dart';
+
+@ScreenSource(id: 'part_helper')
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  @override
+  Widget build(BuildContext context) => Column(children: [_action()]);
+}
+''';
+
+String _partHelperPartSource() => '''
+part of 'probe.dart';
+
+Widget _action() {
+  final label = const Text('Continue');
+  return ElevatedButton(onPressed: () {}, child: label);
 }
 ''';
 

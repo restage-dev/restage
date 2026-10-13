@@ -4,11 +4,13 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for Restage.
 It lets an MCP-capable agent or IDE (such as Claude Code, Claude Desktop, or
-Cursor) manage your Restage surfaces, products, and app configuration
-programmatically, over the same backend the `restage` CLI uses.
+Cursor) manage your Restage surfaces, products, and app configuration through
+the same backend the `restage` CLI uses.
+
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 The server speaks MCP over **stdio**: your MCP host launches `restage_mcp` as a
-subprocess and talks to it over standard input/output.
+subprocess and talks to it over standard input and output.
 
 ## Install
 
@@ -16,12 +18,12 @@ subprocess and talks to it over standard input/output.
 dart pub global activate restage_mcp
 ```
 
-> **Note:** `restage_mcp` isn't on pub.dev yet; until it's published, activate
+> **Note:** `restage_mcp` isn't on pub.dev yet. Until it's published, activate
 > it from a source checkout with
 > `dart pub global activate --source path <checkout>/packages/restage_mcp`.
 
-This puts the `restage_mcp` executable on your `PATH` (via `~/.pub-cache/bin`;
-make sure that directory is on your `PATH`).
+This puts the `restage_mcp` executable in `~/.pub-cache/bin`. Make sure that
+directory is on your `PATH`.
 
 ## Configure your MCP host
 
@@ -63,30 +65,29 @@ Add to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 
 ## Authentication
 
-You can sign in two ways; both write the same cached session, so you only sign
+You can sign in two ways. Both write the same cached session, so you only sign
 in once:
 
 - **In your agent:** call the `restage_login` tool. It opens your browser and
-  shows a short code; approve there, then call `restage_login` once more to
+  shows a short code. Approve there, then call `restage_login` again to
   finish. No CLI needed.
 - **With the CLI:** run `restage login` once; the MCP server reuses that session.
 
-If you're not signed in, tools return a clear message telling you to sign in.
-Your session token is never returned by any tool. Use `restage_whoami` to check
-who you're signed in as, and `restage_logout` to sign out.
+If you're not signed in, tools tell you to sign in. No tool ever returns your
+session token. Use `restage_whoami` to check who you're signed in as, and
+`restage_logout` to sign out.
 
-> **Don't pass secrets as tool argument values.** If an argument fails schema
-> validation (e.g. a key string where a numeric id is expected), the MCP host's
-> validation error may echo the value you supplied back to you. Pass ids and
-> slugs as arguments, not API keys or tokens.
+> **Don't pass secrets as tool arguments.** If an argument fails validation
+> (for example a key string where a numeric id is expected), your MCP host's
+> error message may repeat the value back. Pass ids and slugs, not API keys or
+> tokens.
 
 ### Choosing the backend to sign in against
 
-The in-MCP login needs to know which backend to authenticate against when
-there's no session yet. Out of the box the executable falls back to a local
-backend at `http://localhost:8080/` (useful for development), so to sign in
-against the hosted Restage backend (hosted access is in private beta) set
-`RESTAGE_BACKEND_URL` in the host config:
+With no session yet, the in-agent login needs to know which backend to use.
+By default the executable uses a local backend at `http://localhost:8080/`,
+for development. To sign in to Restage Cloud, set `RESTAGE_BACKEND_URL` in the
+host config:
 
 ```json
 {
@@ -99,13 +100,12 @@ against the hosted Restage backend (hosted access is in private beta) set
 }
 ```
 
-`RESTAGE_BACKEND_URL` is a **login-time** setting (where to authenticate when
-there's no session yet). Once signed in, each tool uses the backend your
-session was minted against, regardless of this value. Point it at your own URL
-to sign in against a self-hosted or staging backend instead.
+`RESTAGE_BACKEND_URL` is only read at sign-in. After that, each tool uses the
+backend your session was created against. Set it to another URL to sign in to
+a different Restage backend, such as a staging environment.
 
 > If you signed in with the `restage` CLI first, the MCP server reuses that
-> session and this setting is not consulted.
+> session and ignores this setting.
 
 ## Tools
 
@@ -117,34 +117,65 @@ to sign in against a self-hosted or staging backend instead.
 | `restage_whoami` | Report the signed-in account. |
 | `restage_logout` | Sign out and remove the local session. |
 
-**Surface-family lifecycle (normal path)**
+**Surfaces**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_list_surfaces` | List surfaces for a `surfaceType` under a project + app. Use the closed values `onboarding`, `message`, `survey`, `paywall`, or `general`. |
+| `restage_list_surfaces` | List surfaces of one `surfaceType` (`onboarding`, `message`, `survey`, `paywall`, or `general`) under a project and app. |
 | `restage_surface_status` | Show the live version, lock state, delivery shape, and lifecycle state for one surface. |
 | `restage_surface_history` | Show the audit timeline for one surface. |
-| `restage_read_surface_funnel` | Read one surface's funnel over a window: views, steps, drop-off and completions per published version. |
-| `restage_push_surface` | Push one surface's current draft to an environment (admin). |
-| `restage_rollback_preflight` | Preview the expected client-impact classification for a rollback without changing state. |
-| `restage_rollback_surface` | Roll a surface back to a pushed version, with an audit reason (admin). |
+| `restage_read_surface_funnel` | Read one surface's funnel over a time window: views, steps, drop-off, and completions per published version. |
+| `restage_push_surface` | Push a new version of one surface to an environment (admin). This does not make it live. |
+| `restage_rollback_preflight` | Check whether a rollback is compatible with the apps already installed, without changing anything. |
+| `restage_rollback_surface` | Make an earlier published version live again, with an audit reason (admin). Can also freeze the surface against new publishes. |
 
-Use these surface-family tools for normal discovery, push, status, and
-lifecycle operations. Pass `surfaceType` and `surfaceSlug` explicitly; the
-surface family is part of the identity, so paywalls and non-paywall surfaces use
-the same lifecycle path.
+Pass `surfaceType` and `surfaceSlug` explicitly. Every surface type uses the
+same tools.
 
-**Paywall-specific compatibility tools**
+**Pushing does not make a version live.** `restage_push_surface` uploads a new
+version and changes nothing users see. To publish it, run
+`restage surface publish <id>` with the `restage` CLI. From the MCP server you
+can make an earlier version live with `restage_rollback_surface`, or change
+which published version each audience receives with the routing tools below.
 
-These tools remain for specialized paywall draft and blob workflows. For a
-normal push, use the surface-family tools above:
+**Delivery routing (beta)**
+
+Routing decides which published version each request receives.
 
 | Tool | What it does |
 | --- | --- |
-| `restage_list_paywalls` | List specialized paywalls under a project + app. |
-| `restage_get_paywall` | Download a specialized paywall's compiled draft blob as base64 for backup or inspection. |
-| `restage_push_paywall` | Push a specialized paywall draft to an environment (admin). Prefer `restage_push_surface` for the normal lifecycle. |
-| `restage_get_published_version` | Read the version of a specialized paywall currently published in an environment. |
+| `restage_read_routing` | Read the routing rules stored for one surface in one environment, with the revision to pass back when you publish. |
+| `restage_read_routing_revision` | Read an earlier revision of those rules, to review before restoring it. |
+| `restage_preview_routing` | Evaluate routing rules against a sample request without publishing them. |
+| `restage_publish_routing` | Publish a complete set of routing rules, replacing what is stored. |
+| `restage_rollback_route` | Restore one route to an earlier revision and leave the rest unchanged. |
+| `restage_list_routing_audiences` | List the audiences a routing rule can name. |
+| `restage_routing_audience_usage` | List the experiments and routing rules that use one audience. |
+| `restage_read_delivery_diagnostics` | Read one surface's delivery diagnostics for a date range: default versions served and requests the server refused. |
+
+**Builds**
+
+A surface that uses widgets from your app can only be displayed in the
+dashboard with a build of that app. `restage_push_surface` and
+`restage_push_paywall` add a `buildNotice` when the environment's build can't
+draw the surface, with the command that fixes it.
+
+| Tool | What it does |
+| --- | --- |
+| `restage_list_render_bundle_heads` | List an app's builds (one per environment and one per user), with the version, the commit it was built from, and the widget libraries it includes. |
+| `restage_push_build` | Build the app's widgets and push the build, the same as `restage build push`: to an environment with `environmentSlug`, or to your own build without it. Runs a Flutter web build, so it can take minutes. |
+
+**Paywalls**
+
+For a normal push, use `restage_push_surface`. These tools work with paywall
+drafts directly:
+
+| Tool | What it does |
+| --- | --- |
+| `restage_list_paywalls` | List paywalls under a project and app. |
+| `restage_get_paywall` | Download a paywall's compiled draft as base64, for backup or inspection. |
+| `restage_push_paywall` | Push a paywall draft to an environment (admin). |
+| `restage_get_published_version` | Read which version of a paywall is published in an environment. |
 
 **Discovery**
 
@@ -154,22 +185,27 @@ normal push, use the surface-family tools above:
 | `restage_list_projects` | Projects under an organization. |
 | `restage_list_apps` | Apps under a project. |
 | `restage_list_environments` | Environments under a project. |
+| `restage_list_environment_targets` | Environment targets under an app. |
 
-**Products & store**
+**Products and stores**
 
 | Tool | What it does |
 | --- | --- |
 | `restage_list_products` | Store products (SKUs) for an app, optionally filtered by store. |
-| `restage_import_products` | Re-fetch a store's catalog and upsert products (admin). |
-| `restage_list_product_slots` | Product slots (the surface-facing entitlement handles). |
-| `restage_upsert_product_slot` | Create/update a slot **and its complete product mapping** (admin). Full replace. See the note below. |
-| `restage_list_store_connections` | Store connections (non-secret metadata only). |
+| `restage_import_products` | Re-fetch a store's catalog and update products (admin). |
+| `restage_list_product_slots` | Product slots: the handles surfaces use to refer to products. |
+| `restage_upsert_product_slot` | Create or update a slot **and its complete product mapping** (admin). See the note below. |
+| `restage_list_store_connections` | Store connections (non-secret details only). |
+
+> **`restage_upsert_product_slot` replaces the whole mapping.** A store id you
+> pass as `null` is unmapped. To keep an existing mapping, pass its current
+> product id. List the slots and products first to read the current mapping.
 
 **App configuration**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_get_app_config` | An app's iOS bundle id / Android package / web domain. |
+| `restage_get_app_config` | An app's iOS bundle id, Android package, and web domain. |
 | `restage_update_app_config` | Update them (admin). Omit a field to leave it; pass an empty string to clear it. |
 
 **API keys**
@@ -179,85 +215,64 @@ normal push, use the surface-family tools above:
 | `restage_list_api_keys` | List an environment's API keys (redacted: no hash or plaintext). |
 | `restage_revoke_api_key` | Revoke a key by id (admin). |
 
-**Experiments** (experimental — set `RESTAGE_EXPERIMENTAL=1` to register)
+> The server can't create API keys, because a new key's secret is shown only
+> once. Create keys in the dashboard or with the `restage` CLI.
+
+**Experiments (beta)**
+
+These tools register only when the host sets `RESTAGE_EXPERIMENTAL=1` in the
+server's environment, because Restage Cloud does not serve these operations
+yet.
 
 | Tool | What it does |
 | --- | --- |
-| `restage_experiment_apply` | Apply one experiment operation at an exact target. |
-| `restage_read_experiment_results` | Read one experiment's results at an exact target. |
-| `restage_read_experiment_roster` | List every experiment at an exact target beside the results each names. |
+| `restage_experiment_apply` | Apply one experiment operation at a target: drafting, validation, review, activation, pausing, concluding, archiving, and reads. |
+| `restage_read_experiment_results` | Read one experiment's results. |
+| `restage_read_experiment_roster` | List every experiment at a target with its results. |
+| `restage_rebuild_serving_records` | Create any serving records an experiment target is missing, and report what is still missing. |
+| `restage_apply_canonical_mutation` | Apply one pre-encoded (base64) measurement or experiment request. For tooling that already produces these requests. |
 
-`operation` is a closed choice of the fifteen experiment operations —
-`discoverTargetsAndCapabilities`, `openDraft`, `readDraft`, `replaceDraft`,
-`copyDraftToTarget`, `validateDraft`, `reviewDraft`, `activateDraft`,
-`pauseExperiment`, `resumeExperiment`, `concludeExperiment`, `listExperiments`,
-`readExperiment`, `readExperimentResults`, `setExperimentArchived` — and
-`payload` is that operation's own document.
+`restage_experiment_apply` takes an `operation`, chosen from a fixed list the
+tool's schema declares, and a `payload`, which is that operation's own
+document. Unknown properties are rejected before any request is sent. To let
+the service choose a value, pass the `serverDefault` placeholder, and don't
+pass a value with it. Pass `idempotencyKey` for an operation that changes
+state. A refusal from the service comes back with its code, not as a tool
+error.
 
-Reading a draft, reading an experiment, and reading its results are three
-separate operations. They ask different questions and return different answers,
-so none of them is a mode of the others.
+Results come back as decimals together with the counts they were computed
+from, unrounded.
 
-The tool takes no base64 and rejects an unknown property. A malformed payload is
-refused before it reaches the network, which means a mistake costs you a message
-rather than a request. Where a choice can be left to the service, say so with
-the bare `serverDefault` sentinel; passing a resolved value alongside it is
-refused, because deciding a value and asking the service to decide it are
-different requests.
+An agent can work in a loop: read results with
+`restage_read_experiment_roster` or `restage_read_experiment_results`, read a
+surface's funnel with `restage_read_surface_funnel`, push the next onboarding
+flow, survey, message, or paywall with `restage_push_surface`, publish it, and
+roll back with `restage_rollback_surface` if the numbers say so.
 
-Pass `idempotencyKey` for an operation that changes state, and leave it off for
-one that does not. A refusal from the service comes back as a refusal carrying
-its code, not as a tool error.
+There is no extra confirmation step for writes to a live experiment. Your MCP
+host's per-call approval is the confirmation. (The CLI asks for `--yes`
+instead, because a shell has no such approval.) Approve live writes
+deliberately, or use a sandbox target.
 
-The read tools close the loop an agent runs. Read the roster with
-`restage_read_experiment_roster` to see every experiment at a target beside its
-figures, or one experiment's results with `restage_read_experiment_results`.
-Read one surface's own funnel with `restage_read_surface_funnel` to see, per
-published version, how many presentations were viewed, where they stopped and
-how many completed. Decide from what you read, push the next onboarding flow,
-survey, message or paywall with `restage_push_surface`, start the next
-comparison with `restage_activate_experiment`, read the results again, and roll
-the surface back with `restage_rollback_surface` if the figures say so. Every
-rate, effect and interval end arrives as a decimal beside the exact numerator
-and denominator it came from, exactly as the service produced it; no tool
-rounds, re-derives or drops a figure.
+## Security
 
-The tool adds no confirmation step of its own for a write to a live experiment.
-Your MCP host already approves each tool call, and that approval is the consent
-step; a `confirm: true` argument would only be a box an agent ticks. The
-command-line tool asks for `--yes` instead, because a shell has no such
-approval. Approve live calls deliberately, or run against a sandbox target.
+`restage_mcp` handles your Restage session, so it keeps secrets out of what it
+sends to your agent:
 
-> Minting API keys is intentionally not exposed here: it returns a one-time
-> plaintext secret. Mint keys from the dashboard or the `restage` CLI.
+- **Damaged local data.** A malformed or hand-edited credentials file never
+  leaks its contents (for example a token stored in the endpoint) into a tool
+  result or error.
+- **Internal errors.** No exception, stack trace, or secret is forwarded to
+  the client. An internal error returns a fixed message; a one-line error type
+  goes to stderr only.
+- **Agent input.** Tool arguments are validated against a schema. See the note
+  above about not passing secrets as arguments.
 
-> **`restage_upsert_product_slot` is a full replace.** It sets the slot's
-> complete product mapping every call: a store id you pass as `null` is
-> *unmapped*. To keep an existing mapping, pass its current product id; list
-> the slots and products first to read the current mapping.
-
-## Security posture
-
-`restage_mcp` handles your Restage session, so it's built to keep secrets off
-the channel it speaks to your agent. Concretely, it defends against:
-
-- **Corrupt or crafted local data.** A malformed or hand-edited credentials
-  file never leaks its bytes (e.g. a token embedded in the stored endpoint) into
-  a tool result or error.
-- **Its own bugs.** No exception, stack trace, or secret is ever forwarded to
-  the client; an internal error returns a fixed, generic message (a one-line
-  type breadcrumb goes to stderr only).
-- **Untrusted agent input.** Tool arguments are schema-validated; one caveat is
-  documented above (don't pass secrets as argument values).
-
-As defense-in-depth it also scrubs your session token and the device-login grant
-from every tool result, so even a *buggy* backend response cannot put them into
-your agent's chat history. It does **not**, however, claim to defend against a
-**maliciously compromised first-party Restage backend** actively trying to
-exfiltrate a secret it already holds: such a backend already has your session,
-your data, and everything the API can reach, independent of this server. That
-threat is out of scope by design.
+It also removes your session token and the device-login code from every tool
+result, so even a faulty backend response can't put them into your agent's
+chat history. It does not protect against a compromised Restage backend, which
+already holds your session.
 
 ## License
 
-BSD-3-Clause. See [LICENSE](./LICENSE).
+BSD-3-Clause. See [LICENSE](LICENSE).

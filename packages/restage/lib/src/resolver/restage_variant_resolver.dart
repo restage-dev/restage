@@ -23,6 +23,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocument,
         Surface;
 
+import '../delivery/surface_delivery_receipt.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_artifact_metadata.dart';
 import '../flow/flow_experiment_mount.dart';
@@ -36,10 +37,12 @@ import '../runtime/library_runtime_registry.dart';
 import '../runtime/paywall_error.dart';
 import 'asset_variant_resolver.dart';
 import 'asset_paywall_flow_preflight.dart';
+import 'delivery_input_budget.dart';
 import 'flow_paywall_active_arm.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
 import 'surface_assignment_key_provider.dart';
+import 'surface_request_inputs.dart';
 import 'surface_resolution_report.dart';
 import 'report_surface_resolution.dart';
 import 'variant_resolver.dart';
@@ -171,6 +174,7 @@ final class RestageVariantResolver
         id,
         _asCacheHit(cached.variant),
         SurfaceResolutionSource.holdLastGood,
+        reason: _fallbackReasonOf(fresh),
       );
     }
 
@@ -186,6 +190,7 @@ final class RestageVariantResolver
         id,
         variant,
         SurfaceResolutionSource.bundled,
+        reason: _fallbackReasonOf(fresh),
       );
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Surface the hosted-unavailable
@@ -199,13 +204,20 @@ final class RestageVariantResolver
   T _reportPayloadResolution<T extends ResolvedPaywallPayload>(
     String surface,
     T payload,
-    SurfaceResolutionSource source,
-  ) {
+    SurfaceResolutionSource source, {
+    SurfaceDeliveryReceiptReason reason = SurfaceDeliveryReceiptReason.none,
+  }) {
     final leaf = switch (payload) {
       BlobPaywallPayload(:final variant) => variant,
       FlowPaywallPayload(:final flow) => flow,
     };
-    reportSurfaceResolution(Surface.paywall, surface, leaf, source);
+    reportSurfaceResolution(
+      Surface.paywall,
+      surface,
+      leaf,
+      source,
+      reason: reason,
+    );
     return payload;
   }
 
@@ -379,6 +391,7 @@ final class RestageVariantResolver
         id,
         regated,
         SurfaceResolutionSource.holdLastGood,
+        reason: _fallbackReasonOf(fresh),
       );
     }
 
@@ -390,6 +403,7 @@ final class RestageVariantResolver
         id,
         bundled,
         SurfaceResolutionSource.bundled,
+        reason: _fallbackReasonOf(fresh),
       );
     }
     try {
@@ -401,6 +415,7 @@ final class RestageVariantResolver
           id,
           withoutAssignmentLeaseForDelivery(payload),
           SurfaceResolutionSource.bundled,
+          reason: _fallbackReasonOf(fresh),
         );
       }
       final variant = await fallback.resolve(
@@ -412,6 +427,7 @@ final class RestageVariantResolver
         id,
         BlobPaywallPayload(variant),
         SurfaceResolutionSource.bundled,
+        reason: _fallbackReasonOf(fresh),
       );
     } on RestagePaywallError {
       // Tier 4 — nothing renderable anywhere. Keep the public hosted resolver's
@@ -442,21 +458,32 @@ final class RestageVariantResolver
   Future<_FreshOutcome> _resolveFresh(String id) async {
     final client = _client;
     if (client == null) {
-      return const _FreshRejected(); // no hosted tier (no baseUrl)
+      // No hosted tier: the bundled copy is the design, not a fallback.
+      return const _FreshRejected(reason: SurfaceDeliveryReceiptReason.none);
     }
 
     // The client contract (built-in catalog version + installed libraries) the
     // server resolves eligibility against; its content hash is byte-identical
     // to the server's, so a verdict is identity by construction.
     final installed = currentInstalledCapability();
-    final assignmentLease = await SurfaceAssignmentKeyProvider.captureLease();
-    _requireCurrent(assignmentLease);
-
-    final result = await client.fetchSurface(
-      surfaceType: Surface.paywall.wireName,
-      surfaceSlug: id,
-      assignmentKey: assignmentLease.assignmentKey,
-      // version omitted → the delivery service's active-version arm.
+    final (assignmentLease, result) = await DeliveryInputBudget.run(
+      (budget) async {
+        final inputs = await SurfaceRequestInputs.gather(
+          budget: budget,
+          surface: Surface.paywall.wireName,
+          slug: id,
+        );
+        _requireCurrent(inputs.lease);
+        return (
+          inputs.lease,
+          await client.fetchSurface(
+            surfaceType: Surface.paywall.wireName,
+            surfaceSlug: id,
+            inputs: inputs,
+            // version omitted → the delivery service's active-version arm.
+          ),
+        );
+      },
     );
     _requireCurrent(assignmentLease);
     if (result == null) {
@@ -474,7 +501,8 @@ final class RestageVariantResolver
         return const _FreshRejected();
       case SurfaceArtifactUndecodable(:final error):
         debugPrint('[restage] hosted paywall "$id" failed to decode: $error');
-        return const _FreshRejected();
+        return const _FreshRejected(
+            reason: SurfaceDeliveryReceiptReason.decodeFailed);
     }
 
     // Defense-in-depth: the served document must be the paywall we asked for.
@@ -487,7 +515,8 @@ final class RestageVariantResolver
         '[restage] hosted paywall "$id" served a mismatched surface '
         '(${document.surfaceType.wireName} "${document.surfaceSlug}")',
       );
-      return const _FreshRejected();
+      return const _FreshRejected(
+          reason: SurfaceDeliveryReceiptReason.serverError);
     }
 
     final payload = document.payload;
@@ -506,7 +535,10 @@ final class RestageVariantResolver
       );
       if (gateVerdict is BlobRenderRejected) {
         debugPrint('[restage] hosted paywall "$id" ${gateVerdict.message}');
-        return _FreshRejected(capabilityGap: gateVerdict.message);
+        return _FreshRejected(
+          capabilityGap: gateVerdict.message,
+          reason: SurfaceDeliveryReceiptReason.unsupported,
+        );
       }
 
       final variant = attachMeasurementPublicationBindingReference(
@@ -549,7 +581,8 @@ final class RestageVariantResolver
     debugPrint(
       '[restage] hosted paywall "$id" did not contain a renderable payload',
     );
-    return const _FreshRejected();
+    return const _FreshRejected(
+        reason: SurfaceDeliveryReceiptReason.serverError);
   }
 
   /// Loads the client's bundled flow paywall (`assets/paywalls/<id>.flow.json`
@@ -670,6 +703,12 @@ final class RestageVariantResolver
 String? _capabilityGapOf(_FreshOutcome fresh) =>
     fresh is _FreshRejected ? fresh.capabilityGap : null;
 
+/// Why a fresh copy was not served; a gated-out flow is unsupported.
+SurfaceDeliveryReceiptReason _fallbackReasonOf(_FreshOutcome fresh) =>
+    fresh is _FreshRejected
+        ? fresh.reason
+        : SurfaceDeliveryReceiptReason.unsupported;
+
 final class _RestagePaywallExperimentPresentation
     implements
         FlowPaywallExperimentRetryAuthority,
@@ -780,6 +819,9 @@ final class _RestagePaywallExperimentPresentation
                 experimentAuthority: this,
               ),
               SurfaceResolutionSource.holdLastGood,
+              reason: fresh == null
+                  ? SurfaceDeliveryReceiptReason.offline
+                  : SurfaceDeliveryReceiptReason.unsupported,
             );
           }
           owner._experimentFlowCache.remove(paywallId);
@@ -797,6 +839,9 @@ final class _RestagePaywallExperimentPresentation
             experimentAuthority: this,
           ),
           SurfaceResolutionSource.bundled,
+          reason: fresh == null
+              ? SurfaceDeliveryReceiptReason.offline
+              : SurfaceDeliveryReceiptReason.unsupported,
         );
       } on StaleSurfaceAssignmentResolution {
         if (_disposed || !presentationGuard()) rethrow;
@@ -1173,7 +1218,13 @@ final class _FreshFlow extends _FreshOutcome {
 }
 
 final class _FreshRejected extends _FreshOutcome {
-  const _FreshRejected({this.capabilityGap});
+  const _FreshRejected({
+    this.capabilityGap,
+    this.reason = SurfaceDeliveryReceiptReason.offline,
+  });
+
+  /// Why the fresh copy was not served.
+  final SurfaceDeliveryReceiptReason reason;
 
   /// Set only when the fresh fetch was rejected for a capability reason
   /// (minClient above the installed catalog, or an unsatisfied library) — a
@@ -1257,9 +1308,9 @@ ResolvedPaywallPayload withoutAssignmentLeaseForDelivery(
 /// Hosted authorization and metering use the environment bound to the API key;
 /// this hint and the key's readable environment label do not select it.
 enum RestageEnvironment {
-  /// Sandbox hint, commonly used with `rs_pk_dev_…` keys.
+  /// Sandbox hint, commonly used with `rs_pk_sandbox_…` keys.
   sandbox,
 
-  /// Production hint, commonly used with `rs_pk_prod_…` keys.
+  /// Production hint, commonly used with `rs_pk_live_…` keys.
   production,
 }

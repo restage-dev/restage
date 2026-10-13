@@ -37,12 +37,12 @@ const Map<String, String> _defaultDevDeps = {
 /// slugs, then writes four artifacts:
 ///
 ///   1. `restage_config.yaml` at the project root.
-///   2. A canonical `@Paywall` starter under `lib/paywalls/`.
+///   2. A starter `@Paywall` under `lib/paywalls/`.
 ///   3. Edits to `pubspec.yaml` adding the SDK + codegen dependencies.
 ///   4. Portable generated-output rules in the project's `.gitignore`.
 ///
 /// The starter and dependency edits have opt-out flags
-/// (`--no-starter`, `--no-wire-deps`); portable-output rules are additive,
+/// (`--no-starter`, `--no-add-deps`); portable-output rules are additive,
 /// idempotent, and can be removed or negated in `.gitignore`. The wizard can
 /// be skipped end-to-end with `--non-interactive` + the per-value flags.
 /// `--dry-run` prints the planned changes without writing.
@@ -79,11 +79,11 @@ class InitCommand extends Command<int> {
       )
       ..addFlag(
         'starter',
-        help: 'Write a canonical `@Paywall` starter to `lib/paywalls/`.',
+        help: 'Write a starter `@Paywall` to `lib/paywalls/`.',
         defaultsTo: true,
       )
       ..addFlag(
-        'wire-deps',
+        'add-deps',
         help:
             'Add `restage` (dependencies) plus `restage_codegen` '
             'and `build_runner` (dev_dependencies) to pubspec.yaml.',
@@ -107,8 +107,8 @@ class InitCommand extends Command<int> {
 
   @override
   String get description =>
-      'Bootstrap a Flutter project for Restage — writes config, a canonical '
-      'starter paywall, pubspec wiring, and portable-output ignores.';
+      'Set up a Flutter project for Restage: writes config, a starter '
+      'paywall, pubspec dependencies, and build-output ignores.';
 
   @override
   Future<int> run() async {
@@ -137,13 +137,13 @@ class InitCommand extends Command<int> {
     );
 
     final wantsStarter = results['starter'] as bool;
-    final wantsWireDeps = results['wire-deps'] as bool;
+    final wantsDeps = results['add-deps'] as bool;
     final dryRun = results['dry-run'] as bool;
 
     // Read the pubspec once; both the dry-run plan and the apply path
     // consume the same source.
-    final pubspecSource = wantsWireDeps ? await pubspec.readAsString() : '';
-    final pubspecPlan = wantsWireDeps
+    final pubspecSource = wantsDeps ? await pubspec.readAsString() : '';
+    final pubspecPlan = wantsDeps
         ? planAddDependencies(
             pubspecSource,
             deps: _defaultRuntimeDeps,
@@ -204,7 +204,7 @@ class InitCommand extends Command<int> {
       }
     }
 
-    if (wantsWireDeps && pubspecPlan != null && !pubspecPlan.isNoOp) {
+    if (wantsDeps && pubspecPlan != null && !pubspecPlan.isNoOp) {
       final result = addDependencies(
         pubspecSource,
         deps: _defaultRuntimeDeps,
@@ -221,7 +221,7 @@ class InitCommand extends Command<int> {
           'Kept existing pubspec entries: ${result.kept.join(', ')}.',
         );
       }
-    } else if (wantsWireDeps) {
+    } else if (wantsDeps) {
       _stdout.writeln('Pubspec dependencies already wired.');
     }
 

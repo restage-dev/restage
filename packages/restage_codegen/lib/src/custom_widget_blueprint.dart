@@ -202,13 +202,37 @@ final class CustomWidgetStateField {
 @immutable
 final class HelperDef {
   /// Creates a helper definition.
-  const HelperDef({required this.params, required this.body});
+  const HelperDef({
+    required this.params,
+    required this.body,
+    this.localBindings = const {},
+  });
 
   /// The helper's formal parameters, in declaration order.
   final List<FormalParameterElement> params;
 
   /// The helper's single returned expression — inlined at the call site.
   final Expression body;
+
+  /// The helper body's leading `final` locals, keyed by declared element; each
+  /// reference resolves-through to its initializer, as in `build()`.
+  final Map<Element, Expression> localBindings;
+
+  /// [body] and every local initializer, for consumers that walk the source.
+  Iterable<Expression> get roots => [body, ...localBindings.values];
+}
+
+/// [bindings] plus the `final` locals of every helper in [helpers], so a
+/// reference inside an inlined helper body resolves like a `build()` local.
+Map<Element, Expression> withHelperLocals(
+  Map<Element, Expression> bindings,
+  Iterable<HelperDef> helpers,
+) {
+  if (helpers.every((helper) => helper.localBindings.isEmpty)) return bindings;
+  return {
+    ...bindings,
+    for (final helper in helpers) ...helper.localBindings,
+  };
 }
 
 /// Returns all same-unit helpers with one statically inlinable return value.
@@ -219,6 +243,12 @@ Map<Element, HelperDef> inlinableHelperDefinitionsIn(AstNode node) =>
 /// but for a prelude declaration the author fixes in place.
 Map<Element, String> refusedHelperDefinitionsIn(AstNode node) =>
     _indexHelpers(node).refusals;
+
+/// The named refusal of a helper declared in another unit, recorded when a
+/// build that calls it was read.
+String? recordedHelperRefusal(Element helper) => _refusalsByHelper[helper];
+
+final Expando<String> _refusalsByHelper = Expando();
 
 _HelperIndex _indexHelpers(AstNode node) {
   final root = node.root;
@@ -232,6 +262,74 @@ _HelperIndex _indexHelpers(AstNode node) {
   root.accept(_HelperDefinitionIndexer(index));
   _helperIndexCache[root] = index;
   return index;
+}
+
+/// The helpers reachable from [roots] through artifact-bound calls, or the
+/// first helper that calls itself (directly or transitively).
+Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
+    reachableArtifactHelpers(
+  Iterable<Expression> roots, {
+  required Future<AstNode?> Function(Fragment fragment) astNodeFor,
+}) async {
+  final helpers = Map<Element, HelperDef>.identity();
+  final stack = <Element>{};
+  ExecutableElement? recursive;
+
+  Future<HelperDef?> definitionFor(
+    ExecutableElement element,
+    MethodInvocation call,
+  ) async {
+    final known =
+        helpers[element] ?? inlinableHelperDefinitionsIn(call)[element];
+    if (known != null) return known;
+    final (:definition, :refusal) =
+        helperDefinitionOf(element, await astNodeFor(element.firstFragment));
+    if (refusal != null) _refusalsByHelper[element] = refusal;
+    return definition;
+  }
+
+  Future<void> visit(AstNode node) async {
+    final calls = <MethodInvocation>[];
+    node.accept(_ArtifactHelperCallCollector(calls));
+    for (final call in calls) {
+      if (recursive != null) return;
+      final element = call.methodName.element! as ExecutableElement;
+      if (!stack.add(element)) {
+        recursive = element;
+        return;
+      }
+      try {
+        final definition = await definitionFor(element, call);
+        if (definition == null) continue;
+        final seen = helpers.containsKey(element);
+        helpers[element] = definition;
+        if (!seen) {
+          for (final root in definition.roots) {
+            await visit(root);
+          }
+        }
+      } finally {
+        stack.remove(element);
+      }
+    }
+  }
+
+  for (final root in roots) {
+    await visit(root);
+  }
+  return (helpers: helpers, recursive: recursive);
+}
+
+final class _ArtifactHelperCallCollector extends RecursiveAstVisitor<void> {
+  _ArtifactHelperCallCollector(this.calls);
+
+  final List<MethodInvocation> calls;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (isArtifactHelperInvocation(node)) calls.add(node);
+    super.visitMethodInvocation(node);
+  }
 }
 
 /// Whether [invocation] is statically bound within its source artifact.
@@ -279,34 +377,61 @@ final class _HelperDefinitionIndexer extends RecursiveAstVisitor<void> {
 
   @override
   void visitMethodDeclaration(MethodDeclaration node) {
-    _add(node.declaredFragment?.element, node.body);
+    _add(node.declaredFragment?.element, node);
     super.visitMethodDeclaration(node);
   }
 
   @override
   void visitFunctionDeclaration(FunctionDeclaration node) {
-    _add(
-      node.declaredFragment?.element,
-      node.functionExpression.body,
-    );
+    _add(node.declaredFragment?.element, node);
     super.visitFunctionDeclaration(node);
   }
 
-  void _add(ExecutableElement? element, FunctionBody body) {
-    if (element == null || element.returnType is! InterfaceType) return;
-    final expression = singleReturnExpressionOf(body);
-    if (expression == null) {
-      // Only a named prelude refusal is recorded; every other body shape is
-      // simply not a helper.
-      final problem = preludeDeclarationProblem(body);
-      if (problem != null) index.refusals[element] = problem;
-      return;
-    }
-    index.definitions[element] = HelperDef(
-      params: element.formalParameters.toList(),
-      body: expression,
+  void _add(ExecutableElement? element, AstNode node) {
+    if (element == null) return;
+    final (:definition, :refusal) = helperDefinitionOf(element, node);
+    if (definition != null) index.definitions[element] = definition;
+    if (refusal != null) index.refusals[element] = refusal;
+  }
+}
+
+/// The inlinable definition of the helper [element] that [node] declares, or
+/// the named prelude refusal that stops it inlining. Both are `null` when
+/// [node] declares no helper body.
+({HelperDef? definition, String? refusal}) helperDefinitionOf(
+  ExecutableElement element,
+  AstNode? node,
+) {
+  final body = switch (node) {
+    MethodDeclaration() => node.body,
+    FunctionDeclaration() => node.functionExpression.body,
+    _ => null,
+  };
+  if (body == null || element.returnType is! InterfaceType) {
+    return (definition: null, refusal: null);
+  }
+  final extracted = extractInlinableBuildBody(body);
+  if (extracted == null) {
+    return (
+      definition: null,
+      refusal: preludeDeclarationProblem(body) ??
+          'its body must be one returned expression, optionally preceded by '
+              'initialized final or const locals',
     );
   }
+  final problem = inlinableBuildBodyProblem(
+    extracted,
+    scope: "the helper '${element.name}'",
+  );
+  if (problem != null) return (definition: null, refusal: problem);
+  return (
+    definition: HelperDef(
+      params: element.formalParameters.toList(),
+      body: extracted.expression,
+      localBindings: extracted.localBindings,
+    ),
+    refusal: null,
+  );
 }
 
 /// The named intermediates the classifier resolved so the translator can
