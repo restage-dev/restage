@@ -2,26 +2,24 @@
 
 Every surface picks up new content the next time it is shown. That is the default, and it covers most changes: publish a new version, and the next onboarding run, paywall view, or survey render uses it.
 
-Live refresh is the opt-in accelerator on top of that. When you turn it on, a surface that is already on screen updates itself in place, with no navigation and no app restart. It works the same for every surface. An onboarding screen re-themes while the user is looking at it, a paywall updates its copy, an in-app message changes its call to action. Same mechanism, same rules.
+Live refresh is off until you turn it on. Then a surface that is already on screen updates in place, with no navigation and no app restart. It works the same for every surface: an onboarding screen changes its colors while the user looks at it, a paywall updates its copy, an in-app message changes its button.
 
-Two things are worth stating plainly:
+- By default, content updates on the next view. Live refresh updates surfaces on screen only when you turn it on, and it isn't instant everywhere.
+- A refresh fetches through the same checks as a first render, skips unchanged content, and applies a change only to a surface the user isn't interacting with and that isn't in an experiment. If the connection is unavailable, the surface keeps showing what it has.
 
-- Content updates on the next view by default. Live refresh live-updates on-screen surfaces when you opt in. It does not claim instant delivery everywhere.
-- It never weakens delivery. A live refresh re-resolves through the same fail-safe path your first render uses, skips unchanged content, and applies a change only to idle surfaces outside an experiment. If the realtime connection is unavailable, the surface keeps rendering what it already has. Live refresh accelerates delivery. It is never a bypass.
-
-There are no timers. The realtime connection runs only while a surface is mounted and foregrounded. A resume check covers anything published while the app was backgrounded.
+There are no timers. The connection is open only while a surface is mounted and the app is in the foreground. A check on resume covers anything published while the app was in the background.
 
 ## Turning it on
 
-Opt surfaces in with a set of triggers, resolved most-specific-wins (widget override, then per-surface override, then the app-global set):
+Turn surfaces on with a set of triggers. The most specific set wins: the widget's set, then the per-surface set, then the app-wide set.
 
 ```dart
 Restage.configure(
   apiKey: 'rs_pk_...',
   baseUrl: 'https://your-backend.example',
-  // Wire the Restage-hosted realtime lane.
+  // Connect to the update channel hosted by Restage Cloud.
   liveRefreshEdgeUrl: Uri.parse('https://your-edge.example'),
-  // App-global default: every surface takes live edge pushes + the resume check.
+  // App-wide default: every surface takes update signals and the resume check.
   liveRefresh: const {
     SurfaceRefreshTrigger.updateChannel,
     SurfaceRefreshTrigger.appResume,
@@ -40,13 +38,13 @@ RestageFlowGraph<FirstRunResult>(
 );
 ```
 
-`liveRefreshEdgeUrl` (with `baseUrl` and no custom channel) installs the Restage-hosted realtime lane, so mounted surfaces that opt into `updateChannel` refresh in place as you publish.
+`liveRefreshEdgeUrl`, with `baseUrl` and no custom channel, connects to the update channel hosted by Restage Cloud, so mounted surfaces that use `updateChannel` refresh in place when you publish.
 
-When you branch on a trigger, prefer an `if` or a membership test over an exhaustive `switch`. The `SurfaceRefreshTrigger` set is additive, so code that switches over every case would break when a new trigger is added.
+When you branch on a trigger, use an `if` or `contains` instead of a `switch` that lists every value. New triggers may be added, and such a `switch` would break.
 
 ## Bring your own channel
 
-To drive live refresh from your own infrastructure (your push provider, your own socket), implement `SurfaceUpdateChannel` and pass it as `updateChannel`. A signal means "this surface may have changed." The SDK re-resolves through its normal delivery path, skips unchanged content, and applies a change through the same swap-safety gate. A channel signals opportunity. It can never force a swap.
+To drive live refresh from your own push service or socket, implement `SurfaceUpdateChannel` and pass it as `updateChannel`. A signal means "this surface may have changed." The SDK fetches through its normal delivery path, skips unchanged content, and applies a change under the same rules as above. A signal can't force a change onto a surface the user is using.
 
 ```dart
 class MyPushChannel implements SurfaceUpdateChannel {

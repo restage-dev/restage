@@ -5,14 +5,11 @@ import '../screens/crave_ready.dart';
 
 part 'restage.generated/crave_permission.restage.g.dart';
 
-/// A location permission-priming flow: a value-first primer whose grant is a
-/// host-action **gate**, then a confirmation.
+/// A location permission flow: a primer, then a confirmation.
 ///
-/// The shape: the primer screen runs the `requestLocation` host action and
-/// advances to the confirmation **only on a granted result** (the one
-/// conditional the flow runtime offers — advance-or-stay). The primer's
-/// "Not now" is a host-handled custom event (continue without the grant); the
-/// flow itself never proceeds on permission it did not get.
+/// The primer runs the `requestLocation` host action and moves to the
+/// confirmation only when permission is granted. "Not now" is a custom event your
+/// app handles by continuing without the permission.
 @FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class CravePermissionFlow extends RestageFlow {
   /// Host action that requests the OS location permission and reports the grant.
@@ -44,7 +41,7 @@ final class CravePermissionFlow extends RestageFlow {
           },
         ),
         customEvents: {
-          // "Not now" — handled by the host, not the flow graph.
+          // "Not now" is a custom event your app handles.
           'skip': FlowOutboundPayloadDeclaration(),
         },
       ),

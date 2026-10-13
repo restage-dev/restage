@@ -43,8 +43,8 @@ const _fakeBaseUrl = 'https://fake-surfaces.local';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // A string-identified paywall mounts nothing generated, so the app
-  // installs its own vocabulary.
+  // A paywall mounted by id has no generated mount, so the app registers its
+  // widgets here.
   registerRestageWidgets();
 
   final problem = hostedSurfaceConfigurationProblem(
@@ -108,13 +108,11 @@ String? hostedSurfaceConfigurationProblem({
   return null;
 }
 
-/// Resolves the bundled paywall `.rfw` and re-packages it as the blob surface
-/// document envelope a Restage backend would serve for it — the input the fake
-/// server hands back in self-contained mode.
+/// Wraps the bundled paywall `.rfw` in the surface document a Restage backend
+/// would serve, for the fake server to return in self-contained mode.
 Future<Uint8List> buildPaywallSurfaceEnvelope(String id) async {
   final variant = await const AssetVariantResolver().resolve(id);
-  // The publish floor the CLI stamps for a paywall blob; the SDK renders
-  // paywalls at this client capability.
+  // The minimum client version the CLI records for a paywall.
   const minClient = 3;
   return SurfaceDocumentCodec.encode(
     SurfaceDocument(
@@ -144,8 +142,8 @@ class _HostedSurfaceDemoApp extends StatelessWidget {
           onEvent: (event) => debugPrint('paywall event: ${event.toMap()}'),
           loadingBuilder: (context) =>
               const Center(child: CircularProgressIndicator()),
-          // Fail-closed: if delivery exhausts every tier (fetch + cache +
-          // bundled asset), show a plain message instead of a blank screen.
+          // If the fetch, the saved copy and the bundled asset all fail, show
+          // a plain message instead of a blank screen.
           errorBuilder: (context, error) => Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -259,8 +257,8 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
             },
             loadingBuilder: (context) =>
                 const Center(child: CircularProgressIndicator()),
-            // Fail-closed: if delivery exhausts every tier, show a plain message
-            // instead of a blank screen.
+            // If every source fails, show a plain message instead of a blank
+            // screen.
             errorBuilder: (context, error) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -278,9 +276,8 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
   }
 }
 
-/// An [http.Client] that answers every request with [envelope] wrapped in the
-/// SDK serve-route response shape — the in-app stand-in for the backend so the
-/// self-contained demo needs no network.
+/// An [http.Client] that answers every request with [envelope], shaped like the
+/// backend's response, so the self-contained demo needs no network.
 class FakeSurfaceServer extends http.BaseClient {
   /// Creates a fake server that always serves [envelope].
   FakeSurfaceServer(this._envelope);
@@ -319,8 +316,7 @@ class FakeSurfaceServer extends http.BaseClient {
         publishedAtMicros: document.publishedAt.toUtc().microsecondsSinceEpoch,
         contentHash: document.contentHash,
         artifactUrl: url,
-        // Shaped like a real pass. Nothing here verifies one; that is the
-        // edge's job, and this stand-in is not the edge.
+        // Shaped like a real pass. This stand-in verifies nothing.
         artifactPass: 'v1.k1.4102444800.${'0' * 64}',
       ).toJson(),
     });

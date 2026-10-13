@@ -1,25 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A minimal custom widget — your own Flutter widget, lowered into the catalog
-/// so a server-driven surface can render it.
+/// A minimal custom widget: your own Flutter widget, added to the catalog with
+/// `@RestageWidget` so a delivered surface can use it.
 ///
-/// The recipe is two steps:
-/// 1. Annotate the widget with [RestageWidget]. Its unnamed public generative
-///    constructor defines the configurable inputs.
-/// 2. Run `build_runner`.
-///
-/// Because `StatBadge`'s `build` is pure composition (catalog primitives + theme
-/// reads, no imperative Flutter calls), the codegen **inlines** it into any
-/// surface that uses it — so it travels inside the delivered blob and renders as
-/// real Flutter widgets, even in the generic viewer, with no runtime code. See
-/// `lib/onboarding/screens/starter_stats.dart` for it rendering from a blob.
-///
-/// Keep a `@RestageWidget`'s `build` declarative to stay blob-expressible:
-/// no `Color.withValues(...)`, no `?? fallback` on an optional property in a
-/// value position, no other runtime computation. Anything irreducibly imperative
-/// is registered as a runtime factory instead (`registerRestageWidgets()`
-/// in `lib/user_factories.g.dart`) and rendered in the host app.
+/// Its `build` only composes catalog widgets and theme reads, so the build
+/// inlines it into each surface that uses it. `starter_stats.dart` shows it in
+/// a surface. A widget that needs runtime computation, such as
+/// `Color.withValues(...)`, is registered by `registerRestageWidgets()` and
+/// renders from your app's code.
 @RestageWidget(
   name: 'StatBadge',
   library: WidgetLibrary.custom('restage_example.widgets'),

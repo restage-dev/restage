@@ -3,23 +3,12 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/minimal_paywall.restage.g.dart';
 
-/// The smallest real plan-select paywall — a copy-me starter.
+/// The smallest plan-select paywall, ready to copy.
 ///
-/// A `@Paywall` is just a `StatefulWidget` written in ordinary Flutter.
-/// The selected plan lives in plain `State` (`annualSelected`); tapping a row
-/// calls `setState`; the CTA reports whatever is selected. Prices are authored
-/// literals.
-///
-/// It reads the ambient `ColorScheme` (no hard-coded palette), so it repaints
-/// with the app theme — flip the gallery's light/dark toggle to see it.
-///
-/// The build-time codegen lowers this to a render blob, and the `setState`
-/// selection lowers to a state switch *inside* the blob — so the same file
-/// drives both the local authoring preview and the delivered, over-the-air
-/// surface, with no host code on the selection.
-///
-/// To tailor it: rename it, restyle the rows, and point the two slots
-/// (`annual` / `monthly`) directly in the paywall.
+/// The selected plan lives in plain `State` (`annualSelected`). Tapping a row
+/// calls `setState`, and the button reports the selected plan. The selection
+/// compiles into the delivered surface, so it needs no app code. It reads the
+/// app's `ColorScheme`, so it follows the light and dark themes.
 @Paywall()
 class MinimalPaywall extends StatefulWidget {
   /// Const constructor.

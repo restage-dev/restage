@@ -3,12 +3,10 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/tally_goal.restage.g.dart';
 
-/// Onboarding — the goal fork (the headline answer-driven branch).
+/// Onboarding: the goal question.
 ///
-/// Each option fires a DISTINCT event, so the flow forks: the chosen goal is
-/// written into flow-state and the user is routed to a goal-specific plan
-/// screen (a genuinely different next screen per answer — not a tailored
-/// variant of one screen).
+/// Each option fires its own event. The flow stores the chosen goal in flow state
+/// and routes to a different plan screen for each answer.
 @Screen()
 class TallyGoalScreen extends StatelessWidget {
   /// The user wants to pay off debt.

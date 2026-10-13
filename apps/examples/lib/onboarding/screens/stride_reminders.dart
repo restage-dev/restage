@@ -3,25 +3,16 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/stride_reminders.restage.g.dart';
 
-/// Stride onboarding — the reminder-priming screen.
+/// Stride onboarding: the reminder screen.
 ///
-/// This is the one screen that reaches outside the flow. It offers two ways
-/// forward, and each is a distinct kind of installed capability:
+/// "Turn on reminders" fires [enable], which the flow binds to the
+/// `requestNotifications` host action. Your app shows the OS dialog, and the flow
+/// moves on only when permission is granted. "Maybe later" fires [skip], a custom
+/// event your app receives as a `FlowCustomEvent` so it can carry on without the
+/// permission.
 ///
-/// * **"Turn on reminders"** fires the [enable] event, which the flow binds to
-///   the `requestNotifications` *host action* — a capability the app owns. The
-///   flow requests it by contract; the app shows the real OS dialog. The flow
-///   advances only on a granted result (an advance-or-stay gate).
-/// * **"Maybe later"** fires the [skip] *custom event*, which the flow declares
-///   but does not route in its graph. It surfaces to the host as a
-///   `FlowCustomEvent` so the app can carry the user forward without the grant.
-///
-/// Both the action name and the event name are part of the flow's **installed
-/// vocabulary**: general-mode delivery can recompose the graph over the air,
-/// but it can only ever reference verbs and events the app already ships. A new
-/// capability is a new app release — never an over-the-air change.
-///
-/// See `stride_welcome.dart` for the screen-authoring notes that apply here.
+/// General delivery can change the graph over the air, but only with actions and
+/// events the installed app already has. A new action needs an app release.
 @Screen()
 class StrideRemindersScreen extends StatelessWidget {
   /// Requests the notification permission (bound to a host action by the flow).

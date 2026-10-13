@@ -6,16 +6,11 @@ import '../../widgets/plan_board.dart';
 
 part 'restage.generated/plan_board_showcase.restage.g.dart';
 
-/// A general screen that showcases map-backed plan properties.
+/// A general screen that shows map-backed plan properties.
 ///
-/// The surface is authored as ordinary Flutter and compiled to a committed
-/// screen artifact. Both map-shaped properties are reconstructed by the
-/// generated widget factory when that artifact renders.
-///
-/// The string keys are authored out of alphabetical order, and the enum keys
-/// out of declaration order, deliberately: each map travels as an ordered entry
-/// list, so authoring in a canonical order would let an ordering regression
-/// pass by coincidence.
+/// The generated widget factory rebuilds both map properties when the screen
+/// renders. The keys are deliberately out of alphabetical and declaration order,
+/// so a test would catch a change that reorders map entries.
 @Screen()
 class PlanBoardShowcaseScreen extends StatelessWidget {
   /// Continues from the showcased plans.

@@ -2,19 +2,12 @@ import 'package:flutter/cupertino.dart' show showCupertinoSheet;
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// The Cupertino sibling of `modal_sheet_lowering.dart`: the same
-/// imperative-Flutter authoring, but with a `showCupertinoSheet` trigger.
+/// The Cupertino version of `modal_sheet_lowering.dart`, opened with
+/// `showCupertinoSheet`.
 ///
-/// The build-time codegen lowers each sheet function to the library that
-/// function uses in real Flutter — `showModalBottomSheet` to the Material
-/// sheet, `showCupertinoSheet` to the Cupertino card sheet — on *every*
-/// platform. So this paywall renders the iOS-style card sheet even on
-/// Android, matching how `showCupertinoSheet` behaves in a hand-written app.
-///
-/// Transpilable-authoring rules (same as the sibling templates): keep the tree
-/// flat (no extracted helper widgets), write each theme read as the full inline
-/// `Theme.of(context).colorScheme.<role>` chain, and trigger the sheet from a
-/// catalog button's `onPressed`.
+/// The build maps each sheet function to the library it uses in Flutter:
+/// `showModalBottomSheet` to the Material sheet and `showCupertinoSheet` to the
+/// Cupertino card sheet, on every platform, as a hand-written app would.
 @Paywall()
 class ModalSheetLoweringCupertinoPaywall extends StatelessWidget {
   const ModalSheetLoweringCupertinoPaywall({super.key});
@@ -52,9 +45,8 @@ class ModalSheetLoweringCupertinoPaywall extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             FilledButton(
-              // A `showCupertinoSheet` trigger lowers to the Cupertino card
-              // sheet on every platform (the source function fixes the
-              // library); the builder body becomes the declarative sheet child.
+              // `showCupertinoSheet` becomes the Cupertino card sheet on every
+              // platform, and the builder body becomes the sheet's child.
               onPressed: () => showCupertinoSheet<void>(
                 context: context,
                 showDragHandle: true,

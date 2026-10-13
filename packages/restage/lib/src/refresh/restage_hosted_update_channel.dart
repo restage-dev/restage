@@ -10,7 +10,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import 'surface_update_channel.dart';
 
-/// The Restage-hosted realtime lane.
+/// The live refresh channel hosted by Restage Cloud.
 ///
 /// While a surface is watched, this channel fetches its current stamp and
 /// connects to the configured edge service. Disconnects retry with jittered

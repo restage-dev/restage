@@ -8,7 +8,8 @@ import '../screens/stride_welcome.dart';
 part 'restage.generated/stride_first_run.restage.g.dart';
 
 /// Onboarding with a reminder action and a `Map<String, Object?>` result.
-/// General delivery permits OTA graph changes within the installed vocabulary.
+/// General delivery lets the graph change over the air, using only the actions
+/// and events the installed app already has.
 @FlowGraph(
   surface: Surface.onboarding,
   version: 2,
@@ -44,7 +45,7 @@ final class StrideFirstRunFlow extends RestageFlow {
           },
         ),
         customEvents: {
-          // "Maybe later" — handled by the host, not the flow graph.
+          // "Maybe later" is a custom event your app handles.
           'skip': FlowOutboundPayloadDeclaration(),
         },
       ),

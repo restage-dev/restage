@@ -3,11 +3,9 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/reel_frequency.restage.g.dart';
 
-/// Survey — the second cancellation question ("How often did you watch?").
+/// Survey: the second cancellation question ("How often did you watch?").
 ///
-/// A linear multiple-choice question, like the first: every option fires the
-/// same [next] event and advances to the save-offer. Written out in full
-/// because the transpiler lowers literal widget trees, not method calls.
+/// Every option fires the same [next] event and moves on to the save offer.
 @Screen()
 class ReelFrequencyScreen extends StatelessWidget {
   /// Advances to the save-offer.

@@ -3,15 +3,11 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/reel_offer.restage.g.dart';
 
-/// Survey — the save-offer (the retention host-action gate).
+/// Survey: the save offer.
 ///
-/// [keep] is routed through a host action (`redeemOffer`): the host applies the
-/// retention discount and reports back, and the flow advances to the confirmation
-/// **only when the redemption succeeds**. This is the one conditional branch the
-/// flow runtime offers (advance-or-stay). [cancel] is a host-handled custom
-/// event (not a graph transition): the host confirms the cancellation. The
-/// decline is host-owned, not a second graph transition — a retention save-offer
-/// retains (a discount redemption), it does not re-sell.
+/// [keep] runs the `redeemOffer` host action. Your app applies the discount, and
+/// the flow moves to the confirmation only when the redemption succeeds. [cancel]
+/// is a custom event your app handles by confirming the cancellation.
 @Screen()
 class ReelOfferScreen extends StatelessWidget {
   /// Redeems the retention offer via the host action, then advances on success.

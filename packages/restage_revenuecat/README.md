@@ -53,9 +53,9 @@ final paywall = RevenueCatPaywallSurface(
 ```
 
 `RevenueCatPaywallSurface` is generated from `@Paywall()` in
-`revenuecat_upgrade.dart`; the filename supplies the paywall identity. It
-serializes typed inputs, installs its widget vocabulary and uses the original
-Flutter widget as its compiled fallback with the same event handler.
+`revenuecat_upgrade.dart`; the file name supplies the paywall id. It passes its
+typed inputs to the surface, registers the widgets it needs, and uses the
+original Flutter widget as its compiled fallback with the same event handler.
 
 See the [authored paywall](example/lib/revenuecat_upgrade.dart) and
 [run instructions](example/README.md) for the build and delivery setup.
@@ -120,17 +120,18 @@ Publish a paywall version to enable its **Purchase conversion** metric. Older
 versions published before purchase reporting was supported retain their tap metrics.
 
 After RevenueCat confirms a purchase, the handler reports one conversion against
-the originating paywall exposure using `Restage.measurement.reportPurchase` with
-the original event when measurement is available. It sends package and product
-identifiers, without customer or store transaction identifiers. The event keeps
-its original exposure through a refresh or dismissal.
+the paywall view (the exposure) that led to it, using
+`Restage.measurement.reportPurchase` with the original event when measurement is
+available. It sends package and product identifiers, without customer or store
+transaction identifiers. The event stays linked to that view through a refresh
+or dismissal.
 
 Failed purchases, cancellations and restores produce no conversion report.
 Reporting failure does not change the successful purchase or its customer info.
 RevenueCat’s Flutter purchase result has no paid amount or currency; the adapter
 leaves those values unknown. Localized catalog prices are used for display.
 
-See the [example](example) and [integration guide](https://restage.dev/docs/paywalls/revenuecat).
+See the [example](example) and [integration guide](https://docs.restage.dev/paywalls/revenuecat).
 
 ## License
 

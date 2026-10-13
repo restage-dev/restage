@@ -12,14 +12,14 @@ const minimalStatsFlowRef = SurfaceFlowRef<
   decodeResult: _decodeMinimalStatsFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_stats","initial":"starter_stats","minClient":10,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:c383a951687aedfb9936f5da8d9e7d9087254a9fcee7a9e66e235fb29d3f6470","minClient":10,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
+        '{"flow":"minimal_stats","initial":"starter_stats","minClient":10,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_stats":{"contentHash":"sha256:99869ee5758011d38c00c300f22ad3edeb37895adee89ef74fee150a7b445013","minClient":10,"path":"starter_stats.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_stats":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"starter_stats"}},"version":1}',
     screens: {
       'starter_stats': StarterStatsScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '447e0fc4fc2abea39c1a0bc77ff9324292fa05d0d9eaef54dc3f203942d15e87',
+      '6f759a5094cc3c33368fbc8e9d649436e0807138c447beb7464e122fdd8d9635',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

@@ -3,14 +3,12 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/reel_reason.restage.g.dart';
 
-/// Survey — the first cancellation question ("Why are you leaving?").
+/// Survey: the first cancellation question ("Why are you leaving?").
 ///
-/// A multiple-choice question: the user taps the reason that fits and the flow
-/// advances. The flow is linear (the answer is collected for server-side
-/// analysis, it does not fork the graph), so every option fires the same [next]
-/// event — each card is one trigger for the single forward transition. The
-/// option cards are written out in full rather than via a helper because the
-/// transpiler lowers literal widget trees, not method calls in widget position.
+/// Every option fires the same [next] event, so the flow stays linear; the answer
+/// is collected for analysis. The option cards are written out in full because
+/// the build follows literal widget trees, and a helper method in widget position
+/// isn't followed.
 @Screen()
 class ReelReasonScreen extends StatelessWidget {
   /// Advances to the frequency question.

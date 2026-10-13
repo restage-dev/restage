@@ -29,14 +29,14 @@ final class GetStartedScreen extends StatelessWidget {
   /// Event fired by the Get started action.
   static const continueEvent = SurfaceEvent<String>('continue');
 
-  /// Constructor-bound title retained by native targets.
+  /// The screen title.
   final String title;
 
-  /// Constructor-bound state retained by native targets.
+  /// Whether the action is enabled.
   @wb.Config.values([false])
   final bool enabled;
 
-  /// Typed preview state retained by native targets.
+  /// The screen's tone. Widgetbook previews each value.
   @wb.Config.allValues()
   final GetStartedScreenTone tone;
 
@@ -49,13 +49,13 @@ final class GetStartedScreen extends StatelessWidget {
   /// A field named `itemContext`, kept under its exact Dart name.
   final String itemContext;
 
-  /// An enum field whose name matches a generated-code prefix; still kept.
+  /// An enum field whose name starts like generated code; it keeps its name.
   final GetStartedScreenTone restageA2uiStatus;
 
-  /// An editable `description` property shown beside Restage metadata.
+  /// A property named `description`, kept apart from Widgetbook's own field.
   final String description;
 
-  /// An editable `usage` property shown beside Restage metadata.
+  /// A property named `usage`, kept apart from Widgetbook's own field.
   final String usage;
 
   // #docregion ordinary-flutter-composition
@@ -73,7 +73,7 @@ final class GetStartedScreen extends StatelessWidget {
   // #enddocregion ordinary-flutter-composition
 }
 
-/// Typed state used to prove generated Widgetbook expansion.
+/// The tone of a [GetStartedScreen].
 enum GetStartedScreenTone { calm, urgent }
 
 // #enddocregion complete-screen-source

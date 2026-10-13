@@ -3,24 +3,15 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/notify.restage.g.dart';
 
-/// First-run onboarding — the notification pre-permission priming screen.
+/// First-run onboarding: the screen that asks for notification permission.
 ///
-/// This is the screen that earns the OS notification grant. It explains the
-/// value first (a pre-permission "primer"), then offers two honest choices:
+/// It explains the value first, then offers two choices:
 ///
-/// - **Enable reminders** fires [enable], which the flow routes through a host
-///   action (`requestNotifications`). The host shows the real OS dialog and
-///   reports back; on a grant the flow advances to the "you're set" screen. If
-///   the OS dialog is declined the flow simply stays here — the choice below is
-///   always available, so a decline is never a dead end.
-/// - **Not now** fires [skip], a flow *custom event*. It is not a graph
-///   transition; the host listens for it and moves on to the paywall. This is
-///   how an onboarding surfaces an action the host — not the flow graph —
-///   should handle.
-///
-/// Pairing a graph transition (enable) with a host-handled custom event (skip)
-/// on one screen is the supported way to give a permission ask two forward
-/// paths under the flow runtime.
+/// - **Enable reminders** fires [enable], which the flow routes through the
+///   `requestNotifications` host action. On a grant the flow moves on; on a
+///   decline it stays here, and "Not now" is still available.
+/// - **Not now** fires [skip], a custom event your app handles by moving on to
+///   the paywall.
 @Screen()
 class NotifyScreen extends StatelessWidget {
   /// Requests the notification permission via the host action, then advances.

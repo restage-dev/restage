@@ -3,17 +3,10 @@ import 'package:restage/restage.dart';
 
 /// Custom-defined badge whose scale pulses, driven by an [AnimationController].
 ///
-/// Its animation is driven imperatively by an [AnimationController] created in a
-/// `State` field and torn down in [State.dispose] — machinery a declarative blob
-/// can never author (a controller is executable behaviour, not inert data). So
-/// PulseBadge is a categorical, non-inlineable custom widget: no
-/// transpiler increment can fold it into a delivered blob, ever. A surface
-/// references it by name and the SDK resolves it through the registered runtime
-/// factory (`registerRestageWidgets()`).
-///
-/// Contrast [StreakBadge], whose non-inlineability rests only on a
-/// not-yet-lowered value computation (a `reducible` deferral) — and [StatBadge],
-/// whose pure composition inlines into the blob.
+/// An animation controller is code, so this widget can't be inlined into a
+/// delivered surface. A surface refers to it by name, and the SDK renders it
+/// through the factory that `registerRestageWidgets()` registers. Compare
+/// [StatBadge], which the build inlines.
 @RestageWidget(
   name: 'PulseBadge',
   library: WidgetLibrary.custom('restage_example.widgets'),
@@ -39,8 +32,7 @@ class PulseBadge extends StatefulWidget {
 
 class _PulseBadgeState extends State<PulseBadge>
     with SingleTickerProviderStateMixin {
-  // An imperative AnimationController — this is what makes PulseBadge a
-  // It cannot be expressed as inert, declarative blob data.
+  // The controller is why this widget renders from app code.
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),

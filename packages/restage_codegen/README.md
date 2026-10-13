@@ -35,7 +35,7 @@ dart run build_runner build
 
 Mount a generated `*Surface` widget to use its compiled fallback locally. When
 using hosted delivery, `restage surface push <id>` uploads a revision and
-`restage surface publish <id>` activates it.
+`restage surface publish <id>` makes it live.
 
 You don't import this package in app code. Its builders apply to your package
 automatically and write their outputs next to the sources they read. No
@@ -84,7 +84,7 @@ What ships is data the app renders. Your widgets carry the logic, as real Dart
 compiled into your app. A surface composes and configures them over the air.
 New behavior needs an app release.
 
-Every generated `<Name>Surface(...)` mount has an implicit placement. Use the
+Every generated `<Name>Surface(...)` mount declares a placement automatically. Use the
 ordinary constructor for screens, paywalls and flows. The generated
 `.atPlacement('name', ...)` constructor is an optional override for an explicit
 placement name.
@@ -171,8 +171,8 @@ your resolved dependency graph. Unsupported expressions still produce build
 diagnostics; a dependency does not bypass the compiler's authoring limits.
 
 Generated screen mounts accept an optional `unavailable` policy. By default
-they retain the original widget as a compiled fallback. Publication identity
-and measurement lineage remain stable when rebuilding unchanged sources.
+they retain the original widget as a compiled fallback. Rebuilding unchanged
+sources keeps each surface's id and its measurement history.
 
 ## Large codebases
 

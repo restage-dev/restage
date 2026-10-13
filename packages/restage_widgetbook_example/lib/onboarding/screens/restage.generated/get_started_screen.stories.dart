@@ -94,14 +94,11 @@ final $RestageCatalog = _Story(
       "Use for the final action in a native onboarding flow.",
       name: 'Restage usage',
     ),
-    title: _RestageStringArg(
-      "",
-      description: "Constructor-bound title retained by native targets.",
-    ),
+    title: _RestageStringArg("", description: "The screen title."),
     enabled: _RestageBoolArg(
       true,
       description:
-          "Constructor-bound state retained by native targets. Default: the widget constructor's Dart default.",
+          "Whether the action is enabled. Default: the widget constructor's Dart default.",
     ),
     tone: _RestageEnumArg<_RestageChoice2>(
       _RestageChoice2.value0,
@@ -111,7 +108,7 @@ final $RestageCatalog = _Story(
         _RestageChoice2.value1 => "urgent",
       },
       description:
-          "Typed preview state retained by native targets. Default: the widget constructor's Dart default.",
+          "The screen's tone. Widgetbook previews each value. Default: the widget constructor's Dart default.",
     ),
     data: _RestageStringArg(
       "Example data",
@@ -136,17 +133,17 @@ final $RestageCatalog = _Story(
         _RestageChoice6.value1 => "urgent",
       },
       description:
-          "An enum field whose name matches a generated-code prefix; still kept. Default: the widget constructor's Dart default.",
+          "An enum field whose name starts like generated code; it keeps its name. Default: the widget constructor's Dart default.",
     ),
     description: _RestageStringArg(
       "Example description",
       description:
-          "An editable `description` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "A property named `description`, kept apart from Widgetbook's own field. Default: the widget constructor's Dart default.",
     ),
     usage: _RestageStringArg(
       "Example usage",
       description:
-          "An editable `usage` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "A property named `usage`, kept apart from Widgetbook's own field. Default: the widget constructor's Dart default.",
     ),
   ),
 );
@@ -161,14 +158,11 @@ final $EnabledFalse = _Story(
       "Use for the final action in a native onboarding flow.",
       name: 'Restage usage',
     ),
-    title: _RestageStringArg(
-      "",
-      description: "Constructor-bound title retained by native targets.",
-    ),
+    title: _RestageStringArg("", description: "The screen title."),
     enabled: _RestageBoolArg(
       false,
       description:
-          "Constructor-bound state retained by native targets. Default: the widget constructor's Dart default.",
+          "Whether the action is enabled. Default: the widget constructor's Dart default.",
     ),
     tone: _RestageEnumArg<_RestageChoice2>(
       _RestageChoice2.value0,
@@ -178,7 +172,7 @@ final $EnabledFalse = _Story(
         _RestageChoice2.value1 => "urgent",
       },
       description:
-          "Typed preview state retained by native targets. Default: the widget constructor's Dart default.",
+          "The screen's tone. Widgetbook previews each value. Default: the widget constructor's Dart default.",
     ),
     data: _RestageStringArg(
       "Example data",
@@ -203,17 +197,17 @@ final $EnabledFalse = _Story(
         _RestageChoice6.value1 => "urgent",
       },
       description:
-          "An enum field whose name matches a generated-code prefix; still kept. Default: the widget constructor's Dart default.",
+          "An enum field whose name starts like generated code; it keeps its name. Default: the widget constructor's Dart default.",
     ),
     description: _RestageStringArg(
       "Example description",
       description:
-          "An editable `description` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "A property named `description`, kept apart from Widgetbook's own field. Default: the widget constructor's Dart default.",
     ),
     usage: _RestageStringArg(
       "Example usage",
       description:
-          "An editable `usage` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "A property named `usage`, kept apart from Widgetbook's own field. Default: the widget constructor's Dart default.",
     ),
   ),
 );
@@ -228,14 +222,11 @@ final $ToneUrgent = _Story(
       "Use for the final action in a native onboarding flow.",
       name: 'Restage usage',
     ),
-    title: _RestageStringArg(
-      "",
-      description: "Constructor-bound title retained by native targets.",
-    ),
+    title: _RestageStringArg("", description: "The screen title."),
     enabled: _RestageBoolArg(
       true,
       description:
-          "Constructor-bound state retained by native targets. Default: the widget constructor's Dart default.",
+          "Whether the action is enabled. Default: the widget constructor's Dart default.",
     ),
     tone: _RestageEnumArg<_RestageChoice2>(
       _RestageChoice2.value1,
@@ -245,7 +236,7 @@ final $ToneUrgent = _Story(
         _RestageChoice2.value1 => "urgent",
       },
       description:
-          "Typed preview state retained by native targets. Default: the widget constructor's Dart default.",
+          "The screen's tone. Widgetbook previews each value. Default: the widget constructor's Dart default.",
     ),
     data: _RestageStringArg(
       "Example data",
@@ -270,17 +261,17 @@ final $ToneUrgent = _Story(
         _RestageChoice6.value1 => "urgent",
       },
       description:
-          "An enum field whose name matches a generated-code prefix; still kept. Default: the widget constructor's Dart default.",
+          "An enum field whose name starts like generated code; it keeps its name. Default: the widget constructor's Dart default.",
     ),
     description: _RestageStringArg(
       "Example description",
       description:
-          "An editable `description` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "A property named `description`, kept apart from Widgetbook's own field. Default: the widget constructor's Dart default.",
     ),
     usage: _RestageStringArg(
       "Example usage",
       description:
-          "An editable `usage` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "A property named `usage`, kept apart from Widgetbook's own field. Default: the widget constructor's Dart default.",
     ),
   ),
 );

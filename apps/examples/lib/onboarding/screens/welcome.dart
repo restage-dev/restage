@@ -3,34 +3,16 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/welcome.restage.g.dart';
 
-/// First-run onboarding — the welcome screen.
+/// First-run onboarding: the welcome screen.
 ///
-/// ## Authoring an onboarding screen
+/// Each screen declares its events as static `SurfaceEvent` fields, and a button
+/// fires one with `surfaceEvent(...)`. The flow in
+/// `lib/onboarding/flows/first_run.dart` decides where each event leads.
 ///
-/// An onboarding screen is a `StatelessWidget` annotated `@Screen`,
-/// authored in the same standard Flutter syntax as a paywall. The build-time
-/// codegen lowers it to a render blob and emits a screen descriptor the flow
-/// references by name. Each screen declares the events it can fire as static
-/// `SurfaceEvent` fields; a button wires one with `surfaceEvent(...)`,
-/// which codegen replaces with a flow-event reference (it never runs at
-/// runtime). The flow graph (see `lib/onboarding/flows/first_run.dart`) decides
-/// where each event leads.
-///
-/// ## Why the colors are fixed literals, not theme reads
-///
-/// Unlike the paywalls, this screen uses fixed brand colors rather than
-/// `Theme.of(context).colorScheme.<role>`. The onboarding runtime renders the
-/// flow on its own surface and does not publish the host app's theme into the
-/// render namespace, so a theme read would resolve to nothing once delivered.
-/// A first-run flow is also typically a single deliberate brand moment (calm,
-/// dark, on-brand) rather than something that adapts to the host theme — so the
-/// fixed palette is both the working choice and the design intent. The palette
-/// is shared across the four flow screens for a continuous feel and is chosen
-/// to lead naturally into the wellness paywall this flow hands off to.
-///
-/// The full-width CTA uses an `Expanded` child in a `Row` (not
-/// `SizedBox(width: double.infinity)`, which does not survive lowering — see
-/// the paywall templates).
+/// It uses fixed brand colors on purpose: a first-run flow is one calm brand
+/// moment, and the palette leads into the paywall the flow hands off to. The
+/// full-width button uses `Row` with `Expanded`, because a surface can't carry
+/// `double.infinity`.
 @Screen()
 class WelcomeScreen extends StatelessWidget {
   /// Advances to the value screen.

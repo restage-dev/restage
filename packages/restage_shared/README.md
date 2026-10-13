@@ -34,7 +34,7 @@ A few catalog helpers are defined here:
 The document formats for server-driven surfaces and for the multi-screen flows
 behind onboarding, messages, and surveys:
 
-- **`SurfaceDocument`** and its codec: the envelope a surface is delivered in.
+- **`SurfaceDocument`** and its codec: the wrapper a surface is delivered in.
 - **`FlowDocument`** and its codec, hash, validation, and compatibility check:
   the flow graph (screens, decisions, sub-flows, branches), its action schemas,
   and the content hash used to detect changes.

@@ -30,9 +30,9 @@ import 'surfaces/starter_host_data_demo.dart';
 import 'widgets/minimal_custom_widget_demo.dart';
 
 void main() {
-  // Generated surfaces install what they draw as they mount. This one line
-  // adds the rest of the app's vocabulary, so an over-the-air update may use
-  // a widget no surface draws today — and so `RestagePaywall(id:)` renders.
+  // Generated surfaces install what they draw as they mount. This line adds
+  // the rest of the app's widgets, so an update can use a widget no surface
+  // draws today, and so `RestagePaywall(id:)` renders.
   registerRestageWidgets();
   // Use bundled paywalls in this example. With a `baseUrl` and no explicit
   // resolver, `configure` uses hosted delivery; see `main_hosted_surface_demo.dart`.
@@ -120,14 +120,12 @@ class BrightnessScope extends InheritedWidget {
       isDark != oldWidget.isDark;
 }
 
-/// Overlays a top-centre demo-chrome pill on [child]: a "delivered RFW blob"
-/// label (so it's clear the surface is rendered from a render blob, not local
-/// Flutter) plus a light/dark toggle to see the theme-adaptive repaint in place.
+/// Overlays a pill on [child] that says the surface renders from delivered RFW,
+/// plus a light and dark toggle.
 ///
-/// This is gallery chrome, not part of the starter surfaces — it lives here in
-/// the host, so a copied starter file never carries it.
+/// It belongs to the gallery, so a copied starter file never carries it.
 class ThemeToggleScope extends StatelessWidget {
-  /// Wraps [child] with the top-centre demo-chrome pill.
+  /// Wraps [child] with the top-center demo-chrome pill.
   const ThemeToggleScope({super.key, required this.child});
 
   /// The surface the pill floats over.
@@ -169,7 +167,7 @@ class ThemeToggleScope extends StatelessWidget {
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          'RFW render blob',
+                          'Delivered RFW',
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
@@ -204,7 +202,7 @@ class ThemeToggleScope extends StatelessWidget {
 /// Demo gallery — picks an example surface to mount full-screen.
 ///
 /// Each authored paywall (see `lib/paywalls/`) appears twice: once via direct
-/// local render and once via the delivered render blob (`RestagePaywall(id:)`
+/// local render and once from its delivered artifact (`RestagePaywall(id:)`
 /// decoding the bundled `.rfw`). The
 /// brightness toggle in the app bar flips the whole app between light and
 /// dark so the theme-adaptive template can be seen repainting — and the
@@ -236,7 +234,7 @@ class _GalleryHome extends StatelessWidget {
           ),
         ],
       ),
-      // Centre the gallery within a comfortable reading width so it doesn't
+      // Center the gallery within a comfortable reading width so it doesn't
       // stretch edge-to-edge on tablet / desktop / web windows.
       body: Center(
         child: ConstrainedBox(
@@ -252,7 +250,7 @@ class _GalleryHome extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
-                  'Each renders from a delivered RFW blob — real Flutter '
+                  'Each renders from delivered RFW as real Flutter '
                   'widgets, no webview.',
                   style: TextStyle(
                     fontSize: 12.5,
@@ -263,8 +261,9 @@ class _GalleryHome extends StatelessWidget {
               ),
               _ExampleTile(
                 title: 'Minimal paywall',
-                subtitle: 'The smallest plan-select paywall: tap a plan, the '
-                    'CTA re-targets. Theme-adaptive (delivered blob).',
+                subtitle:
+                    'The smallest plan-select paywall: tap a plan and the '
+                    'button reports it. Follows the app theme.',
                 leading: const Icon(Icons.lock_open_outlined),
                 destination: const _RemotePaywallScreen(id: 'minimal_paywall'),
                 showThemeToggle: true,
@@ -293,7 +292,7 @@ class _GalleryHome extends StatelessWidget {
                 title: 'Minimal surface',
                 subtitle:
                     'The smallest flow — one screen. A notice (any screen '
-                    'you render): the CTA acts, the × dismisses.',
+                    'you render): the button acts, the × dismisses.',
                 leading: const Icon(Icons.campaign_outlined),
                 destination: const MinimalNoticeDemo(),
                 showThemeToggle: true,
@@ -301,7 +300,7 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Custom widget',
                 subtitle: 'Your own @RestageWidget (StatBadge), inlined into a '
-                    'delivered blob and rendered through RFW.',
+                    'delivered surface and rendered through RFW.',
                 leading: const Icon(Icons.extension_outlined),
                 destination: const MinimalCustomWidgetDemo(),
                 showThemeToggle: true,
@@ -319,8 +318,8 @@ class _GalleryHome extends StatelessWidget {
               const _SectionHeader('Authored in Flutter (local preview)'),
               _ExampleTile(
                 title: 'Pulse Premium',
-                subtitle: 'Dark segmented-tier surface. Tap a tier or plan — '
-                    'the CTA re-targets.',
+                subtitle: 'Dark segmented-tier surface. Tap a tier or plan and '
+                    'the button reports it.',
                 leading: const Icon(Icons.graphic_eq_rounded),
                 destination: const PulsePremiumPaywall(),
                 // Fixed near-black canvas regardless of app theme.
@@ -338,7 +337,7 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Fluent Pro',
                 subtitle: 'Gradient-hero free-trial surface. Tap a plan — the '
-                    'selected check moves and the CTA re-targets; "View all '
+                    'selected check moves and the button reports it; "View all '
                     'plans" pushes the all-tiers screen.',
                 leading: const Icon(Icons.auto_awesome_outlined),
                 destination: const FluentProPaywall(),
@@ -347,9 +346,8 @@ class _GalleryHome extends StatelessWidget {
               ),
               _ExampleTile(
                 title: 'Sentinel Protection',
-                subtitle:
-                    'Light savings-badge selector. Tap a plan — the radio '
-                    'moves and the CTA re-targets.',
+                subtitle: 'Light savings-badge selector. Tap a plan: the radio '
+                    'moves and the button reports it.',
                 leading: const Icon(Icons.verified_user_outlined),
                 destination: const SentinelProtectionPaywall(),
                 // Fixed light canvas regardless of app theme.
@@ -359,7 +357,7 @@ class _GalleryHome extends StatelessWidget {
                 title: 'Narrate Membership',
                 subtitle:
                     'Expandable plan cards. Tap a plan — it expands with its '
-                    'benefits and CTA while the other collapses.',
+                    'benefits and button while the other collapses.',
                 leading: const Icon(Icons.headphones_outlined),
                 destination: const NarrateMembershipPaywall(),
                 // Fixed white canvas regardless of app theme.
@@ -367,8 +365,8 @@ class _GalleryHome extends StatelessWidget {
               ),
               _ExampleTile(
                 title: 'Lumen Premium',
-                subtitle: 'Calm meditation plan-selector. Tap a plan — the '
-                    'radio moves and the CTA re-targets.',
+                subtitle: 'Calm meditation plan-selector. Tap a plan: the '
+                    'radio moves and the button reports it.',
                 leading: const Icon(Icons.self_improvement_outlined),
                 destination: const LumenPremiumPaywall(),
                 // Fixed light calm canvas regardless of app theme.
@@ -399,11 +397,11 @@ class _GalleryHome extends StatelessWidget {
                 destination: const LumenHolidayPromoPaywall(),
               ),
               const Divider(height: 32),
-              const _SectionHeader('Delivered render blob'),
+              const _SectionHeader('Delivered RFW'),
               _ExampleTile(
                 title: 'Pulse Premium — bundled',
                 subtitle: 'Bundled .rfw with the tri-state tier + plan '
-                    'selection — the tap state travels inside the blob.',
+                    'selection. The tap state travels inside the surface.',
                 leading: const Icon(Icons.graphic_eq_outlined),
                 destination: const _RemotePaywallScreen(id: 'pulse_premium'),
                 // Same fixed near-black canvas as the authored Pulse Premium.
@@ -412,7 +410,7 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Ascend — Free 30-Day Trial — bundled',
                 subtitle: 'Bundled .rfw with the modal sheet + See-All-Plans '
-                    'swap — the open/expand/select state travels in the blob.',
+                    'swap. The open, expand and select state travels in the surface.',
                 leading: const Icon(Icons.terrain_outlined),
                 destination: const _RemotePaywallScreen(id: 'ascend_premium'),
                 // Same fixed white canvas as the authored Ascend.
@@ -422,8 +420,8 @@ class _GalleryHome extends StatelessWidget {
                 title: 'Fluent Pro — bundled fixture',
                 subtitle:
                     'Bundled .rfw fixture with the two-plan selection + a '
-                    'Navigator.push lowered to a flow: "View all plans" → pick '
-                    'a tier → back; the selected tier is reported inside the blob.',
+                    'Navigator.push turned into a flow: "View all plans" → pick '
+                    'a tier → back. The selected tier is reported from the surface.',
                 leading: const Icon(Icons.auto_awesome),
                 destination: const _RemotePaywallScreen(id: 'fluent_pro'),
                 // Same fixed dark-gradient canvas as the authored Fluent Pro.
@@ -432,8 +430,8 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Sentinel Protection — bundled fixture',
                 subtitle:
-                    'Bundled .rfw fixture with the savings-badge selector — the '
-                    'selected plan travels inside the blob.',
+                    'Bundled .rfw fixture with the savings-badge selector. The '
+                    'selected plan travels inside the surface.',
                 leading: const Icon(Icons.verified_user),
                 destination:
                     const _RemotePaywallScreen(id: 'sentinel_protection'),
@@ -443,8 +441,8 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Narrate Membership — bundled fixture',
                 subtitle:
-                    'Bundled .rfw fixture with the expandable plan cards — the '
-                    'expand/collapse + selection travels inside the blob.',
+                    'Bundled .rfw fixture with the expandable plan cards. The '
+                    'expand, collapse and selection travel inside the surface.',
                 leading: const Icon(Icons.headphones),
                 destination:
                     const _RemotePaywallScreen(id: 'narrate_membership'),
@@ -455,7 +453,7 @@ class _GalleryHome extends StatelessWidget {
                 title: 'Lumen Premium — bundled fixture',
                 subtitle:
                     'Bundled .rfw fixture with the meditation plan-selector — '
-                    'the selected plan travels inside the blob.',
+                    'the selected plan travels inside the surface.',
                 leading: const Icon(Icons.self_improvement),
                 destination: const _RemotePaywallScreen(id: 'lumen_premium'),
                 // Same fixed light calm canvas as the authored Lumen Premium.
@@ -463,7 +461,7 @@ class _GalleryHome extends StatelessWidget {
               ),
               _ExampleTile(
                 title: 'Lumen Welcome Offer — bundled',
-                subtitle: 'The same offer as a delivered blob. Both palettes '
+                subtitle: 'The same offer as delivered RFW. Both palettes '
                     'travel inside it; the app theme picks one.',
                 leading: const Icon(Icons.auto_awesome),
                 destination: const _RemotePaywallScreen(
@@ -472,7 +470,7 @@ class _GalleryHome extends StatelessWidget {
               ),
               _ExampleTile(
                 title: 'Lumen Annual Upgrade — bundled',
-                subtitle: 'The yearly offer as a delivered blob.',
+                subtitle: 'The yearly offer as delivered RFW.',
                 leading: const Icon(Icons.wb_twilight),
                 destination: const _RemotePaywallScreen(
                   id: 'lumen_annual_upgrade',
@@ -480,7 +478,7 @@ class _GalleryHome extends StatelessWidget {
               ),
               _ExampleTile(
                 title: 'Lumen Holiday Promo — bundled',
-                subtitle: 'The seasonal offer as a delivered blob.',
+                subtitle: 'The seasonal offer as delivered RFW.',
                 leading: const Icon(Icons.ac_unit),
                 destination: const _RemotePaywallScreen(
                   id: 'lumen_holiday_promo',
@@ -492,8 +490,8 @@ class _GalleryHome extends StatelessWidget {
                     'Demonstrates the runtime decode + render path.',
                 leading: const Icon(Icons.waving_hand_rounded),
                 destination: const _RemotePaywallScreen(id: 'hello'),
-                // Minimal demo blob with no own close affordance — the host
-                // back button is its only escape.
+                // This surface has no close button; the app bar's back button
+                // closes it.
               ),
               const Divider(height: 32),
               const _SectionHeader('Engagement surfaces (flow runtime)'),
@@ -662,7 +660,7 @@ class _ExampleTile extends StatelessWidget {
   final Widget leading;
   final Widget destination;
 
-  /// Whether to overlay a top-centre light/dark toggle on the pushed surface.
+  /// Whether to overlay a top-center light/dark toggle on the pushed surface.
   /// Set `true` for the system-themed starters so their repaint can be seen in
   /// place; the fixed-brand surfaces below leave it `false` (they hold palette).
   final bool showThemeToggle;
@@ -687,8 +685,8 @@ class _ExampleTile extends StatelessWidget {
             surfaceBrightness: surfaceBrightness,
             // A local preview runs the authored paywall directly (outside
             // codegen), so its author-fired taps need a dispatcher in scope.
-            // The delivered-blob path brings its own via RestagePaywall; mounting one here too is
-            // harmless (events resolve to the topmost dispatcher).
+            // The delivered path brings its own through RestagePaywall; a second
+            // one is harmless (events go to the nearest dispatcher).
             child: RestagePaywallEventDispatcher(
               onEvent: (name, args) {
                 debugPrint('preview event: $name $args');
@@ -710,7 +708,7 @@ class _ExampleTile extends StatelessWidget {
 }
 
 /// Whether [event] is the paywall's own dismissal — its close / skip affordance
-/// (delivered as a [PaywallCustomEvent]) or a lowered flow's skip terminator
+/// (delivered as a [PaywallCustomEvent]) or the skip that ends a generated flow
 /// (delivered as a [PaywallDismissed] with [DismissReason.userClose]) — the cue
 /// to return to the gallery. The programmatic [PaywallDismissed] fired on
 /// dispose is excluded, so returning never pops the gallery itself.
@@ -733,9 +731,8 @@ class _RemotePaywallScreen extends StatelessWidget {
       id: id,
       onEvent: (event) {
         debugPrint('paywall event: ${event.toMap()}');
-        // The paywall's own close / skip (or a lowered flow's skip terminator)
-        // returns to the gallery — the single, faithful escape. The navigation
-        // back is the visible result, so no SnackBar for these.
+        // The paywall's own close or skip returns to the gallery, so it needs
+        // no SnackBar.
         if (_returnsToGallery(event)) {
           Navigator.of(context).maybePop();
           return;
@@ -745,7 +742,7 @@ class _RemotePaywallScreen extends StatelessWidget {
         // by errorBuilder below, not as a SnackBar.
         showDemoPaywallEventFeedback(context, event);
       },
-      // Model graceful failure: if the blob can't be resolved or decoded, show
+      // Model graceful failure: if the artifact can't be resolved or decoded, show
       // a plain message instead of a blank screen. A real app would offer a
       // retry or fall back to a hard-coded paywall here.
       errorBuilder: (context, error) => Scaffold(

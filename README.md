@@ -139,18 +139,18 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
   [`restage_revenuecat`](packages/restage_revenuecat), or use
   [`restage_store_bridge`](packages/restage_store_bridge) with Flutter’s
   `in_app_purchase` plugin and your own purchase verification.
-- **It does not lock you in.** Serve the artifacts from your own backend or
+- **It does not lock you in.** Serve the artifacts from your own server or
   CDN. The SDK works without Restage Cloud.
 
 ## Controlled delivery
 
-The SDK ships immutable surface versions. A client that cannot render a version
-falls back to a safe one. Restage Cloud adds the controls: roll back, freeze,
+A surface version never changes after it is pushed. An app that cannot render a
+version falls back to a safe one. Restage Cloud adds the controls: roll back, freeze,
 or switch off any surface, decide who can publish, and export an audit trail of
 what changed, when, and by whom.
 
-Every generated `Surface` mount is an implicit placement. Use its ordinary
-constructor; `.atPlacement('name', ...)` is an optional naming override. The
+Every generated `Surface` mount declares a placement automatically. Use its
+ordinary constructor; `.atPlacement('name', ...)` is an optional naming override. The
 service can choose compatible content for that placement. See the [SDK placement guide](packages/restage/README.md#placements)
 and [delivery commands](packages/restage_cli/README.md#placements-and-delivery-plans).
 
@@ -198,7 +198,7 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
 | [`restage_revenuecat`](packages/restage_revenuecat) | RevenueCat offerings, purchases, restores, and purchase conversion reports. Available from source | BSD-3 |
-| [`restage_store_bridge`](packages/restage_store_bridge) | Native store purchases and restores with app-owned verification. Available from source | BSD-3 |
+| [`restage_store_bridge`](packages/restage_store_bridge) | Native store purchases and restores, verified by your app. Available from source | BSD-3 |
 | [`restage_preview_host`](packages/restage_preview_host) | Flutter render host for preview tools. Available from source | BSD-3 |
 | [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for genui A2UI payloads | BSD-3 |
 | [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
@@ -211,9 +211,9 @@ run `melos run cli:install` to compile it onto your PATH.
   the catalog and measurement schemas, the CLI, the MCP server, the A2UI
   check, and the examples. Flutter uses the same license.
 - **FSL-1.1-ALv2** for the build-time toolchain (`restage_codegen` and
-  `rfw_catalog_compiler`). The source is available. All use is free, including
-  use inside your own company. Each release converts to Apache-2.0 two years
-  after it ships.
+  `rfw_catalog_compiler`). The source is available. Using it to build your apps
+  is free, including use inside your own company; only competing commercial use
+  is restricted. Each release converts to Apache-2.0 two years after it ships.
 
 Each package carries its own `LICENSE` file.
 

@@ -1,8 +1,8 @@
 # Build your first surface
 
 This guide takes you from nothing to a surface rendering in your Flutter app.
-It builds a paywall because that is the most common first surface. The same
-steps build any surface: onboarding, an in-app message, or a full screen.
+It builds a paywall as the example. The same steps build any surface:
+onboarding, an in-app message, a survey, or a full screen.
 
 The whole thing runs offline. You don't need a Restage account or a backend to
 write a surface and render it on device.
@@ -100,9 +100,10 @@ your app receives a `PaywallCustomEvent` with that name and those arguments in
 `onEvent` (step 4), and runs the purchase from there through the store library
 it already uses.
 
-The names `purchase` and `restore`, and any name that starts with `restage.`,
-are reserved for the SDK and never reach your app. Use your own names, as this
-guide does.
+The build stops with an error if a surface uses the event names `purchase` or
+`restore`, one of the SDK's own `restage.purchase…` or `restage.restore…` names,
+or the measurement name `__restage_measurement_tap_v1`. Use your own event names,
+as this guide does.
 
 The compiler supports widget composition, helpers and theme reads, including
 widgets from packages your app depends on. Custom rendering logic, such as a
@@ -139,8 +140,8 @@ See the [bundled-surface reference](packages/restage/skills/restage-authoring/re
 
 Mount the generated `ProUpgradePaywallSurface` wherever you want the paywall.
 It installs the widgets it needs and uses your original widget as its compiled
-fallback. The placement is implicit. No hosted configuration or surface assets
-are needed for this example.
+fallback, and declares its placement automatically. No hosted configuration or
+surface assets are needed for this example.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -214,7 +215,7 @@ dart run build_runner watch
 ```
 
 The compiled-widget fallback follows Flutter's normal hot-reload rules.
-Regenerate after changes to the surface or its contract.
+Regenerate after changes to the surface or its parameters and events.
 
 That's the whole local loop: write Flutter, compile, render, repeat. Nothing
 so far needs an account or a network.
@@ -234,7 +235,8 @@ one pushed revision live. Push ten variants; publish one.
 
 Run these after `restage init` has configured the project and app, and after
 `restage login`. The push reads `.restage/build/metadata/restage.publication.json` and
-uploads the artifacts recorded there. `--type paywall` is optional validation.
+uploads the artifacts recorded there. `--type paywall` is optional; it checks the
+surface's type.
 
 You can also name the file instead of the id:
 
@@ -252,12 +254,11 @@ startup when you want this mount to fetch published content.
 ## Where to go next
 
 - **Another surface.** Onboarding flows, in-app messages, and surveys use the
-  same code generator. The examples keep engagement source files under
-  `lib/onboarding/`. See the engagement-surface examples in
-  [`apps/examples`](apps/examples).
+  same code generator. The examples keep their onboarding, message, and survey
+  sources under `lib/onboarding/`. See [`apps/examples`](apps/examples).
 - **An interactive paywall.** The example paywalls show plan selection (tap a
-  plan, the selection updates, the purchase re-targets) that travels inside the
-  artifact with no host code. The examples README explains the pattern.
+  plan, the selection updates, and the button sends the chosen plan) that
+  travels inside the artifact with no host code. The examples README explains the pattern.
 - **Restage Cloud.** When you want a published surface to update installed
   apps over the air, configure Restage at startup with your public API key
   and service URL, then push and publish it with

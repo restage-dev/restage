@@ -58,7 +58,7 @@ void main() {
       of: find.byType(AppBar),
       matching: find.byType(NavigationToolbar),
     );
-    final pillFinder = find.text('RFW render blob');
+    final pillFinder = find.text('Delivered RFW');
     final foundBar = barFinder.evaluate().length;
     final foundPill = pillFinder.evaluate().length;
     Rect? bar;

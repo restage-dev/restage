@@ -15,7 +15,7 @@ import '_support/support_directory_channel.dart';
 /// ENCODES each map into the committed blob as an ordered list of `key`/`value`
 /// entry objects. Both key sets are deliberately authored out of canonical
 /// order — the string keys are not alphabetical, and the enum keys are in
-/// neither declaration order nor its reverse — so a canonicalising regression
+/// neither declaration order nor its reverse — so a canonicalizing regression
 /// fails here instead of passing by coincidence. This test loads the COMMITTED
 /// `.rfw` binary — the exact artifact that ships — renders it through the REAL
 /// RFW runtime and generated `PlanBoard` factory (not a mock), and asserts each
@@ -53,7 +53,7 @@ void main() {
 
       // The authored order survives the wire, and nothing else arrives with
       // it. An exact key list is both the positive and its own absence
-      // assertion: an extra entry, a dropped entry or a canonicalised order
+      // assertion: an extra entry, a dropped entry or a canonicalized order
       // all fail it.
       expect(board.plans.keys.toList(), ['team', 'pro', 'starter']);
       expect(board.plans, hasLength(3));

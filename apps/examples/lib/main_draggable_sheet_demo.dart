@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:restage_material/restage_material.dart';
 
-/// On-device demo for [RestageDraggableSheet] — the declarative, persistent,
-/// non-closeable detent sheet — exercised on its canonical use case: a
-/// Maps-style "nearby places" sheet that lives over a map the whole time.
+/// On-device demo for [RestageDraggableSheet], a sheet that stays on screen and
+/// snaps between heights, shown as a maps-style "nearby places" sheet over a
+/// map.
 ///
 /// Unlike a modal sheet, this sheet is always on screen. It rests at a peek
 /// (search field + result summary), drags up to a mid detent (a few cards over
@@ -12,7 +12,7 @@ import 'package:restage_material/restage_material.dart';
 /// same expand/collapse declaratively via the [RestageDraggableSheet.expanded]
 /// channel, so both expand paths (manual drag and the flag) are demoed.
 ///
-/// What this demo proves, that a modal sheet cannot:
+/// What this demo shows that a modal sheet can't:
 ///   1. draggable detents (peek <-> mid <-> full) with snap physics;
 ///   2. a non-closeable floor (always shows the peek, never dismisses);
 ///   3. inner-scroll <-> sheet-drag coordination (the long body scrolls once
@@ -330,9 +330,9 @@ class _NearbyPlacesBody extends StatelessWidget {
           const SizedBox(height: 8),
           const Divider(height: 1),
           // ---- The long, scroll-on-expand list of places ----
-          // Ordinary content (a Column of rows), NOT a ListView: the widget's
-          // own controller-bound scroll view scrolls this once the sheet is at
-          // the full detent, and drags the sheet when scrolled back to the top.
+          // Ordinary rows in a Column. The widget's own scroll view scrolls
+          // them once the sheet is at full height, and drags the sheet when
+          // scrolled back to the top, so don't use a ListView here.
           for (final place in _places) _PlaceRow(place: place),
           // A footer so the smoke can confirm the inner list scrolled to its
           // end (bouncy on iOS, clamping on Android) without the sheet shrinking.

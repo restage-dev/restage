@@ -1,40 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A dark, conversion-first premium paywall in the segmented-tier archetype:
-/// a three-way tier strip (Basic | Premium | Premium+), a long scrolling
-/// feature list, two **side-by-side** plan cards with a selected-state border,
-/// a flowing rich-text legal line, and an explicit Terms / Privacy row.
+/// A dark paywall with a three-way tier strip, a scrolling feature list, two
+/// side-by-side plan cards, and a Terms / Privacy row.
 ///
-/// This is a **fixed-brand** surface — a deliberate single-brightness palette
-/// (near-black canvas, white type, a violet accent) authored with explicit
-/// colour literals — so it holds its look regardless of the host app theme. A
-/// bold conversion paywall is often a single-brightness brand moment on purpose.
-///
-/// ## Pinned offer over a scrollable value body
-///
-/// The offer zone — the plan cards, the continue CTA, and the legal row — is
-/// **pinned**: it lives in fixed siblings below an `Expanded(SingleChildScroll
-/// View(...))` that carries the value content (wordmark, headline, tier strip,
-/// feature rows). So the price + continue button stay on screen while the long
-/// feature list scrolls — the layout fits every device, smallest included,
-/// without the offer ever falling below the fold.
-///
-/// Two pieces of selection state live at the root: the tier (`selectedTier`,
-/// an `int` so the strip is a true three-way choice) and the billing period
-/// (`annualSelected`). Both lower into the render blob as state switches and
-/// both DRIVE the surface: the feature list grows per tier (the entry tier
-/// shows the core rows; the upper tiers add more — each extra row gated by an
-/// int-equality conditional on `selectedTier`), and the price + the CTA
-/// re-target to the selected tier x the selected period, so neither selector is
-/// decorative — the whole interaction travels with the delivered paywall, with
-/// no host code.
-///
-/// The feature rows are inlined flat (no extracted helper widget) so the
-/// transpiler follows the tree. Note: the inline link word in the legal line is
-/// styled but not tappable — a per-word tap inside a rich-text run is not yet
-/// expressible in the render blob. The Terms / Privacy row below carries the
-/// working affordance.
+/// It uses fixed brand colors, so it keeps its look under any app theme. The
+/// feature list scrolls while the plan cards and the continue button stay pinned.
+/// `selectedTier` and `annualSelected` drive the feature rows, the price, and the
+/// plan the button reports, all inside the delivered surface. The link word in the
+/// legal line is styled only; the Terms / Privacy row handles the taps.
 @Paywall()
 class PulsePremiumPaywall extends StatefulWidget {
   const PulsePremiumPaywall({super.key});
@@ -113,7 +87,7 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                       ),
                       const SizedBox(height: 16),
                       // Tri-state segmented tier selector — Basic | Premium |
-                      // Premium+. Each segment's fill + label colour switch on
+                      // Premium+. Each segment's fill + label color switch on
                       // `selectedTier == n`.
                       Container(
                         padding: const EdgeInsets.all(4),

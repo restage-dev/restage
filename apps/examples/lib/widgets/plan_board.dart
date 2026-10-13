@@ -2,19 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart' show Plan, PlanTier;
 
-/// A custom-defined plan board that renders *maps* of [Plan] data-class
-/// values — the example app's demonstration of a custom **map-of-objects**
-/// property rendering natively as real Flutter widgets from a server-delivered
-/// blob.
+/// A plan board that renders *maps* of [Plan] values.
 ///
-/// This is the map counterpart of the pricing table: the same nested [Plan]
-/// data class, reached through a keyed container instead of an ordered one.
-/// Each map
-/// travels the wire as a **list of entry objects**, one `key`/`value` pair per
-/// entry, so both the membership and the author's ordering survive — a keyed
-/// container is not otherwise enumerable by the primitives the render substrate
-/// provides. The generated factory reconstructs each entry and accumulates it,
-/// with no hand-written plumbing.
+/// Each map is delivered as a list of `key`/`value` entries, so its entries and
+/// their order both survive. The generated factory rebuilds each entry, with no
+/// hand-written decoding.
 ///
 /// [plans] is keyed by a plain string. [highlights] is keyed by the [PlanTier]
 /// **enum**, which takes the identical entry list with each key carrying the

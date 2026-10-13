@@ -3,11 +3,11 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/starter_done_guided.restage.g.dart';
 
-/// Starter onboarding — the "guided" ending.
+/// Starter onboarding: the "guided" ending.
 ///
-/// The decision routes here when the user chose the guided path. It is a real,
-/// distinct screen (not a recoloured shared one), so the fork is visible in the
-/// delivered surface itself. `finish` completes the flow.
+/// The decision routes here when the user chose the guided path. It is its own
+/// screen, so the branch is visible in the delivered surface. `finish` completes
+/// the flow.
 @Screen()
 class StarterDoneGuidedScreen extends StatelessWidget {
   /// Completes onboarding.

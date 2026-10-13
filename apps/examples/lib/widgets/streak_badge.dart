@@ -4,12 +4,9 @@ import 'package:restage/restage.dart';
 /// Custom-defined pill showing a streak count, whose fill deepens with the
 /// count.
 ///
-/// Its `build` derives the fill alpha with a runtime computation (`clamp` +
-/// `withValues`), which the codegen cannot fold into a delivered blob — so
-/// StreakBadge is a non-inlineable custom widget: a paywall references it
-/// by name and the SDK resolves it through the registered runtime factory
-/// (`registerRestageWidgets()`), rather than inlining its composition.
-/// Contrast `StatBadge`, whose pure-composition `build` inlines into the blob.
+/// Its `build` computes the fill alpha at runtime (`clamp` and `withValues`),
+/// so the build can't inline it. A paywall refers to it by name, and the SDK
+/// renders it through the factory that `registerRestageWidgets()` registers.
 @RestageWidget(
   name: 'StreakBadge',
   library: WidgetLibrary.custom('restage_example.widgets'),
@@ -31,8 +28,7 @@ class StreakBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    // Runtime-derived alpha — a computation, not blob-expressible, so this
-    // widget renders through its registered runtime factory.
+    // A runtime computation, so this widget renders from app code.
     final intensity = count.clamp(0, 10) / 10.0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

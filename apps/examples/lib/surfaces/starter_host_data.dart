@@ -6,8 +6,8 @@ part 'restage.generated/starter_host_data.restage.g.dart';
 /// One row the app owns.
 ///
 /// A plain data class: public final fields, a const constructor, no behavior.
-/// That is what lets the build encode it for the delivered surface and lower
-/// reads like `item.title` inside the loop below.
+/// That lets the build send it to the delivered surface and compile reads like
+/// `item.title` inside the loop below.
 final class ChecklistItem {
   /// Creates a row.
   const ChecklistItem({

@@ -7,12 +7,8 @@ part 'restage.generated/starter_stats.restage.g.dart';
 
 /// A delivered surface that renders your own custom widget.
 ///
-/// Authored like any other screen, but its body includes [StatBadge] — a
-/// `@RestageWidget` you registered. The codegen lowers this screen to a render
-/// blob that references `StatBadge` by its catalog name; at runtime the SDK
-/// resolves it through the factory you registered and renders the real widget.
-/// So your widget travels inside the server-delivered blob — proof a custom
-/// widget is a first-class catalog citizen, not just local Flutter.
+/// Its body includes [StatBadge], a `@RestageWidget` of your own. The build
+/// inlines `StatBadge` into this screen's delivered surface.
 @Screen()
 class StarterStatsScreen extends StatelessWidget {
   /// Completes the surface.
@@ -45,7 +41,7 @@ class StarterStatsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'StatBadge is your @RestageWidget — rendered here from the blob.',
+                'StatBadge is your own @RestageWidget, rendered in this delivered surface.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,

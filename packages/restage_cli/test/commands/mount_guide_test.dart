@@ -38,7 +38,7 @@ void main() {
           "...) once with this environment's key, then add "
           'LumenOnboardingFlowSurface(...) where it should appear. New '
           'versions reach app builds made from the same surface code. '
-          'Guide: https://docs.page/restage-dev/restage/delivery/'
+          'Guide: https://docs.restage.dev/delivery/'
           'hosted-delivery',
         ),
       );

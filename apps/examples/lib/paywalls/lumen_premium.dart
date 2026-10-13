@@ -1,22 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A calm, full-screen meditation **plan-selector** paywall in the
-/// free-trial-led archetype — the subscription climax a wellness app shows
-/// after onboarding. A soft hero, a short benefits list, then two radio plan
-/// cards (the annual term pre-selected and framed, carrying a free-trial
-/// badge), and a pinned "Start free trial" CTA.
+/// A calm meditation paywall: a hero, a short benefits list, two radio plan cards
+/// with the annual plan selected, and a pinned "Start free trial" button.
 ///
-/// This is a **fixed-brand** surface — a deliberate single-brightness calm
-/// palette authored with explicit colour literals — so it holds its look
-/// regardless of the host app theme.
-///
-/// One piece of selection state lives at the root: `annualSelected` (the annual
-/// plan is the default). Tapping a card moves the radio and reports the
-/// selection inside the delivered blob. The value
-/// body is moderate, so the layout pins the CTA below an
-/// `Expanded(SingleChildScrollView(...))` so the primary action never falls
-/// below the fold on a small device.
+/// It uses fixed brand colors. `annualSelected` holds the selection inside the
+/// delivered surface.
 @Paywall()
 class LumenPremiumPaywall extends StatefulWidget {
   /// Continues from the plan selector, carrying the selected plan.

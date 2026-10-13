@@ -3,8 +3,7 @@ import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Where a developer reads the catalog positions and how to measure app size.
-const String kAppSizeDocsUrl =
-    'https://docs.page/restage-dev/restage/delivery/app-size';
+const String kAppSizeDocsUrl = 'https://docs.restage.dev/delivery/app-size';
 
 /// A widget group measured together in a historical reference build.
 ///

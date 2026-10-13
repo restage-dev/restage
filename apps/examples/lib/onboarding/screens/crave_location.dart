@@ -3,19 +3,14 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/crave_location.restage.g.dart';
 
-/// Permission-priming — the location pre-permission primer (the host-action
-/// gate).
+/// A location permission primer, shown before the system dialog so a decline
+/// isn't a dead end.
 ///
-/// A food-delivery app earns the OS location grant with a value-first primer
-/// shown *before* the system dialog, so a decline there is never terminal. The
-/// screen offers two honest choices:
-///
-/// - **Use current location** fires [allow], routed through the host action
-///   `requestLocation`: the host shows the OS dialog and reports back, and the
-///   flow advances to the confirmation **only on a granted result**. A decline
-///   leaves the user here — the choice below is always available.
-/// - **Not now** fires [skip], a host-handled custom event (not a graph
-///   transition): the host carries the user into the app without the grant.
+/// - **Use current location** fires [allow], routed through the `requestLocation`
+///   host action. The flow moves on only when permission is granted; a decline
+///   leaves the user here.
+/// - **Not now** fires [skip], a custom event your app handles by continuing
+///   without the permission.
 @Screen()
 class CraveLocationScreen extends StatelessWidget {
   /// Requests the OS location permission via the host action, then advances on

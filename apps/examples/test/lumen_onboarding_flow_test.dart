@@ -73,7 +73,7 @@ void main() {
   testWidgets('the reminder gate holds when the host action is declined',
       (tester) async {
     // With a declined decision the flow stays on the priming screen — the
-    // gate's advance-or-stay semantics (it never proceeds on behaviour it did
+    // gate's advance-or-stay semantics (it never proceeds on behavior it did
     // not get).
     _useTallSurface(tester);
     await tester.pumpWidget(

@@ -7,17 +7,14 @@ import '../screens/reel_reason.dart';
 
 part 'restage.generated/reel_cancel.restage.g.dart';
 
-/// A "before you cancel" retention survey: two linear questions → a save-offer
-/// **host-action gate** → a retained confirmation.
+/// A "before you cancel" survey: two questions, a save offer, then a
+/// confirmation.
 ///
-/// The shape: two multiple-choice questions (linear — the answers are collected
-/// for server-side analysis, they do not fork the graph), then the save-offer
-/// screen runs the `redeemOffer` host action and advances to the confirmation
-/// **only when the redemption succeeds** (the one conditional the flow runtime
-/// offers). The save-offer's "No thanks, cancel" is a host-handled custom event
-/// (confirm the cancellation); the decline is host-owned, not a second graph
-/// transition. The terminal result is a data-minimization-filtered `retained`
-/// outcome the host collects.
+/// The answers are collected for analysis and don't change the path. The save
+/// offer runs the `redeemOffer` host action and moves to the confirmation only when
+/// the redemption succeeds. "No thanks, cancel" is a custom event your app handles
+/// by confirming the cancellation. The flow's result is a `retained` outcome,
+/// filtered to the state the flow exports.
 @FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class ReelCancelFlow extends RestageFlow {
   /// Host action that applies the retention discount and reports the redemption.
@@ -48,7 +45,7 @@ final class ReelCancelFlow extends RestageFlow {
           },
         ),
         customEvents: {
-          // "No thanks, cancel" — handled by the host, not the flow graph.
+          // "No thanks, cancel" is a custom event your app handles.
           'cancel': FlowOutboundPayloadDeclaration(),
         },
       ),

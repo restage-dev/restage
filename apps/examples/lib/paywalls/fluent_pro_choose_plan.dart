@@ -1,44 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// "Choose a plan" all-tiers screen — the pushed screen of the lowered
-/// [FluentProPaywall] flow.
+/// The "Choose a plan" screen that [FluentProPaywall] pushes.
 ///
-/// Authored as a standard [Paywall]; the entry paywall's "VIEW ALL PLANS"
-/// control (`Navigator.push(context, MaterialPageRoute(builder: (_) => const
-/// FluentProChoosePlanScreen()))`) lowers to a flow transition into this screen,
-/// and the `() => Navigator.pop(context)` back chevron lowers to the runtime's
-/// in-flow back.
-///
-/// **Select-then-continue** (faithful to the entry, which has its own
-/// `personalSelected` state): one piece of selection state lives at the root,
-/// `selectedPlan` (0 = Family, 1 = Personal — the MOST POPULAR default,
-/// 2 = Student, 3 = Monthly). Tapping a tier card SELECTS it — an in-row
-/// trailing check moves to the chosen tier and the chosen card highlights — all
-/// inside the delivered blob; no continue action fires on tap. The pinned
-/// "START MY FREE WEEK" CTA reports the selected tier.
-///
-/// A two-group all-tiers picker: a dark indigo → violet vertical gradient canvas
-/// (matching the entry), a "Choose a plan" title, a "7 DAY FREE TRIAL" group
-/// (Family + a "MOST POPULAR" Personal with a gradient frame + the selected
-/// check) and a "NO FREE TRIAL" group (Student + Monthly), then a "Cancel anytime
-/// in the App Store" line and a white "START MY FREE WEEK" pill.
-///
-/// The selected-check is an in-row trailing element (beside the price), the same
-/// idiom the entry's plan cards use — so it never overlaps the price on a short
-/// single-row card.
-///
-/// Pinned-offer layout: the four plan cards scroll in an
-/// `Expanded(SingleChildScrollView(...))`; the offer zone (the cancel line + the
-/// CTA) is pinned below, so the continue action is always on screen.
-///
-/// Prices are literal: the tiers are annual-billed shown as a per-month figure
-/// whose /MO and 12-mo total agree ($9.99×12 ≈ $119.99, $7.99×12 ≈ $95.99,
-/// $3.99×12 ≈ $47.99). The action reports the selected tier.
-///
-/// Fixed-brand, single-brightness surface authored with explicit colour
-/// literals, so it never reads the ambient theme. Transpilable-authoring rules:
-/// flat tree, no extracted helper widgets, inline values.
+/// The build turns the entry's `Navigator.push` into a flow step to this screen,
+/// and its `Navigator.pop` back button into the flow's back. Tapping a tier
+/// selects it (`selectedPlan`); the pinned "START MY FREE WEEK" button reports the
+/// selected tier. It uses fixed brand colors. Prices are illustrative.
 @Paywall()
 class FluentProChoosePlanScreen extends StatefulWidget {
   const FluentProChoosePlanScreen({super.key});

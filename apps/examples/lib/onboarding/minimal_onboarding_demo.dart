@@ -12,8 +12,8 @@ class MinimalOnboardingDemo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MinimalOnboardingFlowSurface(
-      // Fail closed: if the flow can't be resolved, show a plain message
-      // rather than a broken or partial surface.
+      // If the flow can't be resolved, show a plain message instead of a
+      // broken or partial surface.
       unavailable: FlowUnavailablePolicy.fallback(
         builder: (context, error) => const Scaffold(
           body: Center(child: Text('Onboarding is unavailable right now.')),

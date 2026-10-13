@@ -3,18 +3,10 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 import 'package:restage_example/widgets/pricing_table.dart';
 
-/// A paywall that renders a **list of custom data classes** natively over the
-/// air.
+/// A paywall with a [PricingTable] that takes a `List<Plan>`.
 ///
-/// The [PricingTable] is a custom `@RestageWidget` whose `plans` property is a
-/// `List<Plan>` — a list of custom data classes. Authored here in ordinary
-/// Flutter, the build-time codegen compiles the whole list into the delivered
-/// blob as a list of field-name-keyed maps; the SDK reconstructs it element by
-/// element and the `PricingTable` factory renders each plan as real widgets on
-/// the device. No hand-written wiring.
-///
-/// This is the developer-facing proof that a custom widget with a
-/// list-of-data-class property works in a remote paywall.
+/// The build writes the list into the delivered surface, and the generated factory
+/// rebuilds each plan on the device, in order.
 @Paywall()
 class PricingTableShowcase extends StatelessWidget {
   /// Const constructor.

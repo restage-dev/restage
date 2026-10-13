@@ -14,9 +14,9 @@ part 'bare_catalog_card.stories.g.dart';
 class BareCatalogCardStoryInput {
   const BareCatalogCardStoryInput({
     this.restageMetadataDescription =
-        "A card registered with only the bare Restage marker.",
+        "A card registered with only `@RestageWidget()`.",
     this.restageMetadataUsage =
-        "A card registered with only the bare Restage marker.",
+        "A card registered with only `@RestageWidget()`.",
     this.label = "Bare catalog card",
   });
 
@@ -39,11 +39,11 @@ final defaults = _Defaults(
 final $RestageCatalog = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A card registered with only the bare Restage marker.",
+      "A card registered with only `@RestageWidget()`.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
-      "A card registered with only the bare Restage marker.",
+      "A card registered with only `@RestageWidget()`.",
       name: 'usage',
     ),
     label: _RestageStringArg(

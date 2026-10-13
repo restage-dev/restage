@@ -4,7 +4,7 @@ import 'lumen_cancel.dart';
 
 part 'restage.generated/lumen_cancel_flow.restage.g.dart';
 
-/// The reason a cancelled meditation subscription gives, captured once.
+/// The reason a canceled meditation subscription gives, captured once.
 const lumenCancelReason = FlowStateRef<String>(
   'reason',
   defaultValue: '',

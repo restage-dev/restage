@@ -3,10 +3,9 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/reel_kept.restage.g.dart';
 
-/// Survey — the retained confirmation (the redeemed path of the save-offer).
+/// Survey: the confirmation shown when the user accepted the save offer.
 ///
-/// The gate advances here only when the retention offer was redeemed; [finish]
-/// completes the flow with a `retained` outcome the host collects.
+/// [finish] completes the flow with a `retained` outcome for your app.
 @Screen()
 class ReelKeptScreen extends StatelessWidget {
   /// Completes the flow (the user kept their membership).

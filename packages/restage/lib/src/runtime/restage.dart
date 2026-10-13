@@ -259,7 +259,7 @@ abstract final class Restage {
   /// [surfaceScreenResolver] defaults to the generated manifest-aware resolver
   /// with the exact bundled screen closure as fallback.
   /// Leave resolver overrides unset for ordinary generated mounts; an override
-  /// bypasses that surface kind's default placement-aware resolution.
+  /// replaces the default delivery for that kind of surface.
   ///
   /// [channel] names the build channel. Empty values and values over 128 UTF-8
   /// bytes are omitted. Requests report whole days since the first observed
@@ -269,11 +269,11 @@ abstract final class Restage {
   /// of analytics or measurement settings, and stored only for Measurement
   /// sessions when measurement is enabled.
   ///
-  /// [analyticsEnabled] controls anonymous identity and assignment credentials.
-  /// Disabling it leaves hosted delivery, governed operations and metering
-  /// available. [measurementEnabled] controls new Measurement sessions;
-  /// disabled sessions neither load publications nor submit data.
-  /// Assignment credentials require both options to be enabled.
+  /// [analyticsEnabled] controls the anonymous install id and experiment
+  /// assignment. Turning it off keeps hosted delivery, the measurement link and
+  /// privacy calls, and metering. [measurementEnabled] controls new measurement sessions;
+  /// with it off, the SDK loads no measurement configuration and sends no
+  /// measurement data. Experiment assignment needs both options on.
   ///
   /// [deliveryReceiptsEnabled] reports surface type, slug, version, content
   /// source and reason, paint result, platform, app build, selected route,
@@ -282,15 +282,16 @@ abstract final class Restage {
   /// install or user identifier. Batches send every 30 seconds and on app
   /// pause. Bounded buffering and retries can miss or duplicate observations.
   /// This option also controls placement declarations and painted bounds.
-  /// Local capture remains available when reporting is off. Renderless screen
-  /// and flow fallbacks report declarations and explicit capture geometry,
-  /// but do not claim painted runtime bounds.
+  /// Local screen capture still works when reporting is off. Screen and flow
+  /// fallbacks that render nothing report their declarations and any explicit
+  /// capture geometry, without painted bounds.
   ///
   /// [surfaces] prefetches generated references after the first frame, without
   /// creating experiment assignments. Previously stored paywalls and listed
   /// surfaces are also refreshed. [renderDeadline] (default 300 ms) limits a
   /// mount's wait for fresh content when it has a fallback. At the deadline,
-  /// eligible local content already available, or the compiled widget, renders.
+  /// saved content that is ready and still valid, or the compiled widget,
+  /// renders.
   /// A direct mount with neither can keep waiting for the response.
   ///
   /// [liveRefreshEdgeUrl] enables hosted refresh with [baseUrl]. An explicit
@@ -299,25 +300,26 @@ abstract final class Restage {
   /// its callback is not invoked or attached to requests or analytics. [locale]
   /// currently does not override delivery locale or Flutter localization.
   ///
-  /// [governedMeasurementTransportEnabled] installs the canonical transport
-  /// over [baseUrl]; configure the host/IDP proof source first. Alternatively,
-  /// supply [governedMeasurementTransport]; using both throws [ArgumentError].
-  /// With neither option,
-  /// governed Measurement and privacy calls refuse the request; legacy
-  /// analytics identity is unaffected.
+  /// [governedMeasurementTransportEnabled] installs the built-in transport for
+  /// the explicit measurement and privacy calls, which sends them to
+  /// [baseUrl]; set up your sign-in proof source first. Alternatively, supply
+  /// [governedMeasurementTransport]; using both throws [ArgumentError]. With
+  /// neither option, those calls refuse the request; the analytics install id
+  /// is unaffected.
   ///
-  /// With no explicit catalog selection, core and the families selected by
+  /// With no explicit catalog selection, core and the libraries selected by
   /// [includeMaterial] and [includeCupertino] are installed. Both default to
-  /// true. Explicit and generated-required entries remain available when a
-  /// family is disabled, including the shared Material Icon builder.
+  /// true. Widgets installed explicitly or required by generated code stay
+  /// available when a library is turned off, including the shared Material
+  /// icon builder.
   ///
   /// Pass generated `kRestageWidgetRegistration` as [registerWidgets]. It runs
-  /// once after shared configuration and before catalog bootstrap, forwarding
-  /// the family options. Built-in entries preserve existing entries on
+  /// once after shared configuration and before the catalog is installed,
+  /// forwarding the library options. Built-in entries keep existing entries on
   /// collisions; custom libraries replace registrations in the same namespace.
   /// Registration errors propagate after configuration takes effect. Regenerate
   /// older outputs for this registration object; no-argument registration
-  /// always includes all families.
+  /// always includes all libraries.
   ///
   /// Without [registerWidgets], existing widget and icon selections, including
   /// empty selections, are preserved independently. Use
@@ -403,8 +405,8 @@ abstract final class Restage {
   /// Configures Restage using only the catalog the app explicitly installs.
   ///
   /// Call generated `registerRestageWidgets()` before this method when using
-  /// `catalog: derived`. Generated surface references can also add vocabulary
-  /// later, before mounting. An empty selection remains empty. This entrypoint
+  /// `catalog: derived`. Generated surface references can also add the widgets
+  /// they need later, before mounting. An empty selection remains empty. This entrypoint
   /// has no reference to the full built-in widget or icon catalogs, allowing
   /// unused catalog entries to be removed from release builds.
   ///

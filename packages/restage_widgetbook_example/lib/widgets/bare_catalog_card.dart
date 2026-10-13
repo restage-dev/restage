@@ -2,10 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A card registered with only the bare Restage marker.
+/// A card registered with only `@RestageWidget()`.
 @RestageWidget()
 class BareCatalogCard extends StatelessWidget {
-  /// Creates a root-level custom-widget catalog card.
+  /// Creates the card.
   const BareCatalogCard({super.key, this.label = 'Bare catalog card'});
 
   /// Visible card label.

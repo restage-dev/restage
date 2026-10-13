@@ -2,18 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 
-/// A paywall that renders a **custom data class** natively over the air.
+/// A paywall whose rows are [PricingCard] widgets, each taking a [Plan] data
+/// class.
 ///
-/// Each row is a [PricingCard] — a custom `@RestageWidget` — whose `plan`
-/// property is a nested [Plan] data class (`name`, a nested [Price], an
-/// optional `badge`, an enum `tier`). Authored here in ordinary Flutter, the
-/// build-time codegen compiles each `Plan(...)` value into the delivered blob
-/// as a field-name-keyed map; the SDK reconstructs it and the `PricingCard`
-/// factory renders it as real widgets on the device. No hand-written wiring —
-/// the same file drives the local preview and the server-delivered surface.
-///
-/// This is the developer-facing proof that a custom widget with a data-class
-/// property works in a remote paywall.
+/// The build writes each `Plan(...)` into the delivered surface, and the generated
+/// factory rebuilds it on the device. No hand-written decoding is needed.
 @Paywall()
 class PricingShowcase extends StatelessWidget {
   /// Const constructor.

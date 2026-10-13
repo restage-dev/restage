@@ -2,15 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart' show Plan;
 
-/// A custom-defined pricing table that renders a *list* of [Plan] data-class
-/// values — the example app's demonstration of a custom **list-of-objects**
-/// property rendering natively as real Flutter widgets from a server-delivered
-/// blob.
+/// A pricing table that renders a *list* of [Plan] values.
 ///
-/// Each [Plan] in [plans] is the same nested data class [PricingCard] renders
-/// singly; here the whole list is decoded from the wire (a list of field-name-
-/// keyed maps) and reconstructed element by element by the generated factory,
-/// in order, with no hand-written plumbing.
+/// The generated factory rebuilds each [Plan] from the delivered surface, in
+/// order, with no hand-written decoding.
 @RestageWidget(
   name: 'PricingTable',
   library: WidgetLibrary.custom('restage_example.widgets'),

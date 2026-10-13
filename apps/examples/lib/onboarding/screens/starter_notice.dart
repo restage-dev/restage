@@ -3,19 +3,11 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/starter_notice.restage.g.dart';
 
-/// A minimal general surface — one screen, framed as "any screen you render."
+/// A one-screen notice, such as an announcement or a what's-new message.
 ///
-/// Restage is server-driven UI for *every* surface, not just paywalls. This is
-/// the smallest proof: a single-screen notice (an announcement, a what's-new, a
-/// soft prompt). It has two outcomes:
-///
-/// - **act** completes the flow — the host then does the real thing
-///   (`onComplete`): open the feature, the link, the next screen.
-/// - **dismiss** is a host-handled custom event — the host listens and closes
-///   the surface. Dismissing is not a graph transition; the notice just goes
-///   away.
-///
-/// Theme-adaptive, so it repaints with the app theme.
+/// [act] completes the flow, and your app acts in `onComplete`. [dismiss] is a
+/// custom event your app handles by closing the surface. It follows the app
+/// theme.
 @Screen()
 class StarterNoticeScreen extends StatelessWidget {
   /// The primary action — completes the flow so the host can act.
