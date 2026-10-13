@@ -34,7 +34,7 @@ repaint when you flip light and dark. They are the gallery's first section.
 | **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that saves the user's answer and picks the ending from it with a `decision()`. |
 | **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | One screen, a notice. The button completes the flow; the × is a `dismiss` event your app handles. |
 | **Bare surface** | `lib/onboarding/flows/bare_surface.dart` + `screens/starter_bare_surface.dart` | One delivered screen with no required event and no forced ending. |
-| **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | Your own `@RestageWidget` (`StatBadge`) compiled into a delivered surface, with no runtime factory. |
+| **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | Your own `@RestageWidget` (`StatBadge`) inlined into a delivered surface, so the app registers nothing for it. |
 | **Host data** | `lib/surfaces/starter_host_data.dart` + `starter_host_data_demo.dart` | A `@Screen` whose rows come from your app. The build generates `StarterChecklistSurface`, which takes them as ordinary arguments; the `for` loop over them compiles, and a tap reaches your app as a typed event. |
 | **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | A two-plan picker whose `continue` event carries the selected plan. The selection logic compiles into the surface. |
 
@@ -112,7 +112,7 @@ own with `flutter run -t`:
 - **Hosted delivery** (`lib/main_hosted_surface_demo.dart`): a paywall fetched
   over the air (from an in-app fake server here), with the fallback used when
   the fetch fails. See [Render a published surface](#render-a-published-surface)
-  to point it at your own backend.
+  to point it at your own server.
 
 The other `lib/main_*.dart` files are standalone demos that are not in the
 gallery. Run any of them with `flutter run -t lib/<file>.dart`.
@@ -180,7 +180,7 @@ flutter run -t lib/main_hosted_surface_demo.dart \
 ```
 
 Onboarding, message, survey and general surfaces render through the generated
-`<Stem>Surface` mount compiled into the app, such as `FirstRunFlowSurface` in
+`<Name>Surface` mount compiled into the app, such as `FirstRunFlowSurface` in
 `lib/onboarding/flows/restage.generated/first_run.restage.g.dart`.
 
 ## Interactive state

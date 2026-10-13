@@ -101,7 +101,7 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-      capabilityVersion: 2,
+      capabilityVersion: 3,
       widgets: const <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'BareCatalogCard',

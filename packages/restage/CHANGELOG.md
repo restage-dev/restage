@@ -365,11 +365,12 @@ Other changes:
   mounts through `context:`.
 - Added `populateContextData` for publishing inert host values under
   `data.context.*`.
-- Host context supports 32 collection levels below the root, 10,000 retained
-  normalized nodes including the root, and 100,000 inspected map entries or
-  list elements per normalization. Null map values are omitted; null list
-  elements are dropped and lists compact. Invalid input throws in debug or
-  reports and omits the offending value or collection in release.
+- Host context: maps and lists can nest 32 levels deep below the root. A context
+  holds up to 10,000 values, counting the root, and each update reads at most
+  100,000 map entries or list elements. Null map values are left out, and null
+  list elements are removed so the list closes up. In debug builds, an invalid
+  value, an unreadable collection, or a value over a limit throws; in release
+  builds the SDK reports it and leaves that value or collection out.
 - A scalar context change rebuilds only the nodes that read its path; list
   reconciliation is positional.
 - A generated `<Screen>Surface` displays the compiled-in authored widget when

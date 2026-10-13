@@ -9,33 +9,17 @@ part 'restage.generated/first_run.restage.g.dart';
 
 /// First-run onboarding flow: welcome → value → notification priming → paywall.
 ///
-/// ## What this demonstrates
+/// `buildFlow()` returns the graph of screens and transitions. The build
+/// generates the flow document, the typed reference, and the `FirstRunActions`
+/// class your app fills in.
 ///
-/// The same render pipeline that ships paywalls also drives multi-screen
-/// *engagement* surfaces. A flow is authored in pure Dart: `buildFlow()`
-/// returns a graph of screens and transitions, and the build-time codegen emits
-/// the flow document the SDK's flow runtime interprets, plus a typed descriptor
-/// and a typed action registry for the host to fill in.
+/// [requestNotifications] is a host action: your app shows the OS permission
+/// dialog. The `notify` screen's `enable` event runs it and moves to `ready`
+/// only when permission is granted. A decline leaves the user on that screen,
+/// where "Not now" (a custom event) still moves forward.
 ///
-/// ## The notification host action
-///
-/// [requestNotifications] is a *host action* — a capability the app owns, not
-/// the flow. The flow can request it by contract, but the app supplies the
-/// behavior (showing the real OS permission dialog) through the generated
-/// `FirstRunActions` registry. The flow only branches on the typed result: the
-/// `notify` screen's `enable` event runs the action and advances to `ready`
-/// **only when the result is `granted`**. This gate is one-directional by
-/// design — a declined permission leaves the user on the priming screen, where
-/// the screen's "Not now" choice (a host-handled custom event) always offers a
-/// way forward. The flow never proceeds on behaviour it did not get.
-///
-/// ## The paywall handoff
-///
-/// The flow ends with a typed result; it does not open a paywall itself. The
-/// host's `onComplete` callback navigates to the paywall, and the host listens
-/// for the `skip` custom event to do the same when the user opts out. Keeping
-/// navigation in the host is the honest contract: the flow describes intent,
-/// the app acts on it.
+/// The flow ends with a typed result. Your app's `onComplete` opens the
+/// paywall, and your app handles the `skip` custom event the same way.
 @FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class FirstRunFlow extends RestageFlow {
   /// Host action that shows the OS notification dialog and reports the grant.
@@ -66,7 +50,7 @@ final class FirstRunFlow extends RestageFlow {
           },
         ),
         customEvents: {
-          // "Not now" — handled by the host, not the flow graph.
+          // "Not now" is a custom event your app handles.
           'skip': FlowOutboundPayloadDeclaration(),
         },
       ),

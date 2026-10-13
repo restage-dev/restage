@@ -3,16 +3,12 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/apex_drop.restage.g.dart';
 
-/// A single-screen in-app message — a streetwear product "drop" announcement.
+/// A one-screen in-app message announcing a product drop.
 ///
-/// A "message" is the simplest possible flow: one screen, one terminal state,
-/// authored exactly like an onboarding screen. The card offers two choices:
-///
-/// - **Shop the drop** fires [act], the flow's one graph transition. It
-///   completes the flow; the host's `onComplete` then does the real work (open
-///   the product / the shop). A CTA that "acts" is just a flow that completes.
-/// - **×** fires [dismiss], a flow custom event the host listens for to close
-///   the message. Dismissing is not a graph transition — the message goes away.
+/// - **Shop the drop** fires [act], which completes the flow; your app's
+///   `onComplete` opens the product.
+/// - **×** fires [dismiss], a custom event your app handles by closing the
+///   message.
 @Screen()
 class ApexDropScreen extends StatelessWidget {
   /// The primary action — completes the flow so the host can act on it.

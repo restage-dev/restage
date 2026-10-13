@@ -1,42 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A free-trial paywall for a fitness / activity app — a **single screen with a
-/// modal bottom sheet**, in the trial-timeline archetype. One screen, three
-/// states:
-///   1. **Footer (no scrim):** a clean white surface with a soft warm hero glow,
-///      an upper-right circular dismiss, a bold headline, and a vertical trial
-///      **timeline** (Today → 2 Days before → In 30 days) drawn with accent dots,
-///      a connecting line, and a closing down-arrow — over a flat grey footer
-///      band holding one "Start free trial" pill. No sheet, no scrim yet.
-///   2. **Modal sheet (scrim):** tapping the footer calls a standard
-///      `showModalBottomSheet(...)`, which the build-time codegen lowers to the
-///      declarative drag-to-dismiss sheet. The sheet rises over a scrim (the
-///      timeline dims); collapsed content shows "Free 30-Day Trial" + a
-///      "Save 44%" flash, the default (Annual) price summary, an outlined
-///      "See All Plans" button, the "Start free trial" CTA, and the legal line.
-///   3. **See All Plans (content swap + grow):** "See All Plans" flips
-///      `plansExpanded`; the summary + See-All-Plans button are replaced in place
-///      by the Annual / Monthly radio card and the sheet grows, while the CTA
-///      stays pinned at the bottom.
+/// A free-trial paywall with a trial timeline and a bottom sheet.
 ///
-/// You write the same `showModalBottomSheet` you'd write in any Flutter app — no
-/// gesture or animation code crosses the wire. The trigger becomes a synthetic
-/// open flag, the sheet's own drag / scrim dismiss clears it, and the surface
-/// behind it is carried as the sheet's underlay. Drag-to-dismiss and scrim-tap
-/// are the sheet's built-in behavior.
-///
-/// Two within-screen selection states lower into the render blob: `plansExpanded`
-/// (the See-All-Plans swap) and `annualSelected` (the plan radios + the continue
-/// target). Both are plain `bool` fields that lower to `switch state.…`, so the
-/// whole interaction travels with the delivered paywall, no host code.
-///
-/// Authoring notes: the tree is flat (the sheet body is inlined in the
-/// `builder`, no extracted helper); the sheet's `builder` names its param `_` and
-/// reads no `BuildContext` (fixed colour literals — a deliberate single-brightness
-/// brand surface); the down-arrow is pushed to the rail's bottom with
-/// `mainAxisAlignment.end`. Prices are authored literals; the "Save 44%" flash
-/// is a literal marketing flag.
+/// The "Start free trial" footer opens the sheet with an ordinary
+/// `showModalBottomSheet(...)`. The build turns it into the catalog's
+/// drag-to-dismiss sheet. "See All Plans" swaps the summary for the plan choice
+/// (`plansExpanded`), and `annualSelected` picks the plan the button reports. It
+/// uses fixed brand colors. Prices are illustrative.
 @Paywall()
 class AscendPremiumPaywall extends StatefulWidget {
   const AscendPremiumPaywall({super.key});
@@ -295,7 +266,7 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                                               child: Stack(
                                                 children: [
                                                   // Thick rounded shaft from the
-                                                  // top, centred on the rail.
+                                                  // top, centered on the rail.
                                                   Positioned(
                                                     top: 0,
                                                     left: 0,
@@ -388,10 +359,9 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                       context: context,
                       isScrollControlled: true,
                       backgroundColor: const Color(0xFFFFFFFF),
-                      // The lowering lifts this builder body into the declarative
-                      // sheet child; it reads the outer paywall state (named `_`
-                      // here) and no own BuildContext, so it lowers statically.
-                      // The sheet body is inlined (no extracted helper).
+                      // The build turns this builder body into the sheet's child.
+                      // It reads the outer paywall state and not its own
+                      // BuildContext (named `_`), so it compiles.
                       builder: (_) => Padding(
                         padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
                         child: Column(
@@ -400,7 +370,7 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                           children: [
                             // Collapsed (default-plan summary + See All Plans) vs
                             // expanded (the full Annual/Monthly radio card). A
-                            // widget-level ternary on the state field lowers to
+                            // widget-level ternary on the state field compiles to
                             // `switch state.plansExpanded { true: …, false: … }`.
                             plansExpanded
                                 ? Column(

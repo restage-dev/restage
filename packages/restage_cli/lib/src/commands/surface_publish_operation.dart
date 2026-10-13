@@ -137,7 +137,7 @@ String mountGuide(SurfaceSourceKind? kind, String slug, {String? mountName}) {
   const configure =
       "In the app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...) "
       'once with the key of this environment';
-  const docs = 'https://docs.page/restage-dev/restage/delivery/hosted-delivery';
+  const docs = 'https://docs.restage.dev/delivery/hosted-delivery';
   return switch (kind) {
     SurfaceSourceKind.paywall =>
       '$configure, then mount the generated <Name>Surface() of the paywall '

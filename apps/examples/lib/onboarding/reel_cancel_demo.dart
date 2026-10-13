@@ -23,7 +23,7 @@ class ReelCancelDemo extends StatefulWidget {
   State<ReelCancelDemo> createState() => _ReelCancelDemoState();
 }
 
-enum _Outcome { none, retained, cancelled }
+enum _Outcome { none, retained, canceled }
 
 class _ReelCancelDemoState extends State<ReelCancelDemo> {
   late final ReelCancelActions _actions;
@@ -45,7 +45,7 @@ class _ReelCancelDemoState extends State<ReelCancelDemo> {
       if (event is FlowCustomEvent &&
           event.flowId == 'reel_cancel' &&
           event.eventName == 'cancel') {
-        _settle(_Outcome.cancelled);
+        _settle(_Outcome.canceled);
       }
     });
   }
@@ -101,7 +101,7 @@ class _OutcomeScreen extends StatelessWidget {
           SafeArea(
             child: Center(
               child: Text(
-                retained ? 'Membership kept' : 'Membership cancelled',
+                retained ? 'Membership kept' : 'Membership canceled',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,

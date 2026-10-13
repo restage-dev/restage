@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/lumen_cancel.restage.g.dart';
 
-/// Survey — the one question asked when a meditation subscription is cancelled.
+/// Survey — the one question asked when a meditation subscription is canceled.
 ///
 /// Every row fires the same [reason] event with its own answer value, so the
 /// flow captures the choice without forking the graph. [skip] completes the

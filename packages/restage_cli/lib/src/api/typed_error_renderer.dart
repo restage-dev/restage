@@ -178,7 +178,7 @@ String unauthorizedSentence(
     'This credential cannot do this. Sign in, or use a secret API key with '
         'the right scope.',
   UnauthorizedReason.sampleWorkspaceReadOnly =>
-    'The sample workspace is read-only. Use your own organization to make '
+    'The demo workspace is read-only. Use your own organization to make '
         'changes.',
   UnauthorizedReason.membershipChanged =>
     'Your membership in this organization changed. Try again.',

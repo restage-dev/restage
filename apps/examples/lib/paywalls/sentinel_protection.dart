@@ -1,37 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A light, savings-led plan selector in the discount-badge archetype — the
-/// shape a security, VPN, or utility subscription often uses: a brand badge +
-/// discount-mark hero, then two radio plan cards where the longer term is
-/// pre-selected, framed, and carries a "Save 50%" badge with a struck-through
-/// original price.
+/// A light paywall with a discount badge and two radio plan cards; the yearly
+/// plan is selected by default and shows "Save 50%".
 ///
-/// This is a **fixed-brand** surface — a deliberate single-brightness palette
-/// (a light-grey canvas, a teal accent) authored with explicit colour literals
-/// — so it holds its look regardless of the host app theme.
-///
-/// ## Distributed (not floor-pinned) layout
-///
-/// The value content here is short (just a header + a hero), so the strict
-/// pinned-CTA mechanism (`Expanded(SingleChildScrollView(...))` over a pinned
-/// offer) would absorb all the slack into one empty void above a floor-pinned
-/// block. Instead this is a bounded `Column` with `Spacer`s between the header,
-/// the hero, the cards, and the bottom block, so the slack is distributed into
-/// moderate gaps that scale with the device — the hero sits in the upper-middle,
-/// the cards in the lower-middle, and the summary + CTA + privacy near the
-/// bottom, with the CTA always on-screen (it fits the smallest device
-/// unscrolled). For a long value body, prefer the pinned-CTA layout (an
-/// `Expanded(SingleChildScrollView(...))` over a pinned offer) so the primary action
-/// never falls below the fold.
-///
-/// One piece of selection state lives at the root: `yearSelected` (the 1-year
-/// plan is the default). Tapping a card moves the radio and re-targets the
-/// continue action inside the delivered blob.
-///
-/// The discount story (the struck `$99.99 → $49.99`, the `Save 50%` badge, the
-/// `$4.17/month` equivalent) is authored as literal text so it stays internally
-/// consistent; the standalone 1-month price is illustrative display copy.
+/// It uses fixed brand colors. `Spacer`s spread the short content over the screen
+/// so the continue button always fits. `yearSelected` holds the selection inside
+/// the delivered surface. Prices are illustrative.
 @Paywall()
 class SentinelProtectionPaywall extends StatefulWidget {
   const SentinelProtectionPaywall({super.key});

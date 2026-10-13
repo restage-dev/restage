@@ -4,7 +4,7 @@ import 'package:restage/restage.dart';
 import 'lumen_plus_checkout.dart';
 
 /// A two-screen offer: the plans, then a checkout summary before the trial
-/// starts. The push to checkout lowers to a flow transition.
+/// starts. The build turns the push to checkout into a flow step.
 @Paywall()
 class LumenPlusOfferPaywall extends StatefulWidget {
   /// Asks the app to restore an existing subscription.

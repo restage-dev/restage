@@ -5,7 +5,7 @@ part 'restage.generated/lumen_trial_ending.restage.g.dart';
 
 /// Message — the last nudge before a meditation trial ends.
 ///
-/// A glass sheet centred on the aurora ground. The primary action opens the
+/// A glass sheet centered on the aurora ground. The primary action opens the
 /// offer; "Maybe later" ends the message, and so does the close control.
 @Screen(id: 'lumen_trial_ending', surface: Surface.message)
 class LumenTrialEndingScreen extends StatelessWidget {

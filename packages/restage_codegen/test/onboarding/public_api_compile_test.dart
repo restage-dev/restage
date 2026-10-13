@@ -40,7 +40,7 @@ void main() {
     expect(flowsDoc, contains('onComplete'));
     expect(flowsDoc, contains('AssetFlowResolver'));
     expect(flowsDoc, contains('missing, extra, or mistyped fields'));
-    expect(flowsDoc, contains('a bad terminal result fails closed'));
+    expect(flowsDoc, contains('so a bad result stops the flow'));
   });
 
   test('public SDK and codegen sources describe supported behavior', () {

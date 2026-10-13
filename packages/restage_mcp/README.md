@@ -103,7 +103,7 @@ host config:
 
 `RESTAGE_BACKEND_URL` is only read at sign-in. After that, each tool uses the
 backend your session was created against. Set it to another URL to sign in to
-a different Restage backend, such as a staging environment.
+a different Restage backend.
 
 > If you signed in with the `restage` CLI first, the MCP server reuses that
 > session and ignores this setting.
@@ -128,13 +128,13 @@ command it matches.
 
 Tools that act on an environment take `environmentSlug`, plus `runtimePlane`
 (`sandbox` or `live`) when that environment exists on both planes. A call
-that leaves the plane out for such an environment is refused rather than sent
-to either. `environmentTargetId` names a target exactly. `organizationId` is
+that leaves the plane out for such an environment is refused, so it never
+reaches the wrong plane. `environmentTargetId` names a target exactly. `organizationId` is
 needed only when you belong to more than one organization.
 
-The list tools read one current admitted scope and filter its project, app,
-environment, target, and surface rows. A target ID is checked against that
-scope on each call.
+The list tools read what you can access right now and filter it by project,
+app, environment, target, and surface. A target ID is checked against what you
+can access on each call.
 
 Every tool that names a project also takes `projectDirectory`. The
 `restage_config.yaml` there supplies the project, app, environment,
@@ -145,7 +145,7 @@ the config.
 
 A call that changes what a live target serves requires `confirmLive: true`.
 An agent sets it only after the user approves that change. Where a tool records
-a `reason`, a live change needs one. Surface mutations retain this guard with
+a `reason`, a live change needs one. Surface changes still need it with
 `reviewOnly: true`, even though that call only returns the impact review.
 Ordinary reads and sandbox targets do not need `confirmLive`.
 
@@ -161,12 +161,12 @@ rebuild (not `readinessOnly`). The CLI asks for the same changes. Most accept
 `--yes` after approval; live surface kill and rollback require an interactive
 confirmation.
 
-Measurement warnings require separate approval on either plane. Surface publish,
+Measurement warnings need their own approval on either plane. Surface publish,
 rollback, kill, freeze and unfreeze accept `reviewOnly` to inspect impact and
-`reviewedDigest` to acknowledge the exact warning set. An agent must explain newly disclosed
-experiment impact and stop unless it is already authorized. `confirmLive`
-does not acknowledge warnings. Refusals block the change; stale reviews need
-refreshing. See the
+`reviewedDigest` to acknowledge the exact set of warnings. An agent must explain
+new experiment impact and stop unless the user has already approved it.
+`confirmLive` does not acknowledge warnings. Refusals block the change; an
+out-of-date review must be redone. See the
 [review workflow](https://docs.restage.dev/tools/mcp-server#review-experiment-impact)
 for response fields and retry options.
 
@@ -176,7 +176,7 @@ for response fields and retry options.
 | --- | --- |
 | `restage_list_surfaces` | List surfaces under a project and app, of one `surfaceType` or of every type. |
 | `restage_surface_status` | Show the live version, lock state, delivery shape, and lifecycle state for one surface. |
-| `restage_surface_history` | List the revisions pushed to one surface family, marking the active one. |
+| `restage_surface_history` | List the revisions pushed to one surface, marking the active one. |
 | `restage_surface_audit` | Show the audit timeline for one surface. |
 | `restage_read_surface_funnel` | Read one surface's funnel over a time window: views, steps, drop-off, and completions per published version. |
 | `restage_push_surface` | Push generated surfaces from a local Flutter project (by id or by `.dart` file). This does not make them live. |
@@ -185,7 +185,7 @@ for response fields and retry options.
 | `restage_pull_surface_draft` | Download a surface's saved dashboard draft as base64. |
 | `restage_rollback_preflight` | Compare a rollback's compatibility with the current active version without changing anything. |
 | `restage_rollback_surface` | Make an earlier published version live again, with an audit reason (admin). Can also freeze the surface against new publishes. |
-| `restage_kill_surface` | Stop new hosted delivery; SDK cache and fallback policies apply (admin, audit reason). |
+| `restage_kill_surface` | Stop hosted delivery; devices use content they saved earlier or their fallback (admin, audit reason). |
 | `restage_freeze_surface` / `restage_unfreeze_surface` | Stop or allow new publishes of a surface (admin, audit reason). |
 | `restage_list_paywalls` | List paywalls under a project and app. |
 
@@ -194,8 +194,8 @@ for response fields and retry options.
 `restage_publish_surface`. Routing, below, decides which published version
 each audience receives.
 
-After a kill, devices may use eligible retained content or their configured
-fallback. Content already displayed is not necessarily removed immediately.
+After a kill, devices may use content they saved earlier that still qualifies,
+or their configured fallback. Content already displayed is not necessarily removed immediately.
 Generated mounts include the original Flutter widgets as fallback.
 
 **Delivery routing (beta)**
@@ -222,13 +222,13 @@ Routing decides which published version each request receives.
 | --- | --- |
 | `restage_rename_surface_version` | Set or clear a version label. |
 | `restage_archive_surface` / `restage_restore_surface` | Archive a surface across environments, or restore it to the list for publication. |
-| `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build’s library contracts would stop rendering. |
+| `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build would stop rendering, based on its recorded library versions. |
 
 **Placements and delivery plans**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_read_delivery_map` / `restage_where` | Read routing and paints by app build, or find where a surface version serves. |
+| `restage_read_delivery_map` / `restage_where` | Read routing and renders by app build, or find where a surface version is being served. |
 | `restage_placement_list` / `restage_placement_read` | List app placements or read one. |
 | `restage_placement_observed_history` | Read observed placement mounts. |
 | `restage_placement_simulate` | Preview placement decisions for supplied inputs. |
@@ -239,8 +239,8 @@ Routing decides which published version each request receives.
 | `restage_placement_sample_import` / `restage_placement_sample_prepare` / `restage_placement_sample_store` / `restage_placement_sample_bind` | Validate an explicitly supplied capture and PNG, review, upload and bind it. |
 | `restage_placement_sample_read` / `restage_placement_sample_read_image` / `restage_placement_sample_delete` | Read or delete a stored sample. |
 
-These tools use exact target selection. Plan and sample mutations require the
-same live-target approval as other writes. Reading placements never captures
+These tools need an exact target. Plan and sample changes need the same
+live-target approval as other writes. Reading placements never captures
 or uploads a screen.
 
 **Builds and the widget catalog**
@@ -310,9 +310,9 @@ command that fixes it.
 
 These tools are always registered. Each reads one page for an exact target and
 returns the service's reply unchanged. Most analytics default to the last 30 days;
-experiment results default to the whole accepted run. A selected date window
-filters descriptive traffic breakdowns. Experiment inference remains tied to the
-retained epoch and design.
+experiment results default to the whole current run. A date window filters only
+the traffic breakdowns; the statistical result always covers the whole run as
+designed.
 
 | Tool | What it does |
 | --- | --- |
@@ -336,10 +336,10 @@ revision. Read results before deciding whether to pause, resume or conclude it.
 | `restage_rebuild_serving_records` | Create any serving records an experiment target is missing, and report what is still missing. |
 
 `restage_experiment_apply` takes an `operation` chosen from a fixed list and
-a `payload`. For `replaceDraft`, pass the accepted result envelope from any
-draft operation as `payload`, after editing `response.choices`. Keep the
-returned target, draft identity, revision, and compare-and-set token intact.
-The tool uses that binding to save the draft at the selected target. For
+a `payload`. For `replaceDraft`, pass the full response from any draft
+operation as `payload`, after editing `response.choices`. Leave the returned
+target, draft id, revision, and compare-and-set token as they are. The tool
+uses them to save the draft at the selected target. For
 other operations, `payload` is the operation's own document. Unknown
 properties are rejected before a request is sent. Pass `idempotencyKey` for
 an operation that changes state. A service refusal returns its code.
@@ -361,9 +361,9 @@ Activation, pause, resume and conclusion at a live target require
 check does not.
 
 The low-level `restage_apply_canonical_mutation` and `restage_activate_experiment`
-tools retain the `RESTAGE_EXPERIMENTAL=1` opt-in. The former accepts pre-encoded
-requests; the latter also requires an injected activation API. These integration
-tools are separate from the normal `restage_experiment_apply` workflow.
+tools still need `RESTAGE_EXPERIMENTAL=1`. The first accepts requests that are
+already encoded; the second also needs an activation API supplied by the host.
+Normal experiment work uses `restage_experiment_apply` instead.
 
 ## Security
 

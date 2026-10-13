@@ -67,7 +67,7 @@ void main() {
     'wire order is preserved rather than sorted',
     (tester) async {
       // Authored in reverse-alphabetical order. A reconstruction that
-      // canonicalised keys would yield ['alpha', 'zeta'] and fail here.
+      // canonicalized keys would yield ['alpha', 'zeta'] and fail here.
       await pumpBlob(tester, '''
         import restage_example.widgets;
         widget Paywall = PlanBoard(

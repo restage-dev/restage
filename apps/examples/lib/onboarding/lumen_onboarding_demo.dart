@@ -12,7 +12,7 @@ class LumenOnboardingDemo extends StatefulWidget {
   /// [grantReminders] is the decision the demo's reminder host action returns.
   /// `true` walks the granted path (the flow advances to the recap and the
   /// paywall); `false` walks the declined path (the gate holds on the priming
-  /// screen — the flow never proceeds on behaviour it did not get).
+  /// screen — the flow never proceeds on behavior it did not get).
   ///
   const LumenOnboardingDemo({super.key, this.grantReminders = true});
 

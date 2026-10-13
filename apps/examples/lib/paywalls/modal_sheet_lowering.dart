@@ -1,21 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// Authored in **standard imperative Flutter** — a `showModalBottomSheet`
-/// trigger on a button — which the build-time codegen lowers to the
-/// declarative drag-to-dismiss sheet catalog widget. No gesture or animation
-/// code crosses the wire: the trigger becomes a synthetic open flag, the
-/// sheet's own drag/scrim dismiss clears it, and the surface behind it is
-/// carried as the sheet's underlay so it scales down on iOS/macOS.
+/// A paywall that opens a sheet with an ordinary `showModalBottomSheet(...)`.
 ///
-/// This is the developer-facing point of the feature: you write the same
-/// `showModalBottomSheet(...)` you'd write in any Flutter app, and it renders
-/// remotely as a real native sheet.
-///
-/// Transpilable-authoring rules (same as the sibling templates): keep the tree
-/// flat (no extracted helper widgets), write each theme read as the full inline
-/// `Theme.of(context).colorScheme.<role>` chain, and trigger the sheet from a
-/// catalog button's `onPressed`.
+/// The build turns the call into the catalog's drag-to-dismiss sheet, so no
+/// gesture or animation code is delivered. Keep the tree flat, write theme reads
+/// inline, and open the sheet from a catalog button's `onPressed`.
 @Paywall()
 class ModalSheetLoweringPaywall extends StatelessWidget {
   const ModalSheetLoweringPaywall({super.key});
@@ -57,10 +47,9 @@ class ModalSheetLoweringPaywall extends StatelessWidget {
                 context: context,
                 showDragHandle: true,
                 isDismissible: true,
-                // The lowering lifts the builder body into the declarative
-                // sheet child, so it reads the *outer* paywall context for
-                // theme (named `_` here): a builder that reads its own
-                // BuildContext can't be lowered statically and defers loud.
+                // The build turns the builder body into the sheet's child, so
+                // theme reads use the outer paywall context. A builder that
+                // reads its own BuildContext (named `_` here) stops the build.
                 builder: (_) => Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                   child: Column(

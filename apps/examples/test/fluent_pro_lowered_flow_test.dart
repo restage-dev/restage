@@ -37,7 +37,7 @@ Finder _iconByCodePoint(IconData icon) => find.byWidgetPredicate(
 final Finder _selectionCheck = _iconByCodePoint(Icons.check_rounded);
 
 /// Asserts that exactly one selection check is visible and that it sits on the
-/// `selectedLabel` tier — i.e. its vertical centre is nearer that tier's title
+/// `selectedLabel` tier — i.e. its vertical center is nearer that tier's title
 /// than any other tier's title. The four tier cards are stacked far enough apart
 /// (badge/ribbon rows + gaps) that nearest-title unambiguously identifies the
 /// card the top-right check belongs to.

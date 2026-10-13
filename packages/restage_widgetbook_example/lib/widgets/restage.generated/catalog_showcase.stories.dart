@@ -56,7 +56,7 @@ final class _RestageValue7 {
 class CatalogShowcaseStoryInput {
   const CatalogShowcaseStoryInput({
     this.restageMetadataDescription =
-        "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+        "A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.",
     this.restageMetadataUsage =
         "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
     this.title = "",
@@ -113,7 +113,7 @@ final defaults = _Defaults(
 final $RestageCatalog = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
@@ -161,7 +161,7 @@ final $RestageCatalog = _Story(
 final $EnabledFalse = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
@@ -209,7 +209,7 @@ final $EnabledFalse = _Story(
 final $StatusProcessing = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(

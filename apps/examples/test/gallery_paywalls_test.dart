@@ -68,7 +68,7 @@ Uint8List _encodePaywall(String paywallId) => _blobCache.putIfAbsent(
       ),
     );
 
-/// The example app's seed colour — shared by every test that builds an
+/// The example app's seed color — shared by every test that builds an
 /// indigo-seeded scheme so the tests judge a single, consistent theme.
 const _kExampleSeed = Colors.indigo;
 
@@ -589,7 +589,7 @@ void main() {
 
   // pulse_premium drives BOTH a tier strip AND a period toggle into a single
   // tier x period action payload, so it doesn't fit the shared single-axis
-  // contract; its tier + period + feature-list behaviour is covered in the
+  // contract; its tier + period + feature-list behavior is covered in the
   // dedicated group below.
 
   // Fluent Pro names its rows Personal (the default) / Family; its
@@ -630,7 +630,7 @@ void main() {
     const accent = Color(0xFF7B61FF);
     const transparent = Color(0x00000000);
 
-    // The fill colour of the tier segment labelled [label] — its nearest
+    // The fill color of the tier segment labelled [label] — its nearest
     // Container ancestor in the delivered blob.
     Color? tierFill(WidgetTester tester, String label) {
       final container = tester.widget<Container>(

@@ -148,16 +148,15 @@ final class RestageFlowView<R> extends StatefulWidget {
 
   /// Host-supplied render data, published to the surface as `data.context.*`.
   ///
-  /// Values support 32 collection levels below the root, 10,000 retained
-  /// normalized nodes including the root, and 100,000 inspected map entries or
-  /// list elements per normalization. Null map values are omitted; null list
-  /// elements are dropped and lists compact. Invalid values, unreadable
-  /// collections, and exceeded limits throw in debug. Release reports
-  /// diagnostics and omits the offending value or collection.
+  /// Maps and lists can nest 32 levels deep below the root. A context holds up
+  /// to 10,000 values, counting the root, and each update reads at most 100,000
+  /// map entries or list elements. Null map values are left out, and null list
+  /// elements are removed so the list closes up. In debug builds, an invalid
+  /// value, an unreadable collection, or a value over a limit throws; in
+  /// release builds the SDK reports it and leaves that value or collection out.
   ///
-  /// Accepted input is normalized and copied synchronously. Equal normalized
-  /// snapshots issue no renderer update. Null (the default) publishes no
-  /// `data.context` namespace at all.
+  /// The SDK copies the values when you pass them. Passing equal values
+  /// doesn't update the surface. Null, the default, publishes no host data.
   ///
   /// An enclosing Restage surface that publishes its own render data supersedes
   /// this value; it applies whenever no enclosing surface supplies any.

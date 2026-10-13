@@ -10,9 +10,8 @@ import 'onboarding/flows/plan_board_showcase.dart';
 /// For ordinary flow hosting, see MinimalNoticeFlowSurface in minimal_notice_demo.dart.
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Register the example's custom widgets (incl. PlanBoard) so the delivered
-  // blob's `PlanBoard(plans: ..., highlights: ...)` reference resolves to its
-  // generated factory.
+  // Register the example's custom widgets, including PlanBoard, so the
+  // delivered surface's `PlanBoard(...)` renders through its generated factory.
   registerRestageWidgets();
   Restage.configure(
     resolver: const AssetVariantResolver(),

@@ -3,16 +3,12 @@ import 'package:restage/restage.dart';
 
 /// Declares the example widget library's capability version.
 ///
-/// A library with a widget that renders a custom data-class property (here
-/// [PricingCard], via its [Plan] property) is *structured-admitting*, so it
-/// must declare a monotonic `capabilityVersion`. The delivery pipeline records
-/// it as the library's floor: a hosted blob authored against a newer library
-/// is rejected before render on an app built against an older one, rather than
-/// mis-rendering. Adding a record-shaped property is likewise a new render
-/// capability, so the library raises its floor when a widget gains one — as
-/// [SectionHeader] does. A map-shaped property is another such capability, so
-/// [PlanBoard] raises it again. A library with only simple widgets needs no
-/// declaration.
+/// A library with a widget that takes a data-class property (here
+/// [PricingCard] and its [Plan]) declares a `capabilityVersion` that only goes
+/// up. An app built with an older version refuses a surface that needs a newer
+/// one before rendering it. Record properties ([SectionHeader]) and map
+/// properties ([PlanBoard]) each raised the version again. A library with only
+/// simple widgets needs no declaration.
 @RestageLibrary(
   library: WidgetLibrary.custom('restage_example.widgets'),
   capabilityVersion: 3,
@@ -75,10 +71,8 @@ class Plan {
 
 /// A custom-defined pricing card that renders a nested [Plan] data class.
 ///
-/// This is the example app's demonstration of a custom *structured* property
-/// rendering natively as real Flutter widgets from a server-delivered blob —
-/// the plan is decoded from the wire and reconstructed by the generated
-/// factory, no hand-written plumbing.
+/// The generated factory rebuilds the [Plan] from the delivered surface, with no
+/// hand-written decoding.
 @RestageWidget(
   name: 'PricingCard',
   library: WidgetLibrary.custom('restage_example.widgets'),

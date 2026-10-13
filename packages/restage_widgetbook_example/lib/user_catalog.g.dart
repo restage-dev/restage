@@ -8,7 +8,7 @@ final Catalog kUserCatalog = Catalog(
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.custom('restage_widgetbook_example.widgets'):
-        const LibraryInfo(version: '0.0.0', capabilityVersion: 2),
+        const LibraryInfo(version: '0.0.0', capabilityVersion: 3),
   },
   widgets: [
     WidgetEntry(
@@ -16,7 +16,7 @@ final Catalog kUserCatalog = Catalog(
       name: 'BareCatalogCard',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       category: null,
-      description: 'A card registered with only the bare Restage marker.',
+      description: 'A card registered with only `@RestageWidget()`.',
       flutterType:
           'package:restage_widgetbook_example/widgets/bare_catalog_card.dart#BareCatalogCard',
       childrenSlot: ChildrenSlot.none,
@@ -44,7 +44,7 @@ final Catalog kUserCatalog = Catalog(
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       category: WidgetCategory.input,
       description:
-          'A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
+          'A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.',
       flutterType:
           'package:restage_widgetbook_example/widgets/status_panel.dart#CatalogShowcase',
       childrenSlot: ChildrenSlot.none,

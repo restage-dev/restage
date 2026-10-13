@@ -32,7 +32,7 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'BareCatalogCard',
       dataSchema: S.object(
-        description: 'A card registered with only the bare Restage marker.',
+        description: 'A card registered with only `@RestageWidget()`.',
         properties: {
           'props': S.object(
             properties: {'label': S.string(description: 'Visible card label.')},
@@ -68,7 +68,7 @@ List<CatalogItem> buildRestageCatalogItems() {
           ),
           '__a2ui_root__': S.object(
             description:
-                'A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
+                'A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.',
             properties: {
               'props': S.object(
                 properties: {
@@ -768,16 +768,13 @@ List<CatalogItem> buildRestageCatalogItems() {
         properties: {
           'props': S.object(
             properties: {
-              'title': S.string(
-                description:
-                    'Constructor-bound title retained by native targets.',
-              ),
+              'title': S.string(description: 'The screen title.'),
               'enabled': S.boolean(
-                description:
-                    'Constructor-bound state retained by native targets.',
+                description: 'Whether the action is enabled.',
               ),
               'tone': S.string(
-                description: 'Typed preview state retained by native targets.',
+                description:
+                    'The screen\'s tone. Widgetbook previews each value.',
                 enumValues: <Object?>['calm', 'urgent'],
               ),
               'data': S.string(
@@ -794,16 +791,16 @@ List<CatalogItem> buildRestageCatalogItems() {
               ),
               'restageA2uiStatus': S.string(
                 description:
-                    'An enum field whose name matches a generated-code prefix; still kept.',
+                    'An enum field whose name starts like generated code; it keeps its name.',
                 enumValues: <Object?>['calm', 'urgent'],
               ),
               'description': S.string(
                 description:
-                    'An editable `description` property shown beside Restage metadata.',
+                    'A property named `description`, kept apart from Widgetbook\'s own field.',
               ),
               'usage': S.string(
                 description:
-                    'An editable `usage` property shown beside Restage metadata.',
+                    'A property named `usage`, kept apart from Widgetbook\'s own field.',
               ),
             },
             required: <String>['title'],
@@ -890,7 +887,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/42c8c7168e4a45cb99c06c7048151f9adbd3c64e7e5db7e1be6c5caa72d7cb92';
+    'restage:catalog/sha256/053a0e3226ed247944bdc06005bbb9d8dee665535d11c436c45ebdcb49fe969c';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -899,12 +896,12 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '0.9.1',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/42c8c7168e4a45cb99c06c7048151f9adbd3c64e7e5db7e1be6c5caa72d7cb92',
+      'sha256/053a0e3226ed247944bdc06005bbb9d8dee665535d11c436c45ebdcb49fe969c',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(
       namespace: 'restage_widgetbook_example.widgets',
-      version: 2,
+      version: 3,
     ),
   ],
   perItemSinceVersion: <String, int>{
@@ -923,8 +920,8 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/42c8c7168e4a45cb99c06c7048151f9adbd3c64e7e5db7e1be6c5caa72d7cb92".',
-  'BareCatalogCard: A card registered with only the bare Restage marker.',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/053a0e3226ed247944bdc06005bbb9d8dee665535d11c436c45ebdcb49fe969c".',
+  'BareCatalogCard: A card registered with only `@RestageWidget()`.',
   'CatalogShowcase: Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
   'ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.',
   'ConstructorFidelityProof: Use to verify generated constructor binding and callback write-back.',

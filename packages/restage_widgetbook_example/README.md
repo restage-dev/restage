@@ -64,8 +64,9 @@ That one command produces:
 
 Widgetbook and A2UI generation require no bundled surface assets. This example
 enables both emitters and leaves `bundled_runtime` at its default, `false`. Its
-RFW parity tests read `.restage/build/bundles/` after generation; those files
-are build output and are not packaged in the app.
+tests that compare RFW output with the native widgets read
+`.restage/build/bundles/` after generation; those files are build output and are
+not packaged in the app.
 
 You don't write any stories by hand. Stories come with Restage's event
 handling already set up, so you don't need a custom `appBuilder`.
@@ -91,8 +92,8 @@ builds icons from runtime values.
 
 For GenUI, use the generated `buildRestageCatalog()` with a `SurfaceController`
 and render a `Surface` from its context. The [A2UI guide](https://docs.restage.dev/tools/a2ui)
-shows message handling and controller disposal. A2UI and Widgetbook instantiate
-the native widgets; the RFW parity tests exercise delivered rendering separately.
+shows message handling and controller disposal. A2UI and Widgetbook build the
+native widgets; separate tests check delivered RFW rendering.
 
 Both consumers work without a Restage account, upload, or publication.
 `restage build push` is a separate [dashboard preview workflow](../restage_cli/README.md#builds-pre-release).

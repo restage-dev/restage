@@ -3,8 +3,8 @@
 [![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
 The `restage` command line. Use it to set up a project, push surfaces, and
-manage what is live. It works the same for a person at a terminal, a CI job,
-and an agent.
+manage what is live. It works the same for a developer at a terminal, a CI job,
+and a coding agent.
 
 Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
@@ -112,8 +112,8 @@ restage doctor
 server when you are signed in. `login` and the other commands talk to
 Restage Cloud, or to the backend URL you configure.
 
-`surface kill` stops new hosted delivery in an environment. Devices may use
-eligible retained content or their configured fallback; generated mounts include
+`surface kill` stops hosted delivery in an environment. Devices may use content
+they saved earlier that still qualifies, or their configured fallback; generated mounts include
 the original Flutter widgets as fallback. Content already displayed is not
 necessarily removed immediately.
 
@@ -130,8 +130,8 @@ written as console commands.
 
 The overview shows analytics for the selected app, environment, and plane.
 Switching targets clears the previous figures while the new overview loads.
-Unavailable figures show `Not available`; counts below the disclosure floor show
-`<5`. Neither is shown as zero.
+Unavailable figures show `Not available`; counts too small to show safely appear
+as `<5`. Neither is shown as zero.
 
 Commands inherit the console's selected organization, project, app, environment,
 and plane wherever the command supports those options. An explicit
@@ -155,24 +155,24 @@ refuse `--yes` on the live plane and need an interactive confirmation. On a
 sandbox target the first group does not ask, and kill and rollback accept
 `--yes`.
 
-Measurement warnings require separate acknowledgement, including on sandbox
+Measurement warnings require their own acknowledgment, including on sandbox
 targets. Use `--review-measurement` on surface publish, rollback, kill, freeze
 or unfreeze to inspect impact without applying the change. Review the affected
 experiments and metrics before supplying `--reviewed-digest`; `--yes` and the
 console's confirmation do not acknowledge these warnings. Refusals block the
-change, and stale reviews need refreshing. See the
+change, and an out-of-date review must be redone. See the
 [review workflow](https://docs.restage.dev/tools/cli#review-experiment-impact)
 for approval and retry options.
 
 List commands such as `restage apps` and `restage targets` print a table with a
 header row. Scripts should pass `--json`.
 
-Discovery commands and the console read the current admitted organization
-scope. After the CLI confirms a configured organization, app, or environment
-target, it saves the corresponding numeric IDs in `restage_config.yaml` for
-later selection. A Git-recorded push leaves the tracked config untouched so
-its source stays clean for the receipt. Each later command checks saved IDs
-against a fresh scope;
+Discovery commands and the console read the organizations, apps, and
+environments you can access right now. After the CLI confirms a configured
+organization, app, or environment target, it saves the matching numeric IDs in
+`restage_config.yaml` for later selection. A Git-recorded push leaves the
+tracked config untouched so its source stays clean for the receipt. Each later
+command checks the saved IDs against what you can access at that moment;
 editing a slug or plane can require selecting and saving a new target.
 
 ## Pushing and publishing
@@ -287,9 +287,9 @@ pull request. Receipt commits land on your current branch.
 and the surface lifecycle. Archiving stops the surface serving across its
 environments; restoring returns it to the list, and publishing a version makes
 it serve again. These commands require an admin role.
-Run each command with `--help` for its identity and confirmation arguments.
+Run each command with `--help` for its target and confirmation arguments.
 
-`restage surface check-libraries` reads the local build's library contracts and
+`restage surface check-libraries` reads the local build's recorded library versions and
 reports live versions, delivery rules and experiment arms that would stop
 rendering on that build. It exits non-zero when it finds a break, so it can
 gate an app release.
@@ -299,7 +299,7 @@ gate an app release.
 `restage delivery placements list` lists app locations; `show` reads one.
 `restage delivery observed-history` reads observed mounts, and
 `restage delivery simulate` previews decisions for supplied inputs.
-`restage delivery map` shows routing and actual paints by app build;
+`restage delivery map` shows routing and actual renders by app build;
 `restage where welcome@v2` finds the placements serving one surface version.
 
 Use `restage delivery plan` to read, inspect history, check fit, simulate,
@@ -375,8 +375,8 @@ in `restage_config.yaml`, and it is never written to the credentials file.
 The Analytics pages and the experiment pages are readable from the terminal.
 Each command reads one page for one target. Most analytics default to the last
 30 days; use `--from` and `--until` to select a window. Experiment results default
-to the whole accepted run. Selected dates filter descriptive traffic breakdowns;
-experiment inference remains tied to the retained epoch and design.
+to the whole current run. Dates filter only the traffic breakdowns; the
+statistical result always covers the whole run as designed.
 `--json` prints the service's reply unchanged.
 
 ```sh
@@ -426,16 +426,16 @@ restage experiment resolve-draft --draft-id <id> --json > draft.json
 restage experiment save --replacement draft.json --json > saved-draft.json
 ```
 
-Keep the response envelope, target, draft identity, revision, and compare-and-set
-token intact. Use the returned file for further edits. If the revision is stale,
-run `resolve-draft` again before saving.
+Leave everything else in the file as it is, including the target, draft id,
+revision, and compare-and-set token. Use the returned file for further edits. If
+the revision is out of date, run `resolve-draft` again before saving.
 
 `--json` prints the service's response unchanged. A write that changes live
 state needs `--yes` or an interactive confirmation. Writes send an idempotency
 key. Reuse the same explicit `--idempotency-key` when retrying an operation.
 
-The low-level `mutation` and injected `experiment-activation` integrations retain
-their separate `RESTAGE_EXPERIMENTAL=1` opt-in. Normal `restage experiment`
+The low-level `mutation` and `experiment-activation` commands still need
+`RESTAGE_EXPERIMENTAL=1`. Normal `restage experiment`
 commands, including `rebuild-serving-records`, do not need it.
 
 ## Generated files

@@ -3,39 +3,16 @@ import 'package:restage/restage.dart';
 
 import 'fluent_pro_choose_plan.dart';
 
-/// A playful, gradient-hero premium paywall in the free-trial + two-plan-radio
-/// archetype — the shape a consumer subscription app (a language tutor, a habit
-/// tracker, a kids' learning app) often uses: a glowing mascot hero over a
-/// dark blue → purple gradient, a free-trial headline with one accented phrase,
-/// and two plan cards (a "most popular" one framed and pre-selected).
+/// A gradient-hero paywall with a free-trial headline and two plan cards, the
+/// "most popular" one selected by default.
 ///
-/// This is a **fixed-brand** surface — a deliberate single-brightness palette
-/// (a dark gradient canvas, white type, a teal accent) authored with explicit
-/// colour literals — so it holds its look regardless of the host app theme.
+/// It uses fixed brand colors, so it keeps its look under any app theme. The hero
+/// and headline scroll; the plan cards and the continue button stay pinned below.
+/// `personalSelected` holds the selection inside the delivered surface.
 ///
-/// ## Pinned offer over a scrollable value body
-///
-/// The value content (the mascot hero and the headline) scrolls in an
-/// `Expanded(SingleChildScrollView(...))`; the offer zone — the two plan cards,
-/// the continue pill, the "view all plans" link, and the legal line — is pinned
-/// below, so the continue action is always on screen.
-///
-/// One piece of selection state lives at the root: `personalSelected` (the
-/// framed "most popular" Personal plan is the default). Tapping a plan card
-/// moves the selected check and reports the selection — all inside the
-/// delivered blob, with no host code.
-///
-/// ## "View all plans" is a real navigation
-///
-/// The "VIEW ALL PLANS" control is a real `Navigator.push` to a second
-/// [Paywall] ([FluentProChoosePlanScreen]); the build-time codegen lowers
-/// it to a 2-screen flow (entry → choose-a-plan), and the entry's back
-/// affordance fires `paywallEvent('skip')` — the flow's required terminator.
-/// RestagePaywall hosts the lowered flow transparently (no host-code change).
-///
-/// The mascot hero is a glowing gradient capsule with sparkle accents — a
-/// lightweight stand-in for a real mascot illustration, composed from catalog
-/// primitives so the whole surface travels in the render blob.
+/// "View all plans" is a real `Navigator.push` to [FluentProChoosePlanScreen].
+/// The build turns it into a two-screen flow, and the back button fires
+/// `paywallEvent('skip')` to end it.
 @Paywall()
 class FluentProPaywall extends StatefulWidget {
   const FluentProPaywall({super.key});
@@ -56,8 +33,8 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // Dark indigo → violet canvas. Explicit Alignment(x, y) so the gradient
-        // direction lowers as a concrete value rather than a named constant.
+        // Dark indigo → violet canvas. Explicit Alignment(x, y) values keep the
+        // gradient direction a concrete value in the delivered surface.
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment(0, -1),
@@ -85,9 +62,9 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                         // Top row: close affordance + the "PRO" badge.
                         Row(
                           children: [
-                            // The flow terminator: dismissing the entry maps to
-                            // the lowered flow's `skip` -> `end` (required, or
-                            // the Navigator.push lowering fatal-defers).
+                            // Dismissing the entry fires `skip`, which ends the
+                            // generated flow. The Navigator.push conversion
+                            // needs it.
                             GestureDetector(
                               onTap: paywallEvent('skip'),
                               child: const Icon(
@@ -455,9 +432,8 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                 Center(
                   child: GestureDetector(
                     // "View all plans" pushes the all-tiers "Choose a plan"
-                    // screen. The build-time codegen lowers this Navigator.push
-                    // to a flow transition (entry -> choose-a-plan), hosted
-                    // transparently by RestagePaywall.
+                    // screen. The build turns this Navigator.push into a flow
+                    // step, and RestagePaywall hosts the flow.
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute<void>(
@@ -492,7 +468,7 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                       TextSpan(
-                        text: ' for the same term unless cancelled at least 24 '
+                        text: ' for the same term unless canceled at least 24 '
                             'hours prior to the end of the current term.',
                       ),
                     ],

@@ -3,28 +3,15 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/stride_welcome.restage.g.dart';
 
-/// Stride onboarding — the welcome screen.
+/// Stride onboarding: the welcome screen.
 ///
-/// A screen is a `StatelessWidget` annotated `@Screen`, authored in the
-/// same standard Flutter syntax as any other surface. Build-time codegen lowers
-/// it to a render blob and emits a screen descriptor the flow references by
-/// name. Each screen declares the events it can fire as static
-/// `SurfaceEvent` fields; a button wires one with `surfaceEvent(...)`,
-/// which codegen replaces with a flow-event reference (it never runs at
-/// runtime). The flow graph (see `lib/onboarding/flows/stride_first_run.dart`)
-/// decides where each event leads — and, because that flow is delivered in
-/// *general* mode, the graph can be recomposed over the air without an app
-/// release, as long as everything it asks the app to *do* — host actions,
-/// host-handled custom events — is a capability the app already ships. (Screen
-/// content and navigation events ride the payload itself; they are not the
-/// release-bound part.) Nothing on this screen changes between the two modes;
-/// the delivery contract lives entirely in the flow.
+/// The flow in `lib/onboarding/flows/stride_first_run.dart` uses general
+/// delivery, so its graph can change over the air as long as it only uses host
+/// actions and custom events the app already ships. This screen is the same in
+/// either mode.
 ///
-/// The colours are fixed brand literals rather than `Theme.of(context)` reads:
-/// the flow renders on its own surface and does not publish the host app's
-/// theme into the render namespace, and a first-run flow is a single deliberate
-/// brand moment. The full-width CTA uses an `Expanded` child in a `Row` (not
-/// `SizedBox(width: double.infinity)`, which does not survive lowering).
+/// It uses fixed brand colors on purpose, and its full-width button uses `Row`
+/// with `Expanded`, because a surface can't carry `double.infinity`.
 @Screen()
 class StrideWelcomeScreen extends StatelessWidget {
   /// Leaves the welcome screen; the flow graph — recomposable over the air on

@@ -58,7 +58,7 @@ Show a published surface in an app (restage_publish_surface returns this as show
 - Screens and flows (onboarding, messages, surveys, general): there is no mount by slug. The app must compile the generated mount, such as `WelcomeFlowSurface(onComplete: ...)`, and a published version must match the contract that app build carries. Add `part 'restage.generated/<file>.restage.g.dart';` to the declaring library.
 - A generated mount fetches the live version and falls back to the compiled widget.
 - Example: in the Restage examples app, `lib/main_hosted_surface_demo.dart` renders a published surface given `--dart-define`s for RESTAGE_BASE_URL, RESTAGE_API_KEY, RESTAGE_SURFACE=<slug> and RESTAGE_SURFACE_TYPE=<type>.
-- Docs: https://docs.page/restage-dev/restage/delivery/hosted-delivery and https://docs.page/restage-dev/restage/authoring/custom-widgets
+- Docs: https://docs.restage.dev/delivery/hosted-delivery and https://docs.restage.dev/authoring/custom-widgets
 ''';
 
 /// The Restage MCP server.

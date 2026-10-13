@@ -154,7 +154,7 @@ class LumenAnnualUpgradePaywall extends StatelessWidget {
             ),
             Expanded(
               flex: 54,
-              // A tablet gets a centred column rather than a stretched card.
+              // A tablet gets a centered column rather than a stretched card.
               child: Center(
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 480),

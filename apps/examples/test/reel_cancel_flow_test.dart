@@ -88,7 +88,7 @@ void main() {
 
     // The host handled the `cancel` custom event → the cancellation is
     // confirmed, never reaching the retained confirmation.
-    expect(find.text('Membership cancelled'), findsOneWidget);
+    expect(find.text('Membership canceled'), findsOneWidget);
     expect(find.text('Your discount is applied'), findsNothing);
   });
 }

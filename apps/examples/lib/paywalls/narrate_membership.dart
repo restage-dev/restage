@@ -1,31 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A light, membership-style plan paywall in the expandable-plan-card
-/// archetype — the shape a media subscription (audiobooks, streaming, news)
-/// often uses: a "current membership" status card, a headline, and two
-/// selectable plan cards where the **selected** card expands to reveal a
-/// benefits checklist and a "Try … free" call to action while the other
-/// collapses to its title and price.
+/// A light membership paywall: a status card, a headline, and two plan cards.
+/// The selected card expands to show its benefits and a free-trial button.
 ///
-/// This is a **fixed-brand** surface — a deliberate single-brightness palette
-/// (a white canvas, an indigo accent) authored with explicit colour literals —
-/// so it holds its look regardless of the host app theme.
-///
-/// ## Pinned offer over a scrollable value body
-///
-/// The value content (the status card and the headline) scrolls in an
-/// `Expanded(SingleChildScrollView(...))`; the offer zone — the two plan cards,
-/// with the selected card's inline CTA — is pinned below.
-///
-/// One piece of selection state lives at the root: `standardSelected` (the
-/// Standard plan is the default). Tapping a card moves the radio, expands that
-/// card (and collapses the other), and re-targets the action inside the
-/// delivered blob.
-///
-/// The whole tree is inlined flat (no extracted helper widget / method) so the
-/// transpiler follows it — a helper that returns a widget is not a catalog
-/// widget and does not lower. Display prices are illustrative copy.
+/// It uses fixed brand colors. `standardSelected` holds the selection inside the
+/// delivered surface. Prices are illustrative.
 @Paywall()
 class NarrateMembershipPaywall extends StatefulWidget {
   const NarrateMembershipPaywall({super.key});

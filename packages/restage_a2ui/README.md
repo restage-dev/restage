@@ -135,7 +135,7 @@ dart run build_runner build
   catalog document with each component's full data schema. Hand it to whatever
   produces payloads.
 
-A generated component keeps `id` and `component` on the A2UI envelope and puts
+A generated component keeps `id` and `component` on the outer A2UI object and puts
 every constructor input under one required `props` object:
 
 ```json
@@ -180,11 +180,11 @@ Own one session in a widget or conversation, and call `dispose()` when that
 owner ends. The producer must use `restageA2uiCatalogId` in `createSurface`
 messages. GenUI 0.10.1 accepts `v0.9` message envelopes; the generated catalog's
 `0.9.1` schema metadata is a separate field. Your app supplies the model
-connection and handles outward actions.
+connection and handles the actions the surface sends out.
 
 `genui.PromptBuilder.chat(catalog: session.catalog)` includes the generated
 usage guidance. If you combine `buildRestageCatalogItems()` with other items,
-assign the combined contract its own catalog ID and give it to the producer.
+give the combined catalog its own id and give that catalog to the producer.
 
 **8. Check external or cached payloads before rendering.** Use the same catalog
 for the check and controller. The [complete A2UI guide](https://docs.restage.dev/tools/a2ui)
@@ -251,8 +251,8 @@ payload:
 
 Cache the wrapper and run the check before rendering `a2ui`. The check compares
 the required libraries with the installed catalog's versions and declared
-compatibility floors. The generated catalog JSON describes available
-capabilities; it is not a payload's required-capability sidecar.
+compatibility floors. The generated catalog JSON describes what the catalog
+provides. A payload's sidecar describes what that payload needs.
 
 For raw A2UI payloads, the check confirms component names exist but cannot verify
 library-version compatibility. A stamped payload is rejected if its requirements
@@ -316,8 +316,8 @@ class PriceTag extends StatelessWidget {
 
 If a required value is missing from the payload, the widget does not render a
 made-up value. Sealed-class unions are not supported yet. A required unsupported
-input stops generation; an optional input can be omitted only when its
-constructor default is preserved.
+input stops generation; an optional input can be left out only when leaving it
+out gives the same result as its default.
 
 Values bound from data (`{path}`, `{call}`) are not checked against your
 constraints, so your widget still validates them.

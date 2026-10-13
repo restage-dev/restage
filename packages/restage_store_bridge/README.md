@@ -95,15 +95,15 @@ final paywall = StorePaywallSurface(
 ```
 
 `StorePaywallSurface` is generated from the example's `@Paywall()` widget in
-`store_upgrade.dart`; the filename supplies the paywall identity. It serializes
-these typed inputs, installs its widget vocabulary and uses the original Flutter
-widget as its compiled fallback. Build the authored paywall
+`store_upgrade.dart`; the file name supplies the paywall id. It passes these
+typed inputs to the surface, registers the widgets it needs, and uses the
+original Flutter widget as its compiled fallback. Build the authored paywall
 with Restage codegen, then push and publish it through your Restage workflow.
 Your app supplies current store products and handles purchase/restore events.
 See the
 [authored paywall](example/lib/store_upgrade.dart) and [run instructions](example/README.md).
 
-Keep the same immutable map for display and dispatch. Its keys identify offers;
+Use the same unmodifiable map for display and for purchases. Its keys identify offers;
 several keys can refer to different native offers with the same product ID. On
 Google Play, inspect the returned native offer details to select the intended
 base plan and offer. Retain those exact `ProductDetails` objects. A purchase
@@ -173,11 +173,11 @@ Verify the transaction with your trusted purchase validation service. A `false`
 result declines the transaction; it is neither delivered nor finished and is
 not automatically retried in this controller.
 
-`deliverPurchase` returns `Future<void>` and must be idempotent by the verified
-native transaction identity. The app must maintain that guarantee across restarts
-and store redelivery. The controller retains successful stages in memory only.
-The order is verification, delivery, then completion or consumption. Completion
-failure preserves already-delivered access.
+`deliverPurchase` returns `Future<void>` and must deliver each verified native
+transaction id at most once, including across restarts and when the store sends
+a purchase again. The controller remembers completed stages in memory only.
+The order is verification, delivery, then completion or consumption. If
+completion fails, access already delivered stays in place.
 
 Thrown verification, delivery and completion errors reach the required controller
 `onError`. Retry current in-memory failures with:
@@ -187,14 +187,15 @@ await controller.retryPendingPurchases();
 ```
 
 Retries resume the failed stage. Successful delivery is retained, so a finish
-retry does not deliver again. After restart, recovery relies on native redelivery, Android owned-purchase
-refresh and the app's idempotent delivery. There is no persistent retry queue.
+retry does not deliver again. After a restart, recovery relies on the store
+sending purchases again, Android's owned-purchase refresh, and your app
+delivering each transaction only once. There is no persistent retry queue.
 
 List every supported consumable SKU in `consumableProductIds`, including products
 that can arrive through recovery. Google consumables are explicitly consumed
 after verified delivery. The default controller supports single-product Google
-transactions; multi-product tokens and missing or unsupported transaction
-identities produce processing errors before delivery or completion. An existing
+transactions; multi-product tokens and transactions with a missing or
+unsupported id produce processing errors before delivery or completion. An existing
 app service can handle other transaction shapes through the custom path.
 
 `onPurchaseUpdated` can observe pending, canceled and other native UI states.
@@ -202,10 +203,10 @@ It does not grant access. Observer errors are reported separately and cannot
 interrupt transaction processing. Store stream errors also reach controller
 `onError`. Keep error callbacks reliable; the app owns its error presentation.
 
-Native purchase and restore dispatch calls are serialized until their methods
-return. A `true` purchase result means the store accepted dispatch. The controller
-does not lock the entire checkout; your app owns any UI restriction on overlapping
-checkouts. Restores and recovery can arrive independently of paywall mounts.
+Native purchase and restore calls run one at a time, each until it returns. A
+`true` purchase result means the store accepted the request. The controller
+does not lock the whole checkout; preventing overlapping checkouts in your UI is
+up to your app. Restores and recovery can arrive independently of paywall mounts.
 Restore requests do not return a complete entitlement snapshot, and consumed
 content requires the app's own recovery source.
 
@@ -219,11 +220,11 @@ If your app service creates the controller directly, it owns disposal:
 await controller.dispose();
 ```
 
-Disposal stops new dispatch, cancels the stream listener and waits for already
+Disposal stops new purchase requests, cancels the stream listener and waits for already
 running work. It cannot cancel a native purchase. Keep the controller alive when
 a paywall is dismissed. A manually owned controller also needs Android
 `restorePurchases()` calls at startup after subscribing and when the app resumes;
-route dispatch errors to your app's error callback.
+send errors from those calls to your app's error callback.
 
 ## Use an existing purchase service
 
@@ -242,13 +243,13 @@ final handler = inAppPurchaseCustomEventHandler(
 ```
 
 `purchase` has type `Future<PurchaseDetails?> Function(ProductDetails)`. A non-null
-result must be a new purchase that your app correlated to this invocation,
+result must be a new purchase that your app has matched to this checkout,
 verified and delivered. It must have `PurchaseStatus.purchased` and the exact
 selected product ID. Return null when there is no confirmed new purchase.
 
-Your service owns native completion or consumption, duplicate checkout prevention,
-transaction deduplication and transaction-to-invocation correlation. A matching
-SKU or nearby stream update is insufficient. Restore invokes neither `onPurchase`
+Your service finishes or consumes the native transaction, prevents duplicate
+checkouts, drops duplicate transactions, and matches each transaction to its
+checkout. A matching SKU or a nearby stream update isn't enough. Restore invokes neither `onPurchase`
 nor conversion reporting.
 
 Both handler builders return `Future<void> Function(RestageEvent)`. Selection,
@@ -259,12 +260,13 @@ failures in your app or observe the returned handler future when invoking it.
 
 ## Purchase conversion reports
 
-The default controller and handler perform no automatic purchase attribution.
-Native dispatch provides no transaction identity for its invocation, and the
-shared stream also includes restored, recovered and external purchases. Same SKU,
-timing, verification and first delivery cannot establish the originating paywall.
+The default controller and handler don't report purchases automatically. A
+native purchase request doesn't return the id of the transaction it will
+create, and the shared stream also includes restored, recovered and external
+purchases. A matching SKU, timing, verification and first delivery can't show
+which paywall a purchase came from.
 
-If your app independently has a trustworthy transaction-to-checkout match, retain
+If your app can reliably match a transaction to its checkout on its own, keep
 the original event and report after verified delivery:
 
 ```dart
@@ -276,16 +278,17 @@ await Restage.measurement.reportPurchase(
 ```
 
 Do not report unmatched, restored or recovered updates as new paywall purchases.
-The custom handler automatically reports its app-confirmed result using the
-original event, preserving that exposure through refresh or dismissal.
+The custom handler reports the purchase your app confirmed using the original
+event, so it stays linked to that paywall view through a refresh or dismissal.
 
 Reports contain package and product identifiers, with paid amount unknown.
-Reporting failure does not change purchase success. Reporting requires an eligible
-published paywall exposure and current Measurement configuration; identity reset
-and measurement enablement checks still apply. Suppression is per event object,
-so the app must prevent duplicate transaction attribution across distinct events.
+Reporting failure does not change purchase success. Reporting needs a view of a
+published paywall that measurement covers, and measurement must be configured;
+`Restage.reset()` and the measurement setting still apply. Each event object
+reports at most once, so your app must make sure one transaction isn't reported
+through two different events.
 
-## Examples and qualification
+## Examples and testing
 
 The [default integration](example/lib/main.dart) and
 [custom integration](example/lib/custom.dart) share one delivered paywall.

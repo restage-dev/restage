@@ -25,7 +25,7 @@ final class MinimalNoticeFlow extends RestageFlow {
       initial: starterNoticeScreenRef,
       outbound: const FlowOutboundDeclarations(
         customEvents: {
-          // The × — handled by the host, not the flow graph.
+          // The × is a custom event your app handles.
           'dismiss': FlowOutboundPayloadDeclaration(),
         },
       ),

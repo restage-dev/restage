@@ -3,13 +3,11 @@ import 'package:restage/restage.dart';
 
 import '../widgets/pulse_badge.dart';
 
-/// A minimal paywall referencing the app's [PulseBadge] — a *categorical*
-/// (AnimationController-driven) app-backed widget.
+/// A minimal paywall that uses the app's [PulseBadge], which runs an animation
+/// controller.
 ///
-/// It proves the package-emitted widget catalog lets an irreducibly imperative
-/// custom widget be *referenced* (never inlined) in a Dart-authored surface and
-/// resolved from the delivered blob through the registered runtime factory —
-/// the case no future transpiler increment could turn into an inline.
+/// The delivered surface refers to `PulseBadge` by name, and the SDK renders it
+/// through its registered factory.
 @Paywall()
 class PulsePaywall extends StatefulWidget {
   /// Const constructor.

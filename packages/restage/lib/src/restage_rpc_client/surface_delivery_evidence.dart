@@ -4,9 +4,9 @@
 /// artifact arrives fine and the artifact does not — an expired pass, an origin
 /// that is down, a tombstoned object, bytes that are not the ones named — every
 /// surface degrades gracefully to its fallback and the end user sees something
-/// reasonable. That is the correct behaviour and it is also indistinguishable,
-/// from the outside, from nothing being wrong. An operator would learn about a
-/// broken artifact lane from a conversion chart weeks later.
+/// reasonable. That is the correct behavior and it is also indistinguishable,
+/// from the outside, from nothing being wrong. An operator would learn about
+/// broken artifact delivery from a conversion chart weeks later.
 ///
 /// So the fallback is taken WITH a record, not in silence. One emission point,
 /// surface-general, carrying only what identifies the surface and why the fetch

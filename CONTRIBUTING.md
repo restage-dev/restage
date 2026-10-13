@@ -86,7 +86,7 @@ Other good areas:
 - **Examples** (`apps/examples`, `packages/restage_widgetbook_example`, and
   `apps/widgetbook_example`): new example surfaces and widgets, or improvements
   to the existing ones. They are maintained alongside the SDK and are the first
-  thing people copy.
+  thing developers copy.
 - **Optional integrations** (`packages/restage_revenuecat`): focused fixes and
   compatibility improvements for apps keeping an existing commerce provider.
 - **The SDK and CLI** (`packages/restage`, `packages/restage_cli`): bug fixes

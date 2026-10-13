@@ -3,15 +3,10 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/lumen_reminder.restage.g.dart';
 
-/// Onboarding — the daily-reminder priming screen (the host-action gate).
+/// Onboarding: the daily reminder screen.
 ///
-/// [enable] is routed through a host action (`enableReminders`): the host
-/// requests the OS notification permission and reports back, and the flow
-/// advances **only when the result is granted**. This is the one conditional
-/// branch the flow runtime offers (advance-or-stay). It is one-directional by
-/// design — there is no in-graph "skip" affordance, because a second forward
-/// transition from one screen is not authorable; the host action simply
-/// reports the user's decision.
+/// [enable] runs the `enableReminders` host action. Your app asks for the OS
+/// notification permission, and the flow moves on only when it is granted.
 @Screen()
 class LumenReminderScreen extends StatelessWidget {
   /// Requests the reminder permission via the host action, then advances on a

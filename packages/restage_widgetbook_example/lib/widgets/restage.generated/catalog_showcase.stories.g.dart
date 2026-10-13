@@ -22,13 +22,13 @@ final CatalogShowcaseComponent =
       path: component.path ?? 'widgets/restage.generated',
       docsBuilder: component.docsBuilder,
       docComment:
-          r'''A catalog widget proving one source can feed every enabled target.
-It combines ordinary scalar state, an enum, callback write-back, native
-child-bearing inputs, and your own structured data. The independently
-named `hero`, `details`, and `footer` inputs require no slot annotation.
+          r'''A catalog widget that feeds every enabled target from one source.
+It combines ordinary state, an enum, a callback that writes a value back,
+child widget inputs, and your own data class. The `hero`, `details`, and
+`footer` inputs need no slot annotation.
 
-The second paragraph is retained in generated property metadata so
-multi-paragraph Dart documentation is never reduced to its first line.''',
+This second paragraph also appears in the generated metadata, because
+every paragraph of a doc comment is kept.''',
       stories: [
         $RestageCatalog..$generatedName = 'RestageCatalog',
         $EnabledFalse..$generatedName = 'EnabledFalse',
@@ -73,7 +73,7 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
          'restageMetadataDescription',
          restageMetadataDescription,
          StringArg(
-           "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+           "A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.",
          ),
        )!,
        this.restageMetadataUsageArg = $initArg(
@@ -117,7 +117,7 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
 
   CatalogShowcaseStoryInputArgs.fixed({
     String restageMetadataDescription =
-        "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+        "A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.",
     String restageMetadataUsage =
         "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
     String title = "",
