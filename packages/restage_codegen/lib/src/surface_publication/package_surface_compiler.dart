@@ -28,6 +28,7 @@ import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
@@ -186,7 +187,9 @@ final class PackageSurfaceCompilationInput {
         rfwCatalogOccurrenceSetsByArtifactPath = const {},
     Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey =
         const {},
-  })  : flows = List.unmodifiable(flows),
+    AppWidgetMountFactories? appWidgets,
+  })  : appWidgets = appWidgets ?? AppWidgetMountFactories.none,
+        flows = List.unmodifiable(flows),
         renderedSources = List.unmodifiable(renderedSources),
         standaloneScreens = List.unmodifiable(standaloneScreens),
         legacyStandaloneScreens = List.unmodifiable(legacyStandaloneScreens),
@@ -206,6 +209,9 @@ final class PackageSurfaceCompilationInput {
 
   /// Canonical package source/output ownership record.
   final RestageSourceRoster roster;
+
+  /// The package's app widget factories, installed by generated mounts.
+  final AppWidgetMountFactories appWidgets;
 
   /// Flattened flow definitions accepted by the analyzer frontend.
   final List<NormalizedFlowSource> flows;
@@ -912,6 +918,150 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final pendingFlowParts = <_PendingFlowPart>[];
   final claimedSymbols = <String, String>{};
 
+  // The registrations a mount's vocabulary carries, with their factories
+  // added to the part.
+  String? appWidgetLibraries(
+    SurfaceVocabularyReferences vocabulary, {
+    required LibraryElement library,
+    required String sdkPrefix,
+    required String partPath,
+    required RestageSourceDeclaration source,
+  }) {
+    final install = input.appWidgets.plan(
+      vocabulary.widgetNames,
+      library,
+      sdkPrefix: sdkPrefix,
+      takenNames: _topLevelNames(library, source: source),
+    );
+    if (install.problem case final problem?) {
+      mountOmissions.add('${source.declarationIdentity}: $problem');
+    }
+    for (final fragment in install.fragments) {
+      _addPartFragment(
+        partFragments,
+        path: partPath,
+        source: source,
+        library: library,
+        fragment: fragment,
+      );
+    }
+    return install.libraries;
+  }
+
+  // A flow installs its steps' app widgets from its own part when its library
+  // can name them, else through a constant each step's part declares.
+  String? flowAppWidgetLibraries(_PendingFlowPart pending) {
+    final identities = {
+      for (final reference in pending.graph.screens.values)
+        reference.declarationIdentity,
+    }.toList()
+      ..sort();
+    final steps = [
+      for (final identity in identities)
+        for (final artifact
+            in artifactsByIdentity[identity] ?? const <_ResolvedArtifact>[])
+          if (artifact.rendered.vocabulary.namesAppWidgets) artifact,
+    ];
+    if (steps.isEmpty) return null;
+
+    const registrationSymbols = {
+      'RestageWidgetLibraryRegistration',
+      'RestageWidgetFactory',
+      'WidgetLibrary',
+    };
+    final flowPrefix = _sdkPrefixFor(pending.library, registrationSymbols);
+    if (flowPrefix != null) {
+      final direct = input.appWidgets.plan(
+        [for (final step in steps) ...step.rendered.vocabulary.widgetNames],
+        pending.library,
+        sdkPrefix: flowPrefix,
+        takenNames: _topLevelNames(pending.library, source: pending.source),
+      );
+      if (direct.libraries case final libraries?) {
+        for (final fragment in direct.fragments) {
+          _addPartFragment(
+            partFragments,
+            path: pending.partPath,
+            source: pending.source,
+            library: pending.library,
+            fragment: fragment,
+          );
+        }
+        return libraries;
+      }
+    }
+
+    final namespace = OwningLibraryNamespace(pending.library);
+    final spreads = <String>[];
+    final constLibraries = <String, LibraryElement>{};
+    for (final artifact in steps) {
+      final screen = artifact.rendered.declaration;
+      final library = screen.library;
+      final partPaths = artifact.source.outputs
+          .where((output) => kGeneratedPartRoles.contains(output.role))
+          .map((output) => output.path)
+          .toSet();
+      final sdkPrefix = _sdkPrefixFor(library, registrationSymbols);
+      final name = '${lowerCamelIdentifier(
+        screen.name ?? '',
+        fallback: 'screen',
+      )}AppWidgets';
+      final screenName = namespace.elementName(screen);
+      final dot = screenName?.lastIndexOf('.') ?? -1;
+      final prefix = dot < 0 ? null : screenName!.substring(0, dot);
+      String? problem;
+      if (partPaths.length != 1 || sdkPrefix == null) {
+        problem = 'no generated part of ${library.uri} can declare them';
+      } else if (screenName == null) {
+        problem = '${pending.library.uri} cannot name ${screen.name}';
+      } else if (_topLevelNames(library, source: artifact.source)
+          .contains(name)) {
+        problem = '${library.uri} already declares $name';
+      } else if (constLibraries[name] case final other? when other != library) {
+        problem = '${other.uri} declares $name too';
+      } else if (!_seesGeneratedName(
+        pending.library,
+        library,
+        prefix: prefix,
+        name: name,
+      )) {
+        problem = '${pending.library.uri} cannot see $name, which a part of '
+            '${library.uri} declares; import that library without a show or '
+            'hide combinator that excludes it';
+      }
+      if (problem != null) {
+        mountOmissions.add(
+          '${pending.source.declarationIdentity}: The generated flow mount '
+          'cannot install the app widgets of ${screen.name}: $problem. '
+          'Published versions of this flow render only after '
+          'registerRestageWidgets() runs at startup.',
+        );
+        return null;
+      }
+      final libraries = appWidgetLibraries(
+        artifact.rendered.vocabulary,
+        library: library,
+        sdkPrefix: sdkPrefix!,
+        partPath: partPaths.single,
+        source: artifact.source,
+      );
+      // Installing only some steps' widgets would pass the capability gate
+      // for a step that cannot render.
+      if (libraries == null) return null;
+      constLibraries[name] = library;
+      _addPartFragment(
+        partFragments,
+        path: partPaths.single,
+        source: artifact.source,
+        library: library,
+        fragment: 'const $name = '
+            '<${sdkPrefix}RestageWidgetLibraryRegistration>$libraries;\n',
+      );
+      spreads.add('...${prefix == null ? '' : '$prefix.'}$name');
+    }
+    return '[${spreads.join(', ')}]';
+  }
+
   for (final suppliedRendered in input.renderedSources) {
     final identity = suppliedRendered.declarationIdentity;
     final source = sourcesByIdentity[identity];
@@ -1129,6 +1279,13 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         mountInput,
         id: source.effectiveId,
         vocabulary: rendered.mountVocabulary,
+        appWidgetLibraries: (sdkPrefix) => appWidgetLibraries(
+          rendered.mountVocabulary,
+          library: rendered.declaration.library,
+          sdkPrefix: sdkPrefix,
+          partPath: mountInput.generatedPartPath,
+          source: source,
+        ),
       );
       if (mount.source case final fragment?) {
         _claimGeneratedSymbol(
@@ -1864,6 +2021,13 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         contract.emitReferenceDart(
           measurementPublicationDraftDigest:
               carrierDraftDigestsByPublicationKey[selector.key],
+          appWidgetLibraries: (sdkPrefix) => appWidgetLibraries(
+            contract.input.vocabulary,
+            library: contract.input.screen.library,
+            sdkPrefix: sdkPrefix,
+            partPath: pending.partPath,
+            source: pending.source,
+          ),
         ),
       )}\n\n',
     );
@@ -1942,6 +2106,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       sdkPrefix: pending.sdkPrefix,
       source: pending.source,
       vocabulary: pending.vocabulary,
+      appWidgetLibraries: flowAppWidgetLibraries(pending),
       measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[
           pending.measurementPublicationKey],
       issues: issues,
@@ -2764,8 +2929,8 @@ String? _emitNeutralReference({
   // written against it still compiles.
   return '''
 const $refName = ${sdkPrefix}NeutralFlowScreenRef(
-  id: ${_dartSingleString(id)},
-  artifactPath: ${_dartSingleString('$id.rfw')},
+  id: ${dartStringLiteral(id)},
+  artifactPath: ${dartStringLiteral('$id.rfw')},
   version: $version,
   minClient: ${capabilities.builtInFloor},
 );
@@ -2807,15 +2972,15 @@ String? _emitCompatibilityScreenDescriptor({
   final carrierArgument = measurementPublicationDraftDigest == null
       ? ''
       : '    measurementPublicationDraftDigest: '
-          '${_dartSingleString(measurementPublicationDraftDigest)},\n';
+          '${dartStringLiteral(measurementPublicationDraftDigest)},\n';
   return '''
 abstract final class $descriptor {
   const $descriptor._();
 
   static const ${sdkPrefix}NeutralFlowScreenRef ref =
       $referenceConstructor(
-    id: ${_dartSingleString(id)},
-    artifactPath: ${_dartSingleString(artifactPath)},
+    id: ${dartStringLiteral(id)},
+    artifactPath: ${dartStringLiteral(artifactPath)},
     version: $version,
     minClient: $minClient,
 $carrierArgument  );
@@ -2895,6 +3060,7 @@ String? _emitFlowReference({
   required RestageSourceDeclaration source,
   required List<Issue> issues,
   SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
+  String? appWidgetLibraries,
   Map<String, FlowDocument> descendants = const {},
   Map<String, ClassElement> nativeScreens = const {},
   String? measurementPublicationDraftDigest,
@@ -2913,9 +3079,12 @@ String? _emitFlowReference({
   );
   final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
   var vocabularyArgument = '';
-  if (vocabulary.namesInstallable) {
-    vocabularyArgument = '  vocabulary: '
-        '${emitSurfaceVocabulary(vocabulary, sdkPrefix: sdkPrefix)},\n';
+  if (vocabulary.namesInstallable || appWidgetLibraries != null) {
+    vocabularyArgument = '  vocabulary: ${emitSurfaceVocabulary(
+      vocabulary,
+      sdkPrefix: sdkPrefix,
+      libraries: appWidgetLibraries,
+    )},\n';
   }
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
@@ -2925,7 +3094,7 @@ String? _emitFlowReference({
   final carrierArgument = measurementPublicationDraftDigest == null
       ? ''
       : '  measurementPublicationDraftDigest: '
-          '${_dartSingleString(measurementPublicationDraftDigest)},\n';
+          '${dartStringLiteral(measurementPublicationDraftDigest)},\n';
   // The argument is emitted only when this flow enters a child flow.
   final childFlows = graph.childFlows.entries.toList()
     ..sort((left, right) => left.key.key.compareTo(right.key.key));
@@ -2951,7 +3120,7 @@ String? _emitFlowReference({
   if (flow.delivery == FlowDeliveryMode.general) {
     return '''
 const $refName = ${referenceConstructor('Map<String, Object?>')}(
-  id: ${_dartSingleString(flow.id)},
+  id: ${dartStringLiteral(flow.id)},
   version: ${flow.version},
   minClient: ${graph.minClient},
   surface: ${sdkPrefix}Surface.${flow.surface.name},
@@ -2987,7 +3156,7 @@ $support''';
   final result = _emitTypedResultClass(resultName, fields);
   return '''
 const $refName = ${referenceConstructor(resultName)}(
-  id: ${_dartSingleString(flow.id)},
+  id: ${dartStringLiteral(flow.id)},
   version: ${flow.version},
   minClient: ${graph.minClient},
   surface: ${sdkPrefix}Surface.${flow.surface.name},
@@ -3048,7 +3217,7 @@ String _emitCanonicalActions(
     final parameter = _lowerCamelIdentifier(entry.key, fallback: 'action');
     final descriptor = '${parameter}Descriptor';
     return '''
-      ${_dartSingleString(entry.key)}:
+      ${dartStringLiteral(entry.key)}:
           ${sdkPrefix}FlowActionBinding<Object?, Object?>(
         descriptor: $descriptor,
         actionName: $descriptor.actionName,
@@ -3069,7 +3238,7 @@ String _emitCanonicalActions(
     return '''
   static final ${sdkPrefix}FlowActionDescriptor<Object?, Object?> $descriptor =
       ${sdkPrefix}FlowActionDescriptor<Object?, Object?>(
-    actionName: ${_dartSingleString(contract.actionName)},
+    actionName: ${dartStringLiteral(contract.actionName)},
     contractVersion: ${contract.contractVersion},
     argsSchema: ${_flowActionSchemaSource(contract.argsSchema, sdkPrefix)},
     resultSchema: ${_flowActionSchemaSource(contract.resultSchema, sdkPrefix)},
@@ -3110,7 +3279,7 @@ String _flowActionSchemaSource(FlowActionSchema schema, String sdkPrefix) {
           sdkPrefix,
         );
         return [
-          '${_dartSingleString(entry.key)}: $fieldType(',
+          '${dartStringLiteral(entry.key)}: $fieldType(',
           'required: ${entry.value.required},',
           'schema: $fieldSchema,',
           ')',
@@ -3127,7 +3296,7 @@ String _flowActionSchemaSource(FlowActionSchema schema, String sdkPrefix) {
       return 'const ${sdkPrefix}FlowActionSchema.string()';
     case FlowEnumActionSchema(:final values):
       final enumType = '${sdkPrefix}FlowActionSchema.enumValues';
-      return 'const $enumType([${values.map(_dartSingleString).join(', ')}])';
+      return 'const $enumType([${values.map(dartStringLiteral).join(', ')}])';
     case FlowListActionSchema(:final child):
       return 'const ${sdkPrefix}FlowActionSchema.list('
           '${_flowActionSchemaSource(child, sdkPrefix)})';
@@ -3152,12 +3321,12 @@ $resultName $decoderName(Map<String, Object?> result) {
   }''';
   }
   final missing = fields
-      .map((field) => '!result.containsKey(${_dartString(field.key)})')
+      .map((field) => '!result.containsKey(${dartStringLiteral(field.key)})')
       .join(' || ');
   final reads = fields.map((field) {
     final type = _dartType(field.value.type);
     return '''
-    final ${field.key} = result[${_dartString(field.key)}];
+    final ${field.key} = result[${dartStringLiteral(field.key)}];
     if (${field.key} is! $type) {
       throw const FormatException('Expected result field ${field.key} to be $type.');
     }''';
@@ -3218,7 +3387,7 @@ String _emitSeedClass(
   final values = seedable
       .map(
         (entry) => '        if (${entry.key} != null) '
-            '${_dartString(entry.key)}: ${entry.key},',
+            '${dartStringLiteral(entry.key)}: ${entry.key},',
       )
       .join('\n');
   return '''
@@ -4173,7 +4342,7 @@ void _addPartFragment(
   );
   final accumulator = fragments[path];
   if (accumulator == null) {
-    fragments[path] = _PartAccumulator(header: header, fragments: [fragment]);
+    fragments[path] = _PartAccumulator(header: header, fragments: {fragment});
     return;
   }
   if (accumulator.header != header) {
@@ -4183,6 +4352,7 @@ void _addPartFragment(
     // source ownership diagnostic through the roster.
     return;
   }
+  // Mounts sharing an app widget share its one factory declaration.
   accumulator.fragments.add(fragment);
 }
 
@@ -4260,6 +4430,16 @@ Set<String> _topLevelNames(
 }) {
   final ownedGeneratedPart =
       source == null ? null : _ownedGeneratedPartAsset(library, source);
+  return (_topLevelNamesByLibrary[library] ??= {})[ownedGeneratedPart] ??=
+      Set.unmodifiable(_computeTopLevelNames(library, ownedGeneratedPart));
+}
+
+final Expando<Map<AssetId?, Set<String>>> _topLevelNamesByLibrary = Expando();
+
+Set<String> _computeTopLevelNames(
+  LibraryElement library,
+  AssetId? ownedGeneratedPart,
+) {
   bool fromOwnedGeneratedPart(Element element) =>
       ownedGeneratedPart != null &&
       _elementAssetId(element) == ownedGeneratedPart;
@@ -4325,6 +4505,64 @@ AssetId? _elementAssetId(Element element) {
   }
 }
 
+/// Whether [from] will see [name], a top-level name a generated part of
+/// [owner] declares, through the import [prefix] names.
+bool _seesGeneratedName(
+  LibraryElement from,
+  LibraryElement owner, {
+  required String? prefix,
+  required String name,
+}) {
+  if (from == owner) return prefix == null;
+  final prefixElement = prefix == null
+      ? null
+      : from.firstFragment.prefixes.where((p) => p.name == prefix).firstOrNull;
+  if (prefix != null && prefixElement == null) return false;
+  final existing = prefixElement == null
+      ? from.firstFragment.scope.lookup(name).getter
+      : prefixElement.scope.lookup(name).getter;
+  if (existing != null) return false;
+  for (final import in from.firstFragment.libraryImports) {
+    if (import.prefix?.element != prefixElement ||
+        import.prefix?.isDeferred == true ||
+        !_combinatorsAdmit(import.combinators, name)) {
+      continue;
+    }
+    if (import.importedLibrary case final imported?
+        when _exportsName(imported, owner, name, {})) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _exportsName(
+  LibraryElement library,
+  LibraryElement owner,
+  String name,
+  Set<LibraryElement> seen,
+) {
+  if (library == owner) return true;
+  if (!seen.add(library)) return false;
+  for (final export in library.firstFragment.libraryExports) {
+    if (export.exportedLibrary case final exported?
+        when _combinatorsAdmit(export.combinators, name) &&
+            _exportsName(exported, owner, name, seen)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _combinatorsAdmit(List<NamespaceCombinator> combinators, String name) =>
+    combinators.every(
+      (combinator) => switch (combinator) {
+        ShowElementCombinator(:final shownNames) => shownNames.contains(name),
+        HideElementCombinator(:final hiddenNames) =>
+          !hiddenNames.contains(name),
+      },
+    );
+
 String? _sdkPrefixFor(
   LibraryElement library,
   Set<String> symbols,
@@ -4377,7 +4615,7 @@ String _partOfHeader({
   final override = library.languageVersion.override;
   final version =
       override == null ? '' : '// @dart=${override.major}.${override.minor}\n';
-  return '${version}part of ${_dartSingleString(
+  return '${version}part of ${dartStringLiteral(
     p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
   )};';
 }
@@ -4388,16 +4626,6 @@ const String Function(String, {required String fallback}) _pascalIdentifier =
     pascalIdentifier;
 const String Function(String, {required String fallback})
     _lowerCamelIdentifier = lowerCamelIdentifier;
-
-String _dartString(String value) => jsonEncode(value).replaceAll(r'$', r'\$');
-
-String _dartSingleString(String value) {
-  final escaped = value
-      .replaceAll(r'\', r'\\')
-      .replaceAll("'", r"\'")
-      .replaceAll(r'$', r'\$');
-  return "'$escaped'";
-}
 
 bool _isDeliveryArtifactPath(String path) {
   if (path.isEmpty || path.trim() != path || path.startsWith('/')) {
@@ -4633,5 +4861,5 @@ final class _PartAccumulator {
   _PartAccumulator({required this.header, required this.fragments});
 
   final String header;
-  final List<String> fragments;
+  final Set<String> fragments;
 }

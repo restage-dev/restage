@@ -1,185 +1,152 @@
 # Restage SDK examples
 
-A small library of paywall and engagement surfaces built with the Restage
-Flutter SDK. BSD-3-Clause; it ships with the public SDK. The fastest way from
-zero to a shipped surface is to copy one of these, preview it, publish it, and
-iterate.
+Onboarding flows, in-app messages, surveys, permission prompts, paywalls, and
+other screens, each written in ordinary Flutter with one Restage annotation.
+Copy one, preview it, publish it, and change it without shipping an app update.
 
-Every surface here is plain Flutter and renders as real Flutter widgets. You
-compose your own widgets (design-system components included), and a thin Dart
-layer wires flow and events. The build-time codegen compiles each surface to a
-small artifact that the SDK decodes at runtime. That same artifact is what
-ships over the air.
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
-Run it:
+Each screen is a normal Flutter widget built from your own widgets and design
+system, marked with `@Screen` or `@Paywall`. Multi-screen flows add a short Dart
+flow definition. At build time Restage compiles each surface to a small
+artifact that the SDK renders as real Flutter widgets. That artifact is also
+what you publish to Restage Cloud.
+
+Run the gallery:
 
 ```sh
 flutter run
 ```
 
-Pick a surface from the gallery. The app-bar brightness toggle flips the whole
-app between light and dark. The branded surfaces here are fixed-brand, so they
-hold their palette; a theme-adaptive surface repaints.
+Pick a surface from the gallery. The app-bar toggle switches between light and
+dark. Starters follow the theme; branded surfaces keep their own colors.
 
 ## What is in here
 
 ### Starters
 
-The fastest way in. Four bare surfaces, the smallest file per capability. They
-use the system theme (no hard-coded palette), so they repaint when you flip the
-gallery's light/dark toggle. Copy one, retitle it, restyle it, ship it. They
-appear in the gallery's first section, "Starters".
+Small, copy-ready files, one per capability. They use the app theme, so they
+repaint when you flip light and dark. They are the gallery's first section.
 
 | Starter | Files | Shows |
 |---|---|---|
-| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | `@Paywall` with a two-plan tap-to-select, literal display prices, and a `continue` event carrying the selected plan. The selection and event arguments compile into the artifact. |
-| **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that navigates, writes the captured answer, and routes the ending on it with a `decision()`. |
-| **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | The smallest flow: one screen, a notice. The CTA completes; the × is a host-handled `dismiss`. |
-| **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | A `@RestageWidget` (`StatBadge`) whose pure-composition `build` codegen inlines into the artifact, so your own widget renders through RFW inside a delivered surface with no runtime factory. |
-| **Host data** | `lib/surfaces/starter_host_data.dart` + `starter_host_data_demo.dart` | A `@Screen` whose rows are constructor parameters. The build generates `StarterChecklistSurface`, which takes them as ordinary arguments and keeps the authored widget as its fallback; the `for` over them becomes a loop in the artifact, and a tap reaches the app as a typed event. |
+| **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that saves the user's answer and picks the ending from it with a `decision()`. |
+| **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | One screen, a notice. The button completes the flow; the × is a `dismiss` event your app handles. |
+| **Bare surface** | `lib/onboarding/flows/bare_surface.dart` + `screens/starter_bare_surface.dart` | One delivered screen with no required event and no forced ending. |
+| **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | Your own `@RestageWidget` (`StatBadge`) compiled into a delivered surface, with no runtime factory. |
+| **Host data** | `lib/surfaces/starter_host_data.dart` + `starter_host_data_demo.dart` | A `@Screen` whose rows come from your app. The build generates `StarterChecklistSurface`, which takes them as ordinary arguments; the `for` loop over them compiles, and a tap reaches your app as a typed event. |
+| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | A two-plan picker whose `continue` event carries the selected plan. The selection logic compiles into the surface. |
 
-The gallery keeps paywall, screen, and flow sources in `lib/paywalls/`,
-`lib/onboarding/screens/`, and `lib/onboarding/flows/`. That is a source
-layout. The annotations declare what each file is, and the generated manifest
-records each surface's identity and artifacts.
+Folder names are only a source layout. The annotations decide what each file
+is, and the build records each surface's ID and artifacts.
+
+### Onboarding, messages, and surveys
+
+Flows use `@FlowGraph(surface: ...)`. The build generates a typed flow
+reference, and your app shows it with `RestageFlowGraph`, or drives it
+directly with `RestageFlowController`. The gallery has:
+
+- **Meditation onboarding** (`lib/onboarding/flows/lumen_onboarding.dart`):
+  welcome, two questions, a step that asks your app to turn on reminders,
+  a recap, then an offer.
+- **Trial-ending message** (`lib/surfaces/lumen_trial_ending_flow.dart`): a
+  sheet shown before a trial ends, leading to an offer.
+- **Exit survey** (`lib/surfaces/lumen_cancel_flow.dart`): one question with
+  five reasons; the answer reaches your app when the flow completes.
+- **Location permission primer** (`lib/onboarding/flows/crave_permission.dart`):
+  "Use current location" asks your app for the permission; "Not now" continues
+  without it.
+- **In-app message** (`lib/onboarding/flows/apex_drop.dart`): one screen whose
+  button acts and whose × dismisses.
+- **Cancellation survey** (`lib/onboarding/flows/reel_cancel.dart`): two
+  questions, then a save offer. "Keep my discount" asks your app to apply it;
+  "No thanks" sends a cancel event.
+- **Goal-based onboarding** (`lib/onboarding/flows/tally_onboarding.dart`):
+  the setup screens change with the goal the user picks.
 
 ### Paywalls (`lib/paywalls/`)
 
-Each paywall is a `@Paywall` `StatefulWidget` in plain Flutter. All six are
-fixed-brand surfaces with literal-color palettes, and each presents a real plan
-choice: tap a plan and its selection indicator updates, in that surface's own
-visual language, while the primary CTA reports the selected plan through an
-ordinary `continue` event. The selection lives in widget `State` (`setState`).
-Codegen compiles those state reads to state switches in the artifact, so the
-interaction travels inside the delivered artifact with no host code.
+Each paywall is a `@Paywall` `StatefulWidget` with a real plan choice: tap a
+plan and its selection updates, and the main button reports the selected plan
+in a `continue` event. Prices are placeholder text.
 
-| Source (`id`) | Archetype | Plan selection |
+| Source (`id`) | Style | Plan selection |
 |---|---|---|
-| `pulse_premium` (Pulse) | Dark, segmented tiers | Tri-state tier strip (`int` state) + tap-to-select plan cards |
-| `ascend_premium` (Ascend) | Free-trial timeline | Tap "Start free trial" and a modal sheet rises; "See All Plans" swaps the content |
-| `fluent_pro` (Fluent Pro) | Gradient-hero free trial | Two plan cards (Personal / Family); "View all plans" pushes a second screen (see below) |
-| `sentinel_protection` (Sentinel) | Light savings-badge | Tap-to-select rows with a moving radio |
-| `narrate_membership` (Narrate) | Expandable plan cards | Tap a plan and it expands with its benefits + CTA while the other collapses |
-| `lumen_premium` (Lumen) | Calm meditation selector | Tap-to-select rows with a moving radio; also the last step of the meditation onboarding flow |
+| `pulse_premium` | Dark, segmented tiers | Three-way tier strip plus plan cards |
+| `ascend_premium` | Free-trial timeline | "Start free trial" opens a sheet; "See All Plans" swaps its content |
+| `fluent_pro` | Gradient hero | Two plan cards; "View all plans" opens a second screen |
+| `sentinel_protection` | Light, savings badge | Rows with a radio button |
+| `narrate_membership` | Expandable cards | The tapped plan expands with its benefits |
+| `lumen_premium` | Calm meditation | Rows with a radio button |
+| `lumen_welcome_offer`, `lumen_annual_upgrade`, `lumen_holiday_promo` | Offer variants | Plan cards or a single plan |
 
-`fluent_pro` also shows screen navigation: its "VIEW ALL PLANS" control is a
-real `Navigator.push` to a second `@Paywall` (`fluent_pro_choose_plan`). Codegen
-compiles that to a two-screen flow (entry, then choose a plan), which
-`RestagePaywall` hosts without extra code.
+`fluent_pro`'s "View all plans" is a real `Navigator.push` to a second
+`@Paywall` (`fluent_pro_choose_plan`). The build turns it into a two-screen
+flow.
 
-Each paywall appears in the gallery twice: a local widget mount and the
-delivered artifact (`RestagePaywall(id:)` decoding the bundled artifact). The
-examples use literal illustrative prices. On the delivered tiles, the demo host
-wires `onEvent` to a SnackBar so custom events and Terms / Privacy actions have
-a visible result.
+Each paywall appears twice in the gallery: once as a local widget and once
+rendered from its compiled artifact. On the compiled versions, the gallery
+shows events and Terms / Privacy taps in a SnackBar. The `hello` tile renders
+`assets/paywalls/hello.rfw`, a hand-written artifact that shows what the format
+looks like.
 
-The gallery also includes a minimal `hello` artifact, rendered straight through
-`RestagePaywall(id: "hello")`, to show the bare decode-and-render path.
+### Capabilities
 
-### Engagement surfaces (`lib/onboarding/`)
+Standalone demos in the gallery's "Capabilities" section. Each also runs on its
+own with `flutter run -t`:
 
-The same pipeline drives multi-screen engagement surfaces. Flow sources use
-`@FlowGraph(surface: Surface.<category>)`, and codegen emits a typed
-`SurfaceFlowRef<R>`. The runtime mounts that ref with `RestageFlowGraph<R>`.
-The gallery presents four:
-
-- **Meditation onboarding to paywall** (`flows/lumen_onboarding.dart`): welcome,
-  two personalization questions, an enable-reminders host-action gate, a
-  recap, then the embedded Lumen paywall. Its `continue` event ends the flow.
-- **Location permission primer** (`flows/crave_permission.dart`): a
-  delivery-app location soft-ask. "Use current location" runs a host-action
-  gate; "Not now" is a host-handled custom event that continues without the
-  grant.
-- **In-app message** (`flows/apex_drop.dart`): the smallest flow the runtime
-  supports. A single-screen retail "drop" announcement whose CTA acts and
-  whose × dismisses.
-- **Cancellation survey** (`flows/reel_cancel.dart`): a streaming retention
-  flow. Two questions, then a save-offer host-action gate ("Keep my discount"
-  advances on a redemption; "No thanks" fires a host-handled cancel).
-
-### Capabilities and reference (`lib/`)
-
-Standalone SDK-mechanic demos, listed in the gallery's "Capabilities" and
-"Reference" sections and runnable directly with `flutter run -t`:
-
-- **Modal sheet** (`lib/main_modal_sheet_demo.dart`): the declarative
-  drag-to-dismiss bottom sheet.
-- **Draggable sheet** (`lib/main_draggable_sheet_demo.dart`): the persistent
-  detent sheet (peek, mid, full, with snap physics).
+- **Modal sheet** (`lib/main_modal_sheet_demo.dart`): a bottom sheet you drag
+  to dismiss.
+- **Draggable sheet** (`lib/main_draggable_sheet_demo.dart`): a sheet that
+  snaps between peek, middle, and full height.
 - **Hosted delivery** (`lib/main_hosted_paywall_demo.dart`): a paywall fetched
-  through the hosted-delivery resolver (served here by an in-app fake server),
-  with the fail-closed fallback. The over-the-air path, end to end.
+  over the air (from an in-app fake server here), with the fallback used when
+  the fetch fails.
 
-Three more `lib/main_*.dart` entrypoints run with `flutter run -t` but are not
-listed in the gallery: `main_plan_board_demo.dart`,
-`main_section_header_demo.dart`, and `main_render_bundle.dart`.
+The other `lib/main_*.dart` files are standalone demos that are not in the
+gallery. Run any of them with `flutter run -t lib/<file>.dart`.
 
 ### Custom widgets (`lib/widgets/`)
 
-Three `@RestageWidget` custom widgets (`AcmeBorder`, `AcmeStack`, `PromoBadge`)
-show the custom-widget registration path. `registerRestageWidgets()`
-(generated into `lib/user_factories.g.dart`) registers them with the SDK. They
-are standalone capability demos; the paywalls above do not use them.
+`@RestageWidget` custom widgets such as `AcmeBorder`, `AcmeStack`, and
+`PromoBadge`. `registerRestageWidgets()`, generated into
+`lib/user_factories.g.dart`, registers them with the SDK.
 
-## The author, build, preview loop
+## Build, preview, publish
 
-A paywall is a `StatefulWidget` annotated `@Paywall`, in plain Flutter. The
-build-time codegen compiles it:
+The build compiles each annotated file:
 
-```
-lib/paywalls/<name>.dart  ──(dart run build_runner build)──▶  lib/paywalls/restage.generated/<name>.restage.g.dart
-                                                              assets/restage/bundles/lib/paywalls/<name>.rsbundle
-```
-
-The generated part carries the typed descriptor. The `.rsbundle` carries the
-exact delivery bytes the runtime decodes, so one surface is one addressable
-artifact. The manifest at `.restage/build/metadata/restage.publication.json` records the
-artifacts for each surface. Both are build outputs. The bundles are committed
-here so the gallery runs from a fresh clone; the manifest is not.
-
-`assets/paywalls/hello.rfw` is the one exception: a hand-written artifact kept
-to show what the format looks like. The build does not produce it.
-
-Push a surface, publish it, and iterate over the air:
-
-```sh
-restage surface push fluent_pro
-restage surface publish fluent_pro
+```text
+lib/onboarding/screens/<screen>.dart  ──(dart run build_runner build)──▶  screens/restage.generated/<screen>.restage.g.dart
+                                                                           assets/restage/bundles/lib/onboarding/screens/<screen>.rsbundle
+lib/onboarding/flows/<flow>.dart      ──▶  flows/restage.generated/<flow>.restage.g.dart
+lib/paywalls/<name>.dart              ──▶  paywalls/restage.generated/<name>.restage.g.dart
 ```
 
-A push uploads a version. A publish makes one pushed revision live.
+The generated Dart part holds the typed reference. The `.rsbundle` holds the
+exact bytes the SDK renders. The bundles are committed so the gallery runs from
+a fresh clone.
 
 Flutter does not hot-reload bundled assets. After a rebuild, hot-restart the
-running app (press `R` in `flutter run`).
+app (press `R` in `flutter run`).
 
-### Onboarding and messages
+Push a surface to Restage Cloud, then publish it:
 
-Flows use `@FlowGraph(surface: ...)`. The gallery keeps them under
-`lib/onboarding/`:
-
-```
-lib/onboarding/screens/<screen>.dart  ──▶  screens/restage.generated/<screen>.restage.g.dart
-lib/onboarding/flows/<flow>.dart      ──▶  flows/restage.generated/<flow>.restage.g.dart
+```sh
+restage surface push minimal_onboarding
+restage surface publish minimal_onboarding
 ```
 
-The manifest at `.restage/build/metadata/restage.publication.json` records each flow and
-the screen artifacts it uses.
+A push uploads a new version. A publish makes a pushed version live.
 
-A message is the smallest flow (one screen, one terminal state), so it lives
-here too. See `flows/apex_drop.dart`.
+## Interactive state
 
-
-## Authoring an interactive paywall
-
-A `@Paywall` is a `StatefulWidget`, so selection state lives in the widget's
-`State` as a plain field: a `bool` for a two-plan choice, an `int` for a tier
-strip. Tapping a plan calls `setState` to update that field. Reading the field
-in `build` drives both the selection indicator and the arguments reported by
-the primary CTA. See `lib/paywalls/fluent_pro.dart` for the two-plan (`bool
-personalSelected`) shape, or `lib/paywalls/pulse_premium.dart` for the tri-state
-tier strip (`int selectedTier`).
-
-The CTA emits an ordinary event with the selected plan:
+Selection state lives in the widget's `State` as a plain field: a `bool` for a
+two-way choice, an `int` for a three-way strip. Tapping calls `setState`, and
+reading the field in `build` drives both the highlight and the event the button
+sends. The build compiles this logic into the surface, so it works over the air
+with no app code. See `lib/paywalls/fluent_pro.dart` (`bool personalSelected`)
+or `lib/paywalls/pulse_premium.dart` (`int selectedTier`).
 
 ```dart
 GestureDetector(
@@ -189,39 +156,29 @@ GestureDetector(
       'plan': personalSelected ? 'personal' : 'family',
     },
   ),
-  child: /* the styled button face */,
+  child: /* the styled button */,
 )
 ```
 
-Authored surfaces may emit ordinary selection or continue events. They cannot
-initiate purchases or restores; explicit host-controlled code invokes the typed
-commerce boundary. Once commerce is activated, that code imports
-`package:restage/commerce.dart` and invokes it through `Restage.commerce`. The
-commerce facade is currently unavailable. These examples stop at the event
-boundary and use literal illustrative prices.
+Surfaces send events; they never start a purchase. Your app handles the event
+and runs its own purchase code.
 
-## Authoring constraints
+## Authoring limits
 
-These keep a surface compilable. They apply to paywalls and onboarding screens
-alike:
+- **Don't mix plain and interpolated adjacent strings.** `'a' 'b'` compiles;
+  `'Hi ' '$name'` does not. Write one interpolated string instead.
+- **No `double.infinity`.** The build rejects it. For a full-width child, use
+  `Row(children: [Expanded(child: ...)])`, or set
+  `crossAxisAlignment: CrossAxisAlignment.stretch` on the column.
 
-- **Keep adjacent interpolation in one literal.** Adjacent plain string
-  literals fold correctly. A group that mixes plain and interpolated segments
-  does not compile yet, so write one interpolated string instead.
-- **Full width without `double.infinity`.** `SizedBox(width: double.infinity)`
-  does not survive compilation (a non-finite double has no literal in the
-  artifact), so the element hugs its content once delivered. For a full-width
-  child in a centered column, wrap it as `Row(children: [Expanded(child: ...)])`.
-  For a column that is full width throughout, set
-  `crossAxisAlignment: CrossAxisAlignment.stretch`.
-- **Keep the build tree flat.** Do not extract helper widgets or methods. Write
-  the surface inline so the compiler can follow it.
-- **Write theme reads inline.** If a surface reads the ambient theme, use the
-  full `Theme.of(context).colorScheme.<role>` chain where you use it. Hoisting
-  it into a local (`final scheme = Theme.of(context).colorScheme;`) is a form
-  the compiler cannot follow.
+## Generated files
 
-Identity state is tracked in `.restage/measurement-state.json` and
-`.restage/wire-ids.events.jsonl`. The app’s `additional_public_assets` entries
-admit these files to Build Runner so manual state edits invalidate its cache.
-Disposable portable artifacts are generated under `.restage/build/`.
+`.restage/wire-ids.events.jsonl` keeps the catalog IDs for your custom widgets,
+and `.restage/measurement-state.json` keeps the event IDs. Commit both so IDs
+stay stable between builds. The `additional_public_assets` entries in
+`build.yaml` make the build notice when either file changes. Everything under
+`.restage/build/` is build output and can be deleted.
+
+## License
+
+BSD-3-Clause. See [LICENSE](LICENSE).

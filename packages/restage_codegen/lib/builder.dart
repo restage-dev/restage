@@ -68,11 +68,27 @@ Builder paywallFlowBuilder(BuilderOptions options) =>
 /// tracked package graph and writes the deterministic package index/roster
 /// before later compiler lanes consume the ownership contract.
 Builder restageSourceRosterBuilder(BuilderOptions options) =>
-    RestageSourceRosterBuilder(options);
+    _rootOnly(options, RestageSourceRosterBuilder(options));
 
 /// build_runner factory entry point for canonical package compilation.
 Builder restagePackageSurfaceCompilerBuilder(BuilderOptions options) =>
-    PackageSurfaceCompilerBuilder(options);
+    _rootOnly(options, PackageSurfaceCompilerBuilder(options));
+
+/// Build config enables every builder a target configures, so a dependency's
+/// placement options switch on its root-only builders in the consuming app's
+/// build. That package compiles in its own build instead.
+Builder _rootOnly(BuilderOptions options, Builder builder) =>
+    options.isRoot ? builder : _InertBuilder(builder.buildExtensions);
+
+final class _InertBuilder implements Builder {
+  const _InertBuilder(this.buildExtensions);
+
+  @override
+  final Map<String, List<String>> buildExtensions;
+
+  @override
+  Future<void> build(BuildStep buildStep) async {}
+}
 
 /// build_runner factory entry point for the unified generated-output
 /// builder: one deterministic bundle per authored library, its optional

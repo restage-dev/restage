@@ -2,31 +2,26 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_material.svg)](https://pub.dev/packages/restage_material) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-A curated [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog of Material Design widgets for
-server-driven Flutter UI: the `restage.material` library (buttons, Scaffold,
-AppBar, Card, ListTile, chips, selection controls, and more; 43 widgets).
-Sibling to `restage_core` and `restage_cupertino`.
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
-Part of [Restage](https://restage.dev), server-driven UI for Flutter. Extend this
-catalog with your own design-system widgets via `@RestageWidget`.
+The `restage.material` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
+46 Material Design widgets, including buttons, Scaffold, AppBar, Card,
+ListTile, chips, and selection controls. It sits alongside `restage_core` and
+`restage_cupertino`. Add your own design-system widgets to the catalog with
+`@RestageWidget`.
 
-The package provides catalog metadata (`lib/registry.dart` `kRegistry`, mirrored
-to `lib/src/widget_catalog/catalog.json`), an RFW `LocalWidgetBuilder`
-registration map (`lib/src/registration.g.dart`), and a set of compiled-in
-catalog widgets it ships as real classes:
+The package provides catalog metadata for authoring tools and the code
+generator, and an RFW `LocalWidgetBuilder` map that renders the catalog's
+widgets. It also ships interactive widgets whose gesture and animation logic
+is compiled into your app: `RestageModalSheet`, `RestageDraggableSheet`,
+`RestagePager`, `RestageDropdown`, `RestageRadioGroup`,
+`RestageSegmentedButton`, and `RestageToggleButtons`. Surfaces set their
+properties and receive their events.
 
-- **Interactive composites** with gesture and animation logic compiled into
-  your app: `RestageModalSheet`, `RestageDraggableSheet`, `RestagePager`,
-  `RestageDropdown`, `RestageRadioGroup`, `RestageSegmentedButton`,
-  `RestageToggleButtons`.
-
-Surfaces configure these widgets through their declared properties and receive
-their events.
-
-Standard Material widgets are mapped through the catalog.
-The catalog is surface-general: the same widgets compose any server-driven UI
-surface.
+You write surfaces in plain Flutter; standard Material widgets map to the
+catalog. The same widgets build onboarding, messages, surveys, paywalls, or any
+other screen.
 
 ## License
 
-BSD-3-Clause. See `LICENSE`.
+BSD-3-Clause. See [LICENSE](LICENSE).

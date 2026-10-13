@@ -136,7 +136,7 @@ void main() {
       final src = emitUserCatalogDart(userCatalogFromWidgets(const []));
       expect(
         src,
-        contains("import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'"),
+        contains("import 'package:restage/catalog.dart'"),
       );
       expect(src, contains('final Catalog kUserCatalog = Catalog('));
       expect(src, contains('GENERATED CODE - DO NOT MODIFY BY HAND'));

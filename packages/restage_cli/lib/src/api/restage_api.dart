@@ -181,6 +181,8 @@ String _buildAuthHeader(Credential credential) {
       // format`. Do NOT "fix" this back to lowercase until the server
       // gains case-insensitive scheme parsing.
       return 'Basic ${base64Encode(utf8.encode(credential.authToken))}';
+    case CredentialKind.secretKey:
+      return 'Bearer ${credential.authToken}';
     default:
       throw StateError(
         'Unknown credential kind: ${credential.kind}. The credentials '

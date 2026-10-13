@@ -1,54 +1,54 @@
 part of '../get_started_screen.dart';
 
-sealed class OpaqueScreenProofEvent {
-  const OpaqueScreenProofEvent();
+sealed class GetStartedScreenEvent {
+  const GetStartedScreenEvent();
 }
 
-final class OpaqueScreenProofContinueEventEvent extends OpaqueScreenProofEvent {
-  const OpaqueScreenProofContinueEventEvent(this.value);
+final class GetStartedScreenContinueEventEvent extends GetStartedScreenEvent {
+  const GetStartedScreenContinueEventEvent(this.value);
 
   final String value;
 }
 
-final _opaqueScreenProofEvents =
-    SurfaceScreenEventContract<OpaqueScreenProofEvent>.generated(
+final _getStartedScreenEvents =
+    SurfaceScreenEventContract<GetStartedScreenEvent>.generated(
   hash:
-      "sha256:528895db4d56cf54e7293e34be342265bdf0d414f70213361a21084810bdf593",
-  decodeValidated: _decodeValidatedOpaqueScreenProofEvent,
+      'sha256:528895db4d56cf54e7293e34be342265bdf0d414f70213361a21084810bdf593',
+  decodeValidated: _decodeValidatedGetStartedScreenEvent,
 );
 
-final _opaqueScreenProofProvenance = SurfaceScreenRuntimeProvenance.generated(
+final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
   surface: Surface.onboarding,
-  slug: "opaque_screen_proof",
+  slug: 'get_started_screen',
   contractVersion: 1,
   capabilities: CapabilityManifest(
     builtInFloor: 1,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
-      "{\"schemaVersion\":1,\"events\":[{\"id\":\"continue\",\"arguments\":{\"encoding\":\"value\",\"shape\":{\"kind\":\"string\"}}}]}",
+      '{"schemaVersion":1,"events":[{"id":"continue","arguments":{"encoding":"value","shape":{"kind":"string"}}}]}',
   hostDataSchemaJson:
-      "{\"schemaVersion\":1,\"inputs\":{\"context\":{\"kind\":\"string\"},\"data\":{\"kind\":\"string\"},\"description\":{\"kind\":\"string\"},\"enabled\":{\"kind\":\"bool\"},\"itemContext\":{\"kind\":\"string\"},\"title\":{\"kind\":\"string\"},\"usage\":{\"kind\":\"string\"}}}",
+      '{"schemaVersion":1,"inputs":{"context":{"kind":"string"},"data":{"kind":"string"},"description":{"kind":"string"},"enabled":{"kind":"bool"},"itemContext":{"kind":"string"},"title":{"kind":"string"},"usage":{"kind":"string"}}}',
   bundle: SurfaceScreenBundleLocator(
     assetKey:
-        "assets/restage/bundles/lib/onboarding/screens/get_started_screen.rsbundle",
-    packageName: "restage_widgetbook_example",
-    authoredLibraryPath: "lib/onboarding/screens/get_started_screen.dart",
+        'assets/restage/bundles/lib/onboarding/screens/get_started_screen.rsbundle',
+    packageName: 'restage_widgetbook_example',
+    authoredLibraryPath: 'lib/onboarding/screens/get_started_screen.dart',
     entries: [
       SurfaceScreenBundleEntryReference(
-        logicalPath: "assets/onboarding/screens/opaque_screen_proof.rfw",
+        logicalPath: 'assets/onboarding/screens/get_started_screen.rfw',
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 1755,
+        byteLength: 1747,
         sha256:
-            "sha256:8cc8b91acac4f019533b9b6f5d38c8aed5fbb1e23edb9a1b23fe2883269aa71b",
+            'sha256:6de6f52ac71212a2a79391f6871f1eccf5645066bb6d7e6798aacbac29b3d355',
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
-            "assets/onboarding/screens/opaque_screen_proof.capability.json",
+            'assets/onboarding/screens/get_started_screen.capability.json',
         role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 141,
         sha256:
-            "sha256:4d6d51b9ffb9050f4dd471ba0c198eda72adc62dffad4c043a43a9c98e17cbf1",
+            'sha256:7640f8efacf15a352bc9da2b4d2cfb77ccf99d463956a37df63d3d9fdcca0e30',
       ),
     ],
   ),
@@ -65,55 +65,55 @@ final _opaqueScreenProofProvenance = SurfaceScreenRuntimeProvenance.generated(
   ),
 );
 
-final opaqueScreenProofRef = SurfaceScreenRef<
-    OpaqueScreenProofEvent>.generatedWithMeasurementPublicationDraftDigest(
-  provenance: _opaqueScreenProofProvenance,
-  eventContract: _opaqueScreenProofEvents,
+final getStartedScreenRef = SurfaceScreenRef<
+    GetStartedScreenEvent>.generatedWithMeasurementPublicationDraftDigest(
+  provenance: _getStartedScreenProvenance,
+  eventContract: _getStartedScreenEvents,
   measurementPublicationDraftDigest:
-      "996960781c1ced5ed4805bd8f0dfc0653ca3ae0cc7f945fc2f436d5cb30127f4",
+      '1e31372e4267dbd073fdcaacbbb907c8a1a158892c9a7c053f435fd21dc1a7ae',
 );
 
-OpaqueScreenProofEvent _decodeValidatedOpaqueScreenProofEvent(
+GetStartedScreenEvent _decodeValidatedGetStartedScreenEvent(
   String name,
   Map<String, Object?> arguments,
 ) {
   switch (name) {
-    case "continue":
-      return OpaqueScreenProofContinueEventEvent(arguments['value'] as String);
+    case 'continue':
+      return GetStartedScreenContinueEventEvent(arguments['value'] as String);
   }
-  throw FormatException("Invalid OpaqueScreenProof event \"" + name + "\".");
+  throw FormatException('Invalid GetStartedScreen event "$name".');
 }
 
-const bool _opaqueScreenProofMountDefault2 = true;
+const bool _getStartedScreenMountDefault2 = true;
 
-const OpaqueScreenProofTone _opaqueScreenProofMountDefault3 =
-    OpaqueScreenProofTone.calm;
+const GetStartedScreenTone _getStartedScreenMountDefault3 =
+    GetStartedScreenTone.calm;
 
-const String _opaqueScreenProofMountDefault4 = 'Example data';
+const String _getStartedScreenMountDefault4 = 'Example data';
 
-const String _opaqueScreenProofMountDefault5 = 'Example context';
+const String _getStartedScreenMountDefault5 = 'Example context';
 
-const String _opaqueScreenProofMountDefault6 = 'Example item context';
+const String _getStartedScreenMountDefault6 = 'Example item context';
 
-const OpaqueScreenProofTone _opaqueScreenProofMountDefault7 =
-    OpaqueScreenProofTone.calm;
+const GetStartedScreenTone _getStartedScreenMountDefault7 =
+    GetStartedScreenTone.calm;
 
-const String _opaqueScreenProofMountDefault8 = 'Example description';
+const String _getStartedScreenMountDefault8 = 'Example description';
 
-const String _opaqueScreenProofMountDefault9 = 'Example usage';
+const String _getStartedScreenMountDefault9 = 'Example usage';
 
-final class OpaqueScreenProofSurface extends StatelessWidget {
-  const OpaqueScreenProofSurface({
+final class GetStartedScreenSurface extends StatelessWidget {
+  const GetStartedScreenSurface({
     super.key,
     required String title,
-    bool enabled = _opaqueScreenProofMountDefault2,
-    OpaqueScreenProofTone tone = _opaqueScreenProofMountDefault3,
-    String data = _opaqueScreenProofMountDefault4,
-    String context = _opaqueScreenProofMountDefault5,
-    String itemContext = _opaqueScreenProofMountDefault6,
-    OpaqueScreenProofTone restageA2uiStatus = _opaqueScreenProofMountDefault7,
-    String description = _opaqueScreenProofMountDefault8,
-    String usage = _opaqueScreenProofMountDefault9,
+    bool enabled = _getStartedScreenMountDefault2,
+    GetStartedScreenTone tone = _getStartedScreenMountDefault3,
+    String data = _getStartedScreenMountDefault4,
+    String context = _getStartedScreenMountDefault5,
+    String itemContext = _getStartedScreenMountDefault6,
+    GetStartedScreenTone restageA2uiStatus = _getStartedScreenMountDefault7,
+    String description = _getStartedScreenMountDefault8,
+    String usage = _getStartedScreenMountDefault9,
     this.onEvent,
     this.resolver,
     this.onUnavailable,
@@ -132,7 +132,7 @@ final class OpaqueScreenProofSurface extends StatelessWidget {
 
   final bool _restageArgument2;
 
-  final OpaqueScreenProofTone _restageArgument3;
+  final GetStartedScreenTone _restageArgument3;
 
   final String _restageArgument4;
 
@@ -140,13 +140,13 @@ final class OpaqueScreenProofSurface extends StatelessWidget {
 
   final String _restageArgument6;
 
-  final OpaqueScreenProofTone _restageArgument7;
+  final GetStartedScreenTone _restageArgument7;
 
   final String _restageArgument8;
 
   final String _restageArgument9;
 
-  final ValueChanged<OpaqueScreenProofEvent>? onEvent;
+  final ValueChanged<GetStartedScreenEvent>? onEvent;
 
   final SurfaceScreenResolver? resolver;
 
@@ -156,28 +156,28 @@ final class OpaqueScreenProofSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<OpaqueScreenProofEvent>(
-      screen: opaqueScreenProofRef,
+    return RestageScreen<GetStartedScreenEvent>(
+      screen: getStartedScreenRef,
       context: <String, Object?>{
-        "title": this._restageArgument1,
-        "enabled": this._restageArgument2,
-        "data": this._restageArgument4,
-        "context": this._restageArgument5,
-        "itemContext": this._restageArgument6,
-        "description": this._restageArgument8,
-        "usage": this._restageArgument9,
+        'title': _restageArgument1,
+        'enabled': _restageArgument2,
+        'data': _restageArgument4,
+        'context': _restageArgument5,
+        'itemContext': _restageArgument6,
+        'description': _restageArgument8,
+        'usage': _restageArgument9,
       },
       unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) => OpaqueScreenProof(
-          title: this._restageArgument1,
-          enabled: this._restageArgument2,
-          tone: this._restageArgument3,
-          data: this._restageArgument4,
-          context: this._restageArgument5,
-          itemContext: this._restageArgument6,
-          restageA2uiStatus: this._restageArgument7,
-          description: this._restageArgument8,
-          usage: this._restageArgument9,
+        builder: (context, error) => GetStartedScreen(
+          title: _restageArgument1,
+          enabled: _restageArgument2,
+          tone: _restageArgument3,
+          data: _restageArgument4,
+          context: _restageArgument5,
+          itemContext: _restageArgument6,
+          restageA2uiStatus: _restageArgument7,
+          description: _restageArgument8,
+          usage: _restageArgument9,
         ),
       ),
       onEvent: onEvent,

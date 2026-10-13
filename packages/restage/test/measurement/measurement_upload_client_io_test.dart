@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -62,6 +63,7 @@ void main() {
       support,
       clock: clock.call,
       fileSystem: _FailOnceReadyDeleteFileSystem(),
+      retryRandom: const _MidpointRandom(),
     );
     await firstStore.open();
     final committed = await firstStore.commit(batch);
@@ -100,7 +102,11 @@ void main() {
     expect(receivedBodies[2], orderedEquals(batch.exactRequestBytes));
     expect(receivedPaths, everyElement('/sdk/v1/measurement'));
 
-    final restarted = _store(support, clock: clock.call);
+    final restarted = _store(
+      support,
+      clock: clock.call,
+      retryRandom: const _MidpointRandom(),
+    );
     final recovered = await restarted.open();
     expect(recovered.recovery.acknowledgedRecordsCleaned, 1);
     expect(await restarted.nextReady(), isNull);
@@ -462,6 +468,7 @@ MeasurementOutboxStore _store(
   Directory support, {
   MeasurementOutboxClock? clock,
   MeasurementOutboxFileSystem? fileSystem,
+  Random? retryRandom,
 }) =>
     createMeasurementOutboxStore(
       configuration: MeasurementOutboxConfiguration(
@@ -470,7 +477,22 @@ MeasurementOutboxStore _store(
       ),
       clock: clock,
       fileSystem: fileSystem,
+      retryRandom: retryRandom,
     );
+
+/// Always draws the midpoint, so a retry lands on its exact base delay.
+final class _MidpointRandom implements Random {
+  const _MidpointRandom();
+
+  @override
+  bool nextBool() => false;
+
+  @override
+  double nextDouble() => 0.5;
+
+  @override
+  int nextInt(int max) => max ~/ 2;
+}
 
 MeasurementOutboxPreparedBatch _batch({
   String sessionId = 'session.upload',

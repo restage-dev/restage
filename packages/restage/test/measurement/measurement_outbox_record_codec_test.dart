@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -401,12 +402,24 @@ void main() {
     });
   });
 
-  test('uses the frozen deterministic no-jitter retry sequence', () {
-    expect(measurementOutboxRetryDelay(0), const Duration(seconds: 1));
-    expect(measurementOutboxRetryDelay(1), const Duration(seconds: 2));
-    expect(measurementOutboxRetryDelay(11), const Duration(seconds: 2048));
-    expect(measurementOutboxRetryDelay(12), const Duration(hours: 1));
-    expect(measurementOutboxRetryDelay(63), const Duration(hours: 1));
+  test('spreads the frozen retry base sequence by a seeded draw', () {
+    Duration expected(int baseSeconds, int seed) {
+      final spread = 0.75 + Random(seed).nextDouble() * 0.5;
+      return Duration(milliseconds: (baseSeconds * 1000 * spread).round());
+    }
+
+    for (final (attempt, baseSeconds) in const [
+      (0, 1),
+      (1, 2),
+      (11, 2048),
+      (12, 3600),
+      (63, 3600),
+    ]) {
+      expect(
+        measurementOutboxRetryDelay(attempt, random: Random(attempt)),
+        expected(baseSeconds, attempt),
+      );
+    }
   });
 }
 

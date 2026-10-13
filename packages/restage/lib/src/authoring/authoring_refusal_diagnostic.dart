@@ -16,6 +16,7 @@ enum AuthoringRefusalKind {
 void reportAuthoringRefusal({
   required AuthoringHelperKind helper,
   required AuthoringRefusalKind refusal,
+  String? detail,
   @visibleForTesting bool? throwOnRefusal,
   @visibleForTesting void Function(FlutterErrorDetails details)? reportError,
 }) {
@@ -31,8 +32,8 @@ void reportAuthoringRefusal({
       'dispatcher ownership is ambiguous',
     AuthoringRefusalKind.callbackRefused => 'callback dispatch is not admitted',
   };
-  final message =
-      '[restage] $helperName refused authored event dispatch: $reason.';
+  final message = '[restage] $helperName refused authored event dispatch: '
+      '$reason${detail == null ? '' : ' ($detail)'}.';
   if (throwOnRefusal ?? kDebugMode) throw AssertionError(message);
   (reportError ?? FlutterError.reportError)(
     FlutterErrorDetails(

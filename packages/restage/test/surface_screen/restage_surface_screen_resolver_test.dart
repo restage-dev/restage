@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
+import 'package:restage/src/resolver/delivery_input_budget.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_analytics_identity_provider.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
@@ -104,6 +105,41 @@ void main() {
         ['assignment-a', 'assignment-b']);
     expect(bodies.map((body) => body['analyticsAnonymousId']),
         [firstId, secondId]);
+  });
+
+  test('an identity retry reads its inputs under a fresh deadline', () async {
+    SurfaceAssignmentKeyProvider.current = () => 'assignment-a';
+    final fixture = stringScreenFixture();
+    final bodies = <Map<String, dynamic>>[];
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: fixture.hostedDelivery.client((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          if (bodies.length == 1) {
+            // The first attempt outlives its input deadline, then loses its
+            // identity; the retry's key answers only after a turn.
+            await Future<void>.delayed(
+              DeliveryInputBudget.defaultTotal +
+                  const Duration(milliseconds: 100),
+            );
+            SurfaceAssignmentKeyProvider.current =
+                () => Future<String?>.delayed(
+                      const Duration(milliseconds: 20),
+                      () => 'assignment-b',
+                    );
+          }
+          return http.Response('', 204);
+        }),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    await resolver.resolve(fixture.ref);
+
+    expect(bodies.map((body) => body['assignmentKey']),
+        ['assignment-a', 'assignment-b']);
   });
 
   test(

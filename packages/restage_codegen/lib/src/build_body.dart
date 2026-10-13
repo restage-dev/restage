@@ -7,14 +7,10 @@ import 'package:analyzer/dart/element/type.dart';
 /// when [body] is not a single returned expression — it has non-const locals,
 /// multiple statements, control flow, or a value-less `return;`.
 ///
-/// `createState()` and helper bodies keep this strict contract; source build
-/// bodies use [extractInlinableBuildBody] to capture leading final locals.
+/// Bodies that can bind final locals, such as `build()` and helpers, use
+/// [extractInlinableBuildBody] instead.
 Expression? singleReturnExpressionOf(FunctionBody body) {
-  // Shares the body-shape walk with [extractInlinableBuildBody]; the stricter
-  // contract here is that a leading `final` local still disqualifies the body
-  // (only `const` locals, which fold to literals, are permitted before the
-  // single return). So accept the extracted return expression only when no
-  // `final` local was captured.
+  // Only `const` locals, which fold to literals, may precede the return.
   final extracted = extractInlinableBuildBody(body);
   if (extracted == null || extracted.finalLocals.isNotEmpty) return null;
   return extracted.expression;
@@ -122,7 +118,12 @@ const String _kUninitializedDeclaration =
     'initialize one simple variable per declaration';
 
 /// Returns why [body]'s local bindings are unsafe to inline, or `null`.
-String? inlinableBuildBodyProblem(InlinableBuildBody body) {
+///
+/// [scope] names the body in messages, such as `build()` or a helper.
+String? inlinableBuildBodyProblem(
+  InlinableBuildBody body, {
+  String scope = 'build()',
+}) {
   for (final variable in body.declarations) {
     if (variable.initializer == null ||
         variable.declaredFragment?.element == null) {
@@ -131,7 +132,7 @@ String? inlinableBuildBodyProblem(InlinableBuildBody body) {
   }
   final bindings = body.localBindings;
   if (bindings.length != body.finalLocals.length) {
-    return 'the final locals in build() could not be resolved uniquely; '
+    return 'the final locals in $scope could not be resolved uniquely; '
         'initialize one simple final variable per declaration';
   }
   if (bindings.isEmpty) return null;
@@ -155,7 +156,7 @@ String? inlinableBuildBodyProblem(InlinableBuildBody body) {
   for (final element in bindings.keys) {
     if (reachesCycle(element)) {
       return "the local '${element.name ?? '<unnamed>'}' participates in a "
-          'cyclic build() binding; rewrite the final locals without cycles';
+          'cyclic $scope binding; rewrite the final locals without cycles';
     }
   }
 
@@ -181,7 +182,7 @@ String? inlinableBuildBodyProblem(InlinableBuildBody body) {
         ? "the local '$name' is read only as a widget key, and compiled output "
             'discards key operands; inline the key expression or remove the '
             'local together with its key: argument'
-        : "the local '$name' is declared in build() but never read; remove it "
+        : "the local '$name' is declared in $scope but never read; remove it "
             'or use it';
   }
   return null;

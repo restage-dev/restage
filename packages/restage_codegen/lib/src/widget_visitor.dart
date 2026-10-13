@@ -300,14 +300,6 @@ ConstructorComponentProjection projectConstructorComponent({
     exclusions: exclusions,
     issues: issues,
   );
-  addProjectedConstructorOrderMigrationNotice(
-    element,
-    projectedConstructorFacts,
-    assetId,
-    target: _emitTarget(target),
-    emittedPropertyNames: properties.map((property) => property.name).toSet(),
-    issues: issues,
-  );
   for (final reason in widgetUnrenderable.values) {
     issues.add(
       Issue(
@@ -587,14 +579,6 @@ WidgetEntry? _readWidgetAnnotation(
     allInputs: constructorFacts.allInputs,
     properties: properties,
     exclusions: exclusions.skip(exclusionStart),
-    issues: issues,
-  );
-  addProjectedConstructorOrderMigrationNotice(
-    cls,
-    constructorFacts,
-    assetId,
-    target: _emitTarget(target),
-    emittedPropertyNames: properties.map((property) => property.name).toSet(),
     issues: issues,
   );
   if (description == null) return null;

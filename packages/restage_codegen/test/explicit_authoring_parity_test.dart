@@ -302,7 +302,10 @@ Future<_PrimaryConstructorPair> _compilePrimaryConstructorPair(
   );
 }
 
-const _bundledOptions = BuilderOptions({'bundled_runtime': true});
+const _bundledOptions = BuilderOptions(
+  {'bundled_runtime': true},
+  isRoot: true,
+);
 final _catalogBuilders = <Builder>[
   userCatalogJsonBuilder(BuilderOptions.empty),
 ];
@@ -523,7 +526,7 @@ Future<TestBuilderResult> _compileScenario(
           // assertion below passes vacuously over an empty set.
           // Produces the compiler handoff the generated-Dart builder reads;
           // without it that builder silently emits nothing.
-          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
           restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
     sources,

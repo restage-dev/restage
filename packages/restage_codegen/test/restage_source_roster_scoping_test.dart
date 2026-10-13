@@ -144,7 +144,7 @@ Future<List<String>> _rosterSourceIds(Map<String, String> sources) async {
   );
 
   final result = await testBuilder(
-    restageSourceRosterBuilder(BuilderOptions.empty),
+    restageSourceRosterBuilder(BuilderOptions.forRoot),
     {
       for (final entry in sources.entries)
         'apps_examples|${entry.key}': entry.value,

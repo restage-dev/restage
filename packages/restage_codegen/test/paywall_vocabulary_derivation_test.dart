@@ -28,7 +28,7 @@ void main() {
     final records = <LogRecord>[];
     final result = await testBuilders(
       [
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         userFactoryBuilder(BuilderOptions.empty),
       ],
       const {_paywallAsset: _paywallSource},

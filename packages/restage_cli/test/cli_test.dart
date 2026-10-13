@@ -143,7 +143,7 @@ void main() {
       );
     });
 
-    test('init help identifies the canonical starter annotation', () async {
+    test('init help identifies the starter annotation', () async {
       final stdout = StringBuffer();
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -151,7 +151,7 @@ void main() {
       ).run(const ['init', '--help']);
 
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('canonical `@Paywall` starter'));
+      expect(stdout.toString(), contains('starter `@Paywall`'));
     });
 
     test('unknown command exits 1 with the command name in stderr', () async {

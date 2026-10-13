@@ -16,6 +16,7 @@ import '../_helpers/test_fixtures.dart';
 const _routes = <String, String>{
   'discover': 'discoverTargetsAndCapabilities',
   'create': 'openDraft',
+  'delete-draft': 'deleteDraft',
   'read-draft': 'readDraft',
   'resolve-draft': 'resolveDraft',
   'save': 'replaceDraft',
@@ -54,6 +55,7 @@ const _typedDeliveryArms = <Map<String, Object?>>[
 const _selectors = <String, List<String>>{
   'discover': [],
   'create': [],
+  'delete-draft': _draftBinding,
   'read-draft': _draftBinding,
   'resolve-draft': ['--draft-id=draft'],
   'save': _draftBinding,
@@ -326,8 +328,8 @@ void main() {
       }
     });
 
-    test('the nineteen semantic subcommands cover the nineteen operations', () {
-      expect(_routes, hasLength(19));
+    test('the twenty semantic subcommands cover the twenty operations', () {
+      expect(_routes, hasLength(20));
       expect(
         _routes.values.toSet(),
         ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet(),

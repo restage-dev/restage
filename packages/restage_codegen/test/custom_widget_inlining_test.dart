@@ -1104,7 +1104,10 @@ Object x() => AcmeCard();
     test('unwraps a closure bound to a void-callback parameter', () async {
       final result = await translateCallbackCard('void Function()');
 
-      expect(result.issues, isEmpty);
+      expect(
+        result.issues.map((issue) => issue.code),
+        [IssueCode.idiomAutoSubstituted],
+      );
       expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
     });
 
@@ -1112,7 +1115,10 @@ Object x() => AcmeCard();
         () async {
       final result = await translateCallbackCard('Future<void> Function()');
 
-      expect(result.issues, isEmpty);
+      expect(
+        result.issues.map((issue) => issue.code),
+        [IssueCode.idiomAutoSubstituted],
+      );
       expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
     });
   });
@@ -1318,7 +1324,10 @@ Object x() => AcmeCard(tap: $argument);
     test('a value-callback closure lowers to its event at the call site',
         () async {
       final r = await lowerCall("(v) => paywallEvent('x')");
-      expect(r.issues, isEmpty);
+      expect(
+        r.issues.map((issue) => issue.code),
+        [IssueCode.idiomAutoSubstituted],
+      );
       expect(r.dsl, 'AcmeCard(tap: event "x" {})');
       expect(
         r.widgetDefinitions['AcmeCard'],
@@ -1332,7 +1341,10 @@ Object x() => AcmeCard(tap: $argument);
       );
 
       expect(lowered.param.isVoidCallback, isTrue);
-      expect(lowered.result.issues, isEmpty);
+      expect(
+        lowered.result.issues.map((issue) => issue.code),
+        [IssueCode.idiomAutoSubstituted],
+      );
       expect(lowered.result.dsl, 'AcmeCard(tap: event "x" {})');
     });
 
@@ -1343,7 +1355,10 @@ Object x() => AcmeCard(tap: $argument);
       );
 
       expect(lowered.param.isVoidCallback, isTrue);
-      expect(lowered.result.issues, isEmpty);
+      expect(
+        lowered.result.issues.map((issue) => issue.code),
+        [IssueCode.idiomAutoSubstituted],
+      );
       expect(lowered.result.dsl, 'AcmeCard(tap: event "x" {})');
     });
 
@@ -1404,7 +1419,7 @@ Object x() => AcmeCard(tap: $argument);
       );
       expect(
         r.issues.map((i) => i.message).join('\n'),
-        contains('`(_) => paywallEvent(...)`'),
+        contains('Pass `paywallEvent(...)` directly'),
       );
       expect(r.dsl, isNot(contains('tap:')));
     });

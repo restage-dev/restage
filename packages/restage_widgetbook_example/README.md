@@ -1,42 +1,34 @@
 # Restage + Widgetbook v4 example
 
-This public example package compiles one custom authoring model into a
-Restage RFW catalog, a custom-only A2UI catalog, and a Widgetbook v4
-workbench. It is checked in as an executable example and is not published to
-pub.dev.
+One set of annotated Flutter widgets and one annotated screen, built into three
+outputs: a Restage catalog, an A2UI catalog, and a Widgetbook workbench. This
+package is an example you run from source; it is not published to pub.dev.
 
-## Authoring ladder
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
-The examples progress from plain Flutter to the complete multi-target
-screen flow:
+## What each example shows
 
-1. `OpaqueScreenProof.build` is plain Flutter composition. Built-in Flutter
-   widgets need no Restage annotation.
-2. `BareCatalogCard` uses only `@RestageWidget()`. Its class name, exact export
-   ownership, absent category, constructor inputs/defaults, and Dartdoc supply
-   the catalog facts.
-3. `CatalogShowcase` adds typed `wb.Config.allValues()` declarations to real
-   bool and enum fields. The generated `RestageCatalog`, `EnabledFalse`, and
-   `StatusProcessing` stories build the real class. Its `hero`, `details`, and
-   `footer` inputs prove several arbitrary child-bearing names on one widget,
-   with no slot annotation.
-4. The same `CatalogShowcase` uses useful `a2ui.Config` producer guidance and
-   write-back selection. Every custom A2UI component keeps `id` and
-   `component` on the protocol envelope and nests exact constructor inputs
-   under required `props`. RFW callback events remain automatic from supported
-   constructor callback signatures, so the example configures no RFW-specific
-   behavior.
-5. `OpaqueScreenProof` uses the canonical `@Screen` declaration. One build keeps
-   the RFW descriptor/text/binary/capability artifacts, adds an exact-ID opaque
-   A2UI item, and adds a native Widgetbook story. The generated story is grouped
-   at `Screens/opaque_screen_proof` in this example.
+The examples go from plain Flutter to a screen that feeds every output:
 
-The full sources live under `lib/widgets/` and
-`lib/onboarding/screens/opaque_screen_proof.dart`. They carry `#docregion`
-markers so documentation can quote them from source rather than copy them.
+1. `GetStartedScreen.build` is plain Flutter. Built-in Flutter widgets need
+   no Restage annotation.
+2. `BareCatalogCard` has only `@RestageWidget()`. Its class name, constructor
+   inputs and defaults, and doc comment supply everything the catalog needs.
+3. `CatalogShowcase` adds `wb.Config.allValues()` to a `bool` and an `enum`
+   field, so the build generates a Widgetbook story for each value. Its `hero`,
+   `details`, and `footer` inputs show that a widget can take several child
+   widgets under any names, with no slot annotation.
+4. The same `CatalogShowcase` adds `a2ui.Config` guidance for the model and
+   picks which value the A2UI component writes back. Restage events come from
+   the constructor's callback types, so there is nothing Restage-specific to
+   configure.
+5. `GetStartedScreen` is a `@Screen`. One build produces its Restage screen
+   artifacts, adds it to the A2UI catalog as a single component, and adds a
+   Widgetbook story for it.
 
-Those paths describe this example's layout only. The canonical annotation and
-generated metadata own surface category and identity.
+The sources live under `lib/widgets/` and in
+`lib/onboarding/screens/get_started_screen.dart`. Folder names don't matter;
+the annotations decide what each widget or screen is.
 
 ## What one build produces
 
@@ -46,46 +38,46 @@ Run from this package:
 dart run build_runner build
 ```
 
-That one normal invocation produces or updates:
+That one command produces:
 
-- RFW custom catalog/factory output and the screen descriptor, `.rfwtxt`,
-  `.rfw`, and `.capability.json` artifacts;
-- `lib/generated/restage_a2ui_catalog.g.dart` and
-  `lib/generated/restage_a2ui_catalog.a2ui.json`;
-- one Widgetbook `*.stories.dart` input per admitted custom widget or screen,
-  Widgetbook's matching `*.stories.g.dart` plumbing, and
+- the Restage custom-widget catalog and factories, plus the screen's compiled
+  artifacts;
+- the A2UI catalog: `lib/generated/restage_a2ui_catalog.g.dart`, and
+  `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json` for payload producers;
+- one Widgetbook story file per custom widget or screen, and
   `lib/components.g.dart`.
 
-One build produces every target's output; there is no second pass and no
-hand-written story. The screen story installs `RestageEventDispatcher` through
-the generated `Defaults.setup`, which Widgetbook's generated `Story.setup`
-forwards, so no `Config.appBuilder` is needed.
+You don't write any stories by hand. Stories come with Restage's event
+handling already set up, so you don't need a custom `appBuilder`.
 
 The A2UI catalog covers your own widgets only. Flutter, Material, Cupertino,
-and Restage built-ins are not registered, and a screen appears as one opaque
-component rather than a lowered widget tree.
+and Restage built-ins are not in it, and a screen appears as one component
+rather than as its widget tree.
 
 ## Build the workbench
+
+The workbench app is in `apps/widgetbook_example`:
 
 ```sh
 cd ../../apps/widgetbook_example
 flutter build web --no-tree-shake-icons
 ```
 
-The flag is required because the Restage runtime constructs icon data from
-runtime values.
+The flag is needed because the workbench includes the RFW runtime, which
+builds icons from runtime values.
 
 ## Watch mode
 
-Edits to an already-known custom widget or screen regenerate its native A2UI
-and Widgetbook outputs live in `build_runner watch`. Adding, removing, or
-renaming an annotated class changes native generated output-file membership;
-restart the watcher after that change. The next cold run cleans orphaned story
-source, generated plumbing, and component registration. Multiple
-`@RestageWidget` classes and canonical `@Screen` declarations may share a Dart
-file. A generated Restage descriptor part, when present, is build plumbing for
-the Restage output.
+- `build_runner watch` regenerates the A2UI and Widgetbook output when you edit
+  an existing widget or screen.
+- After you add, remove, or rename an annotated class, restart the watcher. The
+  next full build removes stale story files.
+- Several annotated widgets and screens can share one Dart file.
 
 ## Version
 
-This example uses `widgetbook` 4.0.0-beta.10 and its bundled generator.
+This example uses `widgetbook` 4.0.0-beta.14 and its bundled generator.
+
+## License
+
+BSD-3-Clause. See [LICENSE](LICENSE).

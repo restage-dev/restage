@@ -72,7 +72,7 @@ void main() {
     );
 
     expect(session.view, same(frame.view));
-    expect(session.provider, isA<SeamRenderProvider>());
+    expect(session.provider, isA<RenderHostProvider>());
     session.concealPixels();
     session.revealPixels();
     session.setRasterScale(2);
@@ -455,7 +455,7 @@ void main() {
         bundleOrigin: Uri.parse(trusted),
         scheduleFrame: (callback) => callback(),
       );
-      expect(session.provider, isA<SeamRenderProvider>(), reason: trusted);
+      expect(session.provider, isA<RenderHostProvider>(), reason: trusted);
       unawaited(session.dispose());
     }
     for (final unsafe in <String>[

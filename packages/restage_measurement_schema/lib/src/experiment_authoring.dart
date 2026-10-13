@@ -39,6 +39,7 @@ abstract base class _ExperimentAuthoringValue extends CanonicalValue
 enum ExperimentAuthoringOperationV1 {
   discoverTargetsAndCapabilities('discoverTargetsAndCapabilities'),
   openDraft('openDraft'),
+  deleteDraft('deleteDraft'),
   readDraft('readDraft'),
   resolveDraft('resolveDraft'),
   replaceDraft('replaceDraft'),
@@ -69,6 +70,7 @@ enum ExperimentAuthoringOperationV1 {
   /// so a new operation is a compile error until it is classified.
   bool get requiresIdempotencyKey => switch (this) {
         openDraft ||
+        deleteDraft ||
         replaceDraft ||
         copyDraftToTarget ||
         reviewDraft ||
@@ -6244,6 +6246,41 @@ final class ExperimentLiveReadReferenceV1 extends _ExperimentAuthoringValue {
   final CanonicalDigest receiptDigest;
 }
 
+/// Receipt for deleting one exact unaccepted draft.
+final class ExperimentDraftDeletionAcceptedViewV1
+    extends _ExperimentAuthoringValue {
+  ExperimentDraftDeletionAcceptedViewV1._(
+    Map<String, Object?> json, {
+    required this.draftId,
+  }) : super(json);
+
+  factory ExperimentDraftDeletionAcceptedViewV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    const path = 'experimentDraftDeletionAcceptedView';
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {'draftId', 'kind', 'schemaVersion'},
+      requiredKeys: const {'draftId', 'kind', 'schemaVersion'},
+      path: path,
+    );
+    validateCanonicalDocument(
+      reader,
+      expectedKind: 'experimentDraftDeletionAcceptedView',
+    );
+    return ExperimentDraftDeletionAcceptedViewV1._(
+      json,
+      draftId: _identifier(
+        reader.string('draftId'),
+        '$path.draftId',
+        ExperimentDraftIdV1.new,
+      ),
+    );
+  }
+
+  final ExperimentDraftIdV1 draftId;
+}
+
 /// Safe accepted activation projection.
 final class ExperimentActivationAcceptedViewV1 extends _ExperimentAuthoringValue
     implements ExperimentTargetBoundViewV1 {
@@ -8814,6 +8851,8 @@ CanonicalValue _decodeAcceptedResponse(
       ExperimentAuthoringOperationV1.replaceDraft ||
       ExperimentAuthoringOperationV1.copyDraftToTarget =>
         ExperimentDraftViewV1.fromJson(json),
+      ExperimentAuthoringOperationV1.deleteDraft =>
+        ExperimentDraftDeletionAcceptedViewV1.fromJson(json),
       ExperimentAuthoringOperationV1.validateDraft =>
         ExperimentValidationViewV1.fromJson(json),
       ExperimentAuthoringOperationV1.reviewDraft =>
@@ -8914,6 +8953,7 @@ void _validateRequestPayload(
         );
       }
     case ExperimentAuthoringOperationV1.readDraft:
+    case ExperimentAuthoringOperationV1.deleteDraft:
     case ExperimentAuthoringOperationV1.validateDraft:
     case ExperimentAuthoringOperationV1.reviewDraft:
       ExperimentDraftBindingV1.fromJson(payload, path: path);

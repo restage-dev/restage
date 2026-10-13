@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -1379,14 +1380,18 @@ abstract final class MeasurementOutboxMarkerCodec {
   }
 }
 
-/// Computes the deterministic no-jitter delay for one persisted retry attempt.
-Duration measurementOutboxRetryDelay(int attempt) {
+/// Delay before one persisted retry attempt: the deterministic base spread
+/// ±25% so devices that failed together do not retry together.
+Duration measurementOutboxRetryDelay(int attempt, {Random? random}) {
   if (attempt < 0 || attempt > kMeasurementOutboxMaximumRetryAttempt) {
     throw ArgumentError.value(attempt, 'attempt');
   }
-  final seconds = attempt >= 12 ? 3600 : 1 << attempt;
-  return Duration(seconds: seconds);
+  final baseSeconds = attempt >= 12 ? 3600 : 1 << attempt;
+  final spread = 0.75 + (random ?? _outboxRetryRandom).nextDouble() * 0.5;
+  return Duration(milliseconds: (baseSeconds * 1000 * spread).round());
 }
+
+final Random _outboxRetryRandom = Random();
 
 /// Creates a default system clock for native store construction.
 DateTime measurementOutboxSystemClock() => DateTime.now().toUtc();

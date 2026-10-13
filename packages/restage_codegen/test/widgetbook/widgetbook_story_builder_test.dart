@@ -767,40 +767,6 @@ class PlainCard {}
     },
   );
 
-  test('ScreenSource order migration is logged exactly once', () async {
-    const output =
-        'apps_examples|lib/onboarding/screens/restage.generated/order_screen.stories.dart';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final logs = <String>[];
-    await runWithNativeScreenPackageGraphForTesting(
-      packageGraphSource: _screenSourcePackageGraph,
-      body: () => testBuilder(
-        const WidgetbookStoryBuilder({
-          r'$lib$': [
-            'onboarding/screens/restage.generated/order_screen.stories.dart'
-          ],
-        }),
-        const {
-          'apps_examples|lib/onboarding/screens/order_screen.dart':
-              _orderMigrationScreenSource,
-          'apps_examples|pubspec.yaml': _screenSourcePubspec,
-          'widgetbook|lib/widgetbook.dart': _widgetbookStub,
-        },
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {output: decodedMatches(contains('OrderScreen'))},
-        onLog: (record) => logs.add(record.message),
-      ),
-    );
-
-    expect(
-      logs.where((message) => message.contains('catalog properties move')),
-      hasLength(1),
-    );
-  });
-
   test(
     'generated ScreenSource story compiles when its class shadows the '
     'Restage dispatcher',
@@ -1415,35 +1381,6 @@ part 'restage.generated/second_collision.restage.g.dart';
 @Screen(id: 'second-collision', surface: Surface.general)
 final class CollisionScreen extends StatelessWidget {
   const CollisionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
-}
-''';
-
-const _orderMigrationScreenSource = '''
-import 'package:flutter/widgets.dart';
-import 'package:restage/restage.dart';
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-part 'restage.generated/order_screen.restage.g.dart';
-
-@ScreenSource(id: 'order_screen')
-class OrderScreen extends StatelessWidget {
-  const OrderScreen({
-    super.key,
-    @Ignore({EmitTarget.a2ui, EmitTarget.widgetbook}) this.hidden = '',
-    this.first = '',
-    this.second = '',
-  });
-
-  final String hidden;
-
-  @RestageProperty(description: 'Second field.')
-  final String second;
-
-  @RestageProperty(description: 'First field.')
-  final String first;
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();

@@ -225,6 +225,7 @@ Map<String, Object?> _requestPayload(
     'pageSize': 100,
   },
   ExperimentAuthoringOperationV1.openDraft => const {},
+  ExperimentAuthoringOperationV1.deleteDraft ||
   ExperimentAuthoringOperationV1.readDraft ||
   ExperimentAuthoringOperationV1.validateDraft ||
   ExperimentAuthoringOperationV1.reviewDraft => fixtureDraftBinding,

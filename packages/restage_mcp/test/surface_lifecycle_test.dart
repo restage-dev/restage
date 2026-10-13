@@ -170,7 +170,8 @@ void main() {
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((request) async {
-        seenBody = jsonDecode(request.body) as Map<String, dynamic>;
+        final seen = jsonDecode(request.body) as Map<String, dynamic>;
+        if (seen['method'] != 'coverage') seenBody = seen;
         return http.Response(jsonEncode(statusView()), 200);
       }),
     );
@@ -253,7 +254,8 @@ void main() {
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((request) async {
-        seenBody = jsonDecode(request.body) as Map<String, dynamic>;
+        final seen = jsonDecode(request.body) as Map<String, dynamic>;
+        if (seen['method'] != 'coverage') seenBody = seen;
         return http.Response('null', 200);
       }),
     );
@@ -333,7 +335,8 @@ void main() {
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((request) async {
-        seenBody = jsonDecode(request.body) as Map<String, dynamic>;
+        final seen = jsonDecode(request.body) as Map<String, dynamic>;
+        if (seen['method'] != 'coverage') seenBody = seen;
         return http.Response('5', 200);
       }),
     );
@@ -365,7 +368,8 @@ void main() {
     final connection = await connectServer(
       store: store,
       httpClient: MockClient((request) async {
-        seenBody = jsonDecode(request.body) as Map<String, dynamic>;
+        final seen = jsonDecode(request.body) as Map<String, dynamic>;
+        if (seen['method'] != 'coverage') seenBody = seen;
         return http.Response('5', 200);
       }),
     );

@@ -5,6 +5,7 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
@@ -944,11 +945,11 @@ final foreignGeneratedRef = Object();
       );
       expect(
         result.compilation!.generatedPart,
-        contains(jsonEncode(utf8.decode(generalChild))),
+        contains(dartStringLiteral(utf8.decode(generalChild))),
       );
       expect(
         result.compilation!.generatedPart,
-        isNot(contains(jsonEncode(utf8.decode(messageChild)))),
+        isNot(contains(dartStringLiteral(utf8.decode(messageChild)))),
       );
     });
 

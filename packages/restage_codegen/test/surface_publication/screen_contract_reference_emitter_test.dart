@@ -161,7 +161,7 @@ void main() {
       expect(emitted, contains('SurfaceScreenRuntimeProvenance.generated('));
       expect(emitted, contains('provenance: _maintenanceNoticeProvenance'));
       expect(emitted, contains('eventSchemaJson:'));
-      expect(emitted, contains(r'{\"schemaVersion\":1,\"events\":['));
+      expect(emitted, contains("'" '{"schemaVersion":1,"events":['));
       // The fingerprint and event hash are derived at runtime, never
       // restated here. A generated constant repeating what this build
       // computed could only ever agree with itself, so emitting one would
@@ -170,7 +170,7 @@ void main() {
       expect(emitted, isNot(contains(contract.contractFingerprint)));
       expect(
         sha256.convert(utf8.encode(emitted)).toString(),
-        '59a844d0b0eae1036c56f72e1d73da01a2739200e0e4919cde29c0547a6cf170',
+        'cb18c88121c251b21b1506024ad4ba370c1fa05c53e51045ce517e31df14e0d6',
         reason: emitted,
       );
     });
@@ -399,18 +399,18 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
         emitted,
         contains('final support.Controller _restageArgument3;'),
       );
-      expect(emitted, contains('"count": this._restageArgument0,'));
-      expect(emitted, contains('"groups": this._restageArgument1,'));
-      expect(emitted, contains('"message": this._restageArgument2,'));
-      expect(emitted, isNot(contains('"controller":')));
+      expect(emitted, contains("'count': _restageArgument0,"));
+      expect(emitted, contains("'groups': _restageArgument1,"));
+      expect(emitted, contains("'message': _restageArgument2,"));
+      expect(emitted, isNot(contains("'controller':")));
       expect(
         emitted,
         contains('''
         builder: (context, error) => TypedNotice(
-          this._restageArgument0,
-          groups: this._restageArgument1,
-          message: this._restageArgument2,
-          controller: this._restageArgument3,
+          _restageArgument0,
+          groups: _restageArgument1,
+          message: _restageArgument2,
+          controller: _restageArgument3,
         ),
 '''),
       );
@@ -497,51 +497,51 @@ final class HabitNotice extends StatelessWidget {
       expect(
         compact,
         contains(
-          '"habit": <String, Object?>{ "id": this._restageArgument0.id, '
-          '"name": this._restageArgument0.name, "address": '
-          '<String, Object?>{ "city": this._restageArgument0.address.city } },',
+          "'habit': <String, Object?>{ 'id': _restageArgument0.id, "
+          "'name': _restageArgument0.name, 'address': "
+          "<String, Object?>{'city': _restageArgument0.address.city} },",
         ),
       );
       expect(
         compact,
         contains(
-          '"habits": <Object?>[ for (final _restageValue0 in '
-          'this._restageArgument1) <String, Object?>{ "id": '
-          '_restageValue0.id, "name": _restageValue0.name, "address": '
-          '<String, Object?>{"city": _restageValue0.address.city} } ],',
+          "'habits': <Object?>[ for (final _restageValue0 in "
+          "_restageArgument1) <String, Object?>{ 'id': "
+          "_restageValue0.id, 'name': _restageValue0.name, 'address': "
+          "<String, Object?>{'city': _restageValue0.address.city} } ],",
         ),
       );
       expect(
         compact,
         contains(
-          '"byId": <String, Object?>{ for (final _restageEntry0 in '
-          'this._restageArgument2.entries) _restageEntry0.key: '
+          "'byId': <String, Object?>{ for (final _restageEntry0 in "
+          '_restageArgument2.entries) _restageEntry0.key: '
           'switch (_restageEntry0.value) { final _restagePresent1? => '
-          '<String, Object?>{ "id": _restagePresent1.id, "name": '
-          '_restagePresent1.name, "address": <String, Object?>{ "city": '
+          "<String, Object?>{ 'id': _restagePresent1.id, 'name': "
+          "_restagePresent1.name, 'address': <String, Object?>{ 'city': "
           '_restagePresent1.address.city } }, null => null } },',
         ),
       );
       expect(
         compact,
         contains(
-          '"selected": switch (this._restageArgument3) { final '
-          '_restagePresent0? => <String, Object?>{ "id": '
-          '_restagePresent0.id, "name": _restagePresent0.name, "address": '
-          '<String, Object?>{ "city": _restagePresent0.address.city } }, '
+          "'selected': switch (_restageArgument3) { final "
+          "_restagePresent0? => <String, Object?>{ 'id': "
+          "_restagePresent0.id, 'name': _restagePresent0.name, 'address': "
+          "<String, Object?>{ 'city': _restagePresent0.address.city } }, "
           'null => null },',
         ),
       );
-      expect(emitted, isNot(contains('"controller":')));
+      expect(emitted, isNot(contains("'controller':")));
       expect(
         emitted,
         contains('''
         builder: (context, error) => HabitNotice(
-          habit: this._restageArgument0,
-          habits: this._restageArgument1,
-          byId: this._restageArgument2,
-          selected: this._restageArgument3,
-          controller: this._restageArgument4,
+          habit: _restageArgument0,
+          habits: _restageArgument1,
+          byId: _restageArgument2,
+          selected: _restageArgument3,
+          controller: _restageArgument4,
         ),
 '''),
       );
@@ -593,8 +593,8 @@ final class HabitNotice extends StatelessWidget {
         emitted,
         contains('''
         builder: (context, error) => PositionalNotice(
-          this._restageArgument0,
-          this._restageArgument1,
+          _restageArgument0,
+          _restageArgument1,
         ),
 '''),
       );
@@ -761,7 +761,7 @@ abstract class ImportedDefaultNoticeBase extends StatelessWidget {
       );
       expect(
         emitted,
-        contains(RegExp(r'count: this\._restageArgument\d+,')),
+        contains(RegExp(r'count: _restageArgument\d+,')),
       );
       await _assertGeneratedPartAnalyzes(
         source,
@@ -1414,7 +1414,7 @@ typedef Tone = _Tone;
         expect(inspection.issues, isEmpty, reason: scenario.name);
         expect(
           inspection.contract!.mountOmissionMessage,
-          contains('default for "value" has no visible spelling'),
+          contains("default for 'value' has no visible spelling"),
           reason: scenario.name,
         );
         expect(
@@ -1847,7 +1847,7 @@ typedef Visible<T> = _Pair<T, T>;
         expect(inspection.issues, isEmpty, reason: scenario.name);
         expect(
           inspection.contract!.mountOmissionMessage,
-          contains('"value" has no reusable Dart type spelling'),
+          contains("'value' has no reusable Dart type spelling"),
           reason: scenario.name,
         );
         expect(
@@ -1923,7 +1923,7 @@ typedef Visible<T> = _Pair<T, T>;
         expect(inspection.issues, isEmpty, reason: scenario.name);
         expect(
           inspection.contract!.mountOmissionMessage,
-          contains('default for "value" has no visible spelling'),
+          contains("default for 'value' has no visible spelling"),
           reason: scenario.name,
         );
         expect(
@@ -2222,7 +2222,7 @@ final class WarmBindingNoticeSurface {}
       final requiredOutput = requiredInspection.contract!.emitReferenceDart();
       expect(requiredOutput, contains('required super.key,'));
       expect(requiredOutput, contains('key: null,'));
-      expect(requiredOutput, contains('label: this.'));
+      expect(requiredOutput, contains('label: _restageArgument'));
       await _assertGeneratedPartAnalyzes(requiredSource, requiredOutput);
 
       final optionalSource = _screenSource(
@@ -2261,7 +2261,7 @@ final class WarmBindingNoticeSurface {}
         optionalOutput,
         contains('''
         builder: (context, error) => OptionalKeyNotice(
-          label: this._restageArgument0,
+          label: _restageArgument0,
         ),
 '''),
       );
@@ -2320,7 +2320,7 @@ final class PositionalKeyNotice extends StatelessWidget {
         emitted,
         contains('''
         builder: (context, error) => PositionalKeyNotice(
-          this._restageArgument0,
+          _restageArgument0,
           null,
         ),
 '''),
@@ -2397,12 +2397,12 @@ final class MemberNameNotice extends StatelessWidget {
       expect(emitted, contains('required String label,'));
       expect(emitted, isNot(contains('final String build;')));
       expect(emitted, isNot(contains('final String runtimeType;')));
-      expect(emitted, contains(RegExp(r'build: this\._[A-Za-z0-9_]+,')));
+      expect(emitted, contains(RegExp('build: _[A-Za-z0-9_]+,')));
       expect(
         emitted,
-        contains(RegExp(r'runtimeType: this\._[A-Za-z0-9_]+,')),
+        contains(RegExp('runtimeType: _[A-Za-z0-9_]+,')),
       );
-      expect(emitted, contains(RegExp(r'label: this\._[A-Za-z0-9_]+,')));
+      expect(emitted, contains(RegExp('label: _[A-Za-z0-9_]+,')));
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
@@ -2431,8 +2431,8 @@ final class MemberNameNotice extends StatelessWidget {
 
       expect(inspection.issues, isEmpty);
       final emitted = inspection.contract!.emitReferenceDart();
-      expect(emitted, contains(RegExp(r'"count": this\._[A-Za-z0-9_]+,')));
-      expect(emitted, contains(RegExp(r'"values": this\._[A-Za-z0-9_]+,')));
+      expect(emitted, contains(RegExp("'count': _[A-Za-z0-9_]+,")));
+      expect(emitted, contains(RegExp("'values': _[A-Za-z0-9_]+,")));
       expect(emitted, isNot(contains('List<Object?>.unmodifiable')));
       expect(emitted, isNot(contains('Map<String, Object?>.unmodifiable')));
       expect(emitted, isNot(contains('.map(')));
@@ -2668,7 +2668,7 @@ final class _FactoryBodyNotice extends StatelessWidget
           inspection.contract!.mountOmissionMessage,
           emitted.contains('class FactoryBodyNoticeSurface'),
           emitted.contains('super(key: key)'),
-          RegExp(r'key: this\._restageArgument\d+,').hasMatch(emitted),
+          RegExp(r'key: _restageArgument\d+,').hasMatch(emitted),
         ],
         [expectedMessage, false, false, false],
       );
@@ -3048,7 +3048,7 @@ final class RecordKeyRoute extends StatelessWidget {
           admitted: true,
           includes: const [
             'super(key: second)',
-            'this._restageArgument0,\n          null,',
+            '_restageArgument0,\n          null,',
           ],
           excludes: const ['super(key: first)'],
         ),
@@ -3262,7 +3262,7 @@ final class PositionalRedirectNotice extends StatelessWidget {
         positionalOutput,
         contains('''
         builder: (context, error) => PositionalRedirectNotice(
-          this._restageArgument0,
+          _restageArgument0,
           null,
         ),
 '''),
@@ -3303,7 +3303,7 @@ final class NamedRedirectNotice extends StatelessWidget {
       expect(namedOutput, isNot(contains('super.key,')));
       expect(
         namedOutput,
-        contains(RegExp(r'first: this\._restageArgument\d+,')),
+        contains(RegExp(r'first: _restageArgument\d+,')),
       );
       expect(namedOutput, isNot(contains('second:')));
       await _assertGeneratedPartAnalyzes(namedSource, namedOutput);
@@ -3342,11 +3342,11 @@ final class MultiHopRedirectNotice extends StatelessWidget {
       expect(
         multiHopOutput,
         contains(
-          RegExp(r'MultiHopRedirectNotice\(\s*this\._restageArgument0,'),
+          RegExp(r'MultiHopRedirectNotice\(\s*_restageArgument0,'),
         ),
       );
       expect(multiHopOutput, contains('null,'));
-      expect(multiHopOutput, isNot(contains('this._restageArgument1,')));
+      expect(multiHopOutput, isNot(contains('_restageArgument1,')));
       await _assertGeneratedPartAnalyzes(multiHopSource, multiHopOutput);
 
       const unchangedSource = '''
@@ -3381,7 +3381,7 @@ final class UnchangedRedirectNotice extends StatelessWidget {
       expect(unchangedOutput, contains('super(key: widgetKey)'));
       expect(
         unchangedOutput,
-        contains(RegExp(r'"label": this\._restageArgument\d+,')),
+        contains(RegExp(r"'label': _restageArgument\d+,")),
       );
       expect(
         unchangedOutput,
@@ -3445,10 +3445,10 @@ final class TextKeyNotice extends StatelessWidget {
       expect(inspection.contract!.mountOmissionMessage, isNull);
       final emitted = inspection.contract!.emitReferenceDart();
       expect(emitted, contains('required String key,'));
-      expect(emitted, contains(RegExp(r'"key": this\._restageArgument\d+,')));
+      expect(emitted, contains(RegExp(r"'key': _restageArgument\d+,")));
       expect(
         emitted,
-        contains(RegExp(r'key: this\._restageArgument\d+,')),
+        contains(RegExp(r'key: _restageArgument\d+,')),
       );
       expect(emitted, isNot(contains('super.key,')));
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -3534,7 +3534,7 @@ final class RenamedNamedKeyNotice extends NamedKeyBase {
       expect(emitted, isNot(contains('super(key:')));
       expect(
         emitted,
-        contains(RegExp(r'widgetKey: this\._restageArgument\d+,')),
+        contains(RegExp(r'widgetKey: _restageArgument\d+,')),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -3573,7 +3573,7 @@ final class RenamedPositionalKeyNotice extends PositionalKeyBase {
       expect(
         emitted,
         contains(
-          RegExp(r'RenamedPositionalKeyNotice\(\s*this\._restageArgument'),
+          RegExp(r'RenamedPositionalKeyNotice\(\s*_restageArgument'),
         ),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -3610,7 +3610,7 @@ final class FieldKeyNotice extends StatelessWidget {
       );
       expect(
         emitted,
-        contains(RegExp(r'FieldKeyNotice\(\s*this\._restageArgument\d+,')),
+        contains(RegExp(r'FieldKeyNotice\(\s*_restageArgument\d+,')),
       );
       expect(emitted, isNot(contains('"widgetKey":')));
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -3677,7 +3677,7 @@ final class StoredKeyNotice extends StatelessWidget {
         final expectedMessage =
             'Generated screen mount ReservedKeyNoticeSurface was omitted '
             'because ReservedKeyNotice declares the reserved constructor '
-            'parameter "$control".';
+            "parameter '$control'.";
 
         expect(inspection.issues, isEmpty);
         expect(
@@ -3711,7 +3711,7 @@ final class GenericKeyNotice<T extends Key> extends StatelessWidget {
       final errors = await _generatedPartErrors(source, emitted);
       const expectedMessage =
           'Generated screen mount GenericKeyNoticeSurface was omitted because '
-          '"key" depends on the screen type parameter "T".';
+          "'key' depends on the screen type parameter 'T'.";
 
       expect(inspection.issues, isEmpty);
       expect(
@@ -3745,7 +3745,7 @@ final class GenericShapeNotice<T> extends StatelessWidget {
       final emitted = inspection.contract!.emitReferenceDart();
       const expectedMessage =
           'Generated screen mount GenericShapeNoticeSurface was omitted '
-          'because GenericShapeNotice declares the screen type parameter "T".';
+          "because GenericShapeNotice declares the screen type parameter 'T'.";
 
       expect(inspection.issues, isEmpty);
       expect(
@@ -3793,7 +3793,7 @@ final class InheritedLabelNotice extends BaseLabelNotice {
       expect(emitted, contains('String label,'));
       expect(
         emitted,
-        contains(RegExp(r'InheritedLabelNotice\(\s*this\._restageArgument0,')),
+        contains(RegExp(r'InheritedLabelNotice\(\s*_restageArgument0,')),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -3826,7 +3826,7 @@ final class DynamicValueNotice extends StatelessWidget {
       expect(emitted, contains('dynamic value,'));
       expect(
         emitted,
-        contains(RegExp(r'DynamicValueNotice\(\s*this\._restageArgument0,')),
+        contains(RegExp(r'DynamicValueNotice\(\s*_restageArgument0,')),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });

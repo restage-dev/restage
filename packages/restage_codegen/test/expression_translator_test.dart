@@ -104,7 +104,7 @@ Object x() => value();
   final body = extractInlinableBuildBody(value.functionExpression.body)!;
   return translator.translate(
     body.expression,
-    rootLocalBindings: body.localBindings,
+    rootInlined: InlinedDefinitions(localBindings: body.localBindings),
   );
 }
 
@@ -6645,6 +6645,18 @@ Object x(BuildContext context) => $body;
       expect(r.issues.single.message, contains('FunctionExpression'));
     }
 
+    void expectClosureNotice(TranslationResult r, String helper) {
+      expect(
+        r.issues.map((i) => i.code),
+        [IssueCode.idiomAutoSubstituted],
+      );
+      expect(
+        r.issues.single.message,
+        contains('Pass `$helper(...)` directly to the callback'),
+      );
+      expect(r.issues.single.code.isBuildNotice, isTrue);
+    }
+
     const goEvent =
         'GestureDetector(onTap: event "go" {}, child: Text(text: "a"))';
 
@@ -6653,7 +6665,7 @@ Object x(BuildContext context) => $body;
       final r = await lower(
         'CompactList(onReorder: (moved) => surfaceEvent(Probe.reorderRows))',
       );
-      expect(r.issues, isEmpty);
+      expectClosureNotice(r, 'surfaceEvent');
       expect(r.dsl, 'CompactList(onReorder: event "reorderRows" {})');
     });
 
@@ -6666,7 +6678,7 @@ Object x(BuildContext context) => $body;
       final bare = await lower(
         "GestureDetector(onTap: paywallEvent('go'), child: const Text('a'))",
       );
-      expect(closured.issues, isEmpty);
+      expectClosureNotice(closured, 'paywallEvent');
       expect(bare.issues, isEmpty);
       // The closure carries nothing of its own: the DSL is unchanged.
       expect(closured.dsl, bare.dsl);
@@ -6679,8 +6691,52 @@ Object x(BuildContext context) => $body;
         'Switch(value: true, '
         'onChanged: (v) => surfaceEvent(Probe.reorderRows))',
       );
-      expect(r.issues, isEmpty);
+      expectClosureNotice(r, 'surfaceEvent');
       expect(r.dsl, 'Switch(value: true, onChanged: event "reorderRows" {})');
+    });
+
+    test('a value callback given the event directly lowers like the closure',
+        () async {
+      final direct = await lower(
+        'Switch(value: true, onChanged: surfaceEvent(Probe.reorderRows))',
+      );
+      final closured = await lower(
+        'Switch(value: true, '
+        'onChanged: (_) => surfaceEvent(Probe.reorderRows))',
+      );
+      expect(direct.issues, isEmpty);
+      expect(direct.dsl, closured.dsl);
+      expect(
+        direct.dsl,
+        'Switch(value: true, onChanged: event "reorderRows" {})',
+      );
+      expectClosureNotice(closured, 'surfaceEvent');
+    });
+
+    test('a direct value event keeps its authored value', () async {
+      final direct = await lower(
+        'CompactList(onReorder: surfaceEvent(Probe.reorderRows, [1, 0]))',
+      );
+      final closured = await lower(
+        'CompactList(onReorder: '
+        '(_) => surfaceEvent(Probe.reorderRows, [1, 0]))',
+      );
+      expect(direct.issues, isEmpty);
+      expect(direct.dsl, isNotEmpty);
+      expect(direct.dsl, closured.dsl);
+    });
+
+    test('a failed translation reports no closure notice', () async {
+      final r = await lower(
+        "GestureDetector(onTap: () => paywallEvent('go'), "
+        'child: GestureDetector(onTap: (v) => paywallEvent(v), '
+        "child: const Text('a')))",
+      );
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((i) => i.code),
+        isNot(contains(IssueCode.idiomAutoSubstituted)),
+      );
     });
 
     test('a navigation closure still reaches the navigation path unchanged',
@@ -6795,9 +6851,8 @@ GestureDetector(
       );
       expect(
         r.issues.single.message,
-        'The callback value reaches the event automatically. Write '
-        '`(_) => paywallEvent(...)` so the closure does not read its '
-        'parameter.',
+        'The callback value reaches the event automatically. Pass '
+        '`paywallEvent(...)` directly to the callback, without a closure.',
       );
     });
 
@@ -6812,7 +6867,10 @@ GestureDetector(
         r.issues.map((i) => i.code),
         [IssueCode.invalidEventConfiguration],
       );
-      expect(r.issues.single.message, contains('(_) => paywallEvent(...)'));
+      expect(
+        r.issues.single.message,
+        contains('Pass `paywallEvent(...)` directly'),
+      );
     });
 
     test('a wildcard parameter lowers', () async {
@@ -6820,7 +6878,7 @@ GestureDetector(
         "GestureDetector(onTap: (_) => paywallEvent('go'), "
         "child: const Text('a'))",
       );
-      expect(r.issues, isEmpty);
+      expectClosureNotice(r, 'paywallEvent');
       expect(r.dsl, goEvent);
     });
 
@@ -6829,7 +6887,7 @@ GestureDetector(
         "GestureDetector(onTap: (v) => paywallEvent('go'), "
         "child: const Text('a'))",
       );
-      expect(r.issues, isEmpty);
+      expectClosureNotice(r, 'paywallEvent');
       expect(r.dsl, goEvent);
     });
 
@@ -6840,7 +6898,7 @@ GestureDetector(
         "GestureDetector(onTap: (v) async => paywallEvent('go'), "
         "child: const Text('a'))",
       );
-      expect(r.issues, isEmpty);
+      expectClosureNotice(r, 'paywallEvent');
       expect(r.dsl, goEvent);
     });
 

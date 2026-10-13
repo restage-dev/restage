@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
 
+import '../delivery/surface_delivery_paint_boundary.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration;
 import '../measurement/measurement_event_sanitizer.dart';
@@ -195,25 +196,33 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
         controller.acknowledgeRenderedEntry(entryId);
       },
       onError: (error, stack) {
+        markSurfaceDeliveryRenderFailedFor(
+          controller.flow.surface,
+          controller.flow.id,
+        );
         if (entryId == controller.currentScreenEntryId) {
           controller.reportRenderFailure(error);
         }
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RemoteWidget(
-        runtime: runtime,
-        data: data,
-        widget: kFlowScreenWidget,
-        onEvent: (name, args) {
-          // Inert unless this is the owning controller's current screen.
-          if (entryId != controller.currentScreenEntryId) return;
-          final sanitized = MeasurementEventSanitizer.sanitize(args);
-          controller.handleEvent(
-            name,
-            normalizeEventArgs(sanitized.businessValue),
-          );
-        },
+      child: SurfaceDeliveryPaintBoundary.forSurface(
+        surfaceType: controller.flow.surface,
+        surfaceSlug: controller.flow.id,
+        child: RemoteWidget(
+          runtime: runtime,
+          data: data,
+          widget: kFlowScreenWidget,
+          onEvent: (name, args) {
+            // Inert unless this is the owning controller's current screen.
+            if (entryId != controller.currentScreenEntryId) return;
+            final sanitized = MeasurementEventSanitizer.sanitize(args);
+            controller.handleEvent(
+              name,
+              normalizeEventArgs(sanitized.businessValue),
+            );
+          },
+        ),
       ),
     );
     return RestageFlowEventRegistration(

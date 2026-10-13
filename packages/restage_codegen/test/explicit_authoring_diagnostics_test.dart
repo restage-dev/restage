@@ -88,7 +88,7 @@ class Upgrade extends StatelessWidget {
     );
     final logs = <LogRecord>[];
     final result = await testBuilder(
-      restageSourceRosterBuilder(BuilderOptions.empty),
+      restageSourceRosterBuilder(BuilderOptions.forRoot),
       sources,
       rootPackage: 'apps_examples',
       readerWriter: writer,
@@ -242,7 +242,7 @@ Future<TestBuilderResult> _compileSources(Map<String, String> sources) async {
   final result = await testBuilders(
     [
       restageCodegenBuilder(BuilderOptions.empty),
-      restageSourceRosterBuilder(BuilderOptions.empty),
+      restageSourceRosterBuilder(BuilderOptions.forRoot),
       paywallFlowBuilder(BuilderOptions.empty),
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
@@ -255,7 +255,7 @@ Future<TestBuilderResult> _compileSources(Map<String, String> sources) async {
       // assertion below passes vacuously over an empty set.
       // Produces the compiler handoff the generated-Dart builder reads;
       // without it that builder silently emits nothing.
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       restageOutputsBuilder(BuilderOptions.empty),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ],

@@ -2,37 +2,27 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_core.svg)](https://pub.dev/packages/restage_core) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-A curated [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog of cross-platform widget
-primitives for server-driven Flutter UI: the `restage.core` library (layout,
-structure, and decoration: Container, Column, Row, Stack, SizedBox, Padding,
-Center, Text, Image, and more; 57 widgets in all).
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
-Part of [Restage](https://restage.dev), server-driven UI for Flutter. Extend this
-catalog with your own design-system widgets via `@RestageWidget`.
+The `restage.core` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
+57 cross-platform layout, structure, and decoration widgets, including
+Container, Column, Row, Stack, SizedBox, Padding, Center, Text, and Image.
+Add your own design-system widgets to the catalog with `@RestageWidget`.
 
 The package provides:
 
-- **Catalog metadata.** The curated widget set + per-widget metadata, authored
-  in `lib/registry.dart` (`kRegistry`) and mirrored to
-  `lib/src/widget_catalog/catalog.json`. Authoring tools read the registry; the
-  build-time code generator reads the JSON.
-- **RFW registration.** `lib/src/registration.g.dart` is a plain `rfw`
-  `LocalWidgetBuilder` map that renders the catalog's widgets; any RFW host can
-  use it.
-- **A few compiled-in catalog widgets.** Small composites the package ships as
-  real classes for behavior RFW can't express declaratively: the motion helpers
-  (`RestageMotion`, `RestageFadeIn`, `RestagePulse`, `RestageStagger`, and the
-  `RestageSpring` substrate) and the number/price formatters (`RestagePrice`,
-  `RestageFormattedNumber`). Standard Flutter widgets (Container, Text, …) are
-  mapped through the catalog; you author surfaces in plain Flutter syntax.
+- **Catalog metadata** that authoring tools and the code generator read.
+- **An RFW `LocalWidgetBuilder` map** that renders the catalog's widgets. Any
+  RFW host can use it.
+- **A few widgets compiled into your app** for behavior RFW can't express as
+  data: the motion helpers (`RestageMotion`, `RestageFadeIn`, `RestagePulse`,
+  `RestageStagger`, and the `RestageSpring` presets) and the number and price
+  formatters (`RestagePrice`, `RestageFormattedNumber`).
 
-The catalog is surface-general: the same primitives compose paywalls,
-onboarding, in-app messages, surveys, or any other server-driven UI surface.
-
-## Status
-
-Stable: `1.0.0`.
+You write surfaces in plain Flutter; standard widgets such as Container and
+Text map to the catalog. The same widgets build onboarding, messages, surveys,
+paywalls, or any other screen.
 
 ## License
 
-BSD-3-Clause. See `LICENSE`.
+BSD-3-Clause. See [LICENSE](LICENSE).

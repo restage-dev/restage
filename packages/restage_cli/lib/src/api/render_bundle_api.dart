@@ -5,15 +5,27 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
-import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
+import 'package:restage_cli/src/render_bundles/bundle_source.dart';
+import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:restage_shared/restage_shared.dart';
 // ignore: implementation_imports
 import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart';
 
+/// The two routes a prepared push may name for bytes.
+const _uploadRoutes = <String>{
+  '/render-bundles/v1/blob',
+  '/render-bundles/v1/engine-file',
+};
+
 /// Exact media type accepted by the local render-bundle upload route.
 const renderBundleUploadMediaType = 'application/vnd.restage.render-bundle.v1';
+
+/// Header carrying the token one prepared push uploads under.
+const renderBundleUploadTokenHeader = 'x-restage-upload-token';
 
 /// A size a bundle exceeded before anything was sent.
 @experimental
@@ -31,7 +43,7 @@ final class RenderBundleOversize {
   /// The ceiling it exceeded.
   final int limitBytes;
 
-  /// Whether both figures describe the compressed body rather than the archive.
+  /// Whether both figures describe the compressed body on the wire.
   final bool compressed;
 }
 
@@ -58,22 +70,33 @@ final class RenderBundleStagedBytes {
 /// body, header, or server message is ever retained.
 @experimental
 final class RenderBundleUploadException implements Exception {
-  const RenderBundleUploadException({this.statusCode, this.transferBytes})
-    : oversize = null,
-      staged = null;
+  const RenderBundleUploadException({
+    this.statusCode,
+    this.transferBytes,
+    this.reason,
+    this.storage,
+    this.incomplete = false,
+  }) : oversize = null,
+       staged = null;
 
   /// A refusal the client made itself, before anything went on the wire.
   const RenderBundleUploadException.oversize(RenderBundleOversize this.oversize)
     : statusCode = null,
       transferBytes = null,
-      staged = null;
+      staged = null,
+      reason = null,
+      storage = null,
+      incomplete = false;
 
   /// A refusal that names how much the organization already holds staged.
   const RenderBundleUploadException.staged(
     RenderBundleStagedBytes this.staged, {
     this.statusCode,
   }) : oversize = null,
-       transferBytes = null;
+       transferBytes = null,
+       reason = null,
+       storage = null,
+       incomplete = false;
 
   /// The upload response status, when the request reached a responder.
   final int? statusCode;
@@ -86,6 +109,15 @@ final class RenderBundleUploadException implements Exception {
 
   /// The staging measurement the service refused on, when it sent one.
   final RenderBundleStagedBytes? staged;
+
+  /// The short machine reason the service named, when it named one.
+  final String? reason;
+
+  /// The storage figures, when the refusal was about room.
+  final RenderBundleStorageRefusal? storage;
+
+  /// Whether the bytes are stored and only the version was not selected.
+  final bool incomplete;
 
   @override
   String toString() {
@@ -105,7 +137,105 @@ final class RenderBundleUploadException implements Exception {
   }
 }
 
-/// The status-safe part of one discovered channel head.
+/// How many times a push re-prepares when a blob vanished under it.
+const _filesMissingRounds = 3;
+const _filesMissingReason = 'files_missing';
+
+/// How long a refused upload waits before its one retry.
+const _uploadRetryDelay = Duration(milliseconds: 750);
+
+/// The shape a refusal reason has to have before it reaches the terminal.
+final _refusalReasonPattern = RegExp(r'^[a-z_]{1,64}$');
+
+/// What a push moved, and how much of it the server already held.
+@experimental
+final class RenderBundlePushOutcome {
+  const RenderBundlePushOutcome({
+    required this.version,
+    required this.contentHash,
+    required this.organizationId,
+    required this.organizationSlug,
+    required this.headReference,
+    required this.reactivated,
+    required this.appFilesSent,
+    required this.appFilesHeld,
+    required this.engineFilesSent,
+  });
+
+  /// The version this push selected.
+  final int version;
+
+  /// The content hash that version carries.
+  final String contentHash;
+
+  /// The organization the push was filed under.
+  final int organizationId;
+
+  /// That organization's slug.
+  final String organizationSlug;
+
+  /// The head it moved, in its canonical text form.
+  final String headReference;
+
+  /// Whether an identical build already existed.
+  final bool reactivated;
+
+  /// App files whose bytes went on the wire.
+  final int appFilesSent;
+
+  /// App files the server already held.
+  final int appFilesHeld;
+
+  /// Engine files this push seeded.
+  final int engineFilesSent;
+}
+
+/// Why a version cannot be evicted to make room for a push.
+@experimental
+final class RenderBundleProtectedHolder {
+  const RenderBundleProtectedHolder({
+    required this.kind,
+    required this.label,
+    required this.version,
+    required this.byteLength,
+  });
+
+  /// `environmentHead`, `personalHead` or `replacedVersion`.
+  final String kind;
+
+  /// The head reference, or the version that replaced it.
+  final String label;
+
+  /// The version being held.
+  final int version;
+
+  /// What it occupies.
+  final int byteLength;
+}
+
+/// A push refused because the organization is out of room.
+@experimental
+final class RenderBundleStorageRefusal {
+  const RenderBundleStorageRefusal({
+    required this.usedBytes,
+    required this.limitBytes,
+    required this.neededBytes,
+    required this.holders,
+    required this.evictedVersionIds,
+  });
+
+  final int usedBytes;
+  final int limitBytes;
+  final int neededBytes;
+
+  /// Everything the storage policy may not evict.
+  final List<RenderBundleProtectedHolder> holders;
+
+  /// Versions no head pointed at that the attempt removed before refusing.
+  final List<int> evictedVersionIds;
+}
+
+/// The status-safe part of one discovered head.
 @experimental
 final class RenderBundleDiscovery {
   const RenderBundleDiscovery({
@@ -117,20 +247,64 @@ final class RenderBundleDiscovery {
   final String contentHash;
 }
 
-/// Status-safe projection of one selected render-bundle channel.
+/// Status-safe projection of one head an app holds.
 ///
 /// Bundle and actor identifiers remain behind the authenticated control API.
 @experimental
-final class RenderBundleChannelDiscovery {
-  const RenderBundleChannelDiscovery({
-    required this.channel,
-    required this.activeVersion,
+final class RenderBundleHeadDiscovery {
+  const RenderBundleHeadDiscovery({
+    required this.head,
+    required this.version,
+    required this.libraries,
     required this.updatedAt,
+    this.ownerDisplayName,
+    this.sourceCommit,
+    this.sourceDirty = false,
   });
 
-  final String channel;
-  final int activeVersion;
+  /// The head reference: an environment slug, or `user/<handle>`.
+  final String head;
+
+  /// The version this head points at.
+  final int version;
+
+  /// The app widget libraries that version registers, by namespace, at the
+  /// capability version each declares.
+  final Map<String, int> libraries;
+
+  /// When it last moved.
   final DateTime updatedAt;
+
+  /// Whose head it is, for a personal head.
+  final String? ownerDisplayName;
+
+  /// The commit the version was built from, when the push knew it.
+  final String? sourceCommit;
+
+  /// Whether that commit's tree carried local changes.
+  final bool sourceDirty;
+}
+
+/// Whether an app's build for one environment registers what a published
+/// surface draws with.
+@experimental
+final class RenderBundleCoverageDiscovery {
+  const RenderBundleCoverageDiscovery({
+    required this.required,
+    required this.headVersion,
+    required this.registered,
+  });
+
+  /// The app widget libraries the surface requires, by namespace, at the
+  /// capability version each needs.
+  final Map<String, int> required;
+
+  /// The version the environment head points at, or null with no build.
+  final int? headVersion;
+
+  /// The libraries that version registers, by namespace, at the capability
+  /// version each declares.
+  final Map<String, int> registered;
 }
 
 /// Reveal-once browser bootstrap prepared by the authenticated control plane.
@@ -159,7 +333,7 @@ final class PreparedRenderBundleBootstrap {
       'expiresAt: $expiresAt)';
 }
 
-/// Hand-written control client for the bounded render-bundle upload lane.
+/// Hand-written control client for the bounded render-bundle upload path.
 @experimental
 final class RenderBundleApi {
   RenderBundleApi({
@@ -168,11 +342,13 @@ final class RenderBundleApi {
     required Credential credential,
     Uri? trustedBundleOrigin,
     http.Client? uploadClient,
+    Future<void> Function(Duration)? delay,
   }) : _rpc = rpc,
        _apiEndpoint = apiEndpoint,
        _credential = credential,
        _trustedBundleOrigin = trustedBundleOrigin,
-       _uploadClient = uploadClient ?? http.Client();
+       _uploadClient = uploadClient ?? http.Client(),
+       _delay = delay ?? Future<void>.delayed;
 
   final RestageApi _rpc;
   final Uri _apiEndpoint;
@@ -180,333 +356,281 @@ final class RenderBundleApi {
   final Uri? _trustedBundleOrigin;
   final http.Client _uploadClient;
 
-  /// Prepares and performs one raw channel upload without retry.
-  Future<void> upload({
+  /// Waits out the pause before a retry; a test supplies its own.
+  final Future<void> Function(Duration) _delay;
+
+  /// Pushes one built bundle: what the server lacks, then the version.
+  Future<RenderBundlePushOutcome> push({
     required String project,
-    required String channel,
-    required Uint8List archive,
+    required String app,
+    required BundlePushTarget target,
+    required RenderBundleArtifact artifact,
+    required BundleSource source,
     int? organizationId,
   }) async {
-    if (!isValidRenderBundleChannel(channel) || archive.isEmpty) {
+    if (app.isEmpty || artifact.appFiles.isEmpty) {
       throw const RenderBundleUploadException();
     }
-    if (archive.length > renderBundleMaxArchiveBytes) {
-      throw RenderBundleUploadException.oversize(
-        RenderBundleOversize(
-          measuredBytes: archive.length,
-          limitBytes: renderBundleMaxArchiveBytes,
-          compressed: false,
-        ),
-      );
-    }
+    final manifest = <Map<String, Object?>>[
+      for (final path in artifact.appFiles.keys.toList()..sort())
+        <String, Object?>{
+          'path': path,
+          'contentHash': _hashOf(artifact.appFiles[path]!),
+          'byteLength': artifact.appFiles[path]!.length,
+        },
+    ];
+    final byHash = <String, Uint8List>{
+      for (final bytes in artifact.appFiles.values) _hashOf(bytes): bytes,
+    };
 
-    try {
-      final authorization = _authorizationHeader(_credential);
-      final raw = await _rpc
-          .call('renderBundle', 'prepareUpload', <String, dynamic>{
-            'projectSlug': project,
-            'channel': channel,
-            'organizationId': ?organizationId,
-          });
-      if (raw is! String) throw const RenderBundleUploadException();
-      final uploadUri = _validatedUploadUri(
-        raw,
-        apiEndpoint: _apiEndpoint,
-        trustedBundleOrigin: _trustedBundleOrigin,
+    var round = 0;
+    // A round that runs again sends the same bytes again, so the figures
+    // count what moved, by hash and by path.
+    final appHashesSent = <String>{};
+    final enginePathsSent = <String>{};
+    while (true) {
+      round++;
+      final ticket = await _prepare(
         project: project,
-        channel: channel,
+        app: app,
+        target: target,
+        artifact: artifact,
+        source: source,
+        manifest: manifest,
         organizationId: organizationId,
       );
-      // The raw container goes on the wire gzipped: the serving platform
-      // refuses a single request body over 32 MiB, and a Flutter web bundle
-      // is comfortably past that. Compression is TRANSPORT ONLY - the
-      // RBSRAW1 container, its content hash, and the deterministic
-      // double-build comparison all remain defined on the raw bytes.
-      final transfer = Uint8List.fromList(gzip.encode(archive));
-      if (transfer.length > renderBundleMaxUploadTransferBytes) {
-        // Past the single-request ceiling the stream is split into parts and
-        // reassembled server-side, which the whole-archive hash then has to
-        // match before anything is stored.
-        await _uploadInParts(
-          project: project,
-          channel: channel,
-          organizationId: organizationId,
-          uploadUri: uploadUri,
-          authorization: authorization,
-          transfer: transfer,
-          contentHash: 'sha256:${crypto.sha256.convert(archive)}',
+      appHashesSent.addAll(
+        await _sendMissing(
+          ticket: ticket,
+          uri: ticket.blobUploadUrl,
+          bodies: <String, Uint8List>{
+            for (final hash in ticket.missingContentHashes)
+              hash: byHash[hash] ?? (throw const RenderBundleUploadException()),
+          },
+          field: 'contentHash',
+        ),
+      );
+      enginePathsSent.addAll(
+        await _sendMissing(
+          ticket: ticket,
+          uri: ticket.engineUploadUrl,
+          bodies: <String, Uint8List>{
+            for (final path in ticket.missingEnginePaths)
+              path:
+                  artifact.engineFiles[path] ??
+                  (throw const RenderBundleUploadException()),
+          },
+          field: 'path',
+        ),
+      );
+      final result = await _commit(ticket.uploadToken, manifest);
+      if (result != null) {
+        return RenderBundlePushOutcome(
+          version: result.version,
+          contentHash: result.contentHash,
+          organizationId: result.organizationId,
+          organizationSlug: result.organizationSlug,
+          headReference: result.headReference,
+          reactivated: result.reactivated,
+          appFilesSent: appHashesSent.length,
+          // Held is a count of files, so it counts manifest entries; two
+          // files with the same bytes move once and neither is held.
+          appFilesHeld: manifest
+              .where((entry) => !appHashesSent.contains(entry['contentHash']))
+              .length,
+          engineFilesSent: enginePathsSent.length,
         );
-        return;
       }
-      final request = http.Request('POST', uploadUri)
-        ..followRedirects = false
-        ..maxRedirects = 0
-        ..headers['authorization'] = authorization
-        ..headers['content-type'] = renderBundleUploadMediaType
-        ..headers['content-encoding'] = 'gzip'
-        ..bodyBytes = transfer;
-      final response = await _uploadClient.send(request);
-      var empty = true;
-      await for (final chunk in response.stream) {
-        if (chunk.isNotEmpty) {
-          empty = false;
-          break;
+      // A cleanup pass or an eviction removed a blob between the two calls.
+      if (round >= _filesMissingRounds) {
+        throw const RenderBundleUploadException(incomplete: true);
+      }
+    }
+  }
+
+  Future<_UploadTicket> _prepare({
+    required String project,
+    required String app,
+    required BundlePushTarget target,
+    required RenderBundleArtifact artifact,
+    required BundleSource source,
+    required List<Map<String, Object?>> manifest,
+    required int? organizationId,
+  }) async {
+    final Object? raw;
+    try {
+      raw = await _rpc.call('renderBundleUpload', 'prepare', <String, dynamic>{
+        'projectSlug': project,
+        'appSlug': app,
+        'environment': ?target.environment,
+        'personal': target.personal,
+        'engineSetId': artifact.engineSetId,
+        'manifest': manifest,
+        'provenance': <String, Object?>{
+          'sourceCommit': ?source.commit,
+          'sourceDirty': source.dirty,
+        },
+        'organizationId': ?organizationId,
+      });
+    } on RestageApiException catch (error) {
+      throw _refusal(error);
+    } on Object {
+      throw const RenderBundleUploadException();
+    }
+    final ticket = _UploadTicket.from(raw);
+    if (ticket == null) throw const RenderBundleUploadException();
+    return ticket;
+  }
+
+  /// Returns the push result, or null when the server wants the files again.
+  ///
+  /// The manifest goes back with the token: the version's file rows are
+  /// written from it, and the server checks it still hashes to what the token
+  /// carries.
+  Future<_PushResult?> _commit(
+    String uploadToken,
+    List<Map<String, Object?>> manifest,
+  ) async {
+    final Object? raw;
+    try {
+      raw = await _rpc.call('renderBundleUpload', 'commit', <String, dynamic>{
+        'uploadToken': uploadToken,
+        'manifest': manifest,
+      });
+    } on RestageApiException catch (error) {
+      final refusal = _refusal(error);
+      if (refusal.reason == _filesMissingReason) return null;
+      throw refusal;
+    } on Object {
+      throw const RenderBundleUploadException();
+    }
+    final result = _PushResult.from(raw);
+    if (result == null) throw const RenderBundleUploadException();
+    return result;
+  }
+
+  /// Sends every body the ticket named, [ticket.uploadConcurrency] at a time,
+  /// and returns the keys that moved.
+  Future<Set<String>> _sendMissing({
+    required _UploadTicket ticket,
+    required String uri,
+    required Map<String, Uint8List> bodies,
+    required String field,
+  }) async {
+    if (bodies.isEmpty) return const <String>{};
+    final address = _validatedUploadUri(
+      uri,
+      apiEndpoint: _apiEndpoint,
+      trustedBundleOrigin: _trustedBundleOrigin,
+    );
+    for (final bytes in bodies.values) {
+      if (bytes.length > ticket.maxFileTransferBytes) {
+        throw RenderBundleUploadException.oversize(
+          RenderBundleOversize(
+            measuredBytes: bytes.length,
+            limitBytes: ticket.maxFileTransferBytes,
+            compressed: false,
+          ),
+        );
+      }
+    }
+    final pending = bodies.entries.toList();
+    var next = 0;
+    Future<void> worker() async {
+      while (true) {
+        final index = next++;
+        if (index >= pending.length) return;
+        await _sendOne(
+          address: address,
+          token: ticket.uploadToken,
+          field: field,
+          key: pending[index].key,
+          bytes: pending[index].value,
+        );
+      }
+    }
+
+    final workers = ticket.uploadConcurrency < pending.length
+        ? ticket.uploadConcurrency
+        : pending.length;
+    await Future.wait(<Future<void>>[
+      for (var index = 0; index < workers; index++) worker(),
+    ]);
+    return bodies.keys.toSet();
+  }
+
+  /// Sends one file, retrying once because the same bytes are accepted twice.
+  /// The retry waits: a 429, a 503 and a dropped connection all clear sooner
+  /// when nothing asks again straight away.
+  Future<void> _sendOne({
+    required Uri address,
+    required String token,
+    required String field,
+    required String key,
+    required Uint8List bytes,
+  }) async {
+    final transfer = Uint8List.fromList(gzip.encode(bytes));
+    RenderBundleUploadException? refusal;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) await _delay(_uploadRetryDelay);
+        final request =
+            http.Request(
+                'POST',
+                address.replace(
+                  queryParameters: <String, String>{
+                    ...address.queryParameters,
+                    field: key,
+                  },
+                ),
+              )
+              ..followRedirects = false
+              ..maxRedirects = 0
+              ..headers['authorization'] = _authorizationHeader(_credential)
+              // A token is a capability, so it stays out of the query and the
+              // access logs that record one.
+              ..headers[renderBundleUploadTokenHeader] = token
+              ..headers['content-type'] = renderBundleUploadMediaType
+              ..headers['content-encoding'] = 'gzip'
+              ..bodyBytes = transfer;
+        final response = await _uploadClient.send(request);
+        final answer = await response.stream.toBytes();
+        if (response.statusCode == 204 && answer.isEmpty) return;
+        final status = response.statusCode;
+        if (status != 429 && status != 503) {
+          throw RenderBundleUploadException(
+            statusCode: status,
+            transferBytes: transfer.length,
+          );
         }
-      }
-      if (response.statusCode != 204 ||
-          (response.contentLength != null && response.contentLength != 0) ||
-          !empty) {
-        throw RenderBundleUploadException(
-          statusCode: response.statusCode,
+        refusal = RenderBundleUploadException(
+          statusCode: status,
           transferBytes: transfer.length,
         );
-      }
-    } on RenderBundleUploadException {
-      rethrow;
-    } on Object {
-      throw const RenderBundleUploadException();
-    }
-  }
-
-  /// Splits one compressed stream into parts and commits it by hash.
-  ///
-  /// Nothing is stored until the server reassembles the parts and agrees on
-  /// [contentHash]; a failure discards the staged parts.
-  Future<void> _uploadInParts({
-    required String project,
-    required String channel,
-    required int? organizationId,
-    required Uri uploadUri,
-    required String authorization,
-    required Uint8List transfer,
-    required String contentHash,
-  }) async {
-    final prepared = await _rpc.call(
-      'renderBundle',
-      'prepareChunkedUpload',
-      <String, dynamic>{
-        'projectSlug': project,
-        'channel': channel,
-        'organizationId': ?organizationId,
-      },
-    );
-    if (prepared is! Map<String, dynamic>) {
-      throw const RenderBundleUploadException();
-    }
-    final uploadId = prepared['uploadId'];
-    final nonce = prepared['nonce'];
-    final expiresAtSource = prepared['expiresAt'];
-    final partByteLimit = prepared['partByteLimit'];
-    final maxParts = prepared['maxParts'];
-    final expiresAt = expiresAtSource is String
-        ? DateTime.tryParse(expiresAtSource)
-        : null;
-    if (uploadId is! String ||
-        !RegExp(r'^[0-9a-f]{32}$').hasMatch(uploadId) ||
-        nonce is! String ||
-        !RegExp(r'^[0-9a-f]{32}$').hasMatch(nonce) ||
-        expiresAt == null ||
-        partByteLimit is! int ||
-        partByteLimit < 1 ||
-        maxParts is! int ||
-        maxParts < 1) {
-      throw const RenderBundleUploadException();
-    }
-    // The prepared part URL must be the same authority the whole-archive URL
-    // was validated against; only the part coordinates may differ.
-    if (prepared['uploadUrl'] != uploadUri.toString()) {
-      throw const RenderBundleUploadException();
-    }
-
-    final partCount = (transfer.length + partByteLimit - 1) ~/ partByteLimit;
-    if (partCount > maxParts) {
-      // Chunking removes the single-request ceiling; what is left is the
-      // service's total, and it is still worth reporting with its figures.
-      throw RenderBundleUploadException.oversize(
-        RenderBundleOversize(
-          measuredBytes: transfer.length,
-          limitBytes: partByteLimit * maxParts,
-          compressed: true,
-        ),
-      );
-    }
-
-    for (var index = 0; index < partCount; index++) {
-      final start = index * partByteLimit;
-      final end = start + partByteLimit < transfer.length
-          ? start + partByteLimit
-          : transfer.length;
-      final body = Uint8List.sublistView(transfer, start, end);
-      // Re-staging a part with identical bytes is accepted, so a part that
-      // fails in transit is worth one more attempt before the whole upload is
-      // thrown away.
-      var sent = false;
-      RenderBundleUploadException? laneRefusal;
-      for (var attempt = 0; attempt < 2 && !sent; attempt++) {
-        try {
-          await _sendPart(
-            uploadUri: uploadUri,
-            authorization: authorization,
-            uploadId: uploadId,
-            nonce: nonce,
-            expiresAt: expiresAt,
-            partIndex: index,
-            partCount: partCount,
-            body: body,
-          );
-          sent = true;
-        } on RenderBundleUploadException catch (error) {
-          // A busy lane means the service wants this part to wait its turn.
-          // The upload is still sound, so it is retried like a transport
-          // failure.
-          if (error.statusCode == 429 || error.statusCode == 503) {
-            laneRefusal = error;
-            continue;
-          }
-          // Any other refusal is the server's answer.
-          await _discardParts(
-            project: project,
-            uploadId: uploadId,
-            organizationId: organizationId,
-          );
-          rethrow;
-        } on Object {
-          // Transport failure; the next attempt re-stages the same bytes.
-        }
-      }
-      if (!sent) {
-        // Every exit discards, including one the transport threw.
-        await _discardParts(
-          project: project,
-          uploadId: uploadId,
-          organizationId: organizationId,
-        );
-        throw laneRefusal ?? const RenderBundleUploadException();
-      }
-    }
-
-    try {
-      await _rpc.call('renderBundle', 'commitChunkedUpload', <String, dynamic>{
-        'projectSlug': project,
-        'uploadId': uploadId,
-        'nonce': nonce,
-        'expiresAt': expiresAt.toUtc().toIso8601String(),
-        'contentHash': contentHash,
-        'channel': channel,
-        'organizationId': ?organizationId,
-      });
-    } on Object {
-      await _discardParts(
-        project: project,
-        uploadId: uploadId,
-        organizationId: organizationId,
-      );
-      throw const RenderBundleUploadException();
-    }
-  }
-
-  /// Sends one part, applying the response checks the whole-archive path makes.
-  Future<void> _sendPart({
-    required Uri uploadUri,
-    required String authorization,
-    required String uploadId,
-    required String nonce,
-    required DateTime expiresAt,
-    required int partIndex,
-    required int partCount,
-    required Uint8List body,
-  }) async {
-    final request =
-        http.Request(
-            'POST',
-            _partUri(
-              uploadUri,
-              uploadId: uploadId,
-              nonce: nonce,
-              expiresAt: expiresAt,
-              partIndex: partIndex,
-              partCount: partCount,
-            ),
-          )
-          ..followRedirects = false
-          ..maxRedirects = 0
-          ..headers['authorization'] = authorization
-          ..headers['content-type'] = renderBundleUploadMediaType
-          ..bodyBytes = body;
-    final response = await _uploadClient.send(request);
-    final answer = await response.stream.toBytes();
-    if (response.statusCode != 204 ||
-        (response.contentLength != null && response.contentLength != 0) ||
-        answer.isNotEmpty) {
-      throw _partRefusal(response.statusCode, answer);
-    }
-  }
-
-  /// Reads a typed refusal, falling back to the status when there is none.
-  RenderBundleUploadException _partRefusal(int statusCode, Uint8List answer) {
-    if (answer.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(utf8.decode(answer));
-        if (decoded is Map<String, Object?> &&
-            decoded['reason'] == 'staged_bytes_exceeded') {
-          final held = decoded['heldBytes'];
-          final limit = decoded['limitBytes'];
-          if (held is int && limit is int) {
-            return RenderBundleUploadException.staged(
-              RenderBundleStagedBytes(heldBytes: held, limitBytes: limit),
-              statusCode: statusCode,
-            );
-          }
-        }
+      } on RenderBundleUploadException {
+        rethrow;
       } on Object {
-        // A body that will not parse is no worse than none: the status stands.
+        // Transport failure; the next attempt sends the same bytes again.
       }
     }
-    return RenderBundleUploadException(statusCode: statusCode);
+    throw refusal ?? const RenderBundleUploadException();
   }
 
-  Future<void> _discardParts({
-    required String project,
-    required String uploadId,
-    required int? organizationId,
-  }) async {
-    try {
-      await _rpc.call('renderBundle', 'discardChunkedUpload', <String, dynamic>{
-        'projectSlug': project,
-        'uploadId': uploadId,
-        'organizationId': ?organizationId,
-      });
-    } on Object {
-      // The server discards staged parts on its own failure paths; a failed
-      // courtesy discard must not replace the original refusal.
-    }
-  }
-
-  /// Compatibility convenience for the default channel.
-  Future<void> uploadMain({
-    required String project,
-    required Uint8List archive,
-    int? organizationId,
-  }) => upload(
-    project: project,
-    channel: renderBundleMainChannel,
-    archive: archive,
-    organizationId: organizationId,
-  );
-
-  /// Reads the selected channel head for status-only confirmation.
+  /// Reads the head for status-only confirmation.
   Future<RenderBundleDiscovery?> discover({
     required String project,
-    required String channel,
+    required String app,
+    required String head,
     int? organizationId,
   }) async {
-    if (!isValidRenderBundleChannel(channel)) {
+    if (app.isEmpty || !isValidRenderBundleHead(head)) {
       throw const RenderBundleUploadException();
     }
     try {
       final raw = await _rpc.call('renderBundle', 'discover', <String, dynamic>{
         'projectSlug': project,
-        'channel': channel,
+        'appSlug': app,
+        'head': head,
         'organizationId': ?organizationId,
       });
       if (raw == null) return null;
@@ -529,72 +653,83 @@ final class RenderBundleApi {
     }
   }
 
-  /// Compatibility convenience for the default channel.
-  Future<RenderBundleDiscovery?> discoverMain({
+  /// Lists the heads one app holds, environment heads first.
+  Future<List<RenderBundleHeadDiscovery>> listHeads({
     required String project,
-    int? organizationId,
-  }) => discover(
-    project: project,
-    channel: renderBundleMainChannel,
-    organizationId: organizationId,
-  );
-
-  /// Lists selected channels through a status-safe, token-free projection.
-  Future<List<RenderBundleChannelDiscovery>> listChannels({
-    required String project,
+    required String app,
     int? organizationId,
   }) async {
-    if (project.isEmpty || (organizationId != null && organizationId < 1)) {
+    if (project.isEmpty ||
+        app.isEmpty ||
+        (organizationId != null && organizationId < 1)) {
       throw const RenderBundleUploadException();
     }
     try {
       final raw = await _rpc.call(
         'renderBundle',
-        'listChannels',
+        'listHeads',
         <String, dynamic>{
           'projectSlug': project,
+          'appSlug': app,
           'organizationId': ?organizationId,
         },
       );
-      if (raw is! List<dynamic>) {
+      if (raw is! Map<String, dynamic>) {
         throw const RenderBundleUploadException();
       }
-      final channels = <RenderBundleChannelDiscovery>[];
+      final heads = <RenderBundleHeadDiscovery>[];
       final seen = <String>{};
-      for (final item in raw) {
-        if (item is! Map<String, dynamic>) {
+      for (final key in const <String>['environmentHeads', 'personalHeads']) {
+        final items = raw[key];
+        if (items is! List<dynamic>) {
           throw const RenderBundleUploadException();
         }
-        final channel = item['channel'];
-        final activeRenderBundleId = item['activeRenderBundleId'];
-        final activeVersion = item['activeVersion'];
-        final updatedByUserInfoId = item['updatedByUserInfoId'];
-        final updatedAtSource = item['updatedAt'];
-        final updatedAt = updatedAtSource is String
-            ? DateTime.tryParse(updatedAtSource)
-            : null;
-        if (channel is! String ||
-            !isValidRenderBundleChannel(channel) ||
-            !seen.add(channel) ||
-            activeRenderBundleId is! int ||
-            activeRenderBundleId < 1 ||
-            activeVersion is! int ||
-            activeVersion < 1 ||
-            updatedByUserInfoId is! int ||
-            updatedByUserInfoId < 1 ||
-            updatedAt == null ||
-            !updatedAt.isUtc) {
-          throw const RenderBundleUploadException();
+        for (final item in items) {
+          heads.add(_readHead(item, seen: seen));
         }
-        channels.add(
-          RenderBundleChannelDiscovery(
-            channel: channel,
-            activeVersion: activeVersion,
-            updatedAt: updatedAt,
-          ),
-        );
       }
-      return List<RenderBundleChannelDiscovery>.unmodifiable(channels);
+      return List<RenderBundleHeadDiscovery>.unmodifiable(heads);
+    } on RenderBundleUploadException {
+      rethrow;
+    } on Object {
+      throw const RenderBundleUploadException();
+    }
+  }
+
+  /// Reads whether the app's build for [environment] registers what the
+  /// published [surfaceSlug] draws with.
+  Future<RenderBundleCoverageDiscovery> coverage({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+  }) async {
+    if (project.isEmpty ||
+        app.isEmpty ||
+        surfaceSlug.isEmpty ||
+        environment.isEmpty ||
+        (organizationId != null && organizationId < 1)) {
+      throw const RenderBundleUploadException();
+    }
+    try {
+      final raw = await _rpc.call('renderBundle', 'coverage', <String, dynamic>{
+        'projectSlug': project,
+        'appSlug': app,
+        'surfaceType': surfaceType.wireName,
+        'surfaceSlug': surfaceSlug,
+        'environmentSlug': environment,
+        if (environmentTargetId != null)
+          'environmentTargetId': environmentTargetId,
+        if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
+        'organizationId': ?organizationId,
+      });
+      final coverage = _readCoverage(raw);
+      if (coverage == null) throw const RenderBundleUploadException();
+      return coverage;
     } on RenderBundleUploadException {
       rethrow;
     } on Object {
@@ -605,13 +740,15 @@ final class RenderBundleApi {
   /// Mints one reveal-once bootstrap after exact per-bundle origin validation.
   Future<PreparedRenderBundleBootstrap> prepareBrowserBootstrap({
     required String project,
-    required String channel,
+    required String app,
+    required String head,
     required Uri trustedBundleOrigin,
     int? organizationId,
     int? version,
   }) async {
     if (project.isEmpty ||
-        !isValidRenderBundleChannel(channel) ||
+        app.isEmpty ||
+        !isValidRenderBundleHead(head) ||
         (organizationId != null && organizationId < 1) ||
         (version != null && version < 1) ||
         !_isExactTrustedBundleOrigin(trustedBundleOrigin) ||
@@ -626,7 +763,8 @@ final class RenderBundleApi {
       final raw = await _rpc
           .call('renderBundle', 'prepareBrowserBootstrap', <String, dynamic>{
             'projectSlug': project,
-            'channel': channel,
+            'appSlug': app,
+            'head': head,
             'version': ?version,
             'organizationId': ?organizationId,
           });
@@ -680,20 +818,342 @@ final class RenderBundleApi {
   void close() => _uploadClient.close();
 }
 
-String _authorizationHeader(Credential credential) {
-  if (credential.kind != CredentialKind.authKey) {
+/// Reads one head view, refusing anything the projection does not admit.
+RenderBundleHeadDiscovery _readHead(Object? item, {required Set<String> seen}) {
+  if (item is! Map<String, dynamic>) {
     throw const RenderBundleUploadException();
   }
-  return 'Basic ${base64Encode(utf8.encode(credential.authToken))}';
+  final head = item['head'];
+  final versionView = item['version'];
+  final owner = item['ownerDisplayName'];
+  final updatedAtSource = item['updatedAt'];
+  final updatedAt = updatedAtSource is String
+      ? DateTime.tryParse(updatedAtSource)
+      : null;
+  final version = versionView is Map<String, dynamic>
+      ? versionView['version']
+      : null;
+  final libraries = versionView is Map<String, dynamic>
+      ? _registeredLibraries(versionView['capabilityManifestJson'])
+      : null;
+  final sourceCommit = versionView is Map<String, dynamic>
+      ? versionView['sourceCommit']
+      : null;
+  final sourceDirty = versionView is Map<String, dynamic>
+      ? versionView['sourceDirty']
+      : null;
+  if (head is! String ||
+      !isValidRenderBundleHead(head) ||
+      !seen.add(head) ||
+      version is! int ||
+      version < 1 ||
+      libraries == null ||
+      (sourceCommit != null && !_isCommitText(sourceCommit)) ||
+      sourceDirty is! bool ||
+      (owner != null && owner is! String) ||
+      updatedAt == null ||
+      !updatedAt.isUtc) {
+    throw const RenderBundleUploadException();
+  }
+  return RenderBundleHeadDiscovery(
+    head: head,
+    version: version,
+    libraries: libraries,
+    updatedAt: updatedAt,
+    ownerDisplayName: owner as String?,
+    sourceCommit: sourceCommit as String?,
+    sourceDirty: sourceDirty,
+  );
 }
+
+final _commitTextPattern = RegExp(r'^[0-9a-f]{7,40}$');
+
+bool _isCommitText(Object? value) =>
+    value is String && _commitTextPattern.hasMatch(value);
+
+RenderBundleCoverageDiscovery? _readCoverage(Object? raw) {
+  if (raw is! Map<String, dynamic>) return null;
+  final headVersion = raw['headVersion'];
+  if (headVersion != null && (headVersion is! int || headVersion < 1)) {
+    return null;
+  }
+  final required = _namespacedVersions(raw['requiredLibraries'], 'minVersion');
+  final registered = _namespacedVersions(
+    raw['registeredLibraries'],
+    'capabilityVersion',
+  );
+  if (required == null || registered == null) return null;
+  return RenderBundleCoverageDiscovery(
+    required: required,
+    headVersion: headVersion as int?,
+    registered: registered,
+  );
+}
+
+Map<String, int>? _namespacedVersions(Object? items, String versionKey) {
+  if (items is! List) return null;
+  final versions = <String, int>{};
+  for (final item in items) {
+    if (item is! Map<String, dynamic>) return null;
+    final namespace = item['namespace'];
+    final version = item[versionKey];
+    if (namespace is! String ||
+        namespace.isEmpty ||
+        version is! int ||
+        version < 1) {
+      return null;
+    }
+    versions[namespace] = version;
+  }
+  return Map<String, int>.unmodifiable(versions);
+}
+
+/// The libraries a stored capability manifest registers, or null when the
+/// manifest is not the shape the server admits.
+Map<String, int>? _registeredLibraries(Object? manifestJson) {
+  if (manifestJson is! String) return null;
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(manifestJson);
+  } on FormatException {
+    return null;
+  }
+  if (decoded is! Map<String, dynamic>) return null;
+  final catalog = decoded['catalog'];
+  if (catalog is! Map<String, dynamic>) return null;
+  final libraries = catalog['libraries'];
+  if (libraries is! Map<String, dynamic>) return null;
+  final registered = <String, int>{};
+  for (final entry in libraries.entries) {
+    final library = entry.value;
+    if (library is! Map<String, dynamic>) return null;
+    final capabilityVersion = library['capabilityVersion'] ?? 1;
+    if (capabilityVersion is! int || capabilityVersion < 1) return null;
+    registered[entry.key] = capabilityVersion;
+  }
+  return Map<String, int>.unmodifiable(registered);
+}
+
+/// The ticket a prepared push answers with.
+final class _UploadTicket {
+  const _UploadTicket({
+    required this.uploadToken,
+    required this.headReference,
+    required this.blobUploadUrl,
+    required this.engineUploadUrl,
+    required this.missingContentHashes,
+    required this.missingEnginePaths,
+    required this.uploadConcurrency,
+    required this.maxFileTransferBytes,
+  });
+
+  static _UploadTicket? from(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final uploadToken = raw['uploadToken'];
+    final headReference = raw['headReference'];
+    final blobUploadUrl = raw['blobUploadUrl'];
+    final engineUploadUrl = raw['engineUploadUrl'];
+    final uploadConcurrency = raw['uploadConcurrency'];
+    final maxFileTransferBytes = raw['maxFileTransferBytes'];
+    final hashes = _stringList(raw['missingContentHashes']);
+    final paths = _stringList(raw['missingEnginePaths']);
+    if (uploadToken is! String ||
+        uploadToken.isEmpty ||
+        headReference is! String ||
+        !isValidRenderBundleHead(headReference) ||
+        blobUploadUrl is! String ||
+        engineUploadUrl is! String ||
+        uploadConcurrency is! int ||
+        uploadConcurrency < 1 ||
+        maxFileTransferBytes is! int ||
+        maxFileTransferBytes < 1 ||
+        hashes == null ||
+        paths == null) {
+      return null;
+    }
+    return _UploadTicket(
+      uploadToken: uploadToken,
+      headReference: headReference,
+      blobUploadUrl: blobUploadUrl,
+      engineUploadUrl: engineUploadUrl,
+      missingContentHashes: hashes,
+      missingEnginePaths: paths,
+      uploadConcurrency: uploadConcurrency,
+      maxFileTransferBytes: maxFileTransferBytes,
+    );
+  }
+
+  final String uploadToken;
+  final String headReference;
+  final String blobUploadUrl;
+  final String engineUploadUrl;
+  final List<String> missingContentHashes;
+  final List<String> missingEnginePaths;
+  final int uploadConcurrency;
+  final int maxFileTransferBytes;
+}
+
+/// The version a committed push selected.
+final class _PushResult {
+  const _PushResult({
+    required this.version,
+    required this.contentHash,
+    required this.organizationId,
+    required this.organizationSlug,
+    required this.headReference,
+    required this.reactivated,
+  });
+
+  static _PushResult? from(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final view = raw['version'];
+    final organizationId = raw['organizationId'];
+    final organizationSlug = raw['organizationSlug'];
+    final headReference = raw['headReference'];
+    final reactivated = raw['reactivated'];
+    final version = view is Map<String, dynamic> ? view['version'] : null;
+    final contentHash = view is Map<String, dynamic>
+        ? view['contentHash']
+        : null;
+    if (version is! int ||
+        version < 1 ||
+        contentHash is! String ||
+        !RegExp(r'^sha256:[0-9a-f]{64}$').hasMatch(contentHash) ||
+        organizationId is! int ||
+        organizationId < 1 ||
+        organizationSlug is! String ||
+        organizationSlug.isEmpty ||
+        headReference is! String ||
+        !isValidRenderBundleHead(headReference) ||
+        reactivated is! bool) {
+      return null;
+    }
+    return _PushResult(
+      version: version,
+      contentHash: contentHash,
+      organizationId: organizationId,
+      organizationSlug: organizationSlug,
+      headReference: headReference,
+      reactivated: reactivated,
+    );
+  }
+
+  final int version;
+  final String contentHash;
+  final int organizationId;
+  final String organizationSlug;
+  final String headReference;
+  final bool reactivated;
+}
+
+List<String>? _stringList(Object? raw) {
+  if (raw is! List<dynamic>) return null;
+  final values = <String>[];
+  for (final item in raw) {
+    if (item is! String || item.isEmpty) return null;
+    values.add(item);
+  }
+  return values;
+}
+
+String _hashOf(Uint8List bytes) => 'sha256:${crypto.sha256.convert(bytes)}';
+
+/// Reads a refusal into its short reason and figures, keeping server prose out.
+RenderBundleUploadException _refusal(RestageApiException error) {
+  final Object? document;
+  try {
+    document = jsonDecode(error.body);
+  } on FormatException {
+    return RenderBundleUploadException(statusCode: error.statusCode);
+  }
+  if (document is! Map<String, dynamic>) {
+    return RenderBundleUploadException(statusCode: error.statusCode);
+  }
+  final data = document['data'];
+  if (data is! Map<String, dynamic>) {
+    return RenderBundleUploadException(statusCode: error.statusCode);
+  }
+  switch (document['className']) {
+    case 'RenderBundleRejectedException':
+      final reason = data['reason'];
+      return RenderBundleUploadException(
+        statusCode: error.statusCode,
+        // The reason reaches the terminal, so only a short name gets through.
+        reason: reason is String && _refusalReasonPattern.hasMatch(reason)
+            ? reason
+            : null,
+      );
+    case 'RenderBundleStorageLimitException':
+      final storage = _storageRefusal(data);
+      if (storage == null) break;
+      return RenderBundleUploadException(
+        statusCode: error.statusCode,
+        storage: storage,
+      );
+  }
+  return RenderBundleUploadException(statusCode: error.statusCode);
+}
+
+RenderBundleStorageRefusal? _storageRefusal(Map<String, dynamic> data) {
+  final used = data['usedBytes'];
+  final limit = data['limitBytes'];
+  final needed = data['neededBytes'];
+  final entries = data['protectedHolders'];
+  final evicted = data['evictedVersionIds'];
+  if (used is! int ||
+      limit is! int ||
+      needed is! int ||
+      entries is! List ||
+      evicted is! List) {
+    return null;
+  }
+  final evictedVersionIds = <int>[];
+  for (final id in evicted) {
+    if (id is! int) return null;
+    evictedVersionIds.add(id);
+  }
+  final holders = <RenderBundleProtectedHolder>[];
+  for (final entry in entries) {
+    if (entry is! Map<String, dynamic>) return null;
+    final kind = entry['kind'];
+    final label = entry['label'];
+    final version = entry['version'];
+    final byteLength = entry['byteLength'];
+    if (kind is! String ||
+        label is! String ||
+        version is! int ||
+        byteLength is! int) {
+      return null;
+    }
+    holders.add(
+      RenderBundleProtectedHolder(
+        kind: kind,
+        label: label,
+        version: version,
+        byteLength: byteLength,
+      ),
+    );
+  }
+  return RenderBundleStorageRefusal(
+    usedBytes: used,
+    limitBytes: limit,
+    neededBytes: needed,
+    holders: List<RenderBundleProtectedHolder>.unmodifiable(holders),
+    evictedVersionIds: List<int>.unmodifiable(evictedVersionIds),
+  );
+}
+
+String _authorizationHeader(Credential credential) => switch (credential.kind) {
+  CredentialKind.authKey =>
+    'Basic ${base64Encode(utf8.encode(credential.authToken))}',
+  CredentialKind.secretKey => 'Bearer ${credential.authToken}',
+  _ => throw const RenderBundleUploadException(),
+};
 
 Uri _validatedUploadUri(
   String source, {
   required Uri apiEndpoint,
   required Uri? trustedBundleOrigin,
-  required String project,
-  required String channel,
-  required int? organizationId,
 }) {
   final uri = Uri.tryParse(source);
   if (uri == null ||
@@ -704,41 +1164,11 @@ Uri _validatedUploadUri(
       ) ||
       uri.userInfo.isNotEmpty ||
       uri.hasFragment ||
-      uri.path != '/render-bundles/v1/upload') {
+      uri.hasQuery ||
+      !_uploadRoutes.contains(uri.path)) {
     throw const RenderBundleUploadException();
   }
 
-  final query = uri.queryParametersAll;
-  if (query.length != 3 ||
-      query.keys.any(
-        (key) =>
-            key != 'projectSlug' && key != 'organizationId' && key != 'channel',
-      ) ||
-      query['projectSlug']?.length != 1 ||
-      query['projectSlug']!.single != project ||
-      query['organizationId']?.length != 1 ||
-      query['channel']?.length != 1 ||
-      query['channel']!.single != channel) {
-    throw const RenderBundleUploadException();
-  }
-  final organizationSource = query['organizationId']!.single;
-  final preparedOrganizationId = int.tryParse(organizationSource);
-  if (preparedOrganizationId == null ||
-      preparedOrganizationId <= 0 ||
-      organizationSource != '$preparedOrganizationId' ||
-      (organizationId != null && preparedOrganizationId != organizationId)) {
-    throw const RenderBundleUploadException();
-  }
-  final canonicalQuery = Uri(
-    queryParameters: <String, String>{
-      'projectSlug': project,
-      'organizationId': organizationSource,
-      'channel': channel,
-    },
-  ).query;
-  if (uri.query != canonicalQuery) {
-    throw const RenderBundleUploadException();
-  }
   return uri;
 }
 
@@ -778,22 +1208,3 @@ bool _isExactTrustedBundleOrigin(Uri uri) {
   }
   return _isDefaultHttps(uri) || canDeriveRenderBundleExecutionOrigin(uri);
 }
-
-/// Adds the part coordinates to a validated upload URL in canonical order.
-Uri _partUri(
-  Uri uploadUri, {
-  required String uploadId,
-  required String nonce,
-  required DateTime expiresAt,
-  required int partIndex,
-  required int partCount,
-}) => uploadUri.replace(
-  queryParameters: <String, String>{
-    ...uploadUri.queryParameters,
-    'uploadId': uploadId,
-    'nonce': nonce,
-    'expiresAt': expiresAt.toUtc().toIso8601String(),
-    'partIndex': '$partIndex',
-    'partCount': '$partCount',
-  },
-);

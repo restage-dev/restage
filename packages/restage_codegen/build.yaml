@@ -231,9 +231,11 @@ builders:
   user_catalog_json:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userCatalogJsonBuilder']
+    # The sidecar carries the app widget factories generated mounts install.
     build_extensions:
       $lib$:
         - "src/widget_catalog/catalog.json"
+        - "src/widget_catalog/app_widget_factories.json"
     auto_apply: root_package
     build_to: cache
     runs_before:

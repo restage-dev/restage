@@ -2,12 +2,12 @@ part of '../minimal_paywall.dart';
 
 final class MinimalPaywallSurface extends StatelessWidget {
   const MinimalPaywallSurface({
-    Key? key,
+    super.key,
     this.onEvent,
     this.resolver,
     this.errorBuilder,
     this.loadingBuilder,
-  }) : super(key: key);
+  });
 
   final ValueChanged<RestageEvent>? onEvent;
 
@@ -40,7 +40,7 @@ final class MinimalPaywallSurface extends StatelessWidget {
       ),
     ).addToInstalled();
     return RestagePaywall(
-      id: "minimal_paywall",
+      id: 'minimal_paywall',
       fallbackBuilder: (context) => MinimalPaywall(),
       onEvent: onEvent,
       resolver: resolver,

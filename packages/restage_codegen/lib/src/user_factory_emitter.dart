@@ -47,7 +47,7 @@ String? emitUserFactoriesDart(
   bool installWholeCatalog = false,
 }) {
   validateCustomPreviewReservations(widgets);
-  final plannedUris = _referencedLibraryUris(
+  final plannedUris = referencedAppWidgetLibraryUris(
     widgets,
     structuredTypes: structuredTypes,
     slotTargets: slotTargets,
@@ -104,7 +104,7 @@ String? emitUserFactoriesDart(
   // already excluded any unnameable (private) referenced type, so every URI
   // here is importable. Emitted WITH the uniform-prefix alias, sorted for
   // byte-deterministic emit.
-  final referencedUris = _referencedLibraryUris(
+  final referencedUris = referencedAppWidgetLibraryUris(
     [for (final (entry, _) in emittable) entry],
     structuredTypes: structuredTypes,
     slotTargets: slotTargets,
@@ -337,7 +337,8 @@ String _libraryUriOf(String qualifiedRef) =>
 String? _enumLibOf(CatalogValueShape? shape) =>
     shape is EnumShape ? shape.enumRef.libraryUri : null;
 
-Set<String> _referencedLibraryUris(
+/// Every library URI the factories of [widgets] name.
+Set<String> referencedAppWidgetLibraryUris(
   Iterable<WidgetEntry> widgets, {
   required List<StructuredEntry> structuredTypes,
   required Map<String, String> slotTargets,

@@ -83,6 +83,8 @@ final class WelcomeScreen extends StatelessWidget {
           catalogJson = value;
           return true;
         })),
+        'apps_examples|lib/src/widget_catalog/app_widget_factories.json':
+            anything,
       },
       onLog: (_) {},
     );

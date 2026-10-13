@@ -49,9 +49,13 @@ dependencies:
   # raise this ceiling only after re-vendoring and re-running that parity gate.
   rfw: ">=1.1.3 <1.2.0"
   shared_preferences: ^2.5.0
+  # Browser messaging for the render bundle entrypoint (render_host.dart).
+  web: ^1.1.1
   web_socket_channel: ^3.0.3
 
 dev_dependencies:
+  # Resolves negative samples in-process to prove misuse is a compile error.
+  analyzer: ^13.0.0
   shared_preferences_platform_interface: ^2.4.0
   flutter_lints: ^6.0.0
   flutter_test:

@@ -12,7 +12,10 @@ import 'package:rfw/rfw.dart'
         WidgetLibrary,
         decodeLibraryBlob;
 
+import '../delivery/surface_delivery_paint_boundary.dart';
 import '../analytics/root_analytics_context.dart';
+import '../authoring/onboarding_event_dispatcher.dart'
+    show DeclaredEventDispatcher, SurfaceEventHandler;
 import '../events/restage_event.dart' show PagerPageChanged;
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
@@ -98,6 +101,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   var _resolutionEpoch = 0;
   var _dependenciesReady = false;
   ContextSnapshot? _context;
+  late final SurfaceEventHandler _fallbackEventHandler = _handleFallbackEvent;
+  late final bool Function(String eventId) _declares = _declaresEvent;
+  Set<String>? _declaredEventIds;
 
   void _refreshContext() {
     final raw = widget.context;
@@ -151,6 +157,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     // render with its own vocabulary.
     widget.screen.provenance.vocabulary.addToInstalled();
     _observationCell = null;
+    _declaredEventIds = null;
     final epoch = ++_resolutionEpoch;
     _disposeStage();
     setState(() => _unavailableError = null);
@@ -307,21 +314,32 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     );
   }
 
+  /// Decodes one screen event through the generated contract, or returns null
+  /// for a reserved commerce event. Throws when the contract rejects it.
+  ({E event})? _decodeScreenEvent(
+    String name,
+    Object? value,
+    Object? Function(Object? value) sanitize,
+  ) {
+    if (isReservedCommerceEventName(name)) return null;
+    final arguments = normalizeEventArgs(sanitize(value));
+    widget.screen.provenance.eventSchema.validateEvent(name, arguments);
+    return (
+      event: widget.screen.eventContract.decodeValidated(name, arguments),
+    );
+  }
+
   void _handleEvent(_ScreenStage stage, String name, Object? value) {
     if (!identical(_stage, stage)) return;
-    if (isReservedCommerceEventName(name)) return;
     try {
-      final arguments = normalizeEventArgs(
-        stage.sanitizeAndRecordEvent(value),
-      );
-      stage.provenance.eventSchema.validateEvent(name, arguments);
+      final decoded =
+          _decodeScreenEvent(name, value, stage.sanitizeAndRecordEvent);
+      if (decoded == null) return;
       final callback = widget.onEvent;
       if (callback == null) {
         throw const FormatException('No typed event callback is installed.');
       }
-      final event =
-          widget.screen.eventContract.decodeValidated(name, arguments);
-      stage.presentation.runWithEventContext(() => callback(event));
+      stage.presentation.runWithEventContext(() => callback(decoded.event));
     } on Object catch (error) {
       _fail(
         _resolutionEpoch,
@@ -333,6 +351,37 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       );
     }
   }
+
+  // Events from the fallback UI decode through the same generated contract.
+  void _handleFallbackEvent(String name, Object? value) {
+    if (!mounted || _unavailableError == null) return;
+    final callback = widget.onEvent;
+    if (callback == null) return;
+    final ({E event})? decoded;
+    try {
+      decoded = _decodeScreenEvent(name, value, _sanitizeFallbackEvent);
+    } on Object catch (error, stack) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'restage',
+        context: ErrorDescription(
+          'rejecting a fallback event for screen ${widget.screen.slug}',
+        ),
+      ));
+      return;
+    }
+    if (decoded != null) callback(decoded.event);
+  }
+
+  static Object? _sanitizeFallbackEvent(Object? value) =>
+      MeasurementEventSanitizer.sanitize(value).businessValue;
+
+  bool _declaresEvent(String eventId) => (_declaredEventIds ??= {
+        for (final event in widget.screen.provenance.eventSchema.events)
+          event.id,
+      })
+          .contains(eventId);
 
   void _handleRenderFailure(_ScreenStage stage, Object error) {
     if (!identical(_stage, stage)) return;
@@ -386,7 +435,16 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     final error = _unavailableError;
     if (error != null) {
       if (widget.unavailable.hide) return const SizedBox.shrink();
-      return widget.unavailable.fallbackBuilder!(context, error);
+      final screen = widget.screen;
+      return DeclaredEventDispatcher(
+        surfaceName: screen.slug,
+        declares: _declares,
+        onEvent: _fallbackEventHandler,
+        child: Builder(
+          builder: (context) =>
+              widget.unavailable.fallbackBuilder!(context, error),
+        ),
+      );
     }
     final stage = _stage;
     if (stage == null) {
@@ -399,16 +457,22 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       onFirstBuildSuccess: () {
         if (identical(_stage, stage)) stage.presentation.activate();
       },
-      onError: (error, _) => _handleRenderFailure(stage, error),
+      onError: (error, _) {
+        markSurfaceDeliveryRenderFailed(stage.resolved);
+        _handleRenderFailure(stage, error);
+      },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
       child: stage.wrapMeasuredRoot(
         RestagePagerEventScope(
           sink: _pagerSinkForStage(stage),
-          child: RemoteWidget(
-            runtime: stage.runtime,
-            data: stage.data,
-            widget: kFlowScreenWidget,
-            onEvent: (name, value) => _handleEvent(stage, name, value),
+          child: SurfaceDeliveryPaintBoundary(
+            resolved: stage.resolved,
+            child: RemoteWidget(
+              runtime: stage.runtime,
+              data: stage.data,
+              widget: kFlowScreenWidget,
+              onEvent: (name, value) => _handleEvent(stage, name, value),
+            ),
           ),
         ),
       ),

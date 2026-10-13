@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/runtime/builtin_icon_table.dart'
+    show addBuiltInIconTable;
 import 'package:restage_cupertino/icon_table.dart';
 import 'package:restage_material/icon_table.dart';
 
@@ -16,6 +18,99 @@ class _IntegerEqual {
 
 void main() {
   tearDown(InstalledIconTable.reset);
+
+  test('repeated built-in additions retain every immutable family map', () {
+    final full = builtInIconTable();
+    final next = builtInIconTable();
+    expect(next.families, isNot(same(full.families)));
+    expect(next.mirrored, isNot(same(full.mirrored)));
+    InstalledIconTable.install(full);
+
+    for (var screen = 0; screen < 6; screen++) {
+      addBuiltInIconTable();
+      expect(InstalledIconTable.current, same(full));
+      for (final family in full.families.keys) {
+        expect(next.families[family], same(full.families[family]));
+        expect(next.mirrored[family], same(full.mirrored[family]));
+        expect(InstalledIconTable.current.families[family],
+            same(full.families[family]));
+        expect(InstalledIconTable.current.mirrored[family],
+            same(full.mirrored[family]));
+      }
+    }
+  });
+
+  test('a repeated built-in addition records an explicit selection', () {
+    InstalledIconTable.add(builtInIconTable(), explicitSelection: false);
+    final implicit = InstalledIconTable.current;
+    expect(InstalledIconTable.hasSelection, isFalse);
+
+    addBuiltInIconTable();
+
+    expect(InstalledIconTable.current, same(implicit));
+    expect(InstalledIconTable.hasSelection, isTrue);
+  });
+
+  test('adding missing built-in families retains installed immutable maps', () {
+    final material = builtInIconTable(includeCupertino: false);
+    InstalledIconTable.install(material);
+
+    addBuiltInIconTable();
+
+    final full = builtInIconTable();
+    for (final family in full.families.keys) {
+      expect(InstalledIconTable.current.families[family],
+          same(full.families[family]));
+      expect(InstalledIconTable.current.mirrored[family],
+          same(full.mirrored[family]));
+    }
+    expect(InstalledIconTable.current.families['MaterialIcons'],
+        isNot(same(InstalledIconTable.current.mirrored['MaterialIcons'])));
+  });
+
+  test('built-in additions preserve custom glyphs and fonts after reset', () {
+    const custom = RestageIconTable.fromFamilies(
+      families: {
+        'MaterialIcons': {0xe092: Icons.check},
+        'custom': {7: Icons.star},
+      },
+      mirrored: {
+        'MaterialIcons': {0xe092: Icons.arrow_back},
+      },
+    );
+    InstalledIconTable.install(custom);
+    addBuiltInIconTable();
+    addBuiltInIconTable();
+    expect(InstalledIconTable.current.lookUp('MaterialIcons', 0xe092),
+        same(Icons.check));
+    expect(
+        InstalledIconTable.current
+            .lookUp('MaterialIcons', 0xe092, matchTextDirection: true),
+        same(Icons.arrow_back));
+    expect(InstalledIconTable.current.lookUp('custom', 7), same(Icons.star));
+
+    InstalledIconTable.reset();
+    expect(InstalledIconTable.hasSelection, isFalse);
+    expect(InstalledIconTable.current, same(RestageIconTable.none));
+    InstalledIconTable.install(builtInIconTable());
+    final installed = InstalledIconTable.current;
+    addBuiltInIconTable();
+    expect(InstalledIconTable.current, same(installed));
+    expect(InstalledIconTable.current.lookUp('custom', 7), isNull);
+    expect(InstalledIconTable.current.lookUp('MaterialIcons', 0xe092),
+        isNot(same(Icons.check)));
+  });
+
+  test('explicit empty selection still receives built-in additions', () {
+    InstalledIconTable.add(RestageIconTable.none, explicitSelection: true);
+    addBuiltInIconTable();
+    expect(InstalledIconTable.hasSelection, isTrue);
+    expect(InstalledIconTable.current.isEmpty, isFalse);
+    final installed = InstalledIconTable.current;
+    InstalledIconTable.add(
+        builtInIconTable(includeMaterial: false, includeCupertino: false));
+    expect(InstalledIconTable.current, same(installed));
+  });
 
   test(
       'all 9864 original constants retain identity inside the expanded sorted maps',

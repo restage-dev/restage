@@ -76,7 +76,7 @@ void main() {
     final result = await testBuilders(
       [
         onboardingScreenBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
       ],
       sources,
       rootPackage: 'apps_examples',
@@ -113,7 +113,7 @@ void main() {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
-        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
         restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
@@ -34,7 +35,10 @@ final class UserCatalogJsonBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['src/widget_catalog/catalog.json'],
+        r'$lib$': [
+          'src/widget_catalog/catalog.json',
+          'src/widget_catalog/app_widget_factories.json',
+        ],
       };
 
   @override
@@ -72,5 +76,12 @@ final class UserCatalogJsonBuilder implements Builder {
       catalogJson,
     );
     await recordGeneratedCustomCatalog(buildStep, utf8.encode(catalogJson));
+    final factories = AppWidgetMountFactories.fromCollection(collection);
+    if (!factories.isEmpty) {
+      await buildStep.writeAsString(
+        AssetId(buildStep.inputId.package, kAppWidgetFactoriesPath),
+        jsonEncode(factories.toJson()),
+      );
+    }
   }
 }

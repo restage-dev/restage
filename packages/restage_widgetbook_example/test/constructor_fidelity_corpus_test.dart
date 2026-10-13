@@ -67,8 +67,8 @@ void main() {
         contains('#value:'),
         contains('#ordinaryLabel:'),
         contains('#requiredNamed:'),
-        contains('if (_restagePresenceNullableText.supplied)'),
-        contains('if (_restagePresenceNullableSeed.supplied)'),
+        contains('if (restagePresenceNullableText.supplied)'),
+        contains('if (restagePresenceNullableSeed.supplied)'),
         contains('#resetProof:'),
         contains('#whenEnabledChanges:'),
         contains('#reportCount:'),
@@ -119,10 +119,10 @@ void main() {
     () {
       for (final artifact in <(String, String, String, String)>[
         ("property: 'focusNode'", "target: 'rfw'", 'rfw', rfwCatalog),
-        ('"property": "focusNode"', '"target": "a2ui"', 'a2ui', a2uiCatalog),
+        ("'property': 'focusNode'", "'target': 'a2ui'", 'a2ui', a2uiCatalog),
         (
-          '"property": "focusNode"',
-          '"target": "widgetbook"',
+          "'property': 'focusNode'",
+          "'target': 'widgetbook'",
           'widgetbook',
           widgetbookStory,
         ),
@@ -159,11 +159,11 @@ void main() {
       rfwFactories.replaceAll(RegExp(r'\s+'), ' '),
       allOf(
         contains(
-          'if (_restagePresenceLeading.supplied || '
-          '_restagePresenceTrailing.supplied)',
+          'if (restagePresenceLeading.supplied || '
+          'restagePresenceTrailing.supplied)',
         ),
         contains(": 'leading-default'"),
-        contains('if (_restagePresenceTrailing.supplied)'),
+        contains('if (restagePresenceTrailing.supplied)'),
       ),
     );
     expect(

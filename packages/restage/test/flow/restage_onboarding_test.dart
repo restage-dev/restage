@@ -1,10 +1,4 @@
-// Some cases shell out to `dart analyze` (cold-start resolution); give them
-// headroom over the 30s default so they don't flake under load.
-@Timeout(Duration(minutes: 2))
-library;
-
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -12,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+
+import '../support/static_analysis_probe.dart';
 
 void main() {
   const welcome = OnboardingScreenRef(
@@ -54,7 +50,7 @@ void main() {
   });
 
   test('string transition targets are rejected by static analysis', () async {
-    final result = await _analyzeNegativeSample(
+    final result = await staticAnalysisErrors(
       fileName: 'string_target.dart',
       source: '''
 import 'package:restage/restage.dart';
@@ -72,10 +68,14 @@ void main() {
 ''',
     );
 
-    expect(result.exitCode, isNot(0), reason: result.output);
-    expect(result.output, contains('String'));
-    expect(result.output, contains('FlowTargetRef'));
-  });
+    expect(
+      result.map((d) => d.diagnosticCode.lowerCaseName),
+      ['argument_type_not_assignable'],
+      reason: describeDiagnostics(result),
+    );
+    expect(result.single.message, contains("'String'"));
+    expect(result.single.message, contains('FlowTargetRef'));
+  }, timeout: staticAnalysisTimeout);
 
   test('action result predicates stay typed on transition descriptors', () {
     final doneRef = endState('completed');
@@ -138,7 +138,7 @@ void main() {
   });
 
   test('FlowUnavailablePolicy fallback requires a builder', () async {
-    final result = await _analyzeNegativeSample(
+    final result = await staticAnalysisErrors(
       fileName: 'missing_fallback_builder.dart',
       source: '''
 import 'package:restage/restage.dart';
@@ -149,9 +149,13 @@ void main() {
 ''',
     );
 
-    expect(result.exitCode, isNot(0), reason: result.output);
-    expect(result.output, contains('builder'));
-  });
+    expect(
+      result.map((d) => d.diagnosticCode.lowerCaseName),
+      ['missing_required_argument'],
+      reason: describeDiagnostics(result),
+    );
+    expect(result.single.message, contains("'builder'"));
+  }, timeout: staticAnalysisTimeout);
 
   testWidgets('RestageOnboarding renders loading while resolving',
       (tester) async {
@@ -333,7 +337,7 @@ void main() {
   });
 
   test('wrong actions type is rejected by static analysis', () async {
-    final result = await _analyzeNegativeSample(
+    final result = await staticAnalysisErrors(
       fileName: 'wrong_actions_type.dart',
       source: '''
 import 'package:restage/restage.dart';
@@ -343,6 +347,7 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: _Result.decode,
   );
   RestageOnboarding<_Result>(
@@ -359,10 +364,14 @@ final class _Result {
 ''',
     );
 
-    expect(result.exitCode, isNot(0), reason: result.output);
-    expect(result.output, contains('Object'));
-    expect(result.output, contains('FlowActionRegistry'));
-  });
+    expect(
+      result.map((d) => d.diagnosticCode.lowerCaseName),
+      ['argument_type_not_assignable'],
+      reason: describeDiagnostics(result),
+    );
+    expect(result.single.message, contains("'Object'"));
+    expect(result.single.message, contains('FlowActionRegistry'));
+  }, timeout: staticAnalysisTimeout);
 
   testWidgets('document requiring actions accepts generated-style registry',
       (tester) async {
@@ -1181,40 +1190,4 @@ Uint8List _throwingScreenBlob() {
     widget OnboardingScreen = ThrowingWidget();
   ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-}
-
-Future<_AnalyzeResult> _analyzeNegativeSample({
-  required String fileName,
-  required String source,
-}) async {
-  final negativeDir = Directory('.dart_tool/restage_negative_tests');
-  negativeDir.createSync(recursive: true);
-  final negativeFile = File('${negativeDir.path}/$fileName');
-  negativeFile.writeAsStringSync(source);
-  addTearDown(() {
-    if (negativeFile.existsSync()) {
-      negativeFile.deleteSync();
-    }
-  });
-
-  final result = await Process.run(
-    'dart',
-    <String>['analyze', negativeFile.path],
-    workingDirectory: Directory.current.path,
-  );
-
-  return _AnalyzeResult(
-    exitCode: result.exitCode,
-    output: '${result.stdout}\n${result.stderr}',
-  );
-}
-
-final class _AnalyzeResult {
-  const _AnalyzeResult({
-    required this.exitCode,
-    required this.output,
-  });
-
-  final int exitCode;
-  final String output;
 }

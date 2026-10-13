@@ -1,26 +1,29 @@
 # restage_preview_host
 
-A transport-neutral Flutter host for rendering RFW bundles. It provides a
-versioned message protocol, capability manifests, a provider-driven in-process
-preview surface, and a raw render surface for tools that need an isolated
+[![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
+
+A Flutter host for rendering RFW bundles, independent of how messages reach it.
+It provides a versioned message protocol, capability manifests, an in-process
+preview surface, and a raw render surface for tools that need a separate
 preview runtime.
 
-Bundles with a PNG snapshot handler advertise the additive `snapshot`
-capability in their ready handshake. Shells resolve it through
-`surfaceSnapshotProviderFor`; a null result means the peer is render-only and
-must retain its normal live-render fallback. Legacy peers continue rendering
-without sending or rejecting unsupported snapshot traffic.
+Bundles declare PNG snapshot support when they connect.
+`surfaceSnapshotProviderFor` returns null for bundles without that support;
+they continue to render live.
 
-## Preview tooling only
+## For preview tools only
 
-This host is for preview and authoring tools, not for an application you ship.
-A preview renders content the tool cannot know ahead of time, so the host
-carries every built-in widget and adds every built-in icon to the process-wide
-icon table. Embedding it in a shipped application therefore keeps the whole
-built-in catalog and both icon fonts in that application's build, which is
-exactly what a shipped application should avoid.
+This host is for preview and authoring tools. Don't ship it in an app: a
+preview can't know ahead of time what it will render, so the host carries every
+built-in widget and icon, and pulls the whole catalog and both icon fonts into
+your build.
 
-Adding icons never changes the meaning of an entry the embedding application
-already installed, so a tool that embeds the host keeps its own icons.
+The host never overrides icons your tool already registered.
 
-This package is pre-release and is not currently published.
+This package is not published yet.
+
+## License
+
+BSD-3-Clause. See [LICENSE](LICENSE).

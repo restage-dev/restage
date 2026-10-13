@@ -305,13 +305,6 @@ WidgetConstructorFacts projectWidgetConstructorFacts(
     }
   }
 
-  _addMigrationNotices(
-    cls,
-    inputs,
-    assetId,
-    issues,
-    includeOrderNotice: false,
-  );
   return WidgetConstructorFacts(
     inputs: inputs,
     allInputs: facts.allInputs,
@@ -643,15 +636,6 @@ WidgetConstructorFacts readWidgetConstructorFacts(
     );
   }
 
-  // Preserve the neutral fact reader's historical migration diagnostics.
-  // Selectively ignored inputs are added back only by target projection when
-  // that target actually includes them.
-  _addMigrationNotices(
-    cls,
-    inputs.where((input) => !input.hasIgnore).toList(growable: false),
-    assetId,
-    issues,
-  );
   return WidgetConstructorFacts(
     inputs: inputs,
     allInputs: inputs,
@@ -2134,172 +2118,6 @@ final class _UnresolvedTypeVisitor extends TypeVisitor<bool> {
 
   @override
   bool visitVoidType(VoidType type) => false;
-}
-
-void _addMigrationNotices(
-  ClassElement cls,
-  List<WidgetConstructorInput> inputs,
-  AssetId assetId,
-  List<Issue> issues, {
-  bool includeOrderNotice = true,
-}) {
-  final className = cls.name ?? '<unnamed>';
-  for (final input in inputs) {
-    final annotation = input.propertyAnnotation;
-    final String? message;
-    if (annotation == null) {
-      message = '$className.${input.name} is a supported public constructor '
-          'input and is now included without @RestageProperty.';
-    } else if (input.inherited) {
-      message = '$className.${input.name} is a supported inherited constructor '
-          'input and is now included. Legacy catalog discovery only '
-          'admitted @RestageProperty fields declared directly on '
-          '$className.';
-    } else if (input.required && _declaresRequiredFalse(annotation)) {
-      message = '$className.${input.name} is now a required catalog property. '
-          'The constructor declares the parameter required, and the '
-          'constructor is authoritative, so @RestageProperty(required: false) '
-          'no longer weakens it.';
-    } else {
-      message = null;
-    }
-    if (message == null) continue;
-    final location = '${assetId.path}#$className.${input.name}';
-    if (!issues.any(
-      (issue) =>
-          issue.code == IssueCode.constructorCatalogMigration &&
-          issue.location == location,
-    )) {
-      issues.add(
-        Issue(
-          code: IssueCode.constructorCatalogMigration,
-          message: message,
-          location: location,
-        ),
-      );
-    }
-  }
-
-  if (includeOrderNotice) {
-    _addConstructorOrderMigrationNotice(
-      cls,
-      inputs,
-      assetId,
-      issues,
-    );
-  }
-}
-
-/// Adds target-specific order migration diagnostics after final property
-/// capability and positional-hole validation are known.
-@internal
-void addProjectedConstructorOrderMigrationNotice(
-  ClassElement cls,
-  WidgetConstructorFacts facts,
-  AssetId assetId, {
-  required EmitTarget target,
-  required Set<String> emittedPropertyNames,
-  required List<Issue> issues,
-}) {
-  if (!facts.allInputs.any((input) => input.ignoreTargets != null)) return;
-
-  final legallyOmittedFields = Set<FieldElement>.identity();
-  for (final (index, input) in facts.allInputs.indexed) {
-    if (input.ignoreTargets == null ||
-        !input.isIgnoredFor(target) ||
-        input.required) {
-      continue;
-    }
-    final createsPositionalHole = input.positional &&
-        facts.allInputs.skip(index + 1).any(
-              (later) =>
-                  later.positional && emittedPropertyNames.contains(later.name),
-            );
-    if (!createsPositionalHole) legallyOmittedFields.add(input.field);
-  }
-
-  _addConstructorOrderMigrationNotice(
-    cls,
-    facts.inputs,
-    assetId,
-    issues,
-    existingIssues: facts.issues,
-    messagePrefix: 'For the ${target.name} target, ',
-    omittedFields: legallyOmittedFields,
-  );
-}
-
-void _addConstructorOrderMigrationNotice(
-  ClassElement cls,
-  List<WidgetConstructorInput> inputs,
-  AssetId assetId,
-  List<Issue> issues, {
-  Iterable<Issue> existingIssues = const [],
-  String messagePrefix = '',
-  Set<FieldElement> omittedFields = const {},
-}) {
-  final className = cls.name ?? '<unnamed>';
-  final annotated = [
-    for (final input in inputs)
-      if (input.propertyAnnotation != null) input,
-  ];
-
-  final fieldOrder = [
-    for (final field in cls.fields)
-      if (_catalogAnnotation(field, 'RestageProperty') != null &&
-          !omittedFields.contains(field))
-        field.name,
-  ];
-  final constructorOrder = [for (final input in annotated) input.name];
-  if (fieldOrder.length == constructorOrder.length &&
-      !_sameSequence(fieldOrder, constructorOrder)) {
-    final location = '${assetId.path}#$className';
-    if (!issues.any(
-          (issue) =>
-              issue.code == IssueCode.constructorCatalogMigration &&
-              issue.location == location,
-        ) &&
-        !existingIssues.any(
-          (issue) =>
-              issue.code == IssueCode.constructorCatalogMigration &&
-              issue.location == location,
-        )) {
-      issues.add(
-        Issue(
-          code: IssueCode.constructorCatalogMigration,
-          message: '$messagePrefix$className catalog properties move '
-              'from field order '
-              '${fieldOrder.join(', ')} to constructor order '
-              '${constructorOrder.join(', ')}.',
-          location: location,
-        ),
-      );
-    }
-  }
-}
-
-/// Whether [annotation] explicitly writes `required: false`.
-///
-/// The annotation's `required` defaults to `false`, so the resolved constant
-/// cannot tell an author who wrote `required: false` from one who omitted the
-/// argument entirely. Only the first is a disagreement with the constructor
-/// worth announcing; treating the second the same way would emit a migration
-/// notice for every annotated required input in ordinary, correct code.
-bool _declaresRequiredFalse(ElementAnnotation annotation) {
-  final value = annotation.computeConstantValue();
-  if (value?.getField('required')?.toBoolValue() != false) return false;
-  return annotation
-      .toSource()
-      .replaceAll(RegExp(r'\s+'), '')
-      .contains('required:false');
-}
-
-bool _sameSequence(List<String?> left, List<String> right) {
-  if (left.length != right.length) return false;
-  for (var index = 0; index < left.length; index++) {
-    if (left[index] != right[index]) return false;
-  }
-  return true;
 }
 
 /// Normalizes a Dart documentation comment while preserving paragraphs.

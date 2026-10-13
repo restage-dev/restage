@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
-import 'package:restage_widgetbook_example/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart'
+import 'package:restage_widgetbook_example/onboarding/screens/restage.generated/get_started_screen.stories.dart'
     as story;
 import 'package:restage_widgetbook_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart';
@@ -10,7 +10,7 @@ import 'package:widgetbook/widgetbook.dart' as widgetbook;
 void main() {
   test('GenUI catalog duplicate names require a generator-side guard', () {
     final item = buildRestageCatalogItems().singleWhere(
-      (candidate) => candidate.name == 'opaque_screen_proof',
+      (candidate) => candidate.name == 'get_started_screen',
     );
     final catalog = Catalog(<CatalogItem>[item, item]);
     final components = catalog.toCapabilitiesJson()['components']!;
@@ -18,7 +18,7 @@ void main() {
     expect(catalog.items, hasLength(2));
     expect(components, isA<Map<String, Object?>>());
     expect((components as Map<String, Object?>).keys, <String>[
-      'opaque_screen_proof',
+      'get_started_screen',
     ]);
   });
 
@@ -27,7 +27,7 @@ void main() {
     (tester) async {
       final catalog = buildRestageCatalog();
       final item = catalog.items.singleWhere(
-        (candidate) => candidate.name == 'opaque_screen_proof',
+        (candidate) => candidate.name == 'get_started_screen',
       );
       final schema = item.dataSchema.value;
       final properties = schema['properties'] as Map<String, Object?>;
@@ -38,7 +38,7 @@ void main() {
       final dispatched = <UiEvent>[];
       final dataContext = DataContext(InMemoryDataModel(), DataPath.root);
 
-      expect(item.name, 'opaque_screen_proof');
+      expect(item.name, 'get_started_screen');
       expect(
         props.keys,
         containsAll(<String>[
@@ -57,7 +57,7 @@ void main() {
       expect(requiredProps, contains('title'));
       expect(
         catalog.items.where(
-          (candidate) => candidate.name == 'opaque_screen_proof',
+          (candidate) => candidate.name == 'get_started_screen',
         ),
         hasLength(1),
       );
@@ -80,7 +80,7 @@ void main() {
                   },
                 },
                 id: 'opaque-screen-instance',
-                type: 'opaque_screen_proof',
+                type: 'get_started_screen',
                 buildChild: (_, [_]) => const SizedBox.shrink(),
                 dispatchEvent: dispatched.add,
                 buildContext: context,
@@ -98,21 +98,19 @@ void main() {
         ),
       );
 
-      final screen = tester.widget<OpaqueScreenProof>(
-        find.byType(OpaqueScreenProof),
+      final screen = tester.widget<GetStartedScreen>(
+        find.byType(GetStartedScreen),
       );
       expect(screen.title, 'A2UI title');
       expect(screen.enabled, isFalse);
       expect(screen.data, 'A2UI data');
       expect(screen.context, 'A2UI context');
       expect(screen.itemContext, 'A2UI item context');
-      expect(screen.restageA2uiStatus, OpaqueScreenProofTone.urgent);
+      expect(screen.restageA2uiStatus, GetStartedScreenTone.urgent);
       expect(screen.description, 'A2UI custom description');
       expect(screen.usage, 'A2UI example usage');
 
-      await tester.tap(
-        find.byKey(const ValueKey('opaque-screen-proof-action')),
-      );
+      await tester.tap(find.byKey(const ValueKey('get-started-action')));
       await tester.pump();
 
       expect(dispatched, hasLength(1));
@@ -127,17 +125,17 @@ void main() {
     tester,
   ) async {
     story.previewEvents.clear();
-    expect(story.component.name, 'opaque_screen_proof');
+    expect(story.component.name, 'get_started_screen');
     expect(story.component.path, 'Screens');
     expect(
-      story.OpaqueScreenProofComponent.fullPath,
-      'Screens/opaque_screen_proof',
+      story.GetStartedScreenComponent.fullPath,
+      'Screens/get_started_screen',
     );
     final registeredStory =
-        story.OpaqueScreenProofComponent.stories.singleWhere(
+        story.GetStartedScreenComponent.stories.singleWhere(
               (candidate) => candidate.name == 'RestageCatalog',
             )
-            as story.OpaqueScreenProofStory;
+            as story.GetStartedScreenStory;
     expect(identical(registeredStory.setup, story.defaults.setup), isTrue);
 
     await tester.pumpWidget(
@@ -145,7 +143,7 @@ void main() {
         builder: (context) => registeredStory.buildWithConfig(
           context,
           const widgetbook.Config(),
-          args: story.OpaqueScreenProofStoryInputArgs.fixed(
+          args: story.GetStartedScreenStoryInputArgs.fixed(
             title: 'Widgetbook title',
             enabled: false,
             description: 'Widgetbook custom description',
@@ -155,16 +153,16 @@ void main() {
       ),
     );
 
-    final screen = tester.widget<OpaqueScreenProof>(
-      find.byType(OpaqueScreenProof),
+    final screen = tester.widget<GetStartedScreen>(
+      find.byType(GetStartedScreen),
     );
     expect(screen.title, 'Widgetbook title');
     expect(screen.enabled, isFalse);
-    expect(screen.tone, OpaqueScreenProofTone.calm);
+    expect(screen.tone, GetStartedScreenTone.calm);
     expect(screen.description, 'Widgetbook custom description');
     expect(screen.usage, 'Widgetbook example usage');
 
-    await tester.tap(find.byKey(const ValueKey('opaque-screen-proof-action')));
+    await tester.tap(find.byKey(const ValueKey('get-started-action')));
     await tester.pump();
 
     expect(story.previewEvents, <({String id, Object? value})>[
@@ -176,10 +174,10 @@ void main() {
     tester,
   ) async {
     final urgentStory =
-        story.OpaqueScreenProofComponent.stories.singleWhere(
+        story.GetStartedScreenComponent.stories.singleWhere(
               (candidate) => candidate.name == 'ToneUrgent',
             )
-            as story.OpaqueScreenProofStory;
+            as story.GetStartedScreenStory;
 
     await tester.pumpWidget(
       Builder(
@@ -188,10 +186,10 @@ void main() {
       ),
     );
 
-    final screen = tester.widget<OpaqueScreenProof>(
-      find.byType(OpaqueScreenProof),
+    final screen = tester.widget<GetStartedScreen>(
+      find.byType(GetStartedScreen),
     );
     expect(screen.enabled, isTrue);
-    expect(screen.tone, OpaqueScreenProofTone.urgent);
+    expect(screen.tone, GetStartedScreenTone.urgent);
   });
 }

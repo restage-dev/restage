@@ -154,6 +154,8 @@ class PriceTag extends StatelessWidget {
             return true;
           }),
         ),
+        'apps_examples|lib/src/widget_catalog/app_widget_factories.json':
+            anything,
       },
       onLog: (_) {},
     );
@@ -200,12 +202,13 @@ class PriceTag extends StatelessWidget {
         .toList();
     expect(notices, hasLength(1), reason: logs.join('\n'));
     expect(notices.single, contains("Custom widget 'StreakBadge'"));
-    expect(notices.single, contains("registered 'acme.ds' app factory"));
-    expect(notices.single, contains('CustomPaint'));
-    expect(notices.single, contains("installed app's compiled widget body"));
-    expect(notices.single, contains('defaults remain authoritative'));
-    expect(notices.single, contains('requires an app release'));
-    expect(notices.single, contains('Explicit call values remain supplied'));
+    expect(
+      notices.single,
+      contains("renders from your app's compiled code because build() uses "
+          'CustomPaint'),
+    );
+    expect(notices.single, contains('still set its arguments'));
+    expect(notices.single, contains('ship with your next app release'));
 
     final priceReader = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -365,6 +368,8 @@ class BWeekOffer extends StatelessWidget {
             return true;
           }),
         ),
+        'apps_examples|lib/src/widget_catalog/app_widget_factories.json':
+            anything,
       },
       onLog: (_) {},
     );

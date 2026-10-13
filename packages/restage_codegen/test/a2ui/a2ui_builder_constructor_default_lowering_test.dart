@@ -272,10 +272,10 @@ void main() {
     expect(dart, contains('const SizedBox.shrink()'));
     expect(dart, contains('const <Widget>[const SizedBox.shrink()]'));
     expect(dart, contains(r'$RestageExclusions'));
-    expect(dart, contains('"property": "hostState"'));
-    expect(dart, contains('"property": "scores"'));
-    expect(dart, contains('"property": "summary"'));
-    expect(dart, contains('"target": "a2ui"'));
+    expect(dart, contains("'property': 'hostState'"));
+    expect(dart, contains("'property': 'scores'"));
+    expect(dart, contains("'property': 'summary'"));
+    expect(dart, contains("'target': 'a2ui'"));
     expect(dart, isNot(contains('RestageRfwConstructorPresence')));
   });
 }

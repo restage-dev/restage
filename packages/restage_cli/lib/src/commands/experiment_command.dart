@@ -33,6 +33,7 @@ class ExperimentCommand extends Command<int> {
     for (final build in <_SubcommandFactory>[
       _DiscoverCommand.new,
       _CreateCommand.new,
+      _DeleteDraftCommand.new,
       _ReadDraftCommand.new,
       _ResolveDraftCommand.new,
       _SaveCommand.new,
@@ -514,6 +515,31 @@ class _CreateCommand extends _ExperimentSubcommand {
   @override
   String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
       'Opened draft.';
+}
+
+/// Deletes one exact draft revision.
+class _DeleteDraftCommand extends _ExperimentSubcommand {
+  _DeleteDraftCommand(super.context);
+
+  @override
+  String get name => 'delete-draft';
+
+  @override
+  String get description => 'Delete one exact draft revision.';
+
+  @override
+  ExperimentAuthoringOperationV1? get operation =>
+      ExperimentAuthoringOperationV1.deleteDraft;
+
+  @override
+  void addOptions(ArgParser parser) => addDraftBindingOptions(parser);
+
+  @override
+  Map<String, Object?>? buildPayload() => requireDraftBinding();
+
+  @override
+  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) =>
+      'Deleted draft.';
 }
 
 /// Reads one exact draft revision.

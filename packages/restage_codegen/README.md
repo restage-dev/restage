@@ -2,27 +2,32 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_codegen.svg)](https://pub.dev/packages/restage_codegen) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE)
 
-The build-time code generator for [Restage](https://pub.dev/packages/restage).
-It runs under [`build_runner`](https://pub.dev/packages/build_runner) and
-compiles annotated Flutter widgets into the
-[Remote Flutter Widgets](https://pub.dev/packages/rfw) artifacts, catalogs, and
-typed descriptors that the Restage SDK renders. The same generator serves every
-surface: paywalls, onboarding, in-app messages, surveys, and whole screens.
+Annotate a Flutter screen you already wrote, and `build_runner` compiles it
+into a surface Restage can deliver: onboarding, messages, surveys, paywalls,
+or any other screen.
 
-You write plain Flutter. The generator lowers a broad set of it (`Text.rich`,
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
+
+You write plain Flutter. The generator handles a broad set of it (`Text.rich`,
 `Theme.of(context)`, `Navigator.push`, `showModalBottomSheet`, `PageView`,
-`NumberFormat`, structured style values, the selection controls, and
-pure-composition custom widgets) and stops with an error at build time on
-anything it cannot represent. It never emits a partial render.
+`NumberFormat`, style values such as `TextStyle` and `BoxDecoration`, the
+selection controls, and custom widgets built by composing other widgets). On
+anything it can't represent, the build fails with an error. It never produces
+a partial surface.
+
+The output is [Remote Flutter Widgets](https://pub.dev/packages/rfw) artifacts,
+a widget catalog, and typed Dart accessors that the
+[Restage SDK](https://pub.dev/packages/restage) renders.
 
 ## Setup
 
-Add the package as a dev dependency and run the build:
+Add the package as a dev dependency, build, then push and publish with the
+`restage` CLI:
 
 ```yaml
 dev_dependencies:
   restage_codegen: ^2.0.0
-  build_runner: ">=2.4.0 <3.0.0"
+  build_runner: ^2.16.1
 ```
 
 ```sh
@@ -31,194 +36,124 @@ restage surface push <id>
 restage surface publish <id>
 ```
 
-You do not import this package in app code. Its builders are declared in
-`build.yaml` and apply to dependents automatically. They find the supported
-inputs and write the generated outputs next to them.
+You don't import this package in app code. Its builders apply to your package
+automatically and write their outputs next to the sources they read. No
+`build.yaml` is needed. Add `--verbose` to the build to print a summary of
+the surfaces it compiled.
 
 ## Annotations
 
-- `@Screen(surface: Surface.<category>)` publishes one screen.
+- `@Screen(surface: Surface.<type>)` publishes one screen.
+- `@Screen()` with no type is a screen for use inside a flow.
+- `@FlowGraph(surface: Surface.<type>)` publishes a flow of screens. Flows are
+  typed by default. Pass `delivery: FlowDeliveryMode.general` for a flow whose
+  structure can change over the air.
 - `@Paywall` publishes a paywall. A paywall can also be a step in a flow.
-- `@FlowGraph(surface: Surface.<category>)` publishes a typed flow of screens.
-- `@Screen()` with no category is a screen for use inside a flow.
-- `@RestageWidget` registers one of your own widgets in the catalog.
+- `@RestageWidget` adds one of your own widgets to the catalog.
 
-The categories are `onboarding`, `message`, `survey`, `paywall`, and `general`.
-
-Hosted generation needs no app `build.yaml`: run `dart run build_runner build`.
-Add `--verbose` to show the Restage compilation summary, including surface
-counts and generated mount names.
-Generated Dart stays beside its source in `restage.generated/`; package-wide
-Dart retains its existing paths. Portable artifacts live in `.restage/build/`:
-`bundles/` preserves the `lib/` hierarchy, `metadata/` holds publication indexes,
-`widget_catalog/` holds custom catalog JSON, and optional `a2ui/` holds producer
-JSON. `bundled_runtime: true` still places runtime bundles under
-`assets/restage/bundles/`. A2UI and Widgetbook remain opt-in.
-
-Ignore `.restage/build/` in Git. Track `.restage/measurement-state.json` and
-`.restage/wire-ids.events.jsonl`: they preserve Measurement and widget identities
-across clean builds. Generation migrates the former root-level state files
-without resetting IDs and refuses conflicting old/new copies. It removes
-recognized obsolete generated artifacts while preserving authored files and
-Dart output directories.
-
-Build Runner's default source filters exclude hidden state. Normal source edits
-and clean builds read that state directly. If you manually edit identity state
-while using watch mode, include `.restage/measurement-state.json` and
-`.restage/wire-ids.events.jsonl` in your target's `sources` alongside its existing
-source patterns, or clean the Build Runner cache before rebuilding.
+The surface types are `onboarding`, `message`, `survey`, `paywall`, and
+`general`.
 
 ## What it produces
 
 From one annotated source file:
 
 - **`.rfwtxt`**: the readable Remote Flutter Widgets text form.
-- **`.rfw`**: the compiled binary artifact the SDK decodes and renders.
-- **A capability manifest** (`.capability.json`): the capability floor the
-  artifact declares, so an older reader fails closed instead of misrendering.
-- **A flow document**: the declarative multi-screen topology, for surfaces
-  that move between screens.
+- **`.rfw`**: the compiled binary the SDK decodes and renders.
+- **A capability manifest** (`.capability.json`): what the surface needs from
+  the app, so an older app refuses it cleanly instead of rendering it wrong.
+- **A flow document**: the screens of a multi-screen surface and how they
+  connect.
 - **Generated Dart** (`restage.generated/<name>.restage.g.dart`): typed
-  `SurfaceScreenRef<E>` and `SurfaceFlowRef<R>` accessors with the category,
-  compatibility, and event or result contracts, plus typed `<Screen>Surface`
-  widgets for eligible screens.
-- **A publication manifest** (`.restage/build/metadata/restage.publication.json`): the
-  exact set of generated artifacts for each surface id. `restage surface
-  publish` reads it.
+  `SurfaceScreenRef<E>` and `SurfaceFlowRef<R>` accessors, plus typed
+  `<Screen>Surface` widgets for eligible screens.
+- **A publication manifest** (`.restage/build/metadata/restage.publication.json`):
+  the generated files for each surface id. `restage surface push` reads it.
 
-What ships is data the app renders. Your widgets carry the logic — real Dart,
-compiled into your app. The surface composes and configures them over the air.
-New behavior is a release.
+What ships is data the app renders. Your widgets carry the logic, as real Dart
+compiled into your app. A surface composes and configures them over the air.
+New behavior needs an app release.
 
-Generated Dart bindings compile with your app. Generated Widgetbook stories
-are source for your component workbench.
+## Generated files
 
-Under the hood, the generator transpiles the widget tree, decomposes structured
-Flutter types (`TextStyle`, `ButtonStyle`, `EdgeInsets`, `BoxDecoration`,
-border radii, gradients, and others), folds constants, lowers theme reads to
-declarative theme bindings, and derives the capability manifest from the
-widgets a surface references.
+Generated Dart sits next to its source in `restage.generated/`. Everything
+else goes under `.restage/build/`:
 
-## Builders
+- `bundles/` mirrors your `lib/` folders.
+- `metadata/` holds the publication manifest.
+- `widget_catalog/` holds your custom widget catalog.
+- `a2ui/` holds the A2UI catalog, if you turn it on.
 
-- **`restageCodegenBuilder`** compiles `@Screen`, `@Paywall`, and
-  `@FlowGraph` sources into the `.rfwtxt` and `.rfw` artifacts, the capability
-  metadata, and a navigation plan. It also accepts hand-written `.rfwtxt`
-  input for low-level work.
-- **`paywallFlowBuilder`** emits the flow document for a surface whose source
-  navigates across more than one screen.
-- **`onboardingScreenBuilder`** compiles an onboarding screen into its typed
-  descriptor, artifacts, and capability manifest.
-- **`onboardingFlowBuilder`** emits the typed flow descriptor and flow
-  document for a multi-screen flow.
-- **`userCatalogBuilder`** walks a package for `@RestageWidget` classes and
-  emits one aggregated catalog.
-- **`userA2uiCatalogBuilder`** (opt-in) emits generated genui `CatalogItem`s
-  and a standalone A2UI catalog document from the same annotated widgets.
-- **`widgetbookStoryBuilder`** (opt-in) emits `*.stories.dart` source for
-  Widgetbook v4 from the same annotated widgets.
+Add `.restage/build/` to `.gitignore`. Commit
+`.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`: they
+keep analytics IDs and catalog IDs stable across clean builds.
 
-Two further internal builders register catalog factory functions and your
-widget factories for the runtime.
+If you edit either file by hand while `build_runner watch` is running, restart
+the watch or clean the build cache so the change is picked up.
 
-## Renaming catalog classes
+## Renaming custom widgets
 
-The `.restage/wire-ids.events.jsonl` file is the durable identity record
-for generated catalog entries. Commit it with the source it describes.
+`.restage/wire-ids.events.jsonl` records the catalog ID of every custom widget
+and property. Commit it with the source it describes.
 
-When generation can unambiguously pair one vanished `@RestageWidget` class
-with one new class, it stops before allocating a new wire ID. Stable source,
-class-name, and source-asset evidence is considered before property-name shape,
-so a class can move while its properties change in the same edit. The
-diagnostic prints the exact `rename` event to append to the event log. Add that
-line and rerun the build. A class rename or source-file move then keeps the
-widget ID and all property IDs. The same rule applies independently to
-structured classes and their field, variant, and parameter IDs.
+When you rename or move a `@RestageWidget` class, the build stops before it
+assigns a new ID and prints the exact `rename` line to add to that file. Add
+the line and rebuild. The widget and all its properties keep their IDs. The
+same applies to structured types and their fields.
 
-A source-only move uses the same value for `from` and `to`:
+A move to another file with the same class name uses the same value for `from`
+and `to`:
 
 ```json
 {"kind":"rename","type":"widget","id":"w0042","from":"StatusPanel","to":"StatusPanel","fromSource":"package:acme/widgets/old.dart#StatusPanel","toSource":"package:acme/widgets/new.dart#StatusPanel","cascade":true,"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator"}
 ```
 
-If the new class is a replacement with deliberately new wire identity, use
-the `deprecate` event printed by the diagnostic instead. The next build then
-allocates a new ID. Append lifecycle events; do not rewrite an earlier `alloc`
-line.
+If the new class really is a different widget, add the `deprecate` line the
+build prints instead, and the next build assigns a new ID. Only append to the
+file; don't edit earlier lines.
 
 ## Optional targets
 
-**A2UI.** The generator can project your `@RestageWidget` source into a
-content-addressed [genui](https://pub.dev/packages/genui) A2UI catalog with
-typed literal constraints, nested data documentation, and controlled value
-sources. RFW stays the native delivery format; A2UI is an additional target.
-The [A2UI walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step)
+**A2UI.** The generator can turn your `@RestageWidget` classes into a
+[genui](https://pub.dev/packages/genui) A2UI catalog. Restage still delivers
+surfaces as RFW; A2UI is an extra output. The
+[A2UI walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets-step-by-step)
 covers the dependencies, the `build.yaml` setting, and the build command.
 
-**Widgetbook.** The generator can emit Widgetbook v4 story source for the same
-widgets. Constructor inputs and Dartdoc are enough for one deterministic story
-per widget. Enable `restage_codegen:widgetbook_stories` in `build.yaml`, keep
-Widgetbook's normal `runWidgetbook(Config(...))` bootstrap, and run the same
-`build_runner` command. Restage does not generate stories for Flutter,
-Material, Cupertino, or Restage built-in widgets.
+**Widgetbook.** The generator can write a Widgetbook v4 story for each of your
+widgets from its constructor and doc comments. Enable
+`restage_codegen:widgetbook_stories` in `build.yaml`, keep Widgetbook's usual
+`runWidgetbook(Config(...))` setup, and run the same `build_runner` command.
+Stories are not generated for Flutter, Material, Cupertino, or Restage
+built-in widgets.
 
-**Opting out.** Builder configuration selects targets for the package. One
-`@RestageWidget` can opt out of a selected target with that target's
-`Config(enabled: false)` or `Config.enabled(false)` annotation. Bare `@ignore`
-omits one constructor input from every target;
-`@Ignore({EmitTarget.a2ui, EmitTarget.widgetbook})` omits it from those targets
-only and keeps it in RFW.
+**Opting out.** One `@RestageWidget` can skip a target with that target's
+`Config(enabled: false)` or `Config.enabled(false)` annotation. `@ignore` on a
+constructor input leaves it out of every target;
+`@Ignore({EmitTarget.a2ui, EmitTarget.widgetbook})` leaves it out of those
+targets only.
 
-**Watch mode.** If you add or remove an `@RestageWidget` in a file that already
-contains one, restart `dart run build_runner watch` so the package-wide story
-output is rescanned. A normal `dart run build_runner build` always performs the
-full scan.
+**Watch mode.** If you add or remove a `@RestageWidget` in a file that already
+has one, restart `dart run build_runner watch`. A normal
+`dart run build_runner build` always sees the change.
 
 ## Large codebases
 
-Seven builders look at the whole package rather than one file. Five run for
-every dependent — the source roster, the package surface compiler, and the
-three that aggregate `@RestageWidget` classes — and two more do the same once
-you opt in: the A2UI catalog and the Widgetbook stories. On a large app,
-resolving every Dart library just to ask whether it declares anything is the
-dominant cost: not because analysis is slow, but because resolving a file pulls
-in its transitive imports and makes all of them dependencies of that builder,
-so any later edit re-triggers the whole scan.
+A few builders scan your whole package for Restage annotations. They read each
+file's source first and only analyze files that mention an annotation, so a
+package with no surfaces costs almost nothing.
 
-So they read each file's raw source first and resolve only the files that can
-declare something. A package with none pays no analysis at all; a package with
-a handful of surfaces pays for that handful. Every file under `lib/` is still
-scanned — including generated ones that already exist when the builder runs,
-because a generated file can be a `part` — and a declaration inside a `part` is
-still found through the library that owns it.
+One case is not found: an annotation alias declared in a **different
+package**, such as a shared package that exports
+`const card = RestageWidget(...)` for use as `@card`. Write the annotation
+itself, or declare the alias in the same package.
 
-**What you write is discovered exactly as before.** An annotation written on
-the declaration, behind an import prefix, in a `part`, or through a `const` or
-`typedef` alias declared in another file **in the same package** all reach the
-same place they always did.
+A syntax error in a file with no Restage annotation is not reported by
+these seven builders, because they skip that file. The Dart analyzer still
+reports it.
 
-One shape is not followed: an alias declared in a **different package** — a
-shared annotations package that exports `const card = RestageWidget(...)`, used
-as `@card` in yours. These builders scan only the package they are building, so
-they never see that declaration and the annotated class is not discovered. Write
-the annotation itself, or declare the alias in the same package.
-
-Two things do change, and both are about diagnostics rather than discovery.
-
-A syntax error in a file that spells no Restage annotation is no longer
-reported by these seven builders, because they no longer analyse that file. The
-Dart toolchain still reports it. The exception is the deprecated screen path
-`lib/<onboarding|message|survey>/screens/<id>.dart`: the per-file screen
-builders still analyse a library there whether or not it is annotated, and the
-two opt-in package-wide builders still select it, so its errors are unchanged.
-
-The source/output rosters and compiler handoffs stay in Build Runner’s cache.
-They run only for the root package and emit no source-tree bookkeeping.
-
-**Turning builders off.** If a package will never declare a custom widget or
-a Restage surface — a data layer, a networking package, a generated-model
-package — switch the package-wide builders off in that package's `build.yaml`
-(the two opt-in builders are off unless you turned them on):
+If a package will never declare a custom widget or a surface (a data layer or
+networking package, for example), turn these builders off in its `build.yaml`:
 
 ```yaml
 targets:
@@ -236,21 +171,11 @@ targets:
         enabled: false
 ```
 
-Restage's own registry-driven widget packages use the first two entries of that
-recipe.
-
-`generate_for` is not an alternative here. These builders take a `build_runner`
-placeholder as their input — `$package$` for the source roster, surface
-compiler; `lib/$lib$` for the catalog JSON, catalog Dart, and factory Dart
-aggregators.
-A glob narrowed to a subtree (`lib/widgets/**`) matches neither placeholder, so
-it does not scope the builder, it stops it running. A broad glob (`lib/**`)
-matches `lib/$lib$`, so it scopes nothing for the Dart widget aggregators —
-and it does not match `$package$`, so it stops the source roster and the surface
-compiler outright. `enabled: false` is the supported control.
+Use `enabled: false` rather than `generate_for`. These builders take a
+placeholder as their input: `$package$` for the source roster and surface
+compiler, and `lib/$lib$` for the catalog JSON, catalog Dart, and factory Dart
+builders. A `generate_for` glob either stops them entirely or has no effect.
 
 ## License
 
-Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2):
-free for all use except building a competing product. Each release becomes
-Apache-2.0 two years after publication. See [`LICENSE`](LICENSE).
+FSL-1.1-ALv2. See [LICENSE](LICENSE).

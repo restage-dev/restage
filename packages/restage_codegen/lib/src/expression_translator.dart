@@ -254,22 +254,14 @@ final class TranslationResult {
         );
       }
     }
-    final generatedLocalSymbols = <fmt.RfwCatalogLocalSymbol>[];
-    for (final name in widgetDefinitions.keys) {
-      final origin = catalogOriginsByName[name];
-      if (origin == null || origin.constructorName != name) {
-        throw StateError(
-          'An emitted RFW widget definition requires one exact catalog '
-          'origin',
-        );
-      }
-      generatedLocalSymbols.add(
+    // A definition inlined without a catalog entry is an ordinary local.
+    final generatedLocalSymbols = [
+      for (final name in widgetDefinitions.keys)
         fmt.RfwCatalogLocalSymbol(
           name: name,
-          generatedCatalogOrigin: origin,
+          generatedCatalogOrigin: catalogOriginsByName[name],
         ),
-      );
-    }
+    ];
     return fmt.RfwCatalogOccurrenceResolutionInput(
       artifactProvenance: artifactProvenance,
       sourceLibraryIdentity: sourceLibraryIdentity,
@@ -565,6 +557,9 @@ final class ExpressionTranslator {
   Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
       _forcedCustomWidgetFactoryRoutes = const {};
 
+  // Closure-wrapped event notices, reported only when the translation succeeds.
+  List<Issue>? _currentEventClosureNotices;
+
   // Lowered coalesce fallbacks discovered while translating a definition body,
   // keyed by classKey then property name: the value a call site that omits (or
   // passes explicit null) the property is completed with. Populated once per
@@ -663,8 +658,8 @@ final class ExpressionTranslator {
   ///
   /// [sourcePath] and [lineInfo] improve issue location strings from byte
   /// offsets to `file:line:column`. Both default to null (offset-only
-  /// fallback). [rootLocalBindings] carries the root `build()` prelude's
-  /// `final` locals, element-keyed to their initializers.
+  /// fallback). [rootInlined] carries the root `build()` prelude's `final`
+  /// locals and the helpers its calls inline.
   TranslationResult translate(
     Expression expr, {
     String? sourcePath,
@@ -675,7 +670,7 @@ final class ExpressionTranslator {
     Map<String, RecognisedSetState> rootEventHandlers = const {},
     Element? buildContextParameter,
     bool flowScreenContext = false,
-    Map<Element, Expression> rootLocalBindings = const {},
+    InlinedDefinitions rootInlined = const InlinedDefinitions.empty(),
   }) {
     final first = _translateArtifact(
       expr,
@@ -687,7 +682,7 @@ final class ExpressionTranslator {
       rootEventHandlers: rootEventHandlers,
       buildContextParameter: buildContextParameter,
       flowScreenContext: flowScreenContext,
-      rootLocalBindings: rootLocalBindings,
+      rootInlined: rootInlined,
       forcedCustomWidgetFactoryRoutes: const {},
     );
     final mixed = first.inlineClaims.intersection(first.references);
@@ -702,7 +697,7 @@ final class ExpressionTranslator {
       rootEventHandlers: rootEventHandlers,
       buildContextParameter: buildContextParameter,
       flowScreenContext: flowScreenContext,
-      rootLocalBindings: rootLocalBindings,
+      rootInlined: rootInlined,
       forcedCustomWidgetFactoryRoutes: Map.unmodifiable({
         for (final identity in mixed) identity: first.factoryRoutes[identity],
       }),
@@ -724,7 +719,7 @@ final class ExpressionTranslator {
     required Map<String, RecognisedSetState> rootEventHandlers,
     required Element? buildContextParameter,
     required bool flowScreenContext,
-    required Map<Element, Expression> rootLocalBindings,
+    required InlinedDefinitions rootInlined,
     required Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
         forcedCustomWidgetFactoryRoutes,
   }) {
@@ -747,7 +742,7 @@ final class ExpressionTranslator {
       eventHandlers: rootEventHandlers,
       rootStateContext: rootState != null,
       // The root walk's prelude locals; a definition body substitutes its own.
-      inlined: InlinedDefinitions(localBindings: rootLocalBindings),
+      inlined: rootInlined,
       measurementScope: measurementRouteEmissionPlan?.rootScope,
       measurementWidget: null,
       measurementWidgetList: null,
@@ -780,6 +775,9 @@ final class ExpressionTranslator {
     _currentCustomWidgetReferences = customWidgetReferences;
     _currentCustomWidgetFactoryRoutes = customWidgetFactoryRoutes;
     _forcedCustomWidgetFactoryRoutes = forcedCustomWidgetFactoryRoutes;
+    final savedEventClosureNotices = _currentEventClosureNotices;
+    final eventClosureNotices = <Issue>[];
+    _currentEventClosureNotices = eventClosureNotices;
     var dsl = '';
     var suppressed = false;
     NavigationLowering? navigationLowering;
@@ -876,6 +874,7 @@ final class ExpressionTranslator {
       _currentCustomWidgetReferences = null;
       _currentCustomWidgetFactoryRoutes = null;
       _forcedCustomWidgetFactoryRoutes = savedForcedCustomWidgetFactoryRoutes;
+      _currentEventClosureNotices = savedEventClosureNotices;
       // Clear the per-call source context so it never lingers past this call —
       // a helper invoked directly (not through `translate`) would otherwise
       // read a stale source path / line info from a previous translation.
@@ -886,6 +885,10 @@ final class ExpressionTranslator {
         !suppressed &&
         !issues.any((issue) => !issue.code.isBuildNotice)) {
       issues.addAll(_customWidgetFactoryNotices(customWidgetFactoryRoutes));
+      final seen = <String>{};
+      issues.addAll(
+        eventClosureNotices.where((notice) => seen.add(notice.buildNoticeKey)),
+      );
     }
     return (
       result: TranslationResult(
@@ -4262,10 +4265,12 @@ final class ExpressionTranslator {
       return _inlineHelperBody(helper, expr, issues);
     }
 
-    // A same-unit helper refused for a named prelude shape reports that shape
+    // A helper refused for a named prelude shape reports that shape
     // rather than falling through as an unrecognised widget.
+    final helperElement = expr.methodName.element;
     final helperRefusal = isArtifactHelperInvocation(expr)
-        ? refusedHelperDefinitionsIn(expr)[expr.methodName.element]
+        ? refusedHelperDefinitionsIn(expr)[helperElement] ??
+            recordedHelperRefusal(helperElement!)
         : null;
     if (helperRefusal != null) {
       issues.add(
@@ -6229,26 +6234,42 @@ final class ExpressionTranslator {
     final event = _eventBodyOf(rawExpr);
     final closure = _stripParens(rawExpr);
     if (closure is! FunctionExpression) return event;
+    final call = _stripParens(event) as MethodInvocation;
+    final helper = call.methodName.name;
     final declared = <Element>{
       for (final parameter
           in closure.parameters?.parameters ?? const <FormalParameter>[])
         if (parameter.declaredFragment?.element case final element?) element,
     };
-    if (declared.isEmpty) return event;
-    final census = _ClosureParameterCensus(declared);
-    event.accept(census);
-    if (!census.found) return event;
-    final call = _stripParens(event) as MethodInvocation;
-    issues.add(
+    if (declared.isNotEmpty) {
+      final census = _ClosureParameterCensus(declared);
+      event.accept(census);
+      if (census.found) {
+        issues.add(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message: 'The callback value reaches the event automatically. '
+                'Pass `$helper(...)` directly to the callback, without a '
+                'closure.',
+            location: _locationOf(rawExpr),
+          ),
+        );
+        return null;
+      }
+    }
+    _currentEventClosureNotices?.add(
       Issue(
-        code: IssueCode.invalidEventConfiguration,
-        message: 'The callback value reaches the event automatically. Write '
-            '`(_) => ${call.methodName.name}(...)` so the closure does not '
-            'read its parameter.',
+        code: IssueCode.idiomAutoSubstituted,
+        message: 'Lowered a closure around `$helper(...)` to its event. '
+            'Pass `$helper(...)` directly to the callback instead: the '
+            'closure returns the callback without calling it, so the '
+            "compiled widget never fires the event in your app's own build.",
         location: _locationOf(rawExpr),
+        buildNoticeIdentity:
+            '$kEventClosureNoticePrefix${_locationOf(rawExpr)}',
       ),
     );
-    return null;
+    return event;
   }
 
   /// Whether [expr] is an absent (`null`) or empty list literal — the forms a
@@ -6418,12 +6439,13 @@ final class ExpressionTranslator {
           customWidgetFactoryRoute = (
             widgetName: entry.name,
             reason: inlineIssues.isEmpty
-                ? _customWidgetIssue(
+                ? _customWidgetFactoryReason(
                     classification,
                     entry.name,
                     anchor,
-                  ).message
-                : inlineIssues.first.message,
+                  )
+                : 'Restage could not inline it: '
+                    '${_withoutFinalPeriod(inlineIssues.first.message)}',
           );
         }
         // Not inlined (imperative, not yet supported, or an inline-attempt
@@ -6535,7 +6557,7 @@ final class ExpressionTranslator {
           capabilityGapSubject: 'widget:$widgetName',
           message: "Widget '$widgetName' is not a known catalog widget. If "
               'it is a custom widget, annotate its class with @RestageWidget '
-              'so the transpiler can recognise it.',
+              'so Restage can recognise it.',
           location: _locationOf(anchor),
         ),
       );
@@ -6592,7 +6614,7 @@ final class ExpressionTranslator {
             firstAnnotation(widgetClass, 'RestageWidget') != null) {
           customWidgetFactoryRoute = (
             widgetName: entry.name,
-            reason: 'Local RFW analysis did not provide a usable definition.',
+            reason: 'Restage could not read its build()',
           );
         }
         if (customWidgetFactoryRoute != null) {
@@ -9439,6 +9461,22 @@ final class ExpressionTranslator {
     WidgetClassification classification,
     String widgetName,
     Expression anchor,
+  ) =>
+      _customWidgetGap(classification, widgetName, anchor).issue;
+
+  /// Why a custom widget renders from the app's compiled code, as a clause.
+  String _customWidgetFactoryReason(
+    WidgetClassification classification,
+    String widgetName,
+    Expression anchor,
+  ) =>
+      _customWidgetGap(classification, widgetName, anchor).reason;
+
+  /// The one table behind a custom widget's diagnostic and its factory reason.
+  ({Issue issue, String reason}) _customWidgetGap(
+    WidgetClassification classification,
+    String widgetName,
+    Expression anchor,
   ) {
     switch (classification) {
       case ComposableWidget():
@@ -9446,55 +9484,66 @@ final class ExpressionTranslator {
         final note = mechanisms.isEmpty
             ? ''
             : ' (needs ${mechanisms.map((m) => m.name).join(", ")})';
-        return Issue(
-          code: IssueCode.customWidgetInliningDeferred,
-          capabilityGapSubject: 'customWidget:$widgetName',
-          message: "The custom widget '$widgetName' is recognised as pure "
-              'composition$note, but it needs an inlining mechanism this '
-              'transpiler increment does not yet implement.',
-          location: _locationOf(anchor),
+        return (
+          issue: Issue(
+            code: IssueCode.customWidgetInliningDeferred,
+            capabilityGapSubject: 'customWidget:$widgetName',
+            message: "The custom widget '$widgetName' is pure composition"
+                '$note, but Restage does not yet inline this kind of '
+                'composition.',
+            location: _locationOf(anchor),
+          ),
+          reason:
+              'Restage does not yet inline its build() into delivered surfaces',
         );
       case ImperativeWidget():
-        // Disposition split: a genuine RFW boundary (dead end) reads
-        // "cannot express"; an all-reducible-blocker widget reads "not
-        // supported yet" so it isn't mis-sold as inherently imperative. Same
-        // deferred blob behaviour either way; the code + verb carry the
-        // distinction.
+        // A genuine RFW boundary reads "cannot express"; an all-reducible
+        // widget reads "not supported yet".
         if (classification.disposition == CustomWidgetDisposition.deadEnd) {
           final blocker = classification.blockers.firstWhere(
             (b) => b.disposition == CustomWidgetDisposition.deadEnd,
           );
-          return Issue(
-            code: IssueCode.customWidgetImperative,
-            message: "The custom widget '$widgetName' cannot be transpiled "
-                'into a paywall: its build() uses ${blocker.detail}, which the '
-                'declarative paywall format cannot express '
-                '(${blocker.kind.name}).',
-            location: blocker.location,
+          return (
+            issue: Issue(
+              code: IssueCode.customWidgetImperative,
+              message: "The custom widget '$widgetName' cannot be "
+                  'delivered: its build() uses ${blocker.detail}, which a '
+                  'delivered surface cannot express (${blocker.kind.name}).',
+              location: blocker.location,
+            ),
+            reason: 'build() uses ${blocker.detail}',
           );
         }
         final blocker = classification.blockers.first;
-        return Issue(
-          code: IssueCode.customWidgetUnsupportedReducible,
-          capabilityGapSubject: 'customWidget:$widgetName',
-          message: "The custom widget '$widgetName' is not supported by this "
-              'transpiler increment yet: its build() uses ${blocker.detail} '
-              '(${blocker.kind.name}). It is not inherently imperative — a '
-              'future catalog / recipe / state-authoring increment may make it '
-              'expressible.',
-          location: blocker.location,
+        return (
+          issue: Issue(
+            code: IssueCode.customWidgetUnsupportedReducible,
+            capabilityGapSubject: 'customWidget:$widgetName',
+            message: "The custom widget '$widgetName' is not supported in "
+                'delivered surfaces yet: its build() uses ${blocker.detail} '
+                '(${blocker.kind.name}). A later Restage release may support '
+                'it.',
+            location: blocker.location,
+          ),
+          reason: 'build() uses ${blocker.detail}',
         );
       case UnclassifiableWidget():
-        return Issue(
-          code: classification.diagnosticCode,
-          capabilityGapSubject: 'customWidget:$widgetName',
-          message: "The custom widget '$widgetName' is recognised but this "
-              'transpiler increment does not yet classify it: '
-              '${classification.reason}.',
-          location: _locationOf(anchor),
+        return (
+          issue: Issue(
+            code: classification.diagnosticCode,
+            capabilityGapSubject: 'customWidget:$widgetName',
+            message: 'Restage does not yet recognise the custom widget '
+                "'$widgetName': ${classification.reason}.",
+            location: _locationOf(anchor),
+          ),
+          reason: classification.reason,
         );
     }
   }
+
+  static String _withoutFinalPeriod(String message) => message.endsWith('.')
+      ? message.substring(0, message.length - 1)
+      : message;
 
   void _recordCustomWidgetFactoryRoute(
     _CustomWidgetEmissionIdentity identity,
@@ -9521,12 +9570,11 @@ final class ExpressionTranslator {
       for (final entry in ordered)
         Issue(
           code: IssueCode.customWidgetAppFactoryUsed,
-          message: "Custom widget '${entry.value.widgetName}' uses the "
-              "registered '${entry.key.remoteLibrary}' app factory. Local RFW "
-              'output was unavailable: ${entry.value.reason} The installed '
-              "app's compiled widget body and defaults remain authoritative; "
-              'changing either requires an app release. Explicit call values '
-              'remain supplied by the delivered artifact.',
+          message: "Custom widget '${entry.value.widgetName}' renders from "
+              "your app's compiled code because ${entry.value.reason}. That "
+              'is fine: delivered surfaces still set its arguments, and '
+              'changes to its build() or defaults ship with your next app '
+              'release.',
           location: entry.key.classKey,
           buildNoticeIdentity:
               '${entry.key.classKey}\u0000${entry.key.remoteLibrary}',

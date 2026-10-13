@@ -177,6 +177,20 @@ void main() {
     );
   });
 
+  test('offline audit admits the loader engine base', () {
+    // The loader reads its engine files from a separate immutable origin, so
+    // the one absolute URL in `flutter_bootstrap.js` is admitted by design.
+    validateOfflineRenderBundleFiles(<String, Uint8List>{
+      ...validFiles(),
+      'flutter_bootstrap.js': Uint8List.fromList(
+        utf8.encode(
+          "_flutter.loader.load({config: {canvasKitBaseUrl: "
+          "'https://bundles.example.dev/render-bundles/v1/engine/abc/'}});",
+        ),
+      ),
+    });
+  });
+
   test('offline audit rejects every service-worker artifact shape', () {
     for (final path in <String>[
       'flutter_service_worker.js',

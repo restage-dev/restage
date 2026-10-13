@@ -11,7 +11,8 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/user_catalog.g.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/pulse_badge.dart';
-import 'package:restage_preview_harness/restage_preview_harness.dart';
+// ignore: implementation_imports
+import 'package:restage/src/render_host/render_host_app.dart';
 import 'package:restage_preview_host/restage_preview_host.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -103,7 +104,7 @@ Future<_MountedBundle> _mountBundle(
       ),
       child: RepaintBoundary(
         key: boundaryKey,
-        child: RestagePreviewHarnessApp.renderBundle(
+        child: RenderHostApp(
           transport: transport,
           manifest: manifest,
           engine: RenderEngine(
@@ -111,7 +112,6 @@ Future<_MountedBundle> _mountBundle(
             renderer: 'skwasm',
           ),
           registerAppWidgets: registerRestageWidgets,
-          initialize: (_) {},
         ),
       ),
     ),

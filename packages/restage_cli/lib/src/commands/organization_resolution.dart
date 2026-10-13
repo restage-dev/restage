@@ -33,8 +33,11 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
   required RestageApi api,
   required RestageConfig? config,
   required StringSink stderr,
+  String? preferredSlug,
 }) async {
-  final organizationSlug = config?.organization;
+  final organizationSlug = preferredSlug?.isNotEmpty ?? false
+      ? preferredSlug
+      : config?.organization;
   if (organizationSlug == null || organizationSlug.isEmpty) {
     return const ConfiguredOrganizationContext(null);
   }
@@ -46,10 +49,7 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
         return ConfiguredOrganizationContext(organization.organizationId);
       }
     }
-    stderr.writeln(
-      'No organization found for restage_config.yaml organization: '
-      '$organizationSlug.',
-    );
+    stderr.writeln('No organization found for `$organizationSlug`.');
     return null;
   } on RestageApiException catch (e) {
     _writeOrganizationDiscoveryError(stderr, e);

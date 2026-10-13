@@ -34,6 +34,7 @@ export 'src/api/paywall_api.dart';
 export 'src/api/paywall_models.dart';
 export 'src/api/programmatic_mutation_api.dart';
 export 'src/api/render_bundle_api.dart';
+export 'src/api/render_bundle_coverage_sentence.dart';
 export 'src/api/surface_api.dart';
 export 'src/api/surface_funnel_api.dart';
 export 'src/api/surface_publication_api.dart';

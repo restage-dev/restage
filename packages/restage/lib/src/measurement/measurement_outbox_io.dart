@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'measurement_outbox_protocol.dart';
@@ -8,11 +9,13 @@ MeasurementOutboxStore createMeasurementOutboxStore({
   required MeasurementOutboxConfiguration configuration,
   required MeasurementOutboxClock clock,
   MeasurementOutboxFileSystem? fileSystem,
+  Random? retryRandom,
 }) =>
     _MeasurementFileOutboxStore(
       configuration: configuration,
       clock: clock,
       fileSystem: fileSystem ?? const MeasurementOutboxIoFileSystem(),
+      retryRandom: retryRandom,
     );
 
 /// Native `dart:io` filesystem implementation used only inside the worker.
@@ -75,12 +78,17 @@ final class _MeasurementFileOutboxStore
     required this.configuration,
     required MeasurementOutboxClock clock,
     required MeasurementOutboxFileSystem fileSystem,
+    Random? retryRandom,
   })  : _clock = clock,
-        _fileSystem = fileSystem;
+        _fileSystem = fileSystem,
+        _retryRandom = retryRandom;
 
   final MeasurementOutboxConfiguration configuration;
   final MeasurementOutboxClock _clock;
   final MeasurementOutboxFileSystem _fileSystem;
+
+  /// Spreads retry delays; null draws from the shared unseeded source.
+  final Random? _retryRandom;
   final Map<String, _StoredOutboxRecord> _records = {};
   final Set<String> _opaqueQuarantinePaths = {};
 
@@ -441,8 +449,9 @@ final class _MeasurementFileOutboxStore
         nextRetryUtcMicros: null,
       );
     }
-    final nextRetryUtcMicros =
-        _nowUtcMicros() + measurementOutboxRetryDelay(attempt).inMicroseconds;
+    final nextRetryUtcMicros = _nowUtcMicros() +
+        measurementOutboxRetryDelay(attempt, random: _retryRandom)
+            .inMicroseconds;
     final path = _pathFor('${stored.record.fileStem}.retry.$attempt');
     try {
       await _writeMarker(

@@ -5,13 +5,15 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/render_bundles/loader_engine_base.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_shared/restage_shared.dart';
 // ignore: implementation_imports
 import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart';
 import 'package:yaml/yaml.dart';
 
-const _requiredFlutterVersion = '3.47.0';
+/// The Flutter version a render bundle is built with.
+const requiredRenderBundleFlutterVersion = '3.47.0';
 const _robotoFontSha256 =
     '79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95';
 const _robotoLicenseSha256 =
@@ -37,12 +39,17 @@ typedef RenderBundleCatalogResolver =
 
 /// Generic build failure that deliberately omits process output and paths.
 final class RenderBundleBuildException implements Exception {
-  const RenderBundleBuildException(this.reason);
+  const RenderBundleBuildException(this.reason, {this.detail});
 
   final String reason;
 
+  /// What the reason is about, such as the engine path that did not match.
+  final String? detail;
+
   @override
-  String toString() => 'RenderBundleBuildException($reason)';
+  String toString() => detail == null
+      ? 'RenderBundleBuildException($reason)'
+      : 'RenderBundleBuildException($reason, $detail)';
 }
 
 /// Verified SDK-owned font inputs copied into each isolated output.
@@ -75,12 +82,38 @@ final class RenderBundleFontAuthority {
   final int? fontByteLength;
 }
 
+/// Where the engine files of [engineSetId] serve from.
+Uri renderBundleEngineBase({
+  required Uri controlOrigin,
+  required String engineSetId,
+}) => controlOrigin.resolve('/render-bundles/v1/engine/$engineSetId/');
+
+/// One built bundle, split into what the app owns and what the engine set
+/// already serves.
+final class RenderBundleArtifact {
+  const RenderBundleArtifact({
+    required this.appFiles,
+    required this.engineFiles,
+    required this.engineSetId,
+  });
+
+  /// The app's own files, by bundle-relative path.
+  final Map<String, Uint8List> appFiles;
+
+  /// The engine files this build produced, by engine-base-relative path.
+  final Map<String, Uint8List> engineFiles;
+
+  /// The pinned set the engine files belong to.
+  final String engineSetId;
+}
+
 /// Injectable producer contract used by `restage build push`.
 abstract interface class RenderBundleArtifactBuilder {
-  Future<Uint8List> build({
+  Future<RenderBundleArtifact> build({
     required Directory projectRoot,
     required String catalogJson,
     required Uri parentOrigin,
+    required Uri controlOrigin,
   });
 }
 
@@ -92,25 +125,29 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     RenderBundleCatalogResolver? catalogResolver,
     String? flutterExecutable,
     RenderBundleFontAuthority? fontAuthority,
-  }) : _processRunner = processRunner ?? _runProcess,
+    RenderBundleEngineSet? engineSet,
+  }) : _processRunner = processRunner ?? runRenderBundleProcess,
        _tempDirectoryCreator =
            tempDirectoryCreator ?? Directory.systemTemp.createTemp,
        _catalogResolver =
            catalogResolver ?? createRenderBundleCapabilityCatalogUnion,
        _flutterExecutableOverride = flutterExecutable,
-       _fontAuthorityOverride = fontAuthority;
+       _fontAuthorityOverride = fontAuthority,
+       _engineSetOverride = engineSet;
 
   final RenderBundleProcessRunner _processRunner;
   final RenderBundleTempDirectoryCreator _tempDirectoryCreator;
   final RenderBundleCatalogResolver _catalogResolver;
   final String? _flutterExecutableOverride;
   final RenderBundleFontAuthority? _fontAuthorityOverride;
+  final RenderBundleEngineSet? _engineSetOverride;
 
   @override
-  Future<Uint8List> build({
+  Future<RenderBundleArtifact> build({
     required Directory projectRoot,
     required String catalogJson,
     required Uri parentOrigin,
+    required Uri controlOrigin,
   }) async {
     final entrypoint = File(
       p.join(projectRoot.path, 'lib', 'main_render_bundle.dart'),
@@ -135,7 +172,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     try {
       await _tightenPermissions(scratch.path, directory: true);
       final flutterExecutable =
-          _flutterExecutableOverride ?? _findFlutterExecutable();
+          _flutterExecutableOverride ?? findFlutterExecutable();
       final flutterRoot = File(flutterExecutable).parent.parent;
       final fontAuthority =
           _fontAuthorityOverride ??
@@ -153,7 +190,15 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       );
       await _verifyFlutterVersion(flutterExecutable);
 
-      final archives = <Uint8List>[];
+      final engineSet =
+          _engineSetOverride ??
+          renderBundleEngineSetForFlutterVersion(
+            requiredRenderBundleFlutterVersion,
+          );
+      if (engineSet == null) {
+        throw const RenderBundleBuildException('engine_set_missing');
+      }
+      final artifacts = <RenderBundleArtifact>[];
       for (var pass = 1; pass <= 2; pass++) {
         final output = Directory(p.join(scratch.path, 'output_$pass'));
         final defineFile = File(
@@ -189,13 +234,22 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
           capabilityManifest: capabilityManifest,
           fontBytes: fontBytes,
           licenseBytes: licenseBytes,
+          engineBase: renderBundleEngineBase(
+            controlOrigin: controlOrigin,
+            engineSetId: engineSet.id,
+          ),
         );
-        archives.add(await encodeRenderBundleDirectory(output));
+        artifacts.add(
+          splitRenderBundleEngineFiles(
+            await collectRenderBundleDirectory(output),
+            engineSet,
+          ),
+        );
       }
-      if (!_sameBytes(archives.first, archives.last)) {
+      if (!_sameArtifact(artifacts.first, artifacts.last)) {
         throw const RenderBundleBuildException('non_deterministic_output');
       }
-      return archives.first;
+      return artifacts.first;
     } on RenderBundleBuildException {
       rethrow;
     } on Object {
@@ -224,7 +278,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       throw const RenderBundleBuildException('flutter_version_unavailable');
     }
     if (document is! Map<String, dynamic> ||
-        document['frameworkVersion'] != _requiredFlutterVersion) {
+        document['frameworkVersion'] != requiredRenderBundleFlutterVersion) {
       throw const RenderBundleBuildException('flutter_version_mismatch');
     }
   }
@@ -234,6 +288,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     required Uint8List capabilityManifest,
     required Uint8List fontBytes,
     required Uint8List licenseBytes,
+    required Uri engineBase,
   }) async {
     final index = File(p.join(output.path, 'index.html'));
     final loader = File(p.join(output.path, 'flutter_bootstrap.js'));
@@ -252,6 +307,12 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       output,
       indexSource: indexSource,
       loaderSource: loaderSource,
+    );
+    // The engine files serve from their own origin, so the loader is pointed
+    // there before anything reads the built output.
+    await loader.writeAsString(
+      withLoaderEngineBase(loaderSource, engineBase: engineBase),
+      flush: true,
     );
     await _omitExpectedLastBuildId(output);
     await _omitExpectedDebugSymbols(output);
@@ -439,7 +500,7 @@ Future<PackageConfig> _loadProjectPackageConfig(Directory projectRoot) async {
   if (packageConfig == null) {
     throw StateError('package configuration unavailable');
   }
-  final projectName = _readProjectPackageName(canonicalProject);
+  final projectName = readProjectPackageName(canonicalProject);
   final projectPackage = packageConfig[projectName];
   if (projectPackage == null ||
       !projectPackage.root.isScheme('file') ||
@@ -460,7 +521,8 @@ String _resolveDirectory(Directory directory) {
   }
 }
 
-String _readProjectPackageName(Directory projectRoot) {
+/// Reads the package name the project's pubspec declares.
+String readProjectPackageName(Directory projectRoot) {
   final pubspec = File(p.join(projectRoot.path, 'pubspec.yaml'));
   if (FileSystemEntity.typeSync(pubspec.path, followLinks: false) !=
       FileSystemEntityType.file) {
@@ -537,7 +599,8 @@ Catalog _mergeCapabilityCatalogs(List<Catalog> catalogs) {
   );
 }
 
-Future<ProcessResult> _runProcess(
+/// Runs one build-toolchain process without a shell.
+Future<ProcessResult> runRenderBundleProcess(
   String executable,
   List<String> arguments, {
   String? workingDirectory,
@@ -548,7 +611,8 @@ Future<ProcessResult> _runProcess(
   runInShell: false,
 );
 
-String _findFlutterExecutable() {
+/// Resolves the `flutter` executable from `PATH`.
+String findFlutterExecutable() {
   final path = Platform.environment['PATH'];
   if (path != null) {
     for (final directory in path.split(Platform.isWindows ? ';' : ':')) {
@@ -579,6 +643,57 @@ void _validateParentOrigin(Uri origin) {
   if (!isApprovedRenderBundleParentOrigin(origin)) {
     throw const RenderBundleBuildException('parent_origin');
   }
+}
+
+/// Takes the engine out of the app's files and checks it against the set.
+///
+/// The engine serves from its own origin, so the pinned files leave the
+/// bundle; the symbol maps beside them are dropped, and anything else found
+/// there was built on another toolchain. The set is exact in both directions:
+/// a pinned file this build never produced is the same mismatch.
+RenderBundleArtifact splitRenderBundleEngineFiles(
+  Map<String, Uint8List> files,
+  RenderBundleEngineSet engineSet,
+) {
+  final appFiles = <String, Uint8List>{};
+  final engineFiles = <String, Uint8List>{};
+  for (final entry in files.entries) {
+    if (!entry.key.startsWith(renderBundleEnginePathPrefix)) {
+      appFiles[entry.key] = entry.value;
+      continue;
+    }
+    final path = entry.key.substring(renderBundleEnginePathPrefix.length);
+    if (path.endsWith('.symbols')) continue;
+    final hash = 'sha256:${crypto.sha256.convert(entry.value)}';
+    if (!engineSet.holds(path: path, contentHash: hash)) {
+      throw RenderBundleBuildException('engine_toolchain', detail: path);
+    }
+    engineFiles[path] = entry.value;
+  }
+  for (final file in engineSet.files) {
+    if (!engineFiles.containsKey(file.path)) {
+      throw RenderBundleBuildException('engine_incomplete', detail: file.path);
+    }
+  }
+  return RenderBundleArtifact(
+    appFiles: appFiles,
+    engineFiles: engineFiles,
+    engineSetId: engineSet.id,
+  );
+}
+
+bool _sameArtifact(RenderBundleArtifact left, RenderBundleArtifact right) =>
+    left.engineSetId == right.engineSetId &&
+    _sameFiles(left.appFiles, right.appFiles) &&
+    _sameFiles(left.engineFiles, right.engineFiles);
+
+bool _sameFiles(Map<String, Uint8List> left, Map<String, Uint8List> right) {
+  if (left.length != right.length) return false;
+  for (final entry in left.entries) {
+    final other = right[entry.key];
+    if (other == null || !_sameBytes(entry.value, other)) return false;
+  }
+  return true;
 }
 
 bool _sameBytes(Uint8List left, Uint8List right) {

@@ -2,22 +2,23 @@
 
 [![pub package](https://img.shields.io/pub/v/rfw_catalog_schema.svg)](https://pub.dev/packages/rfw_catalog_schema) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-The public schema, annotations, wire-identity types, and JSON codecs for a
-[Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog.
+The schema, annotations, catalog ID types, and JSON codecs for a
+[Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw) widget catalog.
 
-This package describes **what** a catalog looks like: the durable contract
-shared between catalog producers (compilers, codegen builders), catalog
-consumers (authoring tools, SDK runtimes, backends), and any tooling that decodes
-or transmits an RFW-targeted widget catalog.
+Part of [Restage](https://restage.dev), server-driven UI for Flutter.
+
+This package describes what a catalog looks like. It is the shared format for
+tools that produce catalogs (compilers, code generators), tools that read them
+(editors, SDK runtimes, servers), and anything that stores or sends one.
 
 ## What this package contains
 
 - **Catalog data types.** `Catalog`, `WidgetEntry`, `PropertyEntry`,
   `StructuredEntry`, `UnionEntry`, `FactoryVariant`, `DecompositionRecipe`,
   `DesignTokenEntry`, plus the enums and metadata structs they reference.
-- **Wire identity.** `WireId` (kind-prefixed, library-scoped, monotonic),
-  `WireIdKind`, and `WireIdRef` for cross-library references.
-- **Default-value model.** `DefaultValueSource` sealed hierarchy
+- **Catalog IDs.** `WireId` (a stable ID with a kind prefix, unique within a
+  library), `WireIdKind`, and `WireIdRef` for references across libraries.
+- **Default values.** The sealed `DefaultValueSource` family
   (`LiteralDefault`, `TokenRefDefault`, `ThemeBindingDefault`,
   `FlutterCtorDefault`).
 - **Annotations.** `@RestageWidget`, the optional shared
@@ -29,23 +30,24 @@ or transmits an RFW-targeted widget catalog.
   and `@RestageDataField`.
 - **Typed constraints.** `RestageConstraints` carries numeric bounds, allowed
   values, patterns, string lengths, and list lengths on `RestageProperty` and
-  `PropertyEntry`, while preserving unknown wire keywords for newer readers.
-- **Hand-written JSON codecs.** `encodeCatalog` and `decodeCatalog`.
-- **Lifecycle types.** `DeprecationInfo` (two-layer: source vs catalog),
-  `CompatRule` for forwarding/breaking changes, `ValidationExpr`.
+  `PropertyEntry`, and keeps unknown JSON keywords so newer readers can use
+  them.
+- **JSON codecs.** `encodeCatalog` and `decodeCatalog`.
+- **Lifecycle types.** `DeprecationInfo` (deprecated in source, in the
+  catalog, or both), `CompatRule` for compatible and breaking changes, and
+  `ValidationExpr`.
 
 ## Custom widget authoring
 
-The unnamed generative constructor is the source of truth for a custom
-widget's catalog inputs. Supported public field formals and resolved super
-formals are included automatically, in constructor order. Dart-required
-formals are required catalog inputs; `super.key` is excluded as Flutter
-plumbing.
+A custom widget's catalog inputs come from its unnamed constructor. Each
+supported public parameter (including `super.` parameters) becomes an input,
+in constructor order. Required parameters are required inputs. `key` is
+skipped.
 
-Use Dart documentation for widget and property descriptions. Add
-`@RestageProperty` only for shared metadata Dart cannot express, such as a
-default source or typed constraints. Declare the package's custom library
-once in a typed barrel that exactly exports the widgets it owns:
+Doc comments become the widget and property descriptions. Add
+`@RestageProperty` only for what Dart can't express, such as a default value
+source or constraints. Declare the package's widget library once, in a file
+that exports exactly the widgets it owns:
 
 ```dart
 // lib/restage_imports.dart
@@ -67,9 +69,9 @@ const WidgetLibrary acmeWidgets = AcmeWidgets();
 const restageCatalog = 0;
 ```
 
-An exported widget normally needs only the bare marker. Its Dart class name is
-the catalog name, its exact exporting barrel supplies the library, and an
-omitted category places it at the library root:
+An exported widget usually needs only the bare annotation. Its class name is
+its catalog name, the file that exports it sets its library, and with no
+category it sits at the top level of the library:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -91,8 +93,8 @@ class SubmitButton extends StatelessWidget {
 }
 ```
 
-Target-only A2UI metadata lives in its opt-in entrypoint. RFW event identity is
-the callback constructor property's exact Dart name and needs no annotation:
+A2UI-only settings come from a separate import. Callbacks need no
+annotation: the constructor parameter's name is the event name.
 
 ```dart
 import 'package:flutter/widgets.dart';
@@ -125,13 +127,8 @@ class SubmitControl extends StatelessWidget {
 }
 ```
 
-RFW callback events require no target annotation. Restage derives the exact
-Dart property identity and supported callback shape from the widget
-constructor. A2UI-specific usage and write-back metadata remains in
-`a2ui.Config`.
-
-Package builder configuration selects the normal generated targets. For an
-exceptional widget, each target config can disable only its own output:
+Your build configuration picks which outputs are generated for the package.
+One widget can turn off a single output with that output's config:
 
 ```dart
 @RestageWidget()
@@ -148,16 +145,14 @@ class RfwAndWidgetbookCard extends StatelessWidget {
 }
 ```
 
-`@ignore` and `@Ignore()` keep excluding one safely omissible input from every
-target. A non-empty const list or set narrows that exclusion to the selected
-`EmitTarget` values. An empty selection, a required input, an assert-required
-input, or an omission that creates a positional hole fails generation rather
-than changing the constructor call.
+`@ignore` or `@Ignore()` leaves one optional input out of every output. Pass a
+set of `EmitTarget` values to leave it out of those outputs only. Generation
+fails if the selection is empty, if the input is required, or if leaving it out
+would leave a gap in the positional arguments.
 
-Explicit metadata remains available for advanced cases. Use a typed
-`library:` override to disambiguate a class exported by several declared
-libraries, `category:` to place a widget in a named group, or `name:` when a
-stable catalog key must differ from the Dart class name:
+For advanced cases, set `library:` when a class is exported by more than one
+library, `category:` to put a widget in a named group, or `name:` when the
+catalog name must differ from the class name:
 
 ```dart
 @RestageWidget(
@@ -168,24 +163,25 @@ stable catalog key must differ from the Dart class name:
 class LegacySubmitControl extends StatelessWidget { /* ... */ }
 ```
 
-Canonical v5 JSON is final-form only. The decoder also accepts v4 catalogs and
-migrates their retired callback-admission metadata at the decode boundary.
-Internal `WireId.unallocated*`
-placeholders are available for transitional pre-allocator tooling, but
-`WireId('w0000')` / `p0000` / etc. are not public IDs, `decodeCatalog`
-rejects them, and `encodeCatalog` refuses to emit catalogs that still carry
-those placeholders.
+The encoder writes catalog schema v5. The decoder also reads v4 catalogs and
+upgrades them. `WireId.unallocated*` placeholders (`w0000`, `p0000`, and so
+on) are for tooling only: `decodeCatalog` rejects them and `encodeCatalog`
+refuses to write a catalog that still contains them.
 
-## What it does NOT contain
+## What it does not contain
 
-- **No compiler logic.** Analysis passes, IR types, the wire-ID allocator,
-  and event-log replay live in the companion compiler package.
-- **No runtime.** Theme resolution, wire-ID dispatching, and on-wire blob
-  decoding live in the SDK runtime.
-- **No Flutter dependency.** The package is pure Dart so it can be consumed
-  by Dart-only backends and codegen pipelines.
+- **No compiler.** Source analysis and ID assignment live in
+  [`rfw_catalog_compiler`](https://pub.dev/packages/rfw_catalog_compiler).
+- **No runtime.** Theme resolution, widget lookup, and decoding compiled
+  `.rfw` files live in the SDK.
+- **No Flutter dependency.** The package is pure Dart, so Dart-only servers
+  and code generators can use it.
 
 ## Stability
 
-`1.0.0`: the public surface is stable. Semver is honored from this
-release; breaking changes require a major-version bump.
+The public API is stable and follows semantic versioning: breaking changes
+come only in a new major version.
+
+## License
+
+BSD-3-Clause. See [LICENSE](LICENSE).

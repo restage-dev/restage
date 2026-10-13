@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:meta/meta.dart';
 
+import 'delivery_input_budget.dart';
+
 /// Internal provider for the SDK-owned identity key used with hosted surface
 /// requests.
 ///
@@ -52,12 +54,16 @@ abstract final class SurfaceAssignmentKeyProvider {
     _identityGeneration = identityGeneration;
   }
 
-  /// Resolves the current key, returning null when disabled or degraded.
+  /// Resolves the current key, returning null when disabled, degraded, or
+  /// not answered within [DeliveryInputBudget.defaultTotal].
   static Future<String?> resolve() async {
     final provider = _current;
     if (provider == null) return null;
     try {
-      final value = await provider();
+      final value = await DeliveryInputBudget.run(
+        (budget) => budget.bound(Future.sync(provider)),
+        total: DeliveryInputBudget.defaultTotal,
+      );
       return _isValidAssignmentKey(value) ? value : null;
     } on Object {
       return null;
@@ -68,9 +74,13 @@ abstract final class SurfaceAssignmentKeyProvider {
   ///
   /// The lease remains meaningful when the key is null or degraded: provider
   /// replacement and anonymous-identity reset still invalidate hosted work
-  /// selected during the earlier generation.
+  /// selected during the earlier generation. A key not answered within
+  /// [budget], or [DeliveryInputBudget.defaultTotal] when none is given,
+  /// is captured as absent.
   @internal
-  static Future<SurfaceAssignmentResolutionLease> captureLease() async {
+  static Future<SurfaceAssignmentResolutionLease> captureLease({
+    DeliveryInputBudget? budget,
+  }) async {
     final configurationEpoch = _configurationEpoch;
     final generationProvider = _identityGeneration;
     final identityGeneration = generationProvider?.call() ?? 0;
@@ -79,7 +89,11 @@ abstract final class SurfaceAssignmentKeyProvider {
     String? key;
     if (provider != null) {
       try {
-        final value = await provider();
+        final value = await DeliveryInputBudget.run(
+          (owned) => owned.bound(Future.sync(provider)),
+          shared: budget,
+          total: DeliveryInputBudget.defaultTotal,
+        );
         if (_isValidAssignmentKey(value)) key = value;
       } on Object {
         key = null;

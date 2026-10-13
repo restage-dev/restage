@@ -199,7 +199,7 @@ InkWell(
         (classification as UnclassifiableWidget).diagnosticCode.name,
         isNot('modalSheetFormUnsupported'),
       );
-      expect(classification.reason, contains('inline event-handler closure'));
+      expect(classification.reason, contains('inline closure'));
     });
 
     test('showModalBottomSheet in an unsupported slot uses the named reason',

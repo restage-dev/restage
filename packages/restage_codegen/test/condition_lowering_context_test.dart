@@ -126,9 +126,11 @@ void main() {
         _rootParam(probe, 'trialUsed'),
         _rootParam(probe, 'isEligible'),
       ],
-      rootLocalBindings: {
-        declaration.declaredFragment!.element: declaration.initializer!,
-      },
+      rootInlined: InlinedDefinitions(
+        localBindings: {
+          declaration.declaredFragment!.element: declaration.initializer!,
+        },
+      ),
     );
     expect(result.issues, isEmpty, reason: result.issues.join('\n'));
     expect(

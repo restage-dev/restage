@@ -124,6 +124,24 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     return _run(['surface', 'push', ..._surfaceArgs(context, surface)]);
   }
 
+  @override
+  Future<ConsoleOperationResult> pushBuild({required ConsoleContext context}) {
+    return _run([
+      'build',
+      'push',
+      '--project',
+      context.project,
+      '--app',
+      context.app,
+      '--env',
+      context.environment,
+      if (context.organizationSlug case final organization?) ...[
+        '--organization',
+        organization,
+      ],
+    ]);
+  }
+
   /// The shared target-selection arguments every surface lifecycle command
   /// takes: slug, type/source-kind, project, app, environment, and resolved
   /// plane. A console surface without the current manifest still carries the

@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'hosted_render_bundle_session.dart';
-import 'protocol.dart';
-import 'wire_json.dart';
+import 'render_core.dart';
+// ignore: implementation_imports
+import 'package:restage/src/render_host/wire_json.dart';
 
 /// Exact static dashboard path for the native preview polling shell.
 const renderBundlePreviewShellPath = '/render-bundle-preview-shell.html';
@@ -44,7 +45,7 @@ final class PreviewShellLoaded extends PreviewShellEvent {
 final class PreviewShellMessage extends PreviewShellEvent {
   const PreviewShellMessage(this.message);
 
-  /// Transport message ready for [SeamRenderProvider].
+  /// Transport message ready for [RenderHostProvider].
   final RenderTransportMessage message;
 }
 

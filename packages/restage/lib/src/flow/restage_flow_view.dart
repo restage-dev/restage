@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
+import '../delivery/surface_delivery_paint_boundary.dart';
 import '../authoring/event_dispatcher.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration, RestageFlowEventHandlerAssociation;
@@ -550,19 +551,27 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
         controller.acknowledgeRenderedEntry(screen.entryId);
       },
       onError: (error, stack) {
+        markSurfaceDeliveryRenderFailedFor(
+          controller.flow.surface,
+          controller.flow.id,
+        );
         if (screen.entryId == controller.currentScreenEntryId) {
           controller.reportRenderFailure(error);
         }
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: screen.nativeScreen != null
-          ? Builder(builder: (_) => screen.nativeScreen!())
-          : RemoteWidget(
-              runtime: screen.runtime!,
-              data: screen.data,
-              widget: kFlowScreenWidget,
-              onEvent: screen.onEvent),
+      child: SurfaceDeliveryPaintBoundary.forSurface(
+        surfaceType: controller.flow.surface,
+        surfaceSlug: controller.flow.id,
+        child: screen.nativeScreen != null
+            ? Builder(builder: (_) => screen.nativeScreen!())
+            : RemoteWidget(
+                runtime: screen.runtime!,
+                data: screen.data,
+                widget: kFlowScreenWidget,
+                onEvent: screen.onEvent),
+      ),
     );
 
     // The RFW content keeps a stable key so its element, and the screen state

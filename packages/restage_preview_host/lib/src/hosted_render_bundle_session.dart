@@ -2,8 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import 'manifest.dart';
-import 'protocol.dart';
+import 'render_core.dart';
 
 final _browserGrantPattern = RegExp(r'^[0-9a-f]{64}$');
 
@@ -103,7 +102,7 @@ base class HostedRenderBundleSession {
     required Uri bundleOrigin,
     required RenderFrameScheduler scheduleFrame,
   })  : _frame = frame,
-        _provider = SeamRenderProvider(
+        _provider = RenderHostProvider(
           transport: frame.transport,
           bundleOrigin: _validateOrigin(bundleOrigin),
           supportedVersions: const <int>[renderProtocolV1],
@@ -114,7 +113,7 @@ base class HostedRenderBundleSession {
   }
 
   final HostedRenderBundleFrame _frame;
-  final SeamRenderProvider _provider;
+  final RenderHostProvider _provider;
   late final Future<void> _ready;
   Future<void>? _disposeFuture;
 
@@ -122,7 +121,7 @@ base class HostedRenderBundleSession {
   Widget get view => _frame.view;
 
   /// Frozen-v1 render and snapshot provider.
-  SeamRenderProvider get provider => _provider;
+  RenderHostProvider get provider => _provider;
 
   /// Ready manifest after [ready] completes.
   RenderBundleManifest? get manifest => _provider.manifest;

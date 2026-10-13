@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -74,6 +75,13 @@ class DefaultConsoleRepository implements ConsoleRepository {
       runtimePlane: selectedEnvironment.runtimePlane,
     );
     final surfaces = await _loadSurfaces(config, organization, selectedApp);
+    final builds = await _loadBuilds(
+      api,
+      endpoint: endpoint,
+      credential: credential,
+      config: config,
+      organization: organization,
+    );
 
     return ConsoleSnapshot(
       context: _context!,
@@ -81,6 +89,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
       apps: apps,
       environments: environmentSelection.targets,
       surfaces: surfaces,
+      builds: builds,
     );
   }
 
@@ -292,6 +301,45 @@ class DefaultConsoleRepository implements ConsoleRepository {
       throw _apiException(e);
     } on SocketException catch (e) {
       throw ConsoleLoadException('Could not contact the backend: $e');
+    }
+  }
+
+  /// The heads the selected app's build holds. A listing the service refuses
+  /// reads as no heads: the console still opens, and a push says the rest.
+  Future<List<ConsoleBuildHead>> _loadBuilds(
+    RestageApi api, {
+    required Uri endpoint,
+    required Credential credential,
+    required RestageConfig config,
+    required _ConsoleOrganization organization,
+  }) async {
+    final bundles = RenderBundleApi(
+      rpc: api,
+      apiEndpoint: endpoint,
+      credential: credential,
+      uploadClient: _httpClient,
+    );
+    try {
+      final heads = await bundles.listHeads(
+        project: config.project,
+        app: config.app,
+        organizationId: organization.organizationId,
+      );
+      return [
+        for (final head in heads)
+          ConsoleBuildHead(
+            head: head.head,
+            version: head.version,
+            libraries: head.libraries,
+            updatedAt: head.updatedAt,
+            sourceCommit: head.sourceCommit,
+            sourceDirty: head.sourceDirty,
+          ),
+      ];
+    } on RenderBundleUploadException {
+      return const [];
+    } finally {
+      if (_httpClient == null) bundles.close();
     }
   }
 

@@ -1,13 +1,8 @@
-// Some cases shell out to `dart analyze` (cold-start resolution); give them
-// headroom over the 30s default so they don't flake under load.
-@Timeout(Duration(minutes: 2))
-library;
-
-import 'dart:io';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+
+import '../support/static_analysis_probe.dart';
 
 abstract final class WelcomeScreen {
   static const next = OnboardingEvent<void>('next');
@@ -206,7 +201,8 @@ void main() {
     expect(descendantBuilds, 2);
   });
 
-  testWidgets('context-free surface events refuse ambiguous dispatchers',
+  testWidgets(
+      'context-free surface events refuse when no single mounted surface declares them',
       (tester) async {
     late StateSetter rebuildFirst;
     VoidCallback? captured;
@@ -252,10 +248,15 @@ void main() {
     }
     expect(routed, isEmpty);
     expect(failure, isA<AssertionError>());
+    expect(
+      (failure! as AssertionError).message,
+      '[restage] surfaceEvent refused authored event dispatch: dispatcher '
+      'ownership is ambiguous.',
+    );
   });
 
   test('onboardingEvent rejects the wrong payload type statically', () async {
-    final result = await _analyzeNegativeSample(
+    final result = await staticAnalysisErrors(
       fileName: 'wrong_onboarding_event_payload.dart',
       source: '''
 import 'package:restage/restage.dart';
@@ -267,10 +268,14 @@ void main() {
 ''',
     );
 
-    expect(result.exitCode, isNot(0), reason: result.output);
-    expect(result.output, contains('String'));
-    expect(result.output, contains('int'));
-  });
+    expect(
+      result.map((d) => d.diagnosticCode.lowerCaseName),
+      ['could_not_infer'],
+      reason: describeDiagnostics(result),
+    );
+    expect(result.single.message, contains("'String'"));
+    expect(result.single.message, contains("'int'"));
+  }, timeout: staticAnalysisTimeout);
 
   testWidgets(
       'onboardingEvent invoked with no dispatcher mounted asserts/reports',
@@ -303,40 +308,4 @@ void main() {
 
     expect(routedTo, isNull);
   });
-}
-
-Future<_AnalyzeResult> _analyzeNegativeSample({
-  required String fileName,
-  required String source,
-}) async {
-  final negativeDir = Directory('.dart_tool/restage_negative_tests');
-  negativeDir.createSync(recursive: true);
-  final negativeFile = File('${negativeDir.path}/$fileName');
-  negativeFile.writeAsStringSync(source);
-  addTearDown(() {
-    if (negativeFile.existsSync()) {
-      negativeFile.deleteSync();
-    }
-  });
-
-  final result = await Process.run(
-    'dart',
-    <String>['analyze', negativeFile.path],
-    workingDirectory: Directory.current.path,
-  );
-
-  return _AnalyzeResult(
-    exitCode: result.exitCode,
-    output: '${result.stdout}\n${result.stderr}',
-  );
-}
-
-final class _AnalyzeResult {
-  const _AnalyzeResult({
-    required this.exitCode,
-    required this.output,
-  });
-
-  final int exitCode;
-  final String output;
 }

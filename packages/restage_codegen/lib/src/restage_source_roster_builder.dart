@@ -11,6 +11,7 @@ import 'package:restage_codegen/src/helper_registry.dart'
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
+import 'package:restage_codegen/src/restage_sdk_compatibility.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
@@ -86,6 +87,11 @@ final class RestageSourceRosterBuilder implements Builder {
       _plan,
       builderKey: 'restage_codegen:restage_source_roster',
     );
+
+    if (await restageSdkIncompatibility(buildStep) case final problem?) {
+      log.severe(problem);
+      return;
+    }
 
     final packageName = buildStep.inputId.package;
     final roster = await collectRestageSourceRoster(buildStep, plan: _plan);

@@ -12,8 +12,10 @@ export 'src/authoring/onboarding_event.dart';
 export 'src/authoring/onboarding_event_dispatcher.dart'
     hide
         currentSurfaceEventDispatcherOwner,
+        DeclaredEventDispatcher,
         RestageFlowEventRegistration,
         RestageFlowEventHandlerAssociation,
+        surfaceEventDispatcherFor,
         surfaceEventDispatcherOf,
         surfaceEventDispatcherOwnerOf;
 export 'src/authoring/onboarding_source.dart';

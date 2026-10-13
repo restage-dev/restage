@@ -29,7 +29,7 @@ void main() {
       final visitor = source.substring(
         visitorStart,
         source.indexOf(
-          '\nvoid _addMigrationNotices',
+          '\n/// Normalizes a Dart documentation comment',
           visitorStart,
         ),
       );
@@ -84,36 +84,6 @@ class Probe {
           ('enabled', false, false, 'Whether the probe is enabled.'),
         ],
       );
-    });
-
-    test('announces newly inferred inputs on otherwise legacy authoring',
-        () async {
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-/// A mixed-authoring probe.
-$_annotation
-class Probe {
-  const Probe({required this.legacy, required this.inferred});
-
-  /// Explicit legacy input.
-  @RestageProperty()
-  final String legacy;
-
-  /// Newly inferred input.
-  final String inferred;
-}
-''',
-      });
-
-      final notices = result.issues
-          .where(
-            (issue) => issue.code == IssueCode.constructorCatalogMigration,
-          )
-          .toList();
-      expect(notices, hasLength(1));
-      expect(notices.single.location, 'lib/probe.dart#Probe.inferred');
     });
 
     test('constructor requiredness is authoritative on every target', () async {
@@ -238,26 +208,26 @@ class Probe {
         expect(
           flat,
           contains(
-            'if (_restagePresence$property.supplied) '
+            'if (restagePresence$property.supplied) '
             '#${property[0].toLowerCase()}${property.substring(1)}:',
           ),
         );
       }
       expect(
         flat,
-        contains('source.v<bool>(_restagePresenceEnabled.valuePath)'),
+        contains('source.v<bool>(restagePresenceEnabled.valuePath)'),
       );
       expect(
         flat,
-        contains('source.v<int>(_restagePresenceCount.valuePath)'),
+        contains('source.v<int>(restagePresenceCount.valuePath)'),
       );
       expect(
         flat,
-        contains('source.v<String>(_restagePresenceLabel.valuePath)'),
+        contains('source.v<String>(restagePresenceLabel.valuePath)'),
       );
       expect(
         flat,
-        contains('_restagePresenceMode.valuePath'),
+        contains('restagePresenceMode.valuePath'),
       );
       expect(flat, isNot(contains('?? true')));
       expect(flat, isNot(contains('?? 3')));
@@ -393,7 +363,7 @@ class Probe {
       expect(
         factory,
         contains(
-          'ArgumentDecoders.color(source, _restagePresenceColor.valuePath)',
+          'ArgumentDecoders.color(source, restagePresenceColor.valuePath)',
         ),
       );
       expect(factory, isNot(contains('Color.new(4279383126)')));
@@ -444,7 +414,7 @@ class Probe {
       expect(factory, contains('RestageRfwConstructorPresence.read('));
       expect(
         factory,
-        contains('source.v<int>(_restagePresenceRetries.valuePath)'),
+        contains('source.v<int>(restagePresenceRetries.valuePath)'),
       );
       expect(factory, isNot(contains('Tokens.retries')));
     });
@@ -486,7 +456,7 @@ class Probe {
       expect(factory, contains('RestageRfwConstructorPresence.read('));
       expect(
         factory,
-        contains('source.v<int>(_restagePresenceRetries.valuePath)'),
+        contains('source.v<int>(restagePresenceRetries.valuePath)'),
       );
       expect(factory, isNot(contains('Tokens.retries')));
     });
@@ -1428,8 +1398,7 @@ class Probe {
       expect(result.exclusions.single.property, 'hostState');
     });
 
-    test('announces annotated inputs inherited past the legacy field walk',
-        () async {
+    test('admits annotated inherited inputs without diagnostics', () async {
       final result = await runWidgetVisitorOn({
         'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -1458,29 +1427,7 @@ class Probe extends BaseProbe {
 ''',
       });
 
-      final notices = result.issues
-          .where(
-            (issue) => issue.code == IssueCode.constructorCatalogMigration,
-          )
-          .toList();
-      expect(result.issues, hasLength(2));
-      expect(notices, hasLength(2));
-      expect(
-        notices.map((issue) => issue.location),
-        containsAll([
-          'lib/probe.dart#Probe.backingAnnotated',
-          'lib/probe.dart#Probe.locallyAnnotated',
-        ]),
-      );
-      expect(
-        notices.map((issue) => issue.message),
-        everyElement(
-          contains(
-            'Legacy catalog discovery only admitted @RestageProperty fields '
-            'declared directly on Probe.',
-          ),
-        ),
-      );
+      expect(result.issues, isEmpty);
       expect(
         result.widgets.single.properties
             .map(
@@ -1863,8 +1810,7 @@ class Probe {
       );
     });
 
-    test('annotated legacy fields migrate explicitly to constructor order',
-        () async {
+    test('annotated fields follow constructor order', () async {
       final result = await runWidgetVisitorOn({
         'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -1889,20 +1835,11 @@ class Probe {
         result.widgets.single.properties.map((property) => property.name),
         ['first', 'second'],
       );
-      expect(
-        result.issues.where(
-          (issue) => issue.code == IssueCode.constructorCatalogMigration,
-        ),
-        hasLength(1),
-      );
+      expect(result.issues, isEmpty);
     });
 
-    test(
-        'a widget with no property annotations still announces every input '
-        'it newly admits', () async {
-      // Under the older rule this class produced a widget with ZERO
-      // properties. It now produces two. Saying nothing about that is the
-      // largest silent change of the lot.
+    test('a widget with no property annotations admits every input silently',
+        () async {
       final result = await runWidgetVisitorOn({
         'lib/probe.dart': '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -1921,80 +1858,10 @@ class Probe {
 ''',
       });
 
-      final notices = result.issues
-          .where(
-            (issue) => issue.code == IssueCode.constructorCatalogMigration,
-          )
-          .toList();
-      expect(notices, hasLength(2));
+      expect(result.issues, isEmpty);
       expect(
-        notices.map((issue) => issue.location),
-        containsAll([
-          'lib/probe.dart#Probe.title',
-          'lib/probe.dart#Probe.subtitle',
-        ]),
-      );
-    });
-
-    test(
-        'an explicit required: false on a Dart-required formal announces '
-        'that the constructor wins', () async {
-      // The one real behavioural change in the shipped corpus: the annotation
-      // says optional, the constructor says required, and the constructor is
-      // authoritative. The property silently becomes required today.
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-/// A conflicting-authoring probe.
-$_annotation
-class Probe {
-  const Probe({required this.children});
-
-  /// The children.
-  @RestageProperty(description: 'The children.', required: false)
-  final String children;
-}
-''',
-      });
-
-      final notices = result.issues
-          .where(
-            (issue) => issue.code == IssueCode.constructorCatalogMigration,
-          )
-          .toList();
-      expect(notices, hasLength(1));
-      expect(notices.single.location, 'lib/probe.dart#Probe.children');
-      expect(notices.single.message, contains('children'));
-      expect(notices.single.message.toLowerCase(), contains('required'));
-    });
-
-    test('a bare @RestageProperty on a required formal announces nothing',
-        () async {
-      // Guard against the noisy version of the rule. Omitting `required` is
-      // not a claim that the input is optional, so there is no disagreement
-      // to announce and no notice belongs here.
-      final result = await runWidgetVisitorOn({
-        'lib/probe.dart': '''
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-/// A plain-authoring probe.
-$_annotation
-class Probe {
-  const Probe({required this.label});
-
-  /// The label.
-  @RestageProperty(description: 'The label.')
-  final String label;
-}
-''',
-      });
-
-      expect(
-        result.issues.where(
-          (issue) => issue.code == IssueCode.constructorCatalogMigration,
-        ),
-        isEmpty,
+        result.widgets.single.properties.map((property) => property.name),
+        ['title', 'subtitle'],
       );
     });
   });

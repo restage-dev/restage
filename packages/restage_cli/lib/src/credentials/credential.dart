@@ -12,6 +12,11 @@ class CredentialKind {
   /// `<keyId>:<key>` pair returned by the auth-server's sign-in flow.
   /// Sent on the wire as `Authorization: basic <base64(authToken)>`.
   static const authKey = 'authKey';
+
+  /// Secret key read from the environment for one invocation and sent as
+  /// `Authorization: Bearer <authToken>`. Never written to the credentials
+  /// file.
+  static const secretKey = 'secretKey';
 }
 
 /// One stored credential, persisted as JSON in the user's config

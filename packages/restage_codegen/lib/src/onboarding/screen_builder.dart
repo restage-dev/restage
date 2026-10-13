@@ -290,7 +290,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       rootState: source.build.state,
       rootParams: source.build.rootParams,
       rootEventHandlers: source.build.eventHandlers,
-      rootLocalBindings: source.build.localBindings,
+      rootInlined: source.build.inlined,
     );
     if (_collectTranslationIssues(
       issues,
@@ -551,7 +551,7 @@ final class OnboardingScreenBuilder implements Builder {
         rootState: src.build.state,
         rootParams: src.build.rootParams,
         rootEventHandlers: src.build.eventHandlers,
-        rootLocalBindings: src.build.localBindings,
+        rootInlined: src.build.inlined,
       );
       if (_collectTranslationIssues(
         issues,

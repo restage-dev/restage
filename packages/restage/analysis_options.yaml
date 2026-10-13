@@ -23,3 +23,5 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Skill examples compile in a consumer app; their generated parts don't exist here.
+    - skills/**

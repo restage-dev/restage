@@ -7,9 +7,11 @@ import 'package:dart_mcp/server.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/api.dart';
+import 'package:restage_cli/restage_cli.dart' show RestageCli;
 import 'package:stream_channel/stream_channel.dart';
 
 import 'api_runner.dart';
+import 'auth.dart';
 import 'canonical_mutation_tool.dart';
 import 'experiment_activation_tool.dart';
 import 'experiment_apply_tool.dart';
@@ -33,6 +35,14 @@ const _loginPollBudget = Duration(seconds: 30);
 
 /// The server version reported to MCP hosts. Keep in sync with `pubspec.yaml`.
 const restageMcpVersion = '0.1.0';
+
+/// Runs `restage build push` with [args]; the default runs the CLI in process.
+typedef BuildPushRunner =
+    Future<int> Function(
+      List<String> args, {
+      required StringSink stdout,
+      required StringSink stderr,
+    });
 
 /// The Restage MCP server.
 ///
@@ -66,6 +76,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     DateTime Function()? now,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
+    BuildPushRunner? buildPush,
   }) {
     final gate = InFlightGate();
     return RestageMcpServer._(
@@ -79,6 +90,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       now: now,
       experimentActivationApi: experimentActivationApi,
       environment: environment,
+      buildPush: buildPush,
     );
   }
 
@@ -93,8 +105,10 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     DateTime Function()? now,
     ExperimentActivationApi? experimentActivationApi,
     Map<String, String>? environment,
+    BuildPushRunner? buildPush,
   }) : _credentialStore = credentialStore,
        _httpClient = httpClient,
+       _buildPush = buildPush,
        _sleep = sleep ?? _defaultSleep,
        _openBrowser = openBrowser ?? _defaultOpenBrowser,
        _loginEndpoint = loginEndpoint,
@@ -127,6 +141,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     registerTool(_surfaceStatusTool, _scrubbed(_handleSurfaceStatus));
     registerTool(_surfaceHistoryTool, _scrubbed(_handleSurfaceHistory));
     registerTool(_pushSurfaceTool, _scrubbed(_handlePushSurface));
+    registerTool(
+      _listRenderBundleHeadsTool,
+      _scrubbed(_handleListRenderBundleHeads),
+    );
+    registerTool(_pushBuildTool, _scrubbed(_handlePushBuild));
     registerTool(_rollbackPreflightTool, _scrubbed(_handleRollbackPreflight));
     registerTool(_rollbackSurfaceTool, _scrubbed(_handleRollbackSurface));
     for (final routing in <(Tool, _RoutingHandler)>[
@@ -284,6 +303,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   final InFlightGate _gate;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
+  final BuildPushRunner? _buildPush;
   final Future<void> Function(Duration) _sleep;
   final Future<void> Function(String) _openBrowser;
   final Uri? _loginEndpoint;
@@ -516,6 +536,61 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'surfaceSlug',
         'environmentSlug',
       ],
+    ),
+  );
+
+  static final _listRenderBundleHeadsTool = Tool(
+    name: 'restage_list_render_bundle_heads',
+    description:
+        "List the heads an app's build holds: one per environment plus one "
+        'per user, each with the version it points at, the commit it was '
+        'built from, and the app widget libraries that version registers. '
+        'A surface that uses app widgets displays in the dashboard only '
+        'through a build that registers them.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'organizationId': _organizationIdProperty,
+      },
+      required: ['projectSlug', 'appSlug'],
+    ),
+  );
+
+  static final _pushBuildTool = Tool(
+    name: 'restage_push_build',
+    description:
+        "Build the app's registered widgets and push the build as a render "
+        'bundle, the same as `restage build push`. Moves an environment head '
+        'when environmentSlug is given (an admin or a push-scoped key), or '
+        "the signed-in user's own head. Runs the Flutter web build, so it "
+        'can take minutes. An unchanged build uploads nothing.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectDirectory': Schema.string(
+          description:
+              'Directory to start the restage_config.yaml search from; the '
+              "app's Flutter project.",
+        ),
+        'environmentSlug': Schema.string(
+          description:
+              'The environment head to move. Omit to push to your own head.',
+        ),
+        'projectSlug': Schema.string(
+          description: 'Project slug (overrides restage_config.yaml).',
+        ),
+        'appSlug': Schema.string(
+          description: 'App slug (overrides restage_config.yaml).',
+        ),
+        'organizationSlug': Schema.string(
+          description: 'Organization slug (overrides restage_config.yaml).',
+        ),
+        'recordGit': Schema.bool(
+          description:
+              'Record the push as a release receipt in the repository.',
+        ),
+      },
+      required: ['projectDirectory'],
     ),
   );
 
@@ -1023,7 +1098,16 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: organizationId,
       );
-      return jsonResult(<String, Object?>{'version': version});
+      final notice = await _buildNotice(
+        api,
+        request,
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: paywallSlug,
+      );
+      return jsonResult(<String, Object?>{
+        'version': version,
+        if (notice != null) 'buildNotice': notice,
+      });
     });
   }
 
@@ -1166,9 +1250,151 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: request.optInt('organizationId'),
       );
-      return jsonResult(<String, Object?>{'version': version});
+      final notice = await _buildNotice(
+        api,
+        request,
+        surfaceType: surfaceType,
+        surfaceSlug: request.str('surfaceSlug'),
+      );
+      return jsonResult(<String, Object?>{
+        'version': version,
+        if (notice != null) 'buildNotice': notice,
+      });
     });
   }
+
+  /// The render-bundle client bound to the same credential [api] holds.
+  Future<RenderBundleApi> _renderBundles(RestageApi api) async {
+    final credential = await _store.read();
+    if (credential == null) throw const NotSignedInException();
+    return RenderBundleApi(
+      rpc: api,
+      apiEndpoint: Uri.parse(credential.endpoint),
+      credential: credential,
+      uploadClient: _httpClient,
+    );
+  }
+
+  /// What a push should add when the environment's build cannot draw the
+  /// surface's app widgets. Best effort: a refused read adds nothing, the
+  /// push stands either way.
+  Future<String?> _buildNotice(
+    RestageApi api,
+    CallToolRequest request, {
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+  }) async {
+    final app = request.str('appSlug');
+    final environment = request.str('environmentSlug');
+    final bundles = await _renderBundles(api);
+    try {
+      final coverage = await bundles.coverage(
+        project: request.str('projectSlug'),
+        app: app,
+        surfaceType: surfaceType,
+        surfaceSlug: surfaceSlug,
+        environment: environment,
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
+        organizationId: request.optInt('organizationId'),
+      );
+      return renderBundleCoverageSentence(
+        required: coverage.required,
+        headVersion: coverage.headVersion,
+        registered: coverage.registered,
+        surfaceCount: 1,
+        app: app,
+        environment: environment,
+      );
+    } on RenderBundleUploadException {
+      return null;
+    } finally {
+      if (_httpClient == null) bundles.close();
+    }
+  }
+
+  /// Handle `restage_list_render_bundle_heads`.
+  Future<CallToolResult> _handleListRenderBundleHeads(CallToolRequest request) {
+    return _withApi('listing the build heads', surfaceNoun: 'paywall', (
+      api,
+    ) async {
+      final bundles = await _renderBundles(api);
+      try {
+        final heads = await bundles.listHeads(
+          project: request.str('projectSlug'),
+          app: request.str('appSlug'),
+          organizationId: request.optInt('organizationId'),
+        );
+        return jsonResult(<String, Object?>{
+          'heads': [
+            for (final head in heads)
+              <String, Object?>{
+                'head': head.head,
+                'version': head.version,
+                if (head.sourceCommit != null)
+                  'sourceCommit': head.sourceCommit,
+                'sourceDirty': head.sourceDirty,
+                'updatedAt': head.updatedAt.toIso8601String(),
+                if (head.ownerDisplayName != null)
+                  'ownerDisplayName': head.ownerDisplayName,
+                'libraries': head.libraries,
+              },
+          ],
+        });
+      } finally {
+        if (_httpClient == null) bundles.close();
+      }
+    });
+  }
+
+  /// Handle `restage_push_build` — the build push, in process.
+  Future<CallToolResult> _handlePushBuild(CallToolRequest request) async {
+    final stdout = StringBuffer();
+    final stderr = StringBuffer();
+    final args = <String>[
+      'build',
+      'push',
+      '-C',
+      request.str('projectDirectory'),
+      if (request.optStr('environmentSlug') case final environment?) ...[
+        '--env',
+        environment,
+      ],
+      if (request.optStr('projectSlug') case final project?) ...[
+        '--project',
+        project,
+      ],
+      if (request.optStr('appSlug') case final app?) ...['--app', app],
+      if (request.optStr('organizationSlug') case final organization?) ...[
+        '--organization',
+        organization,
+      ],
+      if (request.optBool('recordGit') ?? false) '--record-git',
+    ];
+    final run = _buildPush ?? _runCli;
+    final exitCode = await run(args, stdout: stdout, stderr: stderr);
+    final output = [
+      stdout.toString().trim(),
+      stderr.toString().trim(),
+    ].where((text) => text.isNotEmpty).join('\n');
+    final result = jsonResult(<String, Object?>{
+      'exitCode': exitCode,
+      'output': output,
+    });
+    return exitCode == 0 ? result : mcpError(output);
+  }
+
+  Future<int> _runCli(
+    List<String> args, {
+    required StringSink stdout,
+    required StringSink stderr,
+  }) => RestageCli(
+    stdout: stdout,
+    stderr: stderr,
+    credentialStore: _credentialStore,
+    httpClient: _httpClient,
+    hasTerminal: () => false,
+  ).run(args);
 
   /// Handle `restage_rollback_preflight` — the read-only cohort-impact
   /// preview. Informational only: it never mutates and never gates the

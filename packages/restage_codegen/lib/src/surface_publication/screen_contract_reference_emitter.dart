@@ -1,7 +1,4 @@
 // Analyzer-resolved standalone screen contracts and generated references.
-
-import 'dart:convert';
-
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
@@ -172,10 +169,14 @@ final class ResolvedStandaloneScreenContractInput
 }
 
 /// Emits a typed paywall mount using the same constructor contract as screens.
+///
+/// [appWidgetLibraries] returns the app widget registrations the mount
+/// installs, given the SDK prefix the part spells.
 ({String? source, String? omissionMessage}) emitPaywallMount(
   ResolvedWidgetMountInput input, {
   required String id,
   SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
+  String? Function(String sdkPrefix)? appWidgetLibraries,
 }) {
   final result = _resolveScreenMount(
     input,
@@ -192,6 +193,7 @@ final class ResolvedStandaloneScreenContractInput
     eventType: '${mount.sdk}RestageEvent',
     paywallId: id,
     vocabulary: vocabulary,
+    appWidgetLibraries: appWidgetLibraries?.call(mount.sdk),
   );
   return (source: buffer.toString(), omissionMessage: null);
 }
@@ -278,17 +280,17 @@ final class ResolvedStandaloneScreenContract {
   /// Generated render capabilities.
   CapabilityManifest get capabilities => input.capabilities;
 
-  /// Emits the deterministic Dart part containing the typed event contract and
-  /// `SurfaceScreenRef<E>` for this screen.
-  ///
-  /// The output contains no authoritative artifact path. A later aggregate
-  /// owner emits the manifest entry that selects the verified artifact closure.
+  /// Emits typed events and `SurfaceScreenRef<E>` for the screen.
+  /// The aggregate manifest supplies artifact paths. [appWidgetLibraries] maps
+  /// the SDK prefix to registrations installed by the reference.
   String emitReferenceDart({
     String? measurementPublicationDraftDigest,
+    String? Function(String sdkPrefix)? appWidgetLibraries,
   }) =>
       _emitReferenceDart(
         this,
         measurementPublicationDraftDigest: measurementPublicationDraftDigest,
+        appWidgetLibraries: appWidgetLibraries?.call(_sdkPrefix),
       );
 }
 
@@ -920,8 +922,9 @@ void _reportGeneratedSymbolCollisions(
                 .hasMatch(typeCode)) {
           return (
             constructor: null,
-            reason: '${_dartString(parameter.name)} depends on the screen type '
-                'parameter ${_dartString(name)}',
+            reason:
+                '${dartStringLiteral(parameter.name)} depends on the screen '
+                    'type parameter ${dartStringLiteral(name)}',
           );
         }
       }
@@ -930,7 +933,7 @@ void _reportGeneratedSymbolCollisions(
     return (
       constructor: null,
       reason: '${screen.name} declares the screen type parameter '
-          '${_dartString(name)}',
+          '${dartStringLiteral(name)}',
     );
   }
 
@@ -1001,13 +1004,14 @@ void _reportGeneratedSymbolCollisions(
       return (
         constructor: null,
         reason: '${screen.name} declares the reserved constructor parameter '
-            '${_dartString(name)}',
+            '${dartStringLiteral(name)}',
       );
     }
     if (root.mountDefaultProblem != null) {
       return (
         constructor: null,
-        reason: 'the default for ${_dartString(name)} has no visible spelling',
+        reason: 'the default for ${dartStringLiteral(name)} has no visible '
+            'spelling',
       );
     }
     final typeCode = root.typeCode;
@@ -1030,7 +1034,7 @@ void _reportGeneratedSymbolCollisions(
     if ((typeCode == null || typeCode.trim().isEmpty) && !implicitSuperKey) {
       return (
         constructor: null,
-        reason: '${_dartString(name)} has no reusable Dart type spelling',
+        reason: '${dartStringLiteral(name)} has no reusable Dart type spelling',
       );
     }
     _ResolvedMountDefaultBinding? defaultBinding;
@@ -1038,8 +1042,9 @@ void _reportGeneratedSymbolCollisions(
       if (typeCode == null || typeCode.trim().isEmpty) {
         return (
           constructor: null,
-          reason: 'the default for ${_dartString(name)} has no reusable Dart '
-              'type spelling',
+          reason:
+              'the default for ${dartStringLiteral(name)} has no reusable Dart '
+                  'type spelling',
         );
       }
       final bindingName = _mountDefaultBindingName(screen.name!, index);
@@ -1108,6 +1113,7 @@ RootContextParamKind _mountParameterKind(FormalParameterElement parameter) =>
 String _emitReferenceDart(
   ResolvedStandaloneScreenContract contract, {
   String? measurementPublicationDraftDigest,
+  String? appWidgetLibraries,
 }) {
   final screenName = contract.screen.name!;
   final screenStem = _pascalIdentifier(screenName, fallback: 'SurfaceScreen');
@@ -1120,7 +1126,7 @@ String _emitReferenceDart(
   final sdk = contract._sdkPrefix;
   final sourceFile = _fileName(contract.input.assetId.path);
   final buffer = StringBuffer()
-    ..writeln('part of ${_dartString(sourceFile)};')
+    ..writeln('part of ${dartStringLiteral(sourceFile)};')
     ..writeln();
 
   if (contract._events.isNotEmpty) {
@@ -1151,7 +1157,7 @@ String _emitReferenceDart(
     buffer
       ..writeln('final $eventContractName =')
       ..writeln('    ${sdk}SurfaceScreenEventContract<$eventBase>.generated(')
-      ..writeln('  hash: ${_dartString(contract.eventContractHash)},')
+      ..writeln('  hash: ${dartStringLiteral(contract.eventContractHash)},')
       ..writeln('  decodeValidated: $decoderName,')
       ..writeln(');')
       ..writeln();
@@ -1159,7 +1165,7 @@ String _emitReferenceDart(
     buffer
       ..writeln('final $eventContractName =')
       ..writeln('    const ${sdk}SurfaceScreenEventContract<Never>.none(')
-      ..writeln('  hash: ${_dartString(contract.eventContractHash)},')
+      ..writeln('  hash: ${dartStringLiteral(contract.eventContractHash)},')
       ..writeln(');')
       ..writeln();
   }
@@ -1183,13 +1189,13 @@ String _emitReferenceDart(
       '${sdk}SurfaceScreenRuntimeProvenance.generated(',
     )
     ..writeln('  surface: ${sdk}Surface.${contract.surface.name},')
-    ..writeln('  slug: ${_dartString(contract.slug)},')
+    ..writeln('  slug: ${dartStringLiteral(contract.slug)},')
     ..writeln('  contractVersion: ${contract.contractVersion},')
     ..writeln(
       '  capabilities: ${_capabilitySource(contract.capabilities, sdk)},',
     )
     ..writeln(
-      '  eventSchemaJson: ${_dartString(
+      '  eventSchemaJson: ${dartStringLiteral(
         SurfaceScreenEventSchemaV1Codec.encodeCanonicalJson(
           contract.eventSchema,
         ),
@@ -1197,7 +1203,7 @@ String _emitReferenceDart(
     );
   if (!contract.hostDataContract.isEmpty) {
     buffer.writeln(
-      '  hostDataSchemaJson: ${_dartString(
+      '  hostDataSchemaJson: ${dartStringLiteral(
         SurfaceScreenHostDataSchemaV1Codec.encodeCanonicalJson(
           contract.hostDataContract,
         ),
@@ -1210,11 +1216,13 @@ String _emitReferenceDart(
   // The provenance value is not const, so the vocabulary carries its own
   // keyword; it is emitted only when it names something installable, so the
   // source is always a constructor invocation.
-  if (contract.input.vocabulary.namesInstallable) {
+  if (contract.input.vocabulary.namesInstallable ||
+      appWidgetLibraries != null) {
     buffer.writeln(
       '  vocabulary: const ${emitSurfaceVocabulary(
         contract.input.vocabulary,
         sdkPrefix: sdk,
+        libraries: appWidgetLibraries,
       )},',
     );
   }
@@ -1229,7 +1237,7 @@ String _emitReferenceDart(
   if (measurementPublicationDraftDigest != null) {
     buffer.writeln(
       '  measurementPublicationDraftDigest: '
-      '${_dartString(measurementPublicationDraftDigest)},',
+      '${dartStringLiteral(measurementPublicationDraftDigest)},',
     );
   }
   buffer.writeln(');');
@@ -1244,7 +1252,7 @@ String _emitReferenceDart(
       ..writeln('  switch (name) {');
     for (final event in _eventsInSchemaOrder(contract)) {
       final eventClass = _eventClassName(screenStem, event.field.name);
-      buffer.writeln('    case ${_dartString(event.id)}:');
+      buffer.writeln('    case ${dartStringLiteral(event.id)}:');
       if (event.dartShape == null) {
         buffer.writeln('      return const $eventClass();');
       } else {
@@ -1259,8 +1267,9 @@ String _emitReferenceDart(
     buffer
       ..writeln('  }')
       ..writeln(
-        '  throw FormatException(${_dartString('Invalid $screenStem event "')}'
-        ' + name + ${_dartString('".')} );',
+        '  throw FormatException(${dartStringLiteral(
+          'Invalid $screenStem event "\u0000".',
+        ).replaceFirst(r'\u0000', r'$name')});',
       )
       ..writeln('}');
   }
@@ -1285,6 +1294,7 @@ void _emitScreenMount(
   required String eventType,
   String? paywallId,
   SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
+  String? appWidgetLibraries,
 }) {
   final paywall = paywallId != null;
   final unavailableControl = paywall ? 'errorBuilder' : 'onUnavailable';
@@ -1411,9 +1421,13 @@ void _emitScreenMount(
     );
   // A screen mount installs through the vocabulary its reference carries. A
   // paywall mount names no reference, so it installs here instead.
-  if (paywall && vocabulary.namesInstallable) {
+  if (paywall && (vocabulary.namesInstallable || appWidgetLibraries != null)) {
     buffer.writeln(
-      '    const ${emitSurfaceVocabulary(vocabulary, sdkPrefix: sdk)}'
+      '    const ${emitSurfaceVocabulary(
+        vocabulary,
+        sdkPrefix: sdk,
+        libraries: appWidgetLibraries,
+      )}'
       '.addToInstalled();',
     );
   }
@@ -1427,7 +1441,7 @@ void _emitScreenMount(
         parameter.requiresStorage &&
         parameter.name == 'key' &&
         fallbackArguments.any((entry) => entry.$2 == 'key')) {
-      buffer.writeln('    final key = this.${parameter.slotName};');
+      buffer.writeln('    final key = ${parameter.slotName};');
     }
   }
   buffer
@@ -1438,7 +1452,7 @@ void _emitScreenMount(
     )
     ..writeln(
       paywall
-          ? '      id: ${_dartString(paywallId)},'
+          ? '      id: ${dartStringLiteral(paywallId)},'
           : '      screen: $refName,',
     );
   final hostParameters =
@@ -1446,9 +1460,9 @@ void _emitScreenMount(
   if (hostParameters.isNotEmpty) {
     buffer.writeln('      context: <String, Object?>{');
     for (final parameter in hostParameters) {
-      final source = 'this.${parameter.slotName}';
+      final source = parameter.slotName;
       buffer.writeln(
-        '        ${_dartString(parameter.name)}: '
+        '        ${dartStringLiteral(parameter.name)}: '
         '${_mountHostDataValue(parameter.root.hostDataShape!, source)},',
       );
     }
@@ -1525,7 +1539,7 @@ String _mountObjectValue(
 ) {
   final fields = shape.fields.map((field) {
     final value = '$source.${field.wireKey}';
-    return '${_dartString(field.wireKey)}: '
+    return '${dartStringLiteral(field.wireKey)}: '
         '${_mountHostDataValue(field.shape, value, depth + 1)}';
   });
   return '<String, Object?>{${fields.join(', ')}}';
@@ -1579,21 +1593,21 @@ String? _resolveBundleLocatorSource(
       'assets/$surfaceKey/screens/${contract.slug}.capability.json';
   final buffer = StringBuffer()
     ..writeln('${sdk}SurfaceScreenBundleLocator(')
-    ..writeln('  assetKey: ${_dartString(assetKey)},')
-    ..writeln('  packageName: ${_dartString(assetId.package)},')
-    ..writeln('  authoredLibraryPath: ${_dartString(assetId.path)},')
+    ..writeln('  assetKey: ${dartStringLiteral(assetKey)},')
+    ..writeln('  packageName: ${dartStringLiteral(assetId.package)},')
+    ..writeln('  authoredLibraryPath: ${dartStringLiteral(assetId.path)},')
     ..writeln('  entries: [')
     ..writeln('    ${sdk}SurfaceScreenBundleEntryReference(')
-    ..writeln('      logicalPath: ${_dartString(blobPath)},')
+    ..writeln('      logicalPath: ${dartStringLiteral(blobPath)},')
     ..writeln('      role: ${sdk}RestageBundleEntryRole.screenBlob,')
     ..writeln('      byteLength: ${metadata.blobByteLength},')
-    ..writeln('      sha256: ${_dartString(metadata.blobSha256)},')
+    ..writeln('      sha256: ${dartStringLiteral(metadata.blobSha256)},')
     ..writeln('    ),')
     ..writeln('    ${sdk}SurfaceScreenBundleEntryReference(')
-    ..writeln('      logicalPath: ${_dartString(sidecarPath)},')
+    ..writeln('      logicalPath: ${dartStringLiteral(sidecarPath)},')
     ..writeln('      role: ${sdk}RestageBundleEntryRole.capabilitySidecar,')
     ..writeln('      byteLength: ${metadata.sidecarByteLength},')
-    ..writeln('      sha256: ${_dartString(metadata.sidecarSha256)},')
+    ..writeln('      sha256: ${dartStringLiteral(metadata.sidecarSha256)},')
     ..writeln('    ),')
     ..writeln('  ],')
     ..write(')');
@@ -1608,7 +1622,7 @@ String _capabilitySource(CapabilityManifest capabilities, String sdk) {
   for (final requirement in capabilities.requiredLibraries) {
     buffer
       ..writeln('    ${sdk}LibraryRequirement(')
-      ..writeln('      namespace: ${_dartString(requirement.namespace)},')
+      ..writeln('      namespace: ${dartStringLiteral(requirement.namespace)},')
       ..writeln('      minVersion: ${requirement.minVersion},')
       ..writeln('    ),');
   }
@@ -1842,8 +1856,6 @@ String _fileStem(String path) {
       : fileName;
 }
 
-String _dartString(String value) => jsonEncode(value).replaceAll(r'$', r'\$');
-
 // Both name derivations live in generated_handle_names.dart so the screen and
 // flow frontends spell one rule. These aliases keep the call sites unchanged.
 const String Function(String, {required String fallback}) _pascalIdentifier =
@@ -1893,7 +1905,8 @@ final class _ResolvedMountConstructorContract {
         (parameter) =>
             parameter.isKey &&
             parameter.isNullableKey &&
-            !parameter.usesStatelessWidgetSuperFormal,
+            !parameter.usesStatelessWidgetSuperFormal &&
+            !parameter.forwardsAsSuperKey,
       )
       .firstOrNull
       ?.name;
@@ -1931,13 +1944,26 @@ final class _ResolvedMountParameter {
       final type = root.hasExplicitType ? '$typeCode ' : '';
       return '$required${type}super.$name$defaultSource';
     }
+    if (forwardsAsSuperKey) {
+      final type = _isFlutterKey(root.type) ? '' : '$typeCode ';
+      return '${type}super.key$defaultSource';
+    }
     return '$required$typeCode $name$defaultSource';
   }
 
   String get fallbackSource {
     if (isKey && (!requiresStorage || name == 'key')) return name;
-    return 'this.$slotName';
+    return slotName;
   }
+
+  /// An optional named `key` the mount passes straight to its own super key.
+  bool get forwardsAsSuperKey =>
+      isKey &&
+      isNullableKey &&
+      !usesStatelessWidgetSuperFormal &&
+      name == 'key' &&
+      kind == RootContextParamKind.named &&
+      !isRequired;
 
   /// Whether this key parameter can carry a Flutter key the mount forwards.
   bool get isNullableKey =>
@@ -1964,6 +1990,11 @@ final class _ResolvedMountDefaultBinding {
   final String typeCode;
   final String expressionCode;
 }
+
+bool _isFlutterKey(DartType type) =>
+    type is InterfaceType &&
+    type.element.name == 'Key' &&
+    libraryUriMatchesOrigin(type.element.library.identifier, _flutterOrigin);
 
 bool _requiresMountStorage(RootContextParam parameter) {
   if (!parameter.forwardsFlutterKey) return true;

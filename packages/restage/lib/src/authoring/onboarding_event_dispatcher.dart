@@ -34,11 +34,41 @@ SurfaceEventHandler? activeSurfaceEventDispatcher() {
     );
     return null;
   }
-  final dispatcher = _dispatchers.single._capture(binding: null);
+  return _captureOrRefuse(_dispatchers.single);
+}
+
+/// Returns the dispatcher for [eventId]: the sole mounted one, or else the
+/// only mounted one whose surface declares that event.
+SurfaceEventHandler? surfaceEventDispatcherFor(String eventId) {
+  if (_dispatchers.length < 2) return activeSurfaceEventDispatcher();
+  _RestageEventDispatcherState? declaring;
+  for (final dispatcher in _dispatchers) {
+    if (!dispatcher._declares(eventId)) continue;
+    if (declaring != null) {
+      // Names only generated screen ids, never the authored event or value.
+      recordAuthoringDispatcherRefusal(
+        AuthoringRefusalKind.ambiguousDispatcher,
+        detail: 'more than one mounted surface declares the event: '
+            '${declaring._surfaceName}, ${dispatcher._surfaceName}',
+      );
+      return null;
+    }
+    declaring = dispatcher;
+  }
+  if (declaring == null) {
+    recordAuthoringDispatcherRefusal(AuthoringRefusalKind.ambiguousDispatcher);
+    return null;
+  }
+  return _captureOrRefuse(declaring);
+}
+
+SurfaceEventHandler? _captureOrRefuse(
+  _RestageEventDispatcherState owner, {
+  RestageFlowEventDispatchBinding? binding,
+}) {
+  final dispatcher = owner._capture(binding: binding);
   if (dispatcher == null) {
-    recordAuthoringDispatcherRefusal(
-      AuthoringRefusalKind.ambiguousDispatcher,
-    );
+    recordAuthoringDispatcherRefusal(AuthoringRefusalKind.ambiguousDispatcher);
   }
   return dispatcher;
 }
@@ -52,15 +82,10 @@ SurfaceEventHandler? surfaceEventDispatcherOf(BuildContext context) {
     );
     return null;
   }
-  final dispatcher = scope._capture(
+  return _captureOrRefuse(
+    scope._owner,
     binding: RestageFlowEventDispatchScope.maybeOf(context),
   );
-  if (dispatcher == null) {
-    recordAuthoringDispatcherRefusal(
-      AuthoringRefusalKind.ambiguousDispatcher,
-    );
-  }
-  return dispatcher;
 }
 
 Object? surfaceEventDispatcherOwnerOf(BuildContext context) => context
@@ -280,6 +305,21 @@ class _RestageFlowEventHandlerAssociationState
   Widget build(BuildContext context) => widget.child;
 }
 
+/// A dispatcher bound to one surface that names the events it declares, so
+/// context-free events resolve to it when several surfaces are mounted.
+final class DeclaredEventDispatcher extends RestageEventDispatcher {
+  const DeclaredEventDispatcher({
+    super.key,
+    required this.surfaceName,
+    required this.declares,
+    required super.onEvent,
+    required super.child,
+  });
+
+  final String surfaceName;
+  final bool Function(String eventId) declares;
+}
+
 /// Deprecated compatibility spelling for [RestageEventDispatcher].
 @Deprecated('Use RestageEventDispatcher instead.')
 typedef RestageOnboardingEventDispatcher = RestageEventDispatcher;
@@ -290,6 +330,18 @@ class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
     super.initState();
     _dispatchers.add(this);
   }
+
+  bool _declares(String eventId) {
+    final dispatcher = widget;
+    if (!mounted || dispatcher is! DeclaredEventDispatcher) return false;
+    try {
+      return dispatcher.declares(eventId);
+    } on Object {
+      return false;
+    }
+  }
+
+  String get _surfaceName => (widget as DeclaredEventDispatcher).surfaceName;
 
   SurfaceEventHandler? _capture({
     required RestageFlowEventDispatchBinding? binding,
@@ -336,11 +388,6 @@ final class _RestageEventDispatcherScope extends InheritedWidget {
 
   final _RestageEventDispatcherState _owner;
   final SurfaceEventHandler _handler;
-
-  SurfaceEventHandler? _capture({
-    required RestageFlowEventDispatchBinding? binding,
-  }) =>
-      _owner._capture(binding: binding);
 
   @override
   bool updateShouldNotify(_RestageEventDispatcherScope oldWidget) =>

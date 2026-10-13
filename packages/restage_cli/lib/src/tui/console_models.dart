@@ -111,6 +111,36 @@ class ConsoleSurface {
   final bool hasManifestIdentity;
 }
 
+/// One head of the app's build, as the console shows it.
+class ConsoleBuildHead {
+  const ConsoleBuildHead({
+    required this.head,
+    required this.version,
+    required this.libraries,
+    required this.updatedAt,
+    this.sourceCommit,
+    this.sourceDirty = false,
+  });
+
+  /// The environment slug, or `user/<handle>`.
+  final String head;
+
+  /// The version this head points at.
+  final int version;
+
+  /// The app widget libraries that version registers, by namespace.
+  final Map<String, int> libraries;
+
+  /// When the head last moved.
+  final DateTime updatedAt;
+
+  /// The commit the build came from, when the push knew it.
+  final String? sourceCommit;
+
+  /// Whether that commit's tree carried local changes.
+  final bool sourceDirty;
+}
+
 class ConsoleActivityEntry {
   const ConsoleActivityEntry({
     required this.operation,
@@ -132,6 +162,7 @@ class ConsoleSnapshot {
     required this.apps,
     required this.environments,
     required this.surfaces,
+    this.builds = const [],
   });
 
   final ConsoleContext context;
@@ -139,6 +170,9 @@ class ConsoleSnapshot {
   final List<ConsoleAppTarget> apps;
   final List<ConsoleEnvironmentTarget> environments;
   final List<ConsoleSurface> surfaces;
+
+  /// The heads the selected app's build holds.
+  final List<ConsoleBuildHead> builds;
 }
 
 class ConsoleState {
@@ -155,6 +189,7 @@ class ConsoleState {
     this.apps = const [],
     this.environments = const [],
     this.surfaces = const [],
+    this.builds = const [],
     this.status,
     this.auditLog = const [],
     this.auditVerdict,
@@ -176,6 +211,7 @@ class ConsoleState {
       apps = const [],
       environments = const [],
       surfaces = const [],
+      builds = const [],
       status = null,
       auditLog = const [],
       auditVerdict = null,
@@ -190,6 +226,7 @@ class ConsoleState {
   final List<ConsoleAppTarget> apps;
   final List<ConsoleEnvironmentTarget> environments;
   final List<ConsoleSurface> surfaces;
+  final List<ConsoleBuildHead> builds;
   final ConsolePanel focusedPanel;
   final int projectIndex;
   final int appIndex;
@@ -208,6 +245,16 @@ class ConsoleState {
     return surfaces[index];
   }
 
+  /// The build head the selected environment renders through, if any.
+  ConsoleBuildHead? get selectedBuild {
+    final environment = selectedEnvironment;
+    if (environment == null) return null;
+    for (final build in builds) {
+      if (build.head == environment.slug) return build;
+    }
+    return null;
+  }
+
   ConsoleEnvironmentTarget? get selectedEnvironment {
     if (environments.isEmpty) return null;
     final index = environmentIndex.clamp(0, environments.length - 1);
@@ -222,6 +269,7 @@ class ConsoleState {
     List<ConsoleAppTarget>? apps,
     List<ConsoleEnvironmentTarget>? environments,
     List<ConsoleSurface>? surfaces,
+    List<ConsoleBuildHead>? builds,
     ConsolePanel? focusedPanel,
     int? projectIndex,
     int? appIndex,
@@ -242,6 +290,7 @@ class ConsoleState {
     apps: apps ?? this.apps,
     environments: environments ?? this.environments,
     surfaces: surfaces ?? this.surfaces,
+    builds: builds ?? this.builds,
     focusedPanel: focusedPanel ?? this.focusedPanel,
     projectIndex: projectIndex ?? this.projectIndex,
     appIndex: appIndex ?? this.appIndex,
@@ -322,4 +371,7 @@ abstract interface class ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
   });
+
+  /// Pushes the app's build to the context's environment head.
+  Future<ConsoleOperationResult> pushBuild({required ConsoleContext context});
 }

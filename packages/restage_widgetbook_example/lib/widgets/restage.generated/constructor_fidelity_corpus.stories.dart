@@ -17,13 +17,13 @@ part 'constructor_fidelity_corpus.stories.g.dart';
 
 const List<Map<String, String>> restageExclusions = [
   {
-    "widget": "ConstructorFidelityCorpus",
-    "property": "focusNode",
-    "target": "widgetbook",
-    "reason":
-        "Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum. Target: widgetbook.",
-    "location":
-        "lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode",
+    'widget': 'ConstructorFidelityCorpus',
+    'property': 'focusNode',
+    'target': 'widgetbook',
+    'reason':
+        'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum. Target: widgetbook.',
+    'location':
+        'lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode',
   },
 ];
 

@@ -11,6 +11,7 @@ import 'package:build/build.dart';
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/build_body.dart';
+import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/production_helpers.dart';
@@ -1590,7 +1591,7 @@ Future<TranslationResult> _translateBuildEntry(String source) async {
     parsed.rootExpression,
     entryId: 'entry',
     buildContextParameter: parsed.buildContextParameter,
-    rootLocalBindings: parsed.localBindings,
+    rootInlined: InlinedDefinitions(localBindings: parsed.localBindings),
   );
 }
 
@@ -1669,7 +1670,7 @@ Future<TranslationResult> _translateCustomBuildEntry(
     entry.rootExpression,
     entryId: 'entry',
     buildContextParameter: entry.buildContextParameter,
-    rootLocalBindings: entry.localBindings,
+    rootInlined: InlinedDefinitions(localBindings: entry.localBindings),
   );
 }
 

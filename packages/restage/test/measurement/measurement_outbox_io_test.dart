@@ -266,16 +266,20 @@ void main() {
 
       expect(firstRetry.outcome, MeasurementOutboxRetryOutcome.scheduled);
       expect(firstRetry.attempt, 0);
-      expect(firstRetry.nextRetryUtcMicros,
-          clock.now.microsecondsSinceEpoch + 1000000);
+      expect(
+          firstRetry.nextRetryUtcMicros,
+          inInclusiveRange(clock.now.microsecondsSinceEpoch + 750000,
+              clock.now.microsecondsSinceEpoch + 1250000));
       expect(await store.nextReady(), isNull);
-      clock.advance(const Duration(seconds: 1));
+      clock.advance(const Duration(milliseconds: 1250));
       final secondLease = await store.nextReady();
       expect(secondLease, isNotNull);
       final secondRetry = await store.scheduleRetry(secondLease!);
       expect(secondRetry.attempt, 1);
-      expect(secondRetry.nextRetryUtcMicros,
-          clock.now.microsecondsSinceEpoch + 2000000);
+      expect(
+          secondRetry.nextRetryUtcMicros,
+          inInclusiveRange(clock.now.microsecondsSinceEpoch + 1500000,
+              clock.now.microsecondsSinceEpoch + 2500000));
 
       clock.advance(kMeasurementOutboxMaximumRetention);
       final expired = await store.purgeExpired();

@@ -4,9 +4,7 @@ import 'package:flutter/foundation.dart' show ValueNotifier, mapEquals;
 import 'package:flutter/scheduler.dart' show FrameCallback, SchedulerBinding;
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' show RestageWidgetLibraryRegistration;
-import 'package:restage_preview_host/src/geometry_registry.dart';
-import 'package:restage_preview_host/src/protocol.dart';
-import 'package:restage_preview_host/src/raw_rfw_render_surface.dart';
+import 'render_core.dart';
 import 'package:rfw/rfw.dart' show RemoteEventHandler;
 
 /// Native renderer adapter with the same event and geometry contract as a

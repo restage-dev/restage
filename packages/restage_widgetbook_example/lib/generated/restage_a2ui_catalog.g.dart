@@ -673,10 +673,10 @@ List<CatalogItem> buildRestageCatalogItems() {
       },
     ),
     CatalogItem(
-      name: 'opaque_screen_proof',
+      name: 'get_started_screen',
       dataSchema: S.object(
         description:
-            'Native screen used to verify opaque A2UI and Widgetbook integration.\n\nOne authored class feeds RFW, A2UI, and Widgetbook in the normal build.',
+            'An onboarding screen with a Get started action.\n\nOne authored class feeds RFW, A2UI, and Widgetbook in the normal build.',
         properties: {
           'props': S.object(
             properties: {
@@ -762,19 +762,19 @@ List<CatalogItem> buildRestageCatalogItems() {
                           builder: (context, description) => BoundString(
                             dataContext: itemContext.dataContext,
                             value: props['usage'],
-                            builder: (context, usage) => p1.OpaqueScreenProof(
+                            builder: (context, usage) => p1.GetStartedScreen(
                               title: title ?? '',
                               enabled: enabled ?? true,
-                              tone: p1.OpaqueScreenProofTone.values
+                              tone: p1.GetStartedScreenTone.values
                                       .asNameMap()[tone] ??
-                                  p1.OpaqueScreenProofTone.calm,
+                                  p1.GetStartedScreenTone.calm,
                               data: data_2 ?? 'Example data',
                               context: context_2 ?? 'Example context',
                               itemContext:
                                   itemContext_2 ?? 'Example item context',
-                              restageA2uiStatus: p1.OpaqueScreenProofTone.values
+                              restageA2uiStatus: p1.GetStartedScreenTone.values
                                       .asNameMap()[restageA2uiStatus] ??
-                                  p1.OpaqueScreenProofTone.calm,
+                                  p1.GetStartedScreenTone.calm,
                               description: description ?? 'Example description',
                               usage: usage ?? 'Example usage',
                             ),
@@ -799,7 +799,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/fd06a7337ce4d1e322ee0015c570146394e4c239f652bf4d6b471dff72e4e710';
+    'restage:catalog/sha256/42c8c7168e4a45cb99c06c7048151f9adbd3c64e7e5db7e1be6c5caa72d7cb92';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -808,7 +808,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '0.9.1',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/fd06a7337ce4d1e322ee0015c570146394e4c239f652bf4d6b471dff72e4e710',
+      'sha256/42c8c7168e4a45cb99c06c7048151f9adbd3c64e7e5db7e1be6c5caa72d7cb92',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(
@@ -825,12 +825,12 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
     'PriceBadge': 1,
     'RequiredNullableWidgetProof': 1,
     'StatTile': 1,
-    'opaque_screen_proof': 1,
+    'get_started_screen': 1,
   },
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/fd06a7337ce4d1e322ee0015c570146394e4c239f652bf4d6b471dff72e4e710".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/42c8c7168e4a45cb99c06c7048151f9adbd3c64e7e5db7e1be6c5caa72d7cb92".',
   'BareCatalogCard: A card registered with only the bare Restage marker.',
   'CatalogShowcase: Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
   'ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.',
@@ -841,7 +841,7 @@ const List<String> _restageA2uiSystemPromptFragments = <String>[
   'PriceBadge: A compact price pill, e.g. "\$9.99 / mo".',
   'RequiredNullableWidgetProof: Executable RFW proof for required nullable and non-nullable widget inputs.',
   'StatTile: A labelled value tile, e.g. "Active users" over "1,204".',
-  'opaque_screen_proof: Use for the final action in a native onboarding flow.',
+  'get_started_screen: Use for the final action in a native onboarding flow.',
 ];
 
 /// Builds the generated custom-only GenUI catalog identified by
@@ -1365,12 +1365,12 @@ String? _restageA2uiEnumName(Object? rawValue) =>
     rawValue is Enum ? rawValue.name : rawValue?.toString();
 const List<Map<String, String>> $RestageExclusions = [
   {
-    "widget": "ConstructorFidelityCorpus",
-    "property": "focusNode",
-    "target": "a2ui",
-    "reason":
-        "Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum, and List<scalar> (String, int, double, num, or bool). Target: a2ui.",
-    "location":
-        "lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode",
+    'widget': 'ConstructorFidelityCorpus',
+    'property': 'focusNode',
+    'target': 'a2ui',
+    'reason':
+        'Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum, and List<scalar> (String, int, double, num, or bool). Target: a2ui.',
+    'location':
+        'lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode',
   },
 ];

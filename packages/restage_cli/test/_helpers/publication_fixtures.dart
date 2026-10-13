@@ -99,16 +99,21 @@ Future<SurfacePublicationManifestEntry> seedGeneratedPaywall(
   List<int>? blob,
   List<String> sources = const <String>[],
   Surface surface = Surface.paywall,
+  List<LibraryRequirement> requiredLibraries = const [],
 }) async {
   final exactBlob = Uint8List.fromList(blob ?? ordinaryRfwBlob());
   final sidecar = CapabilitySidecar(
     blobSha256: CapabilitySidecar.hashBlob(exactBlob),
     manifest: CapabilityManifest(
       builtInFloor: minClient,
-      requiredLibraries: const [],
+      requiredLibraries: requiredLibraries,
     ),
   );
-  final payload = BlobSurfacePayload(minClient: minClient, blob: exactBlob);
+  final payload = BlobSurfacePayload(
+    minClient: minClient,
+    blob: exactBlob,
+    requiredLibraries: requiredLibraries,
+  );
   // A non-paywall category is seeded as an independently published ordinary
   // screen: it reuses the same blob closure, so only the declared identity
   // differs from the paywall case.

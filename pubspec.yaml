@@ -13,7 +13,6 @@ workspace:
   - packages/restage_shared
   - packages/restage
   - packages/restage_preview_host
-  - packages/restage_preview_harness
   - packages/restage_codegen
   - packages/restage_cli
   - packages/restage_mcp

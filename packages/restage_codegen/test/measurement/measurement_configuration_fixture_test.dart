@@ -274,11 +274,14 @@ BuilderOptions _builderOptions(String builderKey) {
   );
   final builder = _yamlMap(builders[builderKey], 'builder $builderKey');
   final options = _yamlMap(builder['options'], 'builder $builderKey options');
-  return BuilderOptions({
-    for (final entry in options.entries)
-      _stringKey(entry.key, 'builder $builderKey option'):
-          _yamlValue(entry.value),
-  });
+  return BuilderOptions(
+    {
+      for (final entry in options.entries)
+        _stringKey(entry.key, 'builder $builderKey option'):
+            _yamlValue(entry.value),
+    },
+    isRoot: true,
+  );
 }
 
 String _fixtureSource(String path) =>

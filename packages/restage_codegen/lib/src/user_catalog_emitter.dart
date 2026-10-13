@@ -12,7 +12,7 @@ String emitUserCatalogDart(Catalog catalog) {
   writeGeneratedHeader(buf);
   buf
     ..writeln()
-    ..writeln("import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';")
+    ..writeln("import 'package:restage/catalog.dart';")
     ..writeln()
     ..writeln('final Catalog kUserCatalog = Catalog(')
     ..writeln('  schemaVersion: ${catalog.schemaVersion},')

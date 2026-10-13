@@ -1,6 +1,7 @@
 import 'package:restage_codegen/src/a2ui/a2ui_definition_registry.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 
 /// Generates the Dart source that reconstructs a typed value from decoded
 /// (untrusted) genui JSON at render time, for a widget's rich data shapes.
@@ -282,7 +283,7 @@ class A2uiDataBuilder {
   String _recordExpression(ObjectNode record, String raw, String depth) {
     final parts = <String>[];
     for (final entry in record.fields.entries) {
-      final key = _stringLiteral(entry.key);
+      final key = dartStringLiteral(entry.key);
       final access = '_restageA2uiAs<Map<String, Object?>>($raw)?[$key]';
       // Through the same field-value funnel as class fields, so a nullable
       // record field passes through (not fabricated) by construction.
@@ -476,7 +477,7 @@ class A2uiDataBuilder {
     final named = <String>[];
     for (final parameter in ctor.parameters) {
       final field = object.fields[parameter.name]!;
-      final access = '_raw[${_stringLiteral(parameter.name)}]';
+      final access = '_raw[${dartStringLiteral(parameter.name)}]';
       final required = object.required.contains(parameter.name);
       if (required && !field.nullable) {
         // The one statement-context arm: a REQUIRED, NON-nullable field fails
@@ -527,18 +528,6 @@ class A2uiDataBuilder {
     if (lt >= 0) symbol = symbol.substring(0, lt);
     final sanitized = symbol.replaceAll(RegExp('[^A-Za-z0-9_]'), '_');
     return sanitized.isEmpty ? 'Type' : sanitized;
-  }
-
-  /// A Dart single-quoted string literal for [value], escaping `\`, `'`, `$`
-  /// and newlines so a field name carrying any of them stays inert in the
-  /// emitted source (no interpolation, no premature string close).
-  String _stringLiteral(String value) {
-    final escaped = value
-        .replaceAll(r'\', r'\\')
-        .replaceAll(r'$', r'\$')
-        .replaceAll("'", r"\'")
-        .replaceAll('\n', r'\n');
-    return "'$escaped'";
   }
 
   /// The typed-cast runtime helper: a fail-safe cast that yields null rather

@@ -47,6 +47,7 @@ class ConsoleController {
         apps: snapshot.apps,
         environments: snapshot.environments,
         surfaces: snapshot.surfaces,
+        builds: snapshot.builds,
       );
       await refreshStatus();
       await refreshAudit();
@@ -244,6 +245,43 @@ class ConsoleController {
           executor.unfreeze(context: context, surface: surface, reason: reason),
       operation: 'unfreeze',
     );
+  }
+
+  /// Pushes the app's build to the selected environment's head, then reads
+  /// the heads again so the console shows the version it moved to.
+  Future<void> pushBuild() async {
+    final executor = _operationExecutor;
+    final context = _state.context;
+    if (executor == null) {
+      _state = _state.copyWith(operationMessage: 'Operations unavailable.');
+      return;
+    }
+    if (context == null) {
+      _state = _state.copyWith(operationMessage: 'No environment selected.');
+      return;
+    }
+    _state = _state.copyWith(operationMessage: 'Building...');
+    final result = await executor.pushBuild(context: context);
+    final message = _operationMessage(result);
+    _state = _state.copyWith(
+      operationMessage: message,
+      activity: [
+        ConsoleActivityEntry(
+          operation: 'build',
+          surfaceSlug: context.app,
+          exitCode: result.exitCode,
+          message: message,
+        ),
+        ..._state.activity,
+      ].take(5).toList(growable: false),
+    );
+    if (result.succeeded) await refreshBuilds();
+  }
+
+  /// Reads the app's build heads again.
+  Future<void> refreshBuilds() async {
+    final snapshot = await _repository.load();
+    _state = _state.copyWith(builds: snapshot.builds);
   }
 
   Future<void> pushSelected() async {

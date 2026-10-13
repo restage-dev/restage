@@ -177,6 +177,20 @@ void main() {
     expect(InstalledIconTable.current, same(_checkOnly));
   });
 
+  test('adding the same mutable family still snapshots its entries', () {
+    final icons = <int, IconData>{_check: Icons.check};
+    final table = RestageIconTable.fromFamilies(families: {_material: icons});
+    InstalledIconTable.install(table);
+    InstalledIconTable.add(table);
+
+    icons[_close] = Icons.close;
+    icons[_check] = Icons.star;
+
+    expect(InstalledIconTable.current.families[_material], isNot(same(icons)));
+    expect(InstalledIconTable.current.lookUp(_material, _close), isNull);
+    expect(InstalledIconTable.current.lookUp(_material, _check), Icons.check);
+  });
+
   test('reset clears what add contributed', () {
     InstalledIconTable.add(_checkOnly);
     InstalledIconTable.add(_cupertinoOnly);

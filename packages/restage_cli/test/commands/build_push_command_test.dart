@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -9,7 +8,11 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/receipts/release_recorder.dart';
+import 'package:restage_cli/src/receipts/source_boundary.dart';
+import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
+import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
@@ -21,12 +24,17 @@ void main() {
   late FileCredentialStore store;
   late StringBuffer stdout;
   late StringBuffer stderr;
+  late _FakeCatalog catalogStep;
+  late _FakeSource sourceStep;
+  late ReleaseRecorder recorder;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('build_push_test_');
     store = FileCredentialStore(p.join(root.path, 'credentials'));
     stdout = StringBuffer();
     stderr = StringBuffer();
+    catalogStep = _FakeCatalog();
+    sourceStep = _FakeSource();
     await store.write(
       const Credential(
         endpoint: 'http://api.restage.localhost:8080/',
@@ -41,47 +49,40 @@ void main() {
       dashboardOrigin: 'http://dashboard.restage.localhost:8082',
       renderBundleOrigin: 'http://bundles.restage.localhost:8081',
     );
-    final catalog = File(
-      p.join(root.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
-    );
-    await catalog.create(recursive: true);
-    await catalog.writeAsString('{"libraries":{},"widgets":[]}');
+    // A recorder over a repository that answers without a real Git.
+    recorder = (await ReleaseRecorder.open(
+      projectRoot: root,
+      stderr: StringBuffer(),
+      processRunner: (executable, arguments, {String? workingDirectory}) async {
+        final command = arguments.join(' ');
+        if (command.startsWith('rev-parse --show-toplevel')) {
+          return ProcessResult(0, 0, '${root.path}\n', '');
+        }
+        if (command.startsWith('rev-parse --verify')) {
+          return ProcessResult(0, 0, 'a91f2c3d4e5f6071\n', '');
+        }
+        if (command.startsWith('symbolic-ref')) {
+          return ProcessResult(0, 0, 'work\n', '');
+        }
+        if (command.startsWith('rev-parse --absolute-git-dir')) {
+          return ProcessResult(0, 0, '${p.join(root.path, '.git')}\n', '');
+        }
+        return ProcessResult(0, 0, '', '');
+      },
+    ))!;
   });
 
   tearDown(() async {
     if (root.existsSync()) await root.delete(recursive: true);
   });
 
-  test('build push registers, uploads main, and prints version/hash', () async {
+  test('a push to a named head reports its version and files', () async {
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
-    var rpcCalls = 0;
-    var uploadCalls = 0;
-    final hash = CapabilitySidecar.hashBlob(builder.archive);
-    final client = MockClient((request) async {
-      if (request.url.port == 8081) {
-        uploadCalls++;
-        expect(request.method, 'POST');
-        return http.Response('', 204);
-      }
-      rpcCalls++;
-      final body = jsonDecode(request.body) as Map<String, dynamic>;
-      switch (body['method']) {
-        case 'prepareUpload':
-          return http.Response(
-            jsonEncode(
-              'http://bundles.restage.localhost:8081/render-bundles/v1/upload?projectSlug=demo&organizationId=7&channel=main',
-            ),
-            200,
-          );
-        case 'discover':
-          return http.Response(
-            jsonEncode(<String, Object?>{'version': 4, 'contentHash': hash}),
-            200,
-          );
-        default:
-          fail('unexpected RPC: ${body['method']}');
-      }
-    });
+    final calls = <String>[];
+    final client = _pushClient(
+      builder.archive,
+      onRpcBody: (body) => calls.add(body['method'] as String),
+    );
 
     final exit = await RestageCli(
       stdout: stdout,
@@ -89,18 +90,19 @@ void main() {
       credentialStore: store,
       httpClient: client,
       renderBundleBuilder: builder,
-    ).run(<String>['build', 'push', '-C', root.path]);
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
     expect(exit, 0, reason: stderr.toString());
-    expect(rpcCalls, 2);
-    expect(uploadCalls, 1);
+    expect(calls, <String>['prepare', 'commit']);
     expect(builder.projectRoot?.path, root.path);
     expect(
       builder.parentOrigin,
       Uri.parse('http://dashboard.restage.localhost:8082'),
     );
     expect(builder.catalogJson, '{"libraries":{},"widgets":[]}');
-    expect(stdout.toString(), contains('version 4'));
-    expect(stdout.toString(), contains(hash));
+    expect(stdout.toString(), contains('mobile staging version 4'));
+    expect(stdout.toString(), contains('Every file was already stored'));
     expect(stderr.toString(), isEmpty);
   });
 
@@ -123,31 +125,43 @@ void main() {
         renderBundleOrigin: 'https://bundles.restage.dev',
       );
       final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
-      final hash = CapabilitySidecar.hashBlob(builder.archive);
-      var uploadCalls = 0;
       final client = MockClient((request) async {
-        if (request.url.host == 'bundles.restage.dev') {
-          uploadCalls++;
-          expect(request.method, 'POST');
-          return http.Response('', 204);
-        }
         expect(request.url.host, 'api.restage.dev');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         switch (body['method']) {
-          case 'prepareUpload':
+          case 'prepare':
             return http.Response(
-              jsonEncode(
-                'https://bundles.restage.dev/render-bundles/v1/upload?projectSlug=demo&organizationId=7&channel=main',
-              ),
+              jsonEncode(<String, Object?>{
+                'uploadToken': 'token-1',
+                'headReference': 'staging',
+                'expiresAt': DateTime.utc(2030).toIso8601String(),
+                'blobUploadUrl':
+                    'https://bundles.restage.dev/render-bundles/v1/blob',
+                'engineUploadUrl':
+                    'https://bundles.restage.dev/render-bundles/v1/engine-file',
+                'missingContentHashes': <String>[],
+                'missingEnginePaths': <String>[],
+                'uploadConcurrency': 3,
+                'maxFileTransferBytes': 24 * 1024 * 1024,
+              }),
               200,
             );
-          case 'discover':
+          case 'commit':
             return http.Response(
-              jsonEncode(<String, Object?>{'version': 1, 'contentHash': hash}),
+              jsonEncode(<String, Object?>{
+                'version': <String, Object?>{
+                  'version': 1,
+                  'contentHash': 'sha256:${'a' * 64}',
+                },
+                'organizationId': 7,
+                'organizationSlug': 'acme',
+                'headReference': 'staging',
+                'reactivated': false,
+              }),
               200,
             );
           default:
-            fail('unexpected RPC: ${body['method']}');
+            fail('unexpected call: ${body['method']}');
         }
       });
 
@@ -157,84 +171,16 @@ void main() {
         credentialStore: store,
         httpClient: client,
         renderBundleBuilder: builder,
-      ).run(<String>['build', 'push', '-C', root.path]);
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+      ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
 
       expect(exit, 0, reason: stderr.toString());
       expect(builder.parentOrigin, Uri.parse('https://dashboard.restage.dev'));
-      expect(uploadCalls, 1);
+      expect(stdout.toString(), contains('mobile staging version 1'));
       expect(stderr.toString(), isEmpty);
     },
   );
-
-  test('a staging ceiling refusal is reported with both figures', () async {
-    // The ceiling is only reached on a part, and parts only happen past the
-    // single-request ceiling, so the archive has to be over it.
-    final random = Random(29);
-    final builder = _FakeBuilder(
-      Uint8List.fromList(
-        List<int>.generate(
-          renderBundleMaxUploadTransferBytes + (4 * 1024 * 1024),
-          (_) => random.nextInt(256),
-        ),
-      ),
-    );
-    const heldBytes = 201326592;
-    const limitBytes = 201326592;
-    const uploadUrl =
-        'http://bundles.restage.localhost:8081/render-bundles/v1/upload'
-        '?projectSlug=demo&organizationId=7&channel=main';
-    final client = MockClient((request) async {
-      if (request.url.port == 8081) {
-        return http.Response(
-          jsonEncode(<String, Object?>{
-            'reason': 'staged_bytes_exceeded',
-            'heldBytes': heldBytes,
-            'limitBytes': limitBytes,
-          }),
-          400,
-        );
-      }
-      final body = jsonDecode(request.body) as Map<String, dynamic>;
-      switch (body['method']) {
-        case 'prepareUpload':
-          return http.Response(jsonEncode(uploadUrl), 200);
-        case 'prepareChunkedUpload':
-          return http.Response(
-            jsonEncode(<String, Object?>{
-              'uploadId': '0123456789abcdef0123456789abcdef',
-              'nonce': 'fedcba9876543210fedcba9876543210',
-              'expiresAt': DateTime.utc(2030).toIso8601String(),
-              'uploadUrl': uploadUrl,
-              'partByteLimit': 8 * 1024 * 1024,
-              'maxParts': 8,
-            }),
-            200,
-          );
-        case 'discardChunkedUpload':
-          return http.Response(jsonEncode(null), 200);
-        default:
-          fail('unexpected RPC: ${body['method']}');
-      }
-    });
-
-    final exit = await RestageCli(
-      stdout: stdout,
-      stderr: stderr,
-      credentialStore: store,
-      httpClient: client,
-      renderBundleBuilder: builder,
-    ).run(<String>['build', 'push', '-C', root.path]);
-
-    expect(exit, isNot(0));
-    final reported = stderr.toString();
-    expect(reported, contains('$heldBytes bytes staged'));
-    expect(reported, contains('$limitBytes byte limit'));
-    expect(
-      reported,
-      contains('192 MiB'),
-      reason: 'the limit is also given in the units the pricing page uses',
-    );
-  });
 
   test('matching explicit parent and bundle overrides are accepted', () async {
     await seedRestageConfig(
@@ -243,7 +189,7 @@ void main() {
       'mobile',
       dashboardOrigin: 'http://dashboard.restage.localhost:8082',
     );
-    final builder = _FakeBuilder(Uint8List(0));
+    final builder = _FakeBuilder.empty();
     var networkCalls = 0;
 
     final exit =
@@ -256,6 +202,8 @@ void main() {
             return http.Response('', 500);
           }),
           renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
         ).run(<String>[
           'build',
           'push',
@@ -296,6 +244,8 @@ void main() {
                 return http.Response('', 500);
               }),
               renderBundleBuilder: builder,
+              renderBundleCatalog: catalogStep.call,
+              renderBundleSource: sourceStep.call,
             ).run(<String>[
               'build',
               'push',
@@ -320,44 +270,20 @@ void main() {
   );
 
   test(
-    'build push propagates one user channel through prepare, upload, and discover',
+    'a named environment reaches prepare, the upload and the read-back',
     () async {
-      const channel = 'user/alice';
+      const environment = 'staging';
       final builder = _FakeBuilder(Uint8List.fromList(<int>[4, 5, 6]));
       final rpcBodies = <Map<String, dynamic>>[];
-      var uploadCalls = 0;
-      final hash = CapabilitySidecar.hashBlob(builder.archive);
-      final prepared = Uri.parse('http://bundles.restage.localhost:8081')
-          .replace(
-            path: '/render-bundles/v1/upload',
-            queryParameters: <String, String>{
-              'projectSlug': 'demo',
-              'organizationId': '7',
-              'channel': channel,
-            },
-          );
-      final client = MockClient((request) async {
-        if (request.url.port == 8081) {
-          uploadCalls++;
-          expect(request.method, 'POST');
-          expect(request.url, prepared);
-          expect(request.url.queryParameters['channel'], channel);
-          return http.Response('', 204);
-        }
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        rpcBodies.add(body);
-        switch (body['method']) {
-          case 'prepareUpload':
-            return http.Response(jsonEncode(prepared.toString()), 200);
-          case 'discover':
-            return http.Response(
-              jsonEncode(<String, Object?>{'version': 2, 'contentHash': hash}),
-              200,
-            );
-          default:
-            fail('unexpected RPC: ${body['method']}');
-        }
-      });
+      final client = _pushClient(
+        builder.archive,
+        version: 2,
+        missingContentHashes: <String>[
+          CapabilitySidecar.hashBlob(builder.appFiles['main.dart.wasm']!),
+        ],
+        onRpcBody: rpcBodies.add,
+        onAuthorization: (_) {},
+      );
 
       final exit = await RestageCli(
         stdout: stdout,
@@ -365,22 +291,20 @@ void main() {
         credentialStore: store,
         httpClient: client,
         renderBundleBuilder: builder,
-      ).run(<String>['build', 'push', '-C', root.path, '--channel', channel]);
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+      ).run(<String>['build', 'push', '-C', root.path, '--env', environment]);
 
       expect(exit, 0, reason: stderr.toString());
-      expect(uploadCalls, 1);
       expect(rpcBodies.map((body) => body['method']), <String>[
-        'prepareUpload',
-        'discover',
+        'prepare',
+        'commit',
       ]);
-      expect(
-        rpcBodies.every(
-          (body) => body['projectSlug'] == 'demo' && body['channel'] == channel,
-        ),
-        isTrue,
-      );
-      expect(stdout.toString(), contains('$channel version 2'));
-      expect(stdout.toString(), contains(hash));
+      expect(rpcBodies.first['projectSlug'], 'demo');
+      expect(rpcBodies.first['appSlug'], 'mobile');
+      expect(rpcBodies.first['environment'], environment);
+      expect(stdout.toString(), contains('mobile $environment version 2'));
+      expect(stdout.toString(), contains('Moved 1 of 3 app files'));
       expect(stderr.toString(), isEmpty);
     },
   );
@@ -396,11 +320,24 @@ void main() {
           return http.Response('request entity too large', 413);
         }
         final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['method'], 'prepareUpload');
+        expect(body['method'], 'prepare');
         return http.Response(
-          jsonEncode(
-            'http://bundles.restage.localhost:8081/render-bundles/v1/upload?projectSlug=demo&organizationId=7&channel=main',
-          ),
+          jsonEncode(<String, Object?>{
+            'uploadToken': 'token-1',
+            'headReference': 'staging',
+            'expiresAt': DateTime.utc(2030).toIso8601String(),
+            'blobUploadUrl':
+                'http://bundles.restage.localhost:8081/render-bundles/v1/blob',
+            'engineUploadUrl':
+                'http://bundles.restage.localhost:8081/render-bundles/v1/'
+                'engine-file',
+            'missingContentHashes': <String>[
+              CapabilitySidecar.hashBlob(builder.appFiles['index.html']!),
+            ],
+            'missingEnginePaths': <String>[],
+            'uploadConcurrency': 3,
+            'maxFileTransferBytes': 24 * 1024 * 1024,
+          }),
           200,
         );
       });
@@ -411,6 +348,8 @@ void main() {
         credentialStore: store,
         httpClient: client,
         renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
 
       expect(exit, 2);
@@ -420,15 +359,20 @@ void main() {
         stderr.toString(),
         'Could not upload the render bundle (HTTP 413: something between '
         'this machine and the service refused the body size, which was '
-        '${gzip.encode(const <int>[7, 8, 9]).length} compressed bytes).\n',
+        '${gzip.encode(builder.appFiles['index.html']!).length} '
+        'compressed bytes).\n',
       );
       expect(stderr.toString(), isNot(contains('request entity too large')));
     },
   );
 
-  test('an archive past the raw ceiling reports its measured size', () async {
+  test('a build past the raw ceiling reports its measured size', () async {
     var networkCalls = 0;
     final builder = _FakeBuilder(Uint8List(renderBundleMaxArchiveBytes + 1));
+    final builtBytes = builder.appFiles.values.fold<int>(
+      0,
+      (total, bytes) => total + bytes.length,
+    );
 
     final exit = await RestageCli(
       stdout: stdout,
@@ -439,103 +383,17 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
 
     expect(exit, 2);
     expect(networkCalls, 0);
     expect(
       stderr.toString(),
-      'Could not upload the render bundle: built '
-      '${renderBundleMaxArchiveBytes + 1} bytes, over the '
+      'Could not upload the render bundle: built $builtBytes bytes, over the '
       '$renderBundleMaxArchiveBytes byte limit (64 MiB).\n',
     );
-  });
-
-  test(
-    'a body past the single-request ceiling is published in parts',
-    () async {
-      // Incompressible, so it clears the raw ceiling and cannot be sent whole.
-      final random = Random(5);
-      final archive = Uint8List.fromList(
-        List<int>.generate(
-          renderBundleMaxUploadTransferBytes + (1024 * 1024),
-          (_) => random.nextInt(256),
-        ),
-      );
-      final compressed = gzip.encode(archive);
-      expect(
-        compressed.length,
-        greaterThan(renderBundleMaxUploadTransferBytes),
-      );
-      const uploadId = '0123456789abcdef0123456789abcdef';
-      const uploadUrl =
-          'http://bundles.restage.localhost:8081/render-bundles/v1/upload'
-          '?projectSlug=demo&organizationId=7&channel=main';
-      final hash = CapabilitySidecar.hashBlob(archive);
-      final parts = <int, List<int>>{};
-      String? committedHash;
-
-      final client = MockClient((request) async {
-        if (request.url.port == 8081) {
-          final query = request.url.queryParameters;
-          expect(query['uploadId'], uploadId);
-          parts[int.parse(query['partIndex']!)] = request.bodyBytes;
-          return http.Response('', 204);
-        }
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        switch (body['method']) {
-          case 'prepareUpload':
-            return http.Response(jsonEncode(uploadUrl), 200);
-          case 'prepareChunkedUpload':
-            return http.Response(
-              jsonEncode(<String, Object?>{
-                'uploadId': uploadId,
-                'nonce': 'fedcba9876543210fedcba9876543210',
-                'expiresAt': DateTime.utc(2030).toIso8601String(),
-                'uploadUrl': uploadUrl,
-                'partByteLimit': 8 * 1024 * 1024,
-                'maxParts': 8,
-              }),
-              200,
-            );
-          case 'commitChunkedUpload':
-            committedHash = body['contentHash'] as String?;
-            return http.Response(jsonEncode(null), 200);
-          case 'discover':
-            return http.Response(
-              jsonEncode(<String, Object?>{'version': 1, 'contentHash': hash}),
-              200,
-            );
-          default:
-            fail('unexpected RPC: ${body['method']}');
-        }
-      });
-
-      final exit = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: client,
-        renderBundleBuilder: _FakeBuilder(archive),
-      ).run(<String>['build', 'push', '-C', root.path]);
-
-      expect(exit, 0, reason: stderr.toString());
-      expect(stderr.toString(), isEmpty);
-      expect(stdout.toString(), contains('main version 1'));
-      expect(parts, hasLength(greaterThan(1)));
-      // The parts are byte ranges of one compressed stream, so in index order
-      // they must reproduce exactly what a single request would have sent.
-      expect(<int>[
-        for (var index = 0; index < parts.length; index++) ...parts[index]!,
-      ], compressed);
-      // The commit names the hash of the raw container. The compressed
-      // transfer has its own, and the two differ.
-      expect(committedHash, hash);
-    },
-  );
-
-  test('the upload wire ceiling is 24 MiB', () {
-    expect(renderBundleMaxUploadTransferBytes, 25165824);
   });
 
   test('build failure is generic and performs no network operation', () async {
@@ -549,6 +407,8 @@ void main() {
         return http.Response('', 500);
       }),
       renderBundleBuilder: _FailingBuilder(),
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path]);
 
     expect(exit, 2);
@@ -557,66 +417,108 @@ void main() {
     expect(stderr.toString(), isNot(contains('sensitive process output')));
   });
 
+  test('an engine file the pin does not cover is named', () async {
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient((_) async => http.Response('', 500)),
+      renderBundleBuilder: _FailingBuilder(
+        const RenderBundleBuildException(
+          'engine_incomplete',
+          detail: 'chromium/canvaskit.wasm',
+        ),
+      ),
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      'Could not build the render bundle: the pinned engine set names '
+      'chromium/canvaskit.wasm and this build did not produce it. Build on '
+      'the version the pin names.\n',
+    );
+  });
+
+  test('a refusal with no sentence of its own still names it', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(
+        builder.archive,
+        organizationId: 7,
+        prepareRefusal: 'required_file_missing',
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      'Could not upload the render bundle (HTTP 403, refused: '
+      'required_file_missing).\n',
+    );
+  });
+
+  test('an operator-actionable refusal reads as one sentence', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(
+        builder.archive,
+        organizationId: 7,
+        prepareRefusal: 'upload_key_unavailable',
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
+
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      'The service could not mint the credential an upload needs, so nothing '
+      'was stored. Try again; if it keeps happening the service is '
+      'degraded.\n',
+    );
+  });
+
+  test('a boundary that will not resolve refuses before the catalog', () async {
+    var networkCalls = 0;
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient((_) async {
+        networkCalls++;
+        return http.Response('', 500);
+      }),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: (_) async =>
+          throw const SourceBoundaryException('The lockfile cannot be read.'),
+    ).run(<String>['build', 'push', '-C', root.path]);
+
+    expect(exit, 1);
+    expect(stderr.toString(), 'The lockfile cannot be read.\n');
+    // The push prints what it built from, so nothing is generated or built
+    // until that answer exists.
+    expect(catalogStep.calls, 0);
+    expect(builder.projectRoot, isNull);
+    expect(networkCalls, 0);
+  });
+
   test(
-    'rejects a concurrently changed channel head without retrying success',
-    () async {
-      final builder = _FakeBuilder(Uint8List.fromList(<int>[7, 8, 9]));
-      final changedHeadHash = CapabilitySidecar.hashBlob(const <int>[9, 8, 7]);
-      var uploadCalls = 0;
-      var discoverCalls = 0;
-      final client = MockClient((request) async {
-        if (request.url.port == 8081) {
-          uploadCalls++;
-          return http.Response('', 204);
-        }
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        switch (body['method']) {
-          case 'prepareUpload':
-            return http.Response(
-              jsonEncode(
-                'http://bundles.restage.localhost:8081/render-bundles/v1/upload?projectSlug=demo&organizationId=7&channel=main',
-              ),
-              200,
-            );
-          case 'discover':
-            discoverCalls++;
-            return http.Response(
-              jsonEncode(<String, Object?>{
-                'version': 5,
-                'contentHash': changedHeadHash,
-              }),
-              200,
-            );
-          default:
-            fail('unexpected RPC: ${body['method']}');
-        }
-      });
-
-      final exit = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: client,
-        renderBundleBuilder: builder,
-      ).run(<String>['build', 'push', '-C', root.path]);
-
-      expect(exit, 2);
-      expect(uploadCalls, 1);
-      expect(discoverCalls, 1);
-      expect(stdout.toString(), isEmpty);
-      expect(
-        stderr.toString(),
-        'Uploaded render bundle main (${CapabilitySidecar.hashBlob(const <int>[7, 8, 9])}), '
-        'but main now points at version 5 ($changedHeadHash) from another '
-        'push.\n',
-      );
-      // The upload is stored, so the loser of the race must not re-run it.
-      expect(stdout.toString(), isEmpty);
-    },
-  );
-
-  test(
-    'rejects an invalid channel before credentials, build, or network',
+    'refuses a malformed environment before the build or the network',
     () async {
       var networkCalls = 0;
       final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
@@ -634,17 +536,22 @@ void main() {
               return http.Response('', 500);
             }),
             renderBundleBuilder: builder,
+            renderBundleCatalog: catalogStep.call,
+            renderBundleSource: sourceStep.call,
           ).run(<String>[
             'build',
             'push',
             '-C',
             root.path,
-            '--channel',
-            'user/../admin',
+            '--env',
+            'Staging/../admin',
           ]);
 
       expect(exit, 1);
-      expect(stderr.toString(), contains('render-bundle channel is invalid'));
+      expect(
+        stderr.toString(),
+        contains('Refusing the environment `Staging/../admin`'),
+      );
       expect(builder.projectRoot, isNull);
       expect(networkCalls, 0);
     },
@@ -678,6 +585,8 @@ void main() {
           return http.Response('', 500);
         }),
         renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
 
       expect(exit, 1);
@@ -766,6 +675,8 @@ void main() {
             return http.Response('', 500);
           }),
           renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
         ).run(<String>['build', 'push', '-C', root.path]);
 
         expect(exit, 1, reason: unsafe.$1);
@@ -792,6 +703,8 @@ void main() {
           return http.Response('', 500);
         }),
         renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
 
       expect(exit, 1);
@@ -804,50 +717,6 @@ void main() {
       );
       expect(builder.projectRoot, isNull);
       expect(networkCalls, 0);
-    },
-  );
-
-  test(
-    'local push rejects a prepared URL on any unpinned sibling port',
-    () async {
-      await seedRestageConfig(
-        root,
-        'demo',
-        'mobile',
-        dashboardOrigin: 'http://dashboard.restage.localhost:8083',
-        renderBundleOrigin: 'http://bundles.restage.localhost:8082',
-      );
-      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
-      var rpcCalls = 0;
-      var uploadCalls = 0;
-      final client = MockClient((request) async {
-        if (request.url.port == 8081) {
-          uploadCalls++;
-          return http.Response('', 204);
-        }
-        rpcCalls++;
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['method'], 'prepareUpload');
-        return http.Response(
-          jsonEncode(
-            'http://bundles.restage.localhost:8081/render-bundles/v1/upload?projectSlug=demo&organizationId=7&channel=main',
-          ),
-          200,
-        );
-      });
-
-      final exit = await RestageCli(
-        stdout: stdout,
-        stderr: stderr,
-        credentialStore: store,
-        httpClient: client,
-        renderBundleBuilder: builder,
-      ).run(<String>['build', 'push', '-C', root.path]);
-
-      expect(exit, 2);
-      expect(builder.projectRoot?.path, root.path);
-      expect(rpcCalls, 1);
-      expect(uploadCalls, 0);
     },
   );
 
@@ -880,6 +749,8 @@ void main() {
           return http.Response('', 500);
         }),
         renderBundleBuilder: builder,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
       ).run(<String>['build', 'push', '-C', root.path]);
 
       expect(exit, 1);
@@ -895,6 +766,767 @@ void main() {
     },
   );
 
+  test('the push generates the catalog and builds against it', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    catalogStep = _FakeCatalog(json: '{"libraries":{"a.b":{}},"widgets":[]}');
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(catalogStep.calls, 1);
+    expect(catalogStep.generate, isTrue);
+    expect(builder.catalogJson, '{"libraries":{"a.b":{}},"widgets":[]}');
+  });
+
+  test('--no-generate builds against what a previous run produced', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path, '--no-generate']);
+    expect(exit, 0, reason: stderr.toString());
+    expect(catalogStep.generate, isFalse);
+  });
+
+  test('an app registering no widgets of its own still pushes', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    catalogStep = _FakeCatalog(registersWidgets: false);
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(
+      stdout.toString(),
+      contains('This app registers no widgets of its own.'),
+    );
+  });
+
+  test('a refused catalog step stops the push before the build', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    var networkCalls = 0;
+    catalogStep = _FakeCatalog(
+      failure: const GeneratedCatalogException('catalog_missing'),
+    );
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient((request) async {
+        networkCalls++;
+        return http.Response('', 500);
+      }),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 1);
+    expect(builder.projectRoot, isNull);
+    expect(networkCalls, 0);
+    expect(
+      stderr.toString(),
+      'No generated widget catalog. Run `dart run build_runner build`, or '
+      'drop --no-generate and let the push run it.\n',
+    );
+  });
+
+  test('a failed generator refuses without printing its output', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    catalogStep = _FakeCatalog(
+      failure: const GeneratedCatalogException('generate_failed'),
+    );
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient((request) async => http.Response('', 500)),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      'Could not generate the widget catalog. Run '
+      '`dart run build_runner build` to see why.\n',
+    );
+  });
+
+  test('a key pushes as a bearer and brings no organization along', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'http://api.restage.localhost:8080',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final authorizations = <String?>[];
+    final rpcBodies = <Map<String, dynamic>>[];
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(
+        builder.archive,
+        onAuthorization: authorizations.add,
+        onRpcBody: rpcBodies.add,
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(authorizations, isNotEmpty);
+    expect(authorizations, everyElement('Bearer rs_sk_example'));
+    // The key names its own organization on the server, so the push sends none.
+    expect(rpcBodies.map((body) => body['method']), <String>[
+      'prepare',
+      'commit',
+    ]);
+    expect(
+      rpcBodies.every((body) => !body.containsKey('organizationId')),
+      isTrue,
+    );
+  });
+
+  test('a key is never stored and never printed', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'http://api.restage.localhost:8080',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(await store.read(), isNotNull);
+    expect((await store.read())!.kind, CredentialKind.authKey);
+    expect(
+      await File(p.join(root.path, 'credentials')).readAsString(),
+      isNot(contains('rs_sk_example')),
+    );
+    expect(stdout.toString(), isNot(contains('rs_sk_example')));
+    expect(stderr.toString(), isNot(contains('rs_sk_example')));
+  });
+
+  test('a refused key names the scope a push needs', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'http://api.restage.localhost:8080',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient(
+        (request) async => http.Response('forbidden: no scope', 403),
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 2);
+    expect(
+      stderr.toString(),
+      'Could not upload the render bundle: the key was not accepted. A key '
+      'pushes only while it holds the bundle-push scope and has not been '
+      'revoked.\n',
+    );
+    expect(stderr.toString(), isNot(contains('rs_sk_example')));
+    // The refusal is the command's own sentence; no server text is shown.
+    expect(stderr.toString(), isNot(contains('forbidden')));
+  });
+
+  test('a signed-in push keeps the scheme every command uses', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final authorizations = <String?>[];
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(
+        builder.archive,
+        onAuthorization: authorizations.add,
+      ),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{},
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(authorizations, isNotEmpty);
+    expect(
+      authorizations,
+      everyElement('Basic ${base64Encode(utf8.encode('key:private'))}'),
+    );
+  });
+
+  test('a key is refused from the command line', () async {
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--api-key',
+          'rs_sk_example',
+        ]);
+    expect(exit, 1);
+    expect(stderr.toString(), contains('api-key'));
+  });
+
+  test('no signed-in session and no key names both ways in', () async {
+    final empty = FileCredentialStore(p.join(root.path, 'empty_credentials'));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: empty,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{},
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 1);
+    expect(
+      stderr.toString(),
+      'Not signed in. Run `restage login`, or set RESTAGE_API_KEY to push '
+      'with a key.\n',
+    );
+  });
+
+  test('the push names the commit it was built from', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(stdout.toString(), contains('Built from a91f2c3.'));
+    // The source is read for the tree the build compiles.
+    expect(sourceStep.projectRoot?.path, root.path);
+  });
+
+  test('a tree with local changes says so', () async {
+    sourceStep = _FakeSource(
+      const BundleSource(
+        inRepository: true,
+        commit: 'a91f2c3d4e5f60718293a4b5c6d7e8f901234567',
+        dirty: true,
+      ),
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(
+      stdout.toString(),
+      contains('Built from a91f2c3 with local changes.'),
+    );
+  });
+
+  test('a push from outside a repository says so', () async {
+    sourceStep = _FakeSource(const BundleSource.outsideRepository());
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 0, reason: stderr.toString());
+    expect(
+      stdout.toString(),
+      contains('Built outside a repository, so no source commit was recorded.'),
+    );
+  });
+
+  test('two targets at once is refused before any work', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+    var networkCalls = 0;
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: MockClient((_) async {
+            networkCalls++;
+            return http.Response('', 500);
+          }),
+          renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--env',
+          'staging',
+          '--personal',
+        ]);
+    expect(exit, 1);
+    expect(stderr.toString(), contains('Name one target'));
+    expect(builder.projectRoot, isNull);
+    expect(networkCalls, 0);
+    expect(catalogStep.calls, 0);
+  });
+
+  test('a key cannot push to a personal head', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+    ).run(<String>['build', 'push', '-C', root.path, '--personal']);
+    expect(exit, 1);
+    expect(
+      stderr.toString(),
+      contains('A key moves the head of the environment it is bound to'),
+    );
+    expect(builder.projectRoot, isNull);
+  });
+
+  test('--record-git writes the receipt the push earned', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      organization: 'acme',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    Map<String, Object?>? recorded;
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: _pushClient(
+            builder.archive,
+            version: 6,
+            organizationId: 7,
+          ),
+          renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+          renderBundleRecorderOpener:
+              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleReceipt:
+              ({
+                required recorder,
+                required organizationId,
+                required organization,
+                required project,
+                required app,
+                required head,
+                required version,
+                required contentHash,
+                required engineSetId,
+                required dirty,
+                required stdout,
+                required stderr,
+                environment,
+                toolchain,
+              }) async {
+                recorded = <String, Object?>{
+                  'organizationId': organizationId,
+                  'organization': organization,
+                  'project': project,
+                  'app': app,
+                  'head': head,
+                  'version': version,
+                  'contentHash': contentHash,
+                  'engineSetId': engineSetId,
+                  'dirty': dirty,
+                  'environment': environment,
+                  'toolchain': toolchain,
+                };
+                return true;
+              },
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--env',
+          'staging',
+          '--record-git',
+        ]);
+
+    expect(exit, 0, reason: stderr.toString());
+    expect(recorded, isNotNull);
+    expect(recorded!['organizationId'], 7);
+    expect(recorded!['organization'], 'acme');
+    expect(recorded!['app'], 'mobile');
+    expect(recorded!['head'], 'staging');
+    expect(recorded!['environment'], 'staging');
+    expect(recorded!['version'], 6);
+    expect(recorded!['dirty'], isFalse);
+    expect(recorded!['toolchain'], requiredRenderBundleFlutterVersion);
+  });
+
+  test('a push to a personal head records no environment', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      organization: 'acme',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    String? seenEnvironment = 'unset';
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: _pushClient(
+            builder.archive,
+            headReference: 'user/alice',
+            organizationId: 7,
+          ),
+          renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+          renderBundleRecorderOpener:
+              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleReceipt:
+              ({
+                required recorder,
+                required organizationId,
+                required organization,
+                required project,
+                required app,
+                required head,
+                required version,
+                required contentHash,
+                required engineSetId,
+                required dirty,
+                required stdout,
+                required stderr,
+                environment,
+                toolchain,
+              }) async {
+                seenEnvironment = environment;
+                return true;
+              },
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--personal',
+          '--record-git',
+        ]);
+
+    expect(exit, 0, reason: stderr.toString());
+    expect(seenEnvironment, isNull);
+  });
+
+  test('a repository that cannot record stops before the build', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    var networkCalls = 0;
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: MockClient((_) async {
+        networkCalls++;
+        return http.Response('', 500);
+      }),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      renderBundleRecorderOpener:
+          ({required projectRoot, required stderr}) async {
+            stderr.writeln('This app is not in a Git repository.');
+            return null;
+          },
+    ).run(<String>['build', 'push', '-C', root.path, '--record-git']);
+
+    expect(exit, 1);
+    expect(stderr.toString(), 'This app is not in a Git repository.\n');
+    expect(builder.projectRoot, isNull);
+    expect(catalogStep.calls, 0);
+    expect(networkCalls, 0);
+  });
+
+  test('a receipt that will not write leaves the push standing', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      organization: 'acme',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: _pushClient(builder.archive, organizationId: 7),
+          renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+          renderBundleRecorderOpener:
+              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleReceipt:
+              ({
+                required recorder,
+                required organizationId,
+                required organization,
+                required project,
+                required app,
+                required head,
+                required version,
+                required contentHash,
+                required engineSetId,
+                required dirty,
+                required stdout,
+                required stderr,
+                environment,
+                toolchain,
+              }) async => false,
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--env',
+          'staging',
+          '--record-git',
+        ]);
+
+    expect(exit, 2);
+    expect(stdout.toString(), contains('mobile staging version 4'));
+  });
+
+  test('--organization names the organization a push resolves', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    int? recordedOrganizationId;
+    final exit =
+        await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: _pushClient(builder.archive, organizationId: 7),
+          renderBundleBuilder: builder,
+          renderBundleCatalog: catalogStep.call,
+          renderBundleSource: sourceStep.call,
+          renderBundleRecorderOpener:
+              ({required projectRoot, required stderr}) async => recorder,
+          renderBundleReceipt:
+              ({
+                required recorder,
+                required organizationId,
+                required organization,
+                required project,
+                required app,
+                required head,
+                required version,
+                required contentHash,
+                required engineSetId,
+                required dirty,
+                required stdout,
+                required stderr,
+                environment,
+                toolchain,
+              }) async {
+                recordedOrganizationId = organizationId;
+                return true;
+              },
+        ).run(<String>[
+          'build',
+          'push',
+          '-C',
+          root.path,
+          '--env',
+          'staging',
+          '--organization',
+          'acme',
+          '--record-git',
+        ]);
+
+    // The configuration names no organization; the flag is what resolved one.
+    expect(exit, 0, reason: stderr.toString());
+    expect(recordedOrganizationId, 7);
+  });
+
+  test(
+    'the receipt names the organization the service filed it under',
+    () async {
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+      Map<String, Object?>? recorded;
+      final exit =
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: _pushClient(builder.archive),
+            renderBundleBuilder: builder,
+            renderBundleCatalog: catalogStep.call,
+            renderBundleSource: sourceStep.call,
+            renderBundleRecorderOpener:
+                ({required projectRoot, required stderr}) async => recorder,
+            renderBundleReceipt:
+                ({
+                  required recorder,
+                  required organizationId,
+                  required organization,
+                  required project,
+                  required app,
+                  required head,
+                  required version,
+                  required contentHash,
+                  required engineSetId,
+                  required dirty,
+                  required stdout,
+                  required stderr,
+                  environment,
+                  toolchain,
+                }) async {
+                  recorded = <String, Object?>{
+                    'organizationId': organizationId,
+                    'organization': organization,
+                  };
+                  return true;
+                },
+          ).run(<String>[
+            'build',
+            'push',
+            '-C',
+            root.path,
+            '--env',
+            'staging',
+            '--record-git',
+          ]);
+
+      // The configuration names no organization; the service named one.
+      expect(exit, 0, reason: stderr.toString());
+      expect(recorded, <String, Object?>{
+        'organizationId': 7,
+        'organization': 'acme',
+      });
+    },
+  );
+
+  test('a key push records the receipt the service filed', () async {
+    await seedRestageConfig(
+      root,
+      'demo',
+      'mobile',
+      endpoint: 'http://api.restage.localhost:8080',
+      dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+      renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+    );
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    Map<String, Object?>? recorded;
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _pushClient(builder.archive),
+      renderBundleBuilder: builder,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+      renderBundleRecorderOpener:
+          ({required projectRoot, required stderr}) async => recorder,
+      renderBundleReceipt:
+          ({
+            required recorder,
+            required organizationId,
+            required organization,
+            required project,
+            required app,
+            required head,
+            required version,
+            required contentHash,
+            required engineSetId,
+            required dirty,
+            required stdout,
+            required stderr,
+            environment,
+            toolchain,
+          }) async {
+            recorded = <String, Object?>{
+              'organizationId': organizationId,
+              'organization': organization,
+            };
+            return true;
+          },
+      environment: const <String, String>{'RESTAGE_API_KEY': 'rs_sk_example'},
+    ).run(<String>['build', 'push', '-C', root.path, '--record-git']);
+
+    // A key resolves no organization on this side; the service names one.
+    expect(exit, 0, reason: stderr.toString());
+    expect(recorded, <String, Object?>{
+      'organizationId': 7,
+      'organization': 'acme',
+    });
+  });
+
   test('build command is listed in top-level help', () async {
     final exit = await RestageCli(
       stdout: stdout,
@@ -906,32 +1538,184 @@ void main() {
   });
 }
 
-final class _FakeBuilder implements RenderBundleArtifactBuilder {
-  _FakeBuilder(this.archive);
+/// Answers the calls one successful push makes.
+http.Client _pushClient(
+  Uint8List archive, {
+  void Function(String?)? onAuthorization,
+  void Function(Map<String, dynamic>)? onRpcBody,
+  int version = 4,
+  String headReference = 'staging',
+  List<String> missingContentHashes = const <String>[],
+  int? organizationId,
+  String? prepareRefusal,
+}) => MockClient((request) async {
+  onAuthorization?.call(request.headers['authorization']);
+  if (request.url.port == 8081) return http.Response('', 204);
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  if (body['method'] == 'listMine') {
+    return http.Response(
+      jsonEncode(<Object?>[
+        <String, Object?>{
+          'organizationId': organizationId,
+          'slug': 'acme',
+          'name': 'Acme',
+        },
+      ]),
+      200,
+    );
+  }
+  onRpcBody?.call(body);
+  switch (body['method']) {
+    case 'prepare':
+      if (prepareRefusal != null) {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'className': 'RenderBundleRejectedException',
+            'data': <String, Object?>{'reason': prepareRefusal},
+          }),
+          403,
+        );
+      }
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          'uploadToken': 'token-1',
+          'headReference': headReference,
+          'expiresAt': DateTime.utc(2030).toIso8601String(),
+          'blobUploadUrl':
+              'http://bundles.restage.localhost:8081/render-bundles/v1/blob',
+          'engineUploadUrl':
+              'http://bundles.restage.localhost:8081/render-bundles/v1/'
+              'engine-file',
+          'missingContentHashes': missingContentHashes,
+          'missingEnginePaths': <String>[],
+          'uploadConcurrency': 3,
+          'maxFileTransferBytes': 24 * 1024 * 1024,
+        }),
+        200,
+      );
+    case 'commit':
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          'version': <String, Object?>{
+            'version': version,
+            'contentHash': 'sha256:${'a' * 64}',
+          },
+          'organizationId': 7,
+          'organizationSlug': 'acme',
+          'headReference': headReference,
+          'reactivated': false,
+        }),
+        200,
+      );
+    default:
+      fail('unexpected call: ${body['method']}');
+  }
+});
 
-  final Uint8List archive;
+final class _FakeSource {
+  _FakeSource([
+    this.source = const BundleSource(
+      inRepository: true,
+      commit: 'a91f2c3d4e5f60718293a4b5c6d7e8f901234567',
+    ),
+  ]);
+
+  final BundleSource source;
+  Directory? projectRoot;
+
+  Future<BundleSource> call(Directory projectRoot) async {
+    this.projectRoot = projectRoot;
+    return source;
+  }
+}
+
+final class _FakeCatalog {
+  _FakeCatalog({
+    this.json = '{"libraries":{},"widgets":[]}',
+    this.registersWidgets = true,
+    this.failure,
+  });
+
+  final String json;
+  final bool registersWidgets;
+  final GeneratedCatalogException? failure;
+  int calls = 0;
+  bool? generate;
+
+  Future<GeneratedWidgetCatalog> call({
+    required Directory projectRoot,
+    required bool generate,
+  }) async {
+    calls++;
+    this.generate = generate;
+    final refusal = failure;
+    if (refusal != null) throw refusal;
+    return GeneratedWidgetCatalog(
+      json: json,
+      registersWidgets: registersWidgets,
+    );
+  }
+}
+
+final class _FakeBuilder implements RenderBundleArtifactBuilder {
+  _FakeBuilder(Uint8List payload)
+    : appFiles = <String, Uint8List>{
+        'index.html': Uint8List.fromList(utf8.encode('<!doctype html>')),
+        renderBundleCapabilityManifestPath: Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(<String, Object?>{
+              'formatVersion': 1,
+              'catalog': <String, Object?>{
+                'libraries': <String, Object?>{},
+                'widgets': <Object?>[],
+              },
+            }),
+          ),
+        ),
+        'main.dart.wasm': payload,
+      };
+
+  /// A build that produced nothing.
+  _FakeBuilder.empty() : appFiles = const <String, Uint8List>{};
+
+  final Map<String, Uint8List> appFiles;
   Directory? projectRoot;
   String? catalogJson;
   Uri? parentOrigin;
 
+  /// The container the command encodes from these files.
+  late final Uint8List archive = encodeRenderBundleArchive(appFiles);
+
   @override
-  Future<Uint8List> build({
+  Future<RenderBundleArtifact> build({
     required Directory projectRoot,
     required String catalogJson,
     required Uri parentOrigin,
+    required Uri controlOrigin,
   }) async {
     this.projectRoot = projectRoot;
     this.catalogJson = catalogJson;
     this.parentOrigin = parentOrigin;
-    return archive;
+    return RenderBundleArtifact(
+      appFiles: appFiles,
+      engineFiles: const <String, Uint8List>{},
+      engineSetId: 'a' * 64,
+    );
   }
 }
 
 final class _FailingBuilder implements RenderBundleArtifactBuilder {
+  _FailingBuilder([
+    this.failure = const RenderBundleBuildException('sensitive process output'),
+  ]);
+
+  final RenderBundleBuildException failure;
+
   @override
-  Future<Uint8List> build({
+  Future<RenderBundleArtifact> build({
     required Directory projectRoot,
     required String catalogJson,
     required Uri parentOrigin,
-  }) => throw const RenderBundleBuildException('sensitive process output');
+    required Uri controlOrigin,
+  }) => throw failure;
 }
