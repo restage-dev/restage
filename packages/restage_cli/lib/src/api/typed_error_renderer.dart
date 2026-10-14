@@ -53,6 +53,23 @@ String? typedErrorSentence(String body, {SelectorSyntax? syntax}) {
   final generic = decodeGenericTypedException(body);
   if (generic != null) return _genericSentence(generic, syntax);
   final surface = decodeSurfaceTypedException(body);
+  if (surface case SurfaceFamilyRefused(
+    :final message,
+    :final unhandledEvents,
+  ) when unhandledEvents.isNotEmpty) {
+    return [
+      message,
+      for (final gap in unhandledEvents)
+        '  Flow "${gap.flow}", state "${gap.state}", screen "${gap.screen}", '
+            'event "${gap.event}"',
+      switch (syntax) {
+        SelectorSyntax.cli || SelectorSyntax.console =>
+          'Run again with --accept-unhandled-events to push it anyway.',
+        SelectorSyntax.mcp =>
+          'Call again with acceptUnhandledEvents: true to push it anyway.',
+      },
+    ].join('\n');
+  }
   if (surface != null) return renderSurfaceException(surface);
   final routing = decodeSurfaceRoutingException(body);
   if (routing case SurfaceRoutingRejected(:final reason)) {

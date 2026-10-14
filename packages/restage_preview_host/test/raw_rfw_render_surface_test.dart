@@ -709,7 +709,7 @@ widget Preview = Broken();
     await tester.pump();
     await tester.pump();
 
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isA<StateError>());
     expect(events.whereType<Settled>(), isEmpty);
     expect(events.whereType<RenderError>().single.epoch, 4);
 
@@ -803,7 +803,7 @@ widget Preview = LateFailure();
     await tester.pump();
     await tester.pump();
 
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isA<StateError>());
     expect(
       events.map((event) => event.runtimeType),
       <Type>[Settled, RenderError],
@@ -855,6 +855,7 @@ widget Preview = StructuralReporter();
       await tester.pump();
       await tester.pump();
 
+      expect(tester.takeException(), isA<StateError>());
       expect(
         events.map((event) => event.runtimeType),
         <Type>[Settled, RenderError],
@@ -862,6 +863,7 @@ widget Preview = StructuralReporter();
       controller.trigger();
       await tester.pump();
       await tester.pump();
+      expect(tester.takeException(), isNull);
       expect(events.whereType<Settled>(), hasLength(1));
       expect(events.whereType<RenderError>(), hasLength(1));
     });

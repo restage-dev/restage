@@ -316,6 +316,7 @@ widget OnboardingScreen = Throwing();
     );
     await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNotNull);
     expect(find.text('fallback:renderFailure'), findsOneWidget);
   });
 }

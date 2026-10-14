@@ -770,6 +770,7 @@ void main() {
       ));
     }
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNotNull);
 
     final observed = (
       actorB: find.text('Actor B after blob failure').evaluate().length,
@@ -877,7 +878,7 @@ void main() {
       rendered: flowViews.isEmpty
           ? null
           : flowViews.single.controller.hasRenderedContent,
-      escaped: tester.takeException(),
+      reported: tester.takeException() != null,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -893,7 +894,7 @@ void main() {
         flowViews: observed.flowViews,
         unavailable: observed.unavailable,
         rendered: observed.rendered,
-        escaped: observed.escaped,
+        reported: observed.reported,
       ),
       (
         actorB: 1,
@@ -905,7 +906,7 @@ void main() {
         flowViews: 1,
         unavailable: false,
         rendered: true,
-        escaped: null,
+        reported: true,
       ),
     );
     expect(observed.currentEntry, isNotNull);
@@ -1248,6 +1249,7 @@ void main() {
     );
     await refresh;
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNotNull);
     expect(find.text('Resolver last-good'), findsOneWidget);
     expect(events.whereType<PaywallLoadFailed>(), isEmpty);
     expect(await Restage.surfaceArtifactStore.keys(), isEmpty);
@@ -1440,7 +1442,7 @@ void main() {
         viewed: events.whereType<PaywallViewed>().length,
         failed: events.whereType<PaywallLoadFailed>().length,
         dismissed: events.whereType<PaywallDismissed>().length,
-        escaped: tester.takeException(),
+        reported: tester.takeException() != null,
       ),
       (
         blobResolverCalls: 1,
@@ -1449,7 +1451,7 @@ void main() {
         viewed: 0,
         failed: 0,
         dismissed: 0,
-        escaped: null,
+        reported: false,
       ),
     );
   });

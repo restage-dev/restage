@@ -226,6 +226,20 @@ final class GeometrySnapshot {
 
   /// Every drawn instance of each path, in drawn order.
   final Map<String, List<GeometryInstance>> instances;
+
+  /// Each path's first instance that ancestor clips leave visible, cut to
+  /// what shows; a path clipped out entirely is absent.
+  late final Map<String, Rect> visibleRects = Map<String, Rect>.unmodifiable(
+    <String, Rect>{
+      for (final entry in instances.entries)
+        if (entry.value
+                .map((instance) => instance.visibleRect)
+                .nonNulls
+                .firstOrNull
+            case final visible?)
+          entry.key: visible,
+    },
+  );
 }
 
 abstract interface class RenderEvent {}
@@ -919,16 +933,7 @@ GeometrySnapshot _parseGeometry(Map<String, Object?> payload) {
         throw const FormatException('instances must be lists.');
       }
       instances[entry.key] = <GeometryInstance>[
-        for (final values in list)
-          if (values is List<Object?> && values.length == 5)
-            GeometryInstance(
-              _parseRect(values.sublist(0, 4)),
-              item: values[4] is String
-                  ? values[4]! as String
-                  : throw const FormatException('item must be a string.'),
-            )
-          else
-            GeometryInstance(_parseRect(values)),
+        for (final values in list) _parseGeometryInstance(values),
       ];
     }
   }
@@ -937,6 +942,27 @@ GeometrySnapshot _parseGeometry(Map<String, Object?> payload) {
     generation: _requiredInt(payload, 'generation'),
     rects: rects,
     instances: instances,
+  );
+}
+
+GeometryInstance _parseGeometryInstance(Object? values) {
+  final instance = _asMap(values);
+  if (instance == null) {
+    throw const FormatException('instances must be objects.');
+  }
+  final rect = _parseRect(instance['rect']);
+  final item = instance['item'];
+  if (item != null && item is! String) {
+    throw const FormatException('item must be a string.');
+  }
+  if (!instance.containsKey('visible')) {
+    return GeometryInstance(rect, item: item as String?);
+  }
+  final visible = instance['visible'];
+  return GeometryInstance.clipped(
+    rect,
+    visibleRect: visible == null ? null : _parseRect(visible),
+    item: item as String?,
   );
 }
 

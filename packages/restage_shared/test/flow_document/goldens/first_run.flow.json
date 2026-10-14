@@ -64,21 +64,21 @@
   "schemaVersion": 1,
   "screenArtifacts": {
     "permissions": {
-      "contentHash": "sha256:2fdf394099fc1b2726364d3c711bc67e4c6e3a6815e954f8ba40e5f6abff5f20",
+      "contentHash": "sha256:a27615c14cb1713cb61b62bcc1c7735d8f24368cf3e1360daac18ef6f1e0d60b",
       "minClient": 1,
       "path": "permissions.rfw",
       "schemaVersion": 1,
       "version": 1
     },
     "ready": {
-      "contentHash": "sha256:3ddf726bd14672398d634f5f551d6774438f2a6b6f64c2337170405daebd1bd5",
+      "contentHash": "sha256:e9b89ae68314ce6dbd25efd18958c3acdcf75834ce286e4a6c4087dd2348588d",
       "minClient": 1,
       "path": "ready.rfw",
       "schemaVersion": 1,
       "version": 1
     },
     "welcome": {
-      "contentHash": "sha256:173eb2f2fc701497bf99849f061570b609fc54ad654a77349083396be458d53b",
+      "contentHash": "sha256:63c37fa4c3375cc925f59977834809f26db4e91d78cd5a361a599f40bcf32455",
       "minClient": 1,
       "path": "welcome.rfw",
       "schemaVersion": 1,

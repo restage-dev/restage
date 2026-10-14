@@ -125,6 +125,8 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// forwarded to the controller exactly as before. This lets a host handle an
   /// app-owned action while still forwarding navigation events to the flow.
   /// Null keeps the default behavior verbatim, so onboarding is untouched.
+  /// Events handled here appear in the build's dropped-event warning unless
+  /// the flow declares them as custom events.
   ///
   /// > **This is an UNCAPPED, host-owned escape hatch.** It receives the screen
   /// > event name *before* the controller's capped path — so it is NOT
@@ -584,6 +586,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     final isCurrent = screen.entryId == controller.currentScreenEntryId;
     final child = RuntimeErrorBoundary(
       key: ValueKey<int>(screen.entryId),
+      debugLabel: controller.flow.id,
       onFirstBuildSuccess: () {
         controller.acknowledgeRenderedEntry(screen.entryId);
       },

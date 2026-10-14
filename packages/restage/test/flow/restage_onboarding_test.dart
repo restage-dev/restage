@@ -545,7 +545,7 @@ final class _Result {
     ));
     await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
     expect(callbackError?.reason, 'render_failed');
     expect(find.text('fallback:render_failed'), findsOneWidget);
     expect(
@@ -646,7 +646,7 @@ final class _Result {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
 
-    expect(exception, isNull);
+    expect(exception, isNotNull);
     expect(firstErrors.map((error) => error.reason), ['render_failed']);
     expect(secondErrors, isEmpty);
     expect(firstFallbackCount, 1);

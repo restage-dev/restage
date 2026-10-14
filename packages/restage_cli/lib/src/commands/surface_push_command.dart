@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
@@ -27,11 +29,15 @@ import 'package:restage_cli/src/receipts/git_repository.dart';
 import 'package:restage_cli/src/receipts/receipt_location.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/release_receipt.dart';
+import 'package:restage_cli/src/render_bundles/surface_capture.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     hide RuntimePlane;
 
 /// Push one generated surface from its exact manifest artifact closure.
+/// Extra time a render gets when `--build` holds the Flutter lock first.
+const _buildAllowance = Duration(minutes: 6);
+
 class SurfacePushCommand extends Command<int> {
   /// Construct a push command.
   SurfacePushCommand({
@@ -44,6 +50,7 @@ class SurfacePushCommand extends Command<int> {
     PublicationBundleReader? bundleReader,
     GitProcessRunner? processRunner,
     ReceiptGeneratorRunner? generator,
+    SurfaceImageCapturer? imageCapturer,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
@@ -52,7 +59,8 @@ class SurfacePushCommand extends Command<int> {
        _buildCommand = buildCommand,
        _bundleReader = bundleReader,
        _processRunner = processRunner,
-       _generator = generator {
+       _generator = generator,
+       _imageCapturer = imageCapturer ?? captureSurfaceImages {
     argParser
       ..addFlag(
         'build',
@@ -130,6 +138,7 @@ class SurfacePushCommand extends Command<int> {
   final PublicationBundleReader? _bundleReader;
   final GitProcessRunner? _processRunner;
   final ReceiptGeneratorRunner? _generator;
+  final SurfaceImageCapturer _imageCapturer;
 
   @override
   String get name => 'push';
@@ -252,6 +261,9 @@ class SurfacePushCommand extends Command<int> {
       if (publication.capabilityWarning != null) {
         _stderr.writeln(publication.capabilityWarning);
       }
+      if (publication.unhandledEventsWarning != null) {
+        _stderr.writeln(publication.unhandledEventsWarning);
+      }
     }
     // The closure guard is per entry, so it has to hold across a multi-entry
     // set and not only the single-entry one.
@@ -291,8 +303,33 @@ class SurfacePushCommand extends Command<int> {
     );
     if (environment == null) return 1;
 
+    // Images render while the build runs, and each rides its surface's push.
+    // Only a surface drawn with the app's own widgets needs one. A failed
+    // render never fails the push.
+    final building = argResults?['build'] as bool? ?? false;
+    final stopRender = Completer<void>();
+    final images =
+        _imageCapturer(
+          projectRoot: projectRoot,
+          entries: [
+            for (final publication in assembled)
+              if (_drawnWithAppWidgets(publication)) publication.entry,
+          ],
+          flagRoot: argResults?['flutter-root'] as String?,
+          configRoot: loadedConfig?.config.flutterRoot,
+          // The render waits on the Flutter lock while the build holds it.
+          timeout: building
+              ? surfaceCaptureTimeout + _buildAllowance
+              : surfaceCaptureTimeout,
+          cancel: stopRender.future,
+        ).catchError(
+          (Object _) => const SurfaceCaptureResult(
+            failure: 'rendering stopped unexpectedly',
+          ),
+        );
+
     var buildCode = 0;
-    if (argResults?['build'] as bool? ?? false) {
+    if (building) {
       buildCode = await pushBuildFirst(
         buildCommand:
             _buildCommand ??
@@ -315,31 +352,39 @@ class SurfacePushCommand extends Command<int> {
       );
     }
 
-    final code = await _runPipeline(
-      credential: credential,
-      apiEndpoint: apiEndpoint,
-      packageRoot: projectRoot,
-      project: project,
-      app: app,
-      environment: environment,
-      preferredOrganizationSlug: resolveOrganizationSlug(
-        argResults,
-        loadedConfig?.config,
-      ),
-      runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
-      configuredPlane: loadedConfig?.config.plane,
-      config: loadedConfig?.config,
-      configSource: loadedConfig?.source,
-      assembled: assembled,
-      buildFailed: buildCode != 0,
-      declareAssets:
-          (argResults?['declare-assets'] as bool? ?? false) ||
-          (loadedConfig?.config.declareAssets ?? false),
-      recorder: recorder,
-      recordedSource: recordedSource,
-      generationFingerprint: generationFingerprint,
-      versionName: versionName,
-    );
+    final int code;
+    try {
+      code = await _runPipeline(
+        credential: credential,
+        apiEndpoint: apiEndpoint,
+        packageRoot: projectRoot,
+        project: project,
+        app: app,
+        environment: environment,
+        preferredOrganizationSlug: resolveOrganizationSlug(
+          argResults,
+          loadedConfig?.config,
+        ),
+        runtimePlane: resolveRuntimePlane(argResults, loadedConfig?.config),
+        configuredPlane: loadedConfig?.config.plane,
+        config: loadedConfig?.config,
+        configSource: loadedConfig?.source,
+        assembled: assembled,
+        buildFailed: buildCode != 0,
+        declareAssets:
+            (argResults?['declare-assets'] as bool? ?? false) ||
+            (loadedConfig?.config.declareAssets ?? false),
+        recorder: recorder,
+        recordedSource: recordedSource,
+        generationFingerprint: generationFingerprint,
+        versionName: versionName,
+        images: images,
+      );
+    } finally {
+      // No render outlives the command: one the push no longer needs stops.
+      if (!stopRender.isCompleted) stopRender.complete();
+      await images;
+    }
     if (buildCode == 0) return code;
     reportBuildNotPushed(
       app: app,
@@ -390,6 +435,7 @@ class SurfacePushCommand extends Command<int> {
     required ReceiptSource? recordedSource,
     required String generationFingerprint,
     required String? versionName,
+    required Future<SurfaceCaptureResult> images,
   }) async {
     final RestageApi api;
     try {
@@ -450,6 +496,7 @@ class SurfacePushCommand extends Command<int> {
         );
       }
 
+      final imageOf = _reportImages(await images, assembled);
       var recordFailed = false;
       final recordedPushes = <String>[];
       final pushCode = await runPush(
@@ -468,6 +515,7 @@ class SurfacePushCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
         declareAssets: declareAssets,
+        imageOf: imageOf,
         onPushed: (publication, result) async {
           await _reportPublicationFit(
             api: api,
@@ -550,6 +598,40 @@ class SurfacePushCommand extends Command<int> {
       if (_httpClient == null) api.close();
     }
   }
+
+  /// Says which surfaces push without an image and why, and returns the
+  /// image each of the others carries.
+  Uint8List? Function(AssembledSurfacePublication) _reportImages(
+    SurfaceCaptureResult images,
+    List<AssembledSurfacePublication> assembled,
+  ) {
+    if (images.failure case final failure?) {
+      if (assembled.any(_drawnWithAppWidgets)) {
+        _stderr.writeln('Pushing without surface images: $failure.');
+      }
+      return (_) => null;
+    }
+    String nameOf(AssembledSurfacePublication publication) => surfaceImageName(
+      surfaceType: publication.entry.publication.surface.wireName,
+      slug: publication.entry.publication.slug,
+    );
+    for (final publication in assembled.where(_drawnWithAppWidgets)) {
+      final name = nameOf(publication);
+      if (images.images.containsKey(name)) continue;
+      if (images.skipped[name] case final reason?) {
+        _stderr.writeln(
+          'Pushing ${publication.entry.publication.slug} without an image: '
+          '$reason.',
+        );
+      }
+    }
+    return (publication) => _drawnWithAppWidgets(publication)
+        ? images.images[nameOf(publication)]
+        : null;
+  }
+
+  static bool _drawnWithAppWidgets(AssembledSurfacePublication publication) =>
+      publication.payload.requiredLibraries.isNotEmpty;
 
   Future<void> _reportPublicationFit({
     required RestageApi api,

@@ -7,7 +7,8 @@
 
 import 'dart:io';
 
-import 'package:rfw/formats.dart';
+import 'package:restage_shared/restage_shared.dart' show canonicalizeLibrary;
+import 'package:restage_shared/rfw_formats.dart';
 import 'package:watcher/watcher.dart';
 
 const _paywallsDir = 'assets/paywalls';
@@ -48,7 +49,7 @@ void _compileFile(String inputPath) {
   try {
     final source = File(inputPath).readAsStringSync();
     final library = parseLibraryFile(source, sourceIdentifier: inputPath);
-    final bytes = encodeLibraryBlob(library);
+    final bytes = encodeLibraryBlob(canonicalizeLibrary(library));
     File(outputPath).writeAsBytesSync(bytes);
     stdout.writeln(
       '[$ts] $inputPath → $outputPath '

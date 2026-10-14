@@ -18,9 +18,16 @@ void validateSnapshotPath(
       'must be bounded and non-empty',
     );
   }
-  for (final segment in DocumentPathCodec.decode(path)) {
-    if (segment is String) {
-      rejectCredentialFieldName(segment, argumentName: argumentName);
+  final decoded = DocumentPathCodec.decode(path);
+  rejectCredentialFieldName(decoded.first as String,
+      argumentName: argumentName);
+  for (final step in DocumentPathCodec.parseCompact(decoded)) {
+    final name = switch (step) {
+      SlotStep(:final name) || KeyStep(:final name) => name,
+      _ => null,
+    };
+    if (name != null) {
+      rejectCredentialFieldName(name, argumentName: argumentName);
     }
   }
 }

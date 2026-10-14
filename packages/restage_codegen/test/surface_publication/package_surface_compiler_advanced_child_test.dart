@@ -92,7 +92,7 @@ PackageSurfaceCompilationInput _inputFor(
   final childDeclaration = library.classes.singleWhere(
     (declaration) => declaration.name == 'AdvancedChild',
   );
-  final welcomeBlob = Uint8List.fromList(utf8.encode('RFW:welcome'));
+  final welcomeBlob = screenBlobNamed('welcome');
   const childDocument = FlowDocument(
     flow: 'advanced_child',
     version: 2,

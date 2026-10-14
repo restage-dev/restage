@@ -15,6 +15,7 @@ import '_support/harness.dart';
 Map<String, Object?> _statusView({
   String? sourceKind = 'screen',
   List<int> versions = const [2],
+  Map<String, Object?> extra = const {},
 }) => {
   '__className__': 'SurfaceStatusView',
   'surfaceType': 'onboarding',
@@ -23,6 +24,7 @@ Map<String, Object?> _statusView({
   'liveVersion': 2,
   'locked': false,
   'deliveryShape': 'flow',
+  'draftOrigin': 'code',
   'sourceKind': ?sourceKind,
   'contractVersion': sourceKind == 'screen' ? 3 : null,
   'versions': [
@@ -36,6 +38,7 @@ Map<String, Object?> _statusView({
         'deliveryMode': 'general',
       },
   ],
+  ...extra,
 };
 
 Map<String, Object?> _history(List<int> revisions) => {
@@ -241,6 +244,27 @@ void main() {
     expect(status, isNot(contains('environmentTargetId')));
     expect(status, isNot(contains('runtimePlane')));
     expect(status, isNot(contains('organizationId')));
+  });
+
+  test('the status reports the draft origin and the edit after code', () async {
+    final connection = await connect(
+      (_) async => http.Response(
+        jsonEncode(
+          _statusView(
+            extra: {'draftOrigin': 'editor', 'editedAfterCode': true},
+          ),
+        ),
+        200,
+      ),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(name: 'restage_surface_status', arguments: _surface),
+    );
+
+    expect(result.isError, isNot(true), reason: _text(result));
+    expect(result.structuredContent!['draftOrigin'], 'editor');
+    expect(result.structuredContent!['editedAfterCode'], isTrue);
   });
 
   test('the server refusals read in MCP terms', () async {
@@ -711,6 +735,54 @@ void main() {
     expect(publish.body['surfaceType'], 'onboarding');
     expect(publish.body['environmentSlug'], 'staging');
     expect(result.structuredContent!['revision'], 5);
+  });
+
+  test('draft push lists unhandled events and names the parameter', () async {
+    final connection = await connect(
+      (_) async => typedError('SurfaceContractFamilyViolation', {
+        'code': 'unhandledEvents',
+        'message': 'The flow does not handle the event "next".',
+        'unhandledEvents': [
+          {
+            'flow': 'welcome',
+            'state': 'intro',
+            'screen': 'hello',
+            'event': 'next',
+          },
+        ],
+      }),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(name: 'restage_push_surface_draft', arguments: _surface),
+    );
+
+    expect(result.isError, isTrue);
+    expect(
+      _text(result),
+      'The flow does not handle the event "next".\n'
+      '  Flow "welcome", state "intro", screen "hello", event "next"\n'
+      'Call again with acceptUnhandledEvents: true to push it anyway.',
+    );
+  });
+
+  test('draft push accepts unhandled events when asked', () async {
+    final calls = <BackendCall>[];
+    final connection = await connect((call) async {
+      if (call.method == 'coverage') return http.Response('null', 500);
+      return http.Response('5', 200);
+    }, calls: calls);
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_push_surface_draft',
+        arguments: {..._surface, 'acceptUnhandledEvents': true},
+      ),
+    );
+
+    expect(result.isError, isNot(true), reason: _text(result));
+    final publish = calls.singleWhere((call) => call.method == 'publish');
+    expect(publish.body['acceptUnhandledEvents'], isTrue);
   });
 
   test('draft pull returns clean base64, never the wire wrapper', () async {

@@ -93,9 +93,10 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
-      // The factory's `ArgumentError` propagates as a render error: the
-      // SDK's runtime error boundary intercepts it and fires
-      // `PaywallLoadFailed` instead of mounting `PromoBadge`.
+      // The factory's `ArgumentError` reaches the app's error handler, and
+      // the SDK's error boundary fires `PaywallLoadFailed` instead of
+      // mounting `PromoBadge`.
+      expect(tester.takeException(), isA<ArgumentError>());
       expect(find.byType(PromoBadge), findsNothing);
       expect(loadFailures, hasLength(1));
       expect(loadFailures.single.errorCode, RestageErrorCodes.renderError);

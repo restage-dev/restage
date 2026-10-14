@@ -116,7 +116,9 @@ void main() {
         () async {
       final support = await _temporarySupportDirectory();
       addTearDown(() => support.delete(recursive: true));
-      final store = _store(support);
+      // A held clock keeps the scheduled retry from coming due mid-test.
+      final now = DateTime.now().toUtc();
+      final store = _store(support, clock: () => now);
       await store.open();
       await store.commit(_batch(sessionId: 'session.lease.one'));
       await store.commit(_batch(sessionId: 'session.lease.two'));

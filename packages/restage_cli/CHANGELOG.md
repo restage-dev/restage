@@ -4,6 +4,16 @@
 
 Initial release of the `restage` command-line interface.
 
+`restage surface draft push --accept-unhandled-events` pushes a flow draft whose
+screens emit events the flow does not handle. Without the flag the push is
+refused, and the refusal lists each flow, state, screen and event.
+`restage surface push` and `restage paywall push` print a warning for the same
+events and push anyway.
+
+`restage surface status` prints a `draft:` line, `code` or `editor`, and notes
+when the draft was edited after the latest publish from code. The console shows
+the same.
+
 `restage docs search` finds sections of the Restage documentation with their
 URLs; `restage docs read` prints a page, or one section, as Markdown.
 

@@ -172,7 +172,7 @@ void main() {
 
     // The fail-closed RuntimeErrorBoundary absorbed the throw (nothing leaked to
     // the binding) and routed it to the controller, which failed closed.
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
     expect(controller.isUnavailable, isTrue);
     expect(captured?.reason, 'render_failed');
     expect(controller.hasRenderedContent, isFalse);

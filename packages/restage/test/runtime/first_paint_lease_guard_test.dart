@@ -56,7 +56,7 @@ void main() {
     expect(observed.committed, isTrue);
     expect(transaction.isCommitted, isTrue);
     expect(transaction.isPaintAcknowledged, isFalse);
-    expect(paintError, isNull);
+    expect(paintError, isA<StateError>());
     expect(observed.painted, isFalse);
     expect(observed.ready, isFalse);
     expect(observed.errors, 1);
@@ -186,7 +186,7 @@ void main() {
       expect(afterCommit, isFalse);
       expect(boundaryErrors, 1);
       expect(fallbackCount, 1);
-      expect(observedDelegation, isEmpty);
+      expect(observedDelegation, hasLength(1));
     },
   );
 
@@ -286,7 +286,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
 
-      expect(escaped, isNull);
+      expect(escaped, isA<StateError>());
       expect(failedObserved.committed, isTrue);
       expect(transaction.isCommitted, isTrue);
       expect(failedObserved.painted, isFalse);
@@ -305,45 +305,12 @@ void main() {
     },
   );
 
-  // The failing subtree sits inside the inner boundary, so the inner boundary
-  // owns the report and holds the provisional token. What the exact-identity
-  // match decides is whether the nested build claim releases that token or
-  // leaves it to be committed as a definitive render failure — observable as
-  // the owning transaction's remaining ability to report render success. The
-  // outer lease is uninvolved either way, and must stay unblocked.
+  // The inner boundary owns the report, so the inner lease is blocked and the
+  // outer lease stays unblocked; the app's handler still sees the report.
   testWidgets(
-    'identical ErrorWidget claim releases the owning provisional lease token',
+    'an owned report that also builds an error widget fails only its owner',
     (tester) async {
-      final observed = await _runIdentityClaimScenario(
-        tester,
-        useIdenticalBuilderDetails: true,
-      );
-
-      expect(observed, (
-        outerCommitted: true,
-        outerPainted: true,
-        outerReady: true,
-        outerAfterCommit: true,
-        outerErrors: 0,
-        innerErrors: 1,
-        outerIsCommitted: true,
-        innerIsCommitted: false,
-        innerCanReportRenderSuccess: true,
-        outerFallbacks: 0,
-        innerFallbacks: 1,
-        escaped: null,
-      ));
-    },
-  );
-
-  testWidgets(
-    'non-identical ErrorWidget claim cannot release the owning provisional '
-    'lease token',
-    (tester) async {
-      final observed = await _runIdentityClaimScenario(
-        tester,
-        useIdenticalBuilderDetails: false,
-      );
+      final observed = await _runOwnedBuildFailureScenario(tester);
 
       expect(observed, (
         outerCommitted: true,
@@ -357,7 +324,7 @@ void main() {
         innerCanReportRenderSuccess: false,
         outerFallbacks: 0,
         innerFallbacks: 1,
-        escaped: null,
+        reported: 'Bad state: structurally owned report',
       ));
     },
   );
@@ -453,7 +420,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
 
-      expect(escaped, isNull);
+      expect(escaped, isA<StateError>());
       expect(transaction.isCommitted, isTrue);
       expect(observed, (
         committed: true,
@@ -524,6 +491,7 @@ void main() {
       ),
     );
     await tester.pump();
+    final reported = tester.takeException();
 
     final observed = (
       outerPainted: outerPainted,
@@ -549,6 +517,7 @@ void main() {
       innerAfterCommit: false,
       innerErrors: 1,
     ));
+    expect(reported, isA<StateError>());
   });
 }
 
@@ -565,11 +534,8 @@ Future<
       bool innerCanReportRenderSuccess,
       int outerFallbacks,
       int innerFallbacks,
-      Object? escaped,
-    })> _runIdentityClaimScenario(
-  WidgetTester tester, {
-  required bool useIdenticalBuilderDetails,
-}) async {
+      String? reported,
+    })> _runOwnedBuildFailureScenario(WidgetTester tester) async {
   var outerCommitted = false;
   var outerPainted = false;
   var outerReady = false;
@@ -593,11 +559,7 @@ Future<
   void outerOnError(Object _, StackTrace __) => outerErrors += 1;
   void innerOnError(Object _, StackTrace __) => innerErrors += 1;
 
-  Widget tree({
-    FlutterErrorDetails? reportedDetails,
-    FlutterErrorDetails? builderDetails,
-  }) =>
-      Directionality(
+  Widget tree({FlutterErrorDetails? reportedDetails}) => Directionality(
         textDirection: TextDirection.ltr,
         child: Offstage(
           offstage: reportedDetails == null,
@@ -621,7 +583,6 @@ Future<
                           const Text('inner fallback'),
                       child: _ReportAndBuildErrorWidget(
                         reportedDetails: reportedDetails,
-                        builderDetails: builderDetails,
                       ),
                     ),
                   ),
@@ -637,24 +598,14 @@ Future<
     find.byKey(_ReportAndBuildErrorWidget.evidenceKey, skipOffstage: false),
   );
   final reportedDetails = FlutterErrorDetails(
-    exception: StateError('structurally owned report for exact claim'),
+    exception: StateError('structurally owned report'),
     stack: StackTrace.current,
     library: 'restage_flutter_sdk_test',
     informationCollector: () => <DiagnosticsNode>[
       DiagnosticsProperty<RenderObject>('renderObject', evidence),
     ],
   );
-  final builderDetails = useIdenticalBuilderDetails
-      ? reportedDetails
-      : FlutterErrorDetails(
-          exception: reportedDetails.exception,
-          stack: reportedDetails.stack,
-          library: reportedDetails.library,
-        );
-
-  await tester.pumpWidget(
-    tree(reportedDetails: reportedDetails, builderDetails: builderDetails),
-  );
+  await tester.pumpWidget(tree(reportedDetails: reportedDetails));
   await tester.pump();
   await tester.pump();
 
@@ -670,7 +621,7 @@ Future<
     innerCanReportRenderSuccess: inner.canReportFrameworkRenderSuccess,
     outerFallbacks: find.text('outer fallback').evaluate().length,
     innerFallbacks: find.text('inner fallback').evaluate().length,
-    escaped: tester.takeException(),
+    reported: tester.takeException()?.toString(),
   );
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
@@ -678,15 +629,11 @@ Future<
 }
 
 final class _ReportAndBuildErrorWidget extends StatelessWidget {
-  const _ReportAndBuildErrorWidget({
-    required this.reportedDetails,
-    required this.builderDetails,
-  });
+  const _ReportAndBuildErrorWidget({required this.reportedDetails});
 
-  static const evidenceKey = ValueKey<String>('exact-claim-evidence');
+  static const evidenceKey = ValueKey<String>('owned-report-evidence');
 
   final FlutterErrorDetails? reportedDetails;
-  final FlutterErrorDetails? builderDetails;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -697,7 +644,7 @@ final class _ReportAndBuildErrorWidget extends StatelessWidget {
             Builder(
               builder: (context) {
                 FlutterError.reportError(reportedDetails);
-                return ErrorWidget.builder(builderDetails!);
+                return ErrorWidget.builder(reportedDetails);
               },
             ),
         ],

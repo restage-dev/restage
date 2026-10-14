@@ -197,6 +197,7 @@ void main() {
     );
     await tester.pump();
     expect(failures, 1);
+    expect(tester.takeException(), isNotNull);
 
     await tester.pumpWidget(
       _host(

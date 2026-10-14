@@ -12,14 +12,14 @@ const apexDropFlowRef = SurfaceFlowRef<
   decodeResult: _decodeApexDropFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"apex_drop","initial":"apex_drop","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:2be9387241d683e1855efdafe8d3942b875e25a1b7f3c36bc4bfdb48b390cb30","minClient":10,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
+        '{"flow":"apex_drop","initial":"apex_drop","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"apex_drop":{"contentHash":"sha256:acae95667cd778d1a309d005da9661a035ff8d817505e11a667143ba519806fe","minClient":10,"path":"apex_drop.rfw","schemaVersion":1,"version":1}},"states":{"apex_drop":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"apex_drop"},"done":{"kind":"end","result":{}}},"version":1}',
     screens: {
       'apex_drop': ApexDropScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'abbcdbeaab740ff15204bf9420fbafeb47865c9afc14b8da9a6cf519d3ada3fc',
+      '79245df1129df406ea6ff12bcc82b63bd093fd58dc97289170d317667c596d36',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
@@ -26,6 +27,7 @@ import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -34,6 +36,21 @@ import 'shared_resolvers.dart';
 
 export 'package:build_test/build_test.dart'
     hide resolveSources, testBuilder, testBuilders;
+
+/// A minimal encoded widget library whose one widget is named [name], so each
+/// name gives distinct, decodable screen blob bytes.
+Uint8List screenBlobNamed(String name) => fmt.encodeLibraryBlob(
+      fmt.RemoteWidgetLibrary(
+        const [],
+        [
+          fmt.WidgetDeclaration(
+            name,
+            null,
+            fmt.ConstructorCall('Container', const <String, Object?>{}),
+          ),
+        ],
+      ),
+    );
 
 /// The library URI under which [parseExpressionFromSourceForTest] mounts a
 /// synthetic source — its value-type stubs AND (for the native-decompose

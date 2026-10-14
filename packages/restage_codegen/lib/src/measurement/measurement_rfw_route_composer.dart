@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart' show canonicalizeLibrary;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 
 /// SDK-local RFW namespace that owns the presentation bridge.
@@ -144,7 +145,7 @@ abstract final class MeasurementRfwRouteComposer {
       presentation,
     );
     return MeasurementRfwRouteComposition(
-      blob: fmt.encodeLibraryBlob(rewritten),
+      blob: fmt.encodeLibraryBlob(canonicalizeLibrary(rewritten)),
       generatedReferences: consumed,
       generatedPresentationReferences: consumedPresentations,
     );

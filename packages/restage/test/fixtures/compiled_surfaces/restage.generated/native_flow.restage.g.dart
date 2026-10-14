@@ -12,12 +12,12 @@ const nativeClassFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeClassFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"native_class_flow","initial":"native_preferences","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:00df0121c09668013f66d2aa13863841057a9a764d006ecdd79fad37917b891f","minClient":1,"path":"measurement/fd61b201e0ea5991/native_preferences.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_preferences":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_preferences"}},"version":1}',
+        '{"flow":"native_class_flow","initial":"native_preferences","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:52cc0e730339a9590a572cf2d41377355fc13f774b07c948891d01977491d401","minClient":1,"path":"measurement/fd61b201e0ea5991/native_preferences.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_preferences":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_preferences"}},"version":1}',
     screens: {'native_preferences': NativePreferences.new},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '8ab3b22213058cffc7294251f7d9e4308f328f5a839a3bf002d66241079d213b',
+      'd440e9839fb0719d1de60c51b4e7013f18b4dfbe098e712b38da31514a293d1f',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Text': buildText},
@@ -155,12 +155,12 @@ const nativeNamedFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeNamedFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"native_named_flow","initial":"native_named","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_named":{"contentHash":"sha256:3f12802b0f5393ea2b00a3e2a4757f1902ac0c941f69973724f59f139e0b2cf3","minClient":1,"path":"native_named.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_named":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_named"}},"version":1}',
+        '{"flow":"native_named_flow","initial":"native_named","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"native_named":{"contentHash":"sha256:3e38929e2de011d114ef00608d1a71a3cbfd744e3e4880f408e57f57cb7779d2","minClient":1,"path":"native_named.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"native_named":{"kind":"screen","on":{"done":{"target":"done","type":"goto"}},"screen":"native_named"}},"version":1}',
     screens: {},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'dc060820141bb2c4fd085e10ad0c8df35f3696d07cb2e88f9a2777fdd1ba81f3',
+      '04779677bd1bcd600127ed8ffc4ec4aee4ed8faa2aad71b5aff0c0ff6450938b',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Text': buildText},
@@ -312,12 +312,12 @@ const nativeOfferFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeOfferFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:c8c4cee7bd1c8ab4bd65ac07e362e959c1cab5113401d0d397a096a621168be5","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
+        '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:0eacb92033b907b4b998df8045613d486f904e4b16561604deb48c474079d5a8","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
     screens: {'paywall_native_offer': NativeOffer.new},
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '378d477b261b89f5fda3324c3c6254443f3fe309b4cfbb1acfae4c929ecc04a0',
+      '5c082f28f1d0ca21058c7fd3adc6aa5359d2b474d1a3fed4ea19cf1c1f2e8448',
 );
 
 NativeOfferFlowResult _decodeNativeOfferFlowResult(
@@ -455,7 +455,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
   decodeResult: _decodeNativeWelcomeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"actions":{"permission":{"actionName":"permission","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":1,"resultSchema":{"kind":"bool"},"resultSchemaHash":"sha256:b381695502a4099cf3610d182b471a2562086e5e8bdb11f4426f63ba512542b3"}},"flow":"native_welcome_flow","flowState":{"completed":{"classification":"exportable","default":false,"type":"bool"}},"initial":"native_welcome","minClient":1,"outbound":{"terminalResult":{"fields":{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:0364f2b8177b1d234e2c5e35070c2ac490fb4e61207e5402d0e3de3db0256133","minClient":1,"path":"measurement/8e5c98f316d3660d/native_preferences.rfw","schemaVersion":1,"version":1},"native_welcome":{"contentHash":"sha256:b98f00f65c66754315c13ad5b24bf65817edb5140d728929a2b7795cca36be58","minClient":1,"path":"native_welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"completed":true}},"native_preferences":{"kind":"screen","on":{"done":{"set":{"completed":{"type":"bool","value":{"literal":true,"type":"bool"}}},"target":"offer","type":"goto"}},"screen":"native_preferences"},"native_welcome":{"kind":"screen","on":{"next":{"action":"permission","resultPredicate":{"kind":"boolEquals","value":true},"target":"native_preferences","type":"action"}},"screen":"native_welcome"},"offer":{"contentHash":"sha256:44f15c4932200f3608de0c4a7bcfdf6c75f7c07addc447527ce2331a87d0334b","default":{"goto":"done"},"flow":"native_offer_flow","kind":"subFlow","minClient":1,"onComplete":[{"goto":"done","when":{}}],"schemaVersion":1,"version":1}},"version":1}',
+        '{"actions":{"permission":{"actionName":"permission","argsSchema":{"fields":{},"kind":"object"},"argsSchemaHash":"sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a","contractVersion":1,"idempotent":false,"minClient":1,"resultSchema":{"kind":"bool"},"resultSchemaHash":"sha256:b381695502a4099cf3610d182b471a2562086e5e8bdb11f4426f63ba512542b3"}},"flow":"native_welcome_flow","flowState":{"completed":{"classification":"exportable","default":false,"type":"bool"}},"initial":"native_welcome","minClient":1,"outbound":{"terminalResult":{"fields":{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},"schemaVersion":1,"screenArtifacts":{"native_preferences":{"contentHash":"sha256:2627ccfac2f88ec4ee7e9f15bb15c32d7d406dc35c0b853dfc2d718f7f2107ff","minClient":1,"path":"measurement/8e5c98f316d3660d/native_preferences.rfw","schemaVersion":1,"version":1},"native_welcome":{"contentHash":"sha256:e1b98d390653009f2e9556cd0907ea3f0374beea9ac0df20ac92409b50ff5602","minClient":1,"path":"native_welcome.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{"completed":true}},"native_preferences":{"kind":"screen","on":{"done":{"set":{"completed":{"type":"bool","value":{"literal":true,"type":"bool"}}},"target":"offer","type":"goto"}},"screen":"native_preferences"},"native_welcome":{"kind":"screen","on":{"next":{"action":"permission","resultPredicate":{"kind":"boolEquals","value":true},"target":"native_preferences","type":"action"}},"screen":"native_welcome"},"offer":{"contentHash":"sha256:93a427ffe8e8c31cce274f616f7157f2310a8098558021878f3d5f5e82c08a86","default":{"goto":"done"},"flow":"native_offer_flow","kind":"subFlow","minClient":1,"onComplete":[{"goto":"done","when":{}}],"schemaVersion":1,"version":1}},"version":1}',
     screens: {
       'native_preferences': NativePreferences.new,
       'native_welcome': NativeWelcome.new,
@@ -463,14 +463,14 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
     children: {
       'native_offer_flow': CompiledFlow(
         documentJson:
-            '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:c8c4cee7bd1c8ab4bd65ac07e362e959c1cab5113401d0d397a096a621168be5","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
+            '{"flow":"native_offer_flow","initial":"paywall_native_offer","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"paywall_native_offer":{"contentHash":"sha256:0eacb92033b907b4b998df8045613d486f904e4b16561604deb48c474079d5a8","minClient":1,"path":"paywall_native_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"paywall_native_offer":{"kind":"screen","on":{"skip":{"target":"done","type":"goto"}},"screen":"paywall_native_offer"}},"version":1}',
         screens: {'paywall_native_offer': NativeOffer.new},
         children: {},
       ),
     },
   ),
   measurementPublicationDraftDigest:
-      '3694a15e7de8147f3f16a00d9e8a81ae45719e5fbc6a1fbf7e72720d8b4ccb3a',
+      '0f849cb843db9a42ef74435276c9459c3f4bd2eaa2a13b72e2aa292db055124c',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Text': buildText},
@@ -682,7 +682,7 @@ final nativeNoticeRef =
   provenance: _nativeNoticeProvenance,
   eventContract: _nativeNoticeEvents,
   measurementPublicationDraftDigest:
-      '2d764b0b7aa08c7c959046fea6fd4351cbec67d0233af8c24b3d238da28d42e3',
+      'e32f77bdfdf8b1cea50a771cfab4e888a366b1ce4e8efb70d57e0c5c753d1125',
 );
 
 final _nativeNoticePlacementDefinitionValue =

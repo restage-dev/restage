@@ -34,7 +34,7 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show CapabilityManifest, CapabilitySidecar, Surface;
+    show CapabilityManifest, CapabilitySidecar, Surface, canonicalizeLibrary;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -377,7 +377,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       final derivation = deriveCapabilityManifest(library, catalog);
       issues.addAll(derivation.issues);
       if (derivation.issues.isNotEmpty || derivation.manifest == null) continue;
-      final blob = fmt.encodeLibraryBlob(library);
+      final blob = fmt.encodeLibraryBlob(canonicalizeLibrary(library));
       final sidecar = utf8.encode(
         _jsonEncoder.convert(
           CapabilitySidecar(
@@ -636,7 +636,7 @@ final class OnboardingScreenBuilder implements Builder {
           continue;
         }
 
-        final bytes = fmt.encodeLibraryBlob(rfwLibrary);
+        final bytes = fmt.encodeLibraryBlob(canonicalizeLibrary(rfwLibrary));
         await Future.wait<void>([
           buildStep.writeAsString(
             AssetId(assetId.package, '$_outputDir/$stem.rfwtxt'),

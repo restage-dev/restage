@@ -211,14 +211,14 @@ void main() {
       old: find.text('First').evaluate().length,
       fallback: find.text('FALLBACK').evaluate().length,
       unavailableCalls: unavailableCalls,
-      escaped: tester.takeException(),
+      reported: tester.takeException() != null,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
     expect(
       observed,
-      (old: 1, fallback: 0, unavailableCalls: 0, escaped: null),
+      (old: 1, fallback: 0, unavailableCalls: 0, reported: true),
     );
   });
 

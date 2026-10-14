@@ -41,6 +41,7 @@ void main() {
       'liveVersion': liveVersion,
       'locked': false,
       'deliveryShape': 'blob',
+      'draftOrigin': 'code',
       'versions': <Map<String, dynamic>>[],
     }),
     200,

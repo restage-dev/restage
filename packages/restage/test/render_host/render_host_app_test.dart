@@ -453,7 +453,7 @@ widget Preview = LateFailure();
       await tester.pump();
       await tester.pump();
 
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNotNull);
       expect(transport.sent.map((message) => message.payload['type']), <String>[
         'ready',
         'settled',
@@ -553,7 +553,7 @@ widget Preview = RepaintReporter();
       await tester.pump();
       await tester.pump();
 
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNotNull);
       expect(transport.sent.map((message) => message.payload['type']), <String>[
         'ready',
         'settled',

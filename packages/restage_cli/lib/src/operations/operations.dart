@@ -871,7 +871,16 @@ final List<Operation> sharedOperations = [
         'it. Requires an admin role.',
     scope: OperationScope.target,
     surface: true,
-    params: const [_versionNameParam],
+    params: const [
+      _versionNameParam,
+      OperationParam(
+        'acceptUnhandledEvents',
+        cli: 'accept-unhandled-events',
+        type: ParamType.boolean,
+        help:
+            'Push even when the flow does not handle events its screens emit.',
+      ),
+    ],
     validate: _versionNameValid,
     render: (out, value, _, target) {
       final pushed = value! as Map<String, Object?>;
@@ -907,6 +916,7 @@ final List<Operation> sharedOperations = [
         runtimePlane: target.runtimePlane,
         organizationId: target.organizationId,
         label: args.optStr('name'),
+        acceptUnhandledEvents: args.optBool('acceptUnhandledEvents') ?? false,
       );
       final notice = await draftCoverageNotice(
         api: target.api,

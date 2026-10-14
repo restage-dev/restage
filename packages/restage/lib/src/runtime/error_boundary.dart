@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
@@ -8,15 +7,13 @@ import 'package:flutter/widgets.dart';
 
 import 'first_paint_lease_guard.dart';
 
-/// Catches exceptions thrown by [child]'s subtree and routes them to [onError].
+/// Contains failures thrown by [child]'s subtree and routes them to [onError].
 ///
-/// Scoped build-error shim. [ErrorWidget.builder] and [FlutterError.onError]
-/// are global state, so this boundary installs process-wide handlers while at
-/// least one instance is mounted. The replacement [ErrorWidget] then resolves
-/// the nearest boundary from widget ancestry, which keeps concurrent mounted
-/// runtimes from attributing a build failure to the last-mounted instance.
-/// Flutter errors that no boundary trap claims are delegated to the previous
-/// [FlutterError.onError] handler.
+/// Every Flutter error still reaches the app's [FlutterError.onError] handler,
+/// synchronously and exactly once; the boundary only replaces the failed
+/// subtree with [errorReplacement]. While at least one boundary is mounted it
+/// chains process-wide [FlutterError.onError] and [ErrorWidget.builder]
+/// handlers, and restores them when the last one unmounts.
 class RuntimeErrorBoundary extends StatefulWidget {
   /// Const constructor.
   const RuntimeErrorBoundary({
@@ -26,6 +23,7 @@ class RuntimeErrorBoundary extends StatefulWidget {
     required this.errorReplacement,
     this.onFirstBuildSuccess,
     this.onFirstPaintSuccess,
+    this.debugLabel,
   });
 
   /// The subtree to guard.
@@ -58,6 +56,9 @@ class RuntimeErrorBoundary extends StatefulWidget {
   /// adds the success notification; it does not arm the failure path.
   final VoidCallback? onFirstPaintSuccess;
 
+  /// Names the guarded surface in the debug log line printed on fallback.
+  final String? debugLabel;
+
   @override
   State<RuntimeErrorBoundary> createState() => _RuntimeErrorBoundaryState();
 }
@@ -65,18 +66,7 @@ class RuntimeErrorBoundary extends StatefulWidget {
 class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
   static final Set<_RuntimeErrorBoundaryState> _mountedBoundaries =
       <_RuntimeErrorBoundaryState>{};
-  static ErrorWidgetBuilder? _previousErrorBuilder;
-  static FlutterExceptionHandler? _previousOnError;
-  static ErrorWidgetBuilder? _installedErrorBuilder;
-  static FlutterExceptionHandler? _installedOnError;
-  static final List<_PendingFlutterErrorReport> _pendingReports =
-      <_PendingFlutterErrorReport>[];
-  // Trap builds whose claim arrived before the matching reporter call, keyed by
-  // the exact [FlutterErrorDetails] instance. Drained by [_consumeUnmatchedClaim]
-  // and cleared when the last boundary unmounts so this static state cannot grow
-  // across the process lifetime.
-  static final List<FlutterErrorDetails> _unmatchedClaimedDetails =
-      <FlutterErrorDetails>[];
+  static _InstalledErrorHandlers? _installed;
   static bool _materializingInformationCollector = false;
   static int _collectorReentrancyGeneration = 0;
 
@@ -84,8 +74,9 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
   StackTrace? _stack;
   bool _failurePending = false;
   int _failureCaptureGeneration = 0;
-  final Set<_PendingFlutterErrorReport> _provisionalReports =
-      HashSet<_PendingFlutterErrorReport>.identity();
+  // Leases this boundary's pending failure blocks until it commits or lapses.
+  final Set<FirstPaintLeaseTransaction> _heldLeases =
+      HashSet<FirstPaintLeaseTransaction>.identity();
   _RenderRuntimeErrorBoundaryPaintProbe? _paintProbe;
   bool _successScheduled = false;
   bool _successReported = false;
@@ -96,79 +87,47 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
   void initState() {
     super.initState();
     _mountedBoundaries.add(this);
-    _installHandlers();
-  }
-
-  static void _installHandlers() {
-    if (_installedErrorBuilder != null || _installedOnError != null) {
-      return;
-    }
-    _previousErrorBuilder = ErrorWidget.builder;
-    _previousOnError = FlutterError.onError;
-
-    _installedOnError = (FlutterErrorDetails details) {
-      final claimed = _consumeUnmatchedClaim(details);
-      final ownership = claimed ? null : _resolveStructuralOwnership(details);
-      final report = _PendingFlutterErrorReport(
-        details: details,
-        previousOnError: _previousOnError,
-        ownership: ownership,
-        claimed: claimed,
-      );
-      ownership?.boundary._holdProvisionalReport(report);
-      _pendingReports.add(report);
-      scheduleMicrotask(() {
-        _pendingReports.remove(report);
-        if (report.claimed) return;
-        final ownership = report.ownership;
-        if (ownership != null) {
-          if (ownership.isCurrent) {
-            ownership.boundary._commitProvisionalReport(report);
-          } else {
-            ownership.boundary._cancelProvisionalReport(report);
-          }
-          return;
-        }
-        report.previousOnError?.call(report.details);
-      });
-    };
-    FlutterError.onError = _installedOnError;
-
-    // Replace the global ErrorWidget.builder so the build-time error widget
-    // resolves the nearest boundary from the insertion point of the failing
-    // subtree instead of using whichever boundary mounted last.
-    _installedErrorBuilder = (FlutterErrorDetails details) =>
-        _RuntimeErrorBoundaryTrap(details: details);
-    ErrorWidget.builder = _installedErrorBuilder!;
+    _installed ??= _InstalledErrorHandlers.install();
   }
 
   static void _restoreHandlersIfIdle() {
     if (_mountedBoundaries.isNotEmpty) return;
-    final installedErrorBuilder = _installedErrorBuilder;
-    if (installedErrorBuilder != null &&
-        ErrorWidget.builder == installedErrorBuilder) {
-      ErrorWidget.builder = _previousErrorBuilder!;
-    }
-    final installedOnError = _installedOnError;
-    if (installedOnError != null && FlutterError.onError == installedOnError) {
-      FlutterError.onError = _previousOnError;
-    }
-    _previousErrorBuilder = null;
-    _previousOnError = null;
-    _installedErrorBuilder = null;
-    _installedOnError = null;
-    // No boundary is mounted, so nothing can drain these. Clear them rather
-    // than retaining unmatched entries for the rest of the process.
-    for (final report in _pendingReports) {
-      report.ownership?.boundary._cancelProvisionalReport(report);
-    }
-    _pendingReports.clear();
-    _unmatchedClaimedDetails.clear();
+    _installed?.uninstall();
+    _installed = null;
     _materializingInformationCollector = false;
     _collectorReentrancyGeneration = 0;
   }
 
-  static _StructuralErrorOwnership? _resolveStructuralOwnership(
+  /// Contains a layout or paint failure inside the nearest guarded subtree.
+  static void _containStructuralFailure(FlutterErrorDetails details) {
+    final boundary = _resolveStructuralOwner(details);
+    if (boundary == null) return;
+    boundary._holdLease(FirstPaintLeaseScope.maybeOf(boundary.context));
+    boundary._captureFirst(details.exception, details.stack);
+  }
+
+  void _holdLease(FirstPaintLeaseTransaction? lease) {
+    if (lease == null) return;
+    if (!holdFrameworkPaintErrorForTransaction(lease, this)) return;
+    if (_caught != null) {
+      commitFrameworkRenderFailureForTransaction(lease, this);
+    } else {
+      _heldLeases.add(lease);
+    }
+  }
+
+  void _settleHeldLeases({required bool commit}) {
+    for (final lease in _heldLeases) {
+      if (commit) {
+        commitFrameworkRenderFailureForTransaction(lease, this);
+      } else {
+        releaseFrameworkPaintErrorForTransaction(lease, this);
+      }
+    }
+    _heldLeases.clear();
+  }
+
+  static _RuntimeErrorBoundaryState? _resolveStructuralOwner(
     FlutterErrorDetails details,
   ) {
     if (_materializingInformationCollector) {
@@ -216,16 +175,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
       if (nearest != null) return null;
       nearest = candidate;
     }
-    if (nearest == null) return null;
-
-    final boundary = nearest.boundary;
-    return _StructuralErrorOwnership(
-      boundary: boundary,
-      marker: nearest,
-      markerIncarnation: nearest.incarnation,
-      onError: boundary.widget.onError,
-      lease: FirstPaintLeaseScope.maybeOf(boundary.context),
-    );
+    return nearest?.boundary;
   }
 
   static _RenderRuntimeErrorBoundaryPaintProbe? _nearestLivePaintProbe(
@@ -253,47 +203,9 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
     return false;
   }
 
-  static void _claim(FlutterErrorDetails details) {
-    final report = _findPendingReport(details);
-    if (report != null) {
-      report.claimed = true;
-      report.ownership?.boundary._cancelProvisionalReport(report);
-      return;
-    }
-    _unmatchedClaimedDetails.add(details);
-  }
-
-  static _PendingFlutterErrorReport? _findPendingReport(
-    FlutterErrorDetails details,
-  ) {
-    // Match on the exact details instance only. Flutter passes the same
-    // [FlutterErrorDetails] to the reporter and to [ErrorWidget.builder] for a
-    // given build failure, so identity is the precise key. Matching on the
-    // exception object instead would risk claiming (and suppressing) an
-    // unrelated report that happens to carry the same exception instance.
-    for (final report in _pendingReports) {
-      if (identical(report.details, details)) {
-        return report;
-      }
-    }
-    return null;
-  }
-
-  static bool _consumeUnmatchedClaim(FlutterErrorDetails details) {
-    final index = _unmatchedClaimedDetails.indexWhere(
-      (claimed) => identical(claimed, details),
-    );
-    if (index == -1) {
-      return false;
-    }
-    _unmatchedClaimedDetails.removeAt(index);
-    return true;
-  }
-
   void _captureFirst(Object exception, StackTrace? stack) {
-    // This runs from the descendant's ErrorWidget during the same build frame.
-    // Mark failure synchronously so the success callback already queued by the
-    // ancestor boundary cannot win the post-frame race.
+    // Mark failure synchronously so a success callback already queued for this
+    // frame cannot win the post-frame race.
     if (_failurePending || _caught != null) return;
     _failurePending = true;
     _paintProbe?.markNeedsSemanticsUpdate();
@@ -307,12 +219,15 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
       if (_caught != null) return;
       if (!identical(widget.onError, callback)) {
         _failurePending = false;
+        _settleHeldLeases(commit: false);
         return;
       }
+      _settleHeldLeases(commit: true);
       setState(() {
         _caught = exception;
         _stack = resolvedStack;
       });
+      _debugReportFallback(exception);
       callback(exception, resolvedStack);
     });
     // A report can arrive from independently flushed work or while the
@@ -321,41 +236,15 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
     SchedulerBinding.instance.ensureVisualUpdate();
   }
 
-  void _holdProvisionalReport(_PendingFlutterErrorReport report) {
-    _provisionalReports.add(report);
-    _paintProbe?.markNeedsSemanticsUpdate();
-    final lease = report.ownership?.lease;
-    if (lease != null) {
-      report.leaseHeld = holdFrameworkPaintErrorForTransaction(lease, report);
-    }
+  void _debugReportFallback(Object exception) {
+    if (!kDebugMode) return;
+    final label = widget.debugLabel;
+    final surface = label == null ? 'a surface' : 'surface "$label"';
+    final reason = '$exception'.split('\n').first;
+    debugPrint('[restage] $surface fell back after a render error: $reason');
   }
 
-  void _cancelProvisionalReport(_PendingFlutterErrorReport report) {
-    _provisionalReports.remove(report);
-    _paintProbe?.markNeedsSemanticsUpdate();
-    if (report.leaseHeld) {
-      final lease = report.ownership?.lease;
-      if (lease != null) {
-        releaseFrameworkPaintErrorForTransaction(lease, report);
-      }
-      report.leaseHeld = false;
-    }
-  }
-
-  void _commitProvisionalReport(_PendingFlutterErrorReport report) {
-    _provisionalReports.remove(report);
-    if (report.leaseHeld) {
-      final lease = report.ownership?.lease;
-      if (lease != null) {
-        commitFrameworkRenderFailureForTransaction(lease, report);
-      }
-      report.leaseHeld = false;
-    }
-    _captureFirst(report.details.exception, report.details.stack);
-  }
-
-  bool get _pipelineBlocked =>
-      _failurePending || _provisionalReports.isNotEmpty || _caught != null;
+  bool get _pipelineBlocked => _failurePending || _caught != null;
 
   void _registerPaintProbe(_RenderRuntimeErrorBoundaryPaintProbe probe) {
     _paintProbe = probe;
@@ -365,12 +254,8 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
   void didUpdateWidget(RuntimeErrorBoundary oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (identical(oldWidget.onError, widget.onError)) return;
-    for (final report in List<_PendingFlutterErrorReport>.of(
-      _provisionalReports,
-    )) {
-      _cancelProvisionalReport(report);
-    }
     if (_caught == null && _failurePending) {
+      _settleHeldLeases(commit: false);
       _failureCaptureGeneration += 1;
       _failurePending = false;
       _paintProbe?.markNeedsSemanticsUpdate();
@@ -379,11 +264,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
 
   @override
   void dispose() {
-    for (final report in List<_PendingFlutterErrorReport>.of(
-      _provisionalReports,
-    )) {
-      _cancelProvisionalReport(report);
-    }
+    _settleHeldLeases(commit: false);
     _failureCaptureGeneration += 1;
     _mountedBoundaries.remove(this);
     _restoreHandlersIfIdle();
@@ -472,42 +353,56 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
   }
 }
 
-class _PendingFlutterErrorReport {
-  _PendingFlutterErrorReport({
-    required this.details,
-    required this.previousOnError,
-    required this.ownership,
-    required this.claimed,
-  });
+/// One installation of the chained handlers, shared by every mounted boundary.
+///
+/// Each handler captures what it replaced, so a wrapper installed after it
+/// keeps a working chain; once uninstalled, both handlers pass straight through.
+final class _InstalledErrorHandlers {
+  _InstalledErrorHandlers._(this._previousOnError, this._previousErrorBuilder);
 
-  final FlutterErrorDetails details;
-  final FlutterExceptionHandler? previousOnError;
-  final _StructuralErrorOwnership? ownership;
-  bool claimed;
-  bool leaseHeld = false;
-}
+  factory _InstalledErrorHandlers.install() {
+    final installed = _InstalledErrorHandlers._(
+      FlutterError.onError,
+      ErrorWidget.builder,
+    );
+    FlutterError.onError = installed.onError;
+    ErrorWidget.builder = installed.errorBuilder;
+    return installed;
+  }
 
-class _StructuralErrorOwnership {
-  const _StructuralErrorOwnership({
-    required this.boundary,
-    required this.marker,
-    required this.markerIncarnation,
-    required this.onError,
-    required this.lease,
-  });
+  final FlutterExceptionHandler? _previousOnError;
+  final ErrorWidgetBuilder _previousErrorBuilder;
+  bool _active = true;
 
-  final _RuntimeErrorBoundaryState boundary;
-  final _RenderRuntimeErrorBoundaryPaintProbe marker;
-  final int markerIncarnation;
-  final void Function(Object exception, StackTrace stack) onError;
-  final FirstPaintLeaseTransaction? lease;
+  late final FlutterExceptionHandler onError = _onError;
+  late final ErrorWidgetBuilder errorBuilder = _buildErrorWidget;
 
-  bool get isCurrent =>
-      boundary.mounted &&
-      marker.isLive &&
-      identical(boundary._paintProbe, marker) &&
-      marker.incarnation == markerIncarnation &&
-      identical(boundary.widget.onError, onError);
+  void _onError(FlutterErrorDetails details) {
+    try {
+      if (_active) {
+        _RuntimeErrorBoundaryState._containStructuralFailure(details);
+      }
+    } finally {
+      _previousOnError?.call(details);
+    }
+  }
+
+  Widget _buildErrorWidget(FlutterErrorDetails details) => _active
+      ? _RuntimeErrorBoundaryTrap(
+          details: details,
+          fallback: _previousErrorBuilder,
+        )
+      : _previousErrorBuilder(details);
+
+  void uninstall() {
+    _active = false;
+    if (identical(FlutterError.onError, onError)) {
+      FlutterError.onError = _previousOnError;
+    }
+    if (identical(ErrorWidget.builder, errorBuilder)) {
+      ErrorWidget.builder = _previousErrorBuilder;
+    }
+  }
 }
 
 class _RuntimeErrorBoundaryScope extends InheritedWidget {
@@ -552,16 +447,13 @@ class _RenderRuntimeErrorBoundaryPaintProbe extends RenderProxyBox {
   _RenderRuntimeErrorBoundaryPaintProbe(this._boundary);
 
   _RuntimeErrorBoundaryState _boundary;
-  int _incarnation = 0;
 
   _RuntimeErrorBoundaryState get boundary => _boundary;
-  int get incarnation => _incarnation;
 
   bool get isLive =>
       attached && _boundary.mounted && identical(_boundary._paintProbe, this);
 
   void updateBoundary(_RuntimeErrorBoundaryState value) {
-    _incarnation += 1;
     if (!identical(_boundary, value)) {
       _boundary = value;
       markNeedsLayout();
@@ -597,9 +489,13 @@ class _RenderRuntimeErrorBoundaryPaintProbe extends RenderProxyBox {
 }
 
 class _RuntimeErrorBoundaryTrap extends StatelessWidget {
-  const _RuntimeErrorBoundaryTrap({required this.details});
+  const _RuntimeErrorBoundaryTrap({
+    required this.details,
+    required this.fallback,
+  });
 
   final FlutterErrorDetails details;
+  final ErrorWidgetBuilder fallback;
 
   @override
   Widget build(BuildContext context) {
@@ -607,15 +503,10 @@ class _RuntimeErrorBoundaryTrap extends StatelessWidget {
         .dependOnInheritedWidgetOfExactType<_RuntimeErrorBoundaryScope>();
     final boundary = scope?.boundary;
     if (boundary != null && boundary.mounted) {
-      _RuntimeErrorBoundaryState._claim(details);
       FirstPaintLeaseScope.maybeOf(context)?.recordBuildFailure();
       boundary._captureFirst(details.exception, details.stack);
       return const SizedBox.shrink();
     }
-    final previous = _RuntimeErrorBoundaryState._previousErrorBuilder;
-    if (previous != null) {
-      return previous(details);
-    }
-    return ErrorWidget.withDetails(message: details.exceptionAsString());
+    return fallback(details);
   }
 }

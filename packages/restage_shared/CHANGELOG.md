@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+`SurfacePayload` carries an optional editor-state section (`SurfaceEditorState`)
+with a draft. A published payload never carries it; `publishableDraftPayload`
+strips it and trims each library to the declarations its root widget reaches.
+`surfaceRootWidgetName` names that root.
+
+`canonicalizeLibrary` returns a library with its declarations and every map's
+keys in one canonical order, so the same content always encodes to the same
+bytes.
+
+`flowScreenEventGaps` lists the events a flow's screens emit that the state
+showing them does not handle. `surfaceScreenContractGaps` lists the events,
+event arguments and context reads a screen uses that its contract does not
+declare.
+
+`deriveSurfaceCapability` reports what a surface library needs from a client,
+read against a catalog.
+
+Publishing refuses a surface that emits a reserved purchase or restore event,
+such as `purchase`, `restore` or a `restage.purchase.*` name. The runtime drops
+those events, so the control would do nothing.
+
 `sampleHostContext` builds sample host data from a screen's declared inputs.
 
 New library `package:restage_shared/catalog.dart`, the catalog names generated code

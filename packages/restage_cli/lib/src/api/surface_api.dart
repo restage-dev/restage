@@ -551,6 +551,8 @@ class SurfaceApi {
   ///
   /// [organizationId] disambiguates the owning organization when the caller
   /// belongs to several; when omitted the backend resolves it.
+  /// [acceptUnhandledEvents] pushes a flow whose screens emit events the flow
+  /// does not handle.
   Future<int> publish({
     required String project,
     required String app,
@@ -561,6 +563,7 @@ class SurfaceApi {
     RuntimePlane? runtimePlane,
     int? organizationId,
     String? label,
+    bool acceptUnhandledEvents = false,
   }) async {
     final raw = await _api.call('surface', 'publish', <String, dynamic>{
       'projectSlug': project,
@@ -573,6 +576,7 @@ class SurfaceApi {
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
       'label': ?label,
+      if (acceptUnhandledEvents) 'acceptUnhandledEvents': true,
     });
     return raw as int;
   }

@@ -75,6 +75,8 @@ Future<void> _verifyContextPublication(
     hostContext = null;
   });
   await tester.pump();
+  // The surface requires the withdrawn label, so its build fails.
+  final withdrawalReported = tester.takeException();
   final notificationsAfterWithdrawal = notifications;
   final changedLabelAfterWithdrawal = find.text('second').evaluate().length;
 
@@ -91,6 +93,7 @@ Future<void> _verifyContextPublication(
   expect(notificationsAfterChange, 1);
   expect(changedLabelAfterWithdrawal, 0);
   expect(notificationsAfterWithdrawal, 2);
+  expect(withdrawalReported, isA<ArgumentError>());
 }
 
 void main() {

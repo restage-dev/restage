@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -47,51 +48,66 @@ void main() {
     );
   });
 
-  test('completes a slow but steady body that outlasts the timeout', () async {
-    final client = BoundedHttpClient(
-      MockClient.streaming((_, __) async {
-        final chunks = Stream<List<int>>.periodic(
-          const Duration(milliseconds: 15),
-          (index) => [index],
-        ).take(10);
-        return http.StreamedResponse(chunks, 200);
-      }),
-      timeout: const Duration(milliseconds: 60),
-    );
+  test('completes a slow but steady body that outlasts the timeout', () {
+    fakeAsync((async) {
+      final chunks = StreamController<List<int>>();
+      final client = BoundedHttpClient(
+        MockClient.streaming((_, __) async {
+          return http.StreamedResponse(chunks.stream, 200);
+        }),
+        timeout: const Duration(milliseconds: 60),
+      );
 
-    final started = DateTime.now();
-    final response = await client.get(Uri.parse('https://a.example/x'));
+      List<int>? body;
+      client
+          .get(Uri.parse('https://a.example/x'))
+          .then((response) => body = response.bodyBytes);
+      async.flushMicrotasks();
+      for (var i = 0; i < 10; i++) {
+        chunks.add([i]);
+        async.elapse(const Duration(milliseconds: 15));
+      }
+      expect(body, isNull);
 
-    expect(response.bodyBytes, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(
-      DateTime.now().difference(started),
-      greaterThan(const Duration(milliseconds: 60)),
-    );
+      chunks.close();
+      async.flushMicrotasks();
+      expect(body, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    });
   });
 
-  test('fails a body that stalls after steady progress', () async {
-    final body = StreamController<List<int>>();
-    addTearDown(body.close);
-    final client = BoundedHttpClient(
-      MockClient.streaming((_, __) async {
-        return http.StreamedResponse(body.stream, 200);
-      }),
-      timeout: const Duration(milliseconds: 40),
-    );
+  test('fails a body that stalls after steady progress', () {
+    fakeAsync((async) {
+      final body = StreamController<List<int>>();
+      final client = BoundedHttpClient(
+        MockClient.streaming((_, __) async {
+          return http.StreamedResponse(body.stream, 200);
+        }),
+        timeout: const Duration(milliseconds: 40),
+      );
 
-    final response =
-        await client.send(http.Request('GET', Uri.parse('https://a.example')));
-    final received = <int>[];
-    final done = response.stream
-        .listen((chunk) => received.addAll(chunk))
-        .asFuture<void>();
-    for (var i = 0; i < 4; i++) {
-      body.add([i]);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-    }
+      final received = <int>[];
+      Object? failure;
+      client
+          .send(http.Request('GET', Uri.parse('https://a.example')))
+          .then((response) {
+        response.stream.listen(
+          received.addAll,
+          onError: (Object error) => failure = error,
+        );
+      });
+      async.flushMicrotasks();
+      for (var i = 0; i < 4; i++) {
+        body.add([i]);
+        async.elapse(const Duration(milliseconds: 20));
+      }
+      expect(failure, isNull);
 
-    await expectLater(done, throwsA(isA<TimeoutException>()));
-    expect(received, [0, 1, 2, 3]);
+      async.elapse(const Duration(milliseconds: 40));
+      expect(failure, isA<TimeoutException>());
+      expect(received, [0, 1, 2, 3]);
+      body.close();
+      async.flushMicrotasks();
+    });
   });
 
   test('streams body bytes as they arrive', () async {

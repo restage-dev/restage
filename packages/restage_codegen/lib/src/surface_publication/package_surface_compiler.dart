@@ -478,9 +478,9 @@ final class PackageSurfaceCompilationResult {
   PackageSurfaceCompilationResult({
     required this.bundle,
     required List<Issue> issues,
-    List<String> mountOmissions = const [],
+    List<String> warnings = const [],
   })  : issues = List.unmodifiable(issues),
-        mountOmissions = List.unmodifiable(mountOmissions);
+        warnings = List.unmodifiable(warnings);
 
   /// Non-null only when every output family and manifest closure validated.
   final PackageSurfaceCompilationBundle? bundle;
@@ -488,8 +488,8 @@ final class PackageSurfaceCompilationResult {
   /// Deterministic diagnostics suitable for the aggregate build owner.
   final List<Issue> issues;
 
-  /// Optional convenience mounts that could not be emitted.
-  final List<String> mountOmissions;
+  /// Non-fatal findings the build prints as warnings.
+  final List<String> warnings;
 
   bool get isValid => bundle != null && issues.isEmpty;
 }
@@ -944,7 +944,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   PackageSurfaceCompilationInput input,
 ) {
   final issues = <Issue>[...input.roster.issues];
-  final mountOmissions = <String>[];
+  final warnings = <String>[];
   if (issues.isNotEmpty) {
     return _invalidResult(issues);
   }
@@ -998,7 +998,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       takenNames: _topLevelNames(library, source: source),
     );
     if (install.problem case final problem?) {
-      mountOmissions.add('${source.declarationIdentity}: $problem');
+      warnings.add('${source.declarationIdentity}: $problem');
     }
     for (final fragment in install.fragments) {
       _addPartFragment(
@@ -1094,7 +1094,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
             'hide combinator that excludes it';
       }
       if (problem != null) {
-        mountOmissions.add(
+        warnings.add(
           '${pending.source.declarationIdentity}: The generated flow mount '
           'cannot install the app widgets of ${screen.name}: $problem. '
           'Published versions of this flow render only after '
@@ -1380,7 +1380,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           fragment: fragment,
         );
       } else if (mount.omissionMessage case final message?) {
-        mountOmissions.add(message);
+        warnings.add(message);
       }
     }
 
@@ -2132,6 +2132,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     issues: issues,
   );
   if (manifest == null || issues.isNotEmpty) return _invalidResult(issues);
+  warnings
+      .addAll(_unhandledFlowEventWarnings(manifest.manifest, manifestInputs));
 
   final carrierDraftDigestsByPublicationKey =
       input.generatedSourceCarrierDraftDigestsByPublicationKey;
@@ -2294,7 +2296,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           measurementPresentationMaterializations,
     ),
     issues: const [],
-    mountOmissions: mountOmissions,
+    warnings: warnings,
   );
 }
 
@@ -3487,6 +3489,31 @@ String _artifactStem(String path) {
   final slash = path.lastIndexOf('/');
   final dot = path.indexOf('.', slash + 1);
   return dot < 0 ? path : path.substring(0, dot);
+}
+
+/// One warning per flow graph whose screens emit an event the state showing
+/// them does not handle; the runtime drops it.
+List<String> _unhandledFlowEventWarnings(
+  SurfacePublicationManifest manifest,
+  List<SurfacePublicationAssemblyInput> inputs,
+) {
+  final bytes = <String, List<int>>{
+    for (final input in inputs)
+      for (final artifact in input.artifacts) artifact.path: artifact.bytes,
+  };
+  final closures = manifest.validateArtifactClosure(bytes);
+  final warnings = <String>[];
+  for (var index = 0; index < closures.length; index += 1) {
+    final closure = closures[index];
+    if (closure.publication.sourceKind != SurfaceSourceKind.flowGraph) continue;
+    final payload = closure.assemblePayload() as FlowSurfacePayload;
+    final gaps = flowScreenEventGaps(payload);
+    if (gaps.isEmpty) continue;
+    final message = flowScreenEventGapsMessage(payload.flowDocument.flow, gaps);
+    final sources = manifest.publications[index].sources;
+    warnings.add(sources.isEmpty ? message : '${sources.first}: $message');
+  }
+  return warnings;
 }
 
 SurfacePublicationAssemblyResult? _buildManifest(

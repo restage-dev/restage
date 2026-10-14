@@ -87,32 +87,44 @@ Map<String, List<GeometryInstance>> snapshotInstances(
       );
     }
     for (final instance in list) {
-      validateGeometry(
-        <String, Rect>{entry.key: instance.rect},
-        argumentName: argumentName,
-      );
+      for (final rect in <Rect?>[instance.rect, instance.visibleRect]) {
+        if (rect == null) continue;
+        validateGeometry(
+          <String, Rect>{entry.key: rect},
+          argumentName: argumentName,
+        );
+      }
     }
     result[entry.key] = List<GeometryInstance>.unmodifiable(list);
   }
   return Map<String, List<GeometryInstance>>.unmodifiable(result);
 }
 
-/// The wire form of every path drawn more than once or naming an item.
+/// The wire form of every path drawn more than once, naming an item, or
+/// clipped. A clipped instance carries `visible`, null when hidden.
 Map<String, Object?> encodeGeometryInstances(
   Map<String, List<GeometryInstance>> instances,
 ) =>
     <String, Object?>{
       for (final entry in instances.entries)
         if (entry.value.length > 1 ||
-            entry.value.any((instance) => instance.item != null))
+            entry.value.any(
+              (instance) => instance.item != null || instance.isClipped,
+            ))
           entry.key: <Object?>[
             for (final instance in entry.value)
-              <Object?>[
-                instance.rect.left,
-                instance.rect.top,
-                instance.rect.width,
-                instance.rect.height,
-                if (instance.item != null) instance.item,
-              ],
+              <String, Object?>{
+                'rect': encodeGeometryRect(instance.rect),
+                if (instance.item != null) 'item': instance.item,
+                if (instance.isClipped)
+                  'visible': switch (instance.visibleRect) {
+                    final visible? => encodeGeometryRect(visible),
+                    null => null,
+                  },
+              },
           ],
     };
+
+/// The wire form of one rect: left, top, width, height.
+List<double> encodeGeometryRect(Rect rect) =>
+    <double>[rect.left, rect.top, rect.width, rect.height];

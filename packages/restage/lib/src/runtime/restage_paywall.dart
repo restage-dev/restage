@@ -2763,6 +2763,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
             }
           },
           child: RuntimeErrorBoundary(
+            debugLabel: widget.id,
             onFirstPaintSuccess: () {
               if (isCurrent()) _placementDiscovery.markPainted();
             },
@@ -2874,6 +2875,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
                   child: RestagePaywallEventDispatcher(
                     onEvent: stage.eventHandler,
                     child: RuntimeErrorBoundary(
+                      debugLabel: widget.id,
                       onError: (error, _) {
                         markSurfaceDeliveryRenderFailed(stage.payload.variant);
                         _handleBlobBuildFailure(stage, error);

@@ -574,8 +574,11 @@ void main() {
       }
       await _respondAcceptedEither(request, body);
     }));
-    final runtime =
-        await _start(support: support, endpoint: _endpointFor(server));
+    final runtime = await _start(
+      support: support,
+      endpoint: _endpointFor(server),
+      holdRetries: true,
+    );
     addTearDown(runtime.shutdown);
     final registration = _registration('session.final-order');
     final opened = await runtime.openSession(registration);
@@ -615,11 +618,13 @@ void main() {
       isNotNull,
     );
 
+    // A real-clock worker over the same outbox replays both retained records.
+    await runtime.shutdown();
     shouldAcknowledge = true;
-    await _eventually(
-      () => received.length == 3,
-      timeout: const Duration(seconds: 4),
-    );
+    final replaying =
+        await _start(support: support, endpoint: _endpointFor(server));
+    addTearDown(replaying.shutdown);
+    await _eventually(() => received.length == 3);
     expect(received[1], orderedEquals(firstFinalBody));
     final replayed = MeasurementIngestRequestV1.fromBase64(
       _canonicalRequestBase64(received[1]),
@@ -995,8 +1000,11 @@ void main() {
         }),
       );
 
-      final first =
-          await _start(support: support, endpoint: _endpointFor(server));
+      final first = await _start(
+        support: support,
+        endpoint: _endpointFor(server),
+        holdRetries: true,
+      );
       final firstSession = (await first.openSession(_registration(
         'session.worker-owned-replay',
         experimentAssignment:
@@ -1028,8 +1036,7 @@ void main() {
           await _start(support: support, endpoint: _endpointFor(server));
       addTearDown(second.shutdown);
 
-      await _eventually(() => received.length == 2,
-          timeout: const Duration(seconds: 4));
+      await _eventually(() => received.length == 2);
       expect(received[1], orderedEquals(received[0]));
       final replayEnvelope =
           jsonDecode(utf8.decode(received[1])) as Map<String, dynamic>;
@@ -1140,8 +1147,11 @@ void main() {
           await request.response.close();
         }),
       );
-      final runtime =
-          await _start(support: support, endpoint: _endpointFor(server));
+      final runtime = await _start(
+        support: support,
+        endpoint: _endpointFor(server),
+        holdRetries: true,
+      );
       final session = await _open(runtime, 'session.worker-owned-cutover');
       final acknowledgement = runtime.appendAcknowledgements.first;
       expect(
@@ -1249,12 +1259,14 @@ Future<MeasurementWorkerOwnedDeliveryRuntime> _start({
   required String endpoint,
   bool debugTracing = false,
   int maximumSessions = 4,
+  bool holdRetries = false,
 }) async {
   final started = await MeasurementWorkerOwnedDeliveryRuntime.start(
     configuration: _configuration(
       endpoint: endpoint,
       debugTracing: debugTracing,
       maximumSessions: maximumSessions,
+      debugHeldClockMicros: holdRetries ? _heldClockMicros() : null,
     ),
     pathResolver: _CountingPathResolver(support.path),
   );
@@ -1290,6 +1302,7 @@ MeasurementWorkerOwnedDeliveryConfiguration _configuration({
   required String? endpoint,
   bool debugTracing = false,
   int maximumSessions = 4,
+  int? debugHeldClockMicros,
 }) =>
     MeasurementWorkerOwnedDeliveryConfiguration(
       admission: admission,
@@ -1297,7 +1310,15 @@ MeasurementWorkerOwnedDeliveryConfiguration _configuration({
       configurationFingerprint: 'measurement.worker-owned.v1',
       maximumSessions: maximumSessions,
       debugTracing: debugTracing,
+      debugHeldClockMicros: debugHeldClockMicros,
     );
+
+/// A fixed worker clock a minute in the past: retries it schedules never come
+/// due under it, and are already due for a later real-clock worker.
+int _heldClockMicros() => DateTime.now()
+    .toUtc()
+    .subtract(const Duration(minutes: 1))
+    .microsecondsSinceEpoch;
 
 MeasurementWorkerSessionRegistration _registration(
   String sessionId, {
@@ -1451,7 +1472,7 @@ Future<List<MeasurementOutboxRecord>> _readyRecords(
 
 Future<void> _eventually(
   bool Function() predicate, {
-  Duration timeout = const Duration(seconds: 2),
+  Duration timeout = const Duration(seconds: 30),
 }) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {

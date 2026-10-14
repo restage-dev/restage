@@ -65,6 +65,24 @@ void main() {
     expect(bundle.reads, isNotEmpty);
   });
 
+  testWidgets('message offer hands privacy, terms and restore to the app',
+      (tester) async {
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    await open(tester, const LumenTrialEndingDemo());
+    await tap(tester, 'See the offer');
+    await tap(tester, 'Privacy');
+    await tap(tester, 'Terms');
+    await tap(tester, 'Restore');
+    expect(
+      events.whereType<FlowCustomEvent>().map((event) => event.eventName),
+      ['privacy', 'terms', 'restore_purchases'],
+    );
+    expect(find.text('Start 14 days free'), findsOneWidget);
+    expect(find.text('Message dismissed'), findsNothing);
+  });
+
   testWidgets('message can go back from its offer and dismiss without assets',
       (tester) async {
     await open(tester, const LumenTrialEndingDemo());

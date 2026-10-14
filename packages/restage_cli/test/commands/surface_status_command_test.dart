@@ -31,6 +31,7 @@ void main() {
           'liveVersion': 2,
           'locked': false,
           'deliveryShape': 'blob',
+          'draftOrigin': 'code',
           'versions': [
             {
               '__className__': 'SurfaceVersionResult',
@@ -75,6 +76,7 @@ void main() {
               'liveVersion': 2,
               'locked': false,
               'deliveryShape': 'blob',
+              'draftOrigin': 'code',
               'sourceKind': 'screen',
               'contractVersion': 1,
               'versions': <Object>[],
@@ -144,6 +146,66 @@ void main() {
       expect(out.toString(), contains('blob'));
     });
 
+    test('says when the draft was edited after publishing from code', () async {
+      Future<String> run(Map<String, Object?> fields) async {
+        final out = StringBuffer();
+        final client = mockHttpClient(
+          (_) => http.Response(
+            jsonEncode({
+              '__className__': 'SurfaceStatusView',
+              'surfaceType': 'paywall',
+              'surfaceSlug': 'pro',
+              'environmentSlug': 'production',
+              'liveVersion': 2,
+              'locked': false,
+              'deliveryShape': 'blob',
+              'draftOrigin': 'code',
+              'versions': <Object>[],
+              ...fields,
+            }),
+            200,
+          ),
+        );
+        final runner = CommandRunner<int>('restage', '')
+          ..addCommand(
+            SurfaceStatusCommand(
+              stdout: out,
+              stderr: StringBuffer(),
+              interactive: const NonInteractive(),
+              fixedSurfaceType: SurfaceType.paywall,
+              credentialStore: fakeStore,
+              httpClient: client,
+            ),
+          );
+        final code = await runner.run([
+          'status',
+          'pro',
+          '--project',
+          'p',
+          '--app',
+          'a',
+          '--env',
+          'production',
+        ]);
+        expect(code, 0);
+        return out.toString();
+      }
+
+      final edited = await run({
+        'draftOrigin': 'editor',
+        'editedAfterCode': true,
+      });
+      expect(edited, contains('draft: editor'));
+      expect(edited, contains('Edited after publishing from code'));
+
+      final fromCode = await run({
+        'draftOrigin': 'code',
+        'editedAfterCode': false,
+      });
+      expect(fromCode, contains('draft: code'));
+      expect(fromCode, isNot(contains('Edited after publishing from code')));
+    });
+
     test('prints the line an app writes to show the live version', () async {
       final out = StringBuffer();
       final runner = CommandRunner<int>('restage', '')
@@ -164,6 +226,7 @@ void main() {
                   'liveVersion': 1,
                   'locked': false,
                   'deliveryShape': 'flow',
+                  'draftOrigin': 'code',
                   'sourceKind': 'flowGraph',
                   'versions': [
                     {
@@ -256,6 +319,7 @@ void main() {
                 'liveVersion': null,
                 'locked': false,
                 'deliveryShape': 'blob',
+                'draftOrigin': 'code',
                 'versions': <Map<String, dynamic>>[],
               }),
               200,
@@ -350,6 +414,7 @@ void main() {
               'liveVersion': 2,
               'locked': false,
               'deliveryShape': 'blob',
+              'draftOrigin': 'code',
               'versions': <Object>[],
             }),
             200,
@@ -486,6 +551,7 @@ void main() {
           'liveVersion': 2,
           'locked': false,
           'deliveryShape': 'flow',
+          'draftOrigin': 'code',
           'versions': [
             {
               '__className__': 'SurfaceVersionResult',

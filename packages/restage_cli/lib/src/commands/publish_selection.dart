@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:args/args.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -191,6 +192,7 @@ Future<int> runPush({
   )?
   onPushed,
   bool declareAssets = false,
+  Uint8List? Function(AssembledSurfacePublication publication)? imageOf,
 }) async {
   final uploader = SurfacePublicationApi(api);
   // Pushed surfaces whose stored revision is not the live one.
@@ -214,6 +216,7 @@ Future<int> runPush({
         runtimePlane: target.target.runtimePlane,
         organizationId: target.organizationId,
         declareAssets: declareAssets,
+        pushImage: imageOf?.call(publication),
       );
       stdout.writeln(
         '${describe(publication)} to $environment; ${result.stateDescription}',

@@ -973,6 +973,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           key: ValueKey<String>(
             '${stage.content.contentHash}/${stage.content.version}',
           ),
+          debugLabel: widget.screen.slug,
           onError: (error, _) {
             markSurfaceDeliveryRenderFailed(stage.resolved);
             _handleRenderFailure(stage, error);

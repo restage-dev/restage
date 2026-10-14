@@ -20,6 +20,7 @@ import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
 import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
 import 'package:restage_shared/src/generated_output_path_order.dart';
+import 'package:restage_shared/src/surface_contract/screen_event_names.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_contract_fingerprint.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_event_schema.dart';
@@ -1071,14 +1072,10 @@ final class SurfacePublicationArtifactClosure {
         for (final reference in body.dataReferences) {
           if (reference.parts.isEmpty || reference.parts.first != 'context')
             continue;
-          if (reference.parts.length < 2 || reference.parts[1] is! String) {
-            throw const FormatException('Unknown whole-context read.');
-          }
+          final gap = _contextReadGap(reference, contract.context);
+          if (gap != null) throw FormatException('Undeclared $gap.');
           final name = reference.parts[1] as String;
-          final shape = contract.context.inputs[name];
-          if (shape == null)
-            throw FormatException('Missing typed context read "$name".');
-          _fitContextShape(reference.parts.skip(2), shape);
+          final shape = contract.context.inputs[name]!;
           final prior = context[name];
           if (prior != null && !_sameFitJson(prior.toJson(), shape.toJson())) {
             throw FormatException('Conflicting closure context "$name".');
@@ -1093,8 +1090,7 @@ final class SurfacePublicationArtifactClosure {
                 node.flowDocument == null ? renderRoot : entry.key] ??
             const <String, Object>{};
         for (final emitted in body.events) {
-          if (emitted.eventName == kLocalValueSetEventName ||
-              emitted.eventName == kMeasurementPublicationTapEventNameV1)
+          if (kScreenEventNamesOutsideContract.contains(emitted.eventName))
             continue;
           final typed = typedEvents[emitted.eventName];
           final internal = document != null &&
@@ -1110,7 +1106,9 @@ final class SurfacePublicationArtifactClosure {
           if (typed == null)
             throw FormatException(
                 'Missing typed emitted event "${emitted.eventName}".');
-          _validateFitEvent(emitted, typed, contract.context, local);
+          final gaps = _typedEventGaps(emitted, typed, contract.context, local);
+          if (gaps.isNotEmpty)
+            throw FormatException('Undeclared ${gaps.first}.');
           if (internal) continue;
           if (document != null) {
             final outward = document.outbound.customEvents[emitted.eventName];
@@ -2786,21 +2784,59 @@ Map<String, Object?> _fitEventArguments(rfw.EventHandler emitted) => {
           entry.key: entry.value,
     };
 
-void _validateFitEvent(rfw.EventHandler emitted, SurfaceScreenEvent typed,
-    SurfaceScreenHostDataSchema context, Map<String, Object> local) {
+// The undeclared arguments of one emitted [typed] event.
+List<SurfaceScreenContractGap> _typedEventGaps(
+    rfw.EventHandler emitted,
+    SurfaceScreenEvent typed,
+    SurfaceScreenHostDataSchema context,
+    Map<String, Object> local) {
   final arguments = _fitEventArguments(emitted);
+  bool fits(Object? value, SurfaceScreenEventShape shape) {
+    try {
+      _validateFitEventValue(value, shape, context, local);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  SurfaceScreenContractGap gap(String argument) =>
+      SurfaceScreenContractGap.argument(typed.id, argument);
   switch (typed.arguments) {
     case SurfaceScreenEventNoArguments():
-      typed.arguments.validate(arguments, eventId: typed.id);
+      return [for (final name in arguments.keys) gap(name)];
     case SurfaceScreenEventValueArguments(:final shape):
-      if (arguments.length != 1 || !arguments.containsKey('value')) {
-        throw FormatException(
-            'Emitted event "${typed.id}" has a different value wrapper.');
+      if (!arguments.containsKey('value')) {
+        return [gap('value')];
       }
-      _validateFitEventValue(arguments['value'], shape, context, local);
+      return [
+        for (final entry in arguments.entries)
+          if (entry.key != 'value' || !fits(entry.value, shape)) gap(entry.key)
+      ];
     case SurfaceScreenEventObjectArguments(:final shape):
-      _validateFitEventValue(arguments, shape, context, local);
+      final values = (shape as SurfaceScreenEventMapShapeV1).values;
+      return [
+        for (final entry in arguments.entries)
+          if (!fits(entry.value, values)) gap(entry.key)
+      ];
   }
+}
+
+// The gap a `data.context` read leaves, or null when [context] declares it.
+SurfaceScreenContractGap? _contextReadGap(
+    rfw.DataReference reference, SurfaceScreenHostDataSchema context) {
+  final path = reference.parts.skip(1).join('.');
+  if (reference.parts.length < 2 || reference.parts[1] is! String) {
+    return SurfaceScreenContractGap.context(path);
+  }
+  final shape = context.inputs[reference.parts[1] as String];
+  if (shape == null) return SurfaceScreenContractGap.context(path);
+  try {
+    _fitContextShape(reference.parts.skip(2), shape);
+  } on FormatException {
+    return SurfaceScreenContractGap.context(path);
+  }
+  return null;
 }
 
 void _validateFitEventValue(Object? value, SurfaceScreenEventShape shape,
@@ -2917,4 +2953,284 @@ Map<String, List<int>> _decodeUploadArtifactBytes(Map<String, Object?> json) {
     bytes[path] = decoded;
   }
   return bytes;
+}
+
+/// What a [SurfaceScreenContractGap] names.
+enum SurfaceScreenContractGapKind {
+  /// An emitted event.
+  event,
+
+  /// One argument of an emitted event.
+  argument,
+
+  /// A `data.context` read.
+  context,
+}
+
+/// One event, event argument or context read that a screen uses and its
+/// contract does not declare.
+@immutable
+final class SurfaceScreenContractGap
+    implements Comparable<SurfaceScreenContractGap> {
+  /// An event the contract does not declare.
+  const SurfaceScreenContractGap.event(String this.event)
+      : kind = SurfaceScreenContractGapKind.event,
+        argument = null,
+        contextPath = null;
+
+  /// An argument of [event] the contract does not declare with that value.
+  const SurfaceScreenContractGap.argument(
+      String this.event, String this.argument)
+      : kind = SurfaceScreenContractGapKind.argument,
+        contextPath = null;
+
+  /// A context read; [contextPath] is the dotted path below `context`.
+  const SurfaceScreenContractGap.context(String this.contextPath)
+      : kind = SurfaceScreenContractGapKind.context,
+        event = null,
+        argument = null;
+
+  final SurfaceScreenContractGapKind kind;
+
+  /// The event, for an event or argument gap.
+  final String? event;
+
+  /// The argument name, for an argument gap.
+  final String? argument;
+
+  /// The dotted path below `context`, for a context gap.
+  final String? contextPath;
+
+  @override
+  int compareTo(SurfaceScreenContractGap other) {
+    if (kind != other.kind) return kind.index.compareTo(other.kind.index);
+    final byName = SurfaceContractJson.compareUtf8(
+        event ?? contextPath!, other.event ?? other.contextPath!);
+    if (byName != 0) return byName;
+    return SurfaceContractJson.compareUtf8(
+        argument ?? '', other.argument ?? '');
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is SurfaceScreenContractGap &&
+      other.kind == kind &&
+      other.event == event &&
+      other.argument == argument &&
+      other.contextPath == contextPath;
+
+  @override
+  int get hashCode => Object.hash(kind, event, argument, contextPath);
+
+  @override
+  String toString() => switch (kind) {
+        SurfaceScreenContractGapKind.event => 'event "$event"',
+        SurfaceScreenContractGapKind.argument =>
+          'argument "$argument" of event "$event"',
+        SurfaceScreenContractGapKind.context => 'context read "$contextPath"',
+      };
+}
+
+/// Every event, event argument and `data.context` read in [library] that
+/// [events] and [context] do not declare, sorted and each listed once.
+///
+/// Every declaration counts, reachable or not. [localValues] are the seeded
+/// screen-local values an event argument may read.
+List<SurfaceScreenContractGap> surfaceScreenContractGaps(
+  rfw.RemoteWidgetLibrary library, {
+  required SurfaceScreenEventSchema events,
+  required SurfaceScreenHostDataSchema context,
+  Map<String, Object> localValues = const {},
+}) {
+  final typedEvents = {for (final event in events.events) event.id: event};
+  final gaps = <SurfaceScreenContractGap>{};
+  void visit(Object? value) {
+    switch (value) {
+      case rfw.DataReference()
+          when value.parts.isNotEmpty && value.parts.first == 'context':
+        final gap = _contextReadGap(value, context);
+        if (gap != null) gaps.add(gap);
+      case rfw.EventHandler(:final eventName, :final eventArguments):
+        if (!kScreenEventNamesOutsideContract.contains(eventName)) {
+          final typed = typedEvents[eventName];
+          if (typed == null) {
+            gaps.add(SurfaceScreenContractGap.event(eventName));
+          } else {
+            gaps.addAll(_typedEventGaps(value, typed, context, localValues));
+          }
+        }
+        eventArguments.values.forEach(visit);
+      case rfw.ConstructorCall(:final arguments):
+        arguments.values.forEach(visit);
+      case rfw.SetStateHandler(value: final assigned):
+        visit(assigned);
+      case rfw.WidgetBuilderDeclaration(:final widget):
+        visit(widget);
+      case rfw.Loop(:final input, :final output):
+        visit(input);
+        visit(output);
+      case rfw.Switch(:final input, :final outputs):
+        visit(input);
+        outputs.values.forEach(visit);
+      case final Map<Object?, Object?> map:
+        map.values.forEach(visit);
+      case final List<Object?> list:
+        list.forEach(visit);
+    }
+  }
+
+  for (final declaration in library.widgets) {
+    visit(declaration.initialState);
+    visit(declaration.root);
+  }
+  return gaps.toList()..sort();
+}
+
+/// One event a flow screen emits that the state showing it does not handle.
+@immutable
+final class FlowScreenEventGap implements Comparable<FlowScreenEventGap> {
+  const FlowScreenEventGap({
+    required this.state,
+    required this.screen,
+    required this.event,
+  });
+
+  /// The state showing the screen.
+  final String state;
+
+  /// The screen identifier.
+  final String screen;
+
+  /// The emitted event name.
+  final String event;
+
+  @override
+  int compareTo(FlowScreenEventGap other) {
+    final byScreen = SurfaceContractJson.compareUtf8(screen, other.screen);
+    if (byScreen != 0) return byScreen;
+    final byState = SurfaceContractJson.compareUtf8(state, other.state);
+    if (byState != 0) return byState;
+    return SurfaceContractJson.compareUtf8(event, other.event);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is FlowScreenEventGap &&
+      other.state == state &&
+      other.screen == screen &&
+      other.event == event;
+
+  @override
+  int get hashCode => Object.hash(state, screen, event);
+
+  @override
+  String toString() => 'event "$event" on screen "$screen" in state "$state"';
+}
+
+/// Every event a screen of [payload] emits that the state showing it does not
+/// handle, sorted and each listed once.
+///
+/// A state handles its `on` events; any screen may also emit a declared
+/// custom event, `back` and the events outside the screen contract. An event
+/// the same screen of [base] already emits is not listed.
+List<FlowScreenEventGap> flowScreenEventGaps(
+  FlowSurfacePayload payload, {
+  SurfacePayload? base,
+}) {
+  final document = payload.flowDocument;
+  final handledEverywhere = {
+    ...document.outbound.customEvents.keys,
+    _flowBackEventName,
+    ...kScreenEventNamesOutsideContract,
+  };
+  final baseBlobs = base is FlowSurfacePayload
+      ? base.screenBlobs
+      : const <String, Uint8List>{};
+  Set<String> emitted(Uint8List? blob) => blob == null
+      ? const <String>{}
+      : _emittedEventNames(rfw.decodeLibraryBlob(blob));
+  final emittedByScreen = <String, Set<String>>{};
+  final existingByScreen = <String, Set<String>>{};
+  final gaps = <FlowScreenEventGap>[];
+  for (final MapEntry(key: state, value: definition)
+      in document.states.entries) {
+    if (definition is! ScreenFlowState) continue;
+    final screen = definition.screen;
+    final existing = existingByScreen[screen] ??= emitted(baseBlobs[screen]);
+    for (final event in emittedByScreen[screen] ??=
+        emitted(payload.screenBlobs[screen])) {
+      if (handledEverywhere.contains(event) ||
+          definition.on.containsKey(event) ||
+          existing.contains(event)) {
+        continue;
+      }
+      gaps.add(FlowScreenEventGap(state: state, screen: screen, event: event));
+    }
+  }
+  return gaps..sort();
+}
+
+/// The refusal of flow [flow] whose screens emit the unhandled [gaps].
+String flowScreenEventGapsMessage(
+  String flow,
+  List<FlowScreenEventGap> gaps,
+) {
+  final events = <(String, String), List<String>>{};
+  for (final gap in [...gaps]..sort()) {
+    (events[(gap.screen, gap.state)] ??= []).add('"${gap.event}"');
+  }
+  final message = StringBuffer(
+    'The flow "$flow" does not handle every event its screens emit:\n',
+  );
+  for (final MapEntry(key: (screen, state), value: names) in events.entries) {
+    message.writeln(
+      '- the screen "$screen" in the state "$state" emits '
+      '${_joinedWithAnd(names)}',
+    );
+  }
+  message.write(
+    'Add a transition for each event in that state, or declare it as a '
+    'custom event if the app handles it.',
+  );
+  return message.toString();
+}
+
+String _joinedWithAnd(List<String> items) => items.length == 1
+    ? items.single
+    : '${items.sublist(0, items.length - 1).join(', ')} and ${items.last}';
+
+const String _flowBackEventName = 'back';
+
+/// The names of every event any declaration of [library] emits.
+Set<String> _emittedEventNames(rfw.RemoteWidgetLibrary library) {
+  final names = <String>{};
+  void visit(Object? value) {
+    switch (value) {
+      case rfw.EventHandler(:final eventName, :final eventArguments):
+        names.add(eventName);
+        eventArguments.values.forEach(visit);
+      case rfw.ConstructorCall(:final arguments):
+        arguments.values.forEach(visit);
+      case rfw.SetStateHandler(value: final assigned):
+        visit(assigned);
+      case rfw.WidgetBuilderDeclaration(:final widget):
+        visit(widget);
+      case rfw.Loop(:final input, :final output):
+        visit(input);
+        visit(output);
+      case rfw.Switch(:final input, :final outputs):
+        visit(input);
+        outputs.values.forEach(visit);
+      case final Map<Object?, Object?> map:
+        map.values.forEach(visit);
+      case final List<Object?> list:
+        list.forEach(visit);
+    }
+  }
+
+  for (final declaration in library.widgets) {
+    visit(declaration.initialState);
+    visit(declaration.root);
+  }
+  return names;
 }

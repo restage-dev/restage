@@ -8,6 +8,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show
         kMeasurementPublicationRouteArgumentKeyV1,
         kMeasurementPublicationTapEventNameV1;
+import 'package:restage_shared/restage_shared.dart'
+    show kReservedCommerceEventNames;
 import 'package:restage_shared/rfw_formats.dart' show parseLibraryFile;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -55,7 +57,7 @@ void main() {
     });
 
     test('rejects reserved SDK event names', () async {
-      for (final name in unsupportedCommerceEventNames) {
+      for (final name in kReservedCommerceEventNames) {
         final result = translator.translate(
           await parseExpressionForTest("paywallEvent('$name')"),
         );

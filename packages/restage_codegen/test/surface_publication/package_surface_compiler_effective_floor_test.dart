@@ -180,11 +180,9 @@ final class _Fixture {
     required int paywallSidecarFloor,
     int ordinaryRosterFloor = 1,
   }) {
-    final ordinaryBlob = Uint8List.fromList(utf8.encode('RFW:welcome'));
-    final paywallBlob = Uint8List.fromList(utf8.encode('RFW:premium'));
-    final standalonePaywallBlob = Uint8List.fromList(
-      utf8.encode('RFW:premium:standalone'),
-    );
+    final ordinaryBlob = screenBlobNamed('welcome');
+    final paywallBlob = screenBlobNamed('premium');
+    final standalonePaywallBlob = screenBlobNamed('premium:standalone');
     final paywallFacts = PaywallArtifactAdapter.fromFiles(
       slug: 'premium',
       standaloneBlobPath: '$_paywallRoot/standalone.rfw',

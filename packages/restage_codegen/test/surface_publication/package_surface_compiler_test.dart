@@ -1573,7 +1573,7 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
     effectiveSurface: Surface.paywall,
     isPaywall: true,
   );
-  final premiumBlob = Uint8List.fromList(utf8.encode('RFW:premium'));
+  final premiumBlob = screenBlobNamed('premium');
   final standalonePremiumBlob =
       Uint8List.fromList(utf8.encode('standalone:premium'));
   final premiumFacts = PaywallArtifactAdapter.fromFiles(
@@ -1854,7 +1854,7 @@ CompiledSurfaceArtifact _artifact(
   String? flowScreenId,
   PaywallArtifactFacts? paywallFacts,
 }) {
-  final blob = Uint8List.fromList(utf8.encode('RFW:$id'));
+  final blob = screenBlobNamed('$id');
   final sidecar = CapabilitySidecar(
     blobSha256: CapabilitySidecar.hashBlob(blob),
     manifest: CapabilityManifest(

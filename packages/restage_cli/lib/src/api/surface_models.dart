@@ -428,6 +428,7 @@ class SurfaceStatusResult {
     required this.locked,
     required this.deliveryShape,
     required this.versions,
+    required this.draftOrigin,
     this.contractVersion,
     this.sourceKind,
     this.payloadKind,
@@ -435,6 +436,7 @@ class SurfaceStatusResult {
     this.publishedRevision,
     this.families = const <SurfaceFamilyStatus>[],
     this.affectedFamilies = const <SurfaceAffectedFamily>[],
+    this.editedAfterCode = false,
   });
 
   /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey` /
@@ -481,6 +483,12 @@ class SurfaceStatusResult {
 
   /// Family effects returned by an identity-wide mutation read.
   final List<SurfaceAffectedFamily> affectedFamilies;
+
+  /// Where the draft was last written: `code` or `editor`.
+  final String draftOrigin;
+
+  /// The draft was edited in the editor after the latest publish from code.
+  final bool editedAfterCode;
 
   /// Current identity-wide freeze state.
   bool get isFrozen => frozen ?? locked;
@@ -554,6 +562,8 @@ class SurfaceStatusResult {
       ),
       families: families,
       affectedFamilies: _decodeAffectedFamilies(json['affectedFamilies']),
+      draftOrigin: json['draftOrigin']! as String,
+      editedAfterCode: json['editedAfterCode'] == true,
     );
   }
 
@@ -576,8 +586,14 @@ class SurfaceStatusResult {
       'affectedFamilies': [
         for (final family in affectedFamilies) family.toJson(),
       ],
+    'draftOrigin': draftOrigin,
+    'editedAfterCode': editedAfterCode,
   };
 }
+
+/// The label shown when the draft was edited after the latest publish from
+/// code.
+const String editedAfterCodeLabel = 'Edited after publishing from code';
 
 /// One immutable published version in [SurfaceStatusResult.versions].
 @experimental
@@ -608,8 +624,7 @@ class SurfaceVersionResult {
   final bool isActive;
 
   /// Flow delivery mode of this version's payload (`typed` / `general`), or
-  /// null for a blob payload, an undecodable payload, or a server that
-  /// predates the field.
+  /// null for a blob payload or an undecodable payload.
   final String? deliveryMode;
 
   /// Explicit revision-axis spelling used by the family lifecycle contract.
@@ -1463,14 +1478,29 @@ class SurfaceVersionNotFound extends SurfaceException {
       'SurfaceVersionNotFound(surfaceSlug: $surfaceSlug, toVersion: $toVersion)';
 }
 
+/// One event a flow screen emits that the flow does not handle there.
+typedef SurfaceUnhandledEvent = ({
+  String flow,
+  String state,
+  String screen,
+  String event,
+});
+
 /// The surface's stored family state refused the operation; [message] says
 /// why.
 @experimental
 class SurfaceFamilyRefused extends SurfaceException {
   /// Construct with the server's [code] and [message].
-  const SurfaceFamilyRefused({required this.code, required this.message});
+  const SurfaceFamilyRefused({
+    required this.code,
+    required this.message,
+    this.unhandledEvents = const [],
+  });
   final String code;
   final String message;
+
+  /// The events the flow does not handle, for an `unhandledEvents` refusal.
+  final List<SurfaceUnhandledEvent> unhandledEvents;
 
   @override
   String toString() => 'SurfaceFamilyRefused(code: $code, message: $message)';
@@ -1623,7 +1653,22 @@ SurfaceException? decodeSurfaceTypedException(String body) {
       final code = data['code'];
       final message = data['message'];
       if (code is! String || message is! String) return null;
-      return SurfaceFamilyRefused(code: code, message: message);
+      return SurfaceFamilyRefused(
+        code: code,
+        message: message,
+        unhandledEvents: [
+          for (final raw
+              in (data['unhandledEvents'] as List<dynamic>? ?? const [])
+                  .whereType<Map<String, dynamic>>())
+            if ((raw['flow'], raw['state'], raw['screen'], raw['event']) case (
+              final String flow,
+              final String state,
+              final String screen,
+              final String event,
+            ))
+              (flow: flow, state: state, screen: screen, event: event),
+        ],
+      );
     default:
       return null;
   }

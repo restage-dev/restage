@@ -1,10 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/measurement/bundled_measurement_target_profile_asset_declaration.dart';
 import 'package:restage_cli/src/measurement/bundled_measurement_target_profile_packager.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
+import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show SurfaceEditorState, SurfacePayload;
 
 /// The backend publication committed, but its local bundled profile did not.
 final class MeasurementBundledProfileFinalizeException implements Exception {
@@ -49,8 +54,16 @@ publishAssembledSurfacePublication({
   RuntimePlane? runtimePlane,
   int? organizationId,
   bool declareAssets = false,
+  Future<Uint8List?> Function(SurfacePayload payload)? editorStateOf,
+  Uint8List? pushImage,
 }) async {
   final measurementUpload = assembled.measurementUpload;
+  final editorState =
+      await (editorStateOf ??
+          (payload) => pushedEditorState(
+            payload: payload,
+            packageRoot: packageRoot,
+          ))(assembled.payload);
   if (measurementUpload == null) {
     final result = await api.publish(
       project: project,
@@ -60,6 +73,8 @@ publishAssembledSurfacePublication({
       environmentTargetId: environmentTargetId,
       runtimePlane: runtimePlane,
       organizationId: organizationId,
+      editorState: editorState,
+      pushImage: pushImage,
     );
     return (result: result, profile: null);
   }
@@ -72,6 +87,8 @@ publishAssembledSurfacePublication({
     environmentTargetId: environmentTargetId,
     runtimePlane: runtimePlane,
     organizationId: organizationId,
+    editorState: editorState,
+    pushImage: pushImage,
   );
   MeasurementProfileWrite? profile;
   if (assembled.hasBundledMeasurementSourceClosure) {
@@ -105,4 +122,26 @@ publishAssembledSurfacePublication({
     }
   }
   return (result: measurementResult.publicationResult, profile: profile);
+}
+
+/// The editor state a push stores with a surface that uses the app's own
+/// widgets, on any of its screens: the app's generated widget catalog, so the
+/// editor can show and edit them. Null for any other surface, or when no
+/// catalog was generated.
+Future<Uint8List?> pushedEditorState({
+  required SurfacePayload payload,
+  required Directory packageRoot,
+  RenderBundleCatalogProducer widgetCatalog = readGeneratedWidgetCatalog,
+}) async {
+  if (payload.requiredLibraries.isEmpty) return null;
+  final GeneratedWidgetCatalog catalog;
+  try {
+    catalog = await widgetCatalog(projectRoot: packageRoot, generate: false);
+  } on GeneratedCatalogException {
+    return null;
+  }
+  if (!catalog.registersWidgets) return null;
+  return SurfaceEditorState(
+    catalog: jsonDecode(catalog.json) as Map<String, Object?>,
+  ).encode();
 }

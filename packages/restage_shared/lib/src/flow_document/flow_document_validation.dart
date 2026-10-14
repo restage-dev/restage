@@ -469,6 +469,19 @@ void _validateOutboundDeclarations(
       '\$.outbound.customEvents.${entry.key}.fields',
       entry.value,
     );
+    // A custom event hands the app its own arguments, never flow state.
+    for (final field in entry.value.fields.entries) {
+      if (field.value.ref is StateFlowOutboundRef) {
+        issues.add(
+          FlowDocumentValidationIssue(
+            code: 'customEventStateRef',
+            path: '\$.outbound.customEvents.${entry.key}.fields.'
+                '${field.key}.ref',
+            message: 'A custom event field must reference an event argument.',
+          ),
+        );
+      }
+    }
   }
 }
 

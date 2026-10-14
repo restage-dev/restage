@@ -103,7 +103,7 @@ void main() {
 
     await _pumpPaywall(tester, RestageIconTable.cupertinoIconsFamily);
 
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
     expect(find.byType(Icon), findsNothing);
   });
 

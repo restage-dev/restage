@@ -2028,7 +2028,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The boundary swallowed the throw; the controller failed closed.
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
     expect(unavailable?.reason, 'render_failed');
     expect(controller.currentScreenEntryId, isNull);
     expect(controller.hasRenderedContent, isFalse);

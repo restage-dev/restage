@@ -199,6 +199,9 @@ CLI lists them and asks, or pushes all of them with `--all`. A file that
 produced nothing is an error. A run over several surfaces stops at the first
 failure and reports what was pushed and what was not attempted.
 
+A push also captures an image of each surface that uses your app's own
+widgets, which the dashboard shows until a build can render the surface.
+
 Surface types are `onboarding`, `message`, `survey`, `paywall`, and `general`.
 
 `restage surface publish <id>` makes a pushed revision live. Without

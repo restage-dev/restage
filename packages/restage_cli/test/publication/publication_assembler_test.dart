@@ -1,9 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
-import 'package:restage_cli/src/commands/surface_payload.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
@@ -92,7 +89,7 @@ void main() {
   );
 
   test('assembles a multi-screen flow over its whole closure', () async {
-    await _seedGeneratedFlow(tempDir, slug: 'first_run');
+    await seedGeneratedFlow(tempDir, slug: 'first_run');
     final loaded = await SurfacePublicationManifestLoader().load(
       projectRoot: tempDir,
     );
@@ -121,8 +118,40 @@ void main() {
     }, assembled.artifactBytes);
   });
 
+  test('notes a flow whose screen emits an event no state handles', () async {
+    await seedGeneratedFlow(tempDir, slug: 'first_run');
+    final clean = await SurfacePublicationManifestLoader().load(
+      projectRoot: tempDir,
+    );
+    expect(
+      (await SurfacePublicationAssembler().assemble(
+        loaded: clean,
+        entry: clean.manifest.publications.single,
+      )).unhandledEventsWarning,
+      isNull,
+    );
+
+    final dropping = await tempDir.createTemp('dropping');
+    await seedDroppingFlow(dropping);
+    final loaded = await SurfacePublicationManifestLoader().load(
+      projectRoot: dropping,
+    );
+    final assembled = await SurfacePublicationAssembler().assemble(
+      loaded: loaded,
+      entry: loaded.manifest.publications.single,
+    );
+
+    expect(
+      assembled.unhandledEventsWarning,
+      'The flow "notice" does not handle every event its screens emit:\n'
+      '- the screen "notice" in the state "notice" emits "dropped"\n'
+      'Add a transition for each event in that state, or declare it as a '
+      'custom event if the app handles it.',
+    );
+  });
+
   test('assembles the largest generated flow and its draft', () async {
-    await _seedGeneratedFlow(tempDir, slug: 'tally_onboarding');
+    await seedGeneratedFlow(tempDir, slug: 'tally_onboarding');
     final loaded = await SurfacePublicationManifestLoader().load(
       projectRoot: tempDir,
     );
@@ -161,7 +190,7 @@ void main() {
   });
 
   test('unions verified sidecar requirements into the flow payload', () async {
-    await _seedGeneratedFlow(tempDir, slug: 'plan_board_showcase');
+    await seedGeneratedFlow(tempDir, slug: 'plan_board_showcase');
     final loaded = await SurfacePublicationManifestLoader().load(
       projectRoot: tempDir,
     );
@@ -317,71 +346,4 @@ void main() {
       );
     },
   );
-}
-
-/// Seed the example app's real `<slug>` flow closure and the generated
-/// Measurement draft that belongs to it.
-Future<void> _seedGeneratedFlow(Directory root, {required String slug}) async {
-  final flowPath = await seedSurfaceFlow(root, slug: slug);
-  final flowBytes = await File(flowPath).readAsBytes();
-  final document = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
-  final artifacts = <SurfacePublicationArtifact>[
-    SurfacePublicationArtifact(
-      contentHash: CapabilitySidecar.hashBlob(flowBytes),
-      path: 'assets/onboarding/flows/$slug.flow.json',
-      role: SurfacePublicationArtifactRole.flowDocument,
-    ),
-  ];
-  final screenBlobs = <String, Uint8List>{};
-  final perScreenLibraries = <List<LibraryRequirement>>[];
-  for (final screen in document.screenArtifacts.entries) {
-    final blobPath = 'assets/onboarding/screens/${screen.value.path}';
-    final blob = await File(p.join(root.path, blobPath)).readAsBytes();
-    final sidecarPath = p.join(
-      p.dirname(blobPath),
-      '${p.basenameWithoutExtension(screen.value.path)}.capability.json',
-    );
-    final sidecarBytes = await File(
-      p.join(root.path, sidecarPath),
-    ).readAsBytes();
-    final sidecar = CapabilitySidecar.fromJson(
-      jsonDecode(utf8.decode(sidecarBytes)) as Map<String, dynamic>,
-    );
-    screenBlobs[screen.key] = blob;
-    perScreenLibraries.add(sidecar.manifest.requiredLibraries);
-    artifacts.add(
-      SurfacePublicationArtifact(
-        contentHash: CapabilitySidecar.hashBlob(blob),
-        path: blobPath,
-        role: SurfacePublicationArtifactRole.screenBlob,
-        id: screen.key,
-      ),
-    );
-    artifacts.add(
-      SurfacePublicationArtifact(
-        contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
-        path: sidecarPath,
-        role: SurfacePublicationArtifactRole.capabilitySidecar,
-        id: screen.key,
-      ),
-    );
-  }
-  final payload = FlowSurfacePayload(
-    flowDocument: document,
-    screenBlobs: screenBlobs,
-    requiredLibraries: unionRequiredLibraries(perScreenLibraries),
-  );
-  final entry = SurfacePublicationManifestEntry(
-    artifacts: artifacts,
-    publication: SurfacePublication(
-      surface: Surface.onboarding,
-      slug: document.flow,
-      sourceKind: SurfaceSourceKind.flowGraph,
-      payloadKind: SurfacePayloadKind.flow,
-      payloadContentHash: payload.contentHash,
-      deliveryMode: document.deliveryMode,
-    ),
-  );
-  await writeGeneratedOutput(root, [entry]);
-  await seedExampleMeasurementPublicationIndex(root, entry);
 }

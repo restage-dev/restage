@@ -1,5 +1,5 @@
 import 'package:restage_shared/restage_shared.dart'
-    show FlowStateClassification;
+    show FlowOutboundPayloadDeclaration, FlowStateClassification;
 
 import '../flow/flow_descriptors.dart' show FlowActionRef, SurfaceEvent;
 
@@ -437,6 +437,7 @@ final class FlowOutboundPolicy {
     this.surveyAnswers = const {},
     this.measurementAnswers = const {},
     this.subflowResult = const {},
+    this.customEvents = const {},
   });
 
   /// Values included in terminal completion payloads.
@@ -453,6 +454,11 @@ final class FlowOutboundPolicy {
 
   /// Values forwarded from subflow completion payloads.
   final Map<String, FlowOutboundValue<dynamic>> subflowResult;
+
+  /// Events handed to the app by name, with the event arguments each carries.
+  ///
+  /// A custom event neither moves nor completes the flow.
+  final Map<String, FlowOutboundPayloadDeclaration> customEvents;
 }
 
 /// An explicit bounded answer source; the published binding selects its outcome.

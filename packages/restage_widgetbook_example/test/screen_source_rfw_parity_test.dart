@@ -23,7 +23,7 @@ void main() {
               ).readAsBytesSync(),
             )
             .toString(),
-        '5d4186249463919d49d9cbafaf8f53b19403a7f389d9e3a5a6e27bf744858994',
+        'f1b1946cab13f732674722603453858698eedc7176ec886be7957fffb50b0750',
         reason:
             'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       );
@@ -32,9 +32,9 @@ void main() {
         'assets/onboarding/screens/get_started_screen.rfwtxt':
             '12f5157042be9f5670451f4b338a9cb1404f7ea70b24412845e383e64261d670',
         'assets/onboarding/screens/get_started_screen.rfw':
-            '6de6f52ac71212a2a79391f6871f1eccf5645066bb6d7e6798aacbac29b3d355',
+            'd8c256759a2c5e01f503bb92d90c93bd2f1b2c235886b5f197cc76faed2ad16e',
         'assets/onboarding/screens/get_started_screen.capability.json':
-            '7640f8efacf15a352bc9da2b4d2cfb77ccf99d463956a37df63d3d9fdcca0e30',
+            '7291c40340caaf90a06d1b59a8dcc9c5eced0b8796ab706e0bb3aa249deae689',
       };
 
       final packaged = _packagedArtifacts();
@@ -74,7 +74,7 @@ void main() {
             'get_started_screen.capability.json']!,
       ),
       '{"blobSha256":'
-      '"sha256:6de6f52ac71212a2a79391f6871f1eccf5645066bb6d7e6798aacbac29b3d355",'
+      '"sha256:d8c256759a2c5e01f503bb92d90c93bd2f1b2c235886b5f197cc76faed2ad16e",'
       '"manifest":{"builtInFloor":1,"requiredLibraries":[]}}',
     );
   });

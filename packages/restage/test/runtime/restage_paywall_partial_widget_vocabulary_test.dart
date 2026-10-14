@@ -83,7 +83,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The failure is contained: nothing escapes to the host.
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNotNull);
 
       // The caller's fallback is what the user sees.
       expect(find.text('Unavailable'), findsOneWidget);

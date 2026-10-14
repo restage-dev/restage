@@ -127,6 +127,16 @@ sealed class SurfacePayload {
   /// value key (possibly empty).
   Map<String, Map<String, Object>> get localSeeds;
 
+  /// Opaque editor document state saved with a draft, or null.
+  ///
+  /// It is covered by [contentHash] but never published: a published payload
+  /// carries none, and a device never reads it.
+  Uint8List? get editorState;
+
+  /// This payload without its [editorState]; the payload itself when it has
+  /// none.
+  SurfacePayload withoutEditorState();
+
   /// Whether this payload carries an icon-font or local-seed section. Such a
   /// payload requires [kSurfaceFeatureClientFloor].
   bool get carriesSections => iconFonts.isNotEmpty || localSeeds.isNotEmpty;
@@ -186,6 +196,7 @@ final class FlowSurfacePayload extends SurfacePayload {
     List<LibraryRequirement> requiredLibraries = const [],
     List<DeliveredIconFont> iconFonts = const [],
     Map<String, Map<String, Object>> localSeeds = const {},
+    Uint8List? editorState,
   }) =>
       FlowSurfacePayload._create(
         flowDocument: flowDocument,
@@ -193,6 +204,7 @@ final class FlowSurfacePayload extends SurfacePayload {
         requiredLibraries: requiredLibraries,
         iconFonts: iconFonts,
         localSeeds: localSeeds,
+        editorState: editorState,
       );
 
   factory FlowSurfacePayload._create({
@@ -201,8 +213,10 @@ final class FlowSurfacePayload extends SurfacePayload {
     required List<LibraryRequirement> requiredLibraries,
     required List<DeliveredIconFont> iconFonts,
     required Map<String, Map<String, Object>> localSeeds,
+    Uint8List? editorState,
     _SeedWireMap? seedWire,
   }) {
+    _checkEditorState(editorState);
     _checkIsomorphicScreenBlobs(flowDocument, screenBlobs);
     final frozenBlobs = Map<String, Uint8List>.unmodifiable({
       for (final entry in screenBlobs.entries)
@@ -224,12 +238,15 @@ final class FlowSurfacePayload extends SurfacePayload {
       flowDocument.minClient,
       carriesSections: canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
     );
+    final frozenEditorState =
+        editorState == null ? null : _freezeBytes(editorState);
     final canonicalBytes = _buildFlowCanonicalBytes(
       flowDocument: flowDocument,
       screenBlobs: frozenBlobs,
       requiredLibraries: canonicalLibraries,
       iconFonts: canonicalFonts,
       seedWire: seedWire ?? _seedWireOf(canonicalSeeds),
+      editorState: frozenEditorState,
     );
     return FlowSurfacePayload._(
       flowDocument: flowDocument,
@@ -237,6 +254,7 @@ final class FlowSurfacePayload extends SurfacePayload {
       requiredLibraries: canonicalLibraries,
       iconFonts: canonicalFonts,
       localSeeds: canonicalSeeds,
+      editorState: frozenEditorState,
       canonicalBytes: _freezeBytes(canonicalBytes),
       contentHash: 'sha256:${crypto.sha256.convert(canonicalBytes)}',
     );
@@ -248,6 +266,7 @@ final class FlowSurfacePayload extends SurfacePayload {
     required this.requiredLibraries,
     required this.iconFonts,
     required this.localSeeds,
+    required this.editorState,
     required Uint8List canonicalBytes,
     required this.contentHash,
   }) : _canonicalBytes = canonicalBytes;
@@ -278,6 +297,17 @@ final class FlowSurfacePayload extends SurfacePayload {
 
   /// Screen blobs keyed by screen identifier.
   final Map<String, Uint8List> screenBlobs;
+
+  @override
+  final Uint8List? editorState;
+
+  @override
+  FlowSurfacePayload withoutEditorState() {
+    final state = editorState;
+    if (state == null) return this;
+    return SurfacePayload.decode(_withoutLastSection(_canonicalBytes, state))
+        as FlowSurfacePayload;
+  }
 
   final Uint8List _canonicalBytes;
 
@@ -316,6 +346,7 @@ final class BlobSurfacePayload extends SurfacePayload {
     List<LibraryRequirement> requiredLibraries = const [],
     List<DeliveredIconFont> iconFonts = const [],
     Map<String, Map<String, Object>> localSeeds = const {},
+    Uint8List? editorState,
   }) =>
       BlobSurfacePayload._create(
         minClient: minClient,
@@ -323,6 +354,7 @@ final class BlobSurfacePayload extends SurfacePayload {
         requiredLibraries: requiredLibraries,
         iconFonts: iconFonts,
         localSeeds: localSeeds,
+        editorState: editorState,
       );
 
   factory BlobSurfacePayload._create({
@@ -331,12 +363,16 @@ final class BlobSurfacePayload extends SurfacePayload {
     required List<LibraryRequirement> requiredLibraries,
     required List<DeliveredIconFont> iconFonts,
     required Map<String, Map<String, Object>> localSeeds,
+    Uint8List? editorState,
     _SeedWireMap? seedWire,
   }) {
+    _checkEditorState(editorState);
     final frozenBlob = _freezeBytes(blob);
     final canonicalLibraries = _canonicalRequiredLibraries(requiredLibraries);
     final canonicalFonts = _canonicalIconFonts(iconFonts);
     final canonicalSeeds = _canonicalLocalSeeds(localSeeds);
+    final frozenEditorState =
+        editorState == null ? null : _freezeBytes(editorState);
     _checkSectionFloor(
       minClient,
       carriesSections: canonicalFonts.isNotEmpty || canonicalSeeds.isNotEmpty,
@@ -347,6 +383,7 @@ final class BlobSurfacePayload extends SurfacePayload {
       requiredLibraries: canonicalLibraries,
       iconFonts: canonicalFonts,
       seedWire: seedWire ?? _seedWireOf(canonicalSeeds),
+      editorState: frozenEditorState,
     );
     return BlobSurfacePayload._(
       minClient: minClient,
@@ -354,6 +391,7 @@ final class BlobSurfacePayload extends SurfacePayload {
       requiredLibraries: canonicalLibraries,
       iconFonts: canonicalFonts,
       localSeeds: canonicalSeeds,
+      editorState: frozenEditorState,
       canonicalBytes: _freezeBytes(canonicalBytes),
       contentHash: 'sha256:${crypto.sha256.convert(canonicalBytes)}',
     );
@@ -365,6 +403,7 @@ final class BlobSurfacePayload extends SurfacePayload {
     required this.requiredLibraries,
     required this.iconFonts,
     required this.localSeeds,
+    required this.editorState,
     required Uint8List canonicalBytes,
     required this.contentHash,
   }) : _canonicalBytes = canonicalBytes;
@@ -392,6 +431,17 @@ final class BlobSurfacePayload extends SurfacePayload {
 
   /// The single rendered-screen blob.
   final Uint8List blob;
+
+  @override
+  final Uint8List? editorState;
+
+  @override
+  BlobSurfacePayload withoutEditorState() {
+    final state = editorState;
+    if (state == null) return this;
+    return SurfacePayload.decode(_withoutLastSection(_canonicalBytes, state))
+        as BlobSurfacePayload;
+  }
 
   final Uint8List _canonicalBytes;
 
@@ -473,6 +523,13 @@ final class SurfaceDocument {
     required DateTime publishedAt,
     List<LibraryRequirement> requiredLibraries = const [],
   }) {
+    if (payload.editorState != null) {
+      throw ArgumentError.value(
+        payload,
+        'payload',
+        'must not carry editor state',
+      );
+    }
     if (minClient != payload.minClient) {
       throw ArgumentError.value(
         minClient,
@@ -622,6 +679,7 @@ SurfacePayload _decodeBlobPayload(
     requiredLibraries: requiredLibraries,
     iconFonts: sections.iconFonts,
     localSeeds: sections.localSeeds,
+    editorState: sections.editorState,
     seedWire: sections.seedWire,
   );
 }
@@ -657,6 +715,7 @@ SurfacePayload _decodeFlowPayload(
       requiredLibraries: requiredLibraries,
       iconFonts: sections.iconFonts,
       localSeeds: sections.localSeeds,
+      editorState: sections.editorState,
       seedWire: sections.seedWire,
     );
   } on Object catch (error) {
@@ -710,6 +769,7 @@ Uint8List _buildFlowCanonicalBytes({
   required List<LibraryRequirement> requiredLibraries,
   required List<DeliveredIconFont> iconFonts,
   required _SeedWireMap seedWire,
+  Uint8List? editorState,
 }) {
   final builder = BytesBuilder();
   _addLengthPrefixedBytes(builder, utf8.encode(_flowPayloadKind));
@@ -724,7 +784,7 @@ Uint8List _buildFlowCanonicalBytes({
     _addLengthPrefixedBytes(builder, screenBlobs[id]!);
   }
   _addRequiredLibraries(builder, requiredLibraries);
-  _addSections(builder, iconFonts, seedWire);
+  _addSections(builder, iconFonts, seedWire, editorState: editorState);
   return builder.toBytes();
 }
 
@@ -734,13 +794,14 @@ Uint8List _buildBlobCanonicalBytes({
   required List<LibraryRequirement> requiredLibraries,
   required List<DeliveredIconFont> iconFonts,
   required _SeedWireMap seedWire,
+  Uint8List? editorState,
 }) {
   final builder = BytesBuilder();
   _addLengthPrefixedBytes(builder, utf8.encode(_blobPayloadKind));
   _addUint32(builder, minClient);
   _addLengthPrefixedBytes(builder, blob);
   _addRequiredLibraries(builder, requiredLibraries);
-  _addSections(builder, iconFonts, seedWire);
+  _addSections(builder, iconFonts, seedWire, editorState: editorState);
   return builder.toBytes();
 }
 
@@ -862,6 +923,7 @@ List<LibraryRequirement> _readRequiredLibraries(_PayloadReader reader) {
 
 const int _iconFontsSectionTag = 1;
 const int _localSeedsSectionTag = 2;
+const int _editorStateSectionTag = 3;
 
 const int _seedString = 1;
 const int _seedInt = 2;
@@ -881,6 +943,21 @@ void _checkSectionFloor(int minClient, {required bool carriesSections}) {
     );
   }
 }
+
+void _checkEditorState(Uint8List? editorState) {
+  if (editorState != null && editorState.isEmpty) {
+    throw ArgumentError.value(
+      editorState.length,
+      'editorState',
+      'must be absent or non-empty',
+    );
+  }
+}
+
+/// [frame] without its trailing editor-state section, which is always the
+/// last one: `[u32 tag][u32 length][state]`.
+Uint8List _withoutLastSection(Uint8List frame, Uint8List state) =>
+    Uint8List.sublistView(frame, 0, frame.length - 8 - state.length);
 
 int _compareIconFonts(DeliveredIconFont a, DeliveredIconFont b) {
   final byFamily = a.family.compareTo(b.family);
@@ -957,8 +1034,9 @@ Object _checkSeedValue(String key, Object? value) {
 void _addSections(
   BytesBuilder builder,
   List<DeliveredIconFont> iconFonts,
-  _SeedWireMap localSeeds,
-) {
+  _SeedWireMap localSeeds, {
+  Uint8List? editorState,
+}) {
   if (iconFonts.isNotEmpty) {
     _addUint32(builder, _iconFontsSectionTag);
     _addUint32(builder, iconFonts.length);
@@ -985,11 +1063,16 @@ void _addSections(
       }
     }
   }
+  if (editorState != null) {
+    _addUint32(builder, _editorStateSectionTag);
+    _addLengthPrefixedBytes(builder, editorState);
+  }
 }
 
 typedef _Sections = ({
   List<DeliveredIconFont> iconFonts,
   Map<String, Map<String, Object>> localSeeds,
+  Uint8List? editorState,
   _SeedWireMap? seedWire,
 });
 
@@ -1022,8 +1105,12 @@ _SeedWireMap _seedWireOf(Map<String, Map<String, Object>> seeds) => {
 /// Reads the sections [_addSections] writes and requires the frame to end.
 /// Order, emptiness and value spelling are checked so only canonical bytes
 /// decode.
-_Sections _readSections(_PayloadReader reader, {required bool allowSections}) {
+_Sections _readSections(
+  _PayloadReader reader, {
+  required bool allowSections,
+}) {
   var iconFonts = const <DeliveredIconFont>[];
+  Uint8List? editorState;
   var localSeeds = const <String, Map<String, Object>>{};
   _SeedWireMap? seedWire;
   var previousTag = 0;
@@ -1043,11 +1130,23 @@ _Sections _readSections(_PayloadReader reader, {required bool allowSections}) {
         iconFonts = _readIconFonts(reader);
       case _localSeedsSectionTag:
         (localSeeds, seedWire) = _readLocalSeeds(reader);
+      case _editorStateSectionTag:
+        editorState = reader.readLengthPrefixedBytes('editor state');
+        if (editorState.isEmpty) {
+          throw const FormatException(
+            'An editor-state section must not be empty.',
+          );
+        }
       default:
         throw FormatException('Unsupported payload section $tag.');
     }
   }
-  return (iconFonts: iconFonts, localSeeds: localSeeds, seedWire: seedWire);
+  return (
+    iconFonts: iconFonts,
+    localSeeds: localSeeds,
+    editorState: editorState,
+    seedWire: seedWire,
+  );
 }
 
 List<DeliveredIconFont> _readIconFonts(_PayloadReader reader) {

@@ -231,8 +231,8 @@ bool holdFrameworkPaintErrorForTransaction(
 ) =>
     transaction._holdFrameworkPaintError(token);
 
-/// Reverses a provisional framework-paint mark when the exact report is later
-/// claimed as a nested build failure or its captured owner becomes stale.
+/// Reverses a provisional framework-paint mark when the owning boundary's
+/// failure lapses before it commits.
 void releaseFrameworkPaintErrorForTransaction(
   FirstPaintLeaseTransaction transaction,
   Object token,
@@ -242,8 +242,8 @@ void releaseFrameworkPaintErrorForTransaction(
 
 /// Permanently prevents render success after definitive structural ownership.
 ///
-/// The exact provisional [token] must still be held, so build claims and stale
-/// ownership cancellation cannot poison the transaction.
+/// The exact provisional [token] must still be held, so a lapsed failure cannot
+/// poison the transaction.
 void commitFrameworkRenderFailureForTransaction(
   FirstPaintLeaseTransaction transaction,
   Object token,

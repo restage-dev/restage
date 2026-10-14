@@ -18,6 +18,8 @@ import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/onboarding/flow_builder.dart'
+    show parseOutboundPayloadMap;
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_measurement_schema/src/declared_answers.dart';
@@ -863,11 +865,18 @@ final class _FlowDefinitionGraphParser {
       values,
     );
     if (subflow == null) return false;
+    final customEvents = parseOutboundPayloadMap(
+      _named(expression, 'customEvents'),
+      issues,
+      assetId,
+    );
+    if (customEvents == null) return false;
     _outbound = FlowOutboundDeclarations(
       terminalResult: terminal,
       lifecycle: lifecycle,
       surveyAnswers: survey,
       subFlowResult: subflow,
+      customEvents: customEvents,
     );
     return true;
   }
@@ -2006,7 +2015,7 @@ final class _FlowDefinitionGraphParser {
           'const-evaluated.');
       return null;
     }
-    if (unsupportedCommerceEventNames.contains(id)) {
+    if (kReservedCommerceEventNames.contains(id)) {
       _issue(
         IssueCode.unsupportedCommerceAuthoring,
         unsupportedCommerceEventIssue(id, assetId.path).message,

@@ -12,7 +12,8 @@ part 'restage.generated/lumen_onboarding.restage.g.dart';
 /// and an embedded subscription paywall. Curious users skip the reminder;
 /// others advance only when permission is granted. The paywall continues to
 /// the end of the flow.
-/// The goal is measured; closing the paywall or opening terms emits custom events.
+/// The goal is measured; the paywall's close and footer links, and sign-in,
+/// emit custom events.
 @FlowGraph(surface: Surface.onboarding, minClient: 6)
 final class LumenOnboardingFlow extends RestageFlow {
   /// Host action that requests the daily-reminder permission and reports the
@@ -56,9 +57,10 @@ final class LumenOnboardingFlow extends RestageFlow {
           },
         ),
         customEvents: {
-          // Dismissing or reading the terms is host-owned; neither is a second
-          // graph transition, and neither completes the flow.
+          // The app handles these; none moves the flow or completes it.
           'close': FlowOutboundPayloadDeclaration(),
+          'privacy': FlowOutboundPayloadDeclaration(),
+          'restore_purchases': FlowOutboundPayloadDeclaration(),
           'sign_in': FlowOutboundPayloadDeclaration(),
           'terms': FlowOutboundPayloadDeclaration(),
         },

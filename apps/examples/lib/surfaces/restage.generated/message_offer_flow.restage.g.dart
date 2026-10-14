@@ -12,7 +12,7 @@ const messageOfferRef = SurfaceFlowRef<
   decodeResult: _decodeMessageOfferResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"message_offer","initial":"message_notice","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"message_notice":{"contentHash":"sha256:56a82e85dab2ada657cd706fe790cadc4b2ee3f8e08030b5f6ef5829d7bff107","minClient":1,"path":"measurement/cd846771222eec7f/message_notice.rfw","schemaVersion":1,"version":1},"paywall_upgrade_offer":{"contentHash":"sha256:34f841a2fc7bad46ae2683187e878dc75eb7103ea6488aff0d37573009411074","minClient":1,"path":"paywall_upgrade_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"message_notice":{"kind":"screen","on":{"open_offer":{"target":"paywall_upgrade_offer","type":"goto"}},"screen":"message_notice"},"paywall_upgrade_offer":{"kind":"screen","on":{"continue":{"target":"done","type":"goto"}},"screen":"paywall_upgrade_offer"}},"version":1}',
+        '{"flow":"message_offer","initial":"message_notice","minClient":1,"outbound":{},"schemaVersion":1,"screenArtifacts":{"message_notice":{"contentHash":"sha256:d9286c9647b55960271f7cf692ed106e5100c063ed050cff5230f4e87f637cdc","minClient":1,"path":"measurement/cd846771222eec7f/message_notice.rfw","schemaVersion":1,"version":1},"paywall_upgrade_offer":{"contentHash":"sha256:ade073f8301bd6e0793df6ebefb7509e6f628e34a184463a6d2104222009b712","minClient":1,"path":"paywall_upgrade_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"message_notice":{"kind":"screen","on":{"open_offer":{"target":"paywall_upgrade_offer","type":"goto"}},"screen":"message_notice"},"paywall_upgrade_offer":{"kind":"screen","on":{"continue":{"target":"done","type":"goto"}},"screen":"paywall_upgrade_offer"}},"version":1}',
     screens: {
       'message_notice': MessageNotice.new,
       'paywall_upgrade_offer': UpgradeOffer.new,
@@ -20,7 +20,7 @@ const messageOfferRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'a0eec6e07248181a5913343fb44e05fded25d15ac8eb5fd208232d8e02d8b80f',
+      'e8f27960fe028756e11170594f523958b6874e8cd5122ab96f9199a9b8c1ce07',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

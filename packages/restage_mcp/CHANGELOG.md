@@ -5,6 +5,11 @@
 Initial release: an MCP server over stdio that wraps the Restage backend,
 reusing the CLI's authenticated session.
 
+`restage_push_surface_draft` accepts `acceptUnhandledEvents: true` to push a
+flow draft whose screens emit events the flow does not handle; without it the
+push is refused with each unhandled event listed. `restage_surface_status`
+returns the draft origin (`code` or `editor`) and `editedAfterCode`.
+
 `restage_docs_search` and `restage_docs_read` search and read the Restage
 documentation; they need no sign-in.
 

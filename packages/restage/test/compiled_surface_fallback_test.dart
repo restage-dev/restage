@@ -141,6 +141,7 @@ void main() {
       onEvent: events.add,
     )));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNotNull);
     final originals = find.text('Offer original').evaluate().length;
     final failures =
         events.whereType<PaywallLoadFailed>().map((e) => e.errorCode).toList();

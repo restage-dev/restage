@@ -144,6 +144,50 @@ widget Root = Icon(iconCodepoint: switch data.on { true: 0xe87d, false: 0xe001 }
     });
   });
 
+  group('reserved commerce events', () {
+    Matcher refused(String name) => throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            'The event name "$name" is reserved. Choose another name.',
+          ),
+        );
+
+    test('a blob screen may not emit one', () {
+      for (final name in kReservedCommerceEventNames) {
+        expect(
+          () => validatePayloadSectionsForPublish(
+            _blob('widget Root = Button(onPressed: event "$name" {});'),
+          ),
+          refused(name),
+          reason: name,
+        );
+      }
+    });
+
+    test('a flow screen may not emit one, inside a builder', () {
+      expect(
+        () => validatePayloadSectionsForPublish(
+          _flow({
+            'a': 'widget A = Text(text: "Hi");',
+            'b': 'widget B = Sheet(builder: (scope) => '
+                'Button(onPressed: event "purchase" { productId: "pro" }));',
+          }),
+        ),
+        refused('purchase'),
+      );
+    });
+
+    test('a name that only starts like one is accepted', () {
+      expect(
+        () => validatePayloadSectionsForPublish(
+          _blob('widget Root = Button(onPressed: event "purchased" {});'),
+        ),
+        returnsNormally,
+      );
+    });
+  });
+
   group('local seed roots', () {
     test('a blob seed must name a widget the blob declares', () {
       expect(

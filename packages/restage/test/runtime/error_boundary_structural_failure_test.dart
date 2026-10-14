@@ -36,7 +36,7 @@ void main() {
         isCommitted: true,
         isPaintAcknowledged: false,
         fallbacks: 1,
-        escaped: null,
+        reported: 'Bad state: paint failed',
       ));
     },
   );
@@ -57,7 +57,7 @@ void main() {
         isCommitted: true,
         isPaintAcknowledged: false,
         fallbacks: 1,
-        escaped: null,
+        reported: 'Bad state: layout failed',
       ));
     },
   );
@@ -167,7 +167,7 @@ void main() {
         expect(observed.isCommitted, isTrue);
         expect(observed.isPaintAcknowledged, isFalse);
         expect(observed.fallbacks, 1);
-        expect(observed.escaped, isNull);
+        expect(observed.reports, 1);
       },
     );
   }
@@ -201,7 +201,7 @@ void main() {
       expect(observed.isCommitted, isTrue);
       expect(observed.isPaintAcknowledged, isFalse);
       expect(observed.fallbacks, 1);
-      expect(observed.escaped, isNull);
+      expect(observed.reports, 1);
       expect(labels, contains('aspect fallback'));
       expect(labels, isNot(contains('list semantics one')));
       semantics.dispose();
@@ -268,7 +268,7 @@ void main() {
 
       expect(initialSemantics, isTrue);
       expect(errors, 1);
-      expect(failureEscaped, isNull);
+      expect(failureEscaped, isNotNull);
       expect(replacementCount, 1);
       expect(replacementLabels, contains('replacement semantics'));
       expect(failedCleanCount, 0);
@@ -331,7 +331,7 @@ void main() {
         expect(observed.afterCommit, isFalse);
         expect(observed.isPaintAcknowledged, isFalse);
         expect(observed.fallbacks, 1);
-        expect(observed.escaped, isNull);
+        expect(observed.reports, 1);
         expect(parentHasSize, isFalse);
         expect(childHasSize, !allocation);
         expect(finiteOffset, isTrue);
@@ -377,7 +377,7 @@ SizedBox(width: 1e308, height: 10.0)
     expect(observed.afterCommit, isFalse);
     expect(observed.isPaintAcknowledged, isFalse);
     expect(observed.fallbacks, 1);
-    expect(observed.escaped, isNull);
+    expect(observed.reports, 1);
   });
 
   testWidgets(
@@ -417,7 +417,7 @@ widget Surface = Row(children: [Expanded(flex: 3, child: Text(text: "flex semant
     await tester.pump();
     await tester.pump();
     expect(errors, 1);
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isA<FlutterError>());
     expect(_semanticsContains(tester, 'flex replacement semantics'), isTrue);
     expect(_semanticsContains(tester, 'flex semantics'), isFalse);
     await tester
@@ -481,7 +481,7 @@ SizedBox(width: 1e308, height: 10.0)
     await tester.pump();
     await tester.pump();
     expect(errors, 1);
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isA<FlutterError>());
     expect(_semanticsContains(tester, 'wrap replacement semantics'), isTrue);
     expect(_semanticsContains(tester, 'wrap semantics'), isFalse);
     runtime.update(
@@ -622,7 +622,7 @@ Future<
       bool isPaintAcknowledged,
       int fallbacks,
       Object? error,
-      Object? escaped,
+      int reports,
     })> _runGeneratedAspectFailureScenario(
   WidgetTester tester, {
   required String ratio,
@@ -654,6 +654,12 @@ widget Surface = ${expression ?? '''AspectRatio(
 )'''};
 '''),
     );
+  final binding = FlutterError.onError!;
+  final reported = <Object>[];
+  FlutterError.onError = (details) {
+    reported.add(details.exception);
+    binding(details);
+  };
   final remote = RemoteWidget(
     runtime: runtime,
     data: DynamicContent(const <String, Object?>{}),
@@ -693,12 +699,14 @@ widget Surface = ${expression ?? '''AspectRatio(
     isPaintAcknowledged: transaction.isPaintAcknowledged,
     fallbacks: find.text('aspect fallback').evaluate().length,
     error: error,
-    escaped: tester.takeException(),
+    reports: reported.where((exception) => identical(exception, error)).length,
   );
+  tester.takeException();
 
   beforeUnmount?.call();
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
+  FlutterError.onError = binding;
   return observed;
 }
 
@@ -712,7 +720,7 @@ typedef _StructuralFailureObservation = ({
   bool isCommitted,
   bool isPaintAcknowledged,
   int fallbacks,
-  Object? escaped,
+  String? reported,
 });
 
 Future<_StructuralFailureObservation> _runStructuralFailureScenario(
@@ -763,7 +771,7 @@ Future<_StructuralFailureObservation> _runStructuralFailureScenario(
     isCommitted: transaction.isCommitted,
     isPaintAcknowledged: transaction.isPaintAcknowledged,
     fallbacks: find.text('fallback').evaluate().length,
-    escaped: tester.takeException(),
+    reported: tester.takeException()?.toString(),
   );
 
   await tester.pumpWidget(const SizedBox.shrink());

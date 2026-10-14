@@ -12,14 +12,14 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
   decodeResult: _decodeBareSurfaceFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"bare_surface","initial":"starter_bare_surface","minClient":10,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_bare_surface":{"contentHash":"sha256:ba21b35bda002f8c682f5397c6b8033e057ce288777162718b13a1cf31153494","minClient":10,"path":"starter_bare_surface.rfw","schemaVersion":1,"version":1}},"states":{"starter_bare_surface":{"kind":"screen","on":{},"screen":"starter_bare_surface"}},"version":1}',
+        '{"flow":"bare_surface","initial":"starter_bare_surface","minClient":10,"outbound":{},"schemaVersion":1,"screenArtifacts":{"starter_bare_surface":{"contentHash":"sha256:1978b52508d82af77e7800ae864cf549ba78654c671e006f089c096666879a96","minClient":10,"path":"starter_bare_surface.rfw","schemaVersion":1,"version":1}},"states":{"starter_bare_surface":{"kind":"screen","on":{},"screen":"starter_bare_surface"}},"version":1}',
     screens: {
       'starter_bare_surface': StarterBareSurfaceScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '0f0fae07bdf278925fdd222008fe07acee0374664e4d61dd6a7582524c363036',
+      'c6efe8858efbb9fdf3e2751a76ba00f077a632441649dd7e80fb46604fc17798',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

@@ -271,6 +271,8 @@ final class SurfacePublicationApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    Uint8List? editorState,
+    Uint8List? pushImage,
   }) async {
     final canonicalJson =
         SurfacePublicationUploadRequestV1Codec.encodeCanonicalJson(request);
@@ -285,6 +287,8 @@ final class SurfacePublicationApi {
       'environmentTargetId': ?environmentTargetId,
       'runtimePlane': ?runtimePlane?.wireName,
       'organizationId': ?organizationId,
+      if (editorState != null) 'editorState': encodeByteDataWire(editorState),
+      if (pushImage != null) 'pushImage': encodeByteDataWire(pushImage),
     });
     try {
       return SurfacePublicationUploadResult.fromWire(raw);
@@ -310,6 +314,8 @@ final class SurfacePublicationApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    Uint8List? editorState,
+    Uint8List? pushImage,
   }) async {
     final raw = await _api.call(
       'surface',
@@ -345,6 +351,8 @@ final class SurfacePublicationApi {
         'environmentTargetId': ?environmentTargetId,
         'runtimePlane': ?runtimePlane?.wireName,
         'organizationId': ?organizationId,
+        if (editorState != null) 'editorState': encodeByteDataWire(editorState),
+        if (pushImage != null) 'pushImage': encodeByteDataWire(pushImage),
       },
     );
     try {

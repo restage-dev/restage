@@ -2023,6 +2023,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
               maxLines: 1,
               style: const TextStyle(color: _ConsoleTheme.text),
             ),
+        ..._draftOriginLines(status),
         ..._rollbackSupportLines(status),
         ..._versionHistoryLines(status),
         Text(
@@ -2043,6 +2044,25 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         ),
       ],
     );
+  }
+
+  List<Component> _draftOriginLines(SurfaceStatusResult? status) {
+    if (status == null) return const [];
+    return [
+      Text(
+        status.draftOrigin == 'code'
+            ? 'Draft from code'
+            : 'Draft from the editor',
+        maxLines: 1,
+        style: const TextStyle(color: _ConsoleTheme.text),
+      ),
+      if (status.editedAfterCode)
+        const Text(
+          editedAfterCodeLabel,
+          maxLines: 2,
+          style: TextStyle(color: _ConsoleTheme.warning),
+        ),
+    ];
   }
 
   List<Component> _rollbackSupportLines(SurfaceStatusResult? status) {

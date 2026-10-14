@@ -2444,7 +2444,7 @@ String? _eventId(
     final id =
         eventField.computeConstantValue()?.getField('id')?.toStringValue();
     if (id != null) {
-      if (unsupportedCommerceEventNames.contains(id)) {
+      if (kReservedCommerceEventNames.contains(id)) {
         issues.add(unsupportedCommerceEventIssue(id, assetId.path));
         return null;
       }
@@ -3003,6 +3003,16 @@ FlowOutboundDeclarations? _outboundDeclarations(
     customEvents: customEvents,
   );
 }
+
+/// Parses a literal map of outbound payload declarations, as both flow
+/// authoring forms write `customEvents`.
+@internal
+Map<String, FlowOutboundPayloadDeclaration>? parseOutboundPayloadMap(
+  Expression? expression,
+  List<Issue> issues,
+  AssetId assetId,
+) =>
+    _outboundPayloadMap(expression, issues, assetId);
 
 Map<String, FlowOutboundPayloadDeclaration>? _outboundPayloadMap(
   Expression? expression,

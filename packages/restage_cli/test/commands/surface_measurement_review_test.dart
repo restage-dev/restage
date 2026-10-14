@@ -170,6 +170,7 @@ class SurfaceReviewHarness {
             'liveVersion': 3,
             'locked': false,
             'deliveryShape': 'blob',
+            'draftOrigin': 'code',
             'sourceKind': 'paywall',
             'versions': [
               for (final version in [1, 3])

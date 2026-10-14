@@ -78,6 +78,9 @@ const firstRun = FlowDefinition(
   `terminalResult` becomes the generated result class (`FirstRunResult`, with a
   `goal` field). A state declaration alone does not add a result field.
 - Every `Transition.complete` in a flow must end with the same result shape.
+- `customEvents: {'privacy': FlowOutboundPayloadDeclaration()}` hands a screen
+  event to the app as a `FlowCustomEvent` on `Restage.events`. It neither moves
+  nor completes the flow.
 
 ## Answers
 
