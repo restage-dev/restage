@@ -1346,8 +1346,14 @@ void main() {
         },
         'instances': <String, Object?>{
           '["main"]': <Object?>[
-            <Object?>[0, 0, 10, 10, 'a'],
-            <Object?>[0, 10, 10, 10, 'b'],
+            <String, Object?>{
+              'rect': <double>[0, 0, 10, 10],
+              'item': 'a',
+            },
+            <String, Object?>{
+              'rect': <double>[0, 10, 10, 10],
+              'item': 'b',
+            },
           ],
         },
       });
@@ -1363,6 +1369,88 @@ void main() {
           GeometryInstance(Rect.fromLTWH(0, 0, 5, 5)),
         ],
       });
+    });
+
+    test('a clipped path arrives with its visible rect, a hidden one without',
+        () async {
+      transport.receive(_origin, _ready());
+      final geometry = <GeometrySnapshot>[];
+      provider.geometry.listen(geometry.add);
+      await provider.render(_request(1));
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'settled',
+        'epoch': 1,
+        'diagnostics': <Object?>[],
+      });
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'geometry',
+        'epoch': 1,
+        'generation': 0,
+        'rects': <String, Object?>{
+          '["main"]': <double>[0, 0, 10, 10],
+          '["main","child"]': <double>[0, -5, 10, 10],
+          '["main","gone"]': <double>[0, -20, 10, 10],
+        },
+        'instances': <String, Object?>{
+          '["main","child"]': <Object?>[
+            <String, Object?>{
+              'rect': <double>[0, -5, 10, 10],
+              'visible': <double>[0, 0, 10, 5],
+            },
+          ],
+          '["main","gone"]': <Object?>[
+            <String, Object?>{
+              'rect': <double>[0, -20, 10, 10],
+              'visible': null,
+            },
+          ],
+        },
+      });
+      final snapshot = geometry.single;
+      expect(snapshot.instances['["main","child"]'], const <GeometryInstance>[
+        GeometryInstance.clipped(
+          Rect.fromLTWH(0, -5, 10, 10),
+          visibleRect: Rect.fromLTWH(0, 0, 10, 5),
+        ),
+      ]);
+      expect(snapshot.instances['["main","gone"]'], const <GeometryInstance>[
+        GeometryInstance.clipped(Rect.fromLTWH(0, -20, 10, 10),
+            visibleRect: null),
+      ]);
+      expect(snapshot.visibleRects, const <String, Rect>{
+        '["main"]': Rect.fromLTWH(0, 0, 10, 10),
+        '["main","child"]': Rect.fromLTWH(0, 0, 10, 5),
+      });
+    });
+
+    test('an instance in the list form is rejected', () async {
+      transport.receive(_origin, _ready());
+      final geometry = <GeometrySnapshot>[];
+      provider.geometry.listen(geometry.add);
+      await provider.render(_request(1));
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'settled',
+        'epoch': 1,
+        'diagnostics': <Object?>[],
+      });
+      transport.receive(_origin, <String, Object?>{
+        'v': 1,
+        'type': 'geometry',
+        'epoch': 1,
+        'generation': 0,
+        'rects': <String, Object?>{
+          '["main"]': <double>[0, 0, 10, 10],
+        },
+        'instances': <String, Object?>{
+          '["main"]': <Object?>[
+            <Object?>[0, 0, 10, 10, 'a'],
+          ],
+        },
+      });
+      expect(geometry, isEmpty);
     });
 
     test('instances must lead with the path\'s rect', () {
@@ -2485,7 +2573,8 @@ void main() {
       expect(requests.single.blob, bytes);
     });
 
-    test('sends every instance of a repeated or item-bearing path', () async {
+    test('sends every instance of a repeated, item-bearing or clipped path',
+        () async {
       receiveRender(1);
       results[1]!.complete(
         BundleRenderResult(
@@ -2520,6 +2609,23 @@ void main() {
         },
       );
       frames.flush();
+      server.publishGeometry(
+        1,
+        const <String, Rect>{'["main"]': Rect.fromLTWH(0, -5, 10, 10)},
+        instances: const <String, List<GeometryInstance>>{
+          '["main"]': <GeometryInstance>[
+            GeometryInstance.clipped(
+              Rect.fromLTWH(0, -5, 10, 10),
+              visibleRect: Rect.fromLTWH(0, 0, 10, 5),
+            ),
+            GeometryInstance.clipped(
+              Rect.fromLTWH(0, -20, 10, 10),
+              visibleRect: null,
+            ),
+          ],
+        },
+      );
+      frames.flush();
       final geometry = transport.sent
           .where((message) => message.payload['type'] == 'geometry')
           .map((message) => message.payload['instances'])
@@ -2527,17 +2633,42 @@ void main() {
       expect(geometry, <Object?>[
         <String, Object?>{
           '["main"]': <Object?>[
-            <Object?>[0.0, 0.0, 10.0, 10.0],
-            <Object?>[0.0, 10.0, 10.0, 10.0],
+            <String, Object?>{
+              'rect': <Object?>[0.0, 0.0, 10.0, 10.0],
+            },
+            <String, Object?>{
+              'rect': <Object?>[0.0, 10.0, 10.0, 10.0],
+            },
           ],
           '["tag"]': <Object?>[
-            <Object?>[1.0, 1.0, 2.0, 2.0, 'x'],
+            <String, Object?>{
+              'rect': <Object?>[1.0, 1.0, 2.0, 2.0],
+              'item': 'x',
+            },
           ],
         },
         <String, Object?>{
           '["main"]': <Object?>[
-            <Object?>[0.0, 0.0, 10.0, 10.0, 'a'],
-            <Object?>[0.0, 10.0, 10.0, 10.0, 'b'],
+            <String, Object?>{
+              'rect': <Object?>[0.0, 0.0, 10.0, 10.0],
+              'item': 'a',
+            },
+            <String, Object?>{
+              'rect': <Object?>[0.0, 10.0, 10.0, 10.0],
+              'item': 'b',
+            },
+          ],
+        },
+        <String, Object?>{
+          '["main"]': <Object?>[
+            <String, Object?>{
+              'rect': <Object?>[0.0, -5.0, 10.0, 10.0],
+              'visible': <Object?>[0.0, 0.0, 10.0, 5.0],
+            },
+            <String, Object?>{
+              'rect': <Object?>[0.0, -20.0, 10.0, 10.0],
+              'visible': null,
+            },
           ],
         },
       ]);

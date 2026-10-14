@@ -330,6 +330,7 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     if (widget.onRenderEvent == null) return rendered;
     return RuntimeErrorBoundary(
       key: ValueKey<int>(revision),
+      debugLabel: widget.entryWidgetName,
       onFirstPaintSuccess: () => _reportSettled(revision, epoch),
       onError: (_, __) => _reportBuildError(revision, epoch),
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),

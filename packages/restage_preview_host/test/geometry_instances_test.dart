@@ -149,6 +149,84 @@ void main() {
     expect(registry.reveal('["missing"]'), isFalse);
   });
 
+  testWidgets('a scroll view clips instances without dropping them',
+      (tester) async {
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            key: frameKey,
+            width: 100,
+            height: 100,
+            child: SingleChildScrollView(
+              child: Column(
+                children: <Widget>[
+                  for (final item in const <String>['a', 'b', 'c'])
+                    instance(tester, height: 80, item: item),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final instances = registry.captureInstances()[_path]!;
+    expect(instances.map((instance) => instance.rect), const <Rect>[
+      Rect.fromLTWH(45, 0, 10, 80),
+      Rect.fromLTWH(45, 80, 10, 80),
+      Rect.fromLTWH(45, 160, 10, 80),
+    ]);
+    expect(instances.map((instance) => instance.visibleRect), const <Rect?>[
+      Rect.fromLTWH(45, 0, 10, 80),
+      Rect.fromLTWH(45, 80, 10, 20),
+      null,
+    ]);
+  });
+
+  testWidgets('a scrolled list hit-tests the first instance still showing',
+      (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            key: frameKey,
+            width: 100,
+            height: 100,
+            child: SingleChildScrollView(
+              controller: controller,
+              child: Column(
+                children: <Widget>[
+                  for (final item in const <String>['a', 'b', 'c'])
+                    instance(tester, height: 80, item: item),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.jumpTo(120);
+    await tester.pump();
+    await tester.pump();
+
+    final snapshot = GeometrySnapshot(
+      epoch: 0,
+      generation: 0,
+      rects: registry.capture(),
+      instances: registry.captureInstances(),
+    );
+    expect(snapshot.instances[_path]!.first.visibleRect, isNull);
+    expect(snapshot.visibleRects[_path], const Rect.fromLTWH(45, 0, 10, 40));
+  });
+
   testWidgets('removing one instance keeps the others', (tester) async {
     final snapshots = <Map<String, List<GeometryInstance>>>[];
     registry.instanceSnapshots.listen(snapshots.add);

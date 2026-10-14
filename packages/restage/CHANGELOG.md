@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+`FlowOutboundPolicy.customEvents` hands named screen events to the app with the
+event arguments each carries. A custom event neither moves nor completes the
+flow.
+
+Placement mounts and render bundles find a surface's root widget by one rule:
+`main`, as the editor writes it, then `Paywall`, then `OnboardingScreen`, each
+declared once, else the library's only declaration. A placement mount used to
+miss an editor-authored `main`, and a render bundle used to refuse an
+`OnboardingScreen` or a single-declaration library.
+
+A surface that fails to render still falls back as before, and the error now also
+reaches your app's `FlutterError.onError` handler, once, as it would without
+Restage. In widget tests, call `tester.takeException()` for an expected failure. A
+failing widget test with a surface mounted now fails at once; it used to wait for
+the test timeout. In debug builds the fallback prints one `[restage]` line naming
+the surface.
+
 The render host draws a bounded placeholder for a widget it can't build, or one no
 installed library provides, where it used to draw an error box.
 

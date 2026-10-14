@@ -2,7 +2,14 @@ import 'dart:async' show Stream, StreamController, unawaited;
 
 import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 import 'package:flutter/rendering.dart'
-    show MatrixUtils, Offset, Rect, RenderBox, RenderObject, RenderView;
+    show
+        Matrix4,
+        MatrixUtils,
+        Offset,
+        Rect,
+        RenderBox,
+        RenderObject,
+        RenderView;
 import 'package:flutter/scheduler.dart' show FrameCallback, SchedulerBinding;
 import 'document_path_codec.dart';
 
@@ -15,24 +22,44 @@ typedef FrameRenderBoxProvider = RenderBox? Function();
 /// One drawn instance of an authored node.
 @immutable
 final class GeometryInstance {
-  /// Create an instance at [rect], optionally naming the [item] it draws.
-  const GeometryInstance(this.rect, {this.item});
+  /// Create a fully visible instance at [rect], optionally naming the [item]
+  /// it draws.
+  const GeometryInstance(this.rect, {this.item}) : visibleRect = rect;
+
+  /// Create an instance at [rect] that ancestor clips cut to [visibleRect],
+  /// which is null when none of it shows.
+  const GeometryInstance.clipped(
+    this.rect, {
+    required this.visibleRect,
+    this.item,
+  });
 
   /// Frame-relative bounds.
   final Rect rect;
 
+  /// The part of [rect] left after ancestor clips such as scroll viewports;
+  /// null when the instance is clipped out entirely.
+  final Rect? visibleRect;
+
   /// The data item this instance draws, when its marker names one.
   final String? item;
 
+  /// Whether ancestor clips hide any part of [rect].
+  bool get isClipped => visibleRect != rect;
+
   @override
   bool operator ==(Object other) =>
-      other is GeometryInstance && other.rect == rect && other.item == item;
+      other is GeometryInstance &&
+      other.rect == rect &&
+      other.visibleRect == visibleRect &&
+      other.item == item;
 
   @override
-  int get hashCode => Object.hash(rect, item);
+  int get hashCode => Object.hash(rect, visibleRect, item);
 
   @override
-  String toString() => 'GeometryInstance($rect, item: $item)';
+  String toString() =>
+      'GeometryInstance($rect, visibleRect: $visibleRect, item: $item)';
 }
 
 /// Tracks marker render boxes and emits changed frame-relative rect snapshots.
@@ -184,10 +211,7 @@ final class GeometryRegistry {
       final instances = <GeometryInstance>[
         for (final marker in entry.value)
           if (marker.box.attached && marker.box.hasSize)
-            GeometryInstance(
-              geometryBoundsInFrame(marker.box, frame),
-              item: marker.item,
-            ),
+            _instanceInFrame(marker, frame),
       ];
       if (instances.isNotEmpty) {
         next[entry.key] = List<GeometryInstance>.unmodifiable(instances);
@@ -210,17 +234,53 @@ final class GeometryRegistry {
 }
 
 /// Logical frame-relative bounds using the render tree's paint transforms.
-Rect geometryBoundsInFrame(RenderBox box, RenderObject frame) {
-  var transform = box.getTransformTo(frame);
-  if (frame is RenderView) {
-    final logicalTransform = frame.configuration.toMatrix();
-    if (logicalTransform.invert() == 0) {
-      throw const FormatException('The Flutter view transform is singular.');
+Rect geometryBoundsInFrame(RenderBox box, RenderObject frame) =>
+    MatrixUtils.transformRect(
+      _transformToFrame(box, frame),
+      Offset.zero & box.size,
+    );
+
+GeometryInstance _instanceInFrame(_Marker marker, RenderObject frame) {
+  final bounds = geometryBoundsInFrame(marker.box, frame);
+  return GeometryInstance.clipped(
+    bounds,
+    visibleRect: _visibleBounds(marker.box, frame, bounds),
+    item: marker.item,
+  );
+}
+
+/// [bounds] cut by every ancestor paint clip up to [frame], such as a scroll
+/// view's viewport; null when none of [box] is visible.
+Rect? _visibleBounds(RenderBox box, RenderObject frame, Rect bounds) {
+  var visible = bounds;
+  RenderObject child = box;
+  while (!identical(child, frame)) {
+    final parent = child.parent;
+    if (parent == null) break;
+    final clip = parent.describeApproximatePaintClip(child);
+    if (clip != null) {
+      visible = visible.intersect(
+        MatrixUtils.transformRect(_transformToFrame(parent, frame), clip),
+      );
+      if (visible.width < 0 ||
+          visible.height < 0 ||
+          (visible.isEmpty && !bounds.isEmpty)) {
+        return null;
+      }
     }
-    logicalTransform.multiply(transform);
-    transform = logicalTransform;
+    child = parent;
   }
-  return MatrixUtils.transformRect(transform, Offset.zero & box.size);
+  return visible;
+}
+
+Matrix4 _transformToFrame(RenderObject object, RenderObject frame) {
+  final transform = object.getTransformTo(frame);
+  if (frame is! RenderView) return transform;
+  final logicalTransform = frame.configuration.toMatrix();
+  if (logicalTransform.invert() == 0) {
+    throw const FormatException('The Flutter view transform is singular.');
+  }
+  return logicalTransform..multiply(transform);
 }
 
 /// Depth-first render order, retaining every drawn occurrence.

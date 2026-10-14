@@ -12,14 +12,14 @@ const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
   decodeResult: _decodeSectionHeaderShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:a19b24bfd19e74537a4a4f95b5d07d1d1be84bfc143966a2816d8c7417e2db58","minClient":10,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
+        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":10,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:fd2fed086db7c72a7d17e053672a7542f3278e8f7911f96b8f395ad8b3fa086c","minClient":10,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
     screens: {
       'section_header_showcase': SectionHeaderShowcaseScreen.new,
     },
     children: {},
   ),
   measurementPublicationDraftDigest:
-      'fe25dd0ec2d22ac0e1270d4b84b8da259cf4c17d79e4392ffe4c0aa0aa1fea90',
+      'd61183120001ab3a9582c788c46add38da5ee31cfd701c9d8fc2792c03e1c962',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {

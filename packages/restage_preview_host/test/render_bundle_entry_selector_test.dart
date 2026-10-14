@@ -60,10 +60,28 @@ void main() {
     );
   });
 
+  test('selects a single declaration with any name', () {
+    expect(
+      selectRenderBundleEntryWidgetName(
+        _libraryWithDeclarations(<String>['Other']),
+      ),
+      'Other',
+    );
+  });
+
+  test('selects one OnboardingScreen declaration beside others', () {
+    expect(
+      selectRenderBundleEntryWidgetName(
+        _libraryWithDeclarations(<String>['StatBadge', 'OnboardingScreen']),
+      ),
+      'OnboardingScreen',
+    );
+  });
+
   test('rejects a library without a supported declaration', () {
     expect(
       () => selectRenderBundleEntryWidgetName(
-        _libraryWithDeclarations(<String>['Other']),
+        _libraryWithDeclarations(<String>['Other', 'Another']),
       ),
       throwsA(_formatException('No unique render bundle entry.')),
     );

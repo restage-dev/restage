@@ -77,6 +77,7 @@ class _FakeConsoleRepository implements ConsoleRepository {
     liveVersion: null,
     locked: false,
     deliveryShape: 'blob',
+    draftOrigin: 'code',
     versions: const [],
   );
 

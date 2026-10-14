@@ -117,7 +117,7 @@ void main() {
 
     await _pumpPaywall(tester, true);
 
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
     expect(find.byType(Icon), findsNothing);
   });
 

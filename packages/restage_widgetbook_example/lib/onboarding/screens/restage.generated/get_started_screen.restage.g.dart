@@ -46,7 +46,7 @@ final getStartedScreenRef =
       provenance: _getStartedScreenProvenance,
       eventContract: _getStartedScreenEvents,
       measurementPublicationDraftDigest:
-          '1e31372e4267dbd073fdcaacbbb907c8a1a158892c9a7c053f435fd21dc1a7ae',
+          '7f2489841a7737ed05008ce9c08cb4644704c9de28050d7283bcddf2c16a1e18',
     );
 
 GetStartedScreenEvent _decodeValidatedGetStartedScreenEvent(

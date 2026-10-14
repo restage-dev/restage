@@ -191,6 +191,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     final entryId = _entryId!;
     final child = RuntimeErrorBoundary(
       key: ValueKey<int>(entryId),
+      debugLabel: controller.flow.id,
       onFirstBuildSuccess: () {
         controller.acknowledgeRenderedEntry(entryId);
       },

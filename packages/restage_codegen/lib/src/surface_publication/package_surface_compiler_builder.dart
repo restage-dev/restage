@@ -940,7 +940,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     ),
   );
   issues.addAll(result.issues);
-  result.mountOmissions.forEach(log.warning);
+  result.warnings.forEach(log.warning);
   final bundle = result.bundle;
   if (issues.isNotEmpty || bundle == null) {
     return _invalidCompilation(

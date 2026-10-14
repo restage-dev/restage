@@ -63,6 +63,7 @@ void main() {
       'liveVersion': liveVersion,
       'locked': false,
       'deliveryShape': deliveryShape,
+      'draftOrigin': 'code',
       'versions': versions,
     }),
     200,

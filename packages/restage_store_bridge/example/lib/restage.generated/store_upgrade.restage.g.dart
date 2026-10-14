@@ -58,6 +58,9 @@ final storePaywallPlacementDefinition = () =>
     _storePaywallPlacementDefinitionValue;
 
 final class StorePaywallSurface extends StatelessWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
   const StorePaywallSurface({
     required List<PaywallPackage> packages,
     super.key,
@@ -69,6 +72,9 @@ final class StorePaywallSurface extends StatelessWidget {
   }) : _restageArgument0 = packages,
        _restagePlacementName = placement;
 
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [StorePaywallSurface] for the default placement; no name is needed.
   const StorePaywallSurface.atPlacement(
     String restagePlacementId, {
     required List<PaywallPackage> packages,

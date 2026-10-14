@@ -58,8 +58,7 @@ void main() {
       expect(result.logs, isNot(contains('[generalAnalyticsSinkStateRef]')));
     });
 
-    test(
-        'an IDENTICAL violating customEvents state-ref builds clean when TYPED',
+    test('an IDENTICAL customEvents state-ref fails the build when TYPED too',
         () async {
       final result = await _build(
         _sources(
@@ -68,8 +67,8 @@ void main() {
           outboundBlock: _analyticsSlotWithStateRef('customEvents', 'secret'),
         ),
       );
-      expect(result.succeeded, isTrue);
-      expect(result.logs, isNot(contains('[generalAnalyticsSinkStateRef]')));
+      expect(result.succeeded, isFalse);
+      expect(result.logs, contains('customEventStateRef'));
     });
   });
 
@@ -193,7 +192,7 @@ void main() {
           lifecycle: _payload,
           surveyAnswers: _payload,
           subFlowResult: _payload,
-          customEvents: {'evt': _payload},
+          customEvents: {'evt': _eventPayload},
         ),
         screenArtifacts: {
           'a': ScreenArtifact(
@@ -374,3 +373,12 @@ final class $className extends StatelessWidget {
       );
 }
 ''';
+
+const _eventPayload = FlowOutboundPayloadDeclaration(
+  fields: {
+    'f': FlowOutboundField(
+      type: FlowDataType.string,
+      ref: EventFlowOutboundRef(key: 'f'),
+    ),
+  },
+);

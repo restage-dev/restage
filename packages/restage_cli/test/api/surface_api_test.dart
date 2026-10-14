@@ -592,6 +592,7 @@ void main() {
           'liveVersion': 2,
           'locked': false,
           'deliveryShape': 'blob',
+          'draftOrigin': 'code',
           'versions': <dynamic>[
             {
               'version': 2,
@@ -631,6 +632,7 @@ void main() {
           'liveVersion': 2,
           'locked': false,
           'deliveryShape': 'blob',
+          'draftOrigin': 'code',
           'versions': <dynamic>[],
         },
       );
@@ -656,6 +658,7 @@ void main() {
         'liveVersion': null,
         'locked': false,
         'deliveryShape': 'blob',
+        'draftOrigin': 'code',
         'versions': <dynamic>[],
       };
       final named = FakeRestageApi(response: response());

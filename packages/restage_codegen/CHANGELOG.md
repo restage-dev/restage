@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+Every emitted `.rfw` now encodes its library in one canonical key order. The
+first build after upgrading changes the bytes, and so the digests, of every
+surface, and a status check may report unpublished changes for surfaces whose
+content did not change. Push once to settle them.
+
+The build warns when a flow screen emits an event that the state showing it does
+not handle, because the runtime drops that event. Handle it in the state, or
+declare it as a custom event.
+
+A compact `FlowDefinition` accepts `customEvents` in its outbound policy. A
+custom event field must reference an event argument; one that references flow
+state is refused (`customEventStateRef`).
+
 Measurement routes and publication drafts stay stable across repeated local
 builds after adding or removing a measured element.
 

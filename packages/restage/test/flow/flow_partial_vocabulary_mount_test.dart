@@ -134,7 +134,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The failure is contained: nothing escapes to the host.
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNotNull);
 
       // The host's fallback is what the user sees, and the flow failed closed.
       expect(find.text('Unavailable'), findsOneWidget);

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/commands/surface_payload.dart';
 import 'package:restage_cli/src/measurement/measurement_publication_candidate_assembler.dart';
 import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
@@ -914,4 +915,159 @@ _screenContractFor(int minClient) {
       eventContractHash: eventsHash,
     ),
   );
+}
+
+/// Seed the example app's real `<slug>` flow closure and the generated
+/// Measurement draft that belongs to it.
+Future<void> seedGeneratedFlow(Directory root, {required String slug}) async {
+  final flowPath = await seedSurfaceFlow(root, slug: slug);
+  final flowBytes = await File(flowPath).readAsBytes();
+  final document = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
+  final artifacts = <SurfacePublicationArtifact>[
+    SurfacePublicationArtifact(
+      contentHash: CapabilitySidecar.hashBlob(flowBytes),
+      path: 'assets/onboarding/flows/$slug.flow.json',
+      role: SurfacePublicationArtifactRole.flowDocument,
+    ),
+  ];
+  final screenBlobs = <String, Uint8List>{};
+  final perScreenLibraries = <List<LibraryRequirement>>[];
+  for (final screen in document.screenArtifacts.entries) {
+    final blobPath = 'assets/onboarding/screens/${screen.value.path}';
+    final blob = await File(p.join(root.path, blobPath)).readAsBytes();
+    final sidecarPath = p.join(
+      p.dirname(blobPath),
+      '${p.basenameWithoutExtension(screen.value.path)}.capability.json',
+    );
+    final sidecarBytes = await File(
+      p.join(root.path, sidecarPath),
+    ).readAsBytes();
+    final sidecar = CapabilitySidecar.fromJson(
+      jsonDecode(utf8.decode(sidecarBytes)) as Map<String, dynamic>,
+    );
+    screenBlobs[screen.key] = blob;
+    perScreenLibraries.add(sidecar.manifest.requiredLibraries);
+    artifacts.add(
+      SurfacePublicationArtifact(
+        contentHash: CapabilitySidecar.hashBlob(blob),
+        path: blobPath,
+        role: SurfacePublicationArtifactRole.screenBlob,
+        id: screen.key,
+      ),
+    );
+    artifacts.add(
+      SurfacePublicationArtifact(
+        contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
+        path: sidecarPath,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
+        id: screen.key,
+      ),
+    );
+  }
+  final payload = FlowSurfacePayload(
+    flowDocument: document,
+    screenBlobs: screenBlobs,
+    requiredLibraries: unionRequiredLibraries(perScreenLibraries),
+  );
+  final entry = SurfacePublicationManifestEntry(
+    artifacts: artifacts,
+    publication: SurfacePublication(
+      surface: Surface.onboarding,
+      slug: document.flow,
+      sourceKind: SurfaceSourceKind.flowGraph,
+      payloadKind: SurfacePayloadKind.flow,
+      payloadContentHash: payload.contentHash,
+      deliveryMode: document.deliveryMode,
+    ),
+  );
+  await writeGeneratedOutput(root, [entry]);
+  await seedExampleMeasurementPublicationIndex(root, entry);
+}
+
+/// Write a one-screen onboarding flow `notice` whose screen emits `next`,
+/// which completes the flow, and [dropped], which no state handles.
+Future<void> seedDroppingFlow(
+  Directory root, {
+  String dropped = 'dropped',
+}) async {
+  final blob = rfw.encodeLibraryBlob(
+    rfw.parseLibraryFile('''
+import restage.core;
+widget Preview = Column(children: [
+  Button(onPressed: event "next" {}),
+  Button(onPressed: event "$dropped" {}),
+]);
+'''),
+  );
+  final sidecar = jsonEncode(
+    CapabilitySidecar(
+      blobSha256: CapabilitySidecar.hashBlob(blob),
+      manifest: CapabilityManifest(builtInFloor: 2, requiredLibraries: []),
+    ).toJson(),
+  );
+  final document = FlowDocument(
+    flow: 'notice',
+    version: 1,
+    schemaVersion: 1,
+    minClient: 2,
+    initial: 'notice',
+    screenArtifacts: {
+      'notice': ScreenArtifact(
+        path: 'notice.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: 2,
+        contentHash: FlowContentHash.compute(blob),
+      ),
+    },
+    states: const {
+      'notice': ScreenFlowState(
+        screen: 'notice',
+        on: {'next': FlowTransition.goto('done')},
+      ),
+      'done': EndFlowState(result: {}),
+    },
+  );
+  final documentBytes = FlowDocumentCodec.encodeCanonicalJson(document);
+  const flowPath = 'assets/onboarding/flows/notice.flow.json';
+  const blobPath = 'assets/onboarding/screens/notice.rfw';
+  const sidecarPath = 'assets/onboarding/screens/notice.capability.json';
+  await _writeBytes(root, flowPath, documentBytes);
+  await _writeBytes(root, blobPath, blob);
+  await _writeText(root, sidecarPath, sidecar);
+  final payload = FlowSurfacePayload(
+    flowDocument: document,
+    screenBlobs: {'notice': blob},
+  );
+  await writeGeneratedOutput(root, [
+    SurfacePublicationManifestEntry(
+      artifacts: [
+        SurfacePublicationArtifact(
+          contentHash: CapabilitySidecar.hashBlob(documentBytes),
+          path: flowPath,
+          role: SurfacePublicationArtifactRole.flowDocument,
+        ),
+        SurfacePublicationArtifact(
+          contentHash: CapabilitySidecar.hashBlob(blob),
+          path: blobPath,
+          role: SurfacePublicationArtifactRole.screenBlob,
+          id: 'notice',
+        ),
+        SurfacePublicationArtifact(
+          contentHash: CapabilitySidecar.hashBlob(utf8.encode(sidecar)),
+          path: sidecarPath,
+          role: SurfacePublicationArtifactRole.capabilitySidecar,
+          id: 'notice',
+        ),
+      ],
+      publication: SurfacePublication(
+        surface: Surface.onboarding,
+        slug: 'notice',
+        sourceKind: SurfaceSourceKind.flowGraph,
+        payloadKind: SurfacePayloadKind.flow,
+        payloadContentHash: payload.contentHash,
+        deliveryMode: document.deliveryMode,
+      ),
+    ),
+  ]);
 }

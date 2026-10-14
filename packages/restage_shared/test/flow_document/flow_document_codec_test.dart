@@ -608,6 +608,32 @@ void main() {
       );
     });
 
+    test('custom event fields may not reference flow state', () {
+      final document = _firstRunDocument(
+        flowState: _flowStateDeclarations(),
+        outbound: const FlowOutboundDeclarations(
+          customEvents: {
+            'analyticsTap': FlowOutboundPayloadDeclaration(
+              fields: {
+                'plan': FlowOutboundField(
+                  type: FlowDataType.string,
+                  ref: StateFlowOutboundRef(key: 'plan'),
+                ),
+              },
+            ),
+          },
+        ),
+      );
+
+      expect(
+        FlowDocumentValidation.validate(document),
+        _containsIssue(
+          code: 'customEventStateRef',
+          path: r'$.outbound.customEvents.analyticsTap.fields.plan.ref',
+        ),
+      );
+    });
+
     test('outbound validation diagnostics identify surface and field', () {
       final document = _firstRunDocument(
         outbound: const FlowOutboundDeclarations(
@@ -1792,13 +1818,13 @@ const _firstRunCanonicalJson =
     '{"event":"ctaId"},"type":"string"}}}},"terminalResult":{"fields":'
     '{"completed":{"ref":{"state":"completed"},"type":"bool"}}}},'
     '"schemaVersion":1,"screenArtifacts":{"permissions":{"contentHash":'
-    '"sha256:2fdf394099fc1b2726364d3c711bc67e4c6e3a6815e954f8ba40e5f6abff5f20",'
+    '"sha256:a27615c14cb1713cb61b62bcc1c7735d8f24368cf3e1360daac18ef6f1e0d60b",'
     '"minClient":1,"path":"permissions.rfw","schemaVersion":1,"version":1},'
     '"ready":{"contentHash":'
-    '"sha256:3ddf726bd14672398d634f5f551d6774438f2a6b6f64c2337170405daebd1bd5",'
+    '"sha256:e9b89ae68314ce6dbd25efd18958c3acdcf75834ce286e4a6c4087dd2348588d",'
     '"minClient":1,"path":"ready.rfw","schemaVersion":1,"version":1},'
     '"welcome":{"contentHash":'
-    '"sha256:173eb2f2fc701497bf99849f061570b609fc54ad654a77349083396be458d53b",'
+    '"sha256:63c37fa4c3375cc925f59977834809f26db4e91d78cd5a361a599f40bcf32455",'
     '"minClient":1,"path":"welcome.rfw","schemaVersion":1,"version":1}},'
     '"states":{"done":{"kind":"end","result":{"completed":true,'
     '"secret":"internal"}},'
@@ -1832,16 +1858,16 @@ const _phase1CanonicalJson =
     '"type":"goto"}},'
     '"screen":"welcome"}},"version":1}';
 
-const _firstRunCanonicalHash = 'sha256:0a7e959d9a64e1ef0bfa6fef29e0ad992a80'
-    '483f3f7b836ece9586a88819b15d';
+const _firstRunCanonicalHash = 'sha256:065a823537bfa6439c81863dacde604b63b08cb9'
+    '1d02bbc866b0ca34f69f2884';
 const _zeroHash = 'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
-const _permissionsHash = 'sha256:2fdf394099fc1b2726364d3c711bc67e'
-    '4c6e3a6815e954f8ba40e5f6abff5f20';
-const _readyHash = 'sha256:3ddf726bd14672398d634f5f551d6774'
-    '438f2a6b6f64c2337170405daebd1bd5';
-const _welcomeHash = 'sha256:173eb2f2fc701497bf99849f061570b6'
-    '09fc54ad654a77349083396be458d53b';
+const _permissionsHash = 'sha256:a27615c14cb1713cb61b62bcc1c7735d'
+    '8f24368cf3e1360daac18ef6f1e0d60b';
+const _readyHash = 'sha256:e9b89ae68314ce6dbd25efd18958c3ac'
+    'dcf75834ce286e4a6c4087dd2348588d';
+const _welcomeHash = 'sha256:63c37fa4c3375cc925f59977834809f2'
+    '6db4e91d78cd5a361a599f40bcf32455';
 const _emptyArgsSchema = FlowActionSchema.object({});
 const _boolResultSchema = FlowActionSchema.bool();
 const _notificationResultSchema = FlowActionSchema.object({

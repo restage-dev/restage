@@ -43,71 +43,26 @@ Future<Directory> writeRenderBundleProject({
   required Uint8List licenseBytes,
 }) async {
   final root = Directory(p.normalize(projectRoot.absolute.path));
-  final app = _readApp(root);
   if (!File(p.join(root.path, 'lib', 'user_factories.g.dart')).existsSync()) {
     throw const RenderBundleBuildException('factories_missing');
   }
-  final String outputRoot;
-  try {
-    outputRoot =
-        await readConfiguredRestageOutputRoot(root) ??
-        defaultRestagePortableOutputRoot;
-  } on PublicationException {
-    throw const RenderBundleBuildException('output_root');
-  }
-  final PackageResolution resolution;
-  final Set<String> closure;
-  final List<String> direct;
-  try {
-    resolution = await PackageResolution.read(root, appName: app.name);
-    closure = resolution.closure(app.name);
-    direct = resolution.dependenciesOf(app.name);
-  } on PackageResolutionException {
-    throw const RenderBundleBuildException('dependencies_unresolved');
-  }
-  final restage = closure.contains('restage')
-      ? resolution.rootOf('restage')
-      : null;
-  if (restage == null ||
-      !File(p.join(restage, 'lib', 'render_host.dart')).existsSync()) {
-    throw const RenderBundleBuildException('render_host_missing');
-  }
-  final pins = <String, String>{};
-  for (final name in closure.toList()..sort()) {
-    if (name == app.name || resolution.isSdkPackage(name)) continue;
-    pins[name] =
-        resolution.rootOf(name) ??
-        (throw const RenderBundleBuildException('dependencies_unresolved'));
-  }
-
-  final directory = Directory(
-    p.joinAll([
-      root.path,
-      ...p.posix.join(outputRoot, renderBundleProjectDirectory).split('/'),
-    ]),
+  final standIn = await _standInProject(
+    root,
+    directoryName: renderBundleProjectDirectory,
+    kept: _kept,
+    requireRenderHost: true,
   );
-  await directory.create(recursive: true);
-  // Links and anything an earlier build left are rebuilt; the caches and the
-  // files written below stay, so an unchanged project skips `pub get`.
-  await for (final entity in directory.list(followLinks: false)) {
-    final name = p.basename(entity.path);
-    if (name.startsWith('.') || _kept.contains(name)) continue;
-    await entity.delete(recursive: entity is Directory);
-  }
-
+  final app = standIn.app;
+  final directory = standIn.directory;
   await _write(
     directory,
     'pubspec.yaml',
     utf8.encode(
       _pubspec(
         app: app,
-        dependencies: <String, Object>{
-          for (final name in direct)
-            name: resolution.isSdkPackage(name)
-                ? const <String, String>{'sdk': 'flutter'}
-                : 'any',
-        },
-        pins: pins,
+        dependencies: standIn.dependencies,
+        pins: standIn.pins,
+        robotoFallback: true,
       ),
     ),
   );
@@ -122,6 +77,149 @@ Future<Directory> writeRenderBundleProject({
   await _write(directory, '$_fontDirectory/Roboto_LICENSE.txt', licenseBytes);
   await _linkAppPaths(directory, root, <String>['lib', ...app.paths]);
   return directory;
+}
+
+/// The directory under the generated output root surface images render in.
+const surfaceCaptureProjectDirectory = 'surface_capture';
+
+/// Writes the Flutter project that renders [projectRoot]'s surfaces to images
+/// under `flutter test`, holding [files] by project-relative path.
+///
+/// Like the render bundle's, it stands in for the app package, with the app's
+/// resolution pinned and `flutter_test` added. Earlier images and unchanged
+/// tests stay, so an unchanged surface compiles and draws nothing.
+Future<Directory> writeSurfaceCaptureProject({
+  required Directory projectRoot,
+  required Map<String, List<int>> files,
+}) async {
+  final root = Directory(p.normalize(projectRoot.absolute.path));
+  final standIn = await _standInProject(
+    root,
+    directoryName: surfaceCaptureProjectDirectory,
+    kept: const <String>{
+      'build',
+      'images',
+      'images.json',
+      'pubspec.lock',
+      'pubspec.yaml',
+      'test',
+    },
+    includeDev: true,
+  );
+  final tests = Directory(p.join(standIn.directory.path, 'test'));
+  if (tests.existsSync()) {
+    await for (final entity in tests.list(followLinks: false)) {
+      final path = p.posix.joinAll(
+        p.split(p.relative(entity.path, from: standIn.directory.path)),
+      );
+      if (!files.containsKey(path)) {
+        await entity.delete(recursive: entity is Directory);
+      }
+    }
+  }
+  await _write(
+    standIn.directory,
+    'pubspec.yaml',
+    utf8.encode(
+      _pubspec(
+        app: standIn.app,
+        dependencies: <String, Object>{
+          ...standIn.dependencies,
+          'flutter_test': const <String, String>{'sdk': 'flutter'},
+        },
+        pins: standIn.pins,
+        robotoFallback: false,
+        command: 'restage surface push',
+      ),
+    ),
+  );
+  for (final entry in files.entries) {
+    await _write(standIn.directory, entry.key, entry.value);
+  }
+  await _linkAppPaths(standIn.directory, root, <String>[
+    'lib',
+    ...standIn.app.paths,
+  ]);
+  return standIn.directory;
+}
+
+typedef _StandIn = ({
+  _App app,
+  Directory directory,
+  Map<String, Object> dependencies,
+  Map<String, String> pins,
+});
+
+/// Reads the app and its resolution, and clears the project directory of
+/// everything but [kept] and dot entries.
+Future<_StandIn> _standInProject(
+  Directory root, {
+  required String directoryName,
+  required Set<String> kept,
+  bool requireRenderHost = false,
+  bool includeDev = false,
+}) async {
+  final app = _readApp(root);
+  final String outputRoot;
+  try {
+    outputRoot =
+        await readConfiguredRestageOutputRoot(root) ??
+        defaultRestagePortableOutputRoot;
+  } on PublicationException {
+    throw const RenderBundleBuildException('output_root');
+  }
+  final PackageResolution resolution;
+  final Set<String> closure;
+  final List<String> direct;
+  try {
+    resolution = await PackageResolution.read(root, appName: app.name);
+    closure = resolution.closure(app.name, includeDev: includeDev);
+    direct = resolution.dependenciesOf(app.name);
+  } on PackageResolutionException {
+    throw const RenderBundleBuildException('dependencies_unresolved');
+  }
+  if (requireRenderHost) {
+    final restage = closure.contains('restage')
+        ? resolution.rootOf('restage')
+        : null;
+    if (restage == null ||
+        !File(p.join(restage, 'lib', 'render_host.dart')).existsSync()) {
+      throw const RenderBundleBuildException('render_host_missing');
+    }
+  }
+  final pins = <String, String>{};
+  for (final name in closure.toList()..sort()) {
+    if (name == app.name || resolution.isSdkPackage(name)) continue;
+    pins[name] =
+        resolution.rootOf(name) ??
+        (throw const RenderBundleBuildException('dependencies_unresolved'));
+  }
+
+  final directory = Directory(
+    p.joinAll([
+      root.path,
+      ...p.posix.join(outputRoot, directoryName).split('/'),
+    ]),
+  );
+  await directory.create(recursive: true);
+  // Links and anything an earlier run left are rebuilt; the caches and the
+  // kept files stay, so an unchanged project skips `pub get`.
+  await for (final entity in directory.list(followLinks: false)) {
+    final name = p.basename(entity.path);
+    if (name.startsWith('.') || kept.contains(name)) continue;
+    await entity.delete(recursive: entity is Directory);
+  }
+  return (
+    app: app,
+    directory: directory,
+    dependencies: <String, Object>{
+      for (final name in direct)
+        name: resolution.isSdkPackage(name)
+            ? const <String, String>{'sdk': 'flutter'}
+            : 'any',
+    },
+    pins: pins,
+  );
 }
 
 /// Whether [project] was resolved against the pubspec it holds now by the
@@ -189,6 +287,9 @@ typedef _App = ({
 
 /// The app's name, SDK constraint, and the files its `flutter` section
 /// bundles: assets, fonts, shaders and licenses.
+/// The app's package name, from its pubspec.
+String renderBundleAppName(Directory projectRoot) => _readApp(projectRoot).name;
+
 _App _readApp(Directory projectRoot) {
   final Object? document;
   try {
@@ -282,9 +383,11 @@ String _pubspec({
   required _App app,
   required Map<String, Object> dependencies,
   required Map<String, String> pins,
+  required bool robotoFallback,
+  String command = 'restage build push',
 }) {
   final buffer = StringBuffer()
-    ..writeln('# Generated by `restage build push`. Rewritten on every build.')
+    ..writeln('# Generated by `$command`. Rewritten on every run.')
     ..writeln('name: ${app.name}')
     ..writeln('publish_to: none')
     ..writeln()
@@ -305,17 +408,21 @@ String _pubspec({
   buffer
     ..writeln()
     ..writeln('flutter:')
-    ..writeln('  uses-material-design: true')
-    ..writeln('  assets:')
-    ..writeln('    - $_fontDirectory/Roboto_LICENSE.txt');
+    ..writeln('  uses-material-design: true');
+  if (robotoFallback || app.assets.isNotEmpty) buffer.writeln('  assets:');
+  if (robotoFallback) {
+    buffer.writeln('    - $_fontDirectory/Roboto_LICENSE.txt');
+  }
   for (final asset in app.assets) {
     buffer.writeln('    - ${jsonEncode(asset)}');
   }
-  buffer
-    ..writeln('  fonts:')
-    ..writeln('    - family: Roboto')
-    ..writeln('      fonts:')
-    ..writeln('        - asset: $_fontDirectory/Roboto-Regular.ttf');
+  if (robotoFallback || app.fonts.isNotEmpty) buffer.writeln('  fonts:');
+  if (robotoFallback) {
+    buffer
+      ..writeln('    - family: Roboto')
+      ..writeln('      fonts:')
+      ..writeln('        - asset: $_fontDirectory/Roboto-Regular.ttf');
+  }
   for (final font in app.fonts) {
     buffer.writeln('    - ${jsonEncode(font)}');
   }

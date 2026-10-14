@@ -31,7 +31,11 @@ import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show CapabilitySidecar, encodeLocalSeedsArtifact, kPaywallScreensAssetDir;
+    show
+        CapabilitySidecar,
+        canonicalizeLibrary,
+        encodeLocalSeedsArtifact,
+        kPaywallScreensAssetDir;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -468,7 +472,7 @@ _CompiledPaywallForm? _compilePaywallForm({
     issues.addAll(derivation.issues);
     return null;
   }
-  final blob = fmt.encodeLibraryBlob(library);
+  final blob = fmt.encodeLibraryBlob(canonicalizeLibrary(library));
   final sidecar = utf8.encode(
     _jsonEncoder.convert(
       CapabilitySidecar(
@@ -806,7 +810,8 @@ final class RestageCodegenBuilder implements Builder {
               // same posture as an unknown-widget validation error.
               _addIssues(state.issues, derivation.issues);
             } else {
-              final paywallBytes = fmt.encodeLibraryBlob(rfwLibrary);
+              final paywallBytes =
+                  fmt.encodeLibraryBlob(canonicalizeLibrary(rfwLibrary));
               final seeds = standaloneTranslation.localSeeds;
               if (seeds.isNotEmpty) {
                 writes.add(
@@ -889,7 +894,8 @@ final class RestageCodegenBuilder implements Builder {
               // same posture the standalone paywall path takes above.
               _addIssues(state.issues, derivation.issues);
             } else {
-              final flowScreenBytes = fmt.encodeLibraryBlob(flowScreenLibrary);
+              final flowScreenBytes =
+                  fmt.encodeLibraryBlob(canonicalizeLibrary(flowScreenLibrary));
               writes
                 ..add(
                   buildStep.writeAsBytes(
@@ -1123,7 +1129,8 @@ final class RestageCodegenBuilder implements Builder {
           if (derivation.issues.isNotEmpty) {
             issues.addAll(derivation.issues);
           } else {
-            final bytes = fmt.encodeLibraryBlob(lowering.library);
+            final bytes =
+                fmt.encodeLibraryBlob(canonicalizeLibrary(lowering.library));
             await buildStep.writeAsBytes(
               AssetId(assetId.package, '$_kOutputDir/$outputStem.rfw'),
               bytes,

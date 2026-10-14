@@ -59,6 +59,21 @@ MCP equivalents are `restage_surface_status`, `restage_surface_history`,
 `restage_push_surface` and `restage_publish_surface`. Publication accepts
 `reviewOnly`, `reviewedDigest` and `operationId` for the same review workflow.
 
+### Event refusals
+
+- `restage surface push` warns when a flow screen emits an event that the
+  state showing it does not handle. The runtime drops that event, so the
+  control does nothing. The upload still happens.
+- `restage surface draft push` refuses such a draft with the code
+  `unhandledEvents` and lists each flow, state, screen and event. Fix the
+  draft, or pass `--accept-unhandled-events` (MCP: `acceptUnhandledEvents:
+  true` on `restage_push_surface_draft`) only when the user accepts that those
+  controls do nothing.
+- Every push and publish refuses a surface that emits a reserved purchase or
+  restore event, such as `purchase`, `restore` or a `restage.purchase.*` name.
+  The runtime owns those names and drops them. Remove the event; no flag
+  overrides this refusal.
+
 For Git provenance, `--record-git` on surface push or publish writes and commits
 local records under `.restage/receipts/`; it does not push Git. A recorded surface
 upload requires committed app source and local dependencies in the repository,

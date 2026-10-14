@@ -162,7 +162,8 @@ void main() {
         _blobWithDeclarations(<String>['main', 'main', 'Paywall']),
     'duplicate Paywall without main':
         _blobWithDeclarations(<String>['Paywall', 'Paywall']),
-    'neither supported declaration': _blobWithDeclarations(<String>['Other']),
+    'neither supported declaration':
+        _blobWithDeclarations(<String>['Other', 'Another']),
     'malformed blob': Uint8List.fromList(<int>[0, 1, 2, 3]),
   };
   for (final entry in rejected.entries) {

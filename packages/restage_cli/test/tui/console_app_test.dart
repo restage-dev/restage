@@ -498,6 +498,38 @@ void main() {
     });
   });
 
+  test('detail panel says when the draft was edited after code', () async {
+    for (final size in [const Size(80, 24), const Size(140, 30)]) {
+      await testNocterm('edited after code ${size.width}', (tester) async {
+        final controller = ConsoleController(
+          repository: _EditedAfterCodeRepository(),
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+
+        await tester.sendArrowDown();
+        await tester.pump();
+        await tester.sendKey(LogicalKey.tab);
+        await tester.sendKey(LogicalKey.tab);
+        await tester.pump();
+        expect(tester.terminalState, containsText('Draft from the editor'));
+        await tester.sendKey(LogicalKey.pageDown);
+        await tester.pump();
+
+        // A narrow panel wraps the label; both lines stay on screen.
+        final lines = tester.renderToString().split('\n');
+        final first = lines.indexWhere(
+          (line) => line.contains('Edited after publishing from'),
+        );
+        expect(first, isNonNegative);
+        final rest = size.width < 100 ? lines[first + 1] : lines[first];
+        expect(rest, contains('code'));
+        expect(tester.terminalState, containsText('Version history'));
+      }, size: size);
+    }
+  });
+
   test('detail panel labels history as status-backed', () async {
     await testNocterm('detail history label', (tester) async {
       final controller = ConsoleController(repository: FakeConsoleRepository());
@@ -1959,12 +1991,33 @@ void main() {
 
       await tester.sendArrowDown();
       await tester.pump();
-      await tester.tap(70, 19);
+      await tester.tap(70, 20);
       await tester.pump();
 
       expect(tester.terminalState, containsText('Rollback target and reason'));
     });
   });
+}
+
+class _EditedAfterCodeRepository extends FakeConsoleRepository {
+  @override
+  Future<SurfaceStatusResult> status(
+    ConsoleSurface surface, {
+    required ConsoleContext context,
+  }) async {
+    final base = await super.status(surface, context: context);
+    return SurfaceStatusResult(
+      surfaceType: base.surfaceType,
+      surfaceSlug: base.surfaceSlug,
+      environmentSlug: base.environmentSlug,
+      liveVersion: base.liveVersion,
+      locked: base.locked,
+      deliveryShape: base.deliveryShape,
+      versions: base.versions,
+      draftOrigin: 'editor',
+      editedAfterCode: true,
+    );
+  }
 }
 
 class FakeConsoleRepository implements ConsoleRepository {
@@ -2035,6 +2088,7 @@ class FakeConsoleRepository implements ConsoleRepository {
         : null,
     locked: false,
     deliveryShape: surface.surfaceType == 'paywall' ? 'blob' : 'flow',
+    draftOrigin: 'code',
     versions: surface.slug == 'pro'
         ? [
             SurfaceVersionResult(

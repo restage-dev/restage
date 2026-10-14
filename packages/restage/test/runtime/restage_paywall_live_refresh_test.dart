@@ -517,7 +517,7 @@ void main() {
           .map((event) => event.publishedVersion)
           .toList(),
       failed: events.whereType<PaywallLoadFailed>().length,
-      escaped: tester.takeException(),
+      reported: tester.takeException() != null,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -528,14 +528,14 @@ void main() {
         currentError: currentObserved.error,
         currentCompleted: currentObserved.completed,
         currentFailed: currentObserved.failed,
-        currentEscaped: currentObserved.escaped,
+        currentReported: currentObserved.reported,
       ),
       (
         currentOld: 1,
         currentError: 0,
         currentCompleted: 0,
         currentFailed: 0,
-        currentEscaped: null,
+        currentReported: true,
       ),
     );
     expect(currentObserved.viewedVersions, isEmpty);
@@ -721,7 +721,7 @@ void main() {
           flowViews.isEmpty ? null : flowViews.single.controller.isUnavailable,
       complete:
           flowViews.isEmpty ? null : flowViews.single.controller.isComplete,
-      escaped: escaped ?? tester.takeException(),
+      reported: (escaped ?? tester.takeException()) != null,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -734,7 +734,7 @@ void main() {
         flowViews: observed.flowViews,
         unavailable: observed.unavailable,
         complete: observed.complete,
-        escaped: observed.escaped,
+        reported: observed.reported,
       ),
       (
         nestedRefreshDone: true,
@@ -743,7 +743,7 @@ void main() {
         flowViews: 1,
         unavailable: false,
         complete: false,
-        escaped: null,
+        reported: false,
       ),
     );
     expect(observed.currentEntry, isNotNull);
@@ -832,7 +832,7 @@ void main() {
     resolver.serveBlob(_throwingBlob(), 2);
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
-
+    expect(tester.takeException(), isNotNull);
     expect(find.text('Flow before throwing blob'), findsOneWidget);
     expect(find.text('Throwing blob escaped'), findsNothing);
     expect(events.whereType<PaywallLoadFailed>(), isEmpty);

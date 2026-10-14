@@ -5,6 +5,32 @@ import 'package:test/test.dart';
 
 void main() {
   group('SurfaceStatusResult', () {
+    test('carries the draft origin and the edited-after-code fact', () {
+      final json = {
+        'surfaceType': 'message',
+        'surfaceSlug': 'recap',
+        'environmentSlug': 'staging',
+        'locked': false,
+        'deliveryShape': 'blob',
+        'versions': <Object>[],
+        'draftOrigin': 'editor',
+        'editedAfterCode': true,
+      };
+      final result = SurfaceStatusResult.fromJson(json);
+      expect(result.draftOrigin, 'editor');
+      expect(result.editedAfterCode, isTrue);
+      expect(result.toJson()['draftOrigin'], 'editor');
+      expect(result.toJson()['editedAfterCode'], isTrue);
+
+      final bare = SurfaceStatusResult.fromJson({
+        ...json,
+        'draftOrigin': 'code',
+        'editedAfterCode': null,
+      });
+      expect(bare.draftOrigin, 'code');
+      expect(bare.editedAfterCode, isFalse);
+    });
+
     test('fromJson decodes status + versions', () {
       final result = SurfaceStatusResult.fromJson({
         'surfaceType': 'paywall',
@@ -13,6 +39,7 @@ void main() {
         'liveVersion': 2,
         'locked': false,
         'deliveryShape': 'blob',
+        'draftOrigin': 'code',
         'versions': [
           {
             'version': 2,
@@ -44,6 +71,7 @@ void main() {
         'liveVersion': null,
         'locked': true,
         'deliveryShape': 'flow',
+        'draftOrigin': 'code',
         'versions': <dynamic>[],
       });
       expect(result.deliveryShape, 'flow');
@@ -57,6 +85,7 @@ void main() {
           'identity': {'surfaceType': 'general', 'surfaceSlug': 'journey'},
           'environmentSlug': 'production',
           'frozen': true,
+          'draftOrigin': 'code',
           'families': [
             {
               'family': {

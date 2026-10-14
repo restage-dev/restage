@@ -1,21 +1,10 @@
+import 'package:restage_shared/restage_shared.dart'
+    show kReservedCommerceEventNames;
+
 import '../events/restage_event.dart';
 
-const Set<String> _reservedCommerceEventNames = <String>{
-  'purchase',
-  'restore',
-  'restage.purchase',
-  'restage.restore',
-  'restage.purchase.succeeded',
-  'restage.purchase.pending',
-  'restage.purchase.cancelled',
-  'restage.purchase.failed',
-  'restage.restore.succeeded',
-  'restage.restore.noPurchases',
-  'restage.restore.failed',
-};
-
 bool isReservedCommerceEventName(String name) =>
-    _reservedCommerceEventNames.contains(name);
+    kReservedCommerceEventNames.contains(name);
 
 /// Translates an RFW-fired event into a [PaywallCustomEvent].
 ///

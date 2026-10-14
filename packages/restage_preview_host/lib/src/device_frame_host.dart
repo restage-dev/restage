@@ -10,13 +10,22 @@ import 'device_info.dart';
 /// platform. The complete frame scales to fit its incoming constraints.
 class DeviceFrameHost extends StatefulWidget {
   /// Creates a framed presentation of [child].
-  const DeviceFrameHost({required this.device, required this.child, super.key});
+  const DeviceFrameHost({
+    required this.device,
+    required this.child,
+    this.brightness,
+    super.key,
+  });
 
   /// Device whose screen and chrome are presented.
   final DeviceInfo device;
 
   /// Content laid out inside the logical device screen.
   final Widget child;
+
+  /// Brightness of the device chrome, such as the status bar. Defaults to
+  /// the ambient platform brightness.
+  final Brightness? brightness;
 
   @override
   State<DeviceFrameHost> createState() => _DeviceFrameHostState();
@@ -28,7 +37,10 @@ class _DeviceFrameHostState extends State<DeviceFrameHost> {
   @override
   void didUpdateWidget(DeviceFrameHost oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.device != widget.device) _simulation.value = _resolve();
+    if (oldWidget.device != widget.device ||
+        oldWidget.brightness != widget.brightness) {
+      _simulation.value = _resolve();
+    }
   }
 
   @override
@@ -44,7 +56,8 @@ class _DeviceFrameHostState extends State<DeviceFrameHost> {
   }
 
   dp.DeviceSimulation _resolve() => widget.device.backing.resolve().copyWith(
-        platformBrightness: MediaQuery.maybePlatformBrightnessOf(context),
+        platformBrightness:
+            widget.brightness ?? MediaQuery.maybePlatformBrightnessOf(context),
       );
 
   @override

@@ -136,8 +136,8 @@ final class _Fixture {
   }) {
     final child = flow('effective_child');
     final parent = flow(parentId);
-    final entryBlob = Uint8List.fromList(utf8.encode('RFW:entry'));
-    final childBlob = Uint8List.fromList(utf8.encode('RFW:child_screen'));
+    final entryBlob = screenBlobNamed('entry');
+    final childBlob = screenBlobNamed('child_screen');
     return PackageSurfaceCompilationInput(
       roster: assembleRestageSourceRoster([
         _screenDeclaration(library, entry, 'entry'),

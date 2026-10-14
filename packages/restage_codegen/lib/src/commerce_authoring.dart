@@ -7,6 +7,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
         kMeasurementPublicationItemArgumentKeyV1,
         kMeasurementPublicationReservedArgumentPrefixV1,
         kMeasurementPublicationTapEventNameV1;
+import 'package:restage_shared/restage_shared.dart'
+    show kReservedCommerceEventNames;
 import 'package:restage_shared/rfw_formats.dart';
 
 const String _restageLibraryOrigin = 'package:restage';
@@ -20,21 +22,6 @@ const String _commerceBoundaryGuidance =
 const Set<String> unsupportedCommerceHelperNames = {
   'paywallPurchase',
   'paywallPriceFor',
-};
-
-/// Event names reserved from authored surfaces.
-const Set<String> unsupportedCommerceEventNames = {
-  'purchase',
-  'restore',
-  'restage.purchase',
-  'restage.restore',
-  'restage.purchase.succeeded',
-  'restage.purchase.pending',
-  'restage.purchase.cancelled',
-  'restage.purchase.failed',
-  'restage.restore.succeeded',
-  'restage.restore.noPurchases',
-  'restage.restore.failed',
 };
 
 /// Whether [expression] invokes an unsupported SDK commerce helper.
@@ -142,7 +129,7 @@ void _visitCommerceValue(
   List<Issue> issues,
 ) {
   if (value is EventHandler) {
-    if (unsupportedCommerceEventNames.contains(value.eventName)) {
+    if (kReservedCommerceEventNames.contains(value.eventName)) {
       issues.add(unsupportedCommerceEventIssue(value.eventName, location));
     }
     if (value.eventName == kMeasurementPublicationTapEventNameV1 &&

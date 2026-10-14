@@ -430,15 +430,17 @@ String placementRootWidgetFor(Object resolved, String original) {
   final admission = placementAdmissionFor(resolved);
   final payload = surfacePayloadFor(resolved);
   if (admission == null || payload is! BlobSurfacePayload) return original;
-  final library = rfw.decodeLibraryBlob(payload.blob);
-  final expected = admission.document.surfaceType.wireName == 'paywall'
-      ? 'Paywall'
-      : 'OnboardingScreen';
-  if (library.widgets.any((widget) => widget.name == expected)) return expected;
-  if (library.widgets.length == 1) return library.widgets.single.name;
-  throw const FormatException(
-      'The selected surface has no recognized root widget.');
+  return placementBlobRootWidget(payload.blob);
 }
+
+/// The root declaration of a delivered surface blob, by the shared surface
+/// root rule.
+@internal
+String placementBlobRootWidget(Uint8List blob) =>
+    surfaceRootWidgetName(
+        rfw.decodeLibraryBlob(blob).widgets.map((widget) => widget.name)) ??
+    (throw const FormatException(
+        'The selected surface has no recognized root widget.'));
 
 @internal
 rfw.FullyQualifiedWidgetName placementWidgetNameFor(

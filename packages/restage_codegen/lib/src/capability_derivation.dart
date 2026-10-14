@@ -1,27 +1,9 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart' show findWidgetsByName;
 import 'package:restage_codegen/src/issue.dart';
-import 'package:restage_measurement_schema/restage_measurement_schema.dart'
-    show kLocalValueSetEventName, kMeasurementPublicationItemArgumentKeyV1;
 import 'package:restage_shared/restage_shared.dart'
-    show
-        CapabilityManifest,
-        LibraryRequirement,
-        WidgetVocabulary,
-        kGroupedWidgetListClientFloor,
-        kSurfaceFeatureClientFloor;
-import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
-// Only the parsed-model node types are needed here; `WidgetLibrary` is the
-// catalog namespace type from `rfw_catalog_schema`, not RFW's runtime
-// widget-library type that this sublibrary also exports.
-import 'package:restage_shared/rfw_formats.dart'
-    show
-        ConstructorCall,
-        EventHandler,
-        Loop,
-        RemoteWidgetLibrary,
-        Switch,
-        WidgetBuilderDeclaration;
+    show CapabilityManifest, deriveSurfaceCapability;
+import 'package:restage_shared/rfw_formats.dart' show RemoteWidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The outcome of deriving a surface's [CapabilityManifest] from the catalog.
@@ -81,12 +63,11 @@ CapabilityDerivationResult deriveCapabilityManifest(
   Catalog catalog, {
   bool requiresSurfaceFeatureFloor = false,
 }) {
-  final referenced = <WidgetEntry>[];
-  final ambiguous = <String>{};
-  final localNames = {for (final widget in surface.widgets) widget.name};
-  for (final widget in surface.widgets) {
-    _collectReferences(widget.root, catalog, localNames, referenced, ambiguous);
-  }
+  final derivation = deriveSurfaceCapability(
+    surface,
+    catalog,
+    requiresSurfaceFeatureFloor: requiresSurfaceFeatureFloor,
+  );
 
   // Fail closed on a name that resolves across more than one library (a custom
   // library shadowing a built-in, or two customs colliding). The runtime
@@ -94,142 +75,47 @@ CapabilityDerivationResult deriveCapabilityManifest(
   // priority, so the two can disagree and a wrong-library stamp could fail open
   // (under-stamp the floor or drop a required library). Refuse to stamp rather
   // than guess — the author must rename so the name resolves to one library.
-  if (ambiguous.isNotEmpty) {
-    final issues = <Issue>[
-      for (final name in ambiguous.toList()..sort())
-        Issue(
-          code: IssueCode.ambiguousWidgetName,
-          message: "The widget name '$name' resolves to more than one "
-              'library (${_librariesForName(catalog, name).join(', ')}), so '
-              'its capability floor cannot be derived. Rename the custom '
-              'widget so it does not shadow a built-in (or another library).',
-          location: name,
-        ),
-    ];
-    return CapabilityDerivationResult(issues: issues);
-  }
-
-  var builtInFloor = kBaselineCatalogVersion;
-  final customLibraries = <WidgetLibrary>{};
-  for (final entry in referenced) {
-    if (_isBuiltIn(entry.library)) {
-      if (entry.sinceVersion > builtInFloor) builtInFloor = entry.sinceVersion;
-    } else {
-      customLibraries.add(entry.library);
-    }
-  }
-  final featureFloor = _surfaceFeatureFloor(surface);
-  if (builtInFloor < featureFloor) builtInFloor = featureFloor;
-  if (requiresSurfaceFeatureFloor &&
-      builtInFloor < kSurfaceFeatureClientFloor) {
-    builtInFloor = kSurfaceFeatureClientFloor;
-  }
-  // Canonicalize by namespace so BOTH the requirements and the fail-when-
-  // referenced diagnostics are deterministic — independent of the order the
-  // surface happened to reference the libraries in. (`CapabilityManifest`
-  // re-sorts the requirements too; this also pins the issue order.)
-  final sortedCustomLibraries = customLibraries.toList()
-    ..sort((a, b) => a.namespace.compareTo(b.namespace));
-
-  final issues = <Issue>[];
-  final requiredLibraries = <LibraryRequirement>[];
-  for (final library in sortedCustomLibraries) {
-    final capabilityVersion = catalog.libraries[library]?.capabilityVersion;
-    if (capabilityVersion == null) {
-      issues.add(
-        Issue(
-          code: IssueCode.customLibraryMissingCapabilityVersion,
-          message: 'The surface references a widget from custom library '
-              "'${library.namespace}', but that library declares no capability "
-              'version. Add `capabilityVersion:` to its @RestageLibrary so the '
-              'delivery-time capability floor can be derived (a monotonic '
-              'integer, not your pub package version).',
-          location: library.namespace,
-        ),
-      );
-      continue;
-    }
-    requiredLibraries.add(
-      LibraryRequirement(
-        namespace: library.namespace,
-        minVersion: capabilityVersion,
-      ),
+  if (derivation.ambiguousNames.isNotEmpty) {
+    return CapabilityDerivationResult(
+      issues: <Issue>[
+        for (final name in derivation.ambiguousNames)
+          Issue(
+            code: IssueCode.ambiguousWidgetName,
+            message: "The widget name '$name' resolves to more than one "
+                'library (${_librariesForName(catalog, name).join(', ')}), so '
+                'its capability floor cannot be derived. Rename the custom '
+                'widget so it does not shadow a built-in (or another library).',
+            location: name,
+          ),
+      ],
     );
   }
 
-  if (issues.isNotEmpty) {
-    return CapabilityDerivationResult(issues: issues);
+  if (derivation.unversionedLibraries.isNotEmpty) {
+    return CapabilityDerivationResult(
+      issues: <Issue>[
+        for (final library in derivation.unversionedLibraries)
+          Issue(
+            code: IssueCode.customLibraryMissingCapabilityVersion,
+            message: 'The surface references a widget from custom library '
+                "'${library.namespace}', but that library declares no "
+                'capability version. Add `capabilityVersion:` to its '
+                '@RestageLibrary so the delivery-time capability floor can be '
+                'derived (a monotonic integer, not your pub package version).',
+            location: library.namespace,
+          ),
+      ],
+    );
   }
 
   return CapabilityDerivationResult(
     manifest: CapabilityManifest(
-      builtInFloor: builtInFloor,
-      requiredLibraries: requiredLibraries,
+      builtInFloor: derivation.builtInFloor,
+      requiredLibraries: derivation.requiredLibraries,
     ),
-    referencedWidgets: _canonicalReferences(referenced),
+    referencedWidgets: derivation.referencedWidgets,
   );
 }
-
-int _surfaceFeatureFloor(RemoteWidgetLibrary surface) {
-  var floor = literalIconCodePoints(surface).isNotEmpty
-      ? kSurfaceFeatureClientFloor
-      : kBaselineCatalogVersion;
-  void require(int version) {
-    if (floor < version) floor = version;
-  }
-
-  void visit(Object? node) {
-    switch (node) {
-      case EventHandler():
-        if (node.eventName == kLocalValueSetEventName ||
-            node.eventArguments
-                .containsKey(kMeasurementPublicationItemArgumentKeyV1)) {
-          require(kSurfaceFeatureClientFloor);
-        }
-        visit(node.eventArguments);
-      case ConstructorCall():
-        visit(node.arguments);
-      case WidgetBuilderDeclaration():
-        visit(node.widget);
-      case Loop():
-        if (node.output is List) require(kGroupedWidgetListClientFloor);
-        visit(node.input);
-        visit(node.output);
-      case Switch():
-        visit(node.input);
-        node.outputs.values.forEach(visit);
-      case Map():
-        node.values.forEach(visit);
-      case List():
-        node.forEach(visit);
-    }
-  }
-
-  for (final widget in surface.widgets) {
-    visit(widget.initialState);
-    visit(widget.root);
-  }
-  return floor;
-}
-
-/// [referenced] deduplicated by qualified name and sorted by it, so the
-/// referenced set is independent of the order the surface named them in.
-List<WidgetEntry> _canonicalReferences(List<WidgetEntry> referenced) {
-  final byQualifiedName = <String, WidgetEntry>{};
-  for (final entry in referenced) {
-    byQualifiedName.putIfAbsent(
-      WidgetVocabulary.qualifiedName(entry.library.namespace, entry.name),
-      () => entry,
-    );
-  }
-  final names = byQualifiedName.keys.toList()..sort();
-  return List<WidgetEntry>.unmodifiable([
-    for (final name in names) byQualifiedName[name]!,
-  ]);
-}
-
-bool _isBuiltIn(WidgetLibrary library) =>
-    WidgetLibrary.builtInByNamespace(library.namespace) != null;
 
 /// The sorted, de-duplicated namespaces a widget [name] resolves to in
 /// [catalog] — used to name the colliding libraries in an ambiguity diagnostic.
@@ -239,57 +125,3 @@ List<String> _librariesForName(Catalog catalog, String name) =>
         .toSet()
         .toList()
       ..sort();
-
-/// Walks [node], appending the resolved [WidgetEntry] for every non-local
-/// `ConstructorCall` to [out]. Mirrors `validateModelAgainstCatalog`'s walk so
-/// the derivation sees exactly the widget references the build-time gate does.
-void _collectReferences(
-  Object? node,
-  Catalog catalog,
-  Set<String> localNames,
-  List<WidgetEntry> out,
-  Set<String> ambiguous,
-) {
-  if (node is ConstructorCall) {
-    // A library-local `widget` definition resolves within the surface — it is
-    // not a catalog reference. Its body is walked separately as its own
-    // library widget, so its catalog usage is still counted.
-    if (!localNames.contains(node.name)) {
-      final candidates = findWidgetsByName(catalog, node.name);
-      if (candidates.isNotEmpty) {
-        // A name resolving to more than one LIBRARY is ambiguous (a shadow).
-        // Multiple candidates from the SAME library are a catalog-integrity
-        // concern guarded elsewhere; here only a cross-library split blocks the
-        // stamp. (`WidgetLibrary` overrides equality, so the set dedups by
-        // library identity.)
-        final libraries = candidates.map((c) => c.library).toSet();
-        if (libraries.length > 1) {
-          ambiguous.add(node.name);
-        } else {
-          out.add(candidates.first);
-        }
-      }
-    }
-    for (final argEntry in node.arguments.entries) {
-      _collectReferences(argEntry.value, catalog, localNames, out, ambiguous);
-    }
-  } else if (node is List) {
-    for (final child in node) {
-      _collectReferences(child, catalog, localNames, out, ambiguous);
-    }
-  } else if (node is Switch) {
-    for (final output in node.outputs.values) {
-      _collectReferences(output, catalog, localNames, out, ambiguous);
-    }
-  } else if (node is Loop) {
-    _collectReferences(node.output, catalog, localNames, out, ambiguous);
-  } else if (node is WidgetBuilderDeclaration) {
-    _collectReferences(node.widget, catalog, localNames, out, ambiguous);
-  } else if (node is Map) {
-    for (final value in node.values) {
-      _collectReferences(value, catalog, localNames, out, ambiguous);
-    }
-  }
-  // Remaining node types (literal scalars, references, event handlers) carry no
-  // catalog widget references.
-}

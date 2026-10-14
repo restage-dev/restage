@@ -108,9 +108,11 @@ final _surfaceStatusTool = Tool(
   name: 'restage_surface_status',
   description:
       'Show the live lifecycle state of a surface in an environment: the '
-      'active version, lock state, delivery shape (blob or flow), and the '
-      "pushed version history. Each flow version carries its delivery mode "
-      "('typed' or 'general'); a general version's flow structure can be "
+      'active version, lock state, delivery shape (blob or flow), the '
+      'pushed version history, the draft origin (code or editor), and '
+      'editedAfterCode, true when the draft was edited after publishing from '
+      "code. Each flow version carries its delivery mode ('typed' or "
+      "'general'); a general version's flow structure can be "
       'recomposed over the air within the installed vocabulary.',
   inputSchema: Schema.object(
     properties: surfaceTargetProperties(family: true, read: true),

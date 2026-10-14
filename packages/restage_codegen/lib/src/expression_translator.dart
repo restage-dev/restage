@@ -60,6 +60,7 @@ import 'package:restage_shared/restage_shared.dart'
         kDeviceContractPathKinds,
         kDeviceContractPaths,
         kMaxInlineSpanDepth,
+        kReservedCommerceEventNames,
         kRestageFormattedTextProps,
         kSupportedCurveNames,
         kThemeContractPathKinds,
@@ -4894,7 +4895,7 @@ final class ExpressionTranslator {
             blockedName(resolved.elseExpression);
       }
       final folded = inspection.value;
-      return folded is String && unsupportedCommerceEventNames.contains(folded)
+      return folded is String && kReservedCommerceEventNames.contains(folded)
           ? folded
           : null;
     }
@@ -5013,7 +5014,7 @@ final class ExpressionTranslator {
           );
           return null;
         }
-        if (unsupportedCommerceEventNames.contains(descriptorId)) {
+        if (kReservedCommerceEventNames.contains(descriptorId)) {
           issues.add(
             unsupportedCommerceEventIssue(descriptorId, _locationOf(arg)),
           );

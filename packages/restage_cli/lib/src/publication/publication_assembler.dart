@@ -26,6 +26,7 @@ final class AssembledSurfacePublication {
     required Map<String, File> selectedBundleFilesByAssetPath,
     this.measurementUpload,
     this.capabilityWarning,
+    this.unhandledEventsWarning,
   }) : artifactBytes = Map.unmodifiable({
          for (final item in artifactBytes.entries)
            item.key: Uint8List.fromList(item.value),
@@ -84,6 +85,10 @@ final class AssembledSurfacePublication {
 
   /// Optional capability note suitable for command output.
   final String? capabilityWarning;
+
+  /// Events the selected flows' screens emit that their states drop, as a
+  /// note for command output.
+  final String? unhandledEventsWarning;
 }
 
 /// Reads and assembles the exact artifact closure declared by a generated
@@ -213,6 +218,9 @@ final class SurfacePublicationAssembler {
       selectedBundleFilesByAssetPath: bundleFiles,
       measurementUpload: measurementUpload,
       capabilityWarning: root.capabilityWarning,
+      unhandledEventsWarning: _joinedWarnings([
+        for (final assembled in selected) assembled.unhandledEventsWarning,
+      ]),
     );
   }
 
@@ -289,6 +297,7 @@ final class SurfacePublicationAssembler {
 
       final SurfacePayload payload;
       late final CapabilityManifest capabilityManifest;
+      String? unhandledEventsWarning;
       switch (publication.payloadKind) {
         case SurfacePayloadKind.blob:
           final blob = blobs[publication.slug];
@@ -332,13 +341,23 @@ final class SurfacePublicationAssembler {
             builtInFloor: flowDocument.minClient,
             requiredLibraries: requiredLibraries,
           );
-          payload = FlowSurfacePayload(
+          final flowPayload = FlowSurfacePayload(
             flowDocument: flowDocument,
             screenBlobs: screenBlobs,
             requiredLibraries: requiredLibraries,
             iconFonts: closure.iconFonts,
             localSeeds: closure.localSeeds,
           );
+          if (publication.sourceKind == SurfaceSourceKind.flowGraph) {
+            final gaps = flowScreenEventGaps(flowPayload);
+            if (gaps.isNotEmpty) {
+              unhandledEventsWarning = flowScreenEventGapsMessage(
+                flowDocument.flow,
+                gaps,
+              );
+            }
+          }
+          payload = flowPayload;
       }
 
       final request = SurfacePublicationUploadRequest(
@@ -353,6 +372,7 @@ final class SurfacePublicationAssembler {
         artifactBytes: bytesByPath,
         selectedBundleFilesByAssetPath: bundleFilesByAssetPath,
         capabilityWarning: publishCapabilityWarning(capabilityManifest),
+        unhandledEventsWarning: unhandledEventsWarning,
       );
     } on PublicationException {
       rethrow;
@@ -370,6 +390,11 @@ final class SurfacePublicationAssembler {
       );
     }
   }
+}
+
+String? _joinedWarnings(List<String?> warnings) {
+  final present = warnings.nonNulls.toList();
+  return present.isEmpty ? null : present.join('\n');
 }
 
 List<SurfacePublicationArtifactClosure> _validateDeclaredClosure(

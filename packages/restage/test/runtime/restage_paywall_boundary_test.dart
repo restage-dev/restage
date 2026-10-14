@@ -338,7 +338,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(escaped, isNull);
+    expect(escaped, isA<StateError>());
     expect(observed, (successes: 0, paintSuccesses: 0, errors: 1));
   });
 
@@ -462,7 +462,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(escaped, isNull);
+    expect(escaped, isA<StateError>());
     expect(observed, (errors: 1, paintSuccesses: 0));
   });
 
@@ -488,7 +488,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(escaped, isNull);
+    expect(escaped, isA<StateError>());
     expect(observed, (errors: 1, paintSuccesses: 0));
   });
 
@@ -528,7 +528,7 @@ void main() {
     expect(paints, 1);
     expect(errors, 1);
     expect(paintSuccesses, 0);
-    expect(delegated, isEmpty);
+    expect(delegated, hasLength(1));
     expect(fallbackFound, 1);
   });
 
@@ -570,7 +570,7 @@ void main() {
     expect(escaped, isNull);
     expect(errors, 1);
     expect(paintSuccesses, 0);
-    expect(delegated, isEmpty);
+    expect(delegated, isNotEmpty);
     expect(fallbackFound, 1);
   });
 
@@ -636,7 +636,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(escaped, isNull);
+    expect(escaped, isA<StateError>());
     expect(
       observed,
       (innerErrors: 1, outerErrors: 0, outerPaintSuccesses: 1),
@@ -682,7 +682,7 @@ void main() {
 
     expect(errors, 1);
     expect(paintSuccesses, 1);
-    expect(delegated, isEmpty);
+    expect(delegated, hasLength(1));
     expect(fallbackFound, 1);
   });
 
@@ -723,7 +723,7 @@ void main() {
 
     expect(errors, 1);
     expect(paintSuccesses, 1);
-    expect(delegated, isEmpty);
+    expect(delegated, hasLength(1));
     expect(fallbackFound, 1);
   });
 
@@ -758,11 +758,13 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    final reported = tester.takeException();
     final innerFallbacks = find.text('inner fallback').evaluate().length;
     final outerFallbacks = find.text('outer fallback').evaluate().length;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
+    expect(reported, isA<StateError>());
     expect(innerErrors, 1);
     expect(outerErrors, 0);
     expect(innerFallbacks, 1);
@@ -798,6 +800,7 @@ void main() {
       firstRenderObject,
       message: 'stale replacement report',
     ));
+    expect(tester.takeException(), isA<StateError>());
     await tester.pumpWidget(boundary((_) => staleErrors.add('current')));
     await tester.pump();
     expect(staleErrors, isEmpty);
@@ -809,6 +812,7 @@ void main() {
       currentRenderObject,
       message: 'stale dispose report',
     ));
+    expect(tester.takeException(), isA<StateError>());
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
@@ -924,11 +928,10 @@ void main() {
 
     expect(duplicateObserved.leftErrors, 1);
     expect(duplicateObserved.rightErrors, 0);
-    expect(duplicateObserved.delegated, isEmpty);
+    expect(duplicateObserved.delegated.single, same(duplicate));
     expect(leftErrors, 1);
     expect(rightErrors, 0);
-    expect(delegated, hasLength(1));
-    expect(delegated.single, same(ambiguous));
+    expect(delegated, [same(duplicate), same(ambiguous)]);
   });
 
   testWidgets(
@@ -1107,8 +1110,7 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    // No FlutterError should escape:
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
     expect(errorBuilderHit, isTrue);
   });
 

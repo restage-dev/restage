@@ -108,6 +108,8 @@ class SurfaceStatusCommand extends Command<int> {
   /// ```
   ///   live: vN  locked: bool  shape: blob|flow  mode: typed|general
   ///   in your app: <Name>Surface(...)
+  ///   draft: code|editor
+  ///   Edited after publishing from code   (only when true)
   ///     vN (active)  ISO-8601  contentHash  typed|general
   ///     vM           ISO-8601  contentHash  typed|general
   /// ```
@@ -126,6 +128,10 @@ class SurfaceStatusCommand extends Command<int> {
     );
     if (mountLine(status) case final line?) {
       _io.stdout.writeln('  in your app: $line');
+    }
+    _io.stdout.writeln('  draft: ${status.draftOrigin}');
+    if (status.editedAfterCode) {
+      _io.stdout.writeln('  $editedAfterCodeLabel');
     }
     if (status.families.isNotEmpty) {
       for (final family in status.families) {

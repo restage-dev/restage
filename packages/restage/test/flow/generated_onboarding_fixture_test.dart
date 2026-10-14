@@ -21,8 +21,9 @@ import 'package:restage_shared/restage_shared.dart'
         GotoFlowTransition,
         ScreenArtifact,
         ScreenFlowState,
+        canonicalizeLibrary,
         kCapturedEventValueKey;
-import 'package:rfw/formats.dart';
+import 'package:restage_shared/rfw_formats.dart';
 
 void main() {
   setUp(Restage.debugReset);
@@ -393,7 +394,9 @@ widget OnboardingScreen = Center(child: ElevatedButton(onPressed: event "start" 
 }
 
 Uint8List _generatedBlob(String source) {
-  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+  return Uint8List.fromList(
+    encodeLibraryBlob(canonicalizeLibrary(parseLibraryFile(source))),
+  );
 }
 
 /// Builds the single capture flow shared by both render-path tests: a screen

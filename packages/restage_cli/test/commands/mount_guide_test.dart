@@ -58,6 +58,7 @@ void main() {
       liveVersion: 2,
       locked: false,
       deliveryShape: 'flow',
+      draftOrigin: 'code',
       sourceKind: sourceKind,
       versions: [
         SurfaceVersionResult(

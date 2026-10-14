@@ -947,6 +947,7 @@ http.Response _okStatus(http.Request request) {
       'liveVersion': 2,
       'locked': false,
       'deliveryShape': 'blob',
+      'draftOrigin': 'code',
       'versions': [
         {
           'version': 2,

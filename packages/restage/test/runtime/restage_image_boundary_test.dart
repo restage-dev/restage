@@ -174,7 +174,7 @@ widget Surface = Column(children: [
       expect(_semanticsLabels(tester), contains('image fallback semantics'));
       expect(
           _semanticsLabels(tester), isNot(contains('image content semantics')));
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNotNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

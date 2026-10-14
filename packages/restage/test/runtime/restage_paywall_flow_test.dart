@@ -394,6 +394,7 @@ void main() {
         await tester.tap(find.text('See plans'));
         await tester.pumpAndSettle();
       }
+      expect(tester.takeException(), isNotNull);
       expect(
         find.text('Offer original'),
         firstScreenFails ? findsOneWidget : findsNothing,
@@ -621,7 +622,7 @@ void main() {
       viewed: events.whereType<PaywallViewed>().length,
       failed: events.whereType<PaywallLoadFailed>().length,
       dismissed: events.whereType<PaywallDismissed>().length,
-      escaped: tester.takeException(),
+      reported: tester.takeException() != null,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -665,7 +666,7 @@ void main() {
         viewed: 0,
         failed: 1,
         dismissed: 0,
-        escaped: null,
+        reported: true,
       ),
     );
     expect(dismissedAfterUnmount, 0);
@@ -724,7 +725,7 @@ void main() {
       viewed: events.whereType<PaywallViewed>().length,
       failed: events.whereType<PaywallLoadFailed>().length,
       dismissed: events.whereType<PaywallDismissed>().length,
-      escaped: tester.takeException(),
+      reported: tester.takeException() != null,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -738,7 +739,7 @@ void main() {
         viewed: 0,
         failed: 0,
         dismissed: 0,
-        escaped: null,
+        reported: true,
       ),
     );
   });

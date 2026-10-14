@@ -12,7 +12,7 @@ const lumenTrialOfferRef = SurfaceFlowRef<
   decodeResult: _decodeLumenTrialOfferResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"lumen_trial_offer","initial":"lumen_trial_ending","minClient":10,"outbound":{},"schemaVersion":1,"screenArtifacts":{"lumen_trial_ending":{"contentHash":"sha256:65db54b015813542bfc70247dbfabe5bafb284e41a1cfde03c326604d6291d2b","minClient":10,"path":"measurement/82345ebf39848dea/lumen_trial_ending.rfw","schemaVersion":1,"version":1},"paywall_lumen_welcome_offer":{"contentHash":"sha256:efee39056ad3742910c00a091dc4a111bda214218a6ec00501b73bd39284c2e4","minClient":10,"path":"measurement/82345ebf39848dea/paywall_lumen_welcome_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_trial_ending":{"kind":"screen","on":{"later":{"target":"done","type":"goto"},"open_offer":{"target":"paywall_lumen_welcome_offer","type":"goto"}},"screen":"lumen_trial_ending"},"paywall_lumen_welcome_offer":{"kind":"screen","on":{"close":{"target":"done","type":"goto"},"continue":{"target":"done","type":"goto"}},"screen":"paywall_lumen_welcome_offer"}},"version":1}',
+        '{"flow":"lumen_trial_offer","initial":"lumen_trial_ending","minClient":10,"outbound":{"customEvents":{"privacy":{"fields":{}},"restore_purchases":{"fields":{}},"terms":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"lumen_trial_ending":{"contentHash":"sha256:e3d2db46af862d2e9da7563f8bc68578dc3438a0d869a88c1f818cb12e28fb4c","minClient":10,"path":"measurement/82345ebf39848dea/lumen_trial_ending.rfw","schemaVersion":1,"version":1},"paywall_lumen_welcome_offer":{"contentHash":"sha256:5fe5a10ae076f7cf0b2a10768d70f351e62fc355a720d4601f096a4c24141e41","minClient":10,"path":"measurement/82345ebf39848dea/paywall_lumen_welcome_offer.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"lumen_trial_ending":{"kind":"screen","on":{"later":{"target":"done","type":"goto"},"open_offer":{"target":"paywall_lumen_welcome_offer","type":"goto"}},"screen":"lumen_trial_ending"},"paywall_lumen_welcome_offer":{"kind":"screen","on":{"close":{"target":"done","type":"goto"},"continue":{"target":"done","type":"goto"}},"screen":"paywall_lumen_welcome_offer"}},"version":1}',
     screens: {
       'lumen_trial_ending': LumenTrialEndingScreen.new,
       'paywall_lumen_welcome_offer': LumenWelcomeOfferPaywall.new,
@@ -20,7 +20,7 @@ const lumenTrialOfferRef = SurfaceFlowRef<
     children: {},
   ),
   measurementPublicationDraftDigest:
-      '4ebc051858687e9053a817528e3ba57a9766e79548659b8a1d55ec3c8261b13b',
+      '59e2f9a508fd7afe6f4f6b4f38e25de35903aad44590740b6b2d9fb878a415c9',
   vocabulary: SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {
@@ -90,14 +90,18 @@ final _lumenTrialOfferPlacementDefinitionValue =
       'deliveryMode': 'typed',
       'hostSeedableState': <String, Object?>{},
       'actions': <String, Object?>{},
-      'signals': <Object?>[],
+      'signals': <Object?>['privacy', 'restore_purchases', 'terms'],
       'outbound': <String, Object?>{
         'actionArgs': <String, Object?>{},
         'terminalResult': <String, Object?>{},
         'lifecycle': <String, Object?>{},
         'surveyAnswers': <String, Object?>{},
         'subFlowResult': <String, Object?>{},
-        'customEvents': <String, Object?>{}
+        'customEvents': <String, Object?>{
+          'privacy': <String, Object?>{},
+          'restore_purchases': <String, Object?>{},
+          'terms': <String, Object?>{}
+        }
       }
     }
   },

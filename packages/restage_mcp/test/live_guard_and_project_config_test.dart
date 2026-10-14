@@ -346,6 +346,7 @@ void main() {
             'environmentSlug': 'production',
             'locked': false,
             'deliveryShape': 'blob',
+            'draftOrigin': 'code',
             'versions': <Object>[],
           }),
           200,

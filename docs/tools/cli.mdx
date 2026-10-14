@@ -273,6 +273,9 @@ If you push a surface that uses your app's widgets and the environment has no bu
 that includes them, the CLI tells you which command to run.
 `restage surface push welcome --build` pushes the environment's build first.
 
+A push also captures an image of each surface that uses your app's own widgets, which
+the dashboard shows until the environment has a build that can render it.
+
 For CI, set `RESTAGE_API_KEY` to a secret key with the bundle-push scope, and
 `RESTAGE_BACKEND_URL` to your Restage server. A key is only ever sent to that server or
 to the CLI's built-in default, never to an endpoint named in `restage_config.yaml`. A key belongs

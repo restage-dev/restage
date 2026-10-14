@@ -9,7 +9,7 @@ part 'restage.generated/lumen_trial_ending_flow.restage.g.dart';
 ///
 /// The nudge opens the offer; "Maybe later" and the offer's close control end
 /// the message. Every path converges on the one terminal the flow runtime
-/// allows.
+/// allows. The offer's privacy, terms and restore controls go to the app.
 @FlowGraph(id: 'lumen_trial_offer', surface: Surface.message)
 const lumenTrialOffer = FlowDefinition(
   start: LumenTrialEndingScreen,
@@ -19,4 +19,11 @@ const lumenTrialOffer = FlowDefinition(
     Transition.complete(LumenWelcomeOfferPaywall.continueFlow),
     Transition.complete(LumenWelcomeOfferPaywall.close),
   ],
+  outbound: FlowOutboundPolicy(
+    customEvents: {
+      'privacy': FlowOutboundPayloadDeclaration(),
+      'terms': FlowOutboundPayloadDeclaration(),
+      'restore_purchases': FlowOutboundPayloadDeclaration(),
+    },
+  ),
 );

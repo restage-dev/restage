@@ -475,6 +475,7 @@ class FakeConsoleRepository implements ConsoleRepository {
       liveVersion: surface.slug == 'pro' ? 2 : null,
       locked: false,
       deliveryShape: surface.surfaceType == 'paywall' ? 'blob' : 'flow',
+      draftOrigin: 'code',
       versions: const [],
     );
   }

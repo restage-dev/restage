@@ -80,6 +80,55 @@ void main() {
     );
   });
 
+  test('draft push lists unhandled events and names the flag', () async {
+    final code = await run(
+      ['surface', 'draft', 'push', 'welcome', '--type', 'onboarding'],
+      (body) => typedErrorResponse('SurfaceContractFamilyViolation', {
+        'code': 'unhandledEvents',
+        'message': 'The flow does not handle the event "next".',
+        'unhandledEvents': [
+          {
+            'flow': 'welcome',
+            'state': 'intro',
+            'screen': 'hello',
+            'event': 'next',
+          },
+        ],
+      }),
+    );
+
+    expect(code, 1);
+    expect(
+      err.toString(),
+      contains(
+        'The flow does not handle the event "next".\n'
+        '  Flow "welcome", state "intro", screen "hello", event "next"\n'
+        'Run again with --accept-unhandled-events to push it anyway.',
+      ),
+    );
+  });
+
+  test('draft push accepts unhandled events when asked', () async {
+    final code = await run(
+      [
+        'surface',
+        'draft',
+        'push',
+        'welcome',
+        '--type',
+        'onboarding',
+        '--accept-unhandled-events',
+      ],
+      (body) => body['method'] == 'coverage'
+          ? http.Response('null', 500)
+          : http.Response('4', 200),
+    );
+
+    expect(code, 0, reason: err.toString());
+    final push = calls.singleWhere((call) => call['method'] == 'publish');
+    expect(push['acceptUnhandledEvents'], isTrue);
+  });
+
   test(
     'draft push says when the user\'s own build covers the surface',
     () async {

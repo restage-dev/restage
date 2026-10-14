@@ -534,22 +534,12 @@ void main() {
     });
 
     test(
-        'customEvents (the analytics sink) drops flow-state — allowStateRefs '
-        'false keeps host-supplied flow-state out of analytics', () async {
-      // Analytics-sink invariant: the `customEvents` outbound surface reaches
-      // analytics (onEvent -> Restage.fireEvent -> the analytics pipeline), so
-      // it is filtered with allowStateRefs:FALSE — a flow-state ref is DROPPED;
-      // only event args survive. This keeps app-supplied / host-seeded flow-
-      // state out of analytics.
-      //
-      // TRAP — `surveyAnswers`: a declared-but-not-yet-consumed Tier-1 analytics
-      // surface. Whoever wires it MUST keep it allowStateRefs:false (or gate its
-      // flow-state refs at serve time), mirroring `customEvents` here — NEVER
-      // allowStateRefs:true like the host-facing `terminalResult`, which would
-      // open a live flow-state -> analytics exfil channel a naive proof calls
-      // safe. If a new analytics-reaching surface is added with allowStateRefs
-      // true, extend this guard.
+        'customEvents (the analytics sink) refuses flow-state — a document '
+        'whose custom event reads flow state fails closed at load', () async {
+      // `customEvents` reaches analytics, so it may carry only event args; a
+      // flow-state ref would leak host-supplied state.
       final events = <RestageEvent>[];
+      final unavailable = <Object>[];
       final controller = RestageFlowController<_FirstRunResult>(
         flow: _flowRef,
         resolver: _StaticFlowResolver(
@@ -566,12 +556,11 @@ void main() {
                 customEvents: {
                   'track': FlowOutboundPayloadDeclaration(
                     fields: {
-                      // A flow-state ref (host-seeded) — must be dropped.
+                      // A host-seeded flow-state ref: refused.
                       'tier': FlowOutboundField(
                         type: FlowDataType.string,
                         ref: StateFlowOutboundRef(key: 'planTier'),
                       ),
-                      // An event-arg ref — survives.
                       'label': FlowOutboundField(
                         type: FlowDataType.string,
                         ref: EventFlowOutboundRef(key: 'label'),
@@ -583,13 +572,11 @@ void main() {
             ),
           ),
         ),
-        // Seed the host-supplied flow-state so, were the filter allowStateRefs
-        // true, 'planTier' WOULD leak — making the drop non-vacuous.
         initialState: const _MapSeed({'planTier': 'pro'}),
         actions: null,
         onEvent: events.add,
         onComplete: (_) {},
-        onUnavailable: (_) {},
+        onUnavailable: unavailable.add,
       );
       addTearDown(controller.dispose);
 
@@ -597,14 +584,8 @@ void main() {
       controller.handleEvent('track', const <String, Object?>{'label': 'cta'});
       await Future<void>.delayed(Duration.zero);
 
-      final custom = events
-          .whereType<FlowCustomEvent>()
-          .where((e) => e.eventName == 'track')
-          .single;
-      // The event arg survives; the seeded host flow-state is dropped —
-      // analytics never sees app-supplied data.
-      expect(custom.fields, {'label': 'cta'});
-      expect(custom.fields.containsKey('tier'), isFalse);
+      expect(unavailable.single.toString(), contains('customEventStateRef'));
+      expect(events.whereType<FlowCustomEvent>(), isEmpty);
     });
 
     test('terminal completion is delivered once', () async {
