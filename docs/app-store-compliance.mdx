@@ -55,20 +55,43 @@ The rest is yours to do:
   screens: <screens>. Each screen is compiled into this build and reachable at <path>
   with the demo account below. A delivered update is data rendered by widgets and
   actions already in this binary. Code, features, products and native capabilities ship
-  in an app update. Reviewers and users receive the same version.
+  in an app update. Which version a device receives depends on <the active version |
+  a random split among the versions listed | rules on country, language or app build>.
+  The review device is assigned like any other.
   ```
 
 - **Keep every surface reachable.** Give the reviewer a route to each delivered screen:
   a demo account, no sign-up wall in front of it, no targeting rule that excludes the
-  reviewer's device or region.
+  reviewer's device or region. The review device is a fresh install on a new device, so
+  a rule on country, platform, device class or app build that such an install cannot
+  match keeps the version from the reviewer too.
+- **Keep review state out of host data.** Your app can pass values into a surface as host data. If
+  the app computes a value to recognize a review device, from a sandbox receipt,
+  TestFlight, an IP range or a remote "review mode" flag, and passes it in so the surface
+  shows something different, that is review-environment detection, whatever delivers the
+  flag. Third-party starter kits sometimes ship such a switch. Remove it before you
+  submit.
+- **Mind the names.** App Review reads the binary and what the app fetches during
+  review, and a name is enough to raise a flag even when the code that carries it is
+  unreachable on that platform. Flutter compiles every platform's branches into every
+  build, so an Android-only switch is present in the iOS binary. Do not name a surface,
+  version, audience, event, host data key or Dart symbol after review, reviewers or
+  bypassing, and remember that a workaround built for one store's review ships to the
+  other store's reviewers in the same build.
 - **Stay inside what was reviewed.** Copy, layout, ordering, styling and the choice among
   products and actions the reviewed build already offers are updates. A delivered surface
   that introduces a feature, a product or a claim the reviewed build did not have is a new
   feature under this guideline, and it belongs in a release with its own review notes.
 - **Serve App Review what your users get.** Audience routing and experiments choose among
   published versions for your users. Using them to show a reviewer something different
-  from what users receive is the conduct the second paragraph of this guideline describes,
-  and it can end a developer account.
+  from what users receive can end a developer account. The guidelines' Introduction names
+  trying to trick the review process as grounds for removal, and Guideline 2.3.1(b) makes
+  repeated behavior grounds for removal from the Apple Developer Program.
+- **Keep subscription disclosures in every version.** A published paywall keeps the
+  disclosures [Guideline 3.1.2](https://developer.apple.com/app-store/review/guidelines/#subscriptions)
+  requires in every version: the price, the billing period, what renews, and how to
+  cancel. A version that drops them breaks the rule even when reviewers and users see the
+  same screen.
 - **Treat reserved widgets as building blocks.** Carrying catalog widgets your app has not
   drawn yet, or a [reserve screen](/delivery/app-size), is ordinary: buttons, sliders,
   cards and layout are parts, and every design system ships parts it does not use on
@@ -76,12 +99,35 @@ The rest is yours to do:
   or a checkout, should be visible in the reviewed build or described in the notes before
   any delivered surface uses it.
 
+### If App Review cites 2.3.1
+
+App Review uses the phrase "review-environment detection" for code or configuration that
+behaves differently when the app is under review. Check these in order: any condition on
+sandbox receipts or TestFlight; routing rules a fresh install cannot match; host data
+passed into a surface that depends on such a condition; third-party kits with a
+review-mode switch; and your Notes for Review. In Resolution Center, name Restage, list
+the delivered screens, and state how versions are assigned. The dashboard keeps the
+version history and the routing rules for each surface; offer them as the record of what
+was served to which audience.
+
 ## Google Play
 
 [Google Play's device and network abuse policy](https://support.google.com/googleplay/android-developer/answer/16559646)
 restricts applications that download executable code outside Google Play, such as dex,
 JAR, and native library files. The Restage SDK reads surface data and renders it with
 widgets compiled into the app.
+
+For purchases during testing, add the accounts that will test your app as
+[license testers](https://developer.android.com/google/play/billing/test) in Play
+Console. Their purchases complete with test payment methods and are never charged, and
+test subscriptions renew on an accelerated schedule. When your app gates content behind
+a subscription or membership, Google asks for access details in the
+[App access](https://support.google.com/googleplay/android-developer/answer/9859455)
+section of Play Console: a test account and instructions, with up to five sets. Give the
+reviewer an account that already holds the subscription, through a license tester
+purchase or an entitlement you grant on the server. Do not add a way past the paywall
+in the app itself. A bypass key or flag is what review systems look for, and it reaches
+Apple's reviewers in the same build.
 
 ## Interaction stays in your app
 
