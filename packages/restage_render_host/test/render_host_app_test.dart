@@ -7,9 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/render_host/render_host_app.dart';
-import 'package:restage/src/render_host/render_completion_tracker.dart';
-import 'package:restage/src/render_host/render_core.dart';
+import 'package:restage_render_host/src/render_host_app.dart';
+import 'package:restage_render_host/src/render_completion_tracker.dart';
+import 'package:restage_render_host/src/render_core.dart';
 
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
@@ -87,7 +87,7 @@ final class _Transport implements RenderMessageTransport {
 void main() {
   test('production snapshot path never reads debug-only paint state', () {
     final source = File(
-      '../restage/lib/src/render_host/render_host_app.dart',
+      'lib/src/render_host_app.dart',
     ).readAsStringSync();
 
     expect(source, isNot(contains('debugNeedsPaint')));

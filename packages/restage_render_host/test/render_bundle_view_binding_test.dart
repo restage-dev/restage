@@ -1,7 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
-import 'package:restage/src/render_host/render_bundle_view_binding.dart';
+import 'package:restage_render_host/src/render_bundle_view_binding.dart';
 
 void main() {
   group('render-bundle view configuration', () {

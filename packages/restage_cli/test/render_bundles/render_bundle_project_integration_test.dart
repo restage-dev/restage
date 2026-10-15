@@ -67,6 +67,18 @@ void main() {
         fontBytes: Uint8List.fromList(<int>[0]),
         licenseBytes: Uint8List.fromList(<int>[0]),
       );
+      // A restage checkout carries the render host beside it.
+      final pubspec = File(
+        p.join(project.path, 'pubspec.yaml'),
+      ).readAsStringSync();
+      expect(pubspec, contains('  restage_render_host: "any"'));
+      expect(
+        pubspec,
+        contains(
+          '  restage_render_host: {"path":'
+          '"${p.join(packages, 'restage_render_host')}"}',
+        ),
+      );
       final resolved = await run(<String>['pub', 'get', '--offline'], project);
       expect(resolved.exitCode, 0, reason: '${resolved.stderr}');
       final analyzed = await run(<String>['analyze'], project);

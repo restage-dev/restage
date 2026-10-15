@@ -11,10 +11,7 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/user_catalog.g.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/pulse_badge.dart';
-// ignore: implementation_imports
-import 'package:restage/src/render_host/render_core.dart';
-// ignore: implementation_imports
-import 'package:restage/src/render_host/render_host_app.dart';
+import 'package:restage_render_host/restage_render_host.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 

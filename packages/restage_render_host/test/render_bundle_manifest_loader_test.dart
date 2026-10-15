@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/src/render_host/render_bundle_manifest_loader.dart';
+import 'package:restage_render_host/src/render_bundle_manifest_loader.dart';
 
 const _manifestSource = '''
 {
@@ -58,7 +58,7 @@ void main() {
 
   test('browser fetch maps the exact credential and cache policy', () {
     final fetcher = File(
-      'lib/src/render_host/render_bundle_manifest_fetcher_web.dart',
+      'lib/src/render_bundle_manifest_fetcher_web.dart',
     ).readAsStringSync();
     expect(fetcher, contains('credentials: request.credentials'));
     expect(fetcher, contains('cache: request.cache'));

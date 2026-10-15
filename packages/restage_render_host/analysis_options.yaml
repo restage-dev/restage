@@ -1,0 +1,25 @@
+# Public package — uses flutter_lints (matches pub.dev community
+# norms) instead of the workspace's stricter baseline.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore
+    # Sibling packages are depended on by path in this workspace. The publish
+    # pipeline rewrites them to hosted version constraints before upload, and
+    # `pub publish` rejects a path dependency outright, so one can never reach
+    # pub.dev — this warning's failure mode is unreachable here.
+    invalid_dependency: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**

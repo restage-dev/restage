@@ -111,7 +111,7 @@ flutter:
     write('app/fonts/Inter.ttf', 'ttf');
     write('app/shaders/glow.frag', 'frag');
     write('app/legal/NOTICE.txt', 'notice');
-    write('cache/restage/lib/render_host.dart', 'library;\n');
+    write('cache/restage/pubspec.yaml', 'name: restage\nversion: 2.3.1\n');
     write('flutter/packages/flutter/pubspec.yaml', 'name: flutter\n');
     resolve(
       at: 'app',
@@ -160,6 +160,7 @@ flutter:
         'restage': 'any',
         'local_widgets': 'any',
         'charts': 'any',
+        'restage_render_host': '>=2.3.0 <2.4.0',
       });
       expect(
         Link(p.join(project.path, 'lib')).targetSync(),
@@ -175,7 +176,9 @@ flutter:
         File(p.join(project.path, renderBundleEntrypoint)).readAsStringSync(),
         allOf(
           contains("import 'package:habit/user_factories.g.dart';"),
-          contains("import 'package:restage/render_host.dart';"),
+          contains(
+            "import 'package:restage_render_host/restage_render_host.dart';",
+          ),
           contains('registerWidgets: registerRestageWidgets'),
           contains(
             "String.fromEnvironment('RESTAGE_RENDER_BUNDLE_PARENT_ORIGIN')",
@@ -445,10 +448,88 @@ global_options:
     await expectLater(writeProject(), _refusedWith('dependencies_unresolved'));
   });
 
-  test('a restage without the render host is refused', () async {
-    File(
-      p.join(root.path, 'cache', 'restage', 'lib', 'render_host.dart'),
-    ).deleteSync();
+  test(
+    'a restage checkout with the render host beside it pins that copy',
+    () async {
+      write(
+        'cache/restage_render_host/pubspec.yaml',
+        'name: restage_render_host\nversion: 2.3.1\n',
+      );
+      final pubspec = pubspecOf(await writeProject());
+
+      expect(pubspec['dependencies']['restage_render_host'], 'any');
+      expect(
+        pubspec['dependency_overrides']['restage_render_host'],
+        <String, Object?>{
+          'path': p.join(root.path, 'cache', 'restage_render_host'),
+        },
+      );
+    },
+  );
+
+  test('a sibling directory of another package is not taken', () async {
+    write('cache/restage_render_host/pubspec.yaml', 'name: other\n');
+    final pubspec = pubspecOf(await writeProject());
+
+    expect(pubspec['dependencies']['restage_render_host'], '>=2.3.0 <2.4.0');
+    expect(
+      (pubspec['dependency_overrides'] as YamlMap).containsKey(
+        'restage_render_host',
+      ),
+      isFalse,
+    );
+  });
+
+  test('an app that resolves the render host itself keeps it', () async {
+    resolve(
+      at: 'app',
+      roots: <String, String>{
+        'habit': '../',
+        'restage': '../../cache/restage',
+        'restage_render_host': '../../vendor/restage_render_host',
+        'meta': '../../cache/meta',
+        'charts': '../../cache/charts',
+        'build_runner': '../../cache/build_runner',
+        'local_widgets': '../../local_widgets',
+        'flutter': '../../flutter/packages/flutter',
+      },
+      graph: <String, List<String>>{
+        ...graph,
+        'habit': <String>[...graph['habit']!, 'restage_render_host'],
+        'restage_render_host': <String>['restage'],
+      },
+    );
+    final pubspec = pubspecOf(await writeProject());
+
+    expect(pubspec['dependencies']['restage_render_host'], 'any');
+    expect(
+      pubspec['dependency_overrides']['restage_render_host'],
+      <String, Object?>{
+        'path': p.join(root.path, 'vendor', 'restage_render_host'),
+      },
+    );
+  });
+
+  test('a restage without a readable version is refused', () async {
+    write('cache/restage/pubspec.yaml', 'name: restage\n');
+    await expectLater(writeProject(), _refusedWith('render_host_missing'));
+  });
+
+  test('an app without restage is refused', () async {
+    resolve(
+      at: 'app',
+      roots: <String, String>{
+        'habit': '../',
+        'meta': '../../cache/meta',
+        'flutter': '../../flutter/packages/flutter',
+      },
+      graph: <String, List<String>>{
+        'habit': <String>['flutter'],
+        'flutter': <String>['meta'],
+        'meta': <String>[],
+        'build_runner': <String>[],
+      },
+    );
     await expectLater(writeProject(), _refusedWith('render_host_missing'));
   });
 

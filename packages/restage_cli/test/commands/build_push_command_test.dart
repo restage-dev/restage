@@ -567,8 +567,9 @@ void main() {
     ),
     (
       const RenderBundleBuildException('render_host_missing'),
-      'Could not build the render bundle: the restage package this app uses '
-          'is too old to build one. Upgrade restage and push again.',
+      'Could not build the render bundle: no restage version could be read '
+          "from this app's dependencies. Add restage, run `flutter pub get` "
+          'and push again.',
     ),
     (
       const RenderBundleBuildException('dependencies_unresolved'),

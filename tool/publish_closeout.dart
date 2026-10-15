@@ -20,6 +20,7 @@ const publishablePackages = <String>{
   'restage_shared',
   'restage_codegen',
   'rfw_catalog_compiler',
+  'restage_render_host',
   'restage_a2ui',
   'restage_measurement_schema',
 };
@@ -35,6 +36,7 @@ const _headlinePriority = <String>[
   'restage_cupertino',
   'restage_core',
   'restage_measurement_schema',
+  'restage_render_host',
 ];
 
 final _tagPattern = RegExp(

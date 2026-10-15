@@ -6,9 +6,9 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/src/render_host/browser_render_message_transport_web.dart'
+import 'package:restage_render_host/src/browser_render_message_transport_web.dart'
     as browser_transport;
-import 'package:restage/src/render_host/render_core.dart';
+import 'package:restage_render_host/src/render_core.dart';
 import 'package:web/web.dart' as web;
 
 @JS('Object.is')

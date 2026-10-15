@@ -195,6 +195,7 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`restage_measurement_schema`](packages/restage_measurement_schema) | Shared data types for measurement and experiments | BSD-3 |
 | [`restage_codegen`](packages/restage_codegen) | Build-time toolchain that compiles your Flutter into render artifacts | FSL-1.1-ALv2 |
 | [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
+| [`restage_render_host`](packages/restage_render_host) | Renders your widgets for a preview, inside the bundle `restage build push` builds | FSL-1.1-ALv2 |
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
 | [`restage_revenuecat`](packages/restage_revenuecat) | RevenueCat offerings, purchases, restores, and purchase conversion reports. Available from source | BSD-3 |
@@ -210,7 +211,8 @@ run `melos run cli:install` to compile it onto your PATH.
   the catalog and measurement schemas, the CLI, the MCP server, the A2UI
   check, and the examples. Flutter uses the same license.
 - **FSL-1.1-ALv2** for the build-time toolchain (`restage_codegen` and
-  `rfw_catalog_compiler`). The source is available. Using it to build your apps
+  `rfw_catalog_compiler`) and the preview render host (`restage_render_host`),
+  which your app never depends on. The source is available. Using it to build your apps
   is free, including use inside your own company; only competing commercial use
   is restricted. Each release converts to Apache-2.0 two years after it ships.
 

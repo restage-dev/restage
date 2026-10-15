@@ -39,6 +39,9 @@ dev_dependencies:
     sdk: flutter
   restage_codegen:
     path: ../../packages/restage_codegen
+  # Render bundle tests draw this app's widgets through the render host.
+  restage_render_host:
+    path: ../../packages/restage_render_host
   # Patrol drives the example's integration / visual tests. The gallery is a
   # web Flutter target, so they run via `patrol test --device chrome` over the
   # integration test in `integration_test/`.
