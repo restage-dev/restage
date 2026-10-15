@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart'
     show kReservedPreviewConstructorName, kReservedPreviewLibraryName;
-import 'package:restage_preview_host/restage_preview_host.dart';
+import 'package:restage/src/render_host/render_core.dart';
 
 Map<String, Object?> _catalog() => <String, Object?>{
       'schemaVersion': 4,

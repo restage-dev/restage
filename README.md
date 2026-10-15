@@ -199,7 +199,6 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
 | [`restage_revenuecat`](packages/restage_revenuecat) | RevenueCat offerings, purchases, restores, and purchase conversion reports. Available from source | BSD-3 |
 | [`restage_store_bridge`](packages/restage_store_bridge) | Native store purchases and restores, verified by your app. Available from source | BSD-3 |
-| [`restage_preview_host`](packages/restage_preview_host) | Flutter render host for preview tools. Available from source | BSD-3 |
 | [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for genui A2UI payloads | BSD-3 |
 | [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
 | [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |

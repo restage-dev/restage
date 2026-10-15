@@ -95,6 +95,10 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
   Object? _loadError;
   int _lifecycleRevision = 0;
 
+  // Each render gets a fresh error boundary; the rendered subtree moves into
+  // it instead of being built again.
+  final GlobalKey _renderedKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -302,26 +306,29 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
           environment.brightness == 'dark' ? Brightness.dark : Brightness.light,
       useMaterial3: true,
     );
-    final rendered = MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        size: environment.frame,
-        textScaler: TextScaler.linear(environment.textScale),
-      ),
-      child: Localizations.override(
-        context: context,
-        locale: _parseLocale(environment.locale),
-        child: Theme(
-          data: theme,
-          child: DefaultTextStyle(
-            style: theme.textTheme.bodyMedium!,
-            child: RemoteWidget(
-              runtime: _runtime,
-              data: _data,
-              widget: FullyQualifiedWidgetName(
-                _documentLibrary,
-                widget.entryWidgetName,
+    final rendered = KeyedSubtree(
+      key: _renderedKey,
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          size: environment.frame,
+          textScaler: TextScaler.linear(environment.textScale),
+        ),
+        child: Localizations.override(
+          context: context,
+          locale: _parseLocale(environment.locale),
+          child: Theme(
+            data: theme,
+            child: DefaultTextStyle(
+              style: theme.textTheme.bodyMedium!,
+              child: RemoteWidget(
+                runtime: _runtime,
+                data: _data,
+                widget: FullyQualifiedWidgetName(
+                  _documentLibrary,
+                  widget.entryWidgetName,
+                ),
+                onEvent: widget.onRemoteEvent,
               ),
-              onEvent: widget.onRemoteEvent,
             ),
           ),
         ),

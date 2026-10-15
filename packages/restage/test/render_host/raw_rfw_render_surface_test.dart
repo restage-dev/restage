@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_preview_host/restage_preview_host.dart';
+import 'package:restage/src/render_host/render_core.dart';
 import 'package:restage_shared/restage_shared.dart' show kDeviceContractPaths;
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
@@ -717,6 +717,87 @@ widget Preview = Broken();
     expect(events.whereType<RenderError>(), hasLength(1));
   });
 
+  testWidgets('a new render updates the rendered tree in place and settles',
+      (tester) async {
+    final events = <RenderEvent>[];
+    Widget surface(int epoch, String label) => MaterialApp(
+          home: RawRfwRenderSurface.library(
+            epoch: epoch,
+            library: parseLibraryFile('''
+import restage.core;
+widget Preview = Column(children: [Text(text: "Kept"), Text(text: "$label")]);
+'''),
+            data: const <String, Object?>{},
+            environment: _environment(),
+            registrations: const <RestageWidgetLibraryRegistration>[],
+            entryWidgetName: 'Preview',
+            onRemoteEvent: (_, __) {},
+            onRenderEvent: events.add,
+          ),
+        );
+
+    await tester.pumpWidget(surface(1, 'First'));
+    await tester.pump();
+    final kept = tester.element(find.text('Kept'));
+    final paragraph = tester.renderObject(find.text('Kept'));
+
+    await tester.pumpWidget(surface(2, 'Second'));
+    await tester.pump();
+
+    expect(find.text('Second'), findsOneWidget);
+    expect(tester.element(find.text('Kept')), same(kept));
+    expect(tester.renderObject(find.text('Kept')), same(paragraph));
+    expect(
+      events.whereType<Settled>().map((event) => event.epoch),
+      <int>[1, 2],
+    );
+    expect(events.whereType<RenderError>(), isEmpty);
+  });
+
+  testWidgets('a render after an error builds afresh and settles',
+      (tester) async {
+    final events = <RenderEvent>[];
+    final registration = RestageWidgetLibraryRegistration(
+      library: const WidgetLibrary.custom('acme.widgets'),
+      widgets: <RestageWidgetFactory>[
+        RestageWidgetFactory(
+          name: 'Broken',
+          builder: (_, __) => const _ThrowingAppWidget(),
+        ),
+      ],
+      capabilityVersion: 1,
+    );
+    Widget surface(int epoch, String root) => MaterialApp(
+          home: RawRfwRenderSurface.library(
+            epoch: epoch,
+            library: parseLibraryFile('''
+import restage.core;
+import acme.widgets;
+widget Preview = $root;
+'''),
+            data: const <String, Object?>{},
+            environment: _environment(),
+            registrations: <RestageWidgetLibraryRegistration>[registration],
+            entryWidgetName: 'Preview',
+            onRemoteEvent: (_, __) {},
+            onRenderEvent: events.add,
+          ),
+        );
+
+    await tester.pumpWidget(surface(1, 'Broken()'));
+    await tester.pump();
+    await tester.pump();
+    expect(tester.takeException(), isA<StateError>());
+    expect(events.whereType<RenderError>().single.epoch, 1);
+
+    await tester.pumpWidget(surface(2, 'Text(text: "Recovered")'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Recovered'), findsOneWidget);
+    expect(events.whereType<Settled>().single.epoch, 2);
+  });
+
   testWidgets('settles once after first paint while animation frames continue',
       (tester) async {
     final events = <RenderEvent>[];
@@ -955,7 +1036,7 @@ final class _RenderStructuralReportProbe extends RenderBox {
     FlutterError.reportError(FlutterErrorDetails(
       exception: StateError('late independent ${phase.name} report'),
       stack: StackTrace.current,
-      library: 'restage_preview_host_test',
+      library: 'restage_render_host_test',
       informationCollector: () => <DiagnosticsNode>[
         DiagnosticsProperty<RenderObject>('renderObject', this),
       ],
