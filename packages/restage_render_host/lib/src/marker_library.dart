@@ -7,11 +7,13 @@ import 'package:flutter/widgets.dart'
         State,
         StatefulWidget,
         Widget;
-import 'document_path_codec.dart';
-import 'geometry_registry.dart';
+import 'package:restage/render_support.dart' show GeometryRenderBoxBinding;
 import 'package:restage/restage.dart' show kReservedPreviewConstructorName;
 import 'package:rfw/rfw.dart'
     show DataSource, LocalWidgetBuilder, LocalWidgetLibrary;
+
+import 'document_path_codec.dart';
+import 'geometry_registry.dart';
 
 /// Build the preview-only `restage.editor` local widget library.
 LocalWidgetLibrary buildMarkerWidgetLibrary(GeometryRegistry registry) {

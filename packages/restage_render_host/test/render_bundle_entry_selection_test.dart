@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/render_host/render_host_app.dart';
-import 'package:restage/src/render_host/render_bundle_view_binding.dart';
-import 'package:restage/src/render_host/render_core.dart';
+import 'package:restage_render_host/src/render_host_app.dart';
+import 'package:restage_render_host/src/render_bundle_view_binding.dart';
+import 'package:restage_render_host/src/render_core.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 RenderBundleManifest _manifest() => RenderBundleManifest(

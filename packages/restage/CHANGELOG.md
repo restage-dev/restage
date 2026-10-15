@@ -6,11 +6,10 @@
 event arguments each carries. A custom event neither moves nor completes the
 flow.
 
-Placement mounts and render bundles find a surface's root widget by one rule:
-`main`, as the editor writes it, then `Paywall`, then `OnboardingScreen`, each
-declared once, else the library's only declaration. A placement mount used to
-miss an editor-authored `main`, and a render bundle used to refuse an
-`OnboardingScreen` or a single-declaration library.
+Placement mounts find a surface's root widget by one rule: `main`, as the editor
+writes it, then `Paywall`, then `OnboardingScreen`, each declared once, else the
+library's only declaration. A placement mount used to miss an editor-authored
+`main`.
 
 A surface that fails to render still falls back as before, and the error now also
 reaches your app's `FlutterError.onError` handler, once, as it would without
@@ -18,9 +17,6 @@ Restage. In widget tests, call `tester.takeException()` for an expected failure.
 failing widget test with a surface mounted now fails at once; it used to wait for
 the test timeout. In debug builds the fallback prints one `[restage]` line naming
 the surface.
-
-The render host draws a bounded placeholder for a widget it can't build, or one no
-installed library provides, where it used to draw an error box.
 
 Generated mounts install the app's own `@RestageWidget` widgets from the library a
 surface draws on, so apps with generated mounts need no startup registration call.
@@ -38,8 +34,10 @@ key share a short deadline, measurement setup has its own, and every request sto
 after a period with no response or no data. A surface then falls back as before.
 
 New libraries: `package:restage/catalog.dart` for generated catalog code, and
-`package:restage/render_host.dart` for the entrypoint `restage build push`
-generates. Apps don't import either directly.
+`package:restage/render_support.dart` for the frame geometry and icon table that
+preview hosts share with the SDK. Apps don't import either directly. The render
+host that `restage build push` bundles is a separate package,
+`restage_render_host`.
 
 The package ships an agent skill, `restage-authoring`, for coding agents such as
 Claude Code, Cursor, and Codex. It covers annotations, events, host data,

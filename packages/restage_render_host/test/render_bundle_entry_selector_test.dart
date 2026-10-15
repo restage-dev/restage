@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/src/render_host/render_core.dart';
+import 'package:restage_render_host/src/render_core.dart';
 import 'package:rfw/formats.dart';
 
 RemoteWidgetLibrary _libraryWithDeclarations(List<String> names) {

@@ -8,7 +8,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show PlacementKeyV1;
 import 'package:restage_shared/restage_shared.dart';
 
-import '../render_host/geometry_registry.dart';
+import 'render_geometry.dart';
 
 /// Local placement declarations and frame observations owned by the SDK.
 final class PlacementDiscovery {

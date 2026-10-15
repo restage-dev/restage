@@ -1,9 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-// ignore: implementation_imports
-import 'package:restage/src/render_host/render_core.dart';
 import 'package:restage_example/user_catalog.g.dart';
+import 'package:restage_render_host/restage_render_host.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 void main() {

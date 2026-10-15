@@ -1,14 +1,18 @@
-/// Entrypoint for the web bundle used to preview an app's widgets.
-/// Imported only by the generated render bundle entrypoint.
+/// Renders an app's widgets for a preview: the render protocol, the raw RFW
+/// render surface, and the entrypoint of the web bundle a build generates.
 library;
 
 import 'package:flutter/widgets.dart' show VoidCallback, runApp;
 
-import 'src/render_host/render_bundle_manifest_loader.dart';
-import 'src/render_host/render_bundle_view_binding.dart';
-import 'src/render_host/render_core.dart';
-import 'src/render_host/render_host_app.dart';
-import 'src/render_host/browser_render_message_transport.dart';
+import 'src/browser_render_message_transport.dart';
+import 'src/render_bundle_manifest_loader.dart';
+import 'src/render_bundle_view_binding.dart';
+import 'src/render_core.dart';
+import 'src/render_host_app.dart';
+
+export 'src/render_core.dart';
+export 'src/render_host_app.dart' show RenderHostApp;
+export 'src/wire_json.dart' show rejectCredentialFields, snapshotWireMap;
 
 /// Loads the bundle's manifest, connects to the dashboard at [parentOrigin],
 /// and renders what it sends with the widgets [registerWidgets] installs.

@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/src/render_host/render_core.dart';
+import 'package:restage_render_host/src/render_core.dart';
 
 import 'support/fake_transport.dart';
 

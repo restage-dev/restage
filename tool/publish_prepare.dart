@@ -41,6 +41,7 @@ const _publishable = <String>{
   'restage_shared',
   'restage_codegen',
   'rfw_catalog_compiler',
+  'restage_render_host',
   'restage_a2ui',
   'restage_measurement_schema',
 };

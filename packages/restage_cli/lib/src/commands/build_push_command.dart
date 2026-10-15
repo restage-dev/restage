@@ -543,8 +543,9 @@ String? _buildFailureMessage(RenderBundleBuildException error) {
       'Could not build the render bundle: this app\'s dependencies are not '
           'resolved. Run `flutter pub get` and push again.',
     'render_host_missing' =>
-      'Could not build the render bundle: the restage package this app '
-          'uses is too old to build one. Upgrade restage and push again.',
+      'Could not build the render bundle: no restage version could be read '
+          'from this app\'s dependencies. Add restage, run `flutter pub get` '
+          'and push again.',
     'dependencies_failed' =>
       'Could not build the render bundle: its dependencies did not resolve. '
           'Run `flutter pub get` in ${project ?? 'the build directory'} to '

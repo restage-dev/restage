@@ -2,19 +2,16 @@ import 'dart:async' show Stream, StreamController, unawaited;
 
 import 'package:flutter/foundation.dart' show immutable, listEquals, mapEquals;
 import 'package:flutter/rendering.dart'
-    show
-        Matrix4,
-        MatrixUtils,
-        Offset,
-        Rect,
-        RenderBox,
-        RenderObject,
-        RenderView;
+    show MatrixUtils, Rect, RenderBox, RenderObject;
 import 'package:flutter/scheduler.dart' show FrameCallback, SchedulerBinding;
-import 'document_path_codec.dart';
+import 'package:restage/render_support.dart'
+    show
+        GeometryPostFrameScheduler,
+        geometryBoundsInFrame,
+        geometryDrawnOrder,
+        geometryTransformToFrame;
 
-/// Schedules one callback after the current Flutter frame.
-typedef GeometryPostFrameScheduler = void Function(FrameCallback callback);
+import 'document_path_codec.dart';
 
 /// Supplies the render box whose coordinate space defines geometry snapshots.
 typedef FrameRenderBoxProvider = RenderBox? Function();
@@ -233,13 +230,6 @@ final class GeometryRegistry {
   }
 }
 
-/// Logical frame-relative bounds using the render tree's paint transforms.
-Rect geometryBoundsInFrame(RenderBox box, RenderObject frame) =>
-    MatrixUtils.transformRect(
-      _transformToFrame(box, frame),
-      Offset.zero & box.size,
-    );
-
 GeometryInstance _instanceInFrame(_Marker marker, RenderObject frame) {
   final bounds = geometryBoundsInFrame(marker.box, frame);
   return GeometryInstance.clipped(
@@ -260,7 +250,8 @@ Rect? _visibleBounds(RenderBox box, RenderObject frame, Rect bounds) {
     final clip = parent.describeApproximatePaintClip(child);
     if (clip != null) {
       visible = visible.intersect(
-        MatrixUtils.transformRect(_transformToFrame(parent, frame), clip),
+        MatrixUtils.transformRect(
+            geometryTransformToFrame(parent, frame), clip),
       );
       if (visible.width < 0 ||
           visible.height < 0 ||
@@ -271,75 +262,6 @@ Rect? _visibleBounds(RenderBox box, RenderObject frame, Rect bounds) {
     child = parent;
   }
   return visible;
-}
-
-Matrix4 _transformToFrame(RenderObject object, RenderObject frame) {
-  final transform = object.getTransformTo(frame);
-  if (frame is! RenderView) return transform;
-  final logicalTransform = frame.configuration.toMatrix();
-  if (logicalTransform.invert() == 0) {
-    throw const FormatException('The Flutter view transform is singular.');
-  }
-  return logicalTransform..multiply(transform);
-}
-
-/// Depth-first render order, retaining every drawn occurrence.
-Map<RenderObject, int> geometryDrawnOrder(RenderObject frame) {
-  final order = <RenderObject, int>{};
-  void visit(RenderObject node) {
-    order[node] = order.length;
-    node.visitChildren(visit);
-  }
-
-  visit(frame);
-  return order;
-}
-
-/// Resolves a component's render box without inserting a render object.
-final class GeometryRenderBoxBinding {
-  /// Starts observing the current descendant after each painted frame.
-  GeometryRenderBoxBinding({
-    required RenderObject? Function() renderObject,
-    required void Function(RenderBox? previous, RenderBox? next) onChanged,
-    void Function(RenderBox? box)? onFrame,
-    GeometryPostFrameScheduler schedulePostFrameCallback =
-        _defaultSchedulePostFrameCallback,
-  })  : _renderObject = renderObject,
-        _onChanged = onChanged,
-        _onFrame = onFrame,
-        _schedulePostFrameCallback = schedulePostFrameCallback {
-    _schedulePostFrameCallback(_resolve);
-  }
-
-  final RenderObject? Function() _renderObject;
-  final void Function(RenderBox? previous, RenderBox? next) _onChanged;
-  final void Function(RenderBox? box)? _onFrame;
-  final GeometryPostFrameScheduler _schedulePostFrameCallback;
-  RenderBox? _box;
-  bool _disposed = false;
-
-  void _resolve(Duration _) {
-    if (_disposed) return;
-    final candidate = _renderObject();
-    final next =
-        candidate is RenderBox && candidate.attached ? candidate : null;
-    if (!identical(next, _box)) {
-      final previous = _box;
-      _box = next;
-      _onChanged(previous, next);
-    }
-    _onFrame?.call(next);
-    if (!_disposed) _schedulePostFrameCallback(_resolve);
-  }
-
-  /// Unregisters the current box and stops observing future frames.
-  void dispose() {
-    if (_disposed) return;
-    _disposed = true;
-    final previous = _box;
-    _box = null;
-    if (previous != null) _onChanged(previous, null);
-  }
 }
 
 final class _Marker {

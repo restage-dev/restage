@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/src/render_host/render_core.dart';
+import 'package:restage_render_host/src/render_core.dart';
 
 void main() {
   group('DocumentPathCodec', () {

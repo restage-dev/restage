@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:restage/render_support.dart' show addBuiltInIconTable;
 import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
@@ -8,7 +9,6 @@ import 'package:restage_shared/restage_shared.dart'
         kPreviewInstrumentationRfwLibrary;
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
-import '../runtime/builtin_icon_table.dart' show addBuiltInIconTable;
 import 'protocol.dart';
 import 'geometry_registry.dart';
 import 'marker_library.dart';
