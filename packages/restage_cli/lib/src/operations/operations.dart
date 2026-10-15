@@ -384,8 +384,8 @@ final List<Operation> sharedOperations = [
     mcpDescription:
         'List the store products (SKUs) imported for an app, optionally '
         'filtered to one store. Each product carries its store, store '
-        'product id, display name, price, and the product slot it is mapped '
-        'to (if any).',
+        'product id, display name, and the product slot it is mapped '
+        'to (if any), with its kind.',
     scope: OperationScope.app,
     params: const [
       OperationParam(
@@ -414,7 +414,7 @@ final List<Operation> sharedOperations = [
         "Re-fetch a store's catalog and update the app's products (admin).",
     mcpDescription:
         "Re-fetch a store's product catalog and upsert each entry as a "
-        'product, refreshing prices and display names. Requires a verified '
+        'product, refreshing display names. Requires a verified '
         'store connection for that store and an admin role. Returns the '
         'upserted products.',
     scope: OperationScope.app,
@@ -444,9 +444,8 @@ final List<Operation> sharedOperations = [
     mcpName: 'restage_list_product_slots',
     description: "List an app's product slots.",
     mcpDescription:
-        'List the product slots for an app. A slot is the paywall-facing '
-        'handle for an entitlement; it owns the entitlement string that '
-        'purchasing a mapped product grants. (To see which store products '
+        'List the product slots for an app. A slot holds the entitlement a '
+        'mapped subscription grants. (To see which store products '
         'map to which slot, list products and read each product\'s product '
         'slot.)',
     scope: OperationScope.app,
@@ -469,7 +468,8 @@ final List<Operation> sharedOperations = [
         'product mapping (full replace): any store id you omit or pass as '
         'null is UNMAPPED from this slot. To keep an existing mapping you '
         'MUST pass its current product id — call restage_list_product_slots '
-        'and restage_list_products first to read the current mappings.',
+        'and restage_list_products first to read the current mappings. '
+        'Only an auto-renewable subscription can be mapped.',
     scope: OperationScope.app,
     params: const [
       OperationParam(
@@ -477,14 +477,14 @@ final List<Operation> sharedOperations = [
         cli: 'slot <name>',
         positional: true,
         required: true,
-        help: 'The slot name (the handle a paywall references).',
+        help: 'The slot name (the name surfaces reference).',
       ),
       OperationParam(
         'entitlement',
         cli: 'entitlement',
         required: true,
-        help: 'Entitlement that buying a mapped product grants (required).',
-        mcpHelp: 'The entitlement string purchasing a mapped product grants.',
+        help: 'Entitlement a mapped subscription grants (required).',
+        mcpHelp: 'The entitlement string a mapped subscription grants.',
       ),
       OperationParam(
         'iosProductId',
