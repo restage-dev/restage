@@ -118,6 +118,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               '{@template flutter.material.appbar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.',
+          displayLabel: 'Show back button',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -540,6 +541,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.decoration,
       description: 'An M3 filled card — flat surface tinted from the palette.',
+      displayLabel: 'Filled card',
       flutterType: 'package:flutter/src/material/card.dart#Card.filled',
       childrenSlot: ChildrenSlot.single,
       properties: [
@@ -621,6 +623,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.decoration,
       description: 'An M3 outlined card — transparent surface with a border.',
+      displayLabel: 'Outlined card',
       flutterType: 'package:flutter/src/material/card.dart#Card.outlined',
       childrenSlot: ChildrenSlot.single,
       properties: [
@@ -1663,6 +1666,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.action,
       description: 'An M3 secondary call-to-action button (tonal variant).',
+      displayLabel: 'Tonal button',
       flutterType:
           'package:flutter/src/material/filled_button.dart#FilledButton.tonal',
       childrenSlot: ChildrenSlot.single,
@@ -2035,6 +2039,7 @@ final Catalog kRegistry = Catalog(
           name: 'mini',
           type: PropertyType.boolean,
           description: 'Controls the size of this button.',
+          displayLabel: 'Small',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -2110,6 +2115,7 @@ final Catalog kRegistry = Catalog(
           name: 'iconCodepoint',
           type: PropertyType.integer,
           description: 'Material icon codepoint, e.g. 0xe145 for Icons.add.',
+          displayLabel: 'Icon',
           required: true,
           synthetic: 'iconData',
           positional: true,
@@ -2121,6 +2127,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'Icon font family the codepoint belongs to, e.g. CupertinoIcons. Defaults to the Material icon font when absent.',
+          displayLabel: 'Icon font',
           synthetic: 'iconFontFamily',
         ),
         PropertyEntry(
@@ -2129,6 +2136,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Selects the mirroring variant of a codepoint that has one — the glyph that flips in a right-to-left locale. Defaults to false.',
+          displayLabel: 'Mirror icon for RTL',
           synthetic: 'iconMatchTextDirection',
         ),
         PropertyEntry(
@@ -2521,6 +2529,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               'The fraction of the available height the sheet may occupy when [isScrollControlled] is `false`. Defaults to `9/16`.',
+          displayLabel: 'Max sheet height',
           defaultSource: LiteralDefault(0.5625),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
@@ -2805,6 +2814,7 @@ final Catalog kRegistry = Catalog(
       category: WidgetCategory.input,
       description:
           'A single-select radio group with selection behavior compiled into your app.',
+      displayLabel: 'Radio group',
       flutterType:
           'package:restage_material/src/widgets/restage_radio_group.dart#RestageRadioGroup<String>',
       childrenSlot: ChildrenSlot.none,
@@ -2857,6 +2867,7 @@ final Catalog kRegistry = Catalog(
       category: WidgetCategory.input,
       description:
           'A single-select dropdown with menu behavior compiled into your app.',
+      displayLabel: 'Dropdown',
       flutterType:
           'package:restage_material/src/widgets/restage_dropdown.dart#RestageDropdown<String>',
       childrenSlot: ChildrenSlot.none,
@@ -2958,6 +2969,7 @@ final Catalog kRegistry = Catalog(
       category: WidgetCategory.input,
       description:
           'A segmented button supporting single or multiple selections.',
+      displayLabel: 'Segmented button',
       flutterType:
           'package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>',
       childrenSlot: ChildrenSlot.none,
@@ -3001,6 +3013,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Whether more than one segment may be selected at once. Defaults to `false` (single-select — the dominant case).',
+          displayLabel: 'Multiple selection',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -3368,6 +3381,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.action,
       description: 'A secondary call-to-action button with a leading icon.',
+      displayLabel: 'Outlined button with icon',
       flutterType:
           'package:flutter/src/material/outlined_button.dart#OutlinedButton.icon',
       childrenSlot: ChildrenSlot.none,
@@ -3725,6 +3739,7 @@ final Catalog kRegistry = Catalog(
           name: 'min',
           type: PropertyType.real,
           description: 'The minimum value the user can select.',
+          displayLabel: 'Minimum',
           defaultSource: LiteralDefault(0.0),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
@@ -3736,6 +3751,7 @@ final Catalog kRegistry = Catalog(
           name: 'max',
           type: PropertyType.real,
           description: 'The maximum value the user can select.',
+          displayLabel: 'Maximum',
           defaultSource: LiteralDefault(1.0),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
@@ -4098,6 +4114,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.material,
       category: WidgetCategory.action,
       description: 'A low-emphasis text-only button with a leading icon.',
+      displayLabel: 'Text button with icon',
       flutterType:
           'package:flutter/src/material/text_button.dart#TextButton.icon',
       childrenSlot: ChildrenSlot.none,
@@ -4545,6 +4562,7 @@ final Catalog kRegistry = Catalog(
           name: 'obscureText',
           type: PropertyType.boolean,
           description: '{@macro flutter.widgets.editableText.obscureText}',
+          displayLabel: 'Hide text',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -4631,6 +4649,7 @@ final Catalog kRegistry = Catalog(
           name: 'prefixIconCodepoint',
           type: PropertyType.integer,
           description: 'Codepoint of the icon shown before the text.',
+          displayLabel: 'Prefix icon',
           synthetic: 'inputDecorationPrefixIcon',
         ),
         PropertyEntry(
@@ -4639,6 +4658,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'Icon font family the prefix codepoint belongs to. Defaults to the Material icon font when absent.',
+          displayLabel: 'Prefix icon font',
           synthetic: 'inputDecorationPrefixIconFontFamily',
         ),
         PropertyEntry(
@@ -4647,6 +4667,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Selects the mirroring variant of the prefix codepoint. Defaults to false.',
+          displayLabel: 'Mirror prefix icon for RTL',
           synthetic: 'inputDecorationPrefixIconMatchTextDirection',
         ),
         PropertyEntry(

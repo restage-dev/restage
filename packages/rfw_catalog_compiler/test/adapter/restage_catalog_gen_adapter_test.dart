@@ -67,6 +67,7 @@ void main() {
             category: PropertyCategory.style,
             priority: PropertyPriority.primary,
             requiresAncestor: 'Material',
+            displayLabel: 'Fill',
             validationRule: ValidationExpr(
               expression: r'matches("^#?[0-9a-fA-F]{6}$")',
               message: 'Color must be a 6-digit RGB value.',
@@ -200,6 +201,8 @@ void main() {
       expect(byName['color']!.category, PropertyCategory.style);
       expect(byName['color']!.priority, PropertyPriority.primary);
       expect(byName['color']!.requiresAncestor, 'Material');
+      expect(byName['color']!.displayLabel, 'Fill');
+      expect(byName['url']!.displayLabel, isNull);
       expect(
         byName['color']!.validationRule,
         const ValidationExpr(

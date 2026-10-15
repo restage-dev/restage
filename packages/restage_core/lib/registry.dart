@@ -592,6 +592,7 @@ final Catalog kRegistry = Catalog(
           name: 'softWrap',
           type: PropertyType.boolean,
           description: 'Whether the text should break at soft line breaks.',
+          displayLabel: 'Wrap text',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -629,6 +630,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description:
               'The strategy to use when calculating the width of the Text.',
+          displayLabel: 'Text width',
           enumType: 'TextWidthBasis',
           defaultSource: LiteralDefault('parent'),
           valueShape: EnumShape(
@@ -789,6 +791,7 @@ final Catalog kRegistry = Catalog(
           name: 'leadingDistribution',
           type: PropertyType.enumValue,
           description: 'How leading is distributed above and below text.',
+          displayLabel: 'Line height distribution',
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -1803,6 +1806,7 @@ final Catalog kRegistry = Catalog(
           name: 'blurSigmaX',
           type: PropertyType.real,
           description: 'Gaussian blur sigma along the X axis.',
+          displayLabel: 'Blur X',
           synthetic: 'imageFilterBlur',
         ),
         PropertyEntry(
@@ -1810,6 +1814,7 @@ final Catalog kRegistry = Catalog(
           name: 'blurSigmaY',
           type: PropertyType.real,
           description: 'Gaussian blur sigma along the Y axis.',
+          displayLabel: 'Blur Y',
           synthetic: 'imageFilterBlur',
         ),
         PropertyEntry(
@@ -1910,6 +1915,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.core,
       category: WidgetCategory.decoration,
       description: 'A widget that clips its child using a rounded rectangle.',
+      displayLabel: 'Rounded clip',
       flutterType: 'package:flutter/src/widgets/basic.dart#ClipRRect',
       childrenSlot: ChildrenSlot.single,
       properties: [
@@ -2670,6 +2676,7 @@ final Catalog kRegistry = Catalog(
           name: 'softWrap',
           type: PropertyType.boolean,
           description: 'Whether the text should break at soft line breaks.',
+          displayLabel: 'Wrap text',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -2707,6 +2714,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description:
               'The strategy to use when calculating the width of the Text.',
+          displayLabel: 'Text width',
           enumType: 'TextWidthBasis',
           defaultSource: LiteralDefault('parent'),
           valueShape: EnumShape(
@@ -2843,6 +2851,7 @@ final Catalog kRegistry = Catalog(
           name: 'leadingDistribution',
           type: PropertyType.enumValue,
           description: 'How leading is distributed above and below text.',
+          displayLabel: 'Line height distribution',
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3191,6 +3200,7 @@ final Catalog kRegistry = Catalog(
       category: WidgetCategory.decoration,
       description:
           'An image that shows a [placeholder] image while the target [image] is loading, then fades in the new image when it loads.',
+      displayLabel: 'Fade-in image',
       flutterType:
           'package:flutter/src/widgets/fade_in_image.dart#FadeInImage.assetNetwork',
       childrenSlot: ChildrenSlot.none,
@@ -3561,6 +3571,7 @@ final Catalog kRegistry = Catalog(
           name: 'semanticLabel',
           type: PropertyType.string,
           description: 'A Semantic description of the image.',
+          displayLabel: 'Accessibility label',
           constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
@@ -3686,6 +3697,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.core,
       category: WidgetCategory.decoration,
       description: 'A widget that displays an image.',
+      displayLabel: 'Asset image',
       flutterType: 'package:flutter/src/widgets/image.dart#Image.asset',
       childrenSlot: ChildrenSlot.none,
       properties: [
@@ -3707,6 +3719,7 @@ final Catalog kRegistry = Catalog(
           name: 'semanticLabel',
           type: PropertyType.string,
           description: 'A Semantic description of the image.',
+          displayLabel: 'Accessibility label',
           constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
@@ -4321,6 +4334,7 @@ final Catalog kRegistry = Catalog(
           name: 'leadingDistribution',
           type: PropertyType.enumValue,
           description: 'How leading is distributed above and below text.',
+          displayLabel: 'Line height distribution',
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -4958,6 +4972,7 @@ final Catalog kRegistry = Catalog(
           name: 'leadingDistribution',
           type: PropertyType.enumValue,
           description: 'How leading is distributed above and below text.',
+          displayLabel: 'Line height distribution',
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -5454,6 +5469,7 @@ final Catalog kRegistry = Catalog(
           name: 'offstage',
           type: PropertyType.boolean,
           description: 'Whether the child is hidden from the rest of the tree.',
+          displayLabel: 'Hidden',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -5839,6 +5855,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Specifies whether the [SafeArea] should maintain the bottom [MediaQueryData.viewPadding] instead of the bottom [MediaQueryData.padding], defaults to false.',
+          displayLabel: 'Keep bottom padding',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -6170,6 +6187,7 @@ final Catalog kRegistry = Catalog(
           name: 'softWrap',
           type: PropertyType.boolean,
           description: 'Whether the text should break at soft line breaks.',
+          displayLabel: 'Wrap text',
           constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -6194,6 +6212,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               '{@template flutter.widgets.Text.semanticsLabel} An alternative semantics label for this text.',
+          displayLabel: 'Accessibility label',
           constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
@@ -6206,6 +6225,7 @@ final Catalog kRegistry = Catalog(
           name: 'textWidthBasis',
           type: PropertyType.enumValue,
           description: '{@macro flutter.painting.textPainter.textWidthBasis}',
+          displayLabel: 'Text width',
           enumType: 'TextWidthBasis',
           constructorNullable: true,
           valueShape: EnumShape(
@@ -6338,6 +6358,7 @@ final Catalog kRegistry = Catalog(
           name: 'leadingDistribution',
           type: PropertyType.enumValue,
           description: 'How leading is distributed above and below text.',
+          displayLabel: 'Line height distribution',
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -6659,6 +6680,7 @@ final Catalog kRegistry = Catalog(
       category: WidgetCategory.decoration,
       description:
           'Rich text — a styled inline-span tree with optional styling.',
+      displayLabel: 'Rich text',
       flutterType: 'package:flutter/src/widgets/text.dart#Text.rich',
       childrenSlot: ChildrenSlot.none,
       properties: [
@@ -6688,6 +6710,7 @@ final Catalog kRegistry = Catalog(
           name: 'softWrap',
           type: PropertyType.boolean,
           description: 'Whether the text should break at soft line breaks.',
+          displayLabel: 'Wrap text',
           constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -6712,6 +6735,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               '{@template flutter.widgets.Text.semanticsLabel} An alternative semantics label for this text.',
+          displayLabel: 'Accessibility label',
           constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
@@ -6724,6 +6748,7 @@ final Catalog kRegistry = Catalog(
           name: 'textWidthBasis',
           type: PropertyType.enumValue,
           description: '{@macro flutter.painting.textPainter.textWidthBasis}',
+          displayLabel: 'Text width',
           enumType: 'TextWidthBasis',
           constructorNullable: true,
           valueShape: EnumShape(
@@ -6856,6 +6881,7 @@ final Catalog kRegistry = Catalog(
           name: 'leadingDistribution',
           type: PropertyType.enumValue,
           description: 'How leading is distributed above and below text.',
+          displayLabel: 'Line height distribution',
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -7177,6 +7203,7 @@ final Catalog kRegistry = Catalog(
       category: WidgetCategory.decoration,
       description:
           'A widget that applies a transformation before painting its child.',
+      displayLabel: 'Rotate',
       flutterType: 'package:flutter/src/widgets/basic.dart#Transform.rotate',
       childrenSlot: ChildrenSlot.single,
       properties: [
@@ -7225,6 +7252,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Whether to transform registered hits into the child\'s resulting coordinate system.',
+          displayLabel: 'Transform taps',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,

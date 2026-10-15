@@ -153,6 +153,7 @@ final class PropertyMetadataIR {
   /// Creates property metadata.
   const PropertyMetadataIR({
     this.mutuallyExclusiveWith,
+    this.displayLabel,
     this.requiresAncestor,
     this.category,
     this.priority,
@@ -164,6 +165,9 @@ final class PropertyMetadataIR {
 
   /// Properties on the same owner that this property excludes.
   final List<WireId>? mutuallyExclusiveWith;
+
+  /// Curated label for authoring tools, if one applies.
+  final String? displayLabel;
 
   /// Required ancestor label, if one applies.
   final String? requiresAncestor;

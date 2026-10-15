@@ -33,6 +33,7 @@ final class WidgetIR {
     this.sinceVersion = kBaselineCatalogVersion,
     this.deprecatedSince,
     this.deprecated,
+    this.displayLabel,
   });
 
   /// Stable widget wire identity.
@@ -55,6 +56,9 @@ final class WidgetIR {
 
   /// Human-readable description.
   final String description;
+
+  /// Curated label for authoring tools, if one applies.
+  final String? displayLabel;
 
   /// Property IR entries exposed by this widget.
   final List<PropertyIR> properties;

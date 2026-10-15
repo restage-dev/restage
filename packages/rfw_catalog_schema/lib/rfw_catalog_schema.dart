@@ -30,6 +30,7 @@ export 'src/default_value_source.dart';
 export 'src/deprecation_info.dart';
 export 'src/design_token.dart';
 export 'src/discriminator_spec.dart';
+export 'src/display_label.dart';
 export 'src/factory_variant.dart';
 export 'src/library_info.dart';
 export 'src/native_decompose.dart';

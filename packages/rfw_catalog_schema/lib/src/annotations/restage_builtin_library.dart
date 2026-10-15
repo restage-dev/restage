@@ -35,6 +35,7 @@ final class RestageBuiltinLibrary {
     required this.library,
     required this.version,
     this.minSchemaVersion = 1,
+    this.propertyLabels = const {},
   });
 
   /// Sibling library namespace this curation populates.
@@ -48,4 +49,8 @@ final class RestageBuiltinLibrary {
   /// Mirrors the `minSchemaVersion` field on `RestageWidget` and
   /// `RestageProperty` for parity across annotations.
   final int minSchemaVersion;
+
+  /// Display labels by property name, applied to every property with that
+  /// name unless its `PropertyOverride.displayLabel` sets one.
+  final Map<String, String> propertyLabels;
 }

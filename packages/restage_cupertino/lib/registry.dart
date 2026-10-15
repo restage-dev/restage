@@ -146,6 +146,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.cupertino,
       category: WidgetCategory.action,
       description: 'A filled Cupertino call-to-action button.',
+      displayLabel: 'Filled Cupertino button',
       flutterType:
           'package:flutter/src/cupertino/button.dart#CupertinoButton.filled',
       childrenSlot: ChildrenSlot.single,
@@ -270,6 +271,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.cupertino,
       category: WidgetCategory.layout,
       description: 'Inset-rounded variant of CupertinoListSection.',
+      displayLabel: 'Inset grouped list section',
       flutterType:
           'package:flutter/src/cupertino/list_section.dart#CupertinoListSection.insetGrouped',
       childrenSlot: ChildrenSlot.list,
@@ -416,6 +418,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               '{@template flutter.cupertino.CupertinoNavigationBar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.',
+          displayLabel: 'Show back button',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -428,6 +431,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Controls whether we should try to imply the middle widget if null.',
+          displayLabel: 'Show title',
           defaultSource: LiteralDefault(true),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -653,6 +657,7 @@ final Catalog kRegistry = Catalog(
           name: 'obscureText',
           type: PropertyType.boolean,
           description: '{@macro flutter.widgets.editableText.obscureText}',
+          displayLabel: 'Hide text',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -776,6 +781,7 @@ final Catalog kRegistry = Catalog(
           name: 'min',
           type: PropertyType.real,
           description: 'The minimum value the user can select.',
+          displayLabel: 'Minimum',
           defaultSource: LiteralDefault(0.0),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
@@ -787,6 +793,7 @@ final Catalog kRegistry = Catalog(
           name: 'max',
           type: PropertyType.real,
           description: 'The maximum value the user can select.',
+          displayLabel: 'Maximum',
           defaultSource: LiteralDefault(1.0),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
@@ -902,6 +909,7 @@ final Catalog kRegistry = Catalog(
           name: 'use24hFormat',
           type: PropertyType.boolean,
           description: 'Whether to use 24 hour format. Defaults to false.',
+          displayLabel: '24-hour time',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -1152,6 +1160,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               '{@macro flutter.rendering.RenderListWheelViewport.offAxisFraction}',
+          displayLabel: 'Wheel tilt',
           defaultSource: LiteralDefault(0.0),
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
@@ -1364,6 +1373,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'If true, the checkbox\'s [value] can be true, false, or null.',
+          displayLabel: 'Allow mixed state',
           defaultSource: LiteralDefault(false),
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -1409,6 +1419,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The semantic label for the checkbox that will be announced by screen readers.',
+          displayLabel: 'Accessibility label',
           constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(

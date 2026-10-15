@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import 'package:rfw_catalog_schema/src/decomposition_recipe.dart';
 import 'package:rfw_catalog_schema/src/deprecation_info.dart';
+import 'package:rfw_catalog_schema/src/display_label.dart';
 import 'package:rfw_catalog_schema/src/property_entry.dart';
 import 'package:rfw_catalog_schema/src/stability.dart';
 import 'package:rfw_catalog_schema/src/widget_library.dart';
@@ -54,6 +55,7 @@ final class WidgetEntry {
     required this.flutterType,
     required this.childrenSlot,
     required this.properties,
+    this.displayLabel,
     this.decomposes = const [],
     this.sinceVersion = kBaselineCatalogVersion,
     this.deprecatedSince,
@@ -84,6 +86,13 @@ final class WidgetEntry {
 
   /// Human-readable description.
   final String description;
+
+  /// Curated label for authoring tools. `null` derives one from [name].
+  final String? displayLabel;
+
+  /// The label authoring tools show: [displayLabel], or one derived from
+  /// [name] by [widgetLabel].
+  String get label => displayLabel ?? widgetLabel(name);
 
   /// Canonical type identifier in `'<package URI>#<class name>'` format —
   /// e.g. `'package:flutter/src/widgets/container.dart#Container'`.

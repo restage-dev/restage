@@ -119,6 +119,7 @@
           "name": "automaticallyImplyLeading",
           "type": "boolean",
           "description": "{@template flutter.material.appbar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.",
+          "displayLabel": "Show back button",
           "defaultSource": {
             "kind": "literal",
             "value": true
@@ -631,6 +632,7 @@
       "library": "restage.material",
       "category": "decoration",
       "description": "An M3 filled card — flat surface tinted from the palette.",
+      "displayLabel": "Filled card",
       "flutterType": "package:flutter/src/material/card.dart#Card.filled",
       "childrenSlot": "single",
       "properties": [
@@ -729,6 +731,7 @@
       "library": "restage.material",
       "category": "decoration",
       "description": "An M3 outlined card — transparent surface with a border.",
+      "displayLabel": "Outlined card",
       "flutterType": "package:flutter/src/material/card.dart#Card.outlined",
       "childrenSlot": "single",
       "properties": [
@@ -2032,6 +2035,7 @@
       "library": "restage.material",
       "category": "action",
       "description": "An M3 secondary call-to-action button (tonal variant).",
+      "displayLabel": "Tonal button",
       "flutterType": "package:flutter/src/material/filled_button.dart#FilledButton.tonal",
       "childrenSlot": "single",
       "properties": [
@@ -2507,6 +2511,7 @@
           "name": "mini",
           "type": "boolean",
           "description": "Controls the size of this button.",
+          "displayLabel": "Small",
           "defaultSource": {
             "kind": "literal",
             "value": false
@@ -2612,6 +2617,7 @@
           "name": "iconCodepoint",
           "type": "integer",
           "description": "Material icon codepoint, e.g. 0xe145 for Icons.add.",
+          "displayLabel": "Icon",
           "required": true,
           "synthetic": "iconData",
           "positional": true,
@@ -2622,6 +2628,7 @@
           "name": "iconFontFamily",
           "type": "string",
           "description": "Icon font family the codepoint belongs to, e.g. CupertinoIcons. Defaults to the Material icon font when absent.",
+          "displayLabel": "Icon font",
           "synthetic": "iconFontFamily"
         },
         {
@@ -2629,6 +2636,7 @@
           "name": "iconMatchTextDirection",
           "type": "boolean",
           "description": "Selects the mirroring variant of a codepoint that has one — the glyph that flips in a right-to-left locale. Defaults to false.",
+          "displayLabel": "Mirror icon for RTL",
           "synthetic": "iconMatchTextDirection"
         },
         {
@@ -3074,6 +3082,7 @@
           "name": "scrollControlDisabledMaxHeightRatio",
           "type": "real",
           "description": "The fraction of the available height the sheet may occupy when [isScrollControlled] is `false`. Defaults to `9/16`.",
+          "displayLabel": "Max sheet height",
           "defaultSource": {
             "kind": "literal",
             "value": 0.5625
@@ -3421,6 +3430,7 @@
       "library": "restage.material",
       "category": "input",
       "description": "A single-select radio group with selection behavior compiled into your app.",
+      "displayLabel": "Radio group",
       "flutterType": "package:restage_material/src/widgets/restage_radio_group.dart#RestageRadioGroup<String>",
       "childrenSlot": "none",
       "properties": [
@@ -3472,6 +3482,7 @@
       "library": "restage.material",
       "category": "input",
       "description": "A single-select dropdown with menu behavior compiled into your app.",
+      "displayLabel": "Dropdown",
       "flutterType": "package:restage_material/src/widgets/restage_dropdown.dart#RestageDropdown<String>",
       "childrenSlot": "none",
       "properties": [
@@ -3567,6 +3578,7 @@
       "library": "restage.material",
       "category": "input",
       "description": "A segmented button supporting single or multiple selections.",
+      "displayLabel": "Segmented button",
       "flutterType": "package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>",
       "childrenSlot": "none",
       "properties": [
@@ -3611,6 +3623,7 @@
           "name": "multiSelectionEnabled",
           "type": "boolean",
           "description": "Whether more than one segment may be selected at once. Defaults to `false` (single-select — the dominant case).",
+          "displayLabel": "Multiple selection",
           "defaultSource": {
             "kind": "literal",
             "value": false
@@ -4099,6 +4112,7 @@
       "library": "restage.material",
       "category": "action",
       "description": "A secondary call-to-action button with a leading icon.",
+      "displayLabel": "Outlined button with icon",
       "flutterType": "package:flutter/src/material/outlined_button.dart#OutlinedButton.icon",
       "childrenSlot": "none",
       "properties": [
@@ -4541,6 +4555,7 @@
           "name": "min",
           "type": "real",
           "description": "The minimum value the user can select.",
+          "displayLabel": "Minimum",
           "defaultSource": {
             "kind": "literal",
             "value": 0.0
@@ -4559,6 +4574,7 @@
           "name": "max",
           "type": "real",
           "description": "The maximum value the user can select.",
+          "displayLabel": "Maximum",
           "defaultSource": {
             "kind": "literal",
             "value": 1.0
@@ -5008,6 +5024,7 @@
       "library": "restage.material",
       "category": "action",
       "description": "A low-emphasis text-only button with a leading icon.",
+      "displayLabel": "Text button with icon",
       "flutterType": "package:flutter/src/material/text_button.dart#TextButton.icon",
       "childrenSlot": "none",
       "properties": [
@@ -5558,6 +5575,7 @@
           "name": "obscureText",
           "type": "boolean",
           "description": "{@macro flutter.widgets.editableText.obscureText}",
+          "displayLabel": "Hide text",
           "defaultSource": {
             "kind": "literal",
             "value": false
@@ -5668,6 +5686,7 @@
           "name": "prefixIconCodepoint",
           "type": "integer",
           "description": "Codepoint of the icon shown before the text.",
+          "displayLabel": "Prefix icon",
           "synthetic": "inputDecorationPrefixIcon"
         },
         {
@@ -5675,6 +5694,7 @@
           "name": "prefixIconFontFamily",
           "type": "string",
           "description": "Icon font family the prefix codepoint belongs to. Defaults to the Material icon font when absent.",
+          "displayLabel": "Prefix icon font",
           "synthetic": "inputDecorationPrefixIconFontFamily"
         },
         {
@@ -5682,6 +5702,7 @@
           "name": "prefixIconMatchTextDirection",
           "type": "boolean",
           "description": "Selects the mirroring variant of the prefix codepoint. Defaults to false.",
+          "displayLabel": "Mirror prefix icon for RTL",
           "synthetic": "inputDecorationPrefixIconMatchTextDirection"
         },
         {

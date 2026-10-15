@@ -29,6 +29,7 @@ import 'package:restage_material/src/widgets/restage_pager.dart';
 import 'package:restage_material/src/widgets/restage_radio_group.dart';
 import 'package:restage_material/src/widgets/restage_segmented_button.dart';
 import 'package:restage_material/src/widgets/restage_toggle_buttons.dart';
+import 'package:restage_core/registry_curation.dart' show kPropertyLabels;
 import 'package:restage_shared/restage_shared.dart';
 
 /// Constructor parameters every Material button shares
@@ -286,7 +287,11 @@ const _kSharedListTileExcludeParams = <String>[
 
 /// Curation list consumed by `BuiltinCurationBuilder` to emit
 /// `lib/registry.dart` and `lib/src/widget_catalog/catalog.json`.
-@RestageBuiltinLibrary(library: WidgetLibrary.material, version: '0.1.0')
+@RestageBuiltinLibrary(
+  library: WidgetLibrary.material,
+  version: '0.1.0',
+  propertyLabels: kPropertyLabels,
+)
 const List<BuiltinWidgetCuration> kCuration = [
   // `onPressed` is `VoidCallback?` on the Flutter ctor — passing null is
   // Flutter's convention for the disabled state. Unlike the elevated
@@ -401,6 +406,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // description would collapse to the parent class's text without an
   // override.
   BuiltinWidgetCuration<Card>(
+    displayLabel: 'Filled card',
     category: WidgetCategory.decoration,
     constructorName: 'filled',
     descriptionOverride:
@@ -420,6 +426,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     },
   ),
   BuiltinWidgetCuration<Card>(
+    displayLabel: 'Outlined card',
     category: WidgetCategory.decoration,
     constructorName: 'outlined',
     descriptionOverride:
@@ -690,6 +697,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // The factory constructor shares its dartdoc with the parent class, so
   // override here to keep the catalog entry distinct.
   BuiltinWidgetCuration<FilledButton>(
+    displayLabel: 'Tonal button',
     category: WidgetCategory.action,
     constructorName: 'tonal',
     descriptionOverride:
@@ -1091,6 +1099,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // is the first built-in stamped above the baseline content version
   // (`sinceVersion: 2`): it floors only the surfaces that use it.
   BuiltinWidgetCuration<RestageRadioGroup<String>>(
+    displayLabel: 'Radio group',
     category: WidgetCategory.input,
     nameOverride: 'RestageRadioGroupString',
     sinceVersion: 2,
@@ -1117,6 +1126,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // The optional styling parameters (`hint` / `isExpanded` / `elevation` /
   // `dropdownColor` / `borderRadius`) are excluded in this v1 cut.
   BuiltinWidgetCuration<RestageDropdown<String>>(
+    displayLabel: 'Dropdown',
     category: WidgetCategory.input,
     nameOverride: 'RestageDropdownString',
     sinceVersion: 2,
@@ -1184,6 +1194,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // follow-on. Shares the new content-version floor (`sinceVersion: 4`) with
   // this batch: it floors only the surfaces that use it.
   BuiltinWidgetCuration<RestageSegmentedButton<String>>(
+    displayLabel: 'Segmented button',
     category: WidgetCategory.input,
     nameOverride: 'RestageSegmentedButtonString',
     sinceVersion: 4,
@@ -1232,6 +1243,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `Widget?` (optional) but the paywall surface treats it as required.
   // The factory constructor shares its dartdoc with the parent class.
   BuiltinWidgetCuration<OutlinedButton>(
+    displayLabel: 'Outlined button with icon',
     category: WidgetCategory.action,
     constructorName: 'icon',
     descriptionOverride:
@@ -1445,6 +1457,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   // Same `OutlinedButton.icon`-style icon+label split — neither slot is
   // a canonical `child:`, so `childrenSlot` falls through to `none`.
   BuiltinWidgetCuration<TextButton>(
+    displayLabel: 'Text button with icon',
     category: WidgetCategory.action,
     constructorName: 'icon',
     descriptionOverride: 'A low-emphasis text-only button with a leading icon.',
