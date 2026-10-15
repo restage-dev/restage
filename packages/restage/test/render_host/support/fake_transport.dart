@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:restage_preview_host/restage_preview_host.dart';
+import 'package:restage/src/render_host/render_core.dart';
 
 final class SentMessage {
   const SentMessage(this.payload, this.targetOrigin);

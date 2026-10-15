@@ -11,7 +11,7 @@ import 'package:restage/restage.dart'
         WidgetLibrary,
         kReservedPreviewConstructorName,
         kReservedPreviewLibraryName;
-import 'package:restage_preview_host/restage_preview_host.dart';
+import 'package:restage/src/render_host/render_core.dart';
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
 void main() {

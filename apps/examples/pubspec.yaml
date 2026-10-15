@@ -27,12 +27,7 @@ dependencies:
   # to package a flow as a surface document and serve it from an in-app fake.
   restage_shared:
     path: ../../packages/restage_shared
-  # Used by `main_marketing_lumen.dart`.
-  restage_preview_host:
-    path: ../../packages/restage_preview_host
   http: ^1.2.0
-  # Used by `marketing_lumen_bridge.dart`.
-  web: ^1.1.1
 
 dev_dependencies:
   build_runner: ">=2.4.0 <3.0.0"
