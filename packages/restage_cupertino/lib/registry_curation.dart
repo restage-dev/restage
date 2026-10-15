@@ -17,6 +17,7 @@
 library;
 
 import 'package:flutter/cupertino.dart';
+import 'package:restage_core/registry_curation.dart' show kPropertyLabels;
 import 'package:restage_shared/restage_shared.dart';
 
 // Shared exclusion list for both `CupertinoButton` ctors. Hoisted so the
@@ -77,7 +78,11 @@ const _kCupertinoListSectionExcludes = [
 
 /// Curation list consumed by `BuiltinCurationBuilder` to emit
 /// `lib/registry.dart` and `lib/src/widget_catalog/catalog.json`.
-@RestageBuiltinLibrary(library: WidgetLibrary.cupertino, version: '0.1.0')
+@RestageBuiltinLibrary(
+  library: WidgetLibrary.cupertino,
+  version: '0.1.0',
+  propertyLabels: kPropertyLabels,
+)
 const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<CupertinoActivityIndicator>(
     category: WidgetCategory.decoration,
@@ -102,6 +107,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     synthetics: [_kCupertinoButtonDisabledSynthetic],
   ),
   BuiltinWidgetCuration<CupertinoButton>(
+    displayLabel: 'Filled Cupertino button',
     category: WidgetCategory.action,
     constructorName: 'filled',
     nameOverride: 'CupertinoButtonFilled',
@@ -118,6 +124,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: _kCupertinoListSectionExcludes,
   ),
   BuiltinWidgetCuration<CupertinoListSection>(
+    displayLabel: 'Inset grouped list section',
     category: WidgetCategory.layout,
     constructorName: 'insetGrouped',
     nameOverride: 'CupertinoListSectionInsetGrouped',

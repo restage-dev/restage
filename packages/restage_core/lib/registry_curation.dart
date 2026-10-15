@@ -33,7 +33,42 @@ import 'package:restage_shared/restage_shared.dart';
 
 /// Curation list consumed by `BuiltinCurationBuilder` to emit
 /// `lib/registry.dart` and `lib/src/widget_catalog/catalog.json`.
-@RestageBuiltinLibrary(library: WidgetLibrary.core, version: '0.1.0')
+/// Display labels for property names across the built-in libraries.
+const Map<String, String> kPropertyLabels = {
+  'use24hFormat': '24-hour time',
+  'blurSigmaX': 'Blur X',
+  'blurSigmaY': 'Blur Y',
+  'softWrap': 'Wrap text',
+  'automaticallyImplyLeading': 'Show back button',
+  'automaticallyImplyMiddle': 'Show title',
+  'leadingDistribution': 'Line height distribution',
+  'textWidthBasis': 'Text width',
+  'maintainBottomViewPadding': 'Keep bottom padding',
+  'transformHitTests': 'Transform taps',
+  'offAxisFraction': 'Wheel tilt',
+  'multiSelectionEnabled': 'Multiple selection',
+  'scrollControlDisabledMaxHeightRatio': 'Max sheet height',
+  'obscureText': 'Hide text',
+  'tristate': 'Allow mixed state',
+  'mini': 'Small',
+  'min': 'Minimum',
+  'max': 'Maximum',
+  'offstage': 'Hidden',
+  'semanticLabel': 'Accessibility label',
+  'semanticsLabel': 'Accessibility label',
+  'iconCodepoint': 'Icon',
+  'prefixIconCodepoint': 'Prefix icon',
+  'iconFontFamily': 'Icon font',
+  'prefixIconFontFamily': 'Prefix icon font',
+  'iconMatchTextDirection': 'Mirror icon for RTL',
+  'prefixIconMatchTextDirection': 'Mirror prefix icon for RTL',
+};
+
+@RestageBuiltinLibrary(
+  library: WidgetLibrary.core,
+  version: '0.1.0',
+  propertyLabels: kPropertyLabels,
+)
 const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<Align>(
     category: WidgetCategory.layout,
@@ -182,6 +217,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: ['clipper'],
   ),
   BuiltinWidgetCuration<ClipRRect>(
+    displayLabel: 'Rounded clip',
     category: WidgetCategory.decoration,
     // The reflector can't decompose `borderRadius: BorderRadiusGeometry`
     // directly. The synthetic below surfaces a uniform-corner radius as
@@ -276,6 +312,7 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<Expanded>(category: WidgetCategory.layout),
   BuiltinWidgetCuration<FadeInImage>(
+    displayLabel: 'Fade-in image',
     category: WidgetCategory.decoration,
     // The default `FadeInImage(placeholder: ImageProvider, image:
     // ImageProvider)` constructor needs an `ImageProvider`-from-String
@@ -419,6 +456,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     },
   ),
   BuiltinWidgetCuration<Image>(
+    displayLabel: 'Asset image',
     category: WidgetCategory.decoration,
     constructorName: 'asset',
     // Asset variant adds `bundle` + `package` on top of the shared
@@ -694,6 +732,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     nativeDecomposes: [kTextStyleNativeDecompose],
   ),
   BuiltinWidgetCuration<Text>(
+    displayLabel: 'Rich text',
     category: WidgetCategory.decoration,
     // The `Text.rich` named constructor takes a positional `InlineSpan`
     // tree (a `TextSpan` root carrying styled `text` and nested
@@ -733,6 +772,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     nativeDecomposes: [kTextStyleNativeDecompose],
   ),
   BuiltinWidgetCuration<Transform>(
+    displayLabel: 'Rotate',
     category: WidgetCategory.decoration,
     // Default `Transform(transform: Matrix4)` requires a structured
     // `Matrix4` the catalog doesn't decompose. Ship the rotation

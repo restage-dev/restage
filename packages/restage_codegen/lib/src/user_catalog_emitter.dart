@@ -268,8 +268,11 @@ void _writeWidgetEntry(
   } else {
     buf.writeln('$indent  category: null,');
   }
+  buf.writeln('$indent  description: ${_escapeDart(w.description)},');
+  if (w.displayLabel != null) {
+    buf.writeln('$indent  displayLabel: ${_escapeDart(w.displayLabel!)},');
+  }
   buf
-    ..writeln('$indent  description: ${_escapeDart(w.description)},')
     ..writeln('$indent  flutterType: ${_escapeDart(w.flutterType)},')
     ..writeln('$indent  childrenSlot: ChildrenSlot.${w.childrenSlot.name},')
     ..writeln('$indent  properties: [');
@@ -312,6 +315,9 @@ void _writePropertyEntry(
     ..writeln('$indent  name: ${_escapeDart(p.name)},')
     ..writeln('$indent  type: PropertyType.${p.type.name},')
     ..writeln('$indent  description: ${_escapeDart(p.description)},');
+  if (p.displayLabel != null) {
+    buf.writeln('$indent  displayLabel: ${_escapeDart(p.displayLabel!)},');
+  }
   if (p.required) buf.writeln('$indent  required: true,');
   if (p.defaultBrandToken != null) {
     buf.writeln(

@@ -5,6 +5,42 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('widget displayLabel round-trips and is omitted when unset', () {
+    final plain = encodeCatalog(_nativeCatalog());
+    expect(plain, isNot(contains('displayLabel')));
+    final wire = jsonDecode(plain) as Map<String, dynamic>;
+    ((wire['widgets'] as List).single as Map<String, dynamic>)['displayLabel'] =
+        'Box';
+    final decoded = decodeCatalog(jsonEncode(wire));
+    expect(decoded.widgets.single.displayLabel, 'Box');
+    expect(encodeCatalog(decoded), contains('"displayLabel": "Box"'));
+  });
+
+  test('displayLabel round-trips and is omitted when unset', () {
+    final curated = PropertyEntry(
+      wireId: WireId('p0901'),
+      name: 'softWrap',
+      type: PropertyType.boolean,
+      description: 'Whether text wraps.',
+      displayLabel: 'Wrap text',
+    );
+    final derived = PropertyEntry(
+      wireId: WireId('p0902'),
+      name: 'maxLines',
+      type: PropertyType.integer,
+      description: 'Line limit.',
+    );
+    final wire =
+        encodeCatalog(_nativeCatalog(extraProperties: [curated, derived]));
+    final byName = {
+      for (final property in decodeCatalog(wire).widgets.single.properties)
+        property.name: property,
+    };
+    expect(byName['softWrap']!.displayLabel, 'Wrap text');
+    expect(byName['maxLines']!.displayLabel, isNull);
+    expect(RegExp('displayLabel').allMatches(wire), hasLength(1));
+  });
+
   group('native decompose codec', () {
     test('v5 omits and round-trips an absent custom widget category', () {
       final catalog = _nativeCatalog(category: null);

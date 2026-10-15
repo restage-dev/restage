@@ -1455,6 +1455,7 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
       'library': w.library.namespace,
       if (w.category != null) 'category': w.category!.name,
       'description': w.description,
+      if (w.displayLabel != null) 'displayLabel': w.displayLabel,
       'flutterType': w.flutterType,
       'childrenSlot': w.childrenSlot.name,
       'properties': w.properties.map(_propertyToJson).toList(),
@@ -1479,6 +1480,7 @@ Map<String, dynamic> _propertyToJson(PropertyEntry p) {
     'name': p.name,
     'type': p.type.name,
     'description': p.description,
+    if (p.displayLabel != null) 'displayLabel': p.displayLabel,
     if (p.required) 'required': true,
     if (p.synthetic != null) 'synthetic': p.synthetic,
     if (p.positional) 'positional': true,
@@ -2690,6 +2692,7 @@ WidgetEntry _widgetFromJson(
             widgetPath,
           ),
     description: _requiredString(j, 'description', widgetPath),
+    displayLabel: _optionalString(j, 'displayLabel', widgetPath),
     flutterType: _requiredString(j, 'flutterType', widgetPath),
     childrenSlot: _enumFromName(
       ChildrenSlot.values,
@@ -3088,6 +3091,7 @@ PropertyEntry _propertyFromJson(
         ) ??
         PropertyType.unknown,
     description: _requiredString(j, 'description', path),
+    displayLabel: _optionalString(j, 'displayLabel', path),
     required: _optionalBool(j, 'required', path),
     synthetic: _optionalString(j, 'synthetic', path),
     positional: _optionalBool(j, 'positional', path),

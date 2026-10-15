@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 import 'package:rfw_catalog_schema/src/dart_const_value.dart';
 import 'package:rfw_catalog_schema/src/default_value_source.dart';
 import 'package:rfw_catalog_schema/src/deprecation_info.dart';
+import 'package:rfw_catalog_schema/src/display_label.dart';
 import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
@@ -33,6 +34,7 @@ final class PropertyEntry {
     required this.name,
     required this.type,
     required this.description,
+    this.displayLabel,
     this.required = false,
     this.defaultBrandToken,
     this.synthetic,
@@ -68,6 +70,13 @@ final class PropertyEntry {
 
   /// Human-readable description (from `@RestageProperty.description`).
   final String description;
+
+  /// Curated label for authoring tools. `null` derives one from [name].
+  final String? displayLabel;
+
+  /// The label authoring tools show: [displayLabel], or one derived from
+  /// [name] by [identifierLabel].
+  String get label => displayLabel ?? identifierLabel(name);
 
   /// Whether the property is required at construction.
   final bool required;

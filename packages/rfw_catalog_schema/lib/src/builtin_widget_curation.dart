@@ -68,6 +68,7 @@ final class BuiltinWidgetCuration<T extends Object> {
     this.constructorName,
     this.nameOverride,
     this.descriptionOverride,
+    this.displayLabel,
     this.childrenSlot,
     this.deprecatedSince,
     this.minSchemaVersion = 1,
@@ -98,6 +99,10 @@ final class BuiltinWidgetCuration<T extends Object> {
   /// Overrides the dartdoc-derived description. `null` keeps the
   /// inferred dartdoc description.
   final String? descriptionOverride;
+
+  /// [WidgetEntry.displayLabel] for authoring tools. `null` keeps the label
+  /// derived from the widget name.
+  final String? displayLabel;
 
   /// Overrides the inferred [ChildrenSlot]. `null` infers from the
   /// constructor — a `child:` parameter selects [ChildrenSlot.single],
@@ -395,6 +400,7 @@ final class PropertyOverride {
     this.name,
     this.type,
     this.description,
+    this.displayLabel,
     this.required,
     this.defaultValue,
     this.defaultBrandToken,
@@ -439,6 +445,10 @@ final class PropertyOverride {
   /// Replacement [PropertyEntry.description]. `null` keeps the
   /// dartdoc-derived description.
   final String? description;
+
+  /// [PropertyEntry.displayLabel] for authoring tools. `null` keeps the
+  /// label derived from the property name.
+  final String? displayLabel;
 
   /// Replacement [PropertyEntry.required]. `null` keeps the value
   /// derived from the parameter's required-ness.

@@ -192,6 +192,7 @@ final class RestageCatalogGenAdapter {
       library: widget.library,
       category: category,
       description: widget.description,
+      displayLabel: widget.displayLabel,
       properties: [
         for (final property in widget.properties)
           _propertyToIr(widget, property),
@@ -235,6 +236,7 @@ final class RestageCatalogGenAdapter {
       legacyDefaultBrandToken: property.defaultBrandToken,
       metadata: PropertyMetadataIR(
         mutuallyExclusiveWith: property.mutuallyExclusiveWith,
+        displayLabel: property.displayLabel,
         requiresAncestor: property.requiresAncestor,
         category: property.category,
         priority: property.priority,

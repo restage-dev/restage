@@ -159,6 +159,7 @@
       "library": "restage.cupertino",
       "category": "action",
       "description": "A filled Cupertino call-to-action button.",
+      "displayLabel": "Filled Cupertino button",
       "flutterType": "package:flutter/src/cupertino/button.dart#CupertinoButton.filled",
       "childrenSlot": "single",
       "properties": [
@@ -293,6 +294,7 @@
       "library": "restage.cupertino",
       "category": "layout",
       "description": "Inset-rounded variant of CupertinoListSection.",
+      "displayLabel": "Inset grouped list section",
       "flutterType": "package:flutter/src/cupertino/list_section.dart#CupertinoListSection.insetGrouped",
       "childrenSlot": "list",
       "properties": [
@@ -437,6 +439,7 @@
           "name": "automaticallyImplyLeading",
           "type": "boolean",
           "description": "{@template flutter.cupertino.CupertinoNavigationBar.automaticallyImplyLeading} Controls whether we should try to imply the leading widget if null.",
+          "displayLabel": "Show back button",
           "defaultSource": {
             "kind": "literal",
             "value": true
@@ -455,6 +458,7 @@
           "name": "automaticallyImplyMiddle",
           "type": "boolean",
           "description": "Controls whether we should try to imply the middle widget if null.",
+          "displayLabel": "Show title",
           "defaultSource": {
             "kind": "literal",
             "value": true
@@ -719,6 +723,7 @@
           "name": "obscureText",
           "type": "boolean",
           "description": "{@macro flutter.widgets.editableText.obscureText}",
+          "displayLabel": "Hide text",
           "defaultSource": {
             "kind": "literal",
             "value": false
@@ -870,6 +875,7 @@
           "name": "min",
           "type": "real",
           "description": "The minimum value the user can select.",
+          "displayLabel": "Minimum",
           "defaultSource": {
             "kind": "literal",
             "value": 0.0
@@ -888,6 +894,7 @@
           "name": "max",
           "type": "real",
           "description": "The maximum value the user can select.",
+          "displayLabel": "Maximum",
           "defaultSource": {
             "kind": "literal",
             "value": 1.0
@@ -1034,6 +1041,7 @@
           "name": "use24hFormat",
           "type": "boolean",
           "description": "Whether to use 24 hour format. Defaults to false.",
+          "displayLabel": "24-hour time",
           "defaultSource": {
             "kind": "literal",
             "value": false
@@ -1364,6 +1372,7 @@
           "name": "offAxisFraction",
           "type": "real",
           "description": "{@macro flutter.rendering.RenderListWheelViewport.offAxisFraction}",
+          "displayLabel": "Wheel tilt",
           "defaultSource": {
             "kind": "literal",
             "value": 0.0
@@ -1628,6 +1637,7 @@
           "name": "tristate",
           "type": "boolean",
           "description": "If true, the checkbox's [value] can be true, false, or null.",
+          "displayLabel": "Allow mixed state",
           "defaultSource": {
             "kind": "literal",
             "value": false
@@ -1685,6 +1695,7 @@
           "name": "semanticLabel",
           "type": "string",
           "description": "The semantic label for the checkbox that will be announced by screen readers.",
+          "displayLabel": "Accessibility label",
           "constructorNullable": true,
           "category": "accessibility",
           "valueShape": {
