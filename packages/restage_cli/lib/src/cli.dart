@@ -20,19 +20,18 @@ import 'package:restage_cli/src/commands/init_command.dart';
 import 'package:restage_cli/src/commands/login_command.dart';
 import 'package:restage_cli/src/commands/logout_command.dart';
 import 'package:restage_cli/src/commands/paywall_command.dart';
-import 'package:restage_cli/src/commands/preview_command.dart';
 import 'package:restage_cli/src/commands/programmatic_mutation_command.dart';
 import 'package:restage_cli/src/commands/spec_command.dart';
 import 'package:restage_cli/src/commands/status_command.dart';
 import 'package:restage_cli/src/commands/surface_command.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
+import 'package:restage_cli/src/api/default_endpoint.dart';
 import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
-import 'package:restage_cli/src/preview/binary_discovery.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
@@ -41,14 +40,6 @@ import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_repository.dart';
 import 'package:restage_cli/src/tui/restage_tui.dart';
-
-/// Backend origin baked in at build time via `--define`. Falls back to
-/// localhost for local development; production builds inject the
-/// deployment URL.
-const _defaultEndpointFromBuild = String.fromEnvironment(
-  'RESTAGE_DEFAULT_ENDPOINT',
-  defaultValue: 'http://localhost:8080/',
-);
 
 /// Top-level entry for the `restage` binary.
 ///
@@ -79,8 +70,6 @@ class RestageCli {
     Future<void> Function(Duration)? sleep,
     Future<void> Function(String)? openBrowser,
     Interactive Function(ArgResults globalResults)? interactiveFactory,
-    PreviewBinaryLocator? previewBinaryLocator,
-    PreviewLauncher? previewLauncher,
     bool Function()? hasTerminal,
     ConsoleLauncher? consoleLauncher,
     ConsoleController Function(io.Directory? directory)?
@@ -102,14 +91,11 @@ class RestageCli {
        _selectorSyntax = selectorSyntax,
        _stderr = stderr ?? StringBuffer(),
        _credentialStore = credentialStore,
-       _defaultEndpoint =
-           defaultEndpoint ?? Uri.parse(_defaultEndpointFromBuild),
+       _defaultEndpoint = defaultEndpoint ?? Uri.parse(defaultRestageEndpoint),
        _httpClient = httpClient,
        _sleep = sleep,
        _openBrowser = openBrowser,
        _interactiveFactory = interactiveFactory ?? _defaultInteractiveFactory,
-       _previewBinaryLocator = previewBinaryLocator ?? _defaultPreviewLocator,
-       _previewLauncher = previewLauncher ?? _defaultPreviewLauncher,
        _hasTerminal = hasTerminal ?? stdioHasTerminal,
        _consoleLauncher = consoleLauncher ?? runRestageConsole,
        _renderBundleBuilder = renderBundleBuilder,
@@ -146,8 +132,6 @@ class RestageCli {
   final Future<void> Function(Duration)? _sleep;
   final Future<void> Function(String)? _openBrowser;
   final Interactive Function(ArgResults globalResults) _interactiveFactory;
-  final PreviewBinaryLocator _previewBinaryLocator;
-  final PreviewLauncher _previewLauncher;
   final bool Function() _hasTerminal;
   final ConsoleLauncher _consoleLauncher;
   final ConsoleController Function(io.Directory? directory)
@@ -390,14 +374,6 @@ class RestageCli {
           httpClient: _httpClient,
           environment: _environment,
         ),
-      )
-      ..addCommand(
-        PreviewCommand(
-          stdout: _stdout,
-          stderr: _stderr,
-          locator: _previewBinaryLocator,
-          launcher: _previewLauncher,
-        ),
       );
     operationCommands(
       CommandIo(
@@ -542,32 +518,4 @@ Interactive _defaultInteractiveFactory(ArgResults globalResults) {
     readLine: () async => io.stdin.readLineSync(),
     stdout: io.stdout,
   );
-}
-
-/// Default preview binary locator. Wraps the [locateRestagePreviewBinary]
-/// helper, supplying the process's real environment / platform.
-String? _defaultPreviewLocator({
-  Map<String, String>? environment,
-  bool? isWindows,
-}) =>
-    locateRestagePreviewBinary(environment: environment, isWindows: isWindows);
-
-/// Default preview launcher.
-///
-/// Spawns [binary] detached so the wrapper exits immediately while the
-/// desktop window stays open. The blob path is forwarded as the
-/// `RESTAGE_PREVIEW_BLOB` environment variable; the preview app reads
-/// this at runtime as a fallback to the compile-time
-/// `String.fromEnvironment('RESTAGE_PREVIEW_BLOB')` value.
-Future<int> _defaultPreviewLauncher({
-  required String binary,
-  required String blobPath,
-}) async {
-  await io.Process.start(
-    binary,
-    const <String>[],
-    mode: io.ProcessStartMode.detachedWithStdio,
-    environment: {...io.Platform.environment, 'RESTAGE_PREVIEW_BLOB': blobPath},
-  );
-  return 0;
 }

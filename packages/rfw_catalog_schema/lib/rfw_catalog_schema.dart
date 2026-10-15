@@ -13,7 +13,6 @@ export 'src/annotations/restage_data_field.dart';
 export 'src/annotations/restage_factory_variant.dart';
 export 'src/annotations/restage_library.dart';
 export 'src/annotations/restage_property.dart';
-export 'src/annotations/restage_property_preview.dart';
 export 'src/annotations/restage_structured_type.dart';
 export 'src/annotations/restage_union_variant.dart';
 export 'src/annotations/restage_widget.dart';

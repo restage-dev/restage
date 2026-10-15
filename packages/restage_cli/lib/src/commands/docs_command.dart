@@ -53,16 +53,10 @@ abstract class _DocsLeaf extends Command<int> {
   final Map<String, String>? environment;
 
   Future<int> withClient(Future<int> Function(DocsClient docs) body) async {
-    final DocsClient docs;
-    try {
-      docs = DocsClient.fromEnvironment(
-        environment ?? io.Platform.environment,
-        httpClient: httpClient,
-      );
-    } on DocsException catch (error) {
-      stderr.writeln(error.message);
-      return 1;
-    }
+    final docs = DocsClient.fromEnvironment(
+      environment ?? io.Platform.environment,
+      httpClient: httpClient,
+    );
     try {
       return await body(docs);
     } on DocsException catch (error) {

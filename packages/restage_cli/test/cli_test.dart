@@ -306,7 +306,7 @@ void main() {
       final code = await RestageCli(
         stderr: stderr,
         hasTerminal: () => false,
-      ).run(['-C', '/nonexistent', 'preview', '--help']);
+      ).run(['-C', '/nonexistent', 'docs', '--help']);
 
       expect(code, 0, reason: stderr.toString());
     });

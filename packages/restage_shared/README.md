@@ -60,9 +60,6 @@ mounting and the CLI/MCP tools manage delivery plans.
 
 - **`package:restage_shared/meter.dart`**: converts signed money amounts to
   USD micros. Dart VM only; it does not compile to JavaScript.
-- **`package:restage_shared/legacy_analytics.dart`**: the older analytics
-  event format. It will be removed; new code uses
-  [`restage_measurement_schema`](https://pub.dev/packages/restage_measurement_schema).
 
 ## Vendored: `lib/src/rfw_formats/`
 

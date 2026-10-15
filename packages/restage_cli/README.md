@@ -148,8 +148,7 @@ prompts. A required value with no default then exits non-zero with a
 
 Commands that change what the live plane serves ask first. `surface publish`,
 `surface freeze`, `surface unfreeze`, `surface routing publish` and
-`rollback`, `experiment activate`, `pause`, `resume`, `conclude`, and
-`rebuild-serving-records` (except `--readiness-only`), `mutation`, and
+`rollback`, `experiment activate`, `pause`, `resume`, `conclude`, `mutation`, and
 `experiment-activation` take `--yes` as consent. `surface kill` and `surface rollback`
 refuse `--yes` on the live plane and need an interactive confirmation. On a
 sandbox target the first group does not ask, and kill and rollback accept
@@ -446,7 +445,7 @@ key. Reuse the same explicit `--idempotency-key` when retrying an operation.
 
 The low-level `mutation` and `experiment-activation` commands still need
 `RESTAGE_EXPERIMENTAL=1`. Normal `restage experiment`
-commands, including `rebuild-serving-records`, do not need it.
+commands do not need it.
 
 ## Generated files
 
