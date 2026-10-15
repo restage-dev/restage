@@ -52,7 +52,6 @@ class ExperimentCommand extends Command<int> {
       _RegisterBuildCommand.new,
       _ReadinessCommand.new,
       _DeliveryOptionsCommand.new,
-      _RebuildServingRecordsCommand.new,
     ]) {
       addSubcommand(build(context));
     }
@@ -134,14 +133,6 @@ abstract class _ExperimentSubcommand extends Command<int> {
   /// Whether this operation changes live state and needs live confirmation.
   bool get changesLiveState => kLiveExperimentOperations.contains(operation);
 
-  /// Runs an operator call instead of a semantic operation. Null when this
-  /// subcommand names one.
-  Future<int>? operatorCall({
-    required RestageApi transport,
-    required TargetCoordinate target,
-    required bool asJson,
-  }) => null;
-
   /// Runs a drain instead of one request. Null when the operation is single.
   Future<ExperimentPageDrain<Object?>>? drain(
     ExperimentApi api,
@@ -218,13 +209,6 @@ abstract class _ExperimentSubcommand extends Command<int> {
     }
 
     try {
-      final operatorRun = operatorCall(
-        transport: transport,
-        target: target,
-        asJson: asJson,
-      );
-      if (operatorRun != null) return await operatorRun;
-
       final drained = drain(
         api,
         target,
@@ -1333,120 +1317,3 @@ Object? _drainJson(Object? value) => switch (value) {
 };
 
 String _newIdentity(String prefix) => newExperimentIdentity(prefix);
-
-/// Produces the serving records a target lacks, or counts what is missing.
-class _RebuildServingRecordsCommand extends _ExperimentSubcommand
-    implements LiveGuardedCommand {
-  _RebuildServingRecordsCommand(super.context);
-
-  @override
-  String get name => 'rebuild-serving-records';
-
-  @override
-  String get description =>
-      'Produce the serving records this target lacks and report what is '
-      'left. Exits non-zero while any experiment is still missing one.';
-
-  @override
-  ExperimentAuthoringOperationV1? get operation => null;
-
-  @override
-  void addOptions(ArgParser parser) {
-    parser.addFlag(
-      'readiness-only',
-      negatable: false,
-      help:
-          'Inspect what is missing without producing anything. This does not '
-          're-prove sources, so only the full rebuild is the deploy readiness '
-          'gate.',
-    );
-  }
-
-  @override
-  Map<String, Object?>? buildPayload(TargetCoordinate target) => const {};
-
-  bool get _readinessOnly => argResults?['readiness-only'] as bool? ?? false;
-
-  @override
-  bool get changesLiveState => !_readinessOnly;
-
-  @override
-  Future<int>? operatorCall({
-    required RestageApi transport,
-    required TargetCoordinate target,
-    required bool asJson,
-  }) => _run(transport: transport, target: target, asJson: asJson);
-
-  Future<int> _run({
-    required RestageApi transport,
-    required TargetCoordinate target,
-    required bool asJson,
-  }) async {
-    final response = await transport.call(
-      'experimentActivation',
-      'rebuildServingRecords',
-      <String, dynamic>{
-        'organizationId': target.organizationId.value,
-        'appId': target.appId.value,
-        'environmentTargetId': target.environmentTargetId.value,
-        'namedEnvironmentId': target.namedEnvironmentId.value,
-        'runtimePlane': target.runtimePlane.wireName,
-        'readinessOnly': _readinessOnly,
-      },
-    );
-    final Map<String, Object?> readiness;
-    try {
-      readiness = jsonDecode(response as String) as Map<String, Object?>;
-    } on Object {
-      _stderr.writeln('The service returned an invalid readiness report.');
-      return 2;
-    }
-    if (asJson) {
-      _stdout.writeln(jsonEncode(readiness));
-    } else {
-      _stdout.writeln(_render(readiness));
-    }
-    return (readiness['ready'] as bool? ?? false) ? 0 : 1;
-  }
-
-  String _render(Map<String, Object?> readiness) {
-    final surfaces = (readiness['surfaces'] as List<Object?>? ?? const [])
-        .cast<Map<String, Object?>>();
-    final unrecoverable =
-        (readiness['unrecoverable'] as List<Object?>? ?? const [])
-            .cast<Map<String, Object?>>();
-    // A readiness read answers whether records are present, never whether
-    // their sources still say what the records say. Saying only "ready" would
-    // read as the stronger verdict it is not.
-    final reproven = readiness['sourcesReproven'] == true;
-    final present = readiness['ready'] == true;
-    var nominated = 0;
-    for (final surface in surfaces) {
-      nominated += surface['nominated']! as int;
-    }
-    final lines = <String>[
-      if (reproven)
-        present
-            ? 'Ready: every nominated experiment holds a current record and '
-                  'its sources re-prove it.'
-            : 'Not ready: see what is missing or unprovable below.'
-      else
-        '${readiness['missing']} of $nominated nominated experiments hold no '
-            'current record. Records present; sources not re-proven — run '
-            'rebuild.',
-      'Produced ${readiness['produced']}, superseded '
-          '${readiness['superseded'] ?? 0}.',
-      for (final entry in unrecoverable)
-        '  Unprovable: ${entry['experimentId']} (${entry['reason']}).',
-    ];
-    for (final surface in surfaces) {
-      lines.add(
-        '  ${surface['surfaceType']}/${surface['surfaceSlug']}: '
-        '${surface['nominated']} nominated, ${surface['missing']} missing, '
-        '${surface['produced']} produced, '
-        '${surface['superseded'] ?? 0} superseded.',
-      );
-    }
-    return lines.join('\n');
-  }
-}

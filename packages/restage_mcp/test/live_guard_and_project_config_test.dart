@@ -212,67 +212,6 @@ void main() {
   });
 
   group('experiment changes', () {
-    Map<String, Object?> exactTarget(String plane) => {
-      'organizationId': 7,
-      'projectSlug': 'demo',
-      'appSlug': 'mobile',
-      'environmentSlug': 'production',
-      'environmentTargetId': plane == 'live' ? 44 : 43,
-      'runtimePlane': plane,
-    };
-
-    test('a full serving-record rebuild on live needs confirmLive; the '
-        'readiness read does not', () async {
-      final calls = <BackendCall>[];
-      final connection = await connect(
-        calls,
-        (_) async => http.Response(
-          jsonEncode(
-            jsonEncode({'produced': 0, 'missing': 0, 'sourcesReproven': true}),
-          ),
-          200,
-        ),
-      );
-
-      final rebuild = await connection.callTool(
-        CallToolRequest(
-          name: 'restage_rebuild_serving_records',
-          arguments: exactTarget('live'),
-        ),
-      );
-      expect(_text(rebuild), _liveRefusal);
-      expect(
-        calls.map((call) => call.method),
-        isNot(contains('rebuildServingRecords')),
-      );
-
-      final readiness = await connection.callTool(
-        CallToolRequest(
-          name: 'restage_rebuild_serving_records',
-          arguments: {...exactTarget('live'), 'readinessOnly': true},
-        ),
-      );
-      expect(readiness.isError, isNot(true), reason: _text(readiness));
-      expect(
-        calls.map((call) => call.method),
-        contains('rebuildServingRecords'),
-      );
-
-      final confirmed = await connection.callTool(
-        CallToolRequest(
-          name: 'restage_rebuild_serving_records',
-          arguments: {...exactTarget('live'), 'confirmLive': true},
-        ),
-      );
-      expect(confirmed.isError, isNot(true), reason: _text(confirmed));
-      expect(
-        calls
-            .where((call) => call.method == 'rebuildServingRecords')
-            .map((call) => call.body['readinessOnly']),
-        [true, false],
-      );
-    });
-
     test('an activation command for a live target needs confirmLive', () async {
       var executed = 0;
       final connection = await connectServer(

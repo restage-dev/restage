@@ -362,7 +362,7 @@ void main() {
     expect(keyed, isEmpty);
     expect(
       (result.content.single as TextContent).text,
-      contains('is sent only to http://localhost:8080/'),
+      contains('is sent only to $defaultRestageEndpoint.'),
     );
   });
 

@@ -54,11 +54,7 @@ void main() {
       }
       expect(
         names,
-        containsAll([
-          'restage_list_surfaces',
-          'restage_experiment_apply',
-          'restage_rebuild_serving_records',
-        ]),
+        containsAll(['restage_list_surfaces', 'restage_experiment_apply']),
       );
     },
   );

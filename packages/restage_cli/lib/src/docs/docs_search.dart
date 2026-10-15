@@ -8,13 +8,6 @@ const defaultDocsOrigin = 'https://docs.restage.dev';
 /// Environment variable that points docs commands at another docs origin.
 const docsOriginVariable = 'RESTAGE_DOCS_URL';
 
-/// Environment variables holding a service token for a docs origin behind an
-/// access gate. Set both or neither.
-const docsAccessClientIdVariable = 'RESTAGE_DOCS_ACCESS_CLIENT_ID';
-
-/// See [docsAccessClientIdVariable].
-const docsAccessClientSecretVariable = 'RESTAGE_DOCS_ACCESS_CLIENT_SECRET';
-
 /// One page of the documentation.
 class DocsPage {
   /// Construct a page.
@@ -308,44 +301,24 @@ class DocsException implements Exception {
 /// Reads the published docs: the section index and each page's Markdown.
 class DocsClient {
   /// Construct a client for [origin], or the published docs by default.
-  /// [headers] go with every request, such as an access service token.
-  DocsClient({
-    http.Client? httpClient,
-    String? origin,
-    Map<String, String> headers = const {},
-  }) : _client = httpClient ?? http.Client(),
-       _ownsClient = httpClient == null,
-       _headers = headers,
-       origin = (origin ?? defaultDocsOrigin).replaceFirst(RegExp(r'/+$'), '');
+  DocsClient({http.Client? httpClient, String? origin})
+    : _client = httpClient ?? http.Client(),
+      _ownsClient = httpClient == null,
+      origin = (origin ?? defaultDocsOrigin).replaceFirst(RegExp(r'/+$'), '');
 
-  /// Builds a client whose origin and access token come from [environment],
-  /// when set.
+  /// Builds a client whose origin comes from [environment], when set.
   factory DocsClient.fromEnvironment(
     Map<String, String> environment, {
     http.Client? httpClient,
-  }) {
-    final id = environment[docsAccessClientIdVariable] ?? '';
-    final secret = environment[docsAccessClientSecretVariable] ?? '';
-    if (id.isEmpty != secret.isEmpty) {
-      throw const DocsException(
-        'Set both $docsAccessClientIdVariable and '
-        '$docsAccessClientSecretVariable, or neither.',
-      );
-    }
-    return DocsClient(
-      httpClient: httpClient,
-      origin: environment[docsOriginVariable],
-      headers: id.isEmpty
-          ? const {}
-          : {'CF-Access-Client-Id': id, 'CF-Access-Client-Secret': secret},
-    );
-  }
+  }) => DocsClient(
+    httpClient: httpClient,
+    origin: environment[docsOriginVariable],
+  );
 
   /// The docs origin, without a trailing slash.
   final String origin;
   final http.Client _client;
   final bool _ownsClient;
-  final Map<String, String> _headers;
   DocsIndex? _index;
 
   /// The section index, fetched once per client.
@@ -373,14 +346,10 @@ class DocsClient {
   Future<String> _get(String path) async {
     final http.Response response;
     try {
-      // Redirects are not followed, so the headers never reach another origin.
-      final request = http.Request('GET', Uri.parse('$origin$path'))
-        ..followRedirects = false
-        ..headers.addAll({
-          ..._headers,
-          'Accept': 'text/markdown, application/json',
-        });
-      response = await http.Response.fromStream(await _client.send(request));
+      response = await _client.get(
+        Uri.parse('$origin$path'),
+        headers: const {'Accept': 'text/markdown, application/json'},
+      );
     } on Exception catch (error) {
       throw DocsException('Could not reach $origin: ${error.runtimeType}');
     }
@@ -390,14 +359,7 @@ class DocsClient {
         'No docs page at $path. Search with `restage docs search`.',
       );
     }
-    if (status != 200) {
-      final gated =
-          status == 401 || status == 403 || (status >= 300 && status < 400);
-      throw DocsException(
-        '$origin$path returned $status.'
-        '${gated ? ' The docs origin may need an access token.' : ''}',
-      );
-    }
+    if (status != 200) throw DocsException('$origin$path returned $status.');
     return utf8.decode(response.bodyBytes);
   }
 

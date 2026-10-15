@@ -11,12 +11,6 @@
 /// `package:restage_shared/rfw_formats.dart` barrel for the vendored rfw
 /// formats sublibrary — kept separate to avoid name collisions with
 /// `package:rfw/rfw.dart` for consumers that import both.
-///
-/// The legacy behavioral-analytics event taxonomy is no longer exported here.
-/// It lives behind `package:restage_shared/legacy_analytics.dart`, is retained
-/// only for the legacy analytics runtime the SDK still ships, and retires with
-/// it. New code measures through
-/// `package:restage_measurement_schema/restage_measurement_schema.dart`.
 library;
 
 export 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

@@ -35,18 +35,6 @@ void main() {
           _surfaceResponseFence,
           file.path,
         );
-      } else if (file.path == _analyticsParserPath(repository)) {
-        _assertRequiredFence(
-          source,
-          _analyticsFieldFence,
-          file.path,
-        );
-      } else if (file.path == _analyticsReservedKeysPath(repository)) {
-        _assertRequiredFence(
-          source,
-          _analyticsReservedKeysFence,
-          file.path,
-        );
       } else if (file.path == _placementManagementPath(repository)) {
         _assertRequiredFence(
           source,
@@ -77,23 +65,13 @@ void main() {
   test('the production fences are present and allow only key strings', () {
     final responseSource =
         File(_surfaceResponseParserPath(repository)).readAsStringSync();
-    final analyticsSource =
-        File(_analyticsParserPath(repository)).readAsStringSync();
-    final reservedKeysSource =
-        File(_analyticsReservedKeysPath(repository)).readAsStringSync();
 
     _assertResponseFenceKeys(responseSource);
-    _assertAnalyticsFenceKeys(analyticsSource);
-    _assertReservedPropertyKeys(reservedKeysSource);
   });
 
   test('each production key is covered by a source mutation', () {
     final responseSource =
         File(_surfaceResponseParserPath(repository)).readAsStringSync();
-    final analyticsSource =
-        File(_analyticsParserPath(repository)).readAsStringSync();
-    final reservedKeysSource =
-        File(_analyticsReservedKeysPath(repository)).readAsStringSync();
 
     for (final key in _retiredResponseKeys) {
       final mutated = responseSource.replaceFirst(
@@ -105,24 +83,6 @@ void main() {
         () => _assertResponseFenceKeys(mutated),
         throwsA(isA<TestFailure>()),
         reason: 'response fence mutation for $key was not detected',
-      );
-    }
-    for (final key in _retiredAnalyticsKeys) {
-      final mutated = analyticsSource.replaceFirst("'$key',", '');
-      expect(mutated, isNot(equals(analyticsSource)));
-      expect(
-        () => _assertAnalyticsFenceKeys(mutated),
-        throwsA(isA<TestFailure>()),
-        reason: 'analytics fence mutation for $key was not detected',
-      );
-    }
-    for (final key in _retiredAnalyticsKeys) {
-      final mutated = reservedKeysSource.replaceFirst("'$key',", '');
-      expect(mutated, isNot(equals(reservedKeysSource)));
-      expect(
-        () => _assertReservedPropertyKeys(mutated),
-        throwsA(isA<TestFailure>()),
-        reason: 'reserved property mutation for $key was not detected',
       );
     }
   });
@@ -218,12 +178,6 @@ const _retiredResponseKeys = <String>[
   'experimentEpoch',
 ];
 
-const _retiredAnalyticsKeys = <String>[
-  'experimentId',
-  'variantId',
-  'experimentEpoch',
-];
-
 const _surfaceResponseFenceLines = <String>{
   "if (json.containsKey('decision') ||",
   "json.containsKey('experimentId') ||",
@@ -257,18 +211,6 @@ final _managementExperimentReferenceFence = RegExp(
   dotAll: true,
 );
 
-final _analyticsFieldFence = RegExp(
-  r'''^const _unsupportedTopLevelFields = <String>\{\n.*?^\};\n''',
-  multiLine: true,
-  dotAll: true,
-);
-
-final _analyticsReservedKeysFence = RegExp(
-  r'''^const Set<String> kReservedPropertyKeys = <String>\{\n.*?^\};\n''',
-  multiLine: true,
-  dotAll: true,
-);
-
 String _surfaceResponseParserPath(Directory root) =>
     '${root.path}/packages/restage/lib/src/restage_rpc_client/restage_rpc_client.dart';
 
@@ -277,12 +219,6 @@ String _canonicalAssignmentPath(Directory root) =>
 
 String _placementManagementPath(Directory root) =>
     '${root.path}/packages/restage_shared/lib/src/placements/placement_management.dart';
-
-String _analyticsParserPath(Directory root) =>
-    '${root.path}/packages/restage_shared/lib/src/legacy_analytics/analytics_event.dart';
-
-String _analyticsReservedKeysPath(Directory root) =>
-    '${root.path}/packages/restage_shared/lib/src/legacy_analytics/analytics_reserved_keys.dart';
 
 void _assertRequiredFence(String source, RegExp fence, String path) {
   expect(
@@ -329,22 +265,6 @@ bool _isAllowedRefusalFenceOccurrence(
         match.end <= fence.end &&
         _surfaceResponseFenceLines.contains(line);
   }
-  if (path == _analyticsParserPath(repository)) {
-    final fence = _analyticsFieldFence.firstMatch(source);
-    return fence != null &&
-        match.start >= fence.start &&
-        match.end <= fence.end &&
-        line == "'$identifier'," &&
-        _retiredAnalyticsKeys.contains(identifier);
-  }
-  if (path == _analyticsReservedKeysPath(repository)) {
-    final fence = _analyticsReservedKeysFence.firstMatch(source);
-    return fence != null &&
-        match.start >= fence.start &&
-        match.end <= fence.end &&
-        line == "'$identifier'," &&
-        _retiredAnalyticsKeys.contains(identifier);
-  }
   return false;
 }
 
@@ -361,27 +281,6 @@ void _assertResponseFenceKeys(String source) {
       source,
       contains("json.containsKey('$key')"),
       reason: 'surface response fence does not reject $key',
-    );
-  }
-}
-
-void _assertAnalyticsFenceKeys(String source) {
-  for (final key in _retiredAnalyticsKeys) {
-    expect(
-      source,
-      contains("'$key'"),
-      reason: 'analytics decoder fence does not reject $key',
-    );
-  }
-}
-
-void _assertReservedPropertyKeys(String source) {
-  final fence = _analyticsReservedKeysFence.firstMatch(source)?.group(0) ?? '';
-  for (final key in _retiredAnalyticsKeys) {
-    expect(
-      fence,
-      contains("'$key',"),
-      reason: 'reserved property scrub does not remove $key',
     );
   }
 }

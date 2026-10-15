@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Breaking:** the `legacy_analytics.dart` entrypoint is removed. Measure
+through `package:restage_measurement_schema/restage_measurement_schema.dart`.
+
 `SurfacePayload` carries an optional editor-state section (`SurfaceEditorState`)
 with a draft. A published payload never carries it; `publishableDraftPayload`
 strips it and trims each library to the declarations its root widget reaches.

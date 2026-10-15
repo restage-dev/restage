@@ -95,7 +95,6 @@ final _cliToMcp = <String, Set<String>>{
   'experiment review': {'restage_experiment_apply'},
   'experiment save': {'restage_experiment_apply'},
   'experiment validate': {'restage_experiment_apply'},
-  'experiment rebuild-serving-records': {'restage_rebuild_serving_records'},
   'mutation': {'restage_apply_canonical_mutation'},
   'experiment-activation': {'restage_activate_experiment'},
 };
@@ -105,17 +104,11 @@ const _cliOnly = <String, String>{
   'console':
       'Opens the full-screen terminal console; an MCP host has no terminal '
       'to draw it in.',
-  'preview':
-      'Hidden until the desktop preview app ships; a tool would advertise a '
-      'command that cannot run yet.',
 };
 
 /// Tools that guard some calls and not others: one tool serves several CLI
 /// commands, and only the ones that change live state ask.
-const _guardedPerCall = {
-  'restage_experiment_apply',
-  'restage_rebuild_serving_records',
-};
+const _guardedPerCall = {'restage_experiment_apply'};
 
 /// CLI commands the console's command line does not run, and why. Every
 /// other command runs there as `restage <command>`.

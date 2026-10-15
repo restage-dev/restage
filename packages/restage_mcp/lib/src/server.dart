@@ -26,13 +26,6 @@ import 'surface_routing_tool.dart';
 import 'surface_tools.dart';
 import 'tool_support.dart';
 
-/// Backend origin used for in-server login when no credential exists yet.
-/// Overridable at build time via `--define`; falls back to localhost.
-const _defaultLoginEndpoint = String.fromEnvironment(
-  'RESTAGE_DEFAULT_ENDPOINT',
-  defaultValue: 'http://localhost:8080/',
-);
-
 /// How long a single `restage_login` poll call blocks before returning a
 /// "still waiting" prompt — kept well under typical MCP-host request timeouts.
 const _loginPollBudget = Duration(seconds: 30);
@@ -579,7 +572,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     if (injected != null) return injected;
     final env = Platform.environment['RESTAGE_BACKEND_URL'];
     if (env != null && env.isNotEmpty) return Uri.parse(env);
-    return Uri.parse(_defaultLoginEndpoint);
+    return Uri.parse(defaultRestageEndpoint);
   }
 
   /// Handle `restage_whoami`.

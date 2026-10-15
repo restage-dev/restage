@@ -5,6 +5,9 @@
 Initial release: an MCP server over stdio that wraps the Restage backend,
 reusing the CLI's authenticated session.
 
+`restage_login` signs in to Restage Cloud (`https://api.restage.dev/`) unless
+`RESTAGE_BACKEND_URL` names another backend.
+
 `restage_push_surface_draft` accepts `acceptUnhandledEvents: true` to push a
 flow draft whose screens emit events the flow does not handle; without it the
 push is refused with each unhandled event listed. `restage_surface_status`

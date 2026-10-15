@@ -34,11 +34,6 @@ const _routes = <String, String>{
   'delivery-options': 'readDeliveryOptions',
 };
 
-/// The operator subcommands, paired with the route each one invokes.
-const _operatorRoutes = <String, String>{
-  'rebuild-serving-records': 'rebuildServingRecords',
-};
-
 const _typedDeliveryArms = <Map<String, Object?>>[
   {
     'contractVersion': 4,
@@ -241,7 +236,6 @@ void main() {
   Future<({int code, String out, String err, List<String> methods})> run(
     List<String> arguments, {
     Uint8ListReply? reply,
-    String Function(String method)? operatorReply,
     bool withYes = true,
     Map<String, String> environment = const {},
   }) async {
@@ -254,16 +248,8 @@ void main() {
       final directory = targetDirectoryResponse(method);
       if (directory != null) return directory;
       methods.add(method);
-      // An operator route carries no semantic request envelope.
-      final requestBytes = body['requestBytes'];
-      if (requestBytes == null) {
-        return http.Response(
-          jsonEncode(operatorReply?.call(method) ?? '{}'),
-          200,
-        );
-      }
       final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
-        byteDataBytes(requestBytes as String),
+        byteDataBytes(body['requestBytes']! as String),
       );
       return http.Response(
         jsonEncode(
@@ -329,15 +315,6 @@ void main() {
       }, ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet());
     });
 
-    test('the operator subcommand names no semantic operation', () {
-      expect(
-        _operatorRoutes.values.toSet().intersection(
-          ExperimentAuthoringOperationV1.values.map((e) => e.wireName).toSet(),
-        ),
-        isEmpty,
-      );
-    });
-
     test('draft and experiment reads stay separate routes', () async {
       final resolved = await run([
         'resolve-draft',
@@ -351,7 +328,7 @@ void main() {
       expect(experiment.methods, ['readExperiment']);
     });
 
-    test('help lists the semantic and operator subcommands', () async {
+    test('help lists every subcommand', () async {
       final stdout = StringBuffer();
       final stderr = StringBuffer();
       await RestageCli(
@@ -362,57 +339,9 @@ void main() {
 
       expect(
         _subcommandsInHelp(stdout.toString()),
-        [..._routes.keys, ..._operatorRoutes.keys, 'list', 'results']..sort(),
+        [..._routes.keys, 'list', 'results']..sort(),
       );
     });
-
-    test(
-      'the rebuild command reports readiness and exits on what is left',
-      () async {
-        const missing =
-            '{"ready":false,"missing":2,"produced":1,"superseded":1,'
-            '"sourcesReproven":true,'
-            '"unrecoverable":[{"experimentId":"experiment.x",'
-            '"reason":"sourcesNotProven"}],'
-            '"surfaces":[{"surfaceId":3,"surfaceType":"paywall",'
-            '"surfaceSlug":"checkout","surfaceContractFamilyId":null,'
-            '"nominated":3,"missing":2,"produced":1,"superseded":1,'
-            '"unrecoverable":[{"experimentId":"experiment.x",'
-            '"reason":"sourcesNotProven"}]}]}';
-        const ready =
-            '{"ready":true,"missing":0,"produced":0,"superseded":0,'
-            '"sourcesReproven":false,"unrecoverable":[],'
-            '"surfaces":[{"surfaceId":3,"surfaceType":"paywall",'
-            '"surfaceSlug":"checkout","surfaceContractFamilyId":null,'
-            '"nominated":3,"missing":0,"produced":0,"superseded":0,'
-            '"unrecoverable":[]}]}';
-
-        final unready = await run(const [
-          'rebuild-serving-records',
-        ], operatorReply: (_) => missing);
-        expect(unready.methods, [_operatorRoutes['rebuild-serving-records']]);
-        expect(unready.code, 1);
-        expect(unready.out, contains('Produced 1, superseded 1.'));
-        expect(unready.out, contains('1 superseded'));
-        expect(
-          unready.out,
-          contains('Unprovable: experiment.x (sourcesNotProven).'),
-        );
-        expect(unready.out, contains('paywall/checkout'));
-
-        // A readiness read changes nothing, so it needs no live consent, and
-        // its verdict must never read as the re-proven one.
-        final settled = await run(
-          const ['rebuild-serving-records', '--readiness-only'],
-          operatorReply: (_) => ready,
-          withYes: false,
-        );
-        expect(settled.methods, [_operatorRoutes['rebuild-serving-records']]);
-        expect(settled.code, 0);
-        expect(settled.out, isNot(contains('Ready:')));
-        expect(settled.out, contains('sources not re-proven'));
-      },
-    );
 
     test('discover help explains the exact published revision read', () async {
       final stdout = StringBuffer();
@@ -1475,7 +1404,7 @@ void main() {
         expect(code, 0);
         expect(
           _subcommandsInHelp(stdout.toString()),
-          [..._routes.keys, ..._operatorRoutes.keys, 'list', 'results']..sort(),
+          [..._routes.keys, 'list', 'results']..sort(),
         );
       });
 

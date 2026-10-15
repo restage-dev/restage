@@ -26,8 +26,7 @@ tools that produce catalogs (compilers, code generators), tools that read them
   `widgetbook.Config`, selective `@Ignore` routing through `EmitTarget`,
   `@RestageBuiltinLibrary`, `@RestageLibrary`, `@RestageStructuredType`,
   `@RestageUnionVariant`, `@RestageFactoryVariant`, `@StableWidget`,
-  `@StableProperty`, `@RfwIncompatible`, `@RestagePropertyPreview`,
-  and `@RestageDataField`.
+  `@StableProperty`, `@RfwIncompatible`, and `@RestageDataField`.
 - **Typed constraints.** `RestageConstraints` carries numeric bounds, allowed
   values, patterns, string lengths, and list lengths on `RestageProperty` and
   `PropertyEntry`, and keeps unknown JSON keywords so newer readers can use

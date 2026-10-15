@@ -52,7 +52,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/marketing/lumen_original.payload
     # Hand-authored demo blob, not generated output.
     - assets/paywalls/
     # Generated surfaces ship as deterministic `.rsbundle` containers rather

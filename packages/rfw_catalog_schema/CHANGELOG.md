@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking:** remove the unused `RestagePropertyPreview` annotation.
+
 ## 2.0.0
 
 - Name the `PreferredSizeWidget` slot type and the synthetic strategies that

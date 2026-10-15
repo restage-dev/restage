@@ -85,17 +85,16 @@ session token. Use `restage_whoami` to check who you're signed in as, and
 
 ### Choosing the backend to sign in against
 
-With no session yet, the in-agent login needs to know which backend to use.
-By default the executable uses a local backend at `http://localhost:8080/`,
-for development. To sign in to Restage Cloud, set `RESTAGE_BACKEND_URL` in the
-host config:
+With no session yet, the in-agent login signs in to Restage Cloud
+(`https://api.restage.dev/`). To sign in to another backend, such as a local
+one, set `RESTAGE_BACKEND_URL` in the host config:
 
 ```json
 {
   "mcpServers": {
     "restage": {
       "command": "restage_mcp",
-      "env": { "RESTAGE_BACKEND_URL": "https://api.restage.dev/" }
+      "env": { "RESTAGE_BACKEND_URL": "http://localhost:8080/" }
     }
   }
 }
@@ -153,11 +152,9 @@ The tools that change what a target serves are `restage_publish_surface`,
 `restage_rollback_surface`, `restage_kill_surface`,
 `restage_freeze_surface`, `restage_unfreeze_surface`,
 `restage_publish_routing`, `restage_rollback_route`,
-`restage_apply_canonical_mutation`, and `restage_activate_experiment`. Two
-more ask only for some calls: `restage_experiment_apply` for
-`activateDraft`, `pauseExperiment`, `resumeExperiment`, and
-`concludeExperiment`, and `restage_rebuild_serving_records` for a full
-rebuild (not `readinessOnly`). The CLI asks for the same changes. Most accept
+`restage_apply_canonical_mutation`, and `restage_activate_experiment`.
+`restage_experiment_apply` asks only for `activateDraft`, `pauseExperiment`,
+`resumeExperiment`, and `concludeExperiment`. The CLI asks for the same changes. Most accept
 `--yes` after approval; live surface kill and rollback require an interactive
 confirmation.
 
@@ -340,7 +337,6 @@ revision. Read results before deciding whether to pause, resume or conclude it.
 | Tool | What it does |
 | --- | --- |
 | `restage_experiment_apply` | Apply one experiment operation at a target: drafting, validation, review, activation, pausing, concluding, archiving, and reads. |
-| `restage_rebuild_serving_records` | Create any serving records an experiment target is missing, and report what is still missing. |
 
 `restage_experiment_apply` takes an `operation` chosen from a fixed list and
 a `payload`. For `replaceDraft`, pass the full response from any draft
@@ -364,8 +360,7 @@ flow, survey, message, or paywall with `restage_push_surface`, publish it with
 `restage_publish_surface`, and roll back with `restage_rollback_surface` if the numbers say so.
 
 Activation, pause, resume and conclusion at a live target require
-`confirmLive: true`. A full serving-record rebuild does too; a readiness-only
-check does not.
+`confirmLive: true`.
 
 The low-level `restage_apply_canonical_mutation` and `restage_activate_experiment`
 tools still need `RESTAGE_EXPERIMENTAL=1`. The first accepts requests that are

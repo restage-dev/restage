@@ -44,6 +44,7 @@ export 'src/api/auth_api.dart';
 export 'src/api/auth_models.dart';
 export 'src/api/byte_data_wire.dart';
 export 'src/api/catalog_api.dart';
+export 'src/api/default_endpoint.dart';
 export 'src/api/discovery_api.dart';
 export 'src/api/discovery_models.dart';
 export 'src/api/delivery_management_api.dart';

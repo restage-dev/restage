@@ -39,17 +39,15 @@ For a host that reads an `mcpServers` object, such as Claude Desktop or Cursor:
 {
   "mcpServers": {
     "restage": {
-      "command": "restage_mcp",
-      "env": { "RESTAGE_BACKEND_URL": "https://api.restage.dev/" }
+      "command": "restage_mcp"
     }
   }
 }
 ```
 
-`RESTAGE_BACKEND_URL` picks the backend for a new sign-in. Set it to
-`https://api.restage.dev/` for Restage Cloud. Without it, the server signs in against
-`http://localhost:8080/`. After sign-in, each tool uses the backend your session was
-created against.
+A new sign-in uses Restage Cloud (`https://api.restage.dev/`). Set
+`RESTAGE_BACKEND_URL` in `env` to sign in to another backend. After sign-in, each tool
+uses the backend your session was created against.
 
 ## Sign in
 
@@ -220,8 +218,7 @@ default to the whole current run. Dates filter only the traffic breakdowns; the
 statistical result always covers the whole run as designed. Withheld or
 unavailable values must not be read as zero.
 
-**Experiment authoring.** `restage_experiment_apply` and
-`restage_rebuild_serving_records` are registered by default. Create and edit a
+**Experiment authoring.** `restage_experiment_apply` is registered by default. Create and edit a
 draft, validate it, review its current revision, then activate that reviewed
 revision. Read results before pausing, resuming or concluding it. Live lifecycle
 changes require `confirmLive: true`. See [Experiments](/delivery/experiments) for

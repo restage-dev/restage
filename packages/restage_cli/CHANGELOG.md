@@ -4,6 +4,9 @@
 
 Initial release of the `restage` command-line interface.
 
+`restage login` signs in to Restage Cloud (`https://api.restage.dev/`) unless
+`--endpoint` or `RESTAGE_BACKEND_URL` names another backend.
+
 `restage surface draft push --accept-unhandled-events` pushes a flow draft whose
 screens emit events the flow does not handle. Without the flag the push is
 refused, and the refusal lists each flow, state, screen and event.
@@ -69,7 +72,6 @@ Commands:
 - `restage experiment <operation>` — author, review, activate, and read
   experiments at one target (experimental).
 - `restage init` — bootstrap Restage into an existing Flutter project.
-- `restage preview` — launch the local desktop preview for a compiled blob.
 - `restage doctor` — diagnose the local toolchain setup.
 
 Global flags `--non-interactive` (alias `--yes` / `-y`) switch every prompt to
