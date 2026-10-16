@@ -35,8 +35,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
   TranslatorRecipe(
     typeName: 'RadialGradient',
     failureDsl: '{type: "radial"}',
+    deferredNamedArgs: {'transform'},
     emit: EmitFragmentMap([
       EmitMapEntry('type', EmitFragmentLiteral('"radial"')),
+      _kTileModeEntry,
       EmitMapEntry(
         'colors',
         EmitFragmentArg(
@@ -82,8 +84,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
   TranslatorRecipe(
     typeName: 'SweepGradient',
     failureDsl: '{type: "sweep"}',
+    deferredNamedArgs: {'transform'},
     emit: EmitFragmentMap([
       EmitMapEntry('type', EmitFragmentLiteral('"sweep"')),
+      _kTileModeEntry,
       EmitMapEntry(
         'colors',
         EmitFragmentArg(
@@ -166,3 +170,10 @@ const Map<String, EmitFragment> _kAlignmentMemberFragments = {
   'bottomCenter': EmitFragmentLiteral('{x: 0.0, y: 1.0}'),
   'bottomRight': EmitFragmentLiteral('{x: 1.0, y: 1.0}'),
 };
+
+const _kTileModeEntry = EmitMapEntry(
+  'tileMode',
+  EmitFragmentArg(ArgRef.named('tileMode'),
+      propertyType: PropertyType.enumValue),
+  omitWhenArgUnset: true,
+);

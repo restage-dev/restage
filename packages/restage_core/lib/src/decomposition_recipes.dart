@@ -386,14 +386,15 @@ const NativeDecompositionCuration kBoxDecorationNativeDecompose =
   ],
 );
 
-/// Native v4 curation for the narrow `DecoratedBox` color-only surface.
-const NativeDecompositionCuration kBoxDecorationColorNativeDecompose =
+/// Native v4 curation for the `DecoratedBox` color and gradient fills.
+const NativeDecompositionCuration kBoxDecorationFillNativeDecompose =
     NativeDecompositionCuration(
   structuredType: 'BoxDecoration',
   targetArg: 'decoration',
   construction: NativeFactoryCuration.constructor(),
   fieldMappings: [
     NativeFieldMappingCuration(field: 'color', property: 'color'),
+    NativeFieldMappingCuration(field: 'gradient', property: 'gradient'),
   ],
 );
 
@@ -405,8 +406,7 @@ const PropertyEntry kGradientSynthetic = PropertyEntry(
   wireId: WireId.unallocatedProperty,
   name: 'gradient',
   type: PropertyType.gradient,
-  description: 'Gradient painted behind the child '
-      '(LinearGradient supported; other shapes deferred).',
+  description: 'Linear, radial, or sweep gradient painted behind the child.',
 );
 
 /// Flat `decorationImage` slot consumed by BoxDecoration native decomposition.

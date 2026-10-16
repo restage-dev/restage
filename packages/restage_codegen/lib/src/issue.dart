@@ -162,6 +162,9 @@ enum IssueCode {
   /// that silently drops the unexpressed behaviour.
   pageViewFormUnsupported,
 
+  /// A mask requires imperative code in a custom widget.
+  shaderMaskFormUnsupported,
+
   /// A modal sheet trigger could not be lowered without dropping observable
   /// behavior, such as the sheet's returned result value. The author must
   /// express that behavior through declarative state instead.
@@ -611,6 +614,7 @@ enum IssueCode {
         // alternative is rendering the wrong type.
         IssueCode.designPackageIdentityDrift ||
         IssueCode.pageViewFormUnsupported ||
+        IssueCode.shaderMaskFormUnsupported ||
         IssueCode.modalSheetFormUnsupported ||
         IssueCode.navigationFormUnsupported ||
         IssueCode.draggableSheetFormUnsupported ||
@@ -682,6 +686,7 @@ enum IssueCode {
         IssueCode.unknownWidget ||
         IssueCode.namedConstructorUnsupported ||
         IssueCode.pageViewFormUnsupported ||
+        IssueCode.shaderMaskFormUnsupported ||
         IssueCode.navigationFormUnsupported ||
         IssueCode.draggableSheetFormUnsupported ||
         IssueCode.unsupportedFlowRuntimeFeature ||

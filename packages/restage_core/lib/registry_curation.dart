@@ -28,6 +28,7 @@ import 'package:restage_core/src/widgets/restage_fade_in.dart';
 import 'package:restage_core/src/widgets/restage_formatted_number.dart';
 import 'package:restage_core/src/widgets/restage_motion.dart';
 import 'package:restage_core/src/widgets/restage_pulse.dart';
+import 'package:restage_core/src/widgets/restage_shader_mask.dart';
 import 'package:restage_core/src/widgets/restage_stagger.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -287,7 +288,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.decoration,
     // `decoration: Decoration` is an abstract base routed through the
     // structured walker as a placeholder. Composition is driven by the
-    // `color` synthetic below and the recipe that hoists the BoxDecoration
+    // fill synthetics below and the recipe that hoists the BoxDecoration
     // inner ctor args back onto flat properties at translation time.
     synthetics: [
       PropertyEntry(
@@ -297,8 +298,9 @@ const List<BuiltinWidgetCuration> kCuration = [
         description: 'Background color of the decoration.',
         defaultBrandToken: 'background',
       ),
+      kGradientSynthetic,
     ],
-    nativeDecomposes: [kBoxDecorationColorNativeDecompose],
+    nativeDecomposes: [kBoxDecorationFillNativeDecompose],
   ),
   BuiltinWidgetCuration<DefaultTextStyle>(
     category: WidgetCategory.decoration,
@@ -546,6 +548,12 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.decoration,
     propertyOverrides: {
       'curve': kCurveEaseInOutOverride,
+    },
+  ),
+  BuiltinWidgetCuration<RestageShaderMask>(
+    category: WidgetCategory.decoration,
+    propertyOverrides: {
+      'gradient': PropertyOverride(type: PropertyType.gradient),
     },
   ),
   // A staggered cascade entrance over a vertical list of children. The

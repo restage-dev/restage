@@ -1,0 +1,119 @@
+---
+title: Gradients and masks
+description: Author gradient text, icons, fading edges and color filters in ordinary Flutter.
+---
+
+Write gradients and masks with Flutter's `ShaderMask` and `ColorFiltered`.
+Restage compiles the gradient, blend mode and child into surface data. The app
+creates the shader when it renders the surface.
+
+## Gradient text and icons
+
+```dart
+ShaderMask(
+  blendMode: BlendMode.srcIn,
+  shaderCallback: (bounds) => const LinearGradient(
+    colors: [Colors.indigo, Colors.pink],
+  ).createShader(bounds),
+  child: const Text(
+    'Explore something new',
+    style: TextStyle(color: Colors.white, fontSize: 32),
+  ),
+)
+```
+
+The same form works around an icon:
+
+```dart
+ShaderMask(
+  blendMode: BlendMode.srcIn,
+  shaderCallback: (bounds) => const SweepGradient(
+    colors: [Colors.indigo, Colors.pink, Colors.indigo],
+  ).createShader(bounds),
+  child: const Icon(Icons.star, color: Colors.white, size: 64),
+)
+```
+
+Both compile to a mask with a gradient map and `srcIn` blend mode. Linear,
+radial and sweep gradients retain their colors, stops and geometry. A closure
+with a single `return` works too. The gradient can be inline, `const`, a
+same-file const identifier or a `static const` field.
+
+## Fading edges
+
+```dart
+ShaderMask(
+  blendMode: BlendMode.dstIn,
+  shaderCallback: (bounds) => const LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+    stops: [0, 0.15, 0.85, 1],
+  ).createShader(bounds),
+  child: const Column(
+    children: [Text('Today'), Text('Yesterday'), Text('Last week')],
+  ),
+)
+```
+
+`dstIn` keeps the child's colors and uses the gradient's alpha to fade them.
+Place the same mask around a bounded list for a scrolling edge treatment.
+
+## Radial vignettes
+
+```dart
+ShaderMask(
+  blendMode: BlendMode.modulate,
+  shaderCallback: (bounds) => const RadialGradient(
+    colors: [Colors.white, Colors.black],
+    radius: 0.8,
+  ).createShader(bounds),
+  child: Image.asset('assets/landscape.png'),
+)
+```
+
+This compiles to a radial mask over the image widget. `center`, `radius`,
+`focal`, `focalRadius` and `tileMode` use Flutter's values.
+
+## Rotation and tint
+
+A `GradientRotation` becomes the mask's rotation in radians:
+
+```dart
+ShaderMask(
+  blendMode: BlendMode.srcIn,
+  shaderCallback: (bounds) => const LinearGradient(
+    colors: [Colors.indigo, Colors.pink],
+    transform: GradientRotation(0.5),
+  ).createShader(bounds),
+  child: const Text('A new direction'),
+)
+```
+
+For a solid tint, write a color filter:
+
+```dart
+ColorFiltered(
+  colorFilter: const ColorFilter.mode(Colors.teal, BlendMode.modulate),
+  child: Image.asset('assets/landscape.png'),
+)
+```
+
+`ColorFilter.mode` compiles to a color mask with the same color-filter behavior.
+All Flutter blend modes are available.
+
+## Effects that need custom widgets
+
+Other shader callback bodies produce a build-time diagnostic, for example:
+
+```text
+ShaderMask: createShader must receive the unchanged callback bounds. Put this effect in a custom widget annotated with @RestageWidget.
+```
+
+This includes `ui.Gradient`, `ImageShader`, bounds calculations, stored shaders,
+callbacks with multiple statements and transforms other than `GradientRotation`.
+Color filters other than `ColorFilter.mode`, including matrices, also need a
+[custom widget](/authoring/custom-widgets).
+
+For fragment shaders and image-filled text, see
+[Shaders and image effects](/authoring/shaders-and-image-effects).

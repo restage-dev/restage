@@ -354,7 +354,7 @@ final Catalog kRegistry = Catalog(
           name: 'gradient',
           type: PropertyType.gradient,
           description:
-              'Gradient painted behind the child (LinearGradient supported; other shapes deferred).',
+              'Linear, radial, or sweep gradient painted behind the child.',
           valueShape: UnionShape(
               propertyType: PropertyType.gradient,
               unionRef:
@@ -2375,7 +2375,7 @@ final Catalog kRegistry = Catalog(
           name: 'gradient',
           type: PropertyType.gradient,
           description:
-              'Gradient painted behind the child (LinearGradient supported; other shapes deferred).',
+              'Linear, radial, or sweep gradient painted behind the child.',
           valueShape: UnionShape(
               propertyType: PropertyType.gradient,
               unionRef:
@@ -2621,6 +2621,18 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
         ),
         PropertyEntry(
+          wireId: WireId('p0655'),
+          name: 'gradient',
+          type: PropertyType.gradient,
+          description:
+              'Linear, radial, or sweep gradient painted behind the child.',
+          valueShape: UnionShape(
+              propertyType: PropertyType.gradient,
+              unionRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('u0003')),
+              wireCodec: CatalogWireCodec.rfwGradient),
+        ),
+        PropertyEntry(
           wireId: WireId('p0610'),
           name: 'analyticsId',
           type: PropertyType.string,
@@ -2642,6 +2654,11 @@ final Catalog kRegistry = Catalog(
             DecompositionFieldMapping(
               fieldRef: WireId('p0161'),
               propertyRef: WireId('p0053'),
+              transform: IdentityTransform(),
+            ),
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0163'),
+              propertyRef: WireId('p0655'),
               transform: IdentityTransform(),
             ),
           ],
@@ -5357,6 +5374,74 @@ final Catalog kRegistry = Catalog(
         ),
         PropertyEntry(
           wireId: WireId('p0628'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0059'),
+      name: 'RestageShaderMask',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.decoration,
+      description: 'Fills or masks [child] with a gradient or a color.',
+      flutterType:
+          'package:restage_core/src/widgets/restage_shader_mask.dart#RestageShaderMask',
+      childrenSlot: ChildrenSlot.single,
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0649'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: 'The content to mask.',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0650'),
+          name: 'gradient',
+          type: PropertyType.gradient,
+          description: 'The gradient evaluated in the child\'s bounds.',
+          constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0651'),
+          name: 'color',
+          type: PropertyType.color,
+          description: 'A solid color filter, used when no gradient is set.',
+          constructorNullable: true,
+          category: PropertyCategory.style,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0652'),
+          name: 'rotation',
+          type: PropertyType.real,
+          description: 'The gradient rotation in radians.',
+          defaultSource: LiteralDefault(0.0),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0653'),
+          name: 'blendMode',
+          type: PropertyType.enumValue,
+          description: 'How the shader or color combines with the child.',
+          enumType: 'BlendMode',
+          defaultSource: LiteralDefault('modulate'),
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'BlendMode')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0654'),
           name: 'analyticsId',
           type: PropertyType.string,
           description: 'Optional identifier for this widget occurrence.',

@@ -55,6 +55,9 @@ const LoweringTarget kPriceLowering = LoweringTarget('RestagePrice');
 const LoweringTarget kFormattedNumberLowering =
     LoweringTarget('RestageFormattedNumber');
 
+/// The mask entry used by Flutter gradient masks and color filters.
+const LoweringTarget kShaderMaskLowering = LoweringTarget('RestageShaderMask');
+
 /// The paged-surface entry a `PageView` is emitted as.
 const LoweringTarget kPagerLowering = LoweringTarget('RestagePager');
 
@@ -86,6 +89,8 @@ const LoweringTarget kSegmentedButtonLowering =
 /// one of these lowers or is refused, so the whole row applies; callers gate
 /// on the resolved framework identity so a look-alike does not.
 const Map<String, List<LoweringTarget>> kAliasedWidgetLowerings = {
+  'ShaderMask': [kShaderMaskLowering],
+  'ColorFiltered': [kShaderMaskLowering],
   'PageView': [kPagerLowering],
   'DraggableScrollableSheet': [kDraggableSheetLowering],
   'RadioGroup': [kRadioGroupLowering],

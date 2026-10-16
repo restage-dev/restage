@@ -1,0 +1,330 @@
+---
+title: Shaders and image effects
+description: Load a fragment shader or fill text with an image in an ordinary Flutter custom widget.
+---
+
+[Plain gradients and masks](/authoring/gradients-and-masks) compile directly.
+Anything that loads an asset or decodes an image belongs in your own
+`@RestageWidget`. Restage compiles that Dart code into your app and its preview
+build; the editor changes the constructor parameters.
+
+These are ordinary Flutter examples. Use the loading, caching, and error handling
+that fit your app.
+
+## An animated fragment shader
+
+Declare the shader in your app's `pubspec.yaml`:
+
+```yaml
+flutter:
+  shaders:
+    - shaders/waves.frag
+```
+
+Save this as `shaders/waves.frag`. The uniforms are the painted size, elapsed time,
+and a premultiplied tint:
+
+```glsl
+#include <flutter/runtime_effect.glsl>
+
+uniform vec2 uSize;
+uniform float uTime;
+uniform vec4 uTint;
+out vec4 fragColor;
+
+void main() {
+  vec2 uv = FlutterFragCoord().xy / uSize;
+  float wave = 0.5 + 0.5 * sin(uv.x * 12.0 + uv.y * 6.0 - uTime);
+  fragColor = vec4(uTint.rgb * (0.35 + 0.65 * wave), uTint.a);
+}
+```
+
+Save the widget as `lib/animated_shader.dart`. It loads the program once for this
+widget, repaints from a ticker, and disposes the ticker and shader when removed.
+`speed` and `tint` become live inspector controls.
+
+```dart
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+/// Animated waves painted by a bundled fragment shader.
+@RestageWidget()
+class AnimatedShader extends StatefulWidget {
+  const AnimatedShader({
+    super.key,
+    this.speed = 1,
+    this.tint = const Color(0xFF6366F1),
+  });
+
+  /// Animation speed multiplier; zero holds the first frame.
+  final double speed;
+
+  /// Color of the waves.
+  final Color tint;
+
+  @override
+  State<AnimatedShader> createState() => _AnimatedShaderState();
+}
+
+class _AnimatedShaderState extends State<AnimatedShader>
+    with SingleTickerProviderStateMixin {
+  final _clock = ValueNotifier<double>(0);
+  late final _ticker = createTicker((elapsed) {
+    _clock.value = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+  });
+  ui.FragmentShader? _shader;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker.start();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final program = await ui.FragmentProgram.fromAsset('shaders/waves.frag');
+      if (mounted) setState(() => _shader = program.fragmentShader());
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _clock.dispose();
+    _shader?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 320,
+    height: 180,
+    child: _failed
+        ? const Center(child: Text('Shader unavailable'))
+        : _shader == null
+        ? const Center(child: CircularProgressIndicator())
+        : CustomPaint(
+            painter: _WavePainter(_shader!, _clock, widget.speed, widget.tint),
+          ),
+  );
+}
+
+class _WavePainter extends CustomPainter {
+  _WavePainter(this.shader, this.clock, this.speed, this.tint)
+    : super(repaint: clock);
+
+  final ui.FragmentShader shader;
+  final ValueListenable<double> clock;
+  final double speed;
+  final Color tint;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Float indices follow the uniforms in waves.frag: size, time, then tint.
+    shader
+      ..setFloat(0, size.width)
+      ..setFloat(1, size.height)
+      ..setFloat(2, clock.value * speed)
+      ..setFloat(3, tint.r * tint.a)
+      ..setFloat(4, tint.g * tint.a)
+      ..setFloat(5, tint.b * tint.a)
+      ..setFloat(6, tint.a);
+    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter oldDelegate) =>
+      oldDelegate.shader != shader ||
+      oldDelegate.speed != speed ||
+      oldDelegate.tint != tint;
+}
+```
+
+Use it inside an annotated surface just like any Flutter widget:
+
+```dart
+const AnimatedShader(speed: 1.5, tint: Color(0xFFEC4899))
+```
+
+The float indices follow declaration order in the shader. Colors sent to the
+shader use premultiplied alpha. Flutter's
+[fragment shader guide](https://docs.flutter.dev/ui/design/graphics/fragment-shaders)
+explains the shader APIs and supported operations.
+
+## Image-filled text
+
+Add your image to the app's assets:
+
+```yaml
+flutter:
+  assets:
+    - images/texture.png
+```
+
+Save this as `lib/image_filled_text.dart`. `AssetImage` supplies the decoded image;
+`ImageShader` stretches it across the text bounds. Changing `imageAsset` replaces
+the image subscription. `text`, `fontSize`, and `letterSpacing` remain ordinary
+constructor parameters.
+
+```dart
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+/// Text filled by a decoded image asset.
+@RestageWidget()
+class ImageFilledText extends StatefulWidget {
+  const ImageFilledText({
+    super.key,
+    required this.text,
+    required this.imageAsset,
+    this.fontSize = 64,
+    this.letterSpacing = 0,
+  });
+
+  /// The text to display.
+  final String text;
+
+  /// Path of the bundled image asset.
+  final String imageAsset;
+
+  /// Font size in logical pixels.
+  final double fontSize;
+
+  /// Extra space between letters in logical pixels.
+  final double letterSpacing;
+
+  @override
+  State<ImageFilledText> createState() => _ImageFilledTextState();
+}
+
+class _ImageFilledTextState extends State<ImageFilledText> {
+  ImageStream? _stream;
+  ImageInfo? _info;
+  bool _failed = false;
+  late final _listener = ImageStreamListener(
+    (info, _) => setState(() {
+      _info?.dispose();
+      _info = info;
+      _failed = false;
+    }),
+    onError: (_, _) => setState(() => _failed = true),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(ImageFilledText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageAsset != widget.imageAsset) _resolve();
+  }
+
+  void _resolve() {
+    final next = AssetImage(
+      widget.imageAsset,
+    ).resolve(createLocalImageConfiguration(context));
+    if (next.key == _stream?.key) return;
+    _stream?.removeListener(_listener);
+    _info?.dispose();
+    _info = null;
+    _failed = false;
+    _stream = next..addListener(_listener);
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    _info?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      widget.text,
+      style: TextStyle(
+        fontSize: widget.fontSize,
+        letterSpacing: widget.letterSpacing,
+        fontWeight: FontWeight.w700,
+        color: Colors.white,
+      ),
+    );
+    if (_failed) return Text(widget.text);
+    final image = _info?.image;
+    if (image == null) return Opacity(opacity: 0, child: text);
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (bounds) => ui.ImageShader(
+        image,
+        TileMode.clamp,
+        TileMode.clamp,
+        (Matrix4.identity()..scaleByDouble(
+              bounds.width / image.width,
+              bounds.height / image.height,
+              1,
+              1,
+            ))
+            .storage,
+      ),
+      child: text,
+    );
+  }
+}
+```
+
+```dart
+const ImageFilledText(
+  text: 'Explore more',
+  imageAsset: 'images/texture.png',
+  fontSize: 64,
+)
+```
+
+This example reserves the text's space while loading and shows plain text if the
+image fails. A network-image version can resolve a `NetworkImage` instead; web
+previews need an image server that permits cross-origin image access.
+
+## Register and preview
+
+Export the widgets from a library declaration, for example `lib/effects.dart`:
+
+```dart
+import 'package:restage/restage.dart';
+
+export 'animated_shader.dart';
+export 'image_filled_text.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('shader_docs.effects'),
+  capabilityVersion: 1,
+)
+const effectsLibrary = 0;
+```
+
+Follow [Custom widgets](/authoring/custom-widgets) to add `restage_codegen` and
+`build_runner`, then generate and push a preview build:
+
+```sh
+dart run build_runner build
+restage build push
+```
+
+The render bundle includes your declared shaders and assets. Open a surface that
+uses the widget in the editor to see the compiled effect and edit its exposed
+parameters live.
+
+New shader code, widget code, or bundled images require a new app build and a new
+preview build. Parameter changes can be delivered over the air to app versions
+that already contain the widget and its assets.

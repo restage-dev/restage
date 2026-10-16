@@ -489,7 +489,7 @@ final class StructuredValueEmitter {
   /// reapply Flutter's own defaults for omitted keys, so the wire
   /// format stays compact and the catalog stays single-source-of-truth.
   String linearGradient(
-    NodeList<Argument> args,
+    Iterable<Argument> args,
     List<Issue> issues,
     String loc,
   ) {
@@ -529,6 +529,7 @@ final class StructuredValueEmitter {
           if (stops.isEmpty) return '';
           parts.add('$name: $stops');
         case 'tileMode':
+          parts.add('$name: ${_translate(a.argumentExpression, issues)}');
         case 'transform':
         case 'colorMode':
           _deferredArg('LinearGradient', name, issues, loc);
@@ -536,7 +537,7 @@ final class StructuredValueEmitter {
           _unknownNamedArg(
             'LinearGradient',
             name,
-            'begin, end, colors, stops',
+            'begin, end, colors, stops, tileMode',
             issues,
             loc,
           );
@@ -1690,7 +1691,7 @@ final class StructuredValueEmitter {
   }
 
   /// Surfaces a uniform diagnostic for a recognised but not-yet-supported
-  /// named argument (e.g. `LinearGradient.tileMode`).
+  /// named argument (e.g. `LinearGradient.transform`).
   void _deferredArg(
     String host,
     String argName,

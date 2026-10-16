@@ -31,6 +31,7 @@ export 'src/widgets/restage_image.dart' show RestageFadeInImage, RestageImage;
 export 'src/widgets/restage_list_view.dart' show RestageListView;
 export 'src/widgets/restage_motion.dart';
 export 'src/widgets/restage_pulse.dart';
+export 'src/widgets/restage_shader_mask.dart';
 // Only the named-preset enum is public; the spring-math helper stays internal.
 export 'src/widgets/restage_spring.dart' show RestageSpring;
 export 'src/widgets/restage_stagger.dart';

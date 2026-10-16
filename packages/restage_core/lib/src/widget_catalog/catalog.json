@@ -407,7 +407,7 @@
           "wireId": "p0014",
           "name": "gradient",
           "type": "gradient",
-          "description": "Gradient painted behind the child (LinearGradient supported; other shapes deferred).",
+          "description": "Linear, radial, or sweep gradient painted behind the child.",
           "valueShape": {
             "kind": "union",
             "propertyType": "gradient",
@@ -2976,7 +2976,7 @@
           "wireId": "p0047",
           "name": "gradient",
           "type": "gradient",
-          "description": "Gradient painted behind the child (LinearGradient supported; other shapes deferred).",
+          "description": "Linear, radial, or sweep gradient painted behind the child.",
           "valueShape": {
             "kind": "union",
             "propertyType": "gradient",
@@ -3312,6 +3312,21 @@
           }
         },
         {
+          "wireId": "p0655",
+          "name": "gradient",
+          "type": "gradient",
+          "description": "Linear, radial, or sweep gradient painted behind the child.",
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "gradient",
+            "unionRef": {
+              "library": "restage.core",
+              "wireId": "u0003"
+            },
+            "wireCodec": "rfwGradient"
+          }
+        },
+        {
           "wireId": "p0610",
           "name": "analyticsId",
           "type": "string",
@@ -3340,6 +3355,13 @@
             {
               "fieldRef": "p0161",
               "propertyRef": "p0053",
+              "transform": {
+                "kind": "identity"
+              }
+            },
+            {
+              "fieldRef": "p0163",
+              "propertyRef": "p0655",
               "transform": {
                 "kind": "identity"
               }
@@ -6907,6 +6929,91 @@
         },
         {
           "wireId": "p0628",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ]
+    },
+    {
+      "wireId": "w0059",
+      "name": "RestageShaderMask",
+      "library": "restage.core",
+      "category": "decoration",
+      "description": "Fills or masks [child] with a gradient or a color.",
+      "flutterType": "package:restage_core/src/widgets/restage_shader_mask.dart#RestageShaderMask",
+      "childrenSlot": "single",
+      "properties": [
+        {
+          "wireId": "p0649",
+          "name": "child",
+          "type": "widget",
+          "description": "The content to mask.",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0650",
+          "name": "gradient",
+          "type": "gradient",
+          "description": "The gradient evaluated in the child's bounds.",
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0651",
+          "name": "color",
+          "type": "color",
+          "description": "A solid color filter, used when no gradient is set.",
+          "constructorNullable": true,
+          "category": "style",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0652",
+          "name": "rotation",
+          "type": "real",
+          "description": "The gradient rotation in radians.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": 0.0
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0653",
+          "name": "blendMode",
+          "type": "enumValue",
+          "description": "How the shader or color combines with the child.",
+          "enumType": "BlendMode",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "modulate"
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "BlendMode"
+            }
+          }
+        },
+        {
+          "wireId": "p0654",
           "name": "analyticsId",
           "type": "string",
           "description": "Optional identifier for this widget occurrence.",

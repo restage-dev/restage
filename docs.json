@@ -17,6 +17,8 @@
         { "title": "Write a surface", "href": "/authoring/write-a-surface" },
         { "title": "Host data", "href": "/authoring/host-data" },
         { "title": "Authoring constraints", "href": "/authoring/constraints" },
+        { "title": "Gradients and masks", "href": "/authoring/gradients-and-masks" },
+        { "title": "Shaders and image effects", "href": "/authoring/shaders-and-image-effects" },
         { "title": "Custom widgets", "href": "/authoring/custom-widgets" },
         { "title": "Design-system packages", "href": "/authoring/design-system-packages" },
         { "title": "Custom widget target matrix", "href": "/authoring/custom-widget-target-matrix" },

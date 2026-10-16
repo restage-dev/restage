@@ -121,7 +121,7 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
 - **Use it anywhere in the app.** An onboarding flow, a survey, a paywall, a
   whole screen, or one card inside your own `Scaffold`. One runtime renders
   all of them.
-- **It has a catalog of 120 widgets** across `restage_core`,
+- **It has a catalog of 121 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
   `@RestageWidget`.
 - **Your app owns the implementation.** What ships is data the app renders.

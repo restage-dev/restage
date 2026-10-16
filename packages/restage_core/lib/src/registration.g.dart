@@ -55,6 +55,7 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'RestageMotion': buildRestageMotion,
   'RestagePrice': buildRestagePrice,
   'RestagePulse': buildRestagePulse,
+  'RestageShaderMask': buildRestageShaderMask,
   'RestageStagger': buildRestageStagger,
   'Offstage': buildOffstage,
   'Opacity': buildOpacity,
@@ -490,8 +491,9 @@ Widget buildContainer(BuildContext context, DataSource source) {
 /// Builds the catalog's `DecoratedBox` widget from [source].
 Widget buildDecoratedBox(BuildContext context, DataSource source) {
   return DecoratedBox(
-    decoration:
-        BoxDecoration(color: ArgumentDecoders.color(source, <Object>['color'])),
+    decoration: BoxDecoration(
+        color: ArgumentDecoders.color(source, <Object>['color']),
+        gradient: ArgumentDecoders.gradient(source, <Object>['gradient'])),
     position: RestageDecoders.enumByName<DecorationPosition>(
             DecorationPosition.values, source, <Object>['position']) ??
         DecorationPosition.background,
@@ -869,6 +871,19 @@ Widget buildRestagePulse(BuildContext context, DataSource source) {
     period: RestageDecoders.duration(source, <Object>['period']),
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.easeInOut,
     child: source.child(const <Object>['child']),
+  );
+}
+
+/// Builds the catalog's `RestageShaderMask` widget from [source].
+Widget buildRestageShaderMask(BuildContext context, DataSource source) {
+  return RestageShaderMask(
+    gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
+    color: ArgumentDecoders.color(source, <Object>['color']),
+    rotation: source.v<double>(const <Object>['rotation']) ?? 0.0,
+    blendMode: RestageDecoders.enumByName<BlendMode>(
+            BlendMode.values, source, <Object>['blendMode']) ??
+        BlendMode.modulate,
+    child: source.optionalChild(const <Object>['child']),
   );
 }
 

@@ -222,6 +222,8 @@ Type _flutterTypeFor(String entryName) {
       return RestagePrice;
     case 'RestagePulse':
       return RestagePulse;
+    case 'RestageShaderMask':
+      return RestageShaderMask;
     case 'RestageStagger':
       return RestageStagger;
     case 'Offstage':
@@ -457,6 +459,35 @@ widget Paywall = SingleChildScrollView();
         wrap: (paywall) => SizedBox(width: 200, height: 200, child: paywall),
       );
     });
+
+    testWidgets(
+      'DecoratedBox reconstructs its gradient fill',
+      (tester) async {
+        final runtime = _buildRuntime('''
+import restage.core;
+widget Paywall = DecoratedBox(
+  gradient: {type: "radial", colors: [0xFFAA0000, 0xFF00AA00]},
+  child: SizedBox(width: 100.0, height: 100.0),
+);
+''');
+        await tester.pumpWidget(Directionality(
+          textDirection: TextDirection.ltr,
+          child: RemoteWidget(
+            runtime: runtime,
+            data: DynamicContent(),
+            widget: const FullyQualifiedWidgetName(_rootLibrary, 'Paywall'),
+          ),
+        ));
+        final marker = tester.widget<_SmokeMarker>(find.byWidgetPredicate(
+            (w) => w is _SmokeMarker && w.name == 'DecoratedBox'));
+        final decoration =
+            (marker.child as DecoratedBox).decoration as BoxDecoration;
+        expect(decoration.gradient, isA<RadialGradient>());
+        expect(decoration.gradient!.colors,
+            [const Color(0xFFAA0000), const Color(0xFF00AA00)]);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets(
       'Container BoxDecoration round-trips color, borderRadius, '

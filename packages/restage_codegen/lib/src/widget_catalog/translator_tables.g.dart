@@ -274,8 +274,14 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
       failureDsl: '{x: 0.0, y: 0.0}'),
   '#RadialGradient': TranslatorRecipe(
       typeName: 'RadialGradient',
+      deferredNamedArgs: {'transform'},
       emit: EmitFragmentMap([
         EmitMapEntry('type', EmitFragmentLiteral('"radial"')),
+        EmitMapEntry(
+            'tileMode',
+            EmitFragmentArg(ArgRef.named('tileMode'),
+                propertyType: PropertyType.enumValue),
+            omitWhenArgUnset: true),
         EmitMapEntry(
             'colors',
             EmitFragmentArg(ArgRef.named('colors'),
@@ -334,8 +340,14 @@ const Map<String, TranslatorRecipe> kTranslatorRecipes = {
       failureDsl: '{type: "radial"}'),
   '#SweepGradient': TranslatorRecipe(
       typeName: 'SweepGradient',
+      deferredNamedArgs: {'transform'},
       emit: EmitFragmentMap([
         EmitMapEntry('type', EmitFragmentLiteral('"sweep"')),
+        EmitMapEntry(
+            'tileMode',
+            EmitFragmentArg(ArgRef.named('tileMode'),
+                propertyType: PropertyType.enumValue),
+            omitWhenArgUnset: true),
         EmitMapEntry(
             'colors',
             EmitFragmentArg(ArgRef.named('colors'),
