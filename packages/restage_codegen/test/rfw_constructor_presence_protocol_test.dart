@@ -48,15 +48,15 @@ Object x() => Probe(label: $argument);
 void main() {
   group('RFW constructor presence encoder', () {
     test('applies to every optional constructor property with a default', () {
-      expect(RfwConstructorPresenceEncoder.appliesTo(_property()), isTrue);
+      expect(RfwConstructorPresenceProtocol.appliesTo(_property()), isTrue);
       expect(
-        RfwConstructorPresenceEncoder.appliesTo(
+        RfwConstructorPresenceProtocol.appliesTo(
           _property(constructorNullable: false),
         ),
         isTrue,
       );
       expect(
-        RfwConstructorPresenceEncoder.appliesTo(
+        RfwConstructorPresenceProtocol.appliesTo(
           _property(constructorDefault: const DartConstNull()),
         ),
         isTrue,
@@ -65,11 +65,11 @@ void main() {
 
     test('does not apply to required or no-default properties', () {
       expect(
-        RfwConstructorPresenceEncoder.appliesTo(_property(required: true)),
+        RfwConstructorPresenceProtocol.appliesTo(_property(required: true)),
         isFalse,
       );
       expect(
-        RfwConstructorPresenceEncoder.appliesTo(
+        RfwConstructorPresenceProtocol.appliesTo(
           _property(constructorDefault: null),
         ),
         isFalse,

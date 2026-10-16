@@ -1,9 +1,19 @@
+import 'dart:io';
+
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:restage_codegen/src/translator_recipes.dart';
 import 'package:restage_codegen/src/translator_table_emitter.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('the checked-in table is current', () {
+    expect(
+      File('lib/src/widget_catalog/translator_tables.g.dart')
+          .readAsStringSync(),
+      emitBuiltinTranslatorTable(),
+    );
+  });
+
   group('emitTranslatorTableSource', () {
     final source = emitTranslatorTableSource(kHandAuthoredRecipes);
 

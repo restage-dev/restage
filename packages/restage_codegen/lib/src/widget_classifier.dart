@@ -18,6 +18,7 @@ import 'package:restage_codegen/src/motion_recognition.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
 import 'package:restage_codegen/src/number_format_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
+import 'package:restage_codegen/src/shader_mask_recognition.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_shared/restage_shared.dart' show kSupportedCurveNames;
@@ -917,6 +918,32 @@ class _Walk {
       return;
     }
     if (_isWidgetClass(type)) {
+      if ({'ShaderMask', 'ColorFiltered'}.contains(type.name) &&
+          libraryIsFlutter(type)) {
+        final (:arguments, :reason) = recogniseShaderMask(
+          expr,
+          resolve: (value) => value is SimpleIdentifier
+              ? _activeBindingFor(value.element) ?? value
+              : value,
+        );
+        if (arguments == null) {
+          _unclassifiable(reason!,
+              diagnosticCode: IssueCode.shaderMaskFormUnsupported);
+          return;
+        }
+        for (final MapEntry(:key, :value) in arguments.entries) {
+          if (key == 'gradient' && value is InstanceCreationExpression) {
+            for (final arg in value.argumentList.arguments) {
+              if (arg is! NamedArgument || arg.name.lexeme != 'transform') {
+                await classify(arg);
+              }
+            }
+          } else {
+            await _classifyExpression(value);
+          }
+        }
+        return;
+      }
       if (type.name == 'CustomPaint') {
         _blocker(BlockerKind.customPainter, expr, _truncateSource(expr));
         return;

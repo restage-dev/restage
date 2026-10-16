@@ -3751,6 +3751,9 @@ const Map<(String, String), String> _scalarDecoderExemptions = {
   ('AnimatedRotation', 'turns'): _transformPaintReason,
   ('AnimatedScale', 'scale'): _transformPaintReason,
   ('TransformRotate', 'angle'): _transformPaintReason,
+  ('RestageShaderMask', 'rotation'):
+      'gradient rotation reaches shader creation during paint; child layout '
+          'does not depend on the angle',
   ('Slider', 'value'): _sliderAndProgressPaintReason,
   ('Slider', 'secondaryTrackValue'): _sliderAndProgressPaintReason,
   ('Slider', 'min'): _sliderAndProgressPaintReason,

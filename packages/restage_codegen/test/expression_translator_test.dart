@@ -3105,19 +3105,19 @@ SegmentedButton<String>(
       expect(r.dsl, contains('end: {x: 1.0, y: 1.0}'));
     });
 
-    test('unsupported tileMode argument surfaces a diagnostic', () async {
+    test('tileMode emits its decoder name', () async {
       final r = translator.translate(
-        await parseExpressionForTest(
-          'LinearGradient(begin: Alignment.topLeft, '
+        await parseExpressionFromSourceForTest(
+          "import 'package:flutter/painting.dart';\n"
+          'Object x() => LinearGradient(begin: Alignment.topLeft, '
           'end: Alignment.bottomRight, '
           'colors: [Color(0xFF000000), Color(0xFFFFFFFF)], '
-          'tileMode: TileMode.mirror)',
+          'tileMode: TileMode.mirror);',
+          rootPackage: 'apps_examples',
         ),
       );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
-      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, contains('tileMode: "mirror"'));
     });
 
     test('unknown Alignment member surfaces a diagnostic', () async {

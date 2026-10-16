@@ -4,18 +4,6 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Translator-side encoder for Restage's versioned RFW constructor-presence
 /// calling convention.
 abstract final class RfwConstructorPresenceEncoder {
-  /// Whether [property] needs an envelope to preserve Dart's omission boundary.
-  ///
-  /// Every optional property with a constructor default participates, whatever
-  /// its nullability or the default's value. An absent outer property omits the
-  /// Dart argument so the ordinary default applies. Any supplied expression,
-  /// including one that evaluates missing or null, must remain supplied rather
-  /// than being silently reinterpreted as absence. Supplying null is therefore
-  /// retained for nullable inputs and fails loudly at ordinary Dart invocation
-  /// for non-nullable inputs.
-  static bool appliesTo(PropertyEntry property) =>
-      !property.required && property.constructorDefault != null;
-
   /// Encodes one author-supplied RFW expression.
   ///
   /// A literal null intentionally has no nested value. All other expressions
@@ -31,9 +19,11 @@ abstract final class RfwConstructorPresenceEncoder {
     return "{ '$marker': $version, '$value': $valueExpression }";
   }
 
-  /// Applies the protocol only when [property] has the omission boundary above.
+  /// Applies the protocol to optional properties with a constructor default.
   static String encode(PropertyEntry property, String valueExpression) =>
-      appliesTo(property) ? supplied(valueExpression) : valueExpression;
+      RfwConstructorPresenceProtocol.appliesTo(property)
+          ? supplied(valueExpression)
+          : valueExpression;
 }
 
 /// Factory-emitter view of one constructor-presence read.
@@ -58,7 +48,7 @@ final class RfwConstructorPresenceFactoryPlan {
     var ordinal = 0;
 
     for (final property in properties) {
-      if (!RfwConstructorPresenceEncoder.appliesTo(property)) continue;
+      if (!RfwConstructorPresenceProtocol.appliesTo(property)) continue;
 
       final suffix = _upperCamel(property.name);
       var localName = 'restagePresence$suffix';

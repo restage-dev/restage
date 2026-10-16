@@ -41,6 +41,7 @@ import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
+import 'package:restage_codegen/src/shader_mask_recognition.dart';
 import 'package:restage_codegen/src/single_select_recognition.dart';
 import 'package:restage_codegen/src/structured_value_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
@@ -5574,6 +5575,64 @@ final class ExpressionTranslator {
     );
   }
 
+  String? _shaderMaskAlias({
+    required ClassElement? widgetClass,
+    required Expression anchor,
+    required List<Issue> issues,
+  }) {
+    if (!libraryIsFlutter(widgetClass) ||
+        anchor is! InstanceCreationExpression) {
+      return null;
+    }
+    final target = kShaderMaskLowering.resolve(catalog).firstOrNull;
+    if (target == null) return null;
+    final (:arguments, :reason) =
+        recogniseShaderMask(anchor, resolve: _resolveBoundIdentifier);
+    if (arguments == null) {
+      issues.add(Issue(
+        code: IssueCode.shaderMaskFormUnsupported,
+        capabilityGapSubject: 'widget:${widgetClass!.name}',
+        message: '${widgetClass.name}: $reason. Put this effect in a custom '
+            'widget annotated with @RestageWidget.',
+        location: _locationOf(anchor),
+      ));
+      return '';
+    }
+    final emitted = <String>[];
+    for (final property in target.properties) {
+      final expression = arguments[property.name];
+      if (expression == null) continue;
+      final before = issues.length;
+      String value;
+      if (property.name == 'gradient' &&
+          expression is InstanceCreationExpression) {
+        final args = expression.argumentList.arguments
+            .where((arg) =>
+                arg is! NamedArgument || arg.name.lexeme != 'transform')
+            .toList();
+        final type = expression.constructorName.element!.enclosingElement.name!;
+        value = type == 'LinearGradient'
+            ? _structured.linearGradient(args, issues, _locationOf(expression))
+            : _recipeDispatcher.tryTranslate(
+                recipeKey(library: null, typeName: type, variant: null),
+                args,
+                issues,
+                _locationOf(expression),
+              )!;
+      } else {
+        value = _translateSlotValue(expression, property.type, issues,
+            property: property);
+      }
+      if (issues.skip(before).any((issue) => !issue.code.isInformational)) {
+        return '';
+      }
+      emitted.add('${_rfwMapKey(property.name)}: '
+          '${RfwConstructorPresenceEncoder.encode(property, value)}');
+    }
+    _recordRfwCatalogConstructorOrigin(target);
+    return '${target.name}(${emitted.join(', ')})';
+  }
+
   /// Lowers a vanilla-Flutter `PageView(...)` to the `RestagePager` catalog
   /// widget — the declarative paged surface. Carry-all-or-defer per argument:
   /// the mapped set (`children`, `scrollDirection`, `pageSnapping`,
@@ -6662,6 +6721,14 @@ final class ExpressionTranslator {
           issues.add(_customWidgetIssue(classification, widgetName, anchor));
           return '';
         }
+      }
+      if (widgetName == 'ShaderMask' || widgetName == 'ColorFiltered') {
+        final aliased = _shaderMaskAlias(
+          widgetClass: widgetClass,
+          anchor: anchor,
+          issues: issues,
+        );
+        if (aliased != null) return aliased;
       }
       // PageView → RestagePager alias. A vanilla-Flutter `PageView(...)` is the
       // faithful Flutter spelling of the declarative paged surface; recognise
