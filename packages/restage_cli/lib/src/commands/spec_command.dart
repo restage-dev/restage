@@ -18,6 +18,7 @@ const _groupDescriptions = <String, String>{
   'app-config':
       "Read or change an app's iOS bundle id, Android package, and web "
       'domain, and see what each platform has sent.',
+  'components': "List or show a project's shared components.",
   'products': 'List or import the store products for an app.',
   'slots': "List or set an app's product slots.",
   'stores': "List an app's store connections.",

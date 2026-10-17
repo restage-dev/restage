@@ -1193,7 +1193,7 @@ RenderBundleStorageRefusal? _storageRefusal(Map<String, dynamic> data) {
   final used = data['usedBytes'];
   final limit = data['limitBytes'];
   final needed = data['neededBytes'];
-  final entries = data['protectedHolders'];
+  final entries = typedErrorListItems(data['protectedHolders']);
   final evicted = data['evictedVersionIds'];
   if (used is! int ||
       limit is! int ||

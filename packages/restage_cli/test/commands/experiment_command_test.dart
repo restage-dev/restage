@@ -238,6 +238,7 @@ void main() {
     Uint8ListReply? reply,
     bool withYes = true,
     Map<String, String> environment = const {},
+    http.Response? Function(Map<String, Object?> body)? raw,
   }) async {
     final methods = <String>[];
     final stdout = StringBuffer();
@@ -248,6 +249,7 @@ void main() {
       final directory = targetDirectoryResponse(method);
       if (directory != null) return directory;
       methods.add(method);
+      if (raw?.call(body) case final response?) return response;
       final sent = ExperimentAuthoringRequestV1.fromCanonicalBytes(
         byteDataBytes(body['requestBytes']! as String),
       );
@@ -928,6 +930,36 @@ void main() {
         'audience.se.v2',
       );
     });
+
+    test(
+      'an activation held for a fit is sent again confirmed with --yes',
+      () async {
+        final bodies = <Map<String, Object?>>[];
+        final result = await run(
+          ['activate', ..._selectors['activate']!],
+          raw: (body) {
+            bodies.add(body);
+            if (body['acceptFit'] == true) return null;
+            return http.Response(
+              jsonEncode({
+                'className': 'SurfaceFitNeedsConfirmationException',
+                'data': {
+                  '__className__': 'SurfaceFitNeedsConfirmationException',
+                  'verdict': 'noneFit',
+                  'environment': 'staging',
+                  'builds': {'items': <Object>[]},
+                },
+              }),
+              400,
+            );
+          },
+        );
+
+        expect(result.methods, ['activateDraft', 'activateDraft']);
+        expect(bodies.map((b) => b['acceptFit']), [null, true]);
+        expect(result.err, contains('No app version in use can show this yet'));
+      },
+    );
 
     test(
       'renders an activation audience conflict refusal from its locator',

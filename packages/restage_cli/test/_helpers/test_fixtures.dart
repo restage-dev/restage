@@ -482,7 +482,7 @@ http.Response resolveTargetResponse(
       return typedErrorResponse('TargetSelectionRefusedException', {
         'reason': reason,
         'environmentSlug': environment,
-        if (matches.length > 1) 'candidates': matches,
+        if (matches.length > 1) 'candidates': {'items': matches},
       });
     }
     target = matches.single;

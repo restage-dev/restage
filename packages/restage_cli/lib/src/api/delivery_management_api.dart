@@ -34,6 +34,7 @@ final class DeliveryManagementApi {
     required String appSlug,
     required TargetCoordinate target,
     required CanonicalValue request,
+    bool acceptFit = false,
   }) {
     final addressed = switch (request) {
       PlacementDirectoryRequestV1 value => value.target,
@@ -127,7 +128,15 @@ final class DeliveryManagementApi {
         DeliveryOperation.deliveryPolicyPublish,
         final DeliveryPolicyPublishRequestV1 value,
       ) =>
-        call(publish, value),
+        publish(
+          projectSlug: projectSlug,
+          appSlug: appSlug,
+          environmentTargetId: target.environmentTargetId.value,
+          runtimePlane: RuntimePlane.fromWireName(target.runtimePlane.name),
+          organizationId: target.organizationId.value,
+          request: value,
+          acceptFit: acceptFit,
+        ),
       (
         DeliveryOperation.deliveryPolicyUndoReview,
         final DeliveryPolicyUndoReviewRequestV1 value,
@@ -399,8 +408,10 @@ final class DeliveryManagementApi {
     required RuntimePlane runtimePlane,
     required int organizationId,
     required DeliveryPolicyPublishRequestV1 request,
+    bool acceptFit = false,
   }) => _policy(
     'publish',
+    acceptFit: acceptFit,
     projectSlug: projectSlug,
     appSlug: appSlug,
     environmentTargetId: environmentTargetId,
@@ -453,6 +464,7 @@ final class DeliveryManagementApi {
     required CanonicalValue request,
     required T Function(List<int>) decode,
     required bool Function(T) matches,
+    bool acceptFit = false,
   }) async {
     if (target.organizationId.value != organizationId ||
         target.environmentTargetId.value != environmentTargetId ||
@@ -476,6 +488,7 @@ final class DeliveryManagementApi {
         'runtimePlane': runtimePlane.wireName,
         'organizationId': organizationId,
         'requestBytes': encodeByteDataWire(bytes),
+        if (acceptFit) 'acceptFit': true,
       });
     } on RestageApiException catch (error) {
       final refusal = decodeSurfaceRoutingException(error.body);

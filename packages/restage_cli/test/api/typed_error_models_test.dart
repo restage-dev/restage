@@ -98,14 +98,16 @@ void main() {
           '__className__': 'TargetSelectionRefusedException',
           'reason': 'environmentOnBothPlanes',
           'environmentSlug': 'production',
-          'candidates': [
-            {
-              'environmentTargetId': 12,
-              'namedEnvironmentId': 9,
-              'environmentSlug': 'production',
-              'runtimePlane': 'sandbox',
-            },
-          ],
+          'candidates': {
+            'items': [
+              {
+                'environmentTargetId': 12,
+                'namedEnvironmentId': 9,
+                'environmentSlug': 'production',
+                'runtimePlane': 'sandbox',
+              },
+            ],
+          },
         },
       });
 

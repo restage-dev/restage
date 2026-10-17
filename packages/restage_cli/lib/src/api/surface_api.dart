@@ -443,8 +443,10 @@ class SurfaceApi {
     int? contractVersion,
     SurfaceSourceKind? sourceKind,
     DeliveryMeasurementMutationProceedV1? measurementProceed,
+    bool acceptFit = false,
   }) async {
     final raw = await _api.call('surface', 'rollbackSurface', <String, dynamic>{
+      if (acceptFit) 'acceptFit': true,
       'projectSlug': project,
       'appSlug': app,
       'surfaceType': surfaceType.wireName,
@@ -485,8 +487,10 @@ class SurfaceApi {
     int? contractVersion,
     SurfaceSourceKind? sourceKind,
     DeliveryMeasurementMutationProceedV1? measurementProceed,
+    bool acceptFit = false,
   }) async {
     final raw = await _api.call('surface', 'activateSurface', <String, dynamic>{
+      if (acceptFit) 'acceptFit': true,
       'projectSlug': project,
       'appSlug': app,
       'surfaceType': surfaceType.wireName,

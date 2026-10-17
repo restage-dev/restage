@@ -174,6 +174,9 @@ void main() {
 
 class _FixedReply implements RestageApi {
   @override
+  FitDecider? get fitDecider => null;
+
+  @override
   Uri get endpoint => Uri.parse('http://localhost/');
 
   @override

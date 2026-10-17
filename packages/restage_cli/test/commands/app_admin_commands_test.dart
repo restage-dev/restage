@@ -524,13 +524,15 @@ void main() {
         (_) => typed('AppDeleteRefusedException', {
           'appName': 'Welcome Tour',
           'projectName': 'Fitness',
-          'holds': [
-            {'kind': 'servingSurface', 'count': 2},
-            {'kind': 'activeApiKey', 'count': 1},
-            {'kind': 'runningExperiment', 'count': 3},
-            {'kind': 'deliveryRule', 'count': 1},
-            {'kind': 'lastAppInProject', 'count': 1},
-          ],
+          'holds': {
+            'items': [
+              {'kind': 'servingSurface', 'count': 2},
+              {'kind': 'activeApiKey', 'count': 1},
+              {'kind': 'runningExperiment', 'count': 3},
+              {'kind': 'deliveryRule', 'count': 1},
+              {'kind': 'lastAppInProject', 'count': 1},
+            ],
+          },
         }),
       );
 

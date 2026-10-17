@@ -9,6 +9,7 @@ import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:test/test.dart';
 
+import '../_helpers/component_fixtures.dart';
 import '../_helpers/test_fixtures.dart';
 
 void main() {
@@ -49,6 +50,51 @@ void main() {
 
       expect(result.exitCode, 0, reason: result.stderr);
       expect(result.stdout, contains('restage'));
+    },
+  );
+
+  test(
+    'the shared component reads run from the console command line',
+    () async {
+      final listing = ConsoleCommandExecutor(
+        credentialStore: store,
+        httpClient: mockHttpClient((request) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          calls.add(body);
+          return http.Response(
+            body['method'] == 'list'
+                ? jsonEncode([
+                    {
+                      'id': 1,
+                      'name': 'badge',
+                      'scope': 'project',
+                      'latestVersion': 1,
+                      'updatedAt': '2026-10-14T00:00:00.000Z',
+                      'usedBy': 2,
+                      'onOlderVersion': 0,
+                      'inAppBuild': false,
+                    },
+                  ])
+                : jsonEncode({
+                    'componentId': 1,
+                    'version': 1,
+                    'payload': componentPayloadWire(),
+                    'createdAt': '2026-10-14T00:00:00.000Z',
+                  }),
+            200,
+          );
+        }),
+        directory: dir,
+      );
+
+      final list = await listing.runCommand(['components', 'list']);
+      expect(list.exitCode, 0, reason: list.stderr);
+      expect(list.stdout, contains('badge'));
+      expect(list.stdout, contains('Not in any app build'));
+
+      final show = await listing.runCommand(['components', 'show', 'badge']);
+      expect(show.exitCode, 0, reason: show.stderr);
+      expect(show.stdout, contains('slot main.label: Hello'));
     },
   );
 

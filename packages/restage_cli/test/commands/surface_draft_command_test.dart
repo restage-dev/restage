@@ -86,14 +86,16 @@ void main() {
       (body) => typedErrorResponse('SurfaceContractFamilyViolation', {
         'code': 'unhandledEvents',
         'message': 'The flow does not handle the event "next".',
-        'unhandledEvents': [
-          {
-            'flow': 'welcome',
-            'state': 'intro',
-            'screen': 'hello',
-            'event': 'next',
-          },
-        ],
+        'unhandledEvents': {
+          'items': [
+            {
+              'flow': 'welcome',
+              'state': 'intro',
+              'screen': 'hello',
+              'event': 'next',
+            },
+          ],
+        },
       }),
     );
 

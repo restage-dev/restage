@@ -433,14 +433,16 @@ void main() {
             'usedBytes': 900,
             'limitBytes': 1000,
             'neededBytes': 300,
-            'protectedHolders': <Object?>[
-              <String, Object?>{
-                'kind': 'environmentHead',
-                'label': 'prod',
-                'version': 2,
-                'byteLength': 400,
-              },
-            ],
+            'protectedHolders': <String, Object?>{
+              'items': [
+                <String, Object?>{
+                  'kind': 'environmentHead',
+                  'label': 'prod',
+                  'version': 2,
+                  'byteLength': 400,
+                },
+              ],
+            },
             'evictedVersionIds': <Object?>[3, 4],
           },
         }),

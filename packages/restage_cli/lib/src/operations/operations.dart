@@ -5,6 +5,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_cli/src/config/config_target_check.dart'
     show noOrganizationSentence;
 import 'package:restage_cli/src/api/app_admin_api.dart';
+import 'package:restage_cli/src/api/component_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -14,6 +15,8 @@ import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/audit_rendering.dart';
+import 'package:restage_cli/src/commands/spec_command.dart'
+    show writeOperationValue;
 import 'package:restage_cli/src/commands/render_bundle_coverage.dart';
 import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_cli/src/operations/platforms_report.dart';
@@ -559,6 +562,106 @@ final List<Operation> sharedOperations = [
       app: target.app!,
       organizationId: target.organizationId,
     ),
+  ),
+  Operation(
+    cliPath: 'components list',
+    mcpName: 'restage_list_components',
+    description: 'List the shared components of a project.',
+    mcpDescription:
+        'List the shared components visible to a project: its own and its '
+        "organization's. Each row carries the name, scope (project or "
+        'organization), newest version, how many surfaces use it, how many '
+        'of those are on an older version, and whether any app build '
+        'registers what the newest version needs.',
+    scope: OperationScope.project,
+    resultKey: 'components',
+    columns: _componentColumns,
+    emptyNote: 'No shared components.',
+    toJson: _componentRowsJson,
+    call: (target, _) async {
+      final components = await ComponentApi(target.api).list(
+        organizationId: await target.organization(),
+        project: target.project!,
+      );
+      return [for (final component in components) _componentRow(component)];
+    },
+  ),
+  Operation(
+    cliPath: 'components show',
+    mcpName: 'restage_get_component',
+    description: 'Show one shared component.',
+    mcpDescription:
+        'Get one shared component by name: scope, usage, whether any app '
+        'build registers what its newest version needs, the newest '
+        "version's creation time, its declarations, the app widget libraries "
+        'it imports, its entry widget, and its slots with their defaults.',
+    scope: OperationScope.project,
+    params: const [
+      OperationParam(
+        'name',
+        cli: 'component <name>',
+        positional: true,
+        required: true,
+        help: 'The component name.',
+      ),
+    ],
+    resultKey: 'component',
+    toJson: _componentDetailJson,
+    render: (out, value, _, _) {
+      final detail = value! as Map<String, Object?>;
+      writeOperationValue(out, detail, _componentColumns);
+      out.writeln('created: ${detail['createdAt']}');
+      out.writeln('entry: ${detail['entry']}');
+      out.writeln(
+        'declarations: ${(detail['declarations']! as List<Object?>).join(', ')}',
+      );
+      out.writeln(
+        'imports: ${(detail['imports']! as List<Object?>).join(', ')}',
+      );
+      final slots = detail['slots']! as Map<String, Object?>;
+      for (final declaration in slots.entries) {
+        for (final slot
+            in (declaration.value! as Map<String, Object?>).entries) {
+          out.writeln('slot ${declaration.key}.${slot.key}: ${slot.value}');
+        }
+      }
+    },
+    call: (target, args) async {
+      final api = ComponentApi(target.api);
+      final organizationId = await target.organization();
+      final components = await api.list(
+        organizationId: organizationId,
+        project: target.project!,
+      );
+      final matches =
+          [
+            for (final component in components)
+              if (component.name == args.str('name')) component,
+          ]..sort(
+            (a, b) => a.scope == b.scope
+                ? 0
+                : a.scope == 'project'
+                ? -1
+                : 1,
+          );
+      if (matches.isEmpty) {
+        throw TargetSelectionException(
+          'No shared component is named ${args.str('name')}.',
+        );
+      }
+      final component = matches.first;
+      final latest = await api.loadVersion(
+        organizationId: organizationId,
+        componentId: component.id,
+        version: component.latestVersion,
+      );
+      final definition = describeComponentPayload(latest.payload);
+      return <String, Object?>{
+        ..._componentRow(component),
+        'createdAt': latest.createdAt.toUtc().toIso8601String(),
+        ...definition,
+      };
+    },
   ),
   Operation(
     cliPath: 'keys list',
@@ -1264,3 +1367,36 @@ const _slotColumns = <OperationColumn>[
   (header: 'NAME', key: 'name'),
   (header: 'ENTITLEMENT', key: 'entitlement'),
 ];
+
+const _componentColumns = <OperationColumn>[
+  (header: 'NAME', key: 'name'),
+  (header: 'SCOPE', key: 'scope'),
+  (header: 'VERSION', key: 'latestVersion'),
+  (header: 'USAGE', key: 'usage'),
+  (header: 'NOTE', key: 'note'),
+];
+
+const _componentDerivedKeys = <String>{'usage', 'note'};
+
+Map<String, Object?> _componentRow(ComponentSummary component) => {
+  ...component.toJson(),
+  'usage': [
+    component.usedBy == 1 ? '1 surface' : '${component.usedBy} surfaces',
+    if (component.onOlderVersion > 0)
+      '${component.onOlderVersion} on older versions',
+  ].join(' · '),
+  'note': component.inAppBuild == false ? 'Not in any app build' : null,
+};
+
+Map<String, Object?> _withoutDerived(Map<String, Object?> row) => {
+  for (final entry in row.entries)
+    if (!_componentDerivedKeys.contains(entry.key)) entry.key: entry.value,
+};
+
+Object? _componentRowsJson(Object? value) => [
+  for (final row in (value! as List<Object?>).cast<Map<String, Object?>>())
+    _withoutDerived(row),
+];
+
+Object? _componentDetailJson(Object? value) =>
+    _withoutDerived(value! as Map<String, Object?>);

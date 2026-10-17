@@ -144,6 +144,7 @@ void main() {
       expect(
         (schema['properties']! as Map<String, Object?>).keys.toList()..sort(),
         [
+          'acceptFit',
           'appSlug',
           'confirmLive',
           'environmentSlug',

@@ -924,6 +924,7 @@ class SurfaceRoutingApi {
     required int? expectedRevisionOrdinal,
     required String operationId,
     TargetCoordinate? expectedTarget,
+    bool acceptFit = false,
   }) async {
     final request = DeliveryPolicyPublishRequestV1.fromCanonicalBytes(
       documentBytes,
@@ -938,6 +939,7 @@ class SurfaceRoutingApi {
       throw const FormatException('The operation id differs from the request.');
     }
     final raw = await _call('publishRouting', <String, dynamic>{
+      if (acceptFit) 'acceptFit': true,
       'projectSlug': projectSlug,
       'appSlug': appSlug,
       'surfaceType': surfaceType,
@@ -967,6 +969,7 @@ class SurfaceRoutingApi {
     int? contractVersion,
     DeliveryPolicyPublishRequestV1? reviewedPublishRequest,
     TargetCoordinate? expectedTarget,
+    bool acceptFit = false,
   }) async {
     if (reviewedPublishRequest == null) {
       throw const FormatException('A server-issued route review is required.');
@@ -982,6 +985,7 @@ class SurfaceRoutingApi {
       throw const FormatException('The operation id differs from the review.');
     }
     final raw = await _call('rollbackRoute', <String, dynamic>{
+      if (acceptFit) 'acceptFit': true,
       'projectSlug': projectSlug,
       'appSlug': appSlug,
       'surfaceType': surfaceType,

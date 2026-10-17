@@ -179,6 +179,43 @@ void main() {
       },
     );
 
+    test(
+      'a server that holds the rollback for a fit sees --yes confirm it',
+      () async {
+        final bodies = <Map<String, dynamic>>[];
+        final client = scriptedHttpClient([
+          (_) => statusResponse(),
+          (_) => preflightResponse(),
+          (req) {
+            bodies.add(jsonDecode(req.body) as Map<String, dynamic>);
+            return typedErrorResponse('SurfaceFitNeedsConfirmationException', {
+              'verdict': 'noneFit',
+              'environment': 'staging',
+              'builds': {'items': <Object>[]},
+            });
+          },
+          (req) {
+            bodies.add(jsonDecode(req.body) as Map<String, dynamic>);
+            return rollbackOkResponse();
+          },
+        ]);
+
+        final err = StringBuffer();
+        final code = await makeRunner(
+          stdout: StringBuffer(),
+          stderr: err,
+          httpClient: client,
+        ).run(baseArgs());
+
+        expect(code, 0, reason: err.toString());
+        expect(bodies.map((b) => b['acceptFit']), [null, true]);
+        expect(
+          err.toString(),
+          contains('No app version in use can show this yet'),
+        );
+      },
+    );
+
     test('(b) --freeze passes lockAfter:true in rollback request', () async {
       Map<String, dynamic>? capturedBody;
       final client = scriptedHttpClient([
