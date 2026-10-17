@@ -122,6 +122,10 @@ final class CommerceReportRequest {
   final String store;
 
   /// Store-specific verification payload.
+  ///
+  /// Apple sends its transaction JWS. Play sends a JSON object containing the
+  /// exact BillingClient `originalJson` string and Base64 `signature`, encoded
+  /// by `GooglePlayPurchaseReceipt`. A bare Play purchase token is invalid.
   final String storeVerificationData;
 
   /// Provider product identifier included with the report.

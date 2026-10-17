@@ -12,6 +12,7 @@ final class CommercePurchaserStateResponse {
     required String status,
     required List<EntitlementSummary> entitlements,
     required DateTime retrievedAt,
+    bool? hasProductionPurchaseHistory,
   }) {
     if (!_purchaserStateStatuses.contains(status)) {
       throw ArgumentError.value(status, 'status', 'Unsupported status');
@@ -20,6 +21,7 @@ final class CommercePurchaserStateResponse {
       status: status,
       entitlements: List.unmodifiable(entitlements),
       retrievedAt: retrievedAt.toUtc(),
+      hasProductionPurchaseHistory: hasProductionPurchaseHistory,
     );
   }
 
@@ -27,6 +29,7 @@ final class CommercePurchaserStateResponse {
     required this.status,
     required this.entitlements,
     required this.retrievedAt,
+    required this.hasProductionPurchaseHistory,
   });
 
   /// Parses a response while allowing future additive fields.
@@ -58,6 +61,7 @@ final class CommercePurchaserStateResponse {
       ),
       entitlements: List.unmodifiable(entitlements),
       retrievedAt: requiredCommerceDateTime(json, 'retrievedAt'),
+      hasProductionPurchaseHistory: _optionalHistory(json),
     );
   }
 
@@ -70,6 +74,11 @@ final class CommercePurchaserStateResponse {
   /// Time at which the server read the purchaser state.
   final DateTime retrievedAt;
 
+  /// Production purchase history for this app configuration and purchaser.
+  /// Includes inactive purchases and purchases without a current entitlement.
+  /// Null is unproven; false means the server checked and found none.
+  final bool? hasProductionPurchaseHistory;
+
   /// Converts this response to its wire representation.
   Map<String, dynamic> toJson() => {
         'status': status,
@@ -77,6 +86,8 @@ final class CommercePurchaserStateResponse {
           for (final entitlement in entitlements) entitlement.toJson(),
         ],
         'retrievedAt': retrievedAt.toIso8601String(),
+        if (hasProductionPurchaseHistory != null)
+          'hasProductionPurchaseHistory': hasProductionPurchaseHistory,
       };
 
   @override
@@ -85,6 +96,7 @@ final class CommercePurchaserStateResponse {
     if (other is! CommercePurchaserStateResponse ||
         other.status != status ||
         other.retrievedAt != retrievedAt ||
+        other.hasProductionPurchaseHistory != hasProductionPurchaseHistory ||
         other.entitlements.length != entitlements.length) {
       return false;
     }
@@ -99,5 +111,12 @@ final class CommercePurchaserStateResponse {
         status,
         Object.hashAll(entitlements),
         retrievedAt,
+        hasProductionPurchaseHistory,
       );
+}
+
+bool? _optionalHistory(Map<String, dynamic> json) {
+  final value = json['hasProductionPurchaseHistory'];
+  if (value == null || value is bool) return value as bool?;
+  throw ArgumentError.value(value, 'hasProductionPurchaseHistory');
 }

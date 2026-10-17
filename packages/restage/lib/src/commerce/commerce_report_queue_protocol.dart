@@ -1,3 +1,5 @@
+import 'package:restage_shared/commerce.dart' show commerceVerificationIdentity;
+
 import 'commerce_store_adapter.dart';
 
 /// One report retained locally until the server acknowledges it.
@@ -18,6 +20,7 @@ final class CommerceReportRecord {
         ) {
     _requireNonEmpty(reportId, 'reportId');
     _requireNonEmpty(storeVerificationData, 'storeVerificationData');
+    commerceVerificationIdentity(store.value, storeVerificationData);
     _requireNonEmpty(storeProductId, 'storeProductId');
     _requireNonEmpty(applicationAnonymousToken, 'applicationAnonymousToken');
     _requireNonEmpty(configurationFingerprint, 'configurationFingerprint');
@@ -52,10 +55,11 @@ final class CommerceReportRecord {
       configurationFingerprint == other.configurationFingerprint &&
       applicationAnonymousToken == other.applicationAnonymousToken &&
       store == other.store &&
-      (storeTransactionId ?? storeVerificationData) ==
-          (other.storeTransactionId ?? other.storeVerificationData) &&
+      storeTransactionId == other.storeTransactionId &&
       storeProductId == other.storeProductId &&
-      storeVerificationData == other.storeVerificationData;
+      commerceVerificationIdentity(store.value, storeVerificationData) ==
+          commerceVerificationIdentity(
+              other.store.value, other.storeVerificationData);
 
   bool hasSameContents(CommerceReportRecord other) =>
       reportId == other.reportId &&

@@ -3,10 +3,43 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/commerce.dart';
+import 'package:restage_shared/commerce.dart' show GooglePlayPurchaseReceipt;
 import 'package:restage/src/commerce/commerce_report_queue_io.dart';
 import 'package:restage/src/commerce/commerce_report_queue_protocol.dart';
 
 void main() {
+  test('updated Play signed snapshots retain one durable provider identity',
+      () async {
+    final directory =
+        await Directory.systemTemp.createTemp('restage-play-queue-');
+    addTearDown(() => directory.delete(recursive: true));
+    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    CommerceReportRecord report(String id, bool acknowledged) =>
+        CommerceReportRecord(
+          reportId: id,
+          store: CommerceStore.playStore,
+          storeVerificationData: GooglePlayPurchaseReceipt(
+            originalJson: jsonEncode(
+                {'purchaseToken': 'owned-token', 'acknowledged': acknowledged}),
+            signature:
+                acknowledged ? 'updated-signature' : 'original-signature',
+          ).toVerificationData(),
+          storeProductId: 'subscription.monthly',
+          storeTransactionId: 'initial-order',
+          applicationAnonymousToken: 'purchaser',
+          configurationFingerprint: 'same-scope',
+        );
+    final original = report('first-report', false);
+    await queue.enqueue(original);
+    expect(await queue.enqueue(report('resume-report', true)), same(original));
+    expect(await queue.open(), hasLength(1));
+    expect(
+        (await CommerceFileReportQueue(directoryPath: directory.path).open())
+            .single
+            .hasSameProviderIdentity(report('later-resume', true)),
+        isTrue);
+  });
+
   test('persists a report and its retry schedule across a disk restart',
       () async {
     final supportDirectory = await Directory.systemTemp.createTemp(
