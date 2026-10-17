@@ -102,6 +102,9 @@ Map<String, dynamic> _target({required int id, required String plane}) => {
 };
 
 class _TargetApi implements RestageApi {
+  @override
+  FitDecider? get fitDecider => null;
+
   _TargetApi(this.targets);
   final List<Map<String, dynamic>> targets;
   final methods = <String>[];

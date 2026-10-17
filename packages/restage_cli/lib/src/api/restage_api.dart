@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 
 /// Non-200 response from a backend RPC. The caller decides whether the
@@ -96,6 +97,7 @@ class RestageApi {
     required Uri endpoint,
     http.Client? httpClient,
     Credential? credential,
+    this.fitDecider,
   }) : _endpoint = _validatedEndpoint(endpoint),
        _httpClient = httpClient ?? http.Client(),
        _credential = credential;
@@ -125,6 +127,11 @@ class RestageApi {
   final Uri _endpoint;
   final http.Client _httpClient;
   final Credential? _credential;
+
+  /// Answers a call the server holds until the user confirms that not every
+  /// app version can show what it makes live. Without one, such a call fails
+  /// with the server's refusal.
+  final FitDecider? fitDecider;
 
   /// The backend origin calls go to.
   Uri get endpoint => _endpoint;
@@ -157,6 +164,13 @@ class RestageApi {
       body: body,
     );
     if (response.statusCode != 200) {
+      final decider = fitDecider;
+      if (decider != null && args['acceptFit'] != true) {
+        final needs = decodeFitNeedsConfirmation(response.body);
+        if (needs != null && await decider(needs)) {
+          return call(endpointName, methodName, {...args, 'acceptFit': true});
+        }
+      }
       throw RestageApiException(response.statusCode, response.body);
     }
     if (response.body.isEmpty) return null;
@@ -194,5 +208,28 @@ String _buildAuthHeader(Credential credential) {
         'Unknown credential kind: ${credential.kind}. The credentials '
         'file may have been written by a newer release of the tool.',
       );
+  }
+}
+
+/// Whether to go ahead with a call the server holds for a fit confirmation.
+/// True sends it again with `acceptFit`; false reports the server's refusal.
+@experimental
+typedef FitDecider = Future<bool> Function(SurfaceFitNeedsConfirmation needs);
+
+/// Thrown when the user declined a fit confirmation at a prompt.
+@experimental
+class FitDeclinedException implements Exception {
+  /// Construct the marker.
+  const FitDeclinedException();
+}
+
+/// The fit confirmation [body] carries, or null.
+@experimental
+SurfaceFitNeedsConfirmation? decodeFitNeedsConfirmation(String body) {
+  try {
+    final typed = decodeGenericTypedException(body);
+    return typed is SurfaceFitNeedsConfirmation ? typed : null;
+  } on Object {
+    return null;
   }
 }

@@ -103,6 +103,9 @@ Future<CallToolResult> guardErrors(
         '(https or loopback http) URL. Sign in again with restage_login.',
       );
     } on RestageApiException catch (e) {
+      if (decodeFitNeedsConfirmation(e.body) case final needs?) {
+        return _fitResult(needs);
+      }
       return mcpError(renderApiError(e, syntax: SelectorSyntax.mcp).message);
     } on SocketException catch (e) {
       // Don't forward e.message — for a DNS failure Dart embeds the host in the
@@ -127,6 +130,35 @@ Future<CallToolResult> guardErrors(
     stderr.writeln('restage_mcp $action failed: ${e.runtimeType}');
     return mcpError('An unexpected error occurred while $action.');
   }
+}
+
+/// The server's report that not every app version can show what was being
+/// made live: the verdict as data, naming `acceptFit` as the way to go on.
+CallToolResult _fitResult(SurfaceFitNeedsConfirmation needs) {
+  final result = jsonResult({
+    'needsConfirmation': {
+      'verdict': needs.noneFit ? 'noneFit' : 'someFit',
+      'environment': needs.environment,
+      'share': needs.share,
+      'builds': [
+        for (final build in needs.builds)
+          {
+            'platform': build.platform,
+            'appVersion': build.appVersion,
+            'appBuildOrdinal': build.appBuildOrdinal,
+            'uploaded': build.uploaded,
+            'fits': build.fits,
+          },
+      ],
+      'summary': fitConfirmationSentence(needs),
+      'nextStep': 'Call again with acceptFit: true to go ahead.',
+    },
+  });
+  return CallToolResult(
+    isError: true,
+    content: result.content,
+    structuredContent: result.structuredContent,
+  );
 }
 
 /// Backend field names that must never reach the client, matched EXACTLY (not

@@ -161,6 +161,8 @@ abstract class _ExperimentSubcommand extends Command<int> {
       argResults,
       OperationScope.target,
       (ctx) => _execute(ctx.api, ctx.target!, asJson: asJson),
+      command: this,
+      fitQuestion: 'Start anyway?',
     );
   }
 

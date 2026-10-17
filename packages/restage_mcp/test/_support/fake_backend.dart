@@ -201,7 +201,9 @@ http.Response _resolveTarget(
             : 'environmentNotFound',
         'environmentSlug': environment,
         if (hits.length > 1)
-          'candidates': [for (final t in hits) _targetJson(t)],
+          'candidates': {
+            'items': [for (final t in hits) _targetJson(t)],
+          },
       });
     }
     target = _targetJson(hits.single);

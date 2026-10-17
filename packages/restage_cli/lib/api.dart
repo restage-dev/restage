@@ -62,11 +62,12 @@ export 'src/api/surface_api.dart';
 export 'src/api/surface_funnel_api.dart';
 export 'src/api/surface_publication_api.dart';
 export 'src/api/surface_routing_api.dart';
-export 'src/api/typed_error_models.dart';
+export 'src/api/typed_error_models.dart' hide typedErrorListItems;
 export 'src/api/typed_error_renderer.dart'
     show
         TypedErrorOutcome,
         appNotFoundSentence,
+        fitConfirmationSentence,
         renderApiError,
         staleCredentialSentence,
         typedErrorSentence,
@@ -101,9 +102,12 @@ export 'src/api/surface_models.dart';
 export 'src/api/selector_syntax.dart';
 export 'src/api/restage_api.dart'
     show
+        FitDeclinedException,
+        FitDecider,
         RestageApi,
         RestageApiException,
         InsecureEndpointException,
+        decodeFitNeedsConfirmation,
         isAcceptableTransport;
 export 'src/api/scope_snapshot_api.dart';
 export 'src/config/restage_config.dart'

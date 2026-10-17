@@ -100,10 +100,12 @@ void main() {
       (_) => typed('AppDeleteRefusedException', {
         'appName': 'Welcome Tour',
         'projectName': 'Fitness',
-        'holds': [
-          {'kind': 'servingSurface', 'count': 1},
-          {'kind': 'runningExperiment', 'count': 2},
-        ],
+        'holds': {
+          'items': [
+            {'kind': 'servingSurface', 'count': 1},
+            {'kind': 'runningExperiment', 'count': 2},
+          ],
+        },
       }),
     );
     expect(result.isError, isTrue);

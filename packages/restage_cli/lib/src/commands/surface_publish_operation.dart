@@ -79,8 +79,10 @@ Future<({SurfacePublication publication, bool? recorded})> publishSurface({
   StringSink? stderr,
   void Function(SurfacePublication publication)? onPublished,
   DeliveryMeasurementMutationProceedV1? measurementProceed,
+  bool acceptFit = false,
 }) async {
   final result = await api.activate(
+    acceptFit: acceptFit,
     project: at.project,
     app: at.app,
     surfaceType: identity.surface,

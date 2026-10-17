@@ -6,6 +6,9 @@ import 'package:test/test.dart';
 
 class FakeRestageApi implements RestageApi {
   @override
+  FitDecider? get fitDecider => null;
+
+  @override
   Uri get endpoint => Uri.parse('http://localhost/');
 
   @override

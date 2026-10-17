@@ -297,6 +297,7 @@ final _publishRoutingTool = Tool(
             'Optional first-publication assertion, which must match the review.',
       ),
       'operationId': _operationIdProperty,
+      'acceptFit': acceptFitProperty,
     },
     required: [
       ..._requiredTarget(surfaceScoped: true),
@@ -348,6 +349,7 @@ final _rollbackRouteTool = Tool(
       ..._routeRollbackProperties,
       'operationId': _operationIdProperty,
       'reviewedDigest': _reviewedDigestProperty,
+      'acceptFit': acceptFitProperty,
       'reviewOnly': Schema.bool(
         description: 'Return the complete original review without publishing.',
       ),
@@ -648,6 +650,7 @@ Future<CallToolResult> _publishRouting(
       expectedRevisionOrdinal: review.expectedHeadOrdinal,
       operationId: publish.operationId,
       expectedTarget: target.coordinate,
+      acceptFit: request.optBool('acceptFit') ?? false,
     );
     return jsonResult({...result.toJson(), 'operationId': publish.operationId});
   },
@@ -715,6 +718,7 @@ Future<CallToolResult> _routeRollback(
       operationId: publish.operationId,
       reviewedPublishRequest: publish,
       expectedTarget: target.coordinate,
+      acceptFit: request.optBool('acceptFit') ?? false,
     );
     return jsonResult({...result.toJson(), 'operationId': publish.operationId});
   },

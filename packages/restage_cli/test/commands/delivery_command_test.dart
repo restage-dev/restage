@@ -615,6 +615,28 @@ void main() {
     },
   );
 
+  test('a publish held for a fit is sent again confirmed with --yes', () async {
+    final h = await DeliveryCommandHarness.create();
+    addTearDown(h.dispose);
+    final review = policyReview(placementScope(live: true));
+    final path = await h.file('review.json', review.canonicalBytes);
+    h
+      ..holdForFit = true
+      ..respond(
+        DeliveryPolicyPublishResultV1.applied(review.candidateRevision),
+      );
+
+    final code = await h.run(
+      ['plan', 'publish', '--review', path, '--operation-id', operationId],
+      live: true,
+      yes: true,
+    );
+
+    expect(code, 0, reason: h.stderr.toString());
+    expect(h.calls.map((c) => c['acceptFit']), [null, true]);
+    expect(h.calls.last['requestBytes'], h.calls.first['requestBytes']);
+  });
+
   test(
     'wrong target response is refused and unauthorized response stays an error',
     () async {
@@ -641,6 +663,9 @@ class DeliveryCommandHarness {
   final calls = <Map<String, dynamic>>[];
   final responses = <List<int>>[];
   http.Response? refusal;
+
+  /// Whether a call without `acceptFit` is held for a fit confirmation.
+  bool holdForFit = false;
   Map<String, Object?> get lastJson =>
       jsonDecode(stdout.toString().trim().split('\n').last)
           as Map<String, Object?>;
@@ -671,6 +696,20 @@ class DeliveryCommandHarness {
       expect(request.url.path, anyOf('/deliveryPolicy', '/placementDirectory'));
       calls.add(jsonDecode(request.body) as Map<String, dynamic>);
       if (refusal != null) return refusal!;
+      if (holdForFit && calls.last['acceptFit'] != true) {
+        return http.Response(
+          jsonEncode({
+            'className': 'SurfaceFitNeedsConfirmationException',
+            'data': {
+              '__className__': 'SurfaceFitNeedsConfirmationException',
+              'verdict': 'noneFit',
+              'environment': 'production',
+              'builds': {'items': <Object>[]},
+            },
+          }),
+          400,
+        );
+      }
       expect(responses, isNotEmpty, reason: 'Unexpected extra delivery RPC');
       return http.Response(
         jsonEncode(encodeByteDataWire(responses.removeAt(0))),

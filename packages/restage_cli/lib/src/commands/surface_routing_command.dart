@@ -132,86 +132,99 @@ abstract class _RoutingSubcommand extends Command<int> {
   /// Registers the selectors this operation needs beyond the shared set.
   void addOptions(ArgParser parser) {}
 
+  /// The question asked when the server holds the call for a fit confirmation.
+  String get fitQuestion => 'Publish anyway?';
+
   /// Runs the operation. Returns the process exit code.
   Future<int> invoke(SurfaceRoutingApi api, _RoutingTarget target);
 
   @override
   Future<int> run() async {
-    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
-      final context = ctx.target!;
-      String? surfaceType;
-      String? surfaceSlug;
-      if (needsSurface) {
-        final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
-        if (slug == null) return 1;
-        final type = resolveSurfaceTypeArg(
-          argResults: argResults,
-          fixedType: null,
-          stderr: _stderr,
-        );
-        if (type == null) return 1;
-        surfaceSlug = slug;
-        surfaceType = type.wireName;
-      }
-
-      final int? contractVersion;
-      if (needsSurface && argResults?['contract-version'] != null) {
-        contractVersion = requirePositiveInt('contract-version');
-        if (contractVersion == null) return 1;
-      } else {
-        contractVersion = null;
-      }
-
-      // The environment target id is the routing endpoint's environment: it
-      // addresses one concrete target, not the named environment above it.
-      final target = _RoutingTarget(
-        projectSlug: context.project,
-        appSlug: context.app,
-        organizationId: context.organizationId,
-        environmentId: context.environmentTargetId,
-        surfaceType: surfaceType,
-        surfaceSlug: surfaceSlug,
-        contractVersion: contractVersion,
-        coordinate: targetCoordinateOf(context),
-      );
-
-      if (this is LiveGuardedCommand &&
-          !await confirmLiveChange(
-            command: this,
-            interactive: _io.interactive,
-            stdout: _stdout,
+    return runAuthed(
+      _io,
+      argResults,
+      OperationScope.target,
+      (ctx) async {
+        final context = ctx.target!;
+        String? surfaceType;
+        String? surfaceSlug;
+        if (needsSurface) {
+          final slug = resolveSingleSlug(
+            argResults: argResults,
             stderr: _stderr,
-            runtimePlane: context.runtimePlane,
-            impactLine:
-                'Routing $name for ${surfaceType ?? 'the app'} '
-                '"${surfaceSlug ?? context.app}" in ${context.environment} '
-                '(live).',
-          )) {
-        return 1;
-      }
+          );
+          if (slug == null) return 1;
+          final type = resolveSurfaceTypeArg(
+            argResults: argResults,
+            fixedType: null,
+            stderr: _stderr,
+          );
+          if (type == null) return 1;
+          surfaceSlug = slug;
+          surfaceType = type.wireName;
+        }
 
-      try {
-        return await invoke(SurfaceRoutingApi(ctx.api), target);
-      } on RoutingDocumentBytesException catch (error) {
-        _stderr.writeln(error);
-        return 1;
-      } on DeliveryManagementResponseException catch (error) {
-        _stderr.writeln(error);
-        return 2;
-      } on RestageApiException catch (error) {
-        return _reportApiFailure(error);
-      } on CanonicalFormatException catch (error) {
-        _stderr.writeln(
-          'The service returned an invalid result: ${error.message}',
+        final int? contractVersion;
+        if (needsSurface && argResults?['contract-version'] != null) {
+          contractVersion = requirePositiveInt('contract-version');
+          if (contractVersion == null) return 1;
+        } else {
+          contractVersion = null;
+        }
+
+        // The environment target id is the routing endpoint's environment: it
+        // addresses one concrete target, not the named environment above it.
+        final target = _RoutingTarget(
+          projectSlug: context.project,
+          appSlug: context.app,
+          organizationId: context.organizationId,
+          environmentId: context.environmentTargetId,
+          surfaceType: surfaceType,
+          surfaceSlug: surfaceSlug,
+          contractVersion: contractVersion,
+          coordinate: targetCoordinateOf(context),
         );
-        return 2;
-      } on FormatException catch (error) {
-        _stderr.writeln(
-          'The service returned an invalid result: ${error.message}',
-        );
-        return 2;
-      }
-    });
+
+        if (this is LiveGuardedCommand &&
+            !await confirmLiveChange(
+              command: this,
+              interactive: _io.interactive,
+              stdout: _stdout,
+              stderr: _stderr,
+              runtimePlane: context.runtimePlane,
+              impactLine:
+                  'Routing $name for ${surfaceType ?? 'the app'} '
+                  '"${surfaceSlug ?? context.app}" in ${context.environment} '
+                  '(live).',
+            )) {
+          return 1;
+        }
+
+        try {
+          return await invoke(SurfaceRoutingApi(ctx.api), target);
+        } on RoutingDocumentBytesException catch (error) {
+          _stderr.writeln(error);
+          return 1;
+        } on DeliveryManagementResponseException catch (error) {
+          _stderr.writeln(error);
+          return 2;
+        } on RestageApiException catch (error) {
+          return _reportApiFailure(error);
+        } on CanonicalFormatException catch (error) {
+          _stderr.writeln(
+            'The service returned an invalid result: ${error.message}',
+          );
+          return 2;
+        } on FormatException catch (error) {
+          _stderr.writeln(
+            'The service returned an invalid result: ${error.message}',
+          );
+          return 2;
+        }
+      },
+      command: this,
+      fitQuestion: fitQuestion,
+    );
   }
 
   /// Reports a failed call. Routing's own typed refusals are surfaced in the
@@ -1094,6 +1107,9 @@ class _PublishCommand extends _RoutingSubcommand implements LiveGuardedCommand {
 class _RollbackCommand extends _RoutingSubcommand
     implements LiveGuardedCommand {
   _RollbackCommand(super.context);
+
+  @override
+  String get fitQuestion => 'Roll back anyway?';
 
   @override
   String get name => 'rollback';

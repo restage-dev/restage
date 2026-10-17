@@ -138,8 +138,10 @@ final class ExperimentApi {
   Future<ExperimentAuthoringResultV1> execute({
     required ExperimentAuthoringRequestV1 request,
     required TargetCoordinate target,
+    bool acceptFit = false,
   }) async {
     final arguments = <String, dynamic>{
+      if (acceptFit) 'acceptFit': true,
       'organizationId': target.organizationId.value,
       'appId': target.appId.value,
       'environmentTargetId': target.environmentTargetId.value,

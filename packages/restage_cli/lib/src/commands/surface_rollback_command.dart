@@ -149,25 +149,32 @@ class SurfaceRollbackCommand extends Command<int>
       if (reason == null) return 1;
     }
 
-    return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
-      try {
-        return await _rollBack(
-          SurfaceApi(ctx.api),
-          ctx.target!,
-          identity,
-          toVersion: toVersion,
-          preview: preview,
-          reason: reason,
-        );
-      } on RestageApiException catch (e) {
-        if (decodeSurfaceTypedException(e.body)
-            is! SurfaceRollbackUnsupported) {
-          rethrow;
+    return runAuthed(
+      _io,
+      argResults,
+      OperationScope.target,
+      (ctx) async {
+        try {
+          return await _rollBack(
+            SurfaceApi(ctx.api),
+            ctx.target!,
+            identity,
+            toVersion: toVersion,
+            preview: preview,
+            reason: reason,
+          );
+        } on RestageApiException catch (e) {
+          if (decodeSurfaceTypedException(e.body)
+              is! SurfaceRollbackUnsupported) {
+            rethrow;
+          }
+          _io.stderr.writeln(_undecodableTargetMessage(surfaceType));
+          return 1;
         }
-        _io.stderr.writeln(_undecodableTargetMessage(surfaceType));
-        return 1;
-      }
-    });
+      },
+      command: this,
+      fitQuestion: 'Roll back anyway?',
+    );
   }
 
   /// Names the versions a rollback can target when `--to-version` is missing.

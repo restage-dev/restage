@@ -16,6 +16,9 @@ import 'package:test/test.dart';
 /// the HTTP wire format adds no value over testing the arg-map shape.
 class FakeRestageApi implements RestageApi {
   @override
+  FitDecider? get fitDecider => null;
+
+  @override
   Uri get endpoint => Uri.parse('http://localhost/');
 
   @override

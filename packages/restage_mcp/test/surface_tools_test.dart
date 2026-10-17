@@ -393,6 +393,105 @@ void main() {
       },
     );
 
+    http.Response fitHeld() => http.Response(
+      jsonEncode({
+        'className': 'SurfaceFitNeedsConfirmationException',
+        'data': {
+          '__className__': 'SurfaceFitNeedsConfirmationException',
+          'verdict': 'someFit',
+          'environment': 'staging',
+          'share': 0.62,
+          'builds': {
+            'items': [
+              {
+                'platform': 'ios',
+                'appVersion': '2.3.0',
+                'uploaded': false,
+                'fits': false,
+              },
+              {'uploaded': true, 'fits': false},
+              {
+                'platform': 'ios',
+                'appVersion': '2.4.0',
+                'uploaded': false,
+                'fits': true,
+              },
+            ],
+          },
+        },
+      }),
+      400,
+    );
+
+    test(
+      'a publish held for a fit returns the verdict and names acceptFit',
+      () async {
+        final calls = <BackendCall>[];
+        final connection = await connect(
+          (call) async => call.method == 'activateSurface'
+              ? fitHeld()
+              : http.Response('[]', 200),
+          calls: calls,
+        );
+
+        final result = await connection.callTool(
+          CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+        );
+
+        expect(result.isError, isTrue);
+        final needs =
+            result.structuredContent!['needsConfirmation']!
+                as Map<String, Object?>;
+        expect(needs['verdict'], 'someFit');
+        expect(needs['share'], 0.62);
+        expect(needs['environment'], 'staging');
+        expect(needs['nextStep'], contains('acceptFit: true'));
+        expect((needs['builds']! as List).map((b) => (b as Map)['fits']), [
+          false,
+          false,
+          true,
+        ]);
+        expect(
+          needs['summary'],
+          allOf(
+            startsWith('Not every app version can show this.'),
+            contains('62% of users are on versions that can.'),
+            contains('  Uploaded build'),
+          ),
+        );
+        expect(
+          calls.where((call) => call.method == 'activateSurface'),
+          hasLength(1),
+        );
+      },
+    );
+
+    test('acceptFit sends the publish confirmed from the first call', () async {
+      final calls = <BackendCall>[];
+      final connection = await connect(
+        (call) async => call.body['acceptFit'] == true
+            ? http.Response(jsonEncode(_activation(5)), 200)
+            : (call.method == 'activateSurface'
+                  ? fitHeld()
+                  : http.Response('[]', 200)),
+        calls: calls,
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_publish_surface',
+          arguments: {..._surface, 'acceptFit': true},
+        ),
+      );
+
+      expect(result.isError, isNot(true), reason: _text(result));
+      final activations = calls
+          .where((call) => call.method == 'activateSurface')
+          .toList();
+      expect(activations.map((call) => call.body['acceptFit']), [true]);
+      expect(result.structuredContent!['publishedRevision'], 5);
+    });
+
     test('shows the generated widget the published revision names', () async {
       final connection = await connect(
         (_) async => http.Response(
@@ -614,6 +713,77 @@ void main() {
     expect(calls, isEmpty);
   });
 
+  test('a rollback held for a fit is confirmed by acceptFit', () async {
+    final calls = <BackendCall>[];
+    final connection = await connect(
+      (call) async => call.method == 'rollbackSurface'
+          ? (call.body['acceptFit'] == true
+                ? http.Response('null', 200)
+                : http.Response(
+                    jsonEncode({
+                      'className': 'SurfaceFitNeedsConfirmationException',
+                      'data': {
+                        '__className__': 'SurfaceFitNeedsConfirmationException',
+                        'verdict': 'noneFit',
+                        'environment': 'staging',
+                        'builds': {'items': <Object>[]},
+                      },
+                    }),
+                    400,
+                  ))
+          : http.Response('null', 200),
+      calls: calls,
+    );
+    final arguments = {..._surface, 'toVersion': 2, 'reason': 'bad copy in v4'};
+
+    final held = await connection.callTool(
+      CallToolRequest(name: 'restage_rollback_surface', arguments: arguments),
+    );
+    expect(held.isError, isTrue);
+    expect(
+      (held.structuredContent!['needsConfirmation']! as Map)['verdict'],
+      'noneFit',
+    );
+
+    final done = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_rollback_surface',
+        arguments: {...arguments, 'acceptFit': true},
+      ),
+    );
+    expect(done.isError, isNot(true), reason: _text(done));
+    expect(done.structuredContent!['rolledBackTo'], 2);
+  });
+
+  test('every tool that makes a version live offers acceptFit', () async {
+    final connection = await connect((_) async => http.Response('[]', 200));
+    final tools = {
+      for (final tool in (await connection.listTools(ListToolsRequest())).tools)
+        tool.name: tool,
+    };
+
+    for (final name in [
+      'restage_publish_surface',
+      'restage_rollback_surface',
+      'restage_publish_routing',
+      'restage_rollback_route',
+      'restage_experiment_apply',
+      DeliveryOperation.deliveryPolicyPublish.mcpName,
+    ]) {
+      expect(
+        tools[name]!.inputSchema.properties,
+        contains('acceptFit'),
+        reason: name,
+      );
+    }
+    expect(
+      tools[DeliveryOperation.deliveryPolicyRead.mcpName]!
+          .inputSchema
+          .properties,
+      isNot(contains('acceptFit')),
+    );
+  });
+
   test('rollback sends the family selectors, reason, and lock', () async {
     final calls = <BackendCall>[];
     final connection = await connect(
@@ -742,14 +912,16 @@ void main() {
       (_) async => typedError('SurfaceContractFamilyViolation', {
         'code': 'unhandledEvents',
         'message': 'The flow does not handle the event "next".',
-        'unhandledEvents': [
-          {
-            'flow': 'welcome',
-            'state': 'intro',
-            'screen': 'hello',
-            'event': 'next',
-          },
-        ],
+        'unhandledEvents': {
+          'items': [
+            {
+              'flow': 'welcome',
+              'state': 'intro',
+              'screen': 'hello',
+              'event': 'next',
+            },
+          ],
+        },
       }),
     );
 

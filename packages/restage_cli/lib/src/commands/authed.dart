@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -146,8 +147,10 @@ Future<int> runAuthed(
   CommandIo io,
   ArgResults? argResults,
   OperationScope scope,
-  Future<int> Function(AuthedContext ctx) body,
-) async {
+  Future<int> Function(AuthedContext ctx) body, {
+  Command<int>? command,
+  String fitQuestion = 'Publish anyway?',
+}) async {
   final stderr = io.stderr;
   final store = io.credentialStore ?? FileCredentialStore.atDefaultLocation();
   final credential = await store.read();
@@ -167,6 +170,9 @@ Future<int> runAuthed(
       endpoint: apiEndpoint,
       httpClient: io.httpClient,
       credential: credential,
+      fitDecider: command == null
+          ? null
+          : _fitDecider(command, io, fitQuestion),
     );
   } on EndpointConfigurationException catch (e) {
     stderr.writeln(e.toString());
@@ -230,6 +236,8 @@ Future<int> runAuthed(
     final outcome = renderApiError(e);
     stderr.writeln(outcome.message);
     return outcome.exitCode;
+  } on FitDeclinedException {
+    return 1;
   } on SocketException catch (e) {
     stderr.writeln('Could not contact the backend: $e');
     return 2;
@@ -239,6 +247,28 @@ Future<int> runAuthed(
   } finally {
     if (io.httpClient == null) api.close();
   }
+}
+
+/// How [command] answers a server that holds a call for a fit confirmation:
+/// `--yes` (global or the command's own) goes ahead, an interactive run asks
+/// [question], and any other run reports the server's refusal.
+FitDecider _fitDecider(Command<int> command, CommandIo io, String question) {
+  bool yes(ArgResults? results) =>
+      results != null &&
+      results.options.contains('yes') &&
+      results['yes'] as bool;
+  return (needs) async {
+    final text = fitConfirmationSentence(needs);
+    if (yes(command.globalResults) || yes(command.argResults)) {
+      io.stderr.writeln(text);
+      return true;
+    }
+    if (!io.interactive.isInteractive) return false;
+    io.stdout.writeln(text);
+    if (await io.interactive.confirm(question)) return true;
+    io.stdout.writeln('Aborted.');
+    throw const FitDeclinedException();
+  };
 }
 
 String? _option(ArgResults? argResults, String name) =>

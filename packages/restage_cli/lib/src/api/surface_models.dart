@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Slim view of the backend's `SurfaceSummary` — the fields the command-line
@@ -1627,7 +1628,7 @@ SurfaceException? decodeSurfaceTypedException(String body) {
       return SurfaceVersionLabelRejected(message: message);
     case 'SurfaceDeleteRefusedException':
       final slug = data['surfaceSlug'];
-      final blockers = data['blockers'];
+      final blockers = typedErrorListItems(data['blockers']);
       if (slug is! String || blockers is! List<dynamic>) return null;
       return SurfaceDeleteRefused(
         surfaceSlug: slug,
@@ -1658,7 +1659,7 @@ SurfaceException? decodeSurfaceTypedException(String body) {
         message: message,
         unhandledEvents: [
           for (final raw
-              in (data['unhandledEvents'] as List<dynamic>? ?? const [])
+              in (typedErrorListItems(data['unhandledEvents']) ?? const [])
                   .whereType<Map<String, dynamic>>())
             if ((raw['flow'], raw['state'], raw['screen'], raw['event']) case (
               final String flow,

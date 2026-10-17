@@ -48,6 +48,7 @@ final experimentApplyTool = Tool(
             'Retry identity, required for an operation that changes state and '
             'refused for one that does not.',
       ),
+      'acceptFit': acceptFitProperty,
       ...exactTargetProperties(),
     },
     required: ['operation', 'payload', ...exactTargetRequired],
@@ -160,9 +161,11 @@ Future<CallToolResult> handleExperimentApply(
           });
 
     try {
-      final result = await ExperimentApi(
-        api,
-      ).execute(request: semanticRequest, target: target);
+      final result = await ExperimentApi(api).execute(
+        request: semanticRequest,
+        target: target,
+        acceptFit: request.optBool('acceptFit') ?? false,
+      );
       return _success(result);
     } on ExperimentResponseMismatchException {
       return mcpError(_resultError);

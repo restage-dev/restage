@@ -526,7 +526,7 @@ class _DeliverySubcommand extends Command<int> {
           DeliveryPolicyReviewV1 value when value.refusalCodes.isNotEmpty => 1,
           _ => 0,
         };
-      });
+      }, command: this);
     } on DeliveryManagementResponseException catch (error) {
       io.stderr.writeln(error);
       return 2;

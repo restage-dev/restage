@@ -596,7 +596,11 @@ final class SurfaceHostContractV1 {
   Uint8List get canonicalBytes => CanonicalJsonCodec.encode(toJson());
 
   /// Hash identifying this generated or explicitly declared host contract.
-  String get contentHash => _shapeHash('surface-host-contract', canonicalBytes);
+  String get contentHash => hashOfCanonicalBytes(canonicalBytes);
+
+  /// The host contract hash of [bytes], the canonical bytes of a contract.
+  static String hashOfCanonicalBytes(List<int> bytes) =>
+      _shapeHash('surface-host-contract', bytes);
 }
 
 /// Immutable requirements projected from a candidate's complete publication.

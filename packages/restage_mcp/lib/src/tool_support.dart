@@ -682,3 +682,11 @@ Future<RuntimePlane?> _planeOf(ToolContext ctx, CallToolRequest request) async {
 /// against the target before it acts.
 RuntimePlane declaredPlane(CallToolRequest request) =>
     RuntimePlane.fromWireName(request.str('runtimePlane'));
+
+/// The `acceptFit` property of a tool that makes a version live.
+final acceptFitProperty = Schema.bool(
+  description:
+      'Go ahead when the server reports that not every app version in use '
+      'can show this. Without it, the call returns that report and changes '
+      'nothing.',
+);

@@ -188,7 +188,7 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
         },
       );
       return recorded == false ? 2 : 0;
-    });
+    }, command: this);
   }
 
   /// Whether this invocation records a release receipt.

@@ -258,6 +258,47 @@ class TargetSelectionRefused extends GenericTypedException {
       'environmentSlug: $environmentSlug)';
 }
 
+/// One app build the server weighed against a version.
+@experimental
+typedef FitBuild = ({
+  String? platform,
+  int? appBuildOrdinal,
+  String? appVersion,
+  bool uploaded,
+  bool fits,
+});
+
+/// Not every known app build of the environment can show the version, so the
+/// server needs the caller to confirm. Maps from the backend's
+/// `SurfaceFitNeedsConfirmationException`.
+@experimental
+class SurfaceFitNeedsConfirmation extends GenericTypedException {
+  /// Construct from the server's verdict.
+  const SurfaceFitNeedsConfirmation({
+    required this.noneFit,
+    required this.environment,
+    required this.builds,
+    this.share,
+  });
+
+  /// Whether no known build can show the version (otherwise some can).
+  final bool noneFit;
+
+  /// The environment the version was going to.
+  final String environment;
+
+  /// The known builds, fitting or not.
+  final List<FitBuild> builds;
+
+  /// Share of recent presentations on builds that fit, 0 to 1, or null.
+  final double? share;
+
+  @override
+  String toString() =>
+      'SurfaceFitNeedsConfirmation(noneFit: $noneFit, '
+      'environment: $environment)';
+}
+
 /// Attempt to decode [body] as one of the shared typed exceptions.
 ///
 /// Returns null when [body] is not a shared backend typed-exception
@@ -302,7 +343,7 @@ GenericTypedException? decodeGenericTypedException(String body) {
         reason: reason,
         environmentSlug: data['environmentSlug'] as String?,
         candidates: [
-          for (final candidate in data['candidates'] as List<dynamic>? ?? [])
+          for (final candidate in typedErrorListItems(data['candidates']) ?? [])
             EnvironmentTargetSummary.fromJson(
               candidate as Map<String, dynamic>,
             ),
@@ -322,7 +363,7 @@ GenericTypedException? decodeGenericTypedException(String body) {
         appName: data['appName'] as String,
         projectName: data['projectName'] as String,
         holds: [
-          for (final hold in data['holds'] as List<dynamic>? ?? [])
+          for (final hold in typedErrorListItems(data['holds']) ?? [])
             if (AppDeleteHoldKind.fromWireName(
                   (hold as Map<String, dynamic>)['kind'],
                 )
@@ -337,7 +378,27 @@ GenericTypedException? decodeGenericTypedException(String body) {
         reason: data['reason'] as String,
         detail: data['detail'] as String,
       );
+    case 'SurfaceFitNeedsConfirmationException':
+      return SurfaceFitNeedsConfirmation(
+        noneFit: data['verdict'] == 'noneFit',
+        environment: data['environment'] as String,
+        share: (data['share'] as num?)?.toDouble(),
+        builds: [
+          for (final build in typedErrorListItems(data['builds']) ?? [])
+            (
+              platform: (build as Map<String, dynamic>)['platform'] as String?,
+              appBuildOrdinal: build['appBuildOrdinal'] as int?,
+              appVersion: build['appVersion'] as String?,
+              uploaded: build['uploaded'] as bool? ?? false,
+              fits: build['fits'] as bool? ?? false,
+            ),
+        ],
+      );
     default:
       return null;
   }
 }
+
+/// The items of a list a typed error carries inside a model.
+List<dynamic>? typedErrorListItems(Object? wrapped) =>
+    wrapped is Map<String, dynamic> ? wrapped['items'] as List<dynamic>? : null;

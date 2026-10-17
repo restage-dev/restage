@@ -196,6 +196,7 @@ final _publishSurfaceTool = Tool(
     properties: {
       ...surfaceTargetProperties(family: true),
       ..._measurementReviewProperties,
+      'acceptFit': acceptFitProperty,
       'revision': Schema.int(
         description:
             'The pushed revision to publish. Defaults to the latest one '
@@ -254,6 +255,7 @@ final _rollbackSurfaceTool = Tool(
     properties: {
       ...surfaceTargetProperties(family: true),
       ..._measurementReviewProperties,
+      'acceptFit': acceptFitProperty,
       'toVersion': Schema.int(
         description: 'The published version to roll back to.',
       ),
@@ -494,6 +496,7 @@ Future<CallToolResult> _publishSurface(
       revision: explicitRevision,
       reason: reason,
       measurementProceed: impact.proceed,
+      acceptFit: request.optBool('acceptFit') ?? false,
       record: recorder == null
           ? null
           : (recorder: recorder, target: await resolveToolTarget(api, request)),
@@ -581,6 +584,7 @@ Future<CallToolResult> _rollbackSurface(
       contractVersion: identity.contractVersion,
       sourceKind: identity.sourceKind,
       measurementProceed: impact.proceed,
+      acceptFit: request.optBool('acceptFit') ?? false,
     );
     return jsonResult(<String, Object?>{
       'rolledBackTo': toVersion,

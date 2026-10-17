@@ -124,29 +124,37 @@ String staleCredentialSentence(SelectorSyntax syntax) =>
     'The stored credential is no longer accepted by the server. '
     '${syntax.signIn}';
 
-String _genericSentence(GenericTypedException typed, SelectorSyntax syntax) =>
-    switch (typed) {
-      ProjectNotFound(:final projectSlug) =>
-        'Project `$projectSlug` not found or you do not have access to it.',
-      AppNotFound(:final appSlug, :final projectSlug) => appNotFoundSentence(
-        appSlug,
-        projectSlug,
-      ),
-      SurfaceSlugRejected(:final slug, :final reason) =>
-        'Refusing the id `$slug`. $reason',
-      MeasurementReadRejected(:final detail) => 'The read was refused. $detail',
-      final AppDeleteRefused refused => appDeleteRefusedSentence(refused),
-      AppDeleteNameMismatch(:final appName) => switch (syntax) {
-        SelectorSyntax.mcp =>
-          "The name doesn't match the app's name, $appName.",
-        _ => "--name doesn't match the app's name, $appName.",
-      },
-      UnauthorizedAccess(:final reason) => unauthorizedSentence(reason, syntax),
-      final TargetSelectionRefused refused => targetSelectionSentence(
-        refused,
-        syntax,
-      ),
-    };
+String _genericSentence(
+  GenericTypedException typed,
+  SelectorSyntax syntax,
+) => switch (typed) {
+  ProjectNotFound(:final projectSlug) =>
+    'Project `$projectSlug` not found or you do not have access to it.',
+  AppNotFound(:final appSlug, :final projectSlug) => appNotFoundSentence(
+    appSlug,
+    projectSlug,
+  ),
+  SurfaceSlugRejected(:final slug, :final reason) =>
+    'Refusing the id `$slug`. $reason',
+  MeasurementReadRejected(:final detail) => 'The read was refused. $detail',
+  final AppDeleteRefused refused => appDeleteRefusedSentence(refused),
+  AppDeleteNameMismatch(:final appName) => switch (syntax) {
+    SelectorSyntax.mcp => "The name doesn't match the app's name, $appName.",
+    _ => "--name doesn't match the app's name, $appName.",
+  },
+  UnauthorizedAccess(:final reason) => unauthorizedSentence(reason, syntax),
+  final TargetSelectionRefused refused => targetSelectionSentence(
+    refused,
+    syntax,
+  ),
+  final SurfaceFitNeedsConfirmation needs => [
+    fitConfirmationSentence(needs),
+    switch (syntax) {
+      SelectorSyntax.cli || SelectorSyntax.console => 'Use --yes to go ahead.',
+      SelectorSyntax.mcp => 'Call again with acceptFit: true to go ahead.',
+    },
+  ].join('\n'),
+};
 
 /// The refusal of an app delete: its title, then one line per hold.
 String appDeleteRefusedSentence(AppDeleteRefused refused) => [
@@ -231,4 +239,34 @@ String targetSelectionSentence(
       'The API key belongs to a different app or environment than the one '
           'named.',
   };
+}
+
+/// The share as a whole percent: "0%" for none, "<1%" under a half percent,
+/// and never "100%" while some build cannot show the version.
+String fitSharePercent(double share) {
+  if (share <= 0) return '0%';
+  if (share < 0.005) return '<1%';
+  final percent = (share * 100).round();
+  return '${percent > 99 ? 99 : percent}%';
+}
+
+/// The title, body and one row per build that cannot show the version.
+String fitConfirmationSentence(SurfaceFitNeedsConfirmation needs) => [
+  if (needs.noneFit)
+    'No app version in use can show this yet.'
+  else
+    'Not every app version can show this.',
+  if (!needs.noneFit && needs.share != null)
+    '${fitSharePercent(needs.share!)} of users are on versions that can.',
+  for (final build in needs.builds)
+    if (!build.fits) '  ${fitBuildRow(build)}',
+].join('\n');
+
+/// One build as a row: "ios 2.3.0", or "Uploaded build" for an uploaded one.
+String fitBuildRow(FitBuild build) {
+  if (build.uploaded) return 'Uploaded build';
+  final label =
+      build.appVersion ??
+      (build.appBuildOrdinal == null ? null : 'build ${build.appBuildOrdinal}');
+  return [?build.platform, ?label].join(' ');
 }

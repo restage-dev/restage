@@ -62,6 +62,8 @@ Tool _tool(DeliveryOperation operation) => Tool(
         description:
             'Explicit canonical JSON for the public ${operation.id} request. Its complete target, root, key, and family must agree with the authenticated target.',
       ),
+      if (operation == DeliveryOperation.deliveryPolicyPublish)
+        'acceptFit': acceptFitProperty,
     },
     required: [
       'projectSlug',
@@ -102,6 +104,7 @@ Future<CallToolResult> _handle(
       appSlug: request.str('appSlug'),
       target: target,
       request: decoded,
+      acceptFit: request.optBool('acceptFit') ?? false,
     );
     final refused = switch (result) {
       DeliveryPolicyPublishResultV1 value =>

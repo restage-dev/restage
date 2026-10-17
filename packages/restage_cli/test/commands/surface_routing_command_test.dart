@@ -269,6 +269,57 @@ void main() {
     });
   });
 
+  test('a publish held for a fit is sent again confirmed with --yes', () async {
+    final path = await seedBytes(
+      'review.json',
+      currentReview(4).canonicalBytes,
+    );
+    final bodies = <Map<String, dynamic>>[];
+    final client = scriptedHttpClient([
+      (request) {
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return typedErrorResponse('SurfaceFitNeedsConfirmationException', {
+          'verdict': 'noneFit',
+          'environment': 'staging',
+          'builds': {'items': <Object>[]},
+        });
+      },
+      (request) {
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return json({'outcome': 'applied', 'revisionOrdinal': 5});
+      },
+    ]);
+    final runner = CommandRunner<int>('restage', '')
+      ..argParser.addFlag('yes', negatable: false)
+      ..addCommand(
+        SurfaceRoutingCommand(
+          stdout: StringBuffer(),
+          stderr: StringBuffer(),
+          interactive: const NonInteractive(),
+          credentialStore: fakeStore,
+          httpClient: client,
+        ),
+      );
+
+    final code = await runner.run([
+      '--yes',
+      'routing',
+      'publish',
+      'welcome',
+      ...target(),
+      '--type',
+      'onboarding',
+      '--document',
+      path,
+      '--expected-revision-ordinal',
+      '4',
+    ]);
+
+    expect(code, 0);
+    expect(bodies.map((b) => b['acceptFit']), [null, true]);
+    expect(bodies.last['operationId'], bodies.first['operationId']);
+  });
+
   test(
     'a live publish without --yes is refused when non-interactive',
     () async {

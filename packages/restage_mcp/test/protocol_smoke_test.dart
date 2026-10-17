@@ -155,6 +155,9 @@ void main() {
           'restage_list_product_slots',
           'restage_upsert_product_slot',
           'restage_list_store_connections',
+          // Shared components
+          'restage_list_components',
+          'restage_get_component',
           // App configuration
           'restage_get_app_config',
           'restage_update_app_config',
