@@ -12,7 +12,10 @@ void main() {
         reportId: _reportId,
         intentId: _intentId,
         store: 'play_store',
-        storeVerificationData: 'purchase-token',
+        storeVerificationData: GooglePlayPurchaseReceipt(
+          originalJson: '{"purchaseToken":"purchase-token"}',
+          signature: 'test-signature',
+        ).toVerificationData(),
         storeProductId: 'pro.monthly.us',
         storeTransactionId: 'GPA.1234-5678..0',
         appAnonymousToken: _token,

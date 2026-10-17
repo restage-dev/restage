@@ -194,7 +194,12 @@ abstract interface class CommerceStoreTransaction {
 
   String? get storeTransactionId;
 
-  /// Apple signed transaction JWS or a Google Play purchase token.
+  /// Apple signed transaction JWS or a Play signed purchase receipt.
+  ///
+  /// Play uses the JSON object `{originalJson, signature}`. Preserve the exact
+  /// original JSON from BillingClient and its Base64 signature; a bare purchase
+  /// token is not verification data. The SDK keys Play retries by the signed
+  /// purchase token so updated receipt snapshots retain one provider identity.
   String? get storeVerificationData;
 
   /// Whether this transaction must be completed on the device after a server

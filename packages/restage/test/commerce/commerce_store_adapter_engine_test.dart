@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -2038,6 +2039,7 @@ void main() {
               status: 'active',
               productId: 'subscription.monthly',
               source: 'clientReport',
+              providerEnvironment: 'production',
             ),
           ],
           retrievedAt: DateTime.utc(2026, 9, 5),
@@ -2533,7 +2535,7 @@ void main() {
       CommerceReportRecord(
         reportId: '8ba77254-6ab0-4ec8-ae50-f12273ac1f51',
         store: CommerceStore.playStore,
-        storeVerificationData: 'queued-proof',
+        storeVerificationData: _playReceipt('queued-proof'),
         storeProductId: 'subscription.queued',
         storeTransactionId: 'queued-order',
         applicationAnonymousToken: _applicationToken,
@@ -3125,6 +3127,7 @@ void main() {
                 status: 'active',
                 productId: 'subscription.monthly',
                 source: 'clientReport',
+                providerEnvironment: 'production',
               ),
             ],
             retrievedAt: DateTime.utc(2026, 9, 7),
@@ -3436,6 +3439,7 @@ void main() {
                     status: 'active',
                     productId: 'subscription.monthly',
                     source: 'clientReport',
+                    providerEnvironment: 'production',
                   ),
                 ],
                 retrievedAt: DateTime.utc(2026, 9, 4),
@@ -3533,7 +3537,14 @@ void main() {
     generation += 1;
     fingerprint = 'scope-b';
     notifyRestageCommerceConfigurationChanged();
-    release.complete(_jsonResponse(_verifiedState().toJson()));
+    release.complete(_jsonResponse(_scopedReport(
+      scopedEntitlements: [
+        _entitlement('entitlement.production',
+            providerEnvironment: 'production'),
+      ],
+      ordinaryProductionPurchaseHistory: true,
+      scopedProductionPurchaseHistory: true,
+    ).toJson()));
 
     await _waitFor(
       () async {
@@ -3548,6 +3559,7 @@ void main() {
           CommercePurchaserStateStatusCode.available,
       label: 'reset owner completes a fresh empty query',
     );
+    expect(Restage.commerce.currentState.hasProductionPurchaseHistory, isNull);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
   });
 
@@ -3646,7 +3658,7 @@ void main() {
       CommerceReportRecord(
         reportId: '8ba77254-6ab0-4ec8-ae50-f12273ac1f51',
         store: CommerceStore.playStore,
-        storeVerificationData: 'old-provider-token',
+        storeVerificationData: _playReceipt('old-provider-token'),
         storeProductId: 'subscription.monthly',
         storeTransactionId: 'old-order',
         applicationAnonymousToken: _applicationToken,
@@ -3773,12 +3785,14 @@ void main() {
       _jsonResponse(
         CommercePurchaserStateResponse(
           status: 'current',
+          hasProductionPurchaseHistory: true,
           entitlements: <EntitlementSummary>[
             EntitlementSummary(
               entitlementId: 'subscription.monthly',
               status: 'active',
               productId: 'subscription.monthly',
               source: 'clientReport',
+              providerEnvironment: 'production',
             ),
           ],
           retrievedAt: DateTime.utc(2026, 9, 6),
@@ -3794,6 +3808,7 @@ void main() {
           CommercePurchaserStateStatusCode.available,
       label: 'new identity publishes only after its complete query',
     );
+    expect(Restage.commerce.currentState.hasProductionPurchaseHistory, isNull);
     expect(Restage.commerce.currentState.entitlements, isEmpty);
   });
 
@@ -4364,6 +4379,551 @@ void main() {
     expect(adapter.ownedQueryCalls, 1);
   });
 
+  for (final store in [CommerceStore.appStore, CommerceStore.playStore]) {
+    for (final history in <bool?>[false, true, null]) {
+      test(
+          'sandbox receipt grants access unless production history is known: $store $history',
+          () async {
+        final directory =
+            await Directory.systemTemp.createTemp('restage-engine-');
+        addTearDown(() => _deleteAfterCommerceStops(directory));
+        final sandbox =
+            _entitlement('entitlement.sandbox', providerEnvironment: 'sandbox');
+        var tokenLookups = 0;
+        final adapter = _TestStoreAdapter(
+          store: store,
+          products: const [],
+          ownedTransactions: [_ownedTransaction('sandbox', store)],
+        );
+        addTearDown(adapter.close);
+        _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          usesPurchaserStateHandler: true,
+          runtimeContextProvider: () => CommerceRuntimeContext(
+            configurationFingerprint: 'sandbox-admission',
+            applicationAnonymousTokenProvider: () async {
+              tokenLookups++;
+              return _applicationToken;
+            },
+          ),
+          client: MockClient((request) async => _jsonResponse(
+                request.url.path.endsWith('/purchaser-state')
+                    ? _purchaserState(
+                        entitlements: const [],
+                        hasProductionPurchaseHistory: history,
+                      ).toJson()
+                    : _scopedReport(
+                        scopedEntitlements: [sandbox],
+                        ordinaryProductionPurchaseHistory: false,
+                        scopedProductionPurchaseHistory: history,
+                      ).toJson(),
+              )),
+        );
+        await _waitFor(
+          () =>
+              Restage.commerce.currentState.status ==
+              CommercePurchaserStateStatusCode.available,
+        );
+
+        final state = Restage.commerce.currentState;
+        expect(state.hasProductionPurchaseHistory, history);
+        expect(state.entitlements, history != true ? [sandbox] : isEmpty);
+        if (history != true) {
+          expect(state.entitlements.single.providerEnvironment, 'sandbox');
+          expect(state.entitlements.single.isEntitled, isTrue);
+        }
+        expect(
+            adapter.completionCalls, store == CommerceStore.appStore ? 1 : 0);
+        expect(tokenLookups, 1);
+      });
+    }
+  }
+
+  for (final status in ['active', 'expired', 'refunded']) {
+    for (final sandboxFirst in [true, false]) {
+      test(
+          'sandbox restore cannot mask $status production in either order: '
+          '$sandboxFirst', () async {
+        final directory =
+            await Directory.systemTemp.createTemp('restage-engine-');
+        addTearDown(() => _deleteAfterCommerceStops(directory));
+        final sandbox = _entitlement('entitlement.shared',
+            productId: 'subscription.sandbox', providerEnvironment: 'sandbox');
+        final production = _entitlement('entitlement.shared',
+            productId: 'subscription.production',
+            providerEnvironment: 'production',
+            status: status,
+            expiresAtMs: 100);
+        final transactions = [
+          _ownedTransaction('sandbox'),
+          _ownedTransaction('production'),
+        ];
+        final adapter = _TestStoreAdapter(
+          store: CommerceStore.playStore,
+          products: const [],
+          ownedTransactions:
+              sandboxFirst ? transactions : transactions.reversed.toList(),
+        );
+        addTearDown(adapter.close);
+        _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          usesPurchaserStateHandler: true,
+          client: MockClient((request) async {
+            if (request.url.path.endsWith('/purchaser-state')) {
+              return _jsonResponse(_purchaserState(
+                entitlements: const [],
+                hasProductionPurchaseHistory: false,
+              ).toJson());
+            }
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            return _jsonResponse(_scopedReport(
+              scopedEntitlements: [
+                _reportedVerificationIdentity(body) == 'proof-sandbox'
+                    ? sandbox
+                    : production,
+              ],
+              ordinaryProductionPurchaseHistory: false,
+              scopedProductionPurchaseHistory: false,
+            ).toJson());
+          }),
+        );
+        await _waitFor(
+          () =>
+              Restage.commerce.currentState.status ==
+              CommercePurchaserStateStatusCode.available,
+        );
+
+        final state = Restage.commerce.currentState;
+        expect(state.hasProductionPurchaseHistory, isTrue);
+        expect(state.entitlements, [production]);
+        expect(state.entitlements.single.isEntitled, status == 'active');
+      });
+    }
+  }
+
+  for (final evidence in ['ordinary', 'scoped']) {
+    for (final history in <bool?>[true, null]) {
+      test(
+          'sandbox restore uses history without a mapped production grant: '
+          '$evidence $history', () async {
+        final directory =
+            await Directory.systemTemp.createTemp('restage-engine-');
+        addTearDown(() => _deleteAfterCommerceStops(directory));
+        final sandbox =
+            _entitlement('entitlement.sandbox', providerEnvironment: 'sandbox');
+        final adapter = _TestStoreAdapter(
+          store: CommerceStore.playStore,
+          products: const [],
+          ownedTransactions: [_ownedTransaction('sandbox')],
+        );
+        addTearDown(adapter.close);
+        _activate(
+          adapter: adapter,
+          journalPath: directory.path,
+          usesPurchaserStateHandler: true,
+          client: MockClient((request) async => _jsonResponse(
+                request.url.path.endsWith('/purchaser-state')
+                    ? _purchaserState(
+                        entitlements: const [],
+                        hasProductionPurchaseHistory: false,
+                      ).toJson()
+                    : _scopedReport(
+                        scopedEntitlements: [sandbox],
+                        ordinaryProductionPurchaseHistory:
+                            evidence == 'ordinary' ? history : false,
+                        scopedProductionPurchaseHistory:
+                            evidence == 'scoped' ? history : false,
+                      ).toJson(),
+              )),
+        );
+        await _waitFor(
+          () =>
+              Restage.commerce.currentState.status ==
+              CommercePurchaserStateStatusCode.available,
+        );
+
+        expect(Restage.commerce.currentState.hasProductionPurchaseHistory,
+            history);
+        expect(Restage.commerce.currentState.entitlements,
+            history == true ? isEmpty : [sandbox]);
+      });
+    }
+  }
+
+  test('sandbox restore cannot grant a different product after production',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    final production = _entitlement('entitlement.original',
+        providerEnvironment: 'production', status: 'expired');
+    final adapter = _TestStoreAdapter(
+      store: CommerceStore.playStore,
+      products: const [],
+      ownedTransactions: [_ownedTransaction('sandbox')],
+    );
+    addTearDown(adapter.close);
+    _activate(
+      adapter: adapter,
+      journalPath: directory.path,
+      usesPurchaserStateHandler: true,
+      client: MockClient((request) async => _jsonResponse(
+            request.url.path.endsWith('/purchaser-state')
+                ? _purchaserState(
+                    entitlements: [production],
+                    hasProductionPurchaseHistory: false,
+                  ).toJson()
+                : _scopedReport(
+                    scopedEntitlements: [
+                      _entitlement('entitlement.different',
+                          providerEnvironment: 'sandbox'),
+                    ],
+                    ordinaryProductionPurchaseHistory: false,
+                    scopedProductionPurchaseHistory: false,
+                  ).toJson(),
+          )),
+    );
+    await _waitFor(() =>
+        Restage.commerce.currentState.status ==
+        CommercePurchaserStateStatusCode.available);
+
+    expect(Restage.commerce.currentState.hasProductionPurchaseHistory, isTrue);
+    expect(Restage.commerce.currentState.entitlements, [production]);
+    expect(
+        Restage.commerce.currentState.entitlements.single.isEntitled, isFalse);
+  });
+
+  for (final evidence in ['canonical', 'verified', 'older_verified', 'grant']) {
+    test(
+        'sandbox snapshot cannot survive incremental production evidence: '
+        '$evidence', () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final queue = CommerceFileReportQueue(directoryPath: directory.path);
+      final sandbox =
+          _entitlement('entitlement.sandbox', providerEnvironment: 'sandbox');
+      final adapter = _TestStoreAdapter(
+        store: CommerceStore.playStore,
+        products: const [],
+        ownedTransactions: [_ownedTransaction('sandbox')],
+      );
+      addTearDown(adapter.close);
+      var reportCalls = 0;
+      _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state')) {
+            return _jsonResponse(_purchaserState(
+              entitlements: const [],
+              hasProductionPurchaseHistory: false,
+              retrievedAt: DateTime.utc(2026, 9, 9),
+            ).toJson());
+          }
+          reportCalls++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final initial =
+              _reportedVerificationIdentity(body) == 'proof-sandbox';
+          return _jsonResponse(_scopedReport(
+            scopedEntitlements: initial
+                ? [sandbox]
+                : [
+                    if (evidence == 'grant')
+                      _entitlement('entitlement.unqueried',
+                          providerEnvironment: 'production'),
+                  ],
+            ordinaryProductionPurchaseHistory:
+                !initial && evidence == 'canonical',
+            scopedProductionPurchaseHistory:
+                !initial && evidence.contains('verified'),
+            retrievedAt: !initial && evidence == 'older_verified'
+                ? DateTime.utc(2026, 9, 8)
+                : DateTime.utc(2026, 9, 9),
+          ).toJson());
+        }),
+      );
+      await _waitFor(
+          () => Restage.commerce.currentState.entitlements.isNotEmpty);
+      final before = Restage.commerce.currentState;
+      expect(before.hasProductionPurchaseHistory, isFalse);
+
+      adapter.emit(_ownedTransaction('production'));
+      await _waitFor(() =>
+          Restage.commerce.currentState.hasProductionPurchaseHistory == true);
+      await _waitFor(() async => (await queue.open()).isEmpty);
+      final after = Restage.commerce.currentState;
+      expect(after.status, CommercePurchaserStateStatusCode.available);
+      expect(after.entitlements, isEmpty);
+      expect(after, isNot(before));
+
+      final refreshed = await Restage.commerce.refresh();
+      expect(refreshed.status, CommercePurchaserStateStatusCode.available);
+      expect(refreshed.hasProductionPurchaseHistory, isTrue);
+      expect(refreshed.entitlements, isEmpty);
+      expect(reportCalls, 3);
+    });
+  }
+
+  for (final status in ['current', 'stale']) {
+    test(
+        'sandbox receipt snapshot retains access after an incremental $status '
+        'response', () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final queue = CommerceFileReportQueue(directoryPath: directory.path);
+      final sandbox =
+          _entitlement('entitlement.sandbox', providerEnvironment: 'sandbox');
+      final adapter = _TestStoreAdapter(
+        store: CommerceStore.playStore,
+        products: const [],
+        ownedTransactions: [_ownedTransaction('sandbox')],
+      );
+      addTearDown(adapter.close);
+      _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state')) {
+            return _jsonResponse(_purchaserState(
+              entitlements: const [],
+              hasProductionPurchaseHistory: false,
+            ).toJson());
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final initial =
+              _reportedVerificationIdentity(body) == 'proof-sandbox';
+          return _jsonResponse(CommerceReportResponse(
+            outcome: 'verified',
+            purchaserState: _purchaserState(
+              entitlements: const [],
+              status: initial ? 'current' : status,
+              hasProductionPurchaseHistory:
+                  initial || status == 'stale' ? false : null,
+            ),
+            verifiedPurchaseState: _purchaserState(
+              entitlements: initial ? [sandbox] : const [],
+              hasProductionPurchaseHistory: false,
+            ),
+          ).toJson());
+        }),
+      );
+      await _waitFor(
+          () => Restage.commerce.currentState.entitlements.isNotEmpty);
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, isFalse);
+
+      adapter.emit(_ownedTransaction('unknown'));
+      await _waitFor(() async =>
+          (await queue.open()).isEmpty &&
+          Restage.commerce.currentState.hasProductionPurchaseHistory == null);
+      expect(Restage.commerce.currentState.entitlements, [sandbox]);
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, isNull);
+      expect(
+          Restage.commerce.currentState.status,
+          status == 'current'
+              ? CommercePurchaserStateStatusCode.available
+              : CommercePurchaserStateStatusCode.stale);
+    });
+  }
+
+  for (final failure in ['pending', 'timeout']) {
+    test('sandbox cannot return after production proof in a $failure restore',
+        () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final queue = CommerceFileReportQueue(directoryPath: directory.path);
+      final deadline = _ControlledAttemptDeadline();
+      final clock = _HeldClock();
+      final pendingResponse = Completer<http.Response>();
+      final adapter = _TestStoreAdapter(
+        store: CommerceStore.playStore,
+        products: const [],
+        ownedTransactions: [
+          _ownedTransaction('pending'),
+          _ownedTransaction('production'),
+        ],
+      );
+      addTearDown(adapter.close);
+      var productionReported = false;
+      _activate(
+        adapter: adapter,
+        queueFactory: () async => queue,
+        attemptDeadline: deadline,
+        clock: clock.now,
+        usesPurchaserStateHandler: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/purchaser-state')) {
+            return _jsonResponse(_purchaserState(
+              entitlements: const [],
+              hasProductionPurchaseHistory: false,
+            ).toJson());
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final proof = _reportedVerificationIdentity(body);
+          if (proof == 'proof-pending') {
+            return failure == 'timeout'
+                ? pendingResponse.future
+                : _jsonResponse(_pendingState().toJson());
+          }
+          final production = proof == 'proof-production';
+          if (production) productionReported = true;
+          return _jsonResponse(_scopedReport(
+            scopedEntitlements: [
+              _entitlement('entitlement.$proof',
+                  providerEnvironment: production ? 'production' : 'sandbox'),
+            ],
+            ordinaryProductionPurchaseHistory: false,
+            scopedProductionPurchaseHistory: production,
+          ).toJson());
+        }),
+      );
+      await _waitFor(() async =>
+          productionReported &&
+          (await queue.open()).every(
+              (record) => record.storeTransactionId != 'order-production'));
+      expect(Restage.commerce.currentState.entitlements, isEmpty);
+      if (failure == 'timeout') {
+        deadline.expirePending();
+        pendingResponse.complete(_jsonResponse(_pendingState().toJson()));
+      }
+      adapter.ownedTransactions = [_ownedTransaction('sandbox')];
+
+      final state = await Restage.commerce.refresh();
+      expect(state.status, CommercePurchaserStateStatusCode.available);
+      expect(state.hasProductionPurchaseHistory, isTrue);
+      expect(state.entitlements, isEmpty);
+    });
+  }
+
+  test(
+      'sandbox production history survives same-configuration notification '
+      'after snapshot failure', () async {
+    final directory = await Directory.systemTemp.createTemp('restage-engine-');
+    addTearDown(() => _deleteAfterCommerceStops(directory));
+    var queryFails = false;
+    var generation = 0;
+    final transaction = _ownedTransaction('sandbox');
+    final adapter = _TestStoreAdapter(
+      store: CommerceStore.playStore,
+      products: const [],
+      onQueryOwnedTransactions: () async {
+        if (queryFails) throw StateError('query unavailable');
+        return [transaction];
+      },
+    );
+    addTearDown(adapter.close);
+    _activate(
+      adapter: adapter,
+      journalPath: directory.path,
+      usesPurchaserStateHandler: true,
+      runtimeContextProvider: () {
+        final captured = generation;
+        return _context(
+          fingerprint: 'same-configuration',
+          token: _applicationToken,
+          isCurrent: () => generation == captured,
+        );
+      },
+      client: MockClient((request) async => _jsonResponse(
+            request.url.path.endsWith('/purchaser-state')
+                ? _purchaserState(
+                    entitlements: const [],
+                    hasProductionPurchaseHistory: generation == 0,
+                  ).toJson()
+                : _scopedReport(
+                    scopedEntitlements: [
+                      _entitlement('entitlement.sandbox',
+                          providerEnvironment: 'sandbox'),
+                    ],
+                    ordinaryProductionPurchaseHistory: false,
+                    scopedProductionPurchaseHistory: false,
+                  ).toJson(),
+          )),
+    );
+    await _waitFor(() =>
+        Restage.commerce.currentState.hasProductionPurchaseHistory == true);
+    queryFails = true;
+    expect((await Restage.commerce.refresh()).status,
+        CommercePurchaserStateStatusCode.stale);
+
+    generation++;
+    notifyRestageCommerceConfigurationChanged();
+    expect(Restage.commerce.currentState.hasProductionPurchaseHistory, isTrue);
+    queryFails = false;
+    final state = await Restage.commerce.refresh();
+    expect(state.status, CommercePurchaserStateStatusCode.available);
+    expect(state.hasProductionPurchaseHistory, isTrue);
+    expect(state.entitlements, isEmpty);
+  });
+
+  for (final reset in ['identity', 'configuration']) {
+    test('sandbox history observation resets with $reset', () async {
+      final directory =
+          await Directory.systemTemp.createTemp('restage-engine-');
+      addTearDown(() => _deleteAfterCommerceStops(directory));
+      final sandbox =
+          _entitlement('entitlement.sandbox', providerEnvironment: 'sandbox');
+      final adapter = _TestStoreAdapter(
+        store: CommerceStore.playStore,
+        products: const [],
+        ownedTransactions: [_ownedTransaction('sandbox')],
+      );
+      addTearDown(adapter.close);
+      var generation = 0;
+      _activate(
+        adapter: adapter,
+        journalPath: directory.path,
+        usesPurchaserStateHandler: true,
+        runtimeContextProvider: () {
+          final captured = generation;
+          return _context(
+            fingerprint: reset == 'configuration' ? 'scope-$captured' : 'scope',
+            token: reset == 'identity' && captured > 0
+                ? _secondApplicationToken
+                : _applicationToken,
+            isCurrent: () => generation == captured,
+          );
+        },
+        client: MockClient((request) async => _jsonResponse(
+              request.url.path.endsWith('/purchaser-state')
+                  ? _purchaserState(
+                      entitlements: const [],
+                      hasProductionPurchaseHistory: generation == 0,
+                    ).toJson()
+                  : _scopedReport(
+                      scopedEntitlements: [sandbox],
+                      ordinaryProductionPurchaseHistory: false,
+                      scopedProductionPurchaseHistory: false,
+                    ).toJson(),
+            )),
+      );
+      await _waitFor(() =>
+          Restage.commerce.currentState.hasProductionPurchaseHistory == true);
+      expect(Restage.commerce.currentState.entitlements, isEmpty);
+
+      generation++;
+      if (reset == 'identity') {
+        notifyRestageCommerceIdentityChanged();
+      } else {
+        notifyRestageCommerceConfigurationChanged();
+      }
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, isNull);
+      await _waitFor(
+          () => Restage.commerce.currentState.entitlements.isNotEmpty);
+      expect(
+          Restage.commerce.currentState.hasProductionPurchaseHistory, isFalse);
+      expect(Restage.commerce.currentState.entitlements, [sandbox]);
+    });
+  }
+
   test('reconstructs exact X and Z purchases under Y without unrelated grants',
       () async {
     final directory = await Directory.systemTemp.createTemp('restage-engine-');
@@ -4414,7 +4974,7 @@ void main() {
       }
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       reports.add(body);
-      final proof = body['storeVerificationData'];
+      final proof = _reportedVerificationIdentity(body);
       return _jsonResponse(
         _scopedReport(
           scopedEntitlements: [
@@ -4456,7 +5016,7 @@ void main() {
     expect(adapter.ownedQueryCalls, 1);
     expect(reports, hasLength(2));
     expect(
-      reports.map((report) => report['storeVerificationData']).toSet(),
+      reports.map(_reportedVerificationIdentity).toSet(),
       {'token-x', 'token-z'},
     );
     expect(
@@ -4526,7 +5086,7 @@ void main() {
       }
       reportCalls += 1;
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      final proof = body['storeVerificationData'];
+      final proof = _reportedVerificationIdentity(body);
       return _jsonResponse(
         _scopedReport(
           scopedEntitlements: switch (proof) {
@@ -4798,7 +5358,7 @@ void main() {
       CommerceReportRecord(
         reportId: '8ba77254-6ab0-4ec8-ae50-f12273ac1f51',
         store: CommerceStore.playStore,
-        storeVerificationData: 'shared-proof',
+        storeVerificationData: _playReceipt('shared-proof'),
         storeProductId: 'subscription.shared',
         storeTransactionId: 'shared-order',
         applicationAnonymousToken: _applicationToken,
@@ -4904,7 +5464,7 @@ void main() {
       }
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       reports.add(body);
-      if (body['storeVerificationData'] == 'old-proof') {
+      if (_reportedVerificationIdentity(body) == 'old-proof') {
         return _jsonResponse(_pendingState().toJson());
       }
       return _jsonResponse(
@@ -4957,12 +5517,13 @@ void main() {
     expect(state.status, CommercePurchaserStateStatusCode.available);
     expect(state.entitlements.single.entitlementId, 'entitlement.new-proof');
     expect(
-      reports.map((report) => report['storeVerificationData']),
+      reports.map(_reportedVerificationIdentity),
       containsAll(<String>['old-proof', 'new-proof']),
     );
     final remaining = await queue.open();
     expect(remaining, hasLength(1));
-    expect(remaining.single.storeVerificationData, 'old-proof');
+    expect(
+        _reportedVerificationIdentity(remaining.single.toJson()), 'old-proof');
   });
 
   test('failed admission preserves old and new captured owners', () async {
@@ -5045,7 +5606,10 @@ void main() {
       {_applicationToken, _secondApplicationToken},
     );
     expect(
-      records.map((record) => record.storeVerificationData).toSet(),
+      records
+          .map((record) => commerceVerificationIdentity(
+              record.store.value, record.storeVerificationData))
+          .toSet(),
       {'old-owner-proof', 'new-owner-proof'},
     );
     expect(records.map((record) => record.reportId).toSet(), hasLength(2));
@@ -5183,7 +5747,7 @@ void main() {
       CommerceReportRecord(
         reportId: '8ba77254-6ab0-4ec8-ae50-f12273ac1f51',
         store: CommerceStore.playStore,
-        storeVerificationData: 'unrelated-proof',
+        storeVerificationData: _playReceipt('unrelated-proof'),
         storeProductId: 'subscription.unrelated',
         storeTransactionId: 'unrelated-order',
         applicationAnonymousToken: _applicationToken,
@@ -5194,7 +5758,7 @@ void main() {
       CommerceReportRecord(
         reportId: 'fa8e6f40-1bc5-4924-9d3b-bd0b5ec3ed29',
         store: CommerceStore.playStore,
-        storeVerificationData: 'owned-proof',
+        storeVerificationData: _playReceipt('owned-proof'),
         storeProductId: 'subscription.owned',
         storeTransactionId: 'owned-order',
         applicationAnonymousToken: _applicationToken,
@@ -5289,7 +5853,7 @@ void main() {
       CommerceReportRecord(
         reportId: '9f34be90-98d1-4ec8-a01c-d1006a9ca36e',
         store: CommerceStore.playStore,
-        storeVerificationData: 'unrelated-proof',
+        storeVerificationData: _playReceipt('unrelated-proof'),
         storeProductId: 'subscription.unrelated',
         storeTransactionId: 'unrelated-order',
         applicationAnonymousToken: _applicationToken,
@@ -5300,7 +5864,7 @@ void main() {
       CommerceReportRecord(
         reportId: 'e2261547-787d-4b83-8874-a1ab8e602179',
         store: CommerceStore.playStore,
-        storeVerificationData: 'owned-proof',
+        storeVerificationData: _playReceipt('owned-proof'),
         storeProductId: 'subscription.owned',
         storeTransactionId: 'owned-order',
         applicationAnonymousToken: _applicationToken,
@@ -6045,6 +6609,7 @@ CommerceReportResponse _verifiedState() => CommerceReportResponse(
             status: 'active',
             productId: 'subscription.monthly',
             source: 'clientReport',
+            providerEnvironment: 'production',
           ),
         ],
         retrievedAt: DateTime.utc(2026, 9, 5),
@@ -6073,11 +6638,13 @@ CommercePurchaserStateResponse _purchaserState({
   required List<EntitlementSummary> entitlements,
   DateTime? retrievedAt,
   String status = 'current',
+  bool? hasProductionPurchaseHistory,
 }) =>
     CommercePurchaserStateResponse(
       status: status,
       entitlements: entitlements,
       retrievedAt: retrievedAt ?? DateTime.utc(2026, 9, 8),
+      hasProductionPurchaseHistory: hasProductionPurchaseHistory,
     );
 
 CommerceReportResponse _scopedReport({
@@ -6086,17 +6653,21 @@ CommerceReportResponse _scopedReport({
   String outcome = 'verified',
   bool includeScopedState = true,
   DateTime? retrievedAt,
+  bool? ordinaryProductionPurchaseHistory,
+  bool? scopedProductionPurchaseHistory,
 }) =>
     CommerceReportResponse(
       outcome: outcome,
       purchaserState: _purchaserState(
         entitlements: ordinaryEntitlements,
         retrievedAt: retrievedAt,
+        hasProductionPurchaseHistory: ordinaryProductionPurchaseHistory,
       ),
       verifiedPurchaseState: includeScopedState
           ? _purchaserState(
               entitlements: scopedEntitlements,
               retrievedAt: retrievedAt,
+              hasProductionPurchaseHistory: scopedProductionPurchaseHistory,
             )
           : null,
     );
@@ -6106,6 +6677,7 @@ EntitlementSummary _entitlement(
   String? productId,
   String status = 'active',
   int? expiresAtMs,
+  String providerEnvironment = 'production',
 }) =>
     EntitlementSummary(
       entitlementId: entitlementId,
@@ -6113,6 +6685,20 @@ EntitlementSummary _entitlement(
       expiresAtMs: expiresAtMs,
       productId: productId ?? entitlementId,
       source: 'clientReport',
+      providerEnvironment: providerEnvironment,
+    );
+
+_TestTransaction _ownedTransaction(
+  String name, [
+  CommerceStore store = CommerceStore.playStore,
+]) =>
+    _TestTransaction(
+      store: store,
+      status: CommerceStoreTransactionStatus.restored,
+      storeProductId: 'subscription.$name',
+      storeTransactionId: 'order-$name',
+      storeVerificationData: 'proof-$name',
+      requiresDeviceCompletion: store == CommerceStore.appStore,
     );
 
 const _TestTransaction _applePendingTransaction = _TestTransaction(
@@ -6518,9 +7104,9 @@ final class _TestTransaction implements CommerceStoreTransaction {
     required this.status,
     required this.storeProductId,
     required this.storeTransactionId,
-    required this.storeVerificationData,
+    required String? storeVerificationData,
     required this.requiresDeviceCompletion,
-  });
+  }) : _verificationData = storeVerificationData;
 
   @override
   final CommerceStore store;
@@ -6531,7 +7117,21 @@ final class _TestTransaction implements CommerceStoreTransaction {
   @override
   final String? storeTransactionId;
   @override
-  final String? storeVerificationData;
+  String? get storeVerificationData => store == CommerceStore.playStore &&
+          _verificationData != null &&
+          _verificationData.isNotEmpty
+      ? _playReceipt(_verificationData)
+      : _verificationData;
+  final String? _verificationData;
   @override
   final bool requiresDeviceCompletion;
 }
+
+String _playReceipt(String token) => GooglePlayPurchaseReceipt(
+      originalJson: jsonEncode({'purchaseToken': token}),
+      signature: 'test-signature',
+    ).toVerificationData();
+
+String _reportedVerificationIdentity(Map<String, dynamic> body) =>
+    commerceVerificationIdentity(
+        body['store'] as String, body['storeVerificationData'] as String);

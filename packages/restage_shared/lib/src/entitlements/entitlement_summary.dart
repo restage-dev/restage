@@ -2,22 +2,21 @@ import 'package:meta/meta.dart';
 
 /// Authoritative entitlement state returned by the server.
 ///
-/// Unknown values from a server newer than this SDK parse to `'unknown'` and
-/// are treated as not entitled; the contract grows additively.
+/// Unknown status and source values parse to `'unknown'`; unknown statuses
+/// grant no access. Store environments must be production or sandbox.
 @immutable
 final class EntitlementSummary {
   /// Creates an entitlement summary.
   ///
-  /// [status] and [source] are validated against their known sets with an
-  /// unconditional throw (not an `assert`), so direct construction with an
-  /// out-of-set value fails in release builds too. The wire path
-  /// ([EntitlementSummary.fromJson]) instead degrades an unknown value to
-  /// `'unknown'`, so a server newer than this SDK stays forward-compatible.
+  /// [status] and [source] validate known values and decode future values as
+  /// `'unknown'`. [providerEnvironment] requires production or sandbox for
+  /// construction and decoding.
   EntitlementSummary({
     required this.entitlementId,
     required this.status,
     required this.productId,
     required this.source,
+    required this.providerEnvironment,
     this.expiresAtMs,
   }) {
     if (!_statuses.contains(status)) {
@@ -25,6 +24,9 @@ final class EntitlementSummary {
     }
     if (!_sources.contains(source)) {
       throw ArgumentError.value(source, 'source', 'must be one of $_sources');
+    }
+    if (!_providerEnvironments.contains(providerEnvironment)) {
+      throw ArgumentError.value(providerEnvironment, 'providerEnvironment');
     }
   }
 
@@ -38,6 +40,7 @@ final class EntitlementSummary {
       productId: _requiredString(json, 'productId'),
       source: source,
       expiresAtMs: _optionalInt(json, 'expiresAtMs'),
+      providerEnvironment: _requiredString(json, 'providerEnvironment'),
     );
   }
 
@@ -56,6 +59,9 @@ final class EntitlementSummary {
   /// Signal source that produced this state.
   final String source;
 
+  /// Verified store environment: production or sandbox.
+  final String providerEnvironment;
+
   /// Whether this summary grants access.
   bool get isEntitled => status == 'active';
 
@@ -67,6 +73,7 @@ final class EntitlementSummary {
       if (expiresAtMs != null) 'expiresAtMs': expiresAtMs,
       'productId': productId,
       'source': source,
+      'providerEnvironment': providerEnvironment,
     };
   }
 
@@ -78,7 +85,8 @@ final class EntitlementSummary {
             other.status == status &&
             other.expiresAtMs == expiresAtMs &&
             other.productId == productId &&
-            other.source == source;
+            other.source == source &&
+            other.providerEnvironment == providerEnvironment;
   }
 
   @override
@@ -89,6 +97,7 @@ final class EntitlementSummary {
       expiresAtMs,
       productId,
       source,
+      providerEnvironment,
     );
   }
 }
@@ -96,6 +105,7 @@ final class EntitlementSummary {
 const _unknown = 'unknown';
 const Set<String> _statuses = {'active', 'expired', 'refunded', _unknown};
 const Set<String> _sources = {'clientReport', 'storeNotification', _unknown};
+const Set<String> _providerEnvironments = {'production', 'sandbox'};
 
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
