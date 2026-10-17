@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
-import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/loader_engine_base.dart';
 import 'package:restage_cli/src/render_bundles/package_resolution.dart';
@@ -30,9 +29,6 @@ typedef RenderBundleProcessRunner =
 
 typedef RenderBundleTempDirectoryCreator =
     Future<Directory> Function(String prefix);
-
-typedef RenderBundleCatalogResolver =
-    Future<String> Function(Directory projectRoot, String customCatalogJson);
 
 /// Generic build failure that deliberately omits process output and paths.
 final class RenderBundleBuildException implements Exception {
@@ -118,22 +114,18 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
   FlutterRenderBundleBuilder({
     RenderBundleProcessRunner? processRunner,
     RenderBundleTempDirectoryCreator? tempDirectoryCreator,
-    RenderBundleCatalogResolver? catalogResolver,
     String? flutterExecutable,
     RenderBundleFontAuthority? fontAuthority,
     RenderBundleProjectWriter? projectWriter,
   }) : _processRunner = processRunner ?? runRenderBundleProcess,
        _tempDirectoryCreator =
            tempDirectoryCreator ?? Directory.systemTemp.createTemp,
-       _catalogResolver =
-           catalogResolver ?? createRenderBundleCapabilityCatalogUnion,
        _flutterExecutableOverride = flutterExecutable,
        _fontAuthorityOverride = fontAuthority,
        _projectWriter = projectWriter ?? writeRenderBundleProject;
 
   final RenderBundleProcessRunner _processRunner;
   final RenderBundleTempDirectoryCreator _tempDirectoryCreator;
-  final RenderBundleCatalogResolver _catalogResolver;
   final String? _flutterExecutableOverride;
   final RenderBundleFontAuthority? _fontAuthorityOverride;
   final RenderBundleProjectWriter _projectWriter;
@@ -146,15 +138,14 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
     required Uri controlOrigin,
     String? flutterExecutable,
   }) async {
-    // Resolve the exact built-in + custom capability union, then recursively
-    // audit it before any private temp directory or dart-define file exists.
-    final String capabilityCatalogJson;
+    // Audit the merged catalog and the app's resolution before any private
+    // temp directory or dart-define file exists.
     final Uint8List capabilityManifest;
     final appVersion = readProjectAppVersion(projectRoot);
     try {
-      capabilityCatalogJson = await _catalogResolver(projectRoot, catalogJson);
+      await PackageResolution.read(projectRoot);
       capabilityManifest = createRenderBundleCapabilityManifest(
-        capabilityCatalogJson,
+        catalogJson,
         appVersion: appVersion.name,
         appBuild: appVersion.build,
       );
@@ -468,101 +459,6 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
       throw const RenderBundleBuildException('private_temp_permissions');
     }
   }
-}
-
-/// Builds the canonical bundle-level capability union.
-///
-/// The three runtime built-in catalogs are resolved from the app's exact
-/// package configuration. Their complete graph is merged with the generated
-/// custom catalog so ready-manifest admission proves the same constructors
-/// the built bundle can actually render.
-Future<String> createRenderBundleCapabilityCatalogUnion(
-  Directory projectRoot,
-  String customCatalogJson,
-) async {
-  final PackageConfig packageConfig;
-  try {
-    packageConfig = (await PackageResolution.read(projectRoot)).config;
-  } on PackageResolutionException {
-    throw StateError('package configuration unavailable');
-  }
-  final catalogs = <Catalog>[];
-  for (final package in const <String>[
-    'restage_core',
-    'restage_material',
-    'restage_cupertino',
-  ]) {
-    final uri = packageConfig.resolve(
-      Uri.parse('package:$package/src/widget_catalog/catalog.json'),
-    );
-    if (uri == null || !uri.isScheme('file')) {
-      throw StateError('built-in catalog unavailable');
-    }
-    final file = File.fromUri(uri);
-    if (!file.existsSync()) {
-      throw StateError('built-in catalog unavailable');
-    }
-    catalogs.add(decodeCatalog(await file.readAsString()));
-  }
-  catalogs.add(decodeCatalog(customCatalogJson));
-  return encodeCatalog(_mergeCapabilityCatalogs(catalogs));
-}
-
-Catalog _mergeCapabilityCatalogs(List<Catalog> catalogs) {
-  if (catalogs.isEmpty) {
-    throw StateError('capability catalog union is empty');
-  }
-  final libraries = <WidgetLibrary, LibraryInfo>{};
-  final widgetIdentities = <String>{};
-  final widgets = <WidgetEntry>[];
-  final compatRules = <CompatRule>[];
-  var sawCompatRules = false;
-  String? flutterVersion;
-  for (final catalog in catalogs) {
-    if (catalog.schemaVersion != kSupportedSchemaVersion) {
-      throw StateError('capability catalog schema mismatch');
-    }
-    final sourceFlutterVersion = catalog.flutterVersion;
-    if (sourceFlutterVersion != null) {
-      if (flutterVersion != null && flutterVersion != sourceFlutterVersion) {
-        throw StateError('capability catalog Flutter version mismatch');
-      }
-      flutterVersion = sourceFlutterVersion;
-    }
-    for (final entry in catalog.libraries.entries) {
-      if (libraries.containsKey(entry.key)) {
-        throw StateError('duplicate capability library');
-      }
-      libraries[entry.key] = entry.value;
-    }
-    for (final widget in catalog.widgets) {
-      final identity = '${widget.library.namespace}\u0000${widget.name}';
-      if (!widgetIdentities.add(identity)) {
-        throw StateError('duplicate capability widget');
-      }
-      widgets.add(widget);
-    }
-    final rules = catalog.compatRules;
-    if (rules != null) {
-      sawCompatRules = true;
-      compatRules.addAll(rules);
-    }
-  }
-  return Catalog(
-    schemaVersion: kSupportedSchemaVersion,
-    generatedAt: catalogs.last.generatedAt,
-    libraries: libraries,
-    widgets: widgets,
-    structuredTypes: <StructuredEntry>[
-      for (final catalog in catalogs) ...catalog.structuredTypes,
-    ],
-    unions: <UnionEntry>[for (final catalog in catalogs) ...catalog.unions],
-    designTokens: <DesignTokenEntry>[
-      for (final catalog in catalogs) ...catalog.designTokens,
-    ],
-    flutterVersion: flutterVersion,
-    compatRules: sawCompatRules ? compatRules : null,
-  );
 }
 
 /// Runs one build-toolchain process without a shell.

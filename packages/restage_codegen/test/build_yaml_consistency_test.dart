@@ -48,6 +48,7 @@ void main() {
       'user_a2ui_catalog': userA2uiCatalogBuilder,
       'widgetbook_stories': widgetbookStoryBuilder,
       'restage_surfaces': restageSurfaceListBuilder,
+      'render_catalog': renderCatalogBuilder,
     };
 
     // The factory FUNCTION each build.yaml entry must point at. build.yaml's
@@ -76,6 +77,7 @@ void main() {
       'user_a2ui_catalog': 'userA2uiCatalogBuilder',
       'widgetbook_stories': 'widgetbookStoryBuilder',
       'restage_surfaces': 'restageSurfaceListBuilder',
+      'render_catalog': 'renderCatalogBuilder',
     };
 
     late Map<String, Map<String, List<String>>> declared;
@@ -112,6 +114,7 @@ void main() {
       for (final name in [
         'restage_source_roster',
         'restage_package_surface_compiler',
+        'render_catalog',
       ]) {
         expect(_declaredBuilders[name]['build_to'], 'cache');
         expect(_declaredBuilders[name]['auto_apply'], 'root_package');
@@ -330,6 +333,7 @@ void main() {
       final consumers = <String>{
         'paywall_codegen',
         'factory_functions',
+        'render_catalog',
         ...declaredNames.where((n) => n.endsWith('_screen_codegen')),
       };
       for (final consumer in consumers) {
@@ -451,7 +455,7 @@ void main() {
     });
 
     test('the README counts the package-wide builders correctly', () {
-      const asWords = {5: 'five', 6: 'six', 7: 'seven', 8: 'eight'};
+      const asWords = {5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine'};
       final total = packageWide(autoApply: 'dependents').length +
           packageWide(autoApply: 'none').length;
 

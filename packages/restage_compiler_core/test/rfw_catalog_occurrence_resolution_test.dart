@@ -1,3 +1,4 @@
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_shared/rfw_formats.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' as catalog;
 import 'package:test/test.dart';
@@ -26,18 +27,21 @@ widget Paywall = InlineBadge();
     );
     final handles = resolved.occurrences.map((value) => value.handle).toList();
     final body = resolved.inspectFinalBody(library);
-    expect(body.constructorCalls.map((call) => call.name),
-        ['InlineBadge', 'BuiltInCard', 'UnknownNative']);
+    expect(
+      body.constructorCalls.map((call) => call.name),
+      ['InlineBadge', 'BuiltInCard', 'UnknownNative'],
+    );
     expect(body.events.map((event) => event.eventName), ['hidden_event']);
     expect(body.dataReferences.map((reference) => reference.parts), [
-      ['context', 'hidden']
+      ['context', 'hidden'],
     ]);
     expect(resolved.occurrences.map((value) => value.handle), handles);
     expect(
-        () => RfwCatalogOccurrenceResolutionInput.fromJson(
-              {...input.toJson(), 'unknown': true},
-            ),
-        throwsFormatException);
+      () => RfwCatalogOccurrenceResolutionInput.fromJson(
+        {...input.toJson(), 'unknown': true},
+      ),
+      throwsFormatException,
+    );
   });
 
   test('resolves root calls and reachable ordinary local bodies', () {

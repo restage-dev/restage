@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+A new `render_catalog` builder writes the merged catalog a render bundle is
+built against: the built-in catalogs and every custom catalog in the app's
+dependency graph. `restage build push` reads it, so widgets from a dependency
+package reach the bundle. It runs only in a package that depends on `restage`.
+
 Every emitted `.rfw` now encodes its library in one canonical key order. The
 first build after upgrading changes the bytes, and so the digests, of every
 surface, and a status check may report unpublished changes for surfaces whose

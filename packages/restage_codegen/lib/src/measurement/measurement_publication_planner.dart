@@ -1,10 +1,7 @@
 // Analyzer-to-publication assembly seam.
 // ignore_for_file: public_member_api_docs
 
-import 'dart:convert';
-
 import 'package:collection/collection.dart';
-import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
@@ -1309,14 +1306,14 @@ ArtifactId measurementArtifactIdForPublicationArtifactV1(
   SurfacePublicationArtifact artifact,
 ) =>
     ArtifactId(
-      _opaqueId(
-        prefix: 'artifact.v1.',
-        domain: 'restage-measurement-artifact-definition-v1',
-        value: {
-          'artifactSlot': _artifactSlot(artifact),
-          'publication': selector.toJson(),
-        },
-      ),
+      '$kMintedArtifactIdPrefix${artifactDefinitionDigestV1(
+        surface: selector.surface.wireName,
+        slug: selector.slug,
+        sourceKind: selector.sourceKind.wireName,
+        contractVersion: selector.contractVersion,
+        artifactRole: artifact.role.wireName,
+        artifactId: artifact.id,
+      )}',
     );
 
 ArtifactOccurrenceEdgeToken _artifactEdge(
@@ -1532,13 +1529,8 @@ String _opaqueId({
   required String prefix,
   required String domain,
   required Object? value,
-}) {
-  final bytes = <int>[
-    ...utf8.encode('$domain\u0000'),
-    ...CanonicalJsonCodec.encode(value),
-  ];
-  return '$prefix${crypto.sha256.convert(bytes)}';
-}
+}) =>
+    '$prefix${measurementDomainDigest(domain, value)}';
 
 final class _CurrentNodeDescriptor {
   const _CurrentNodeDescriptor({

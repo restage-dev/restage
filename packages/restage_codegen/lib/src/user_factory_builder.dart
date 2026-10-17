@@ -60,7 +60,7 @@ final class UserFactoryBuilder implements Builder {
     // The aggregate names SDK types, so a package whose own pubspec does not
     // depend on the SDK never receives one — that is the catalog packages the
     // SDK itself depends on, not an app.
-    if (!await _dependsOnRestageSdk(buildStep)) return;
+    if (!await dependsOnRestageSdk(buildStep)) return;
     final installWholeCatalog = scope == InstalledCatalogScope.whole;
     final derivation = await derivePackageAppVocabulary(buildStep);
     final appVocabulary = derivation.references.union(
@@ -189,7 +189,8 @@ Future<SurfaceVocabularyReferences> deriveCompiledSurfaceVocabulary(
 /// Whether the consuming package's own pubspec depends on the Restage SDK.
 ///
 /// An unreadable pubspec emits: that is a harness, not a catalog package.
-Future<bool> _dependsOnRestageSdk(BuildStep buildStep) async {
+/// Whether the package being built depends on the Restage SDK.
+Future<bool> dependsOnRestageSdk(BuildStep buildStep) async {
   final pubspec = AssetId(buildStep.inputId.package, 'pubspec.yaml');
   try {
     if (!await buildStep.canRead(pubspec)) return true;

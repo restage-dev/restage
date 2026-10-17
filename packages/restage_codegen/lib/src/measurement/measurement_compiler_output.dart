@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:build/build.dart';
-import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -223,22 +222,14 @@ final class MeasurementPublicationSelectorV1 {
       '${sourceKind.wireName}\u0000${contractVersion ?? ''}';
 
   /// Stable Measurement identity derived from the frozen publication line.
-  SurfaceId get stableSurfaceId {
-    final line = <String, Object?>{
-      'kind': 'publicationLine',
-      'schemaVersion': 1,
-      'slug': slug,
-      'sourceKind': sourceKind.wireName,
-      'surface': surface.wireName,
-      if (sourceKind == SurfaceSourceKind.screen)
-        'contractVersion': contractVersion,
-    };
-    final bytes = <int>[
-      ...utf8.encode('restage-surface-publication-line-v1\u0000'),
-      ...CanonicalJsonCodec.encode(line),
-    ];
-    return SurfaceId('surface.v1.${crypto.sha256.convert(bytes)}');
-  }
+  SurfaceId get stableSurfaceId => SurfaceId(
+        '$kMintedSurfaceIdPrefix${publicationLineDigestV1(
+          surface: surface.wireName,
+          slug: slug,
+          sourceKind: sourceKind.wireName,
+          contractVersion: contractVersion,
+        )}',
+      );
 
   Map<String, Object?> toJson() => {
         if (sourceKind == SurfaceSourceKind.screen)

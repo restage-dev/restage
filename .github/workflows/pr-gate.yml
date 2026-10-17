@@ -1,10 +1,10 @@
 name: Gate toolchain PRs
 
-# The FSL-licensed packages (restage_codegen, rfw_catalog_compiler,
-# restage_render_host) are not
+# The FSL-licensed packages (restage_codegen, restage_compiler_core,
+# rfw_catalog_compiler, restage_render_host) are not
 # open for pull requests until the CLA signing flow + bot are live — its license
 # requires a CLA we can't yet collect. PRs that touch ONLY the other (BSD-3)
-# packages are left alone for normal review; a PR that changes either toolchain
+# packages are left alone for normal review; a PR that changes any FSL
 # package is politely closed. This workflow only reads the PR's file list and (if
 # needed) comments + closes — it never checks out or runs the PR's code, so
 # pull_request_target is safe here. Remove it when the CLA bot is live.
@@ -36,6 +36,7 @@ jobs:
 
             const gated = [
               "packages/restage_codegen/",
+              "packages/restage_compiler_core/",
               "packages/rfw_catalog_compiler/",
               "packages/restage_render_host/",
             ];
@@ -56,7 +57,8 @@ jobs:
               "Thanks for the contribution — and sorry for the friction.",
               "",
               "This pull request changes the **FSL-licensed packages**",
-              "(`restage_codegen` / `rfw_catalog_compiler` / `restage_render_host`), which isn't open for pull",
+              "(`restage_codegen` / `restage_compiler_core` / `rfw_catalog_compiler` /",
+              "`restage_render_host`), which isn't open for pull",
               "requests yet: contributions to it require a Contributor License",
               "Agreement, and we're still putting the CLA signing flow in place. So this",
               "PR is being closed automatically — not because it isn't welcome.",

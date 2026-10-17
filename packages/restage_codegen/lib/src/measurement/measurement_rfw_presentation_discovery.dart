@@ -1,22 +1,21 @@
 import 'dart:collection';
 
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/rfw_formats.dart' as rfw;
 
 /// Shared resolved descriptor used by the code-identity ledger.
-typedef MeasurementRfwPresentationDescriptor
-    = rfw.RfwCatalogOccurrenceDescriptor;
+typedef MeasurementRfwPresentationDescriptor = RfwCatalogOccurrenceDescriptor;
 
 /// Shared anchor for an ordinary reachable local RFW declaration body.
 typedef MeasurementRfwPresentationLocalDeclarationAnchor
-    = rfw.RfwCatalogOccurrenceLocalDeclarationAnchor;
+    = RfwCatalogOccurrenceLocalDeclarationAnchor;
 
 /// Shared exact parsed call selected before artifact encoding.
-typedef MeasurementRfwPresentationOccurrence = rfw.RfwCatalogOccurrence;
+typedef MeasurementRfwPresentationOccurrence = RfwCatalogOccurrence;
 
 /// Shared value-stable handle retained across compiler passes.
-typedef MeasurementPresentationOccurrenceHandle
-    = rfw.RfwCatalogOccurrenceHandle;
+typedef MeasurementPresentationOccurrenceHandle = RfwCatalogOccurrenceHandle;
 
 /// Reconciled presentation witness reserved for one RFW structural descriptor.
 final class MeasurementRfwPresentationPlannedOccurrence {
@@ -226,7 +225,7 @@ final class MeasurementRfwPresentationPublicationPlan {
   /// method proves final topology before this measurement adapter attaches
   /// routes to exact final call objects.
   MeasurementRfwPresentationArtifactMaterialization materializeArtifact({
-    required rfw.ResolvedRfwCatalogOccurrenceSet occurrenceSet,
+    required ResolvedRfwCatalogOccurrenceSet occurrenceSet,
     required rfw.RemoteWidgetLibrary finalLibrary,
     required ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
   }) {
@@ -388,10 +387,10 @@ final class MeasurementRfwPresentationArtifactMaterialization {
         _joinsByHandle = UnmodifiableMapView(joinsByHandle);
 
   /// Frozen source occurrence set that established [joins].
-  final rfw.ResolvedRfwCatalogOccurrenceSet occurrenceSet;
+  final ResolvedRfwCatalogOccurrenceSet occurrenceSet;
 
   /// Exact final-library rebinding that proves [joins] topology.
-  final rfw.ResolvedRfwCatalogOccurrenceRebinding rebinding;
+  final ResolvedRfwCatalogOccurrenceRebinding rebinding;
 
   /// Exact parsed final RFW library used by composition.
   rfw.RemoteWidgetLibrary get finalLibrary => rebinding.finalLibrary;

@@ -352,18 +352,24 @@ final class BuildPushCommand extends Command<int> {
       _stderr.writeln(_catalogFailureMessage(error));
       return error.reason == 'generate_failed' ? 2 : 1;
     }
-    if (!catalog.registersWidgets) {
-      _stdout.writeln(
-        'This app registers no widgets of its own. The renderer carries the '
-        'built-in catalogs only.',
+    final renderCatalog = catalog.renderJson;
+    if (renderCatalog == null) {
+      _stderr.writeln(
+        _catalogFailureMessage(
+          const GeneratedCatalogException('render_catalog_missing'),
+        ),
       );
+      return 1;
+    }
+    if (!catalog.registersWidgets) {
+      _stdout.writeln('This app registers no widgets of its own.');
     }
 
     final RenderBundleArtifact artifact;
     try {
       artifact = await _builder.build(
         projectRoot: projectRoot,
-        catalogJson: catalog.json,
+        catalogJson: renderCatalog,
         parentOrigin: origins.dashboardOrigin,
         controlOrigin: origins.bundleOrigin,
         flutterExecutable: flutter.executable,
@@ -583,6 +589,7 @@ String _catalogFailureMessage(GeneratedCatalogException error) =>
       'generate_failed' =>
         'Could not generate the widget catalog. Run '
             '`dart run build_runner build` to see why.',
+      'render_catalog_missing' => renderCatalogMissingMessage,
       'toolchain' => 'Could not find a Flutter SDK. ${flutterRootFix()}',
       _ => 'Could not read the generated widget catalog.',
     };

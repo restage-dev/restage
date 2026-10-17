@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_shared/restage_shared.dart' show CapabilitySidecar;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -532,7 +533,7 @@ widget Root = Card(analyticsId: "checkout.primary");
   });
 }
 
-fmt.ResolvedRfwCatalogOccurrenceSet _resolveFixtureOccurrences(
+ResolvedRfwCatalogOccurrenceSet _resolveFixtureOccurrences(
   fmt.RemoteWidgetLibrary library,
   Catalog catalog, {
   required String rootWidgetName,
@@ -546,7 +547,7 @@ fmt.ResolvedRfwCatalogOccurrenceSet _resolveFixtureOccurrences(
         catalogWidgetWireId: widget.wireId,
       ),
   };
-  return fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+  return ResolvedRfwCatalogOccurrenceSet.resolve(
     parsedLibrary: library,
     input: fmt.RfwCatalogOccurrenceResolutionInput(
       artifactProvenance: 'fixture.artifact',

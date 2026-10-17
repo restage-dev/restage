@@ -56,11 +56,6 @@ mounting and the CLI/MCP tools manage delivery plans.
 - **`CapabilityManifest`**: the minimum capabilities a delivered document
   needs, so an older app refuses it instead of rendering it wrong.
 
-### Other libraries
-
-- **`package:restage_shared/meter.dart`**: converts signed money amounts to
-  USD micros. Dart VM only; it does not compile to JavaScript.
-
 ## Vendored: `lib/src/rfw_formats/`
 
 `lib/src/rfw_formats/` contains the pure-Dart `formats` library of

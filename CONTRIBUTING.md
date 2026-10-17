@@ -10,11 +10,12 @@ Most of the SDK is open for pull requests right now: the widget catalog
 (`restage_core` / `restage_material` / `restage_cupertino`), the runtime SDK
 (`restage`), the RevenueCat adapter, the CLI, and the examples.
 
-**The two exceptions are the build-time toolchain packages, `restage_codegen` and
-`rfw_catalog_compiler`.** They're licensed FSL-1.1-ALv2 (with a scheduled
+**The exceptions are the build-time toolchain packages, `restage_codegen`,
+`restage_compiler_core` and `rfw_catalog_compiler`, and the preview render host,
+`restage_render_host`.** They're licensed FSL-1.1-ALv2 (with a scheduled
 conversion to Apache-2.0), which means contributions to them require a Contributor
 License Agreement, and we're still putting the CLA signing flow (and the bot that
-checks it) in place. **A pull request that changes either of those packages will be
+checks it) in place. **A pull request that changes any of those packages will be
 closed automatically until that's live.** If you have a toolchain idea in the
 meantime, please [open an issue](https://github.com/restage-dev/restage/issues);
 otherwise keep your pull request to the other packages and it'll be reviewed
@@ -93,7 +94,7 @@ Other good areas:
   and focused improvements. For anything larger, open an issue first so we can
   talk through the shape before you build it.
 - **The build-time toolchain** (`packages/restage_codegen`,
-  `packages/rfw_catalog_compiler`): gated for now (see above). Open an issue
+  `packages/restage_compiler_core`, `packages/rfw_catalog_compiler`): gated for now (see above). Open an issue
   rather than a pull request until the CLA flow is live.
 
 A note on the SDK's dependencies: `packages/restage` is intentionally
@@ -112,7 +113,8 @@ come through configuration.
 ## Contributor License Agreement
 
 You only need to think about this if you're contributing to the **FSL-licensed
-build toolchain** (`restage_codegen` / `rfw_catalog_compiler`), and that's gated
+build toolchain** (`restage_codegen` / `restage_compiler_core` /
+`rfw_catalog_compiler`) or the render host (`restage_render_host`), and that's gated
 until the signing flow is live anyway. The rest of the SDK is BSD-3-Clause and
 requires no CLA.
 

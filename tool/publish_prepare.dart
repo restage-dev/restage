@@ -39,6 +39,7 @@ const _publishable = <String>{
   'restage_cupertino',
   'rfw_catalog_schema',
   'restage_shared',
+  'restage_compiler_core',
   'restage_codegen',
   'rfw_catalog_compiler',
   'restage_render_host',

@@ -23,6 +23,7 @@ export 'src/publication_binding.dart';
 export 'src/publication_bundled_registry.dart';
 export 'src/publication_candidate.dart';
 export 'src/publication_draft.dart';
+export 'src/publication_identity_digests.dart';
 export 'src/publication_route.dart';
 export 'src/published_identity.dart';
 export 'src/sdk_installed_libraries.dart';

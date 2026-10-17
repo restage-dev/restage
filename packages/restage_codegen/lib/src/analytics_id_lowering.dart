@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -16,7 +17,7 @@ final class AnalyticsIdDeclaration {
   final String analyticsId;
 
   /// Label-independent handle retained for final witness resolution.
-  final fmt.RfwCatalogOccurrenceHandle presentationHandle;
+  final RfwCatalogOccurrenceHandle presentationHandle;
 }
 
 /// Parsed RFW after reserved occurrence labels have been removed.
@@ -69,8 +70,8 @@ AnalyticsIdLoweringResult lowerAnalyticsIds({
   required fmt.RemoteWidgetLibrary library,
   required Object sourceIdentifier,
   required String location,
-  fmt.ResolvedRfwCatalogOccurrenceSet? occurrenceSet,
-  fmt.ResolvedRfwCatalogOccurrenceRebinding? occurrenceRebinding,
+  ResolvedRfwCatalogOccurrenceSet? occurrenceSet,
+  ResolvedRfwCatalogOccurrenceRebinding? occurrenceRebinding,
 }) {
   if (occurrenceSet != null && occurrenceRebinding != null) {
     throw ArgumentError(
@@ -163,15 +164,15 @@ final class _AnalyticsIdLoweringState {
   final String text;
   final Object sourceIdentifier;
   final String location;
-  final fmt.ResolvedRfwCatalogOccurrenceSet? occurrenceSet;
-  final fmt.ResolvedRfwCatalogOccurrenceRebinding? occurrenceRebinding;
+  final ResolvedRfwCatalogOccurrenceSet? occurrenceSet;
+  final ResolvedRfwCatalogOccurrenceRebinding? occurrenceRebinding;
   final List<Issue> issues = <Issue>[];
   final List<_TextEdit> edits = <_TextEdit>[];
   final Set<fmt.ConstructorCall> _constructorsToStrip =
       Set<fmt.ConstructorCall>.identity();
-  final Map<fmt.RfwCatalogOccurrenceHandle, _AnalyticsIdDeclarationDraft>
+  final Map<RfwCatalogOccurrenceHandle, _AnalyticsIdDeclarationDraft>
       _declarationByPresentationHandle =
-      <fmt.RfwCatalogOccurrenceHandle, _AnalyticsIdDeclarationDraft>{};
+      <RfwCatalogOccurrenceHandle, _AnalyticsIdDeclarationDraft>{};
 
   void walk(Object? node, List<String> path) {
     if (node is fmt.ConstructorCall) {
@@ -460,7 +461,7 @@ final class _AnalyticsIdDeclarationDraft {
   });
 
   final String analyticsId;
-  final fmt.RfwCatalogOccurrenceHandle presentationHandle;
+  final RfwCatalogOccurrenceHandle presentationHandle;
 }
 
 final class _AnalyticsIdTypedCopy {

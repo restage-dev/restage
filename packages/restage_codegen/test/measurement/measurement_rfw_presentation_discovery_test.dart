@@ -3,6 +3,7 @@ import 'package:restage_codegen/src/measurement/measurement_rfw_route_composer.d
 import 'package:restage_codegen/src/measurement/measurement_compiler_boundary.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_input.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -437,12 +438,12 @@ MeasurementRfwPresentationPlannedOccurrence _copyPlannedOccurrence(
 
 final _edge = ArtifactOccurrenceEdgeToken('edge.presentation.fixture');
 
-fmt.ResolvedRfwCatalogOccurrenceSet _discover(String source) {
+ResolvedRfwCatalogOccurrenceSet _discover(String source) {
   final library = fmt.parseLibraryFile(
     source,
     sourceIdentifier: 'presentation-fixture',
   );
-  return fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+  return ResolvedRfwCatalogOccurrenceSet.resolve(
     parsedLibrary: library,
     input: _input(
       includeForgedConstructor: source.contains('widget MeasurementPresented'),
@@ -450,13 +451,13 @@ fmt.ResolvedRfwCatalogOccurrenceSet _discover(String source) {
   );
 }
 
-fmt.ResolvedRfwCatalogOccurrenceSet _discoverCapacity(int opaqueCount) {
+ResolvedRfwCatalogOccurrenceSet _discoverCapacity(int opaqueCount) {
   final source = _capacityTopologySource(opaqueCount);
   final library = fmt.parseLibraryFile(
     source,
     sourceIdentifier: 'presentation-capacity',
   );
-  return fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+  return ResolvedRfwCatalogOccurrenceSet.resolve(
     parsedLibrary: library,
     input: _input(includeSupportLocals: false),
   );
@@ -510,7 +511,7 @@ fmt.RfwCatalogOccurrenceResolutionInput _input({
 }
 
 MeasurementRfwPresentationPublicationPlan _publicationPlan(
-  fmt.ResolvedRfwCatalogOccurrenceSet occurrenceSet,
+  ResolvedRfwCatalogOccurrenceSet occurrenceSet,
 ) {
   final codes = <String, CodeIdentityId>{
     occurrenceSet.artifactAnchorStructuralOccurrenceKey:

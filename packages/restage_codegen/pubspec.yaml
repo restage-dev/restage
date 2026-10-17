@@ -30,6 +30,8 @@ dependencies:
   package_config: ">=2.0.0 <4.0.0"
   pub_semver: ^2.2.0
   path: ^1.9.0
+  restage_compiler_core:
+    path: ../restage_compiler_core
   restage_measurement_schema:
     path: ../restage_measurement_schema
   restage_shared:

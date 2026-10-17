@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `publicationLineDigestV1`, `artifactDefinitionDigestV1` and
+  `declaredArtifactBytesDigestV1` compute the publication identity digests the
+  compiler, the CLI and the server share. `kMintedArtifactIdPrefix` is the
+  prefix of a minted artifact identity.
 - An ordered capture route can name the drop-off band it contributes to.
   `MeasurementOrderedCaptureDeclarationV1` carries an optional
   `breakdownPointV1`, and the canonical JSON gains the same optional key. A

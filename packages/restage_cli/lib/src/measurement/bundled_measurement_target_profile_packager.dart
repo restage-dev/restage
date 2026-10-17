@@ -603,22 +603,7 @@ void _verifyDeclaredArtifactTupleDigest(
       'A finalization entry has invalid canonical artifact tuples.',
     );
   }
-  final preimage = BytesBuilder(copy: false)
-    ..add(
-      utf8.encode(
-        'restage-surface-publication-declared-artifact-bytes-v1\u0000',
-      ),
-    )
-    ..add(
-      CanonicalJsonCodec.encode(<String, Object?>{
-        'kind': 'restageSurfacePublicationDeclaredArtifactBytes',
-        'schemaVersion': 1,
-        'tuples': tupleObjects,
-      }),
-    );
-  final recomputedDigest = crypto.sha256
-      .convert(preimage.takeBytes())
-      .toString();
+  final recomputedDigest = declaredArtifactBytesDigestV1(tupleObjects);
   final authority = entry.reference.publicationAuthorityReference;
   if (recomputedDigest !=
           entry.candidateProof.declaredArtifactBytesDigest.hex ||

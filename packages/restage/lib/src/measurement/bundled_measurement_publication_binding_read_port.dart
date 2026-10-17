@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -473,21 +470,8 @@ Map<String, _VerifiedBundleArtifact> _verifiedArtifactIndex(
   return Map<String, _VerifiedBundleArtifact>.unmodifiable(artifacts);
 }
 
-CanonicalDigest _declaredArtifactDigest(List<Object?> tupleObjects) {
-  final preimage = BytesBuilder(copy: false)
-    ..add(utf8
-        .encode('restage-surface-publication-declared-artifact-bytes-v1\u0000'))
-    ..add(
-      CanonicalJsonCodec.encode(<String, Object?>{
-        'kind': 'restageSurfacePublicationDeclaredArtifactBytes',
-        'schemaVersion': 1,
-        'tuples': tupleObjects,
-      }),
-    );
-  return CanonicalDigest(
-    crypto.sha256.convert(preimage.takeBytes()).toString(),
-  );
-}
+CanonicalDigest _declaredArtifactDigest(List<Object?> tupleObjects) =>
+    CanonicalDigest(declaredArtifactBytesDigestV1(tupleObjects));
 
 _DeclaredBundleArtifact _declaredArtifactFromTuple(
   MeasurementPublicationCandidateArtifactTupleV1 tuple,
