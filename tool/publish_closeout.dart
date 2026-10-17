@@ -18,6 +18,7 @@ const publishablePackages = <String>{
   'restage_cupertino',
   'rfw_catalog_schema',
   'restage_shared',
+  'restage_compiler_core',
   'restage_codegen',
   'rfw_catalog_compiler',
   'restage_render_host',
@@ -28,6 +29,7 @@ const publishablePackages = <String>{
 const _headlinePriority = <String>[
   'restage',
   'restage_codegen',
+  'restage_compiler_core',
   'rfw_catalog_compiler',
   'restage_a2ui',
   'restage_shared',

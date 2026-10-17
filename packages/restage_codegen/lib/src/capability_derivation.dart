@@ -1,8 +1,9 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart' show findWidgetsByName;
 import 'package:restage_codegen/src/issue.dart';
-import 'package:restage_shared/restage_shared.dart'
-    show CapabilityManifest, deriveSurfaceCapability;
+import 'package:restage_compiler_core/restage_compiler_core.dart'
+    show deriveSurfaceCapability;
+import 'package:restage_shared/restage_shared.dart' show CapabilityManifest;
 import 'package:restage_shared/rfw_formats.dart' show RemoteWidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 

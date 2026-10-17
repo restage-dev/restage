@@ -30,6 +30,7 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         CapabilitySidecar,
@@ -97,10 +98,10 @@ final class CompiledPaywallArtifacts {
   final List<String> navigationPushedIds;
 
   /// Frozen resolved RFW calls for the emitted flow-screen artifact.
-  final fmt.ResolvedRfwCatalogOccurrenceSet adapterRfwCatalogOccurrenceSet;
+  final ResolvedRfwCatalogOccurrenceSet adapterRfwCatalogOccurrenceSet;
 
   /// Frozen resolved RFW calls for the optional standalone artifact.
-  final fmt.ResolvedRfwCatalogOccurrenceSet? standaloneRfwCatalogOccurrenceSet;
+  final ResolvedRfwCatalogOccurrenceSet? standaloneRfwCatalogOccurrenceSet;
 
   /// Labels extracted from the optional standalone artifact.
   final List<AnalyticsIdDeclaration> standaloneAnalyticsIdDeclarations;
@@ -143,7 +144,7 @@ typedef MeasurementPaywallRouteOwnershipMap
     = Map<String, MeasurementPaywallRouteEmissionOwnership>;
 
 typedef RfwCatalogOccurrenceSetByDeclarationIdentity
-    = Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>;
+    = Map<String, ResolvedRfwCatalogOccurrenceSet>;
 
 /// Compiles every supplied analyzer-resolved paywall without choosing an
 /// output path. The package roster remains the sole path/identity authority.
@@ -375,7 +376,7 @@ _CompiledPaywallForm? _compilePaywallForm({
   required PaywallSourceFound source,
   required String sourceLibraryIdentity,
   required String sourceDeclarationIdentity,
-  required fmt.ResolvedRfwCatalogOccurrenceSet? frozenOccurrenceSet,
+  required ResolvedRfwCatalogOccurrenceSet? frozenOccurrenceSet,
   required bool requireFrozenOccurrenceSet,
   required String formName,
   required Catalog catalog,
@@ -427,7 +428,7 @@ _CompiledPaywallForm? _compilePaywallForm({
     return null;
   }
   final occurrenceSet = frozenOccurrenceSet ??
-      fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+      ResolvedRfwCatalogOccurrenceSet.resolve(
         parsedLibrary: parsedLibrary,
         input: translation.rfwCatalogOccurrenceResolutionInput(
           artifactProvenance: _rfwOccurrenceSetKey(
@@ -534,7 +535,7 @@ final class _CompiledPaywallForm {
   final String text;
   final Uint8List blob;
   final List<int> capabilitySidecar;
-  final fmt.ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
+  final ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
   final SurfaceVocabularyReferences vocabulary;
   final List<AnalyticsIdDeclaration> analyticsIdDeclarations;
   final Map<String, Object> localSeeds;
@@ -1037,7 +1038,7 @@ final class RestageCodegenBuilder implements Builder {
         sourceIdentifier: sourceIdentifier,
       );
       final declarationIdentity = '$sourceLibraryIdentity#${src.className}';
-      final occurrenceSet = fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+      final occurrenceSet = ResolvedRfwCatalogOccurrenceSet.resolve(
         parsedLibrary: parsed,
         input: translation.rfwCatalogOccurrenceResolutionInput(
           artifactProvenance: _rfwOccurrenceSetKey(

@@ -45,6 +45,7 @@ import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show CanonicalJsonCodec;
 import 'package:restage_shared/restage_shared.dart'
@@ -1004,10 +1005,10 @@ bool _sameAnalyticsIdControlCaptures(
   Iterable<AnalyticsIdControlCapture> first,
   Iterable<AnalyticsIdControlCapture> second,
 ) {
-  Map<(String, fmt.RfwCatalogOccurrenceHandle, String), int> counts(
+  Map<(String, RfwCatalogOccurrenceHandle, String), int> counts(
     Iterable<AnalyticsIdControlCapture> values,
   ) {
-    final result = <(String, fmt.RfwCatalogOccurrenceHandle, String), int>{};
+    final result = <(String, RfwCatalogOccurrenceHandle, String), int>{};
     for (final value in values) {
       final key = (
         value.sourceDeclarationIdentity,
@@ -1528,7 +1529,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
   return discoveries;
 }
 
-Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+Map<String, ResolvedRfwCatalogOccurrenceSet>
     _rfwCatalogOccurrenceSetsByArtifactPath({
   required RestageSourceRoster roster,
   required Iterable<CompiledSurfaceArtifact> renderedSources,
@@ -1537,7 +1538,7 @@ Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
     for (final source in roster.declarations)
       source.declarationIdentity: source,
   };
-  final occurrenceSets = <String, fmt.ResolvedRfwCatalogOccurrenceSet>{};
+  final occurrenceSets = <String, ResolvedRfwCatalogOccurrenceSet>{};
   for (final rendered in renderedSources) {
     final source = sourcesByDeclarationIdentity[rendered.declarationIdentity];
     if (source == null) continue;
@@ -1559,16 +1560,16 @@ Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
   return Map.unmodifiable(occurrenceSets);
 }
 
-Map<String, Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>>
+Map<String, Map<String, ResolvedRfwCatalogOccurrenceSet>>
     _rfwCatalogOccurrenceSetsByDeclarationIdentity(
   Iterable<CompiledSurfaceArtifact> renderedSources,
 ) {
   final occurrenceSets =
-      <String, Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>>{};
+      <String, Map<String, ResolvedRfwCatalogOccurrenceSet>>{};
   for (final rendered in renderedSources) {
     final byRole = occurrenceSets.putIfAbsent(
       rendered.declarationIdentity,
-      () => <String, fmt.ResolvedRfwCatalogOccurrenceSet>{},
+      () => <String, ResolvedRfwCatalogOccurrenceSet>{},
     );
     for (final entry in rendered.rfwCatalogOccurrenceSetsByOutputRole.entries) {
       final existing = byRole.putIfAbsent(entry.key, () => entry.value);
@@ -1580,25 +1581,23 @@ Map<String, Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>>
       }
     }
   }
-  return Map<String,
-      Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>>.unmodifiable(
-    <String, Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>>{
+  return Map<String, Map<String, ResolvedRfwCatalogOccurrenceSet>>.unmodifiable(
+    <String, Map<String, ResolvedRfwCatalogOccurrenceSet>>{
       for (final entry in occurrenceSets.entries)
-        entry.key:
-            Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>.unmodifiable(
+        entry.key: Map<String, ResolvedRfwCatalogOccurrenceSet>.unmodifiable(
           entry.value,
         ),
     },
   );
 }
 
-Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+Map<String, ResolvedRfwCatalogOccurrenceSet>
     _rfwCatalogOccurrenceSetsForOutputRoles(
-  Map<String, Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>>
+  Map<String, Map<String, ResolvedRfwCatalogOccurrenceSet>>
       occurrenceSetsByDeclarationIdentity,
   Set<String> outputRoles,
 ) {
-  final result = <String, fmt.ResolvedRfwCatalogOccurrenceSet>{};
+  final result = <String, ResolvedRfwCatalogOccurrenceSet>{};
   for (final entry in occurrenceSetsByDeclarationIdentity.entries) {
     final matches = entry.value.entries
         .where((role) => outputRoles.contains(role.key))
@@ -1612,31 +1611,31 @@ Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
     }
     result[entry.key] = matches.single.value;
   }
-  return Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>.unmodifiable(result);
+  return Map<String, ResolvedRfwCatalogOccurrenceSet>.unmodifiable(result);
 }
 
-Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+Map<String, ResolvedRfwCatalogOccurrenceSet>
     _rfwCatalogOccurrenceSetsForSourceOutputRoles({
   required RestageSourceDeclaration source,
   required Set<String> outputRoles,
-  required fmt.ResolvedRfwCatalogOccurrenceSet occurrenceSet,
+  required ResolvedRfwCatalogOccurrenceSet occurrenceSet,
 }) {
   final matches = source.outputs
       .where((output) => outputRoles.contains(output.role))
       .toList(growable: false);
   if (matches.isEmpty) return const {};
-  return Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>.unmodifiable({
+  return Map<String, ResolvedRfwCatalogOccurrenceSet>.unmodifiable({
     for (final output in matches) output.role: occurrenceSet,
   });
 }
 
-Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+Map<String, ResolvedRfwCatalogOccurrenceSet>
     _rfwCatalogOccurrenceSetsForPaywallOutputRoles({
   required RestageSourceDeclaration source,
-  required fmt.ResolvedRfwCatalogOccurrenceSet adapterOccurrenceSet,
-  fmt.ResolvedRfwCatalogOccurrenceSet? standaloneOccurrenceSet,
+  required ResolvedRfwCatalogOccurrenceSet adapterOccurrenceSet,
+  ResolvedRfwCatalogOccurrenceSet? standaloneOccurrenceSet,
 }) {
-  final result = <String, fmt.ResolvedRfwCatalogOccurrenceSet>{
+  final result = <String, ResolvedRfwCatalogOccurrenceSet>{
     ..._rfwCatalogOccurrenceSetsForSourceOutputRoles(
       source: source,
       outputRoles: const {'flow-screen-blob', 'flow-screen-binary'},
@@ -1671,7 +1670,7 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   required RestageSourceRoster roster,
   required Map<String, MeasurementSourceDiscoveryResult>
       discoveriesByDeclarationIdentity,
-  required Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  required Map<String, ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByArtifactPath,
   required List<Issue> issues,
 }) {
@@ -1898,7 +1897,7 @@ Future<void> _appendResolvedScreens(
   BuildStep buildStep, {
   required List<ResolvedScreenCompilationInput> inputs,
   required Map<String, MeasurementRouteEmissionPlan> routePlans,
-  required Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  required Map<String, ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByDeclarationIdentity,
   required RestageOutputLocationPlan placement,
   required List<CompiledSurfaceArtifact> rendered,
@@ -2446,9 +2445,9 @@ Future<void> _compilePaywalls(
   Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans = const {},
   Map<String, MeasurementPaywallRouteEmissionOwnership>
       measurementRouteOwnership = const {},
-  Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  Map<String, ResolvedRfwCatalogOccurrenceSet>
       adapterRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
-  Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  Map<String, ResolvedRfwCatalogOccurrenceSet>
       standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
 }) async {
   String? canonicalPaywallIdFor(ClassElement declaration) {

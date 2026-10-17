@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
@@ -443,9 +444,9 @@ Set<String> _allJsonKeys(Object? value) {
   return result;
 }
 
-fmt.RfwCatalogOccurrenceHandle _fixtureHandle(String value) {
+RfwCatalogOccurrenceHandle _fixtureHandle(String value) {
   final library = fmt.parseLibraryFile('widget Root = Card();');
-  final occurrenceSet = fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+  final occurrenceSet = ResolvedRfwCatalogOccurrenceSet.resolve(
     parsedLibrary: library,
     input: fmt.RfwCatalogOccurrenceResolutionInput(
       artifactProvenance: 'fixture.$value',

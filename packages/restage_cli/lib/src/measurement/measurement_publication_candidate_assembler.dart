@@ -17,12 +17,6 @@ import '../publication/publication_manifest.dart';
 const String restageMeasurementPublicationIndexFileName =
     'restage.measurement.index.json';
 
-const String _artifactDefinitionDomain =
-    'restage-measurement-artifact-definition-v1';
-const String _publicationLineDomain = 'restage-surface-publication-line-v1';
-const String _declaredArtifactBytesDomain =
-    'restage-surface-publication-declared-artifact-bytes-v1';
-
 /// Strictly joins optional generated Measurement output to one publication.
 final class MeasurementPublicationCandidateAssembler {
   /// Assemble an additive upload when the selected draft has admitted routes.
@@ -160,11 +154,9 @@ final class MeasurementPublicationCandidateAssembler {
         (left, right) => _compareBytes(left.bytes, right.bytes),
       );
       final declaredArtifactBytesDigest = CanonicalDigest(
-        _privateDigest(_declaredArtifactBytesDomain, <String, Object?>{
-          'kind': 'restageSurfacePublicationDeclaredArtifactBytes',
-          'schemaVersion': 1,
-          'tuples': [for (final tuple in tupleRecords) tuple.value],
-        }),
+        declaredArtifactBytesDigestV1([
+          for (final tuple in tupleRecords) tuple.value,
+        ]),
       );
       final proof = MeasurementPublicationCandidateProofV1(
         selectedPublicationManifestCanonicalBytes: selectedManifestBytes,
@@ -585,39 +577,29 @@ Map<String, String> _readCarriers(
 }
 
 String _measurementSurfaceId(SurfacePublication publication) {
-  final line = <String, Object?>{
-    if (publication.sourceKind == SurfaceSourceKind.screen)
-      'contractVersion': publication.contractVersion,
-    'kind': 'publicationLine',
-    'schemaVersion': 1,
-    'slug': publication.slug,
-    'sourceKind': publication.sourceKind.wireName,
-    'surface': publication.surface.wireName,
-  };
-  return 'surface.v1.${_privateDigest(_publicationLineDomain, line)}';
+  final digest = publicationLineDigestV1(
+    surface: publication.surface.wireName,
+    slug: publication.slug,
+    sourceKind: publication.sourceKind.wireName,
+    contractVersion: publication.contractVersion,
+  );
+  return '$kMintedSurfaceIdPrefix$digest';
 }
 
 String _measurementArtifactId(
   SurfacePublication publication,
   SurfacePublicationArtifact artifact,
 ) {
-  final selector = <String, Object?>{
-    if (publication.sourceKind == SurfaceSourceKind.screen)
-      'contractVersion': publication.contractVersion,
-    'slug': publication.slug,
-    'sourceKind': publication.sourceKind.wireName,
-    'surface': publication.surface.wireName,
-  };
-  final identity = <String, Object?>{
-    'artifactSlot': '${artifact.role.wireName}:${artifact.id ?? ''}',
-    'publication': selector,
-  };
-  return 'artifact.v1.${_privateDigest(_artifactDefinitionDomain, identity)}';
+  final digest = artifactDefinitionDigestV1(
+    surface: publication.surface.wireName,
+    slug: publication.slug,
+    sourceKind: publication.sourceKind.wireName,
+    contractVersion: publication.contractVersion,
+    artifactRole: artifact.role.wireName,
+    artifactId: artifact.id,
+  );
+  return '$kMintedArtifactIdPrefix$digest';
 }
-
-String _privateDigest(String domain, Object? value) => crypto.sha256.convert(
-  <int>[...utf8.encode('$domain\u0000'), ...CanonicalJsonCodec.encode(value)],
-).toString();
 
 Uint8List _canonicalBase64Url(
   String value,

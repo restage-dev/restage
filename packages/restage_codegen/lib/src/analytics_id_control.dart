@@ -9,8 +9,8 @@ import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
-import 'package:restage_shared/rfw_formats.dart' as rfw;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
     show isValidAnalyticsId;
 
@@ -486,7 +486,7 @@ final class AnalyticsIdResolvedControlReservation {
   final String sourceDeclarationIdentity;
 
   /// Shared compiler-owned occurrence handle.
-  final rfw.RfwCatalogOccurrenceHandle presentationHandle;
+  final RfwCatalogOccurrenceHandle presentationHandle;
 
   /// Publication scope containing the reservation.
   final AnalyticsIdControlPublicationScope scope;
@@ -622,7 +622,7 @@ AnalyticsIdControlBuildResult _buildAnalyticsIdControlOutput({
   };
   final entryByReservation = <String, AnalyticsIdControlEntry>{};
   final issues = <Issue>[...initialIssues];
-  final reservationsByCaptureKey = <(String, rfw.RfwCatalogOccurrenceHandle),
+  final reservationsByCaptureKey = <(String, RfwCatalogOccurrenceHandle),
       List<AnalyticsIdResolvedControlReservation>>{};
   for (final reservation in reservations) {
     reservationsByCaptureKey.putIfAbsent(

@@ -14,11 +14,6 @@ import 'package:test/test.dart';
 const _flutterVersion = '3.99.0-0.1.pre';
 const _engineRevision = 'af7e796e161ae0bb1ff0758c71a7105418bd9ded';
 
-Future<String> _identityCatalogResolver(
-  Directory projectRoot,
-  String catalogJson,
-) async => catalogJson;
-
 void main() {
   // The engine script defines the loader before the build configuration, the
   // way a built output does.
@@ -76,6 +71,9 @@ _flutter.loader.load({
   setUp(() async {
     root = await Directory.systemTemp.createTemp('render_builder_test_');
     project = Directory(p.join(root.path, 'project'))..createSync();
+    File(p.join(project.path, '.dart_tool', 'package_config.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('{"configVersion":2,"packages":[]}');
     sdk = Directory(p.join(root.path, 'flutter'))..createSync();
     scratch = Directory(p.join(root.path, 'scratch'))..createSync();
     generated = Directory(
@@ -196,7 +194,6 @@ _flutter.loader.load({
     final builder = FlutterRenderBundleBuilder(
       processRunner: runner,
       tempDirectoryCreator: (_) async => scenarioScratch,
-      catalogResolver: _identityCatalogResolver,
       flutterExecutable: p.join(sdk.path, 'bin', 'flutter'),
       fontAuthority: RenderBundleFontAuthority(
         fontFile: font,
@@ -330,7 +327,6 @@ _flutter.loader.load({
       final builder = FlutterRenderBundleBuilder(
         processRunner: runner,
         tempDirectoryCreator: (_) async => scratch,
-        catalogResolver: _identityCatalogResolver,
         flutterExecutable: p.join(sdk.path, 'bin', 'flutter'),
         fontAuthority: RenderBundleFontAuthority(
           fontFile: font,
@@ -545,7 +541,6 @@ _flutter.loader.load({
       final builder = FlutterRenderBundleBuilder(
         processRunner: runner,
         tempDirectoryCreator: (_) async => scratch,
-        catalogResolver: _identityCatalogResolver,
         flutterExecutable: p.join(sdk.path, 'bin', 'flutter'),
         fontAuthority: RenderBundleFontAuthority(
           fontFile: font,
@@ -577,7 +572,6 @@ _flutter.loader.load({
           tempCreations++;
           return scratch;
         },
-        catalogResolver: _identityCatalogResolver,
         flutterExecutable: p.join(sdk.path, 'bin', 'flutter'),
         fontAuthority: RenderBundleFontAuthority(
           fontFile: font,
@@ -624,7 +618,6 @@ _flutter.loader.load({
       final builder = FlutterRenderBundleBuilder(
         processRunner: runner,
         tempDirectoryCreator: (_) async => scratch,
-        catalogResolver: _identityCatalogResolver,
         flutterExecutable: p.join(sdk.path, 'bin', 'flutter'),
         fontAuthority: RenderBundleFontAuthority(
           fontFile: font,

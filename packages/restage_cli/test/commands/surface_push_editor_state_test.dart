@@ -15,14 +15,39 @@ import 'package:test/test.dart';
 import '../_helpers/publication_fixtures.dart';
 import '../_helpers/test_fixtures.dart';
 
-const Map<String, Object?> _catalog = <String, Object?>{
-  'schemaVersion': 5,
-  'generatedAt': '1970-01-01T00:00:00Z',
-  'libraries': <String, Object?>{
-    'acme.widgets': <String, Object?>{'version': '1.0.0'},
+const _acme = WidgetLibrary.custom('acme.widgets');
+
+Catalog _fixture(Map<WidgetLibrary, String> widgets) => Catalog(
+  schemaVersion: kSupportedSchemaVersion,
+  generatedAt: '1970-01-01T00:00:00Z',
+  libraries: {
+    for (final library in widgets.keys)
+      library: const LibraryInfo(version: '1.0.0'),
   },
-  'widgets': <Object?>[],
-};
+  widgets: [
+    for (final MapEntry(key: library, value: name) in widgets.entries)
+      WidgetEntry(
+        wireId: WireId('w0001'),
+        name: name,
+        library: library,
+        category: WidgetCategory.layout,
+        description: '$name fixture.',
+        flutterType: 'package:fixture/fixture.dart#$name',
+        childrenSlot: ChildrenSlot.none,
+        properties: const [],
+      ),
+  ],
+);
+
+/// The app's widget libraries, as the editor state carries them.
+final Map<String, Object?> _catalog =
+    jsonDecode(encodeCatalog(_fixture({_acme: 'AcmeBadge'})))
+        as Map<String, Object?>;
+
+/// The merged catalog the generator writes, built-ins included.
+final String _merged = encodeCatalog(
+  _fixture({WidgetLibrary.core: 'CoreBox', _acme: 'AcmeBadge'}),
+);
 
 void main() {
   late Directory app;
@@ -52,6 +77,9 @@ void main() {
     final file = File(generatedWidgetCatalogPath(app, fixturePackageName));
     file.parent.createSync(recursive: true);
     file.writeAsStringSync(jsonEncode(_catalog));
+    File(
+      generatedRenderCatalogPath(app, fixturePackageName),
+    ).writeAsStringSync(_merged);
   }
 
   Future<List<Map<String, dynamic>>> push() async {
@@ -142,6 +170,7 @@ void main() {
             flutterExecutable,
           }) async => GeneratedWidgetCatalog(
             json: jsonEncode(_catalog),
+            renderJson: _merged,
             registersWidgets: true,
           ),
     );

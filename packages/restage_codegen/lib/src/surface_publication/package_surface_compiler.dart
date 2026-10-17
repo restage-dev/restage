@@ -42,11 +42,11 @@ import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart'
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/flow_experiment.dart' as flow_experiment;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
-import 'package:restage_shared/src/fonts/literal_icon_code_points.dart';
 
 const String _restageSdkOrigin = 'package:restage';
 
@@ -70,7 +70,7 @@ final class CompiledSurfaceArtifact {
     Iterable<String> packageWidgetNames = const [],
     this.nativeMountInput,
     this.compiledScreenInput,
-    Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+    Map<String, ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByOutputRole = const {},
     List<int>? rfwText,
     List<int>? navigationPlan,
@@ -103,7 +103,7 @@ final class CompiledSurfaceArtifact {
     ResolvedWidgetMountInput? compiledScreenInput,
     List<int>? rfwText,
     List<int>? navigationPlan,
-    Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+    Map<String, ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByOutputRole = const {},
     Map<String, Object> localSeeds = const {},
     Map<String, Object> standaloneLocalSeeds = const {},
@@ -176,7 +176,7 @@ final class CompiledSurfaceArtifact {
   ///
   /// A paywall can publish a standalone blob and an adapter blob with distinct
   /// local declaration topology, so each role retains its own frozen set.
-  final Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  final Map<String, ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByOutputRole;
 
   Uint8List get blob => Uint8List.fromList(_blob);
@@ -212,7 +212,7 @@ final class PackageSurfaceCompilationInput {
         measurementRoutePlansByPublicationKey = const {},
     Map<String, MeasurementRfwPresentationPublicationPlan>
         measurementPresentationPlansByPublicationKey = const {},
-    Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+    Map<String, ResolvedRfwCatalogOccurrenceSet>
         rfwCatalogOccurrenceSetsByArtifactPath = const {},
     Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey =
         const {},
@@ -277,7 +277,7 @@ final class PackageSurfaceCompilationInput {
       measurementPresentationPlansByPublicationKey;
 
   /// Frozen RFW catalog occurrences keyed by exact emitted artifact path.
-  final Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  final Map<String, ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByArtifactPath;
 
   /// Final draft digests the compiler attaches only to generated source
@@ -2390,7 +2390,7 @@ void _attachCompiledFitContracts(
       // Final Measurement wrappers are host-installed calls. The original
       // source-selected catalog/local input is resolved on the final bytes.
       try {
-        fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+        ResolvedRfwCatalogOccurrenceSet.resolve(
                 parsedLibrary: library, input: contract.catalogResolution)
             .inspectFinalBody(library);
       } on FormatException {
@@ -3325,7 +3325,7 @@ void _attachIconFonts(
         // Bytes that are not a widget library name no icons.
         continue;
       }
-      for (final entry in literalIconCodePoints(library).entries) {
+      for (final entry in fmt.literalIconCodePoints(library).entries) {
         (codePoints[entry.key] ??= <int>{}).addAll(entry.value);
       }
     }
@@ -4266,7 +4266,7 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       routePlansByPublicationKey,
   required Map<String, MeasurementRfwPresentationPublicationPlan>
       presentationPlansByPublicationKey,
-  required Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+  required Map<String, ResolvedRfwCatalogOccurrenceSet>
       rfwCatalogOccurrenceSetsByArtifactPath,
   required Map<String, RestageSourceDeclaration> sourcesByOutputPath,
 }) {
@@ -4349,7 +4349,7 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       final composition = switch ((presentationPlan, occurrenceSet)) {
         (
           final MeasurementRfwPresentationPublicationPlan presentationPlan,
-          final fmt.ResolvedRfwCatalogOccurrenceSet occurrenceSet,
+          final ResolvedRfwCatalogOccurrenceSet occurrenceSet,
         ) =>
           () {
             final finalLibrary = fmt.decodeLibraryBlob(

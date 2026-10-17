@@ -22,17 +22,28 @@ final class GeneratedCatalogException implements Exception {
   String toString() => 'GeneratedCatalogException($reason)';
 }
 
-/// One app's generated widget catalog.
+/// What to do when the app's generator writes no merged catalog.
+const renderCatalogMissingMessage =
+    "This app's restage_codegen predates the render catalog a build push "
+    'needs. Upgrade restage_codegen to the latest version.';
+
+/// One app's generated widget catalogs.
 final class GeneratedWidgetCatalog {
   const GeneratedWidgetCatalog({
     required this.json,
+    required this.renderJson,
     required this.registersWidgets,
   });
 
-  /// The catalog the bundle is built against.
+  /// The custom widget libraries of the app and its dependencies.
   final String json;
 
-  /// Whether the app registers any widget of its own.
+  /// The catalog the bundle is built against: the built-ins and every custom
+  /// catalog in the app's dependency graph, as the generator merged them.
+  /// Null when the app's generator does not write it.
+  final String? renderJson;
+
+  /// Whether the app or its dependencies register any widget.
   final bool registersWidgets;
 }
 
@@ -46,23 +57,32 @@ typedef RenderBundleCatalogProducer =
 
 /// Where the generator writes [packageName]'s catalog.
 String generatedWidgetCatalogPath(Directory projectRoot, String packageName) =>
-    p.join(
-      projectRoot.path,
-      '.dart_tool',
-      'build',
-      'generated',
-      packageName,
-      'lib',
-      'src',
-      'widget_catalog',
-      'catalog.json',
-    );
+    _generatedCatalogPath(projectRoot, packageName, 'catalog.json');
+
+/// Where the generator writes the merged catalog [packageName]'s render
+/// bundle is built against.
+String generatedRenderCatalogPath(Directory projectRoot, String packageName) =>
+    _generatedCatalogPath(projectRoot, packageName, 'render_catalog.json');
+
+String _generatedCatalogPath(
+  Directory projectRoot,
+  String packageName,
+  String file,
+) => p.join(
+  projectRoot.path,
+  '.dart_tool',
+  'build',
+  'generated',
+  packageName,
+  'lib',
+  'src',
+  'widget_catalog',
+  file,
+);
 
 /// Runs the generator, then reads what it wrote.
 ///
-/// An app that registers no widget of its own has no generated catalog and
-/// builds against an empty custom library. With [generate] false the catalog a
-/// previous run produced is required.
+/// With [generate] false a catalog a previous run produced is required.
 Future<GeneratedWidgetCatalog> readGeneratedWidgetCatalog({
   required Directory projectRoot,
   required bool generate,
@@ -77,24 +97,69 @@ Future<GeneratedWidgetCatalog> readGeneratedWidgetCatalog({
     throw const GeneratedCatalogException('project_identity');
   }
   final catalog = File(generatedWidgetCatalogPath(projectRoot, packageName));
+  final render = File(generatedRenderCatalogPath(projectRoot, packageName));
   if (generate) {
     await _generate(
       projectRoot: projectRoot,
       processRunner: processRunner ?? runRenderBundleProcess,
       dartExecutable: dartExecutable ?? _dartBesideFlutter(flutterExecutable),
     );
-  } else if (!catalog.existsSync()) {
+  }
+  final ownJson = catalog.existsSync() ? await catalog.readAsString() : null;
+  final renderJson = render.existsSync() ? await render.readAsString() : null;
+  if (!generate && ownJson == null && renderJson == null) {
     throw const GeneratedCatalogException('catalog_missing');
   }
-  if (!catalog.existsSync()) {
-    return GeneratedWidgetCatalog(
-      json: _emptyCustomCatalog(),
-      registersWidgets: false,
-    );
-  }
+  final custom = renderJson == null
+      ? ownJson ?? _emptyCustomCatalog()
+      : _customLibraries(renderJson);
   return GeneratedWidgetCatalog(
-    json: await catalog.readAsString(),
-    registersWidgets: true,
+    json: custom,
+    renderJson: renderJson,
+    registersWidgets: decodeCatalog(custom).widgets.isNotEmpty,
+  );
+}
+
+/// The custom libraries of the merged [renderJson], without the built-ins.
+String _customLibraries(String renderJson) {
+  final merged = decodeCatalog(renderJson);
+  bool custom(WidgetLibrary library) =>
+      WidgetLibrary.builtInByNamespace(library.namespace) == null;
+  return encodeCatalog(
+    Catalog(
+      schemaVersion: merged.schemaVersion,
+      generatedAt: _generatedAt,
+      libraries: {
+        for (final entry in merged.libraries.entries)
+          if (custom(entry.key)) entry.key: entry.value,
+      },
+      widgets: [
+        for (final widget in merged.widgets)
+          if (custom(widget.library)) widget,
+      ],
+      structuredTypes: [
+        for (final entry in merged.structuredTypes)
+          if (custom(entry.library)) entry,
+      ],
+      unions: [
+        for (final entry in merged.unions)
+          if (custom(entry.library)) entry,
+      ],
+      designTokens: [
+        for (final entry in merged.designTokens)
+          if (custom(entry.library)) entry,
+      ],
+      flutterVersion: merged.flutterVersion,
+      compatRules: switch ([
+        for (final rule in merged.compatRules ?? const <CompatRule>[])
+          if (WidgetLibrary.builtInByNamespace(rule.affectedRef.library) ==
+              null)
+            rule,
+      ]) {
+        final List<CompatRule> rules when rules.isNotEmpty => rules,
+        _ => null,
+      },
+    ),
   );
 }
 

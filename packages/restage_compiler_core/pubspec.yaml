@@ -1,0 +1,30 @@
+name: restage_compiler_core
+description: >-
+  The pure-Dart core of the Restage surface compiler: catalog occurrence
+  resolution, capability derivation and surface fit projection.
+version: 0.1.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+topics:
+  - server-driven-ui
+  - remote-ui
+  - flutter
+
+environment:
+  sdk: ^3.5.0
+
+resolution: workspace
+
+dependencies:
+  crypto: ^3.0.0
+  meta: ^1.16.0
+  restage_measurement_schema:
+    path: ../restage_measurement_schema
+  restage_shared:
+    path: ../restage_shared
+  rfw_catalog_schema:
+    path: ../rfw_catalog_schema
+
+dev_dependencies:
+  test: ^1.25.0

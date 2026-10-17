@@ -232,6 +232,22 @@ void main() {
       );
     });
 
+    test('rejects a package catalog that claims a built-in library', () async {
+      await expectLater(
+        _runLoaderWith(
+          {'acme': _coreCatalog},
+          pubspecs: {'restage_codegen': 'dependencies:\n  acme: any\n'},
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.toString(),
+            'message',
+            allOf(contains('acme'), contains('restage.core')),
+          ),
+        ),
+      );
+    });
+
     test('merges the custom catalog from the input package', () async {
       // The app's own generated catalog (custom @RestageLibrary widgets)
       // lives at lib/src/widget_catalog/catalog.json in the package being built

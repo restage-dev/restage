@@ -7,6 +7,7 @@ import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/onboarding/flow_builder.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_codegen/src/paywall_flow_builder.dart';
+import 'package:restage_codegen/src/render_catalog_builder.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -125,6 +126,11 @@ Builder userCatalogBuilder(BuilderOptions options) =>
 /// registered custom widget resolves it against the catalog.
 Builder userCatalogJsonBuilder(BuilderOptions options) =>
     UserCatalogJsonBuilder(options);
+
+/// build_runner factory entry point for the merged catalog a render bundle
+/// of the root package renders against.
+Builder renderCatalogBuilder(BuilderOptions options) =>
+    _rootOnly(options, const RenderCatalogBuilder());
 
 /// build_runner factory entry point for the per-package factory function
 /// emitter. Reads each curated library's `lib/src/widget_catalog/catalog.json`

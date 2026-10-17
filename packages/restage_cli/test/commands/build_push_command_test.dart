@@ -97,7 +97,7 @@ void main() {
       builder.parentOrigin,
       Uri.parse('http://dashboard.restage.localhost:8082'),
     );
-    expect(builder.catalogJson, '{"libraries":{},"widgets":[]}');
+    expect(builder.catalogJson, '{"libraries":{},"widgets":[],"merged":true}');
     expect(stdout.toString(), contains('mobile staging version 4'));
     expect(stdout.toString(), contains('Every file was already stored'));
     expect(stderr.toString(), isEmpty);
@@ -783,7 +783,10 @@ void main() {
 
   test('the push generates the catalog and builds against it', () async {
     final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
-    catalogStep = _FakeCatalog(json: '{"libraries":{"a.b":{}},"widgets":[]}');
+    catalogStep = _FakeCatalog(
+      json: '{"libraries":{"a.b":{}},"widgets":[]}',
+      renderJson: '{"libraries":{"a.b":{},"c.d":{}},"widgets":[]}',
+    );
     final exit = await RestageCli(
       stdout: stdout,
       stderr: stderr,
@@ -797,7 +800,37 @@ void main() {
     expect(exit, 0, reason: stderr.toString());
     expect(catalogStep.calls, 1);
     expect(catalogStep.generate, isTrue);
-    expect(builder.catalogJson, '{"libraries":{"a.b":{}},"widgets":[]}');
+    expect(
+      builder.catalogJson,
+      '{"libraries":{"a.b":{},"c.d":{}},"widgets":[]}',
+    );
+  });
+
+  test('a generator without the merged catalog stops the push', () async {
+    final builder = _FakeBuilder(Uint8List.fromList(<int>[1, 2, 3]));
+    var networkCalls = 0;
+    catalogStep = _FakeCatalog(renderJson: null);
+    final exit = await RestageCli(
+      stdout: stdout,
+      stderr: stderr,
+      credentialStore: store,
+      httpClient: _withOrigins((request) async {
+        networkCalls++;
+        return http.Response('', 500);
+      }),
+      renderBundleBuilder: builder,
+      renderBundleFlutterToolchain: _fakeFlutter,
+      renderBundleCatalog: catalogStep.call,
+      renderBundleSource: sourceStep.call,
+    ).run(<String>['build', 'push', '-C', root.path]);
+    expect(exit, 1);
+    expect(builder.projectRoot, isNull);
+    expect(networkCalls, 0);
+    expect(
+      stderr.toString(),
+      "This app's restage_codegen predates the render catalog a build push "
+      'needs. Upgrade restage_codegen to the latest version.\n',
+    );
   });
 
   test('--no-generate builds against what a previous run produced', () async {
@@ -1935,11 +1968,13 @@ const _flutterVersion = '3.99.0-0.1.pre';
 final class _FakeCatalog {
   _FakeCatalog({
     this.json = '{"libraries":{},"widgets":[]}',
+    this.renderJson = '{"libraries":{},"widgets":[],"merged":true}',
     this.registersWidgets = true,
     this.failure,
   });
 
   final String json;
+  final String? renderJson;
   final bool registersWidgets;
   final GeneratedCatalogException? failure;
   int calls = 0;
@@ -1958,6 +1993,7 @@ final class _FakeCatalog {
     if (refusal != null) throw refusal;
     return GeneratedWidgetCatalog(
       json: json,
+      renderJson: renderJson,
       registersWidgets: registersWidgets,
     );
   }

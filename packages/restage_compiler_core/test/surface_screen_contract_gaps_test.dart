@@ -1,3 +1,4 @@
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart';
 import 'package:test/test.dart';
@@ -28,8 +29,8 @@ void main() {
     ],
   );
   final context = SurfaceScreenHostDataSchema({
-    'plan': SurfaceScreenHostDataObjectShapeV1({
-      'name': const SurfaceScreenHostDataScalarShapeV1(
+    'plan': SurfaceScreenHostDataObjectShapeV1(const {
+      'name': SurfaceScreenHostDataScalarShapeV1(
         SurfaceScreenHostDataScalarKind.string,
       ),
     }),
@@ -45,7 +46,8 @@ void main() {
 
   test('a screen inside its contract has no gaps', () {
     expect(
-      gaps('''
+      gaps(
+        '''
 widget Root = Column(children: [
   Text(text: data.context.plan.name),
   Button(onPressed: event "next" {}),
@@ -54,7 +56,9 @@ widget Root = Column(children: [
   Button(onPressed: event "choose" { value: data.local.count }),
   Button(onPressed: event "restage.local.set" { key: "count", value: 3 }),
 ]);
-''', local: {'count': 1}),
+''',
+        local: {'count': 1},
+      ),
       isEmpty,
     );
   });

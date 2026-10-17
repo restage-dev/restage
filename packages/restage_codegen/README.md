@@ -186,7 +186,7 @@ package**, such as a shared package that exports
 itself, or declare the alias in the same package.
 
 A syntax error in a file with no Restage annotation is not reported by
-these eight builders, because they skip that file. The Dart analyzer still
+these nine builders, because they skip that file. The Dart analyzer still
 reports it.
 
 If a package will never declare a custom widget or a surface (a data layer or
@@ -208,11 +208,13 @@ targets:
         enabled: false
       restage_codegen:restage_surfaces:
         enabled: false
+      restage_codegen:render_catalog:
+        enabled: false
 ```
 
 Use `enabled: false` rather than `generate_for`. These builders take a
-placeholder as their input: `$package$` for the source roster and surface
-compiler, and `lib/$lib$` for the catalog JSON, catalog Dart, factory Dart
+placeholder as their input: `$package$` for the source roster, surface
+compiler and render catalog, and `lib/$lib$` for the catalog JSON, catalog Dart, factory Dart
 and surface list builders. A `generate_for` glob either stops them entirely or
 has no effect.
 

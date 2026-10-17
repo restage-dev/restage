@@ -5,6 +5,23 @@
 **Breaking:** the `legacy_analytics.dart` entrypoint is removed. Measure
 through `package:restage_measurement_schema/restage_measurement_schema.dart`.
 
+**Breaking:** the `meter.dart` entrypoint is removed, with `FoldUsd`,
+`FoldUsdValue`, `FoldUsdOverflow`, `foldEntryUsd` and `isPositiveDecimalRate`.
+
+**Breaking:** catalog occurrence resolution moves to `restage_compiler_core`.
+`rfw_formats.dart` no longer exports `ResolvedRfwCatalogOccurrenceSet`,
+`ResolvedRfwCatalogOccurrenceRebinding`, `RfwCatalogOccurrence`,
+`RfwCatalogOccurrenceDescriptor`, `RfwCatalogOccurrenceFinalBinding`,
+`RfwCatalogOccurrenceHandle` or `RfwCatalogOccurrenceLocalDeclarationAnchor`.
+The resolution input (`RfwCatalogOccurrenceResolutionInput`,
+`RfwCatalogConstructorProvenance`, `RfwCatalogLocalSymbol`) stays here, with
+its JSON unchanged.
+
+`SurfacePublicationArtifactClosure` exposes its verified `screenBlobs` and
+`sidecarCapabilities`. `capabilityManifestUnion` combines capability
+manifests. `rfw_formats.dart` exports `literalIconCodePoints` and
+`kMaximumRfwCatalogOccurrenceCount`.
+
 `SurfacePayload` carries an optional editor-state section (`SurfaceEditorState`)
 with a draft. A published payload never carries it; `publishableDraftPayload`
 strips it and trims each library to the declarations its root widget reaches.
@@ -15,12 +32,7 @@ keys in one canonical order, so the same content always encodes to the same
 bytes.
 
 `flowScreenEventGaps` lists the events a flow's screens emit that the state
-showing them does not handle. `surfaceScreenContractGaps` lists the events,
-event arguments and context reads a screen uses that its contract does not
-declare.
-
-`deriveSurfaceCapability` reports what a surface library needs from a client,
-read against a catalog.
+showing them does not handle.
 
 Publishing refuses a surface that emits a reserved purchase or restore event,
 such as `purchase`, `restore` or a `restage.purchase.*` name. The runtime drops

@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
@@ -59,17 +61,33 @@ void main() {
   });
 
   test('catalog push takes --organization', () async {
-    final catalog = File(
-      p.join(
-        tempDir.path,
-        '.restage',
-        'build',
-        'widget_catalog',
-        'catalog.json',
+    await File(
+      p.join(tempDir.path, 'pubspec.yaml'),
+    ).writeAsString('name: demo_app\n');
+    const library = WidgetLibrary.custom('demo.widgets');
+    final merged = File(generatedRenderCatalogPath(tempDir, 'demo_app'));
+    await merged.create(recursive: true);
+    await merged.writeAsString(
+      encodeCatalog(
+        Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {library: const LibraryInfo(version: '1.0.0')},
+          widgets: [
+            WidgetEntry(
+              wireId: WireId('w0001'),
+              name: 'DemoBadge',
+              library: library,
+              category: WidgetCategory.layout,
+              description: 'A badge.',
+              flutterType: 'package:demo_app/badge.dart#DemoBadge',
+              childrenSlot: ChildrenSlot.none,
+              properties: const [],
+            ),
+          ],
+        ),
       ),
     );
-    await catalog.create(recursive: true);
-    await catalog.writeAsString('{}');
 
     final code = await run([
       'catalog',

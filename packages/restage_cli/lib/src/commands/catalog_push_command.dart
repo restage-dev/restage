@@ -10,12 +10,14 @@ import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
 import 'package:restage_cli/src/render_bundles/package_resolution.dart';
 
 /// What the uploaded catalog is for.
 const catalogPurpose =
-    "The widget catalog lists your app's own widgets in the dashboard "
-    "editor's palette and lets the editor draw placeholders for them. "
+    "The widget catalog lists the widgets of your app and its dependencies "
+    "in the dashboard editor's palette and lets the editor draw placeholders "
+    'for them. '
     'Devices never read it, and dashboard previews draw the real widgets '
     'from a build push.';
 
@@ -101,12 +103,26 @@ class CatalogPushCommand extends Command<int> {
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loaded = await loadRestageConfig(from: directory);
     final projectRoot = loaded?.source.parent ?? directory.absolute;
-    final catalogFile = findGeneratedWidgetCatalog(projectRoot);
-    if (catalogFile == null) {
+    GeneratedWidgetCatalog? generated;
+    try {
+      generated = await readGeneratedWidgetCatalog(
+        projectRoot: projectRoot,
+        generate: false,
+      );
+    } on GeneratedCatalogException {
+      generated = null;
+    }
+    if (generated?.renderJson == null &&
+        (generated != null ||
+            findGeneratedWidgetCatalog(projectRoot) != null)) {
+      _stderr.writeln(renderCatalogMissingMessage);
+      return 1;
+    }
+    if (generated == null || !generated.registersWidgets) {
       _stdout.writeln(
         'No generated widget catalog in ${projectRoot.path}; nothing to push. '
-        'Run `dart run build_runner build` first. An app that declares no '
-        'widgets of its own with @RestageWidget has no catalog to push. '
+        'Run `dart run build_runner build` first. An app whose packages '
+        'declare no widgets with @RestageWidget has no catalog to push. '
         '$catalogPurpose',
       );
       return 0;
@@ -168,12 +184,11 @@ class CatalogPushCommand extends Command<int> {
       final version = await CatalogApi(api).push(
         project: project,
         app: app,
-        catalogJson: await catalogFile.readAsString(),
+        catalogJson: generated.json,
         organizationId: configuredOrganization.organizationId,
       );
       _stdout.writeln(
-        'Uploaded widget catalog ${p.relative(catalogFile.path, from: projectRoot.path)} '
-        'as version $version. $catalogPurpose',
+        'Uploaded the widget catalog as version $version. $catalogPurpose',
       );
       return 0;
     } on RestageApiException catch (e) {

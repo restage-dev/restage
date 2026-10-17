@@ -173,6 +173,18 @@ Future<void> _mergeCustomCatalog(
   bool isCustom(WidgetLibrary library) =>
       WidgetLibrary.builtInByNamespace(library.namespace) == null;
 
+  final claimed = {
+    ...cat.libraries.keys.where((library) => !isCustom(library)),
+    for (final widget in cat.widgets)
+      if (!isCustom(widget.library)) widget.library,
+  };
+  if (claimed.isNotEmpty) {
+    throw StateError(
+      'The widget catalog of $package declares the built-in library '
+      '${claimed.first.namespace}. A package catalog may declare only its own '
+      'custom libraries.',
+    );
+  }
   final customWidgets = cat.widgets.where((w) => isCustom(w.library)).toList()
     ..sort((a, b) {
       final byLib = a.library.namespace.compareTo(b.library.namespace);

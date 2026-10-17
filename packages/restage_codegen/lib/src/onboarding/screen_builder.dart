@@ -33,6 +33,7 @@ import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilityManifest, CapabilitySidecar, Surface, canonicalizeLibrary;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
@@ -108,7 +109,7 @@ final class CompiledResolvedScreen {
   final SurfaceVocabularyReferences vocabulary;
 
   /// Frozen resolved RFW catalog calls shared by both compiler passes.
-  final fmt.ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
+  final ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
 
   /// Labels extracted before validation and canonical encoding.
   final List<AnalyticsIdDeclaration> analyticsIdDeclarations;
@@ -247,8 +248,8 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
   Iterable<ResolvedScreenCompilationInput> inputs, {
   Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans =
       const <String, MeasurementRouteEmissionPlan>{},
-  Map<String, fmt.ResolvedRfwCatalogOccurrenceSet> rfwCatalogOccurrenceSets =
-      const <String, fmt.ResolvedRfwCatalogOccurrenceSet>{},
+  Map<String, ResolvedRfwCatalogOccurrenceSet> rfwCatalogOccurrenceSets =
+      const <String, ResolvedRfwCatalogOccurrenceSet>{},
   Set<String>? buildNoticeKeys,
   void Function(Issue issue, bool isCanonical)? appFactoryNoticeCollector,
 }) async {
@@ -338,7 +339,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         continue;
       }
       final resolvedOccurrenceSet = frozenOccurrenceSet ??
-          fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+          ResolvedRfwCatalogOccurrenceSet.resolve(
             parsedLibrary: parsedLibrary,
             input: translation.rfwCatalogOccurrenceResolutionInput(
               artifactProvenance: _rfwOccurrenceSetKey(
@@ -594,7 +595,7 @@ final class OnboardingScreenBuilder implements Builder {
           sourceIdentifier: src.id,
         );
         final declarationIdentity = '${library.identifier}#${src.className}';
-        final occurrenceSet = fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+        final occurrenceSet = ResolvedRfwCatalogOccurrenceSet.resolve(
           parsedLibrary: parsedLibrary,
           input: translation.rfwCatalogOccurrenceResolutionInput(
             artifactProvenance: _rfwOccurrenceSetKey(

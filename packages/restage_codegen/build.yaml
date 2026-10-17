@@ -262,6 +262,18 @@ builders:
       - 'restage_codegen:survey_screen_codegen'
       - 'restage_codegen:restage_package_surface_compiler'
       - 'restage_codegen:factory_functions'
+      - 'restage_codegen:render_catalog'
+  # The merged catalog `restage build push` builds a render bundle against:
+  # the built-ins and every custom catalog in the root package's graph.
+  render_catalog:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['renderCatalogBuilder']
+    build_extensions:
+      $package$:
+        - "lib/src/widget_catalog/render_catalog.json"
+    auto_apply: root_package
+    build_to: cache
+    runs_before: []
   factory_functions:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['factoryFunctionBuilder']

@@ -29,6 +29,7 @@ void main() {
         'package_config',
         'path',
         'pub_semver',
+        'restage_compiler_core',
         'restage_measurement_schema',
         'restage_shared',
         'rfw_catalog_compiler',
