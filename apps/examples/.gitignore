@@ -78,3 +78,6 @@ assets/restage/output-roster.json
 
 # Written per developer by `restage init`; names your own project and app.
 restage_config.yaml
+
+# Written for your own target by `restage surface push`.
+assets/restage/measurement/target-profile.v1.json*
