@@ -166,6 +166,12 @@ restage surface publish minimal_onboarding
 
 A push uploads a new version. A publish makes a pushed version live.
 
+A push with bundled measurement writes
+`assets/restage/measurement/target-profile.v1.json` for your target. This
+example already declares that directory in `pubspec.yaml`, so the next app
+build includes the profile. The generated profile is ignored by git; a fresh
+clone runs without it.
+
 ### Render a published surface
 
 `lib/main_hosted_surface_demo.dart` renders any published paywall by slug,

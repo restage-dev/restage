@@ -64,6 +64,8 @@ flutter:
     - assets/restage/bundles/lib/onboarding/screens/
     - assets/restage/bundles/lib/paywalls/
     - assets/restage/bundles/lib/surfaces/
+    # Includes the target profile after a push; empty before the first push.
+    - assets/restage/measurement/
 
 patrol:
   app_name: Restage Examples
