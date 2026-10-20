@@ -34,12 +34,14 @@ under any part of that guideline.
 
 ## Hidden and dormant features
 
+[Guideline 2.5.19](https://developer.apple.com/app-store/review/guidelines/#software-requirements)
+asks that an app contain no hidden, dormant, or undocumented features, and that its
+functionality be clear to users and to App Review.
 [Guideline 2.3.1](https://developer.apple.com/app-store/review/guidelines/#accurate-metadata)
-asks that an app contain no hidden, dormant, or undocumented features, that its
-functionality be clear to users and to App Review, and that new features be described
-with specificity in the Notes for Review and be accessible for review. This is the
-guideline most likely to come up for an app that changes screens over the air, whichever
-tool delivers them.
+asks that new features be described with specificity in the Notes for Review and be
+accessible for review. Until October 16, 2026 both sentences lived in 2.3.1, so older
+rejections cite that number. These are the guidelines most likely to come up for an app
+that changes screens over the air, whichever tool delivers them.
 
 Two properties of Restage help here. The surface you wrote is compiled into the build, so
 a reviewer reaches it like any other screen. A published update arranges widgets and
@@ -77,7 +79,9 @@ The rest is yours to do:
   build, so an Android-only switch is present in the iOS binary. Do not name a surface,
   version, audience, event, host data key or Dart symbol after review, reviewers or
   bypassing, and remember that a workaround built for one store's review ships to the
-  other store's reviewers in the same build.
+  other store's reviewers in the same build. Renaming or obfuscating such a switch makes
+  it worse: 2.5.19 names hiding features in the binary "through code obfuscation or
+  other methods" as grounds for removal and termination of the developer account.
 - **Stay inside what was reviewed.** Copy, layout, ordering, styling and the choice among
   products and actions the reviewed build already offers are updates. A delivered surface
   that introduces a feature, a product or a claim the reviewed build did not have is a new
@@ -99,10 +103,12 @@ The rest is yours to do:
   or a checkout, should be visible in the reviewed build or described in the notes before
   any delivered surface uses it.
 
-### If App Review cites 2.3.1
+### If App Review cites 2.5.19 or 2.3.1
 
 App Review uses the phrase "review-environment detection" for code or configuration that
-behaves differently when the app is under review. Check these in order: any condition on
+behaves differently when the app is under review. Rejections before October 16, 2026
+cite 2.3.1(a) for it; newer ones cite 2.5.19, with 2.3.1(a) for the Notes for Review.
+Check these in order: any condition on
 sandbox receipts or TestFlight; routing rules a fresh install cannot match; host data
 passed into a surface that depends on such a condition; third-party kits with a
 review-mode switch; and your Notes for Review. In Resolution Center, name Restage, list

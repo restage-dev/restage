@@ -82,8 +82,24 @@ Container(padding: kPagePadding, color: kBrand)
 ```
 
 A constant declared in another file isn't followed, and the error says so. Enum values
-work. A class of your own with the same name as a Flutter class (`Alignment`,
-`Colors`) is rejected instead of guessed at.
+work.
+
+### Reserved class names
+
+Avoid the following names for your own classes in authored surface code. The build
+reserves them for framework values and constants:
+
+| Kind | Names |
+| --- | --- |
+| Constant namespaces | `Colors`, `Icons`, `CupertinoIcons` |
+| Named constant values | `FontWeight`, `TextDecoration`, `Curves` |
+| Structured values | `Alignment`, `AlignmentDirectional`, `AssetImage`, `Border`, `BorderRadius`, `BorderRadiusDirectional`, `BorderSide`, `BoxDecoration`, `BoxShadow`, `Color`, `DecorationImage`, `EdgeInsets`, `EdgeInsetsDirectional`, `LinearGradient`, `Locale`, `NetworkImage`, `Offset`, `Paint`, `RadialGradient`, `Radius`, `Size`, `SweepGradient`, `TextStyle` |
+| Numeric constants | `double` |
+
+A static constant on an application class with one of these names is rejected,
+even if its value could otherwise be substituted. Rename the class, or inline the
+value at the use site, as the diagnostic suggests. Ordinary framework uses such as
+`Colors.blue` and `EdgeInsets.zero` still work.
 
 ## Lists written in the source
 

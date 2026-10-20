@@ -7,6 +7,11 @@ A paywall displays the products your app supplies and sends an event when a user
 chooses one. Your app handles the event through its store integration. Prices,
 offers and entitlement checks stay with that integration.
 
+Pass product identifiers and localized prices as ordinary widget constructor
+parameters. The generated mount supplies them as
+[host data](/authoring/host-data); the SDK does not populate a `data.products`
+namespace or fetch prices for the widget.
+
 ## Choose an integration
 
 Use `restage_revenuecat` if your app already uses RevenueCat. For Flutter's
