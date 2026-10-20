@@ -150,7 +150,13 @@ writes the values into it. It always writes, without comparing to the previous v
 
 ## What host data is not
 
-It's input for rendering. Restage keeps it on the device: analytics removes
+The SDK supplies device and theme values under `data.device` and `data.theme`.
+Your app supplies rendering inputs under `data.context`. There is no automatic
+`data.products` namespace: pass product identifiers and localized prices through
+constructor parameters like other host data. See
+[Products and purchases](/paywalls/products-and-purchases) for store integrations.
+
+Host data is input for rendering. Restage keeps it on the device: analytics removes
 `data.context.*` values from every event, and it isn't used for targeting.
 [Telemetry and data](/trust/telemetry) has the details. Which version of a surface a
 user gets is decided separately, on the server.
