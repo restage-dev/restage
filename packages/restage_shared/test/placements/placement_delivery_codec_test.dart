@@ -1795,6 +1795,35 @@ void _batchContractTests() {
       );
     });
 
+    test('library report metadata preserves placement capability correlation',
+        () {
+      final build = _batch().buildContract;
+      final catalog = build.installedCapability.builtInCatalogVersion;
+      final report = SdkInstalledLibrariesV1(
+        libraries: const [],
+        builtInCatalogVersion: catalog,
+        appVersion: '2.4.1',
+      );
+      final request =
+          _batch(sdkInstalledLibraries: _base64(report.canonicalBytes));
+      expect(
+        PlacementBatchRequestV1.fromCanonicalBytes(request.canonicalBytes),
+        request,
+      );
+      expect(
+        () => _batch(
+          sdkInstalledLibraries: _base64(
+            SdkInstalledLibrariesV1(
+              libraries: const [],
+              builtInCatalogVersion: catalog + 1,
+              appVersion: '2.4.1',
+            ).canonicalBytes,
+          ),
+        ),
+        throwsA(_refusal),
+      );
+    });
+
     test(
         'library and policy carriers use '
         'existing codecs and built-ins stay opaque', () {

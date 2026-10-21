@@ -8,7 +8,7 @@ import 'surface_analytics_identity_provider.dart';
 import 'surface_assignment_key_provider.dart';
 import 'surface_canonical_carrier_provider.dart';
 import 'surface_delivery_observations.dart'
-    show currentSurfaceDeliveryObservationCell;
+    show currentSurfaceDeliveryObservationCell, readDeliveryAppVersion;
 import 'surface_metering_key_provider.dart';
 
 /// The optional inputs of one hosted surface request, read under one budget.
@@ -82,6 +82,7 @@ final class SurfaceRequestInputs {
               assignmentKey: assignmentKey ?? captured.assignmentKey,
             ))
           : null),
+      budget.bound(readDeliveryAppVersion()),
     ]);
     return SurfaceRequestInputs._(
       budget: budget,
@@ -94,8 +95,10 @@ final class SurfaceRequestInputs {
       heldAssignment: values[4] as String?,
       installedCapability: installedCapability,
       installedCapabilityHash: installedCapability.contentHash,
-      sdkInstalledLibraries:
-          installedLibrariesCarrier(snapshot: installedCapability),
+      sdkInstalledLibraries: installedLibrariesCarrier(
+        snapshot: installedCapability,
+        appVersion: values[5] as String?,
+      ),
     );
   }
 

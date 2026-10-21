@@ -90,15 +90,39 @@ final class SdkInstalledLibraryV1 extends CanonicalValue {
       };
 }
 
-/// The custom widget libraries one SDK build has installed.
+/// The catalog, custom widget libraries and display version of an SDK build.
 final class SdkInstalledLibrariesV1 extends CanonicalValue
     implements ImmutableCanonicalDocument {
   /// Creates a report of [libraries], held in namespace order.
-  SdkInstalledLibrariesV1({required List<SdkInstalledLibraryV1> libraries})
-      : libraries = List.unmodifiable(
+  SdkInstalledLibrariesV1({
+    required List<SdkInstalledLibraryV1> libraries,
+    this.builtInCatalogVersion,
+    this.appVersion,
+  }) : libraries = List.unmodifiable(
           List<SdkInstalledLibraryV1>.of(libraries)
             ..sort((a, b) => a.namespace.compareTo(b.namespace)),
         ) {
+    final catalog = builtInCatalogVersion;
+    if (catalog != null &&
+        (catalog < 1 || catalog > kMaximumPortableJsonInteger)) {
+      throw ArgumentError.value(
+        catalog,
+        'builtInCatalogVersion',
+        'Expected a positive int',
+      );
+    }
+    final displayVersion = appVersion;
+    if (displayVersion != null &&
+        (displayVersion.isEmpty ||
+            displayVersion.length > 64 ||
+            displayVersion.codeUnits
+                .any((unit) => unit < 0x20 || unit == 0x7f))) {
+      throw ArgumentError.value(
+        displayVersion,
+        'appVersion',
+        'Expected 1 to 64 printable characters',
+      );
+    }
     if (libraries.length > sdkInstalledLibrariesMaximumLibraries) {
       throw ArgumentError.value(
         libraries.length,
@@ -122,7 +146,7 @@ final class SdkInstalledLibrariesV1 extends CanonicalValue
     const path = 'sdkInstalledLibraries';
     final reader = CanonicalObjectReader(
       json,
-      allowedKeys: _keys,
+      allowedKeys: {..._keys, 'builtInCatalogVersion', 'appVersion'},
       requiredKeys: _keys,
       path: path,
     );
@@ -133,6 +157,8 @@ final class SdkInstalledLibrariesV1 extends CanonicalValue
     }
     try {
       return SdkInstalledLibrariesV1(
+        builtInCatalogVersion: reader.optionalInteger('builtInCatalogVersion'),
+        appVersion: reader.optionalString('appVersion'),
         libraries: [
           for (var i = 0; i < raw.length; i++)
             SdkInstalledLibraryV1._fromJson(raw[i], '$path.libraries[$i]'),
@@ -153,11 +179,20 @@ final class SdkInstalledLibrariesV1 extends CanonicalValue
 
   static const _keys = {'kind', 'libraries', 'schemaVersion'};
 
+  /// The installed built-in catalog version, when reported.
+  final int? builtInCatalogVersion;
+
+  /// The app's display version, when available.
+  final String? appVersion;
+
   /// The installed libraries, in namespace order.
   final List<SdkInstalledLibraryV1> libraries;
 
   @override
   Map<String, Object?> toJson() => {
+        if (builtInCatalogVersion != null)
+          'builtInCatalogVersion': builtInCatalogVersion,
+        if (appVersion != null) 'appVersion': appVersion,
         'kind': 'sdkInstalledLibraries',
         'libraries': [for (final library in libraries) library.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,

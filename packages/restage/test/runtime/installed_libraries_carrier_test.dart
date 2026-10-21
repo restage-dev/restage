@@ -35,6 +35,22 @@ void main() {
     expect(_decode(installedLibrariesCarrier()!).libraries, isEmpty);
   });
 
+  test('reports the captured catalog and optional display version', () {
+    final snapshot = InstalledCapability(
+      builtInCatalogVersion: 7,
+      installedLibraries: const [],
+    );
+    final report = _decode(installedLibrariesCarrier(
+      snapshot: snapshot,
+      appVersion: '2.4.1',
+    )!);
+    expect(report.builtInCatalogVersion, 7);
+    expect(report.appVersion, '2.4.1');
+    expect(_decode(installedLibrariesCarrier()!).builtInCatalogVersion,
+        currentInstalledCapability().builtInCatalogVersion);
+    expect(_decode(installedLibrariesCarrier()!).appVersion, isNull);
+  });
+
   test('reports each registered library with its declared break', () {
     _register('zeta.widgets');
     _register('acme.widgets', version: 4, compatibleSince: 4);

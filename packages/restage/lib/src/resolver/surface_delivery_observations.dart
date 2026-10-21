@@ -269,32 +269,43 @@ Future<({String? platform, int? buildOrdinal, String? appVersion})>
           platform: normalizeDeliveryPlatform(
               isWeb: kIsWeb, targetPlatform: defaultTargetPlatform),
           buildOrdinal: await _appBuildOrdinal(null),
-          appVersion: await _appVersion(),
+          appVersion: await readDeliveryAppVersion(),
         );
 
 Future<String?>? _appVersionRead;
+bool _appVersionKnown = false;
+String? _appVersionValue;
 
 /// The display version for this process; a failed read is asked again later.
-Future<String?> _appVersion() => _appVersionRead ??= () async {
-      try {
-        final version = (await app_build.readPlatformAppVersion())?.trim();
-        return version == null ||
-                version.isEmpty ||
-                version.length > 64 ||
-                version.codeUnits.any((unit) => unit < 0x20 || unit == 0x7f)
-            ? null
-            : version;
-      } on Object {
-        _appVersionRead = null;
-        return null;
-      }
-    }();
+@internal
+Future<String?> readDeliveryAppVersion() {
+  if (_appVersionKnown) return Future<String?>.value(_appVersionValue);
+  return _appVersionRead ??= () async {
+    try {
+      final version = (await app_build.readPlatformAppVersion())?.trim();
+      _appVersionValue = version == null ||
+              version.isEmpty ||
+              version.length > 64 ||
+              version.codeUnits.any((unit) => unit < 0x20 || unit == 0x7f)
+          ? null
+          : version;
+      _appVersionKnown = true;
+      _appVersionRead = null;
+      return _appVersionValue;
+    } on Object {
+      _appVersionRead = null;
+      return null;
+    }
+  }();
+}
 
 /// Forgets the process-wide build ordinal and version so a test reads again.
 @visibleForTesting
 void debugResetAppBuildOrdinal() {
   _appBuildOrdinalRead = null;
   _appVersionRead = null;
+  _appVersionKnown = false;
+  _appVersionValue = null;
 }
 
 /// The operating-system version a platform reports as one ordinal, from the

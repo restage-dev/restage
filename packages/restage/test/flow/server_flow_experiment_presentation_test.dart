@@ -54,6 +54,13 @@ void main() {
   tearDown(debugResetOsVersion);
   setUp(() => debugSetOsVersion(null));
   setUp(Restage.debugReset);
+  setUp(() => PackageInfo.setMockInitialValues(
+        appName: 'Flow assignment',
+        packageName: 'com.example.flow_assignment',
+        version: '',
+        buildNumber: '',
+        buildSignature: '',
+      ));
 
   test(
       'first experiment flow obtains its folded handle before binding the mount',
