@@ -1576,6 +1576,16 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.layout,
     excludeParams: ['animationDuration'],
   ),
+  BuiltinWidgetCuration<TabBarView>(
+    sinceVersion: 15,
+    category: WidgetCategory.layout,
+    propertyOverrides: {
+      'dragStartBehavior': PropertyOverride(
+        type: PropertyType.enumValue,
+        enumType: 'DragStartBehavior',
+      ),
+    },
+  ),
   // Reads its selection from an enclosing `DefaultTabController`. The
   // surface is the tab set plus the colors a bar is themed by.
   BuiltinWidgetCuration<TabBar>(

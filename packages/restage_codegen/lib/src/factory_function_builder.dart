@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
@@ -56,10 +58,16 @@ final class FactoryFunctionBuilder implements Builder {
     }
 
     final library = catalog.libraries.keys.first;
+    final widgets = catalog.widgetsIn(library);
     final source = _emitRegistrationFile(
       library: library,
-      widgets: catalog.widgetsIn(library),
+      widgets: widgets,
       nativeIndex: NativeCatalogIndex(catalog),
+      reachableEnums: await _enumsExportedBy(
+        buildStep,
+        _flutterImportFor(library),
+        widgets.expand(_sdkEnumRefs),
+      ),
     );
 
     await buildStep.writeAsString(
@@ -105,6 +113,7 @@ String _emitRegistrationFile({
   required WidgetLibrary library,
   required List<WidgetEntry> widgets,
   required NativeCatalogIndex nativeIndex,
+  required Set<DartTypeRef> reachableEnums,
 }) {
   final namespace = library.namespace;
   final mapName = constMapNameFor(library);
@@ -146,8 +155,22 @@ String _emitRegistrationFile({
   if (factoryDefinitions.isNotEmpty) {
     buf.writeln("import '${_flutterImportFor(library)}';");
   }
-  // Import non-Flutter widget classes by sorted, deduplicated source URI.
-  // Add the core barrel only when emitted factories use its runtime helpers.
+  // Name each Flutter or SDK enum through its public library unless the
+  // Flutter import above already exports it.
+  final enumImports = <String, Set<String>>{};
+  for (final ref in emittedEntries.expand(_sdkEnumRefs)) {
+    if (reachableEnums.contains(ref)) continue;
+    enumImports
+        .putIfAbsent(publicDartImportUri(ref.libraryUri), () => <String>{})
+        .add(ref.symbolName);
+  }
+  for (final uri in enumImports.keys.toList()..sort()) {
+    final symbols = enumImports[uri]!.toList()..sort();
+    buf.writeln("import '$uri' show ${symbols.join(', ')};");
+  }
+  // Import non-Flutter widget and enum libraries by sorted, deduplicated
+  // source URI. Add the core barrel only when emitted factories use its
+  // runtime helpers.
   final referencesCoreRuntime = factoryDefinitions.any(
     (d) =>
         d.contains('RestageDecoders.') ||
@@ -159,6 +182,8 @@ String _emitRegistrationFile({
   final extraWidgetImports = <String>{
     for (final entry in emittedEntries)
       entry.flutterType.substring(0, entry.flutterType.indexOf('#')),
+    for (final ref in emittedEntries.expand(_enumRefs))
+      if (!_isSdkLibrary(ref.libraryUri)) ref.libraryUri,
   }
     ..removeWhere((uri) => uri == primaryFlutterImport)
     ..removeWhere((uri) => uri.startsWith('package:flutter/'));
@@ -216,6 +241,46 @@ String _emitRegistrationFile({
 /// surface; `material.dart` and `cupertino.dart` re-export `widgets.dart`
 /// so cross-library types (e.g. material's `Icon` from `widgets.dart`)
 /// resolve transitively.
+/// The enums [entry]'s properties name.
+Iterable<DartTypeRef> _enumRefs(WidgetEntry entry) sync* {
+  for (final property in entry.properties) {
+    if (property.valueShape case EnumShape(:final enumRef)) yield enumRef;
+  }
+}
+
+/// The Flutter and Dart SDK enums [entry]'s properties name.
+Iterable<DartTypeRef> _sdkEnumRefs(WidgetEntry entry) =>
+    _enumRefs(entry).where((ref) => _isSdkLibrary(ref.libraryUri));
+
+bool _isSdkLibrary(String uri) =>
+    uri.startsWith('package:flutter/') || uri.startsWith('dart:');
+
+/// The [enums] that [libraryUri] exports from their declaring library.
+///
+/// An unresolvable library exports none, so every enum gets its own import.
+Future<Set<DartTypeRef>> _enumsExportedBy(
+  BuildStep buildStep,
+  String libraryUri,
+  Iterable<DartTypeRef> enums,
+) async {
+  final refs = enums.toSet();
+  if (refs.isEmpty) return const {};
+  final asset = AssetId.resolve(Uri.parse(libraryUri));
+  final LibraryElement exporting;
+  try {
+    if (!await buildStep.resolver.isLibrary(asset)) return const {};
+    exporting = await buildStep.resolver.libraryFor(asset);
+  } on Object {
+    return const {};
+  }
+  return {
+    for (final ref in refs)
+      if (exporting.exportNamespace.get2(ref.symbolName)?.library?.identifier ==
+          ref.libraryUri)
+        ref,
+  };
+}
+
 String _flutterImportFor(WidgetLibrary library) {
   switch (library.namespace) {
     case 'restage.core':

@@ -3,7 +3,7 @@ title: Widget catalog
 description: The built-in Flutter widgets a surface can use, and how to add your own.
 ---
 
-The catalog is the set of widgets a surface can use. The current source has 123 built-in
+The catalog is the set of widgets a surface can use. The current source has 124 built-in
 widgets in three libraries, and your app can add its own.
 
 You don't need to look widgets up before you write a surface. You write the Flutter
@@ -15,7 +15,7 @@ when you want to know what's covered, or when you want to add a widget.
 | Library | Widgets | Covers |
 |---|---|---|
 | [`restage_core`](https://pub.dev/packages/restage_core) | 61 | Layout, structure, and decoration: `Container`, `Column`, `Row`, `Stack`, `SizedBox`, `Padding`, `Center`, `Text`, `Image`, the implicit animations, and more. |
-| [`restage_material`](https://pub.dev/packages/restage_material) | 46 | Material widgets: buttons, `Scaffold`, `AppBar`, `Card`, `ListTile`, chips, tabs, text fields, selection controls, and the interactive widgets below. |
+| [`restage_material`](https://pub.dev/packages/restage_material) | 47 | Material widgets: buttons, `Scaffold`, `AppBar`, `Card`, `ListTile`, chips, tabs, text fields, selection controls, and the interactive widgets below. |
 | [`restage_cupertino`](https://pub.dev/packages/restage_cupertino) | 16 | iOS-style widgets: `CupertinoButton`, navigation bar and page scaffold, list sections, switches, sliders, pickers, and text fields. |
 
 ## You write ordinary Flutter
@@ -86,6 +86,30 @@ platform defaults. The `bottom` slot accepts a `TabBar` or `PreferredSize`, and
 `notificationPredicate` accepts a depth check such as
 `(notification) => notification.depth == 1`, where the depth is an `int`.
 Omitting it keeps Flutter's default predicate.
+
+### Tab pages
+
+Combine `DefaultTabController`, `TabBar`, and `TabBarView` as you would in Flutter:
+
+```dart
+DefaultTabController(
+  length: 2,
+  child: Scaffold(
+    appBar: AppBar(
+      bottom: const TabBar(tabs: [Tab(text: 'One'), Tab(text: 'Two')]),
+    ),
+    body: const TabBarView(
+      children: [Text('First page'), Text('Second page')],
+    ),
+  ),
+)
+```
+
+`TabBarView` uses the nearest `DefaultTabController` and supports `clipBehavior`,
+`dragStartBehavior`, and `viewportFraction`, including fractions greater than one.
+Provide bounded space, such as the `Scaffold.body` above, and matching controller,
+tab, and page counts. Explicit `controller` and `physics` expressions are not
+currently compiled.
 
 ## Widgets with built-in gestures and animation
 

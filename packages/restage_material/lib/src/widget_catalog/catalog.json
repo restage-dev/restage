@@ -5575,6 +5575,89 @@
       ]
     },
     {
+      "wireId": "w0049",
+      "name": "TabBarView",
+      "library": "restage.material",
+      "category": "layout",
+      "description": "A page view that displays the widget which corresponds to the currently selected tab.",
+      "flutterType": "package:flutter/src/material/tabs.dart#TabBarView",
+      "childrenSlot": "list",
+      "properties": [
+        {
+          "wireId": "p0532",
+          "name": "children",
+          "type": "widgetList",
+          "description": "One widget per tab.",
+          "required": true,
+          "priority": "primary"
+        },
+        {
+          "wireId": "p0533",
+          "name": "dragStartBehavior",
+          "type": "enumValue",
+          "description": "{@macro flutter.widgets.scrollable.dragStartBehavior}",
+          "enumType": "DragStartBehavior",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "start"
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/gestures/recognizer.dart",
+              "symbolName": "DragStartBehavior"
+            }
+          }
+        },
+        {
+          "wireId": "p0534",
+          "name": "viewportFraction",
+          "type": "real",
+          "description": "{@macro flutter.widgets.pageview.viewportFraction}",
+          "defaultSource": {
+            "kind": "literal",
+            "value": 1.0
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0535",
+          "name": "clipBehavior",
+          "type": "enumValue",
+          "description": "{@macro flutter.material.Material.clipBehavior}",
+          "enumType": "Clip",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "hardEdge"
+          },
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Clip"
+            }
+          }
+        },
+        {
+          "wireId": "p0536",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
+        }
+      ],
+      "sinceVersion": 15
+    },
+    {
       "wireId": "w0048",
       "name": "TabBar",
       "library": "restage.material",
