@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show Locale;
 import 'dart:typed_data';
 
@@ -210,8 +211,14 @@ abstract class PlacementMountResolver<T extends Object>
   /// The service's latest fallback decision; it counts only when signed.
   PlacementBatchUseFallbackV1? _fallbackDecision;
 
-  /// Whether the mount shows the host's fallback without a receipt yet.
-  bool _hostFallbackUncounted = false;
+  /// The fetch whose answer an uncounted host fallback is waiting on.
+  int? _uncountedTurn;
+
+  /// Fetches started on this mount, in order.
+  int _turns = 0;
+
+  /// The fetch whose answer is being settled.
+  int _answering = 0;
 
   String? _fallbackDetail;
 
@@ -220,7 +227,8 @@ abstract class PlacementMountResolver<T extends Object>
       PlacementBatchUseFallbackV1? decision]) {
     fallbackReason = reason;
     _fallbackDecision = decision;
-    if (_hostFallbackUncounted) _recordHostFallback();
+    // Only the answer the fallback waited on counts it.
+    if (_uncountedTurn == _answering) _recordHostFallback();
     _fallbackDetail = diagnostics
         .where((diagnostic) => diagnostic.code == reason)
         .map((diagnostic) => diagnostic.detail)
@@ -240,7 +248,7 @@ abstract class PlacementMountResolver<T extends Object>
 
   @override
   void hostFallbackShown(SurfaceStoreKey key) {
-    _hostFallbackUncounted = true;
+    _uncountedTurn = _turns;
     _recordHostFallback();
   }
 
@@ -249,7 +257,7 @@ abstract class PlacementMountResolver<T extends Object>
     final decision = _fallbackDecision;
     final receipt = decision?.fallbackReceipt;
     if (decision == null || receipt == null) return;
-    _hostFallbackUncounted = false;
+    _uncountedTurn = null;
     try {
       // Filed under the surface the build couldn't show, or the spot alone.
       final surface = decision.selectedSurface;
@@ -274,7 +282,7 @@ abstract class PlacementMountResolver<T extends Object>
 
   @override
   String? fallbackReasonFor(SurfaceStoreKey key) => fallbackReason == null
-      ? null
+      ? _unansweredReason
       : placementFallbackReason(fallbackReason!, _fallbackDetail);
 
   @override
@@ -381,9 +389,7 @@ abstract class PlacementMountResolver<T extends Object>
         publicationGuard: () => placementHostIsCurrent(declaration.host));
     if (context == null) return const PlacementRefreshProbeV1.unavailable();
     Duration? retryAfter;
-    final response = await registry.client().fetchPlacements(context.request,
-        publicationGuard: context.isCurrent,
-        registrationLease: context.lease,
+    final response = await registry.fetchBatch(context,
         expectedTarget: fallback.decision.descriptor.placement.target,
         onRateLimited: (delay) => retryAfter = delay);
     if (retryAfter != null) {
@@ -402,19 +408,73 @@ abstract class PlacementMountResolver<T extends Object>
   @override
   Future<T?> fresh(SurfaceStoreKey key,
       {required bool sendAssignmentKey, Future<void>? keyDeadline}) async {
-    // A new answer replaces the previous mount's reason.
+    // One fetch at a time per mount, so each answer settles its own report.
+    final previous = _freshInFlight;
+    final done = Completer<void>();
+    _freshInFlight = done.future;
+    // Numbered now, so a fallback shown while this fetch waits is its own.
+    final turn = ++_turns;
+    try {
+      if (previous != null) await previous;
+      _answering = turn;
+      return await _freshInTurn(sendAssignmentKey, keyDeadline);
+    } finally {
+      done.complete();
+      if (identical(_freshInFlight, done.future)) _freshInFlight = null;
+    }
+  }
+
+  Future<void>? _freshInFlight;
+
+  Future<T?> _freshInTurn(
+      bool sendAssignmentKey, Future<void>? keyDeadline) async {
+    try {
+      for (var attempt = 1;; attempt++) {
+        String? noAnswer;
+        var staleBeforeSend = false;
+        final decision = await _freshDecision(sendAssignmentKey, keyDeadline,
+            (reason) => noAnswer = reason, () => staleBeforeSend = true);
+        // Only a request that never left the device is gathered again, so
+        // an answered request is never sent twice.
+        if (staleBeforeSend && attempt < _maxStaleAttempts) continue;
+        if (decision != null || noAnswer == null) return decision;
+        if (noAnswer == placementSupersededReason) return null;
+        return _unanswered(noAnswer!);
+      }
+    } on Exception catch (error) {
+      return _unanswered(SurfaceDeliveryReceiptReason.offline.name, error);
+    }
+  }
+
+  static const _maxStaleAttempts = 3;
+
+  /// A new answer replaces the previous one's reason; until it arrives, an
+  /// earlier render can still read that reason.
+  void _clearAnswer() {
     fallbackReason = null;
-    _pendingSource = null;
     _fallbackDecision = null;
-    _hostFallbackUncounted = false;
+    _unansweredReason = null;
+    freshStarted(storeKey);
+  }
+
+  Future<T?> _freshDecision(
+      bool sendAssignmentKey,
+      Future<void>? keyDeadline,
+      void Function(String reason) noAnswer,
+      void Function() staleBeforeSend) async {
     final context = await registry.capture(
         mounts: [declaration.mount],
         sendAssignmentKey: sendAssignmentKey,
         keyDeadline: keyDeadline,
-        publicationGuard: () => placementHostIsCurrent(declaration.host));
+        publicationGuard: () => placementHostIsCurrent(declaration.host),
+        onDeclined: noAnswer);
     if (context == null) return null;
-    final fetched = await registry.fetch(context, onRefused: _fellBack);
+    final fetched = await registry.fetch(context, onRefused: (reason) {
+      _clearAnswer();
+      _fellBack(reason);
+    }, onNoAnswer: noAnswer, onStaleBeforeSend: staleBeforeSend);
     if (fetched == null) return null;
+    _clearAnswer();
     final entry = fetched.response.decisions.single;
     if (entry is PlacementBatchUseFallbackV1) {
       _fellBack(entry.reason, entry.diagnostics, entry);
@@ -428,11 +488,36 @@ abstract class PlacementMountResolver<T extends Object>
     if (entry is! PlacementBatchAvailableV1) return null;
     final accepted =
         _accept(entry, fetched.artifacts, context, cacheHit: false);
-    if (accepted != null) {
-      fallbackReason = null;
-      _pendingSource = null;
+    if (accepted == null) {
+      noAnswer(SurfaceDeliveryReceiptReason.unsupported.name);
+      return null;
     }
+    // Delivered content replaces any fallback still waiting for a decision.
+    _pendingSource = null;
     return accepted;
+  }
+
+  /// Why the latest fresh fetch brought no usable decision, if it did not.
+  String? _unansweredReason;
+
+  /// Names why no decision arrived, and settles a report waiting for one.
+  T? _unanswered(String reason, [Object? error]) {
+    _clearAnswer();
+    _unansweredReason = reason;
+    // The delivery receipt carries only the reasons it has a value for.
+    if (SurfaceDeliveryReceiptReason.values.asNameMap()[reason]
+        case final receipt?) {
+      freshRefused(storeKey, receipt);
+    }
+    debugLogPlacementNoAnswer(declaration.mount.key, reason, error);
+    final pending = _pendingSource;
+    if (pending != null) {
+      _pendingSource = null;
+      reportSurfaceFallback(
+          reportSurfaceFor(storeKey), reportFallbackSlugFor(storeKey),
+          reason: reason, source: pending);
+    }
+    return null;
   }
 
   @override

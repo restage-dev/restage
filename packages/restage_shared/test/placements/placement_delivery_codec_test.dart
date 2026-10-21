@@ -1351,6 +1351,38 @@ void _batchContractTests() {
       );
     });
 
+    test('no service body may carry the client-only decodeFailed', () {
+      final (request, response, _, _) = _batchFixture();
+      final refused = PlacementBatchResponseV1.refused(
+        reason: PlacementBatchRefusalReasonV1.decodeFailed,
+      );
+      expect(
+        () => PlacementBatchResponseV1.fromCanonicalBytes(
+          refused.canonicalBytes,
+          request: request,
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+      expect(
+        () => PlacementBatchDiagnosticV1.fromJson(
+          {'code': 'decodeFailed', 'detail': null},
+        ),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+      final row = response.toJson();
+      final decisions = row['decisions']! as List<Object?>;
+      final fallback = {
+        'descriptor': (decisions.first! as Map)['descriptor'],
+        'status': 'useFallback',
+        'reason': 'decodeFailed',
+        'diagnostics': <Object?>[],
+      };
+      expect(
+        () => PlacementBatchEntryV1.fromJson(fallback),
+        throwsA(isA<CanonicalFormatException>()),
+      );
+    });
+
     test('refusal and a valid empty response need no target', () {
       final (request, response, _, _) = _batchFixture();
       final refused = PlacementBatchResponseV1.refused(

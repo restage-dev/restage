@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:meta/meta.dart';
 
 import 'raced_surface_resolver.dart';
@@ -104,7 +104,13 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
         settle(RaceFresh<T>(value));
       }
     },
-    onError: (Object error) => freshError = error,
+    onError: (Object error) {
+      freshError = error;
+      if (kDebugMode) {
+        debugPrint('[restage] hosted resolve failed '
+            '(${error.runtimeType}): $error');
+      }
+    },
   ).whenComplete(() {
     freshDone = true;
     if (localDone) settle(localOutcome());

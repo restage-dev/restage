@@ -590,6 +590,9 @@ abstract final class Restage {
       List<RestageSurfaceRef> surfaces) async {
     final apiKey = _apiKey;
     if (apiKey == null) return;
+    // Installed before the first frame, so no mount gathers its request
+    // inputs before the widgets every listed surface draws are in place.
+    _installSurfaceVocabularies(surfaces);
     final generation = _configurationGeneration;
     final placements = placementRegistry;
     // Freeze persisted discovery before a first-frame mount can add itself.
@@ -625,7 +628,6 @@ abstract final class Restage {
       // No binding yet: nothing to render, so nothing to stay off.
     }
     if (generation != _configurationGeneration) return;
-    _installSurfaceVocabularies(surfaces);
     if (placements != null) {
       final generated = placements
           .configure(surfaces.whereType<GeneratedPlacementDefinition>());

@@ -431,7 +431,12 @@ final class RestageFlowController<R> extends ChangeNotifier {
     } on FlowUnavailableError catch (e) {
       _fail(e);
     } on Object catch (e) {
-      _fail(_error('resolve_failed', 'Failed to resolve flow: $e.'));
+      // A programming error keeps its guidance; other failures stay generic.
+      _fail(_error(
+          'resolve_failed',
+          e is Error
+              ? 'Flow "${flow.id}" could not be resolved: $e'
+              : 'Flow "${flow.id}" could not be resolved.'));
     }
   }
 
@@ -510,6 +515,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
         );
       case RaceNone(:final freshError):
         report(null);
+        // A failed hosted fetch is an outage: the compiled flow stays the floor.
+        final compiled = flow.compiled;
+        if (raced != null && compiled != null) return compiled.resolve();
         if (freshError != null) throw freshError;
         throw _error(
           'delivery_unavailable',

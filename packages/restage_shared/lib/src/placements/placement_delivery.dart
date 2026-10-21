@@ -1766,6 +1766,18 @@ enum PlacementBatchRefusalReasonV1 {
 
   /// The held assignment no longer proves; the client forgets it.
   assignmentUnavailable,
+
+  /// The client could not read the service's response.
+  decodeFailed,
+}
+
+/// Reads a reason from a service body; decodeFailed is the client's own.
+PlacementBatchRefusalReasonV1 _wireRefusalReason(String name) {
+  final reason = PlacementBatchRefusalReasonV1.values.byName(name);
+  if (reason == PlacementBatchRefusalReasonV1.decodeFailed) {
+    throw const CanonicalFormatException('Unknown refusal reason.');
+  }
+  return reason;
 }
 
 /// The reason a device records on the receipt for a fallback the service
@@ -1801,8 +1813,7 @@ final class PlacementBatchDiagnosticV1 extends _DeliveryValue {
     final detail = reader.requiredNullableValue('detail');
     return _construct(
       () => PlacementBatchDiagnosticV1(
-        code:
-            PlacementBatchRefusalReasonV1.values.byName(reader.string('code')),
+        code: _wireRefusalReason(reader.string('code')),
         detail:
             detail == null ? null : requireCanonicalString(detail, 'detail'),
       ),
@@ -1886,7 +1897,7 @@ sealed class PlacementBatchEntryV1 extends _DeliveryValue {
         final selected = reader.optionalObject('selectedSurface');
         return PlacementBatchUseFallbackV1(
           PlacementMountDescriptorV1.fromJson(reader.object('descriptor')),
-          PlacementBatchRefusalReasonV1.values.byName(reader.string('reason')),
+          _wireRefusalReason(reader.string('reason')),
           [
             for (final diagnostic in reader.list('diagnostics'))
               PlacementBatchDiagnosticV1.fromJson(diagnostic),
@@ -2215,8 +2226,7 @@ sealed class PlacementBatchResponseV1 extends CanonicalValue
           optional: _confirmationKeys,
         );
         return PlacementBatchRefusedV1(
-          reason: PlacementBatchRefusalReasonV1.values
-              .byName(reader.string('reason')),
+          reason: _wireRefusalReason(reader.string('reason')),
           diagnostics: [
             for (final diagnostic in reader.list('diagnostics'))
               PlacementBatchDiagnosticV1.fromJson(diagnostic),
@@ -2438,7 +2448,8 @@ final class PlacementBatchRefusedV1 extends PlacementBatchResponseV1 {
         super._() {
     if (reason != PlacementBatchRefusalReasonV1.invalidAuthority &&
         reason != PlacementBatchRefusalReasonV1.unknownLocator &&
-        reason != PlacementBatchRefusalReasonV1.invalidRequest) {
+        reason != PlacementBatchRefusalReasonV1.invalidRequest &&
+        reason != PlacementBatchRefusalReasonV1.decodeFailed) {
       throw const CanonicalFormatException(
         'Expected a request refusal reason.',
       );

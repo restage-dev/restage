@@ -11,6 +11,7 @@ import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/delivery/placement_decision_store.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_batch.dart';
+import 'package:restage/src/resolver/placement_mount_resolver.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -492,6 +493,82 @@ void main() {
       } finally {
         await tester.pumpWidget(const SizedBox());
       }
+    });
+
+    testWidgets('a fallback replaced by content is not counted later',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      _configure(requests,
+          respond: (request) => request.mode != PlacementBatchModeV1.mount
+              ? placementFixtureResponse(request)
+              : switch (requests
+                  .where((sent) => sent.mode == PlacementBatchModeV1.mount)
+                  .length) {
+                  1 => _watchedFallback(request),
+                  2 => placementFixtureResponse(request),
+                  _ => _watchedFallback(request,
+                      fallbackReceipt: 'rpf1.k.claims.mac'),
+                });
+      enableReceipts();
+      try {
+        await tester.pumpWidget(slot());
+        await _finish(tester);
+        expect(find.text('Original'), findsOneWidget);
+        await Restage.reloadSurfaces();
+        await _finish(tester);
+        expect(find.text('Welcome'), findsOneWidget);
+        await Restage.reloadSurfaces();
+        await _finish(tester);
+        expect(
+            requests.where((sent) => sent.mode == PlacementBatchModeV1.mount),
+            hasLength(3));
+        expect(find.text('Welcome'), findsOneWidget);
+        expect(await fallbacks(), isEmpty);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a fallback shown while a fetch waits counts on its answer',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final first = Completer<void>();
+      _configure(requests,
+          delayEach: () async {
+            if (requests.length == 1) await first.future;
+          },
+          respond: (request) => requests.length == 1
+              ? _watchedFallback(request)
+              : _watchedFallback(request,
+                  fallbackReceipt: 'rpf1.k.claims.mac'));
+      enableReceipts();
+      final host = readPlacementDeliveryFixture()
+          .request
+          .buildContract
+          .contractsByHash
+          .values
+          .first;
+      final resolver = PlacementPaywallResolver(
+          registry: Restage.placementRegistry!,
+          declaration: PlacementMountBinding(
+              definition: () => _paywallDefinition('queued', host)).capture(),
+          id: 'queued',
+          originalResolver: const UnavailablePlacementPaywallResolver());
+      final key = resolver.storeKey;
+      var settled = 0;
+      resolver
+          .fresh(key, sendAssignmentKey: false)
+          .whenComplete(() => settled++);
+      resolver
+          .fresh(key, sendAssignmentKey: false)
+          .whenComplete(() => settled++);
+      // The mount shows its fallback while the second fetch waits.
+      resolver.hostFallbackShown(key);
+      first.complete();
+      await _finish(tester);
+      expect(settled, 2);
+      expect(requests, hasLength(2));
+      expect(await fallbacks(), hasLength(1));
     });
 
     testWidgets('a fallback with no decision counts nowhere', (tester) async {
