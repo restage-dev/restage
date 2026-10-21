@@ -35,7 +35,7 @@ import '../measurement/restage_measurement.dart' show attachPurchaseExposure;
 import '../measurement/placement_mount_attribution.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart'
-    show measurementExperimentAssignmentFor;
+    show measurementExperimentAssignmentFor, surfaceResolutionSourceFor;
 import '../resolver/surface_delivery_observations.dart'
     show
         SurfaceDeliveryObservationCell,
@@ -53,6 +53,7 @@ import '../resolver/variant_resolver.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/placement_mount_resolver.dart';
 import 'placement_presentation.dart';
+import 'source_badge.dart';
 import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
@@ -282,6 +283,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   final Map<RestageFlowController<void>, MountAttributionSnapshotV1>
       _flowMountAttributions = {};
   Object? _fallbackAttributionIdentity;
+  Object? _errorPaintMarkedFor;
   MountAttributionSnapshotV1? _fallbackMountAttribution;
   RootAnalyticsPresentation? _fallbackAnalyticsPresentation;
   RestageFlowController<void>? _activeFlowMeasurementController;
@@ -2702,7 +2704,25 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      withSourceBadge(_sourceBadgeLabel, _buildContent(context));
+
+  String _sourceBadgeLabel() {
+    final blob = _blobPresentation;
+    final resolver = _flowController?.resolver;
+    final Object? payload = blob != null
+        ? blob.payload
+        : resolver is _PreResolvedFlowResolver
+            ? resolver._payload
+            : null;
+    if (payload == null) return sourceBadgeLabel(null, null);
+    final leaf = placementResolvedLeaf(payload);
+    return sourceBadgeLabel(
+        surfaceResolutionSourceFor(leaf) ?? surfaceResolutionSourceFor(payload),
+        _resolvedPaywallPublishedVersion);
+  }
+
+  Widget _buildContent(BuildContext context) {
     if (_error != null) {
       final error = _error!;
       final builder = widget.errorBuilder;
@@ -2714,7 +2734,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
             )
           : builder == null
               ? const SizedBox.shrink()
-              : builder(context, error);
+              : _markErrorPainted(error, builder(context, error));
       // A refreshed flow stages beside the fallback until it paints.
       final staged = _pendingFlowIsStaged ? _pendingFlowController : null;
       if (staged == null || !_canBuildHostedFlow(staged)) return fallback;
@@ -2764,6 +2784,18 @@ class _RestagePaywallState extends State<RestagePaywall> {
           ),
       ],
     );
+  }
+
+  Widget _markErrorPainted(RestagePaywallError error, Widget child) {
+    if (!identical(_errorPaintMarkedFor, error)) {
+      _errorPaintMarkedFor = error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(_error, error)) {
+          _placementDiscovery.markPainted();
+        }
+      });
+    }
+    return child;
   }
 
   Widget _buildAuthoredFallback(

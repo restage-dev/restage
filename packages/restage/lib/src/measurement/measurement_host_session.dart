@@ -27,6 +27,8 @@ import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import 'placement_mount_attribution.dart';
 import '../resolver/resolved_paywall_payload.dart';
+import '../resolver/surface_resolution_report.dart'
+    show SurfaceResolutionSource;
 import '../resolver/surface_delivery_observations.dart'
     show SurfaceDeliveryObservations;
 import '../runtime/restage.dart';
@@ -44,6 +46,16 @@ MountAttributionSnapshotV1? captureMountAttribution(
   Object? resolved,
 }) {
   if (mount == null) return null;
+  // Hosted content from outside the placement path carries no placement claim.
+  if (resolved != null && resolvedPlacementDeliveryFor(resolved) == null) {
+    final source =
+        surfaceResolutionSourceFor(placementResolvedLeaf(resolved)) ??
+            surfaceResolutionSourceFor(resolved);
+    if (source == SurfaceResolutionSource.fresh ||
+        source == SurfaceResolutionSource.holdLastGood) {
+      return null;
+    }
+  }
   final nonce = reserveMeasurementCaptureSessionNonce();
   return resolved == null
       ? MountAttributionSnapshotV1.original(

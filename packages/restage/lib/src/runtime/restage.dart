@@ -62,6 +62,7 @@ import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/restage_hosted_update_channel.dart';
 import '../refresh/surface_update_channel.dart';
+import '../resolver/placement_fallback_log.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/restage_variant_resolver.dart';
 import '../resolver/surface_resolution_report.dart';
@@ -193,6 +194,11 @@ abstract final class Restage {
   static final RestagePrivacy privacy = RestagePrivacy.internal();
 
   static void Function(SurfaceResolutionReport report)? _onSurfaceResolution;
+  static bool _showSourceBadges = false;
+
+  /// Whether mounts show their content source; always false in release builds.
+  @internal
+  static bool get showSourceBadges => kDebugMode && _showSourceBadges;
   static String? _apiKey;
   static String? _reportedDeliveryConfiguration;
   static String? _baseUrl;
@@ -283,9 +289,13 @@ abstract final class Restage {
   /// install or user identifier. Batches send every 30 seconds and on app
   /// pause. Bounded buffering and retries can miss or duplicate observations.
   /// This option also controls placement declarations and painted bounds.
-  /// Local screen capture still works when reporting is off. Screen and flow
-  /// fallbacks that render nothing report their declarations and any explicit
-  /// capture geometry, without painted bounds.
+  /// Local screen capture still works when reporting is off. Every mounted
+  /// placement reports its declaration, whatever it shows; painted bounds come
+  /// from mounts that painted, including compiled fallbacks.
+  ///
+  /// [showSourceBadges] labels each mounted surface in debug builds with what
+  /// it shows: `compiled` for content built into the app, or `delivered rN`
+  /// for published revision N. Release builds ignore it.
   ///
   /// [surfaces] prefetches generated references after the first frame, without
   /// creating experiment assignments. Previously stored paywalls and listed
@@ -350,6 +360,7 @@ abstract final class Restage {
     bool deliveryReceiptsEnabled = true,
     Duration renderDeadline = const Duration(milliseconds: 300),
     List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
+    bool showSourceBadges = false,
   }) {
     configureWithInstalledCatalog(
       apiKey: apiKey,
@@ -373,6 +384,7 @@ abstract final class Restage {
       deliveryReceiptsEnabled: deliveryReceiptsEnabled,
       renderDeadline: renderDeadline,
       surfaces: surfaces,
+      showSourceBadges: showSourceBadges,
     );
     registerWidgets?.call(
       includeMaterial: includeMaterial,
@@ -435,6 +447,7 @@ abstract final class Restage {
     bool deliveryReceiptsEnabled = true,
     Duration renderDeadline = const Duration(milliseconds: 300),
     List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
+    bool showSourceBadges = false,
   }) {
     if (governedMeasurementTransportEnabled &&
         governedMeasurementTransport != null) {
@@ -454,6 +467,7 @@ abstract final class Restage {
     _placementFlowsEnabled = flowResolver == null;
     _measurementEnabled = measurementEnabled;
     _renderDeadline = renderDeadline;
+    _showSourceBadges = showSourceBadges;
     _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
@@ -1374,6 +1388,7 @@ abstract final class Restage {
     _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
     _measurementEnabled = true;
     _renderDeadline = RenderDeadline.defaultDuration;
+    _showSourceBadges = false;
     unawaited(clearSurfaceArtifactStores());
     _liveRefresh = const {};
     _liveRefreshOverrides = const {};
@@ -1400,6 +1415,7 @@ abstract final class Restage {
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();
     resetRestagePaywallCache();
+    resetPlacementFallbackLog();
     SurfaceRefreshRegistry.instance.debugReset();
     GovernedMeasurementPortRegistry.debugReset();
     _commerceReset = debugResetRestageCommerce();

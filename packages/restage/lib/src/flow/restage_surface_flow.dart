@@ -24,7 +24,9 @@ import '../measurement/measurement_host_session.dart';
 import '../measurement/placement_mount_attribution.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart'
-    show measurementExperimentAssignmentFor;
+    show measurementExperimentAssignmentFor, surfaceResolutionSourceFor;
+import '../resolver/surface_resolution_report.dart'
+    show SurfaceResolutionSource;
 import '../resolver/surface_delivery_observations.dart'
     show
         SurfaceDeliveryObservationCell,
@@ -47,6 +49,7 @@ import 'flow_experiment_mount.dart';
 import 'flow_resolver.dart';
 import '../resolver/placement_mount_resolver.dart';
 import '../runtime/placement_presentation.dart';
+import '../runtime/source_badge.dart';
 import 'flow_runtime_support.dart' show normalizeEventArgs;
 import 'flow_seed.dart';
 import 'flow_transitions.dart';
@@ -1134,6 +1137,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   ) async {
     _controllerPlacementAdmissions[controller] =
         placementAdmissionFor(resolvedOrPayload);
+    _rootSources[controller] =
+        surfaceResolutionSourceFor(placementResolvedLeaf(resolvedOrPayload)) ??
+            surfaceResolutionSourceFor(resolvedOrPayload);
     final snapshot = captureMountAttribution(
         _placementDiscovery.declaration?.mount,
         resolved: resolvedOrPayload);
@@ -1300,9 +1306,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           surfaceId: widget.flow.id,
           owner: this,
         )..markAssignmentUnknown();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(_unavailableError, error)) {
+            _placementDiscovery.markPainted();
+          }
+        });
       }
       final fallback = widget.unavailable.isFallback
-          ? widget.unavailable.fallbackBuilder!(context, error)
+          ? withSourceBadge(() => sourceBadgeLabel(null, null),
+              widget.unavailable.fallbackBuilder!(context, error))
           : const SizedBox.shrink();
       // A refresh stages its candidate beside the fallback until it paints.
       final staged = _pendingIsStaged ? _pendingController : null;
@@ -1326,17 +1338,23 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     // controller (its `onUnavailable` drives the fallback above), so there is
     // no private back-channel here that an advanced composition could not use.
     final pending = _pendingIsStaged ? _pendingController : null;
-    return RestageContextSnapshotScope(
-      snapshot: _context,
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: <Widget>[
-          _buildFlowLayer(controller, staged: false),
-          if (pending != null) _buildFlowLayer(pending, staged: true),
-        ],
+    return withSourceBadge(
+      () => sourceBadgeLabel(
+          _rootSources[controller], controller.resolvedVersion),
+      RestageContextSnapshotScope(
+        snapshot: _context,
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: <Widget>[
+            _buildFlowLayer(controller, staged: false),
+            if (pending != null) _buildFlowLayer(pending, staged: true),
+          ],
+        ),
       ),
     );
   }
+
+  final _rootSources = Expando<SurfaceResolutionSource>();
 
   Widget _buildFlowLayer(
     RestageFlowController<R> controller, {

@@ -561,6 +561,30 @@ void main() {
     });
   });
 
+  test('a verified build is reused only for its exact bytes', () {
+    final (request, _, _, _) = _batchFixture();
+    final json = request.toJson();
+    final reused = PlacementBatchRequestV1.fromJson(
+      json,
+      verifiedBuildContract: (_) => request.buildContract,
+    );
+    expect(reused.buildContract, same(request.buildContract));
+
+    final other = PlacementBuildContractV1(
+      platform: 'android',
+      mounts: request.buildContract.mounts,
+      contractsByHash: request.buildContract.contractsByHash,
+      installedCapability: request.buildContract.installedCapability,
+      installedCapabilityHash: request.buildContract.installedCapabilityHash,
+    );
+    final decoded = PlacementBatchRequestV1.fromJson(
+      json,
+      verifiedBuildContract: (_) => other,
+    );
+    expect(decoded.buildContract, isNot(same(other)));
+    expect(decoded.buildContract, request.buildContract);
+  });
+
   group('discovery and reported geometry', () {
     test('same-key occurrences remain distinct without changing build hash',
         () {

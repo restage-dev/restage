@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'measurement_outbox_protocol.dart';
+import 'measurement_refusal_reason.dart';
 import 'measurement_upload_client_protocol.dart';
 
 /// Builds the `dart:io` exact-byte HTTP upload client inside the worker.
@@ -103,10 +104,17 @@ final class _IoMeasurementUploadClient implements MeasurementUploadClient {
       }
       if (response.statusCode >= HttpStatus.badRequest &&
           response.statusCode < HttpStatus.internalServerError) {
+        final body = responseBytes.takeBytes();
+        assert(() {
+          // ignore: avoid_print
+          print(measurementRefusalLogLine(
+              response.statusCode, measurementRefusalReason(body)));
+          return true;
+        }());
         final fingerprint = lease.registrationFingerprint;
         if (response.statusCode == HttpStatus.badRequest &&
             fingerprint != null &&
-            _isRegistrationRefusal(responseBytes.takeBytes())) {
+            _isRegistrationRefusal(body)) {
           return MeasurementUploadOutcome.registrationRefused(fingerprint);
         }
         return const MeasurementUploadOutcome.rejected(

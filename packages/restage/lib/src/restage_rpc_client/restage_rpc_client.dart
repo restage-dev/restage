@@ -9,6 +9,7 @@ import 'package:restage_shared/commerce.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../delivery/surface_artifact_store.dart' show StoredSurface;
+import '../measurement/measurement_refusal_reason.dart';
 import '../measurement/measurement_sdk_runtime_session.dart'
     show measurementReportedSdkVersion;
 import '../measurement/measurement_resolved_publication_provenance.dart'
@@ -764,6 +765,10 @@ class RestageRpcClient {
       final response = await _client.send(wire);
       if (response.statusCode != 200) {
         checkPublication();
+        if (kDebugMode) {
+          debugPrint('[restage] placement resolve failed with HTTP '
+              '${response.statusCode}; mounts show their fallbacks.');
+        }
         if (response.statusCode == 429) {
           onRateLimited?.call(retryAfterDelay(response.headers['retry-after']));
         }
@@ -909,20 +914,24 @@ class RestageRpcClient {
       case 200:
         return _parseMeasurementIngestAcceptedResponse(response.body);
       case 400:
-        if (registrationAttempt != null &&
+      case 413:
+        _debugLogMeasurementRefusal(response);
+        if (response.statusCode == 400 &&
+            registrationAttempt != null &&
             _isRegistrationRefusal(response.body)) {
           await SurfaceAssignmentKeyProvider.refuseRegistration(
             registrationAttempt,
           );
         }
         return const MeasurementIngestRpcRejected();
-      case 413:
-        return const MeasurementIngestRpcRejected();
       case 401:
+        _debugLogMeasurementRefusal(response);
         return const MeasurementIngestRpcUnauthenticated();
       case 409:
+        _debugLogMeasurementRefusal(response);
         return const MeasurementIngestRpcConflict();
       case 403:
+        _debugLogMeasurementRefusal(response);
         return const MeasurementIngestRpcUnavailable(
           MeasurementIngestRpcUnavailableReason.forbidden,
         );
@@ -940,6 +949,12 @@ class RestageRpcClient {
           MeasurementIngestRpcUnavailableReason.unexpectedStatus,
         );
     }
+  }
+
+  static void _debugLogMeasurementRefusal(http.Response response) {
+    if (!kDebugMode) return;
+    debugPrint(measurementRefusalLogLine(
+        response.statusCode, measurementRefusalReason(response.bodyBytes)));
   }
 
   static bool _isRegistrationRefusal(String source) {

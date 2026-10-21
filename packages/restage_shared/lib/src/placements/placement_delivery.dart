@@ -1390,7 +1390,8 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
         for (final mount in mounts)
           PlacementMountRequestV1.fromJson(mount.toJson()),
       ]),
-      buildContract: PlacementBuildContractV1.fromJson(buildContract.toJson()),
+      // An immutable final value; it needs no defensive copy.
+      buildContract: buildContract,
       appBuildContractHash: appBuildContractHash,
       mode: mode,
       localClock: localClock,
@@ -1426,7 +1427,14 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
   });
 
   /// Decodes a closed request without inventing authenticated target authority.
-  factory PlacementBatchRequestV1.fromJson(Object? value) {
+  ///
+  /// [verifiedBuildContract] may supply an earlier verified build for the
+  /// request's hash; it is used only when the request carries its exact bytes.
+  factory PlacementBatchRequestV1.fromJson(
+    Object? value, {
+    PlacementBuildContractV1? Function(String appBuildContractHash)?
+        verifiedBuildContract,
+  }) {
     _requireJsonBudget(value);
     final reader = _taggedBatchReader(
       value,
@@ -1467,8 +1475,11 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
           for (final mount in reader.list('mounts'))
             PlacementMountRequestV1.fromJson(mount),
         ],
-        buildContract:
-            PlacementBuildContractV1.fromJson(reader.object('buildContract')),
+        buildContract: _verifiedOrDecodedBuild(
+          reader.object('buildContract'),
+          reader.string('appBuildContractHash'),
+          verifiedBuildContract,
+        ),
         appBuildContractHash: reader.string('appBuildContractHash'),
         mode: PlacementBatchModeV1.values.byName(reader.string('mode')),
         localClock: clock == null
@@ -1757,6 +1768,18 @@ enum PlacementBatchRefusalReasonV1 {
   assignmentUnavailable,
 }
 
+/// The reason a device records on the receipt for a fallback the service
+/// decided.
+extension PlacementBatchFallbackReceiptReasonV1
+    on PlacementBatchRefusalReasonV1 {
+  /// `unsupported` when this build cannot show the selected output, else
+  /// `none`.
+  String get fallbackReceiptReason =>
+      this == PlacementBatchRefusalReasonV1.incompatible
+          ? 'unsupported'
+          : 'none';
+}
+
 /// One bounded diagnostic with no private witness fields.
 final class PlacementBatchDiagnosticV1 extends _DeliveryValue {
   /// Creates a diagnostic with an optional bounded public explanation.
@@ -1818,6 +1841,9 @@ sealed class PlacementBatchEntryV1 extends _DeliveryValue {
     PlacementBatchRefusalReasonV1 reason,
     List<PlacementBatchDiagnosticV1> diagnostics, {
     PlacementDeliveryWatchV1? watch,
+    String? fallbackReceipt,
+    DeliverySurfaceLocatorV1? selectedSurface,
+    String? routeId,
   }) = PlacementBatchUseFallbackV1;
 
   /// Decodes a closed row union.
@@ -1849,9 +1875,15 @@ sealed class PlacementBatchEntryV1 extends _DeliveryValue {
           json,
           const {'status', 'descriptor', 'reason', 'diagnostics'},
           'batchEntry',
-          optional: const {'watch'},
+          optional: const {
+            'watch',
+            'fallbackReceipt',
+            'selectedSurface',
+            'routeId',
+          },
         );
         final watch = reader.optionalObject('watch');
+        final selected = reader.optionalObject('selectedSurface');
         return PlacementBatchUseFallbackV1(
           PlacementMountDescriptorV1.fromJson(reader.object('descriptor')),
           PlacementBatchRefusalReasonV1.values.byName(reader.string('reason')),
@@ -1861,6 +1893,11 @@ sealed class PlacementBatchEntryV1 extends _DeliveryValue {
           ],
           watch:
               watch == null ? null : PlacementDeliveryWatchV1.fromJson(watch),
+          fallbackReceipt: reader.optionalString('fallbackReceipt'),
+          selectedSurface: selected == null
+              ? null
+              : DeliverySurfaceLocatorV1.fromJson(selected),
+          routeId: reader.optionalString('routeId'),
         );
       }
       throw const CanonicalFormatException('Unknown batch entry status.');
@@ -2039,11 +2076,17 @@ final class PlacementBatchUseFallbackV1 extends PlacementBatchEntryV1 {
     this.reason,
     List<PlacementBatchDiagnosticV1> diagnostics, {
     PlacementDeliveryWatchV1? watch,
+    this.fallbackReceipt,
+    this.selectedSurface,
+    this.routeId,
   })  : diagnostics = _freezeDiagnostics(diagnostics),
         watch = watch == null
             ? null
             : PlacementDeliveryWatchV1.fromJson(watch.toJson()),
         super._() {
+    if (routeId != null && !_fallbackRouteIdPattern.hasMatch(routeId!)) {
+      throw const CanonicalFormatException('A fallback route id is malformed.');
+    }
     if (this.watch != null &&
         (this.watch!.channels.length != 1 ||
             this.watch!.channels.single.scope != fallbackWatchScope)) {
@@ -2069,6 +2112,16 @@ final class PlacementBatchUseFallbackV1 extends PlacementBatchEntryV1 {
   /// Optional live watch that reports when this placement may now deliver.
   final PlacementDeliveryWatchV1? watch;
 
+  /// The service's signed fallback decision, which a fallback receipt carries.
+  final String? fallbackReceipt;
+
+  /// The surface the service selected and this build cannot show; null when
+  /// nothing was selected.
+  final DeliverySurfaceLocatorV1? selectedSurface;
+
+  /// The placement rule that selected [selectedSurface], when one did.
+  final String? routeId;
+
   @override
   Map<String, Object?> toJson() => {
         'status': 'useFallback',
@@ -2078,8 +2131,15 @@ final class PlacementBatchUseFallbackV1 extends PlacementBatchEntryV1 {
           for (final diagnostic in diagnostics) diagnostic.toJson(),
         ],
         if (watch != null) 'watch': watch!.toJson(),
+        if (fallbackReceipt != null) 'fallbackReceipt': fallbackReceipt!,
+        if (selectedSurface != null)
+          'selectedSurface': selectedSurface!.toJson(),
+        if (routeId != null) 'routeId': routeId!,
       };
 }
+
+final RegExp _fallbackRouteIdPattern =
+    RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$');
 
 /// A complete batch response or a refusal before any descriptor admission.
 sealed class PlacementBatchResponseV1 extends CanonicalValue
@@ -2948,6 +3008,21 @@ InstalledCapability _strictCapability(Map<String, Object?> json) {
   return result;
 }
 
+PlacementBuildContractV1 _verifiedOrDecodedBuild(
+  Map<String, Object?> json,
+  String appBuildContractHash,
+  PlacementBuildContractV1? Function(String)? verified,
+) {
+  final known = verified?.call(appBuildContractHash);
+  if (known != null &&
+      known.appBuildContractHash == appBuildContractHash &&
+      _compareBytes(CanonicalJsonCodec.encode(json), known.canonicalBytes) ==
+          0) {
+    return known;
+  }
+  return PlacementBuildContractV1.fromJson(json);
+}
+
 bool _sameJson(Object? left, Object? right) =>
     _compareBytes(
       CanonicalJsonCodec.encode(left),
@@ -3006,6 +3081,17 @@ final class _JsonBudget {
   }
 
   void addJson(Object? value) {
+    // Scalars are counted without an iterator or an encoding.
+    switch (value) {
+      case String():
+        return _addString(value);
+      case int() when _isCompactInteger(value):
+        return _add(value.toString().length);
+      case null:
+        return _add(4);
+      case bool():
+        return _add(value ? 4 : 5);
+    }
     final pending = <Iterator<Object?>>[
       <Object?>[value].iterator,
     ];
@@ -3027,11 +3113,17 @@ final class _JsonBudget {
           pending.add(list.iterator);
         case String():
           _addString(iterator.current! as String);
+        case final int integer when _isCompactInteger(integer):
+          _add(integer.toString().length);
         default:
           _add(CanonicalJsonCodec.encode(iterator.current).length);
       }
     }
   }
+
+  // Well inside the portable range, so the canonical form is its decimal.
+  static bool _isCompactInteger(int value) =>
+      value > -0x10000000000000 && value < 0x10000000000000;
 
   void _addString(String value) {
     // UTF-16 length is a lower bound on canonical UTF-8 string length.

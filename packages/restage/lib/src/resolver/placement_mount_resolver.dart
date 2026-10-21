@@ -7,6 +7,8 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
 
 import '../delivery/raced_surface_resolver.dart';
+import '../delivery/surface_delivery_receipt_batch.dart';
+import '../delivery/surface_delivery_receipt.dart';
 import '../delivery/surface_artifact_store.dart';
 import '../delivery/surface_sections_carrier.dart';
 import '../flow/flow_descriptors.dart';
@@ -20,6 +22,8 @@ import '../runtime/placement_presentation.dart';
 import '../measurement/placement_mount_attribution.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../surface_screen/surface_screen_types.dart';
+import 'placement_fallback_log.dart';
+import 'report_surface_resolution.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
 import 'surface_resolution_report.dart';
@@ -43,7 +47,7 @@ final class PlacementFallbackWatch {
   PlacementRefreshStateV1 get refreshState => (
         mount: decision.descriptor,
         decisionIdentityDigest: watch.decisionIdentityDigest,
-        dependencies: {decision.fallbackWatchScope},
+        dependencies: {for (final channel in watch.channels) channel.scope},
       );
 }
 
@@ -197,6 +201,86 @@ abstract class PlacementMountResolver<T extends Object>
   /// Called when a fresh fallback decision changes the watched fallback.
   void Function()? onFallbackChanged;
 
+  /// The server's reason for the latest fallback; null after a delivery.
+  PlacementBatchRefusalReasonV1? fallbackReason;
+
+  /// The source a mount settled on before the server's reason arrived.
+  SurfaceResolutionSource? _pendingSource;
+
+  /// The service's latest fallback decision; it counts only when signed.
+  PlacementBatchUseFallbackV1? _fallbackDecision;
+
+  /// Whether the mount shows the host's fallback without a receipt yet.
+  bool _hostFallbackUncounted = false;
+
+  String? _fallbackDetail;
+
+  void _fellBack(PlacementBatchRefusalReasonV1 reason,
+      [List<PlacementBatchDiagnosticV1> diagnostics = const [],
+      PlacementBatchUseFallbackV1? decision]) {
+    fallbackReason = reason;
+    _fallbackDecision = decision;
+    if (_hostFallbackUncounted) _recordHostFallback();
+    _fallbackDetail = diagnostics
+        .where((diagnostic) => diagnostic.code == reason)
+        .map((diagnostic) => diagnostic.detail)
+        .firstOrNull;
+    debugLogPlacementFallback(declaration.mount.key, reason,
+        detail: _fallbackDetail);
+    final pending = _pendingSource;
+    if (pending != null) {
+      // The mount settled on local content before the server answered.
+      _pendingSource = null;
+      reportSurfaceFallback(
+          reportSurfaceFor(storeKey), reportFallbackSlugFor(storeKey),
+          reason: placementFallbackReason(reason, _fallbackDetail),
+          source: pending);
+    }
+  }
+
+  @override
+  void hostFallbackShown(SurfaceStoreKey key) {
+    _hostFallbackUncounted = true;
+    _recordHostFallback();
+  }
+
+  /// A fallback counts only on the service's own signed decision.
+  void _recordHostFallback() {
+    final decision = _fallbackDecision;
+    final receipt = decision?.fallbackReceipt;
+    if (decision == null || receipt == null) return;
+    _hostFallbackUncounted = false;
+    try {
+      // Filed under the surface the build couldn't show, or the spot alone.
+      final surface = decision.selectedSurface;
+      SurfaceDeliveryReceiptBatch.instance.recordFallback(
+          surfaceType: surface == null
+              ? null
+              : Surface.fromWireName(surface.surfaceType.value),
+          surfaceSlug: surface?.slug,
+          routeId: decision.routeId ?? '',
+          fallbackReceipt: receipt,
+          reason: SurfaceDeliveryReceiptReason.values
+              .byName(decision.reason.fallbackReceiptReason));
+    } on Object {
+      // A receipt never fails a resolution.
+    }
+  }
+
+  @override
+  void fallbackReportedWithoutReason(
+          SurfaceStoreKey key, SurfaceResolutionSource source) =>
+      _pendingSource = source;
+
+  @override
+  String? fallbackReasonFor(SurfaceStoreKey key) => fallbackReason == null
+      ? null
+      : placementFallbackReason(fallbackReason!, _fallbackDetail);
+
+  @override
+  String reportFallbackSlugFor(SurfaceStoreKey key) =>
+      declaration.mount.defaultSurface?.slug ?? declaration.mount.key.slug;
+
   @override
   SurfaceStoreKey get storeKey =>
       registry.decisions.mountKey(declaration.mount);
@@ -318,16 +402,22 @@ abstract class PlacementMountResolver<T extends Object>
   @override
   Future<T?> fresh(SurfaceStoreKey key,
       {required bool sendAssignmentKey, Future<void>? keyDeadline}) async {
+    // A new answer replaces the previous mount's reason.
+    fallbackReason = null;
+    _pendingSource = null;
+    _fallbackDecision = null;
+    _hostFallbackUncounted = false;
     final context = await registry.capture(
         mounts: [declaration.mount],
         sendAssignmentKey: sendAssignmentKey,
         keyDeadline: keyDeadline,
         publicationGuard: () => placementHostIsCurrent(declaration.host));
     if (context == null) return null;
-    final fetched = await registry.fetch(context);
+    final fetched = await registry.fetch(context, onRefused: _fellBack);
     if (fetched == null) return null;
     final entry = fetched.response.decisions.single;
     if (entry is PlacementBatchUseFallbackV1) {
+      _fellBack(entry.reason, entry.diagnostics, entry);
       final watch = entry.watch;
       final previous = currentFallback?.watch;
       currentFallback =
@@ -335,9 +425,14 @@ abstract class PlacementMountResolver<T extends Object>
       // A renewed token resubscribes even when the decision is unchanged.
       if (watch != previous) onFallbackChanged?.call();
     }
-    return entry is PlacementBatchAvailableV1
-        ? _accept(entry, fetched.artifacts, context, cacheHit: false)
-        : null;
+    if (entry is! PlacementBatchAvailableV1) return null;
+    final accepted =
+        _accept(entry, fetched.artifacts, context, cacheHit: false);
+    if (accepted != null) {
+      fallbackReason = null;
+      _pendingSource = null;
+    }
+    return accepted;
   }
 
   @override
@@ -502,7 +597,7 @@ final class PlacementFlowResolver extends PlacementMountResolver<ResolvedFlow>
       (throw FlowUnavailableError(
           flowId: flow.id,
           flowVersion: flow.version,
-          reason: 'placement_unavailable',
+          reason: fallbackReason?.name ?? 'placement_unavailable',
           message: 'No placement content is available.'));
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> child) async {
@@ -600,7 +695,8 @@ final class PlacementPaywallResolver
           {String? placementId, Locale? locale}) async =>
       await fresh(storeKey, sendAssignmentKey: true) ??
       await bestLocal(storeKey) ??
-      (throw StateError('No placement content is available.'));
+      (throw StateError('No placement content is available'
+          '${fallbackReason == null ? '' : ' (${fallbackReason!.name})'}.'));
   @override
   ResolvedPaywallPayload? convert(PlacementDeliveryAdmission admission,
       PlacementDeliveryArtifacts artifacts,

@@ -81,6 +81,9 @@ intentional. New native components and capability changes still need an app buil
 2. Inspect the generated readable RFW inside the `.rsbundle` under
    `.restage/build/bundles/`. A bundle is a ZIP container: `unzip -l <bundle>`
    lists its entries; `unzip -p <bundle> '*.rfwtxt'` prints the readable output.
+   Without `unzip`, `python3 -m zipfile -l <bundle>` lists the entries, and
+   `python3 -c "import sys, zipfile; print(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode())" <bundle> <entry>`
+   prints one of them.
    Read it to understand composition; change Dart and regenerate to alter it.
 3. Test the generated mount without hosted content or surface assets. Confirm the
    original widget renders, inputs reach it and events reach the host.

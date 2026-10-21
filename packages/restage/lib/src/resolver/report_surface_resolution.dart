@@ -17,6 +17,7 @@ T reportSurfaceResolution<T extends Object>(
   T resolved,
   SurfaceResolutionSource source, {
   SurfaceDeliveryReceiptReason reason = SurfaceDeliveryReceiptReason.none,
+  String? reportReason,
 }) {
   attachMeasurementPublicationBindingReference(
     resolved,
@@ -30,6 +31,7 @@ T reportSurfaceResolution<T extends Object>(
         surface: surface,
         surfaceType: surfaceType,
         source: source,
+        reason: reportReason,
         selectedRouteId: selection?.selectedRouteId,
         audienceRevisionRef: selection?.audienceRevisionRef,
         routingRevisionOrdinal: selection?.routingRevisionOrdinal,
@@ -58,4 +60,21 @@ T reportSurfaceResolution<T extends Object>(
     // A receipt never fails a resolution.
   }
   return resolved;
+}
+
+/// Reports the server [reason] for a mount that showed [source] content.
+@internal
+void reportSurfaceFallback(Surface surfaceType, String surface,
+    {required String reason,
+    SurfaceResolutionSource source = SurfaceResolutionSource.bundled}) {
+  try {
+    Restage.configuredSurfaceResolutionCallback?.call(SurfaceResolutionReport(
+      surface: surface,
+      surfaceType: surfaceType,
+      source: source,
+      reason: reason,
+    ));
+  } on Object {
+    // A host's reporting callback never fails a resolution.
+  }
 }

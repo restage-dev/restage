@@ -252,6 +252,31 @@ void main() {
     await session.teardown();
   });
 
+  test('surface-route content on a placement mount makes no placement claim',
+      () {
+    final fixture = readPlacementDeliveryFixture();
+    final mount = fixture.request.mounts.first;
+    ResolvedVariant variant() => ResolvedVariant(
+        bytes: fixture.response.artifacts.single.bytes,
+        paywallId: 'welcome',
+        surfaceVersion: 'selected');
+    for (final source in [
+      SurfaceResolutionSource.fresh,
+      SurfaceResolutionSource.holdLastGood
+    ]) {
+      final hosted = labelSurfaceSource(variant(), source);
+      expect(captureMountAttribution(mount, resolved: hosted), isNull,
+          reason: source.name);
+    }
+    final bundled =
+        labelSurfaceSource(variant(), SurfaceResolutionSource.bundled);
+    expect(
+        captureMountAttribution(mount, resolved: bundled)!
+            .attribution
+            .resolutionKind,
+        MountResolutionKindV1.compiledFallback);
+  });
+
   test('local fallback has no fabricated publication or Measurement binding',
       () {
     final fixture = readPlacementDeliveryFixture();

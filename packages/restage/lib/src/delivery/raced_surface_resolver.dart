@@ -138,11 +138,23 @@ void reportRacedSurface<T>(
   if (resolver is! RacedSurfaceReporting<T>) return;
   final reporting = resolver as RacedSurfaceReporting<T>;
   if (winner == null) {
+    reporting.hostFallbackShown(key);
     SurfaceDeliveryReceiptBatch.instance.noteRefusal(
       reporting.reportSurfaceFor(key),
       key.slug,
       reporting.localReasonFor(key),
     );
+    final reason = reporting.fallbackReasonFor(key);
+    if (reason != null) {
+      reportSurfaceFallback(
+        reporting.reportSurfaceFor(key),
+        reporting.reportFallbackSlugFor(key),
+        reason: reason,
+      );
+    } else {
+      reporting.fallbackReportedWithoutReason(
+          key, SurfaceResolutionSource.bundled);
+    }
     return;
   }
   final leaf = reporting.reportedLeafOf(winner);
@@ -157,7 +169,14 @@ void reportRacedSurface<T>(
     reason: source == SurfaceResolutionSource.fresh
         ? SurfaceDeliveryReceiptReason.none
         : reporting.localReasonFor(key),
+    reportReason: source == SurfaceResolutionSource.fresh
+        ? null
+        : reporting.fallbackReasonFor(key),
   );
+  if (source != SurfaceResolutionSource.fresh &&
+      reporting.fallbackReasonFor(key) == null) {
+    reporting.fallbackReportedWithoutReason(key, source);
+  }
   reporting.winnerReported(key, winner);
 }
 
@@ -356,6 +375,20 @@ mixin RacedSurfaceReporting<T> {
 
   /// The served content identity, when it differs from the request key.
   String reportSlugFor(SurfaceStoreKey key, T winner) => key.slug;
+
+  /// The identity a mount showing its own fallback reports under.
+  String reportFallbackSlugFor(SurfaceStoreKey key) => key.slug;
+
+  /// The server's reason the latest fresh fetch for [key] fell back, if any.
+  String? fallbackReasonFor(SurfaceStoreKey key) => null;
+
+  /// Called when a mount for [key] showed the host's own fallback.
+  void hostFallbackShown(SurfaceStoreKey key) {}
+
+  /// Called when a mount for [key] rendered local content from [source]
+  /// before a reason.
+  void fallbackReportedWithoutReason(
+      SurfaceStoreKey key, SurfaceResolutionSource source) {}
 
   /// The store this resolver persists accepted deliveries in.
   SurfaceArtifactStore get store;
